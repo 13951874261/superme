@@ -1,0 +1,1269 @@
+app:
+  description: 国网公司公文编制工作流；十模型并行起草，汇总对比后选出最优版本并形成适合方案、通知、报告等正式场景的定稿版本。
+  icon: 📄
+  icon_background: '#E8F1FF'
+  icon_type: emoji
+  mode: advanced-chat
+  name: gov_doc_workflow
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods:
+      - remote_url
+      - local_file
+      enabled: true
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: true
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: true
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: e1
+      source: start_1
+      sourceHandle: source
+      target: llm_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: e2
+      source: start_1
+      sourceHandle: source
+      target: llm_2
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: e3
+      source: start_1
+      sourceHandle: source
+      target: llm_3
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: e4
+      source: start_1
+      sourceHandle: source
+      target: llm_4
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: e5
+      source: start_1
+      sourceHandle: source
+      target: llm_5
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e6
+      selected: false
+      source: llm_1
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e7
+      selected: false
+      source: llm_2
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e8
+      selected: false
+      source: llm_3
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e9
+      selected: false
+      source: llm_4
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e10
+      selected: false
+      source: llm_5
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e11
+      selected: false
+      source: llm_6
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e12
+      selected: false
+      source: llm_7
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e13
+      selected: false
+      source: llm_8
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e14
+      selected: false
+      source: llm_9
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e15
+      selected: false
+      source: llm_10
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: e11
+      selected: false
+      source: merge_1
+      sourceHandle: source
+      target: answer_1
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables:
+        - label: 原始内容
+          max_length: 6000
+          required: true
+          type: paragraph
+          variable: original_content
+        - label: 整体要求
+          max_length: 6000
+          required: true
+          type: paragraph
+          variable: overall_requirements
+        - label: 参考范文
+          max_length: 6000
+          required: false
+          type: paragraph
+          variable: reference_sample
+      height: 161
+      id: start_1
+      position:
+        x: 0
+        y: 299
+      positionAbsolute:
+        x: 0
+        y: 299
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.35
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_a
+          role: system
+          text: '你是国网公司公文编制专家，负责方案类文本起草。
+
+
+            任务定位：
+
+            1. 输出一版适合“方案”体例的正式公文草稿。
+
+            2. 行文稳重、层次清楚、表达规范。
+
+            3. 重点突出目标导向、任务分解、责任链条和落地措施。
+
+            4. 必须严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            5. 有参考范文时完全跟随其内容组织逻辑，未提供示例时只做最小必要成文。
+
+
+            模板侧重：
+
+            - 适合“实施方案”“工作方案”场景
+
+            - 适合上会、印发、内部征求意见
+
+            - 标题、背景、目标、任务、保障五段式结构
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题，不得新增无依据事实。
+
+            3. 有参考范文时完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 参考范文中的内容组织逻辑优先于默认公文格式；仅在不改变主题内容的前提下做必要适配，不得套用固定模板。
+
+            5. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            6. 语言应正式、凝练、可直接用于成稿。
+
+            7. 只输出方案正文，不输出分析过程、说明或注释。
+
+            '
+        selected: false
+        title: 并行起草·模型A
+        type: llm
+      height: 88
+      id: llm_1
+      position:
+        x: 362
+        y: 0
+      positionAbsolute:
+        x: 362
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.45
+          mode: chat
+          name: '104'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_b
+          role: system
+          text: '你是国网公司公文编制专家，负责通知类文本起草。
+
+
+            任务定位：
+
+            1. 输出一版适合“通知”体例的正式公文草稿。
+
+            2. 重点体现工作部署、执行要求、口径统一和时限约束。
+
+            3. 语言简洁、明确、具有指令性。
+
+            4. 必须严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            5. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            模板侧重：
+
+            - 适合“通知”“关于...的通知”场景
+
+            - 适合传达工作要求、部署任务、明确责任
+
+            - 表述应直接、清晰、便于执行
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 参考范文中的内容组织逻辑优先于默认公文格式；仅在不改变主题内容的前提下做必要适配，不得套用固定模板。
+
+            5. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            6. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+            6. 语言应简洁明确、指令清晰、便于落实。
+
+            7. 只输出通知正文，不输出分析过程、说明或注释。
+
+            '
+        selected: false
+        title: 并行起草·模型B
+        type: llm
+      height: 88
+      id: llm_2
+      position:
+        x: 362
+        y: 168
+      positionAbsolute:
+        x: 362
+        y: 168
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: '106'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_c
+          role: system
+          text: '你是国网公司公文编制专家，负责报告类文本起草。
+
+
+            任务定位：
+
+            1. 输出一版适合“报告”体例的正式公文草稿。
+
+            2. 重点体现现状、问题、进展、成效和下一步安排。
+
+            3. 语言客观、克制、数据化、结论前置。
+
+            4. 必须严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            5. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            模板侧重：
+
+            - 适合“工作报告”“专题报告”“情况报告”场景
+
+            - 适合汇报进展、分析问题、提出建议
+
+            - 表达应偏归纳总结，少口号化表述
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 参考范文中的内容组织逻辑优先于默认公文格式；仅在不改变主题内容的前提下做必要适配，不得套用固定模板。
+
+            5. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            6. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+            6. 语言应客观、克制、简洁，便于汇报或上报。
+
+            7. 只输出报告正文，不输出分析过程、说明或注释。 '
+        selected: false
+        title: 并行起草·模型C
+        type: llm
+      height: 88
+      id: llm_3
+      position:
+        x: 362
+        y: 336
+      positionAbsolute:
+        x: 362
+        y: 336
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.55
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_d
+          role: system
+          text: '你是国网公司公文编制专家，负责综合定稿稿件。
+
+
+            任务定位：
+
+            1. 综合前四个模型的有效表达，形成最适合上会、上报、印发的定稿。
+
+            2. 定稿应更短、更稳、更像正式公文成文。
+
+            3. 优先保留可直接执行、可检查、可落地的表述。
+
+            4. 必须严格按照原始内容、整体要求及参考范文（如有）进行综合，确保主题内容不变、不扩写不跑题。
+
+            5. 不要有默认的格式；最终定稿应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            写作原则：
+
+            - 标题简洁规范
+
+            - 正文突出主旨、目标、任务、保障
+
+            - 删除重复表述，压缩修饰语
+
+            - 以正式公文语体输出
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 参考范文中的内容组织逻辑优先于默认公文格式；仅在不改变主题内容的前提下做必要适配，不得套用固定模板。
+
+            5. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            6. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+            6. 语言应更短、更稳、更凝练，适合直接使用。
+
+            7. 只输出定稿正文，不输出分析过程、说明或注释。 '
+        selected: false
+        title: 并行起草·模型D
+        type: llm
+      height: 88
+      id: llm_4
+      position:
+        x: 362
+        y: 504
+      positionAbsolute:
+        x: 362
+        y: 504
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.25
+          mode: chat
+          name: '56'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_e
+          role: system
+          text: '你是国网公司公文审校与定稿专家，负责最终压缩版定稿。
+
+
+            输出要求：
+
+            1. 只输出最终定稿，不输出对比过程。
+
+            2. 控制篇幅，适合直接上会、上报或印发。
+
+            3. 结构保持完整，但表达更凝练。
+
+            4. 重点保留政策指向、任务安排和保障要求。
+
+            5. 用语必须正式、稳妥、符合国网公司公文规范。
+
+            6. 必须严格按照原始内容、整体要求及参考范文（如有）进行定稿，确保主题内容不变、不扩写不跑题。
+
+            7. 不要有默认的格式；最终输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 不得新增无依据事实，不得偏离原始内容核心。
+
+            2. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            3. 参考范文中的内容组织逻辑优先于默认公文格式；仅在不改变主题内容的前提下做必要适配，不得套用固定模板。
+
+            4. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            5. 定稿应尽量整合十个并行模型中最稳妥、最可直接成文的表达，去重并压缩冗余。
+
+            6. 只输出最终定稿正文，不输出分析过程、说明或注释。
+
+
+            用户材料：{{#sys.query#}}
+
+            '
+        selected: false
+        title: 并行起草·模型E
+        type: llm
+      height: 88
+      id: llm_5
+      position:
+        x: 362
+        y: 672
+      positionAbsolute:
+        x: 362
+        y: 672
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.32
+          mode: chat
+          name: '107'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_f
+          role: system
+          text: '你是国网公司公文编制专家，负责补充并行起草。
+
+
+            任务定位：
+
+            1. 输出一版正式公文草稿。
+
+            2. 语言稳重、层次清楚、表达规范。
+
+            3. 严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            4. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            5. 只输出正文，不输出分析过程、说明或注释。'
+        selected: false
+        title: 并行起草·模型F
+        type: llm
+      height: 88
+      id: llm_6
+      position:
+        x: 362
+        y: 840
+      positionAbsolute:
+        x: 362
+        y: 840
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.28
+          mode: chat
+          name: '108'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_g
+          role: system
+          text: '你是国网公司公文编制专家，负责补充并行起草。
+
+
+            任务定位：
+
+            1. 输出一版正式公文草稿。
+
+            2. 语言稳重、层次清楚、表达规范。
+
+            3. 严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            4. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            5. 只输出正文，不输出分析过程、说明或注释。'
+        selected: false
+        title: 并行起草·模型G
+        type: llm
+      height: 88
+      id: llm_7
+      position:
+        x: 362
+        y: 1008
+      positionAbsolute:
+        x: 362
+        y: 1008
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.22
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_h
+          role: system
+          text: '你是国网公司公文编制专家，负责补充并行起草。
+
+
+            任务定位：
+
+            1. 输出一版正式公文草稿。
+
+            2. 语言稳重、层次清楚、表达规范。
+
+            3. 严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            4. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            5. 只输出正文，不输出分析过程、说明或注释。'
+        selected: false
+        title: 并行起草·模型H
+        type: llm
+      height: 88
+      id: llm_8
+      position:
+        x: 362
+        y: 1176
+      positionAbsolute:
+        x: 362
+        y: 1176
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: '110'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_i
+          role: system
+          text: '你是国网公司公文编制专家，负责补充并行起草。
+
+
+            任务定位：
+
+            1. 输出一版正式公文草稿。
+
+            2. 语言稳重、层次清楚、表达规范。
+
+            3. 严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            4. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            5. 只输出正文，不输出分析过程、说明或注释。'
+        selected: false
+        title: 并行起草·模型I
+        type: llm
+      height: 88
+      id: llm_9
+      position:
+        x: 362
+        y: 1344
+      positionAbsolute:
+        x: 362
+        y: 1344
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.18
+          mode: chat
+          name: '111'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_j
+          role: system
+          text: '你是国网公司公文编制专家，负责补充并行起草。
+
+
+            任务定位：
+
+            1. 输出一版正式公文草稿。
+
+            2. 语言稳重、层次清楚、表达规范。
+
+            3. 严格按照原始内容、整体要求及参考范文（如有）进行输出，确保主题内容不变、不扩写不跑题。
+
+            4. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+
+            输入材料（严格约束，必须遵从）：
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            写作要求：
+
+            1. 严格基于原始内容和整体要求，不得新增无依据事实。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题。
+
+            3. 有参考范文时，必须完全跟随其内容组织逻辑、结构顺序、段落推进和收束方式，不得自行改写成其他模板化结构。
+
+            4. 若参考范文为空，只做最小必要成文，围绕原始内容和整体要求自然组织，不套固定公文模板。
+
+            5. 只输出正文，不输出分析过程、说明或注释。'
+        selected: false
+        title: 并行起草·模型J
+        type: llm
+      height: 88
+      id: llm_10
+      position:
+        x: 362
+        y: 1512
+      positionAbsolute:
+        x: 362
+        y: 1512
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: hermes
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: prompt_merge
+          role: system
+          text: '你是裁判与编辑，只做十模型答案对比、量化评审、自动选优与定稿，不新增事实，不改变用户材料核心含义。
+
+
+            【输入材料（必须严格遵从）】
+
+            - 原始内容（必填）：{{#start_1.original_content#}}
+
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+
+            【自动选优规则】
+
+            1. 先分别评估十个模型答案，必须按同一标准打分，分值为 1-5 分。
+
+            2. 评分维度固定为：
+
+            - 主题贴合度：是否严格围绕原始内容与整体要求。
+
+            - 结构完整度：是否成文完整、层次清楚。
+
+            - 规范性：是否符合国网公司正式公文语体。
+
+            - 约束遵从度：是否避免扩写、跑题、虚构事实。
+
+            - 可直接使用度：是否适合直接上会、上报或印发。
+
+            3. 先计算总分，再优先选择总分最高者。
+
+            4. 若总分并列，按以下顺序决胜：
+
+            - 更贴近参考范文者优先；
+
+            - 更短、更稳、更克制者优先；
+
+            - 结构更完整者优先；
+
+            - 语气更正式、更像最终定稿者优先。
+
+            5. 主稿只能选 1 个，不得同时选多个。
+
+            6. 最终定稿应以主稿为骨架，吸收其他高分答案中更稳妥、无冲突、可直接成文的表达；如无明显增益则直接采用主稿。
+
+
+            【约束规则】
+
+            1. 必须严格依据原始内容、整体要求及参考范文（如有）编制，禁止偏离。
+
+            2. 主题内容必须保持不变，不得扩写、不跑题，不得新增无依据事实。
+
+            3. 若提供参考范文，必须对齐其体例、语气、结构、段落节奏和文种口吻。
+
+            4. 参考范文仅作范式参考，不得照抄事实或段落。
+
+            5. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+            6. 定稿必须尽量短、稳、准，去掉重复、空泛、修饰性表达。
+
+
+            【模型A全文】
+
+            {{#llm_1.text#}}
+
+
+            【模型B全文】
+
+            {{#llm_2.text#}}
+
+
+            【模型C全文】
+
+            {{#llm_3.text#}}
+
+
+            【模型D全文】
+
+            {{#llm_4.text#}}
+
+
+            【模型E全文】
+
+            {{#llm_5.text#}}
+
+
+            【模型F全文】
+
+            {{#llm_6.text#}}
+
+
+            【模型G全文】
+
+            {{#llm_7.text#}}
+
+
+            【模型H全文】
+
+            {{#llm_8.text#}}
+
+
+            【模型I全文】
+
+            {{#llm_9.text#}}
+
+
+            【模型J全文】
+
+            {{#llm_10.text#}}
+
+
+            输出要求：
+
+            1. 先输出 Markdown 表格，对十个模型在以下维度进行对比：主题贴合度、结构完整度、规范性、约束遵从度、可直接使用度，并给出每项分数和总分。
+
+            2. 表格后输出“最优版本：”并明确写出被选中的模型编号及简要理由。
+
+            3. 再输出“定稿：”并给出基于最优版本自动整合后的最终公文正文。
+
+            4. 定稿必须更短、更稳、更适合直接上会、上报或印发。
+
+            5. 主题内容必须保持不变，不得扩写、不跑题，不得新增无依据事实。
+
+            6. 不要有默认的格式；输出应紧贴输入材料与参考示例的实际内容组织，未提供示例时仅按材料本身自然成文。
+
+            7. 不要输出过程分析，不要输出多余闲聊。
+
+            8. 定稿部分应可直接用于上会、上报或印发，避免重复标题和冗余说明。
+
+            '
+        selected: false
+        title: 汇总对比与定稿
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: merge_1
+      position:
+        x: 724
+        y: 336
+      positionAbsolute:
+        x: 724
+        y: 336
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#merge_1.text#}}'
+        selected: false
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 103
+      id: answer_1
+      position:
+        x: 1066
+        y: 328
+      positionAbsolute:
+        x: 1066
+        y: 328
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 283
+      y: 126
+      zoom: 0.7
+  rag_pipeline_variables: []

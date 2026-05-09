@@ -1,0 +1,228 @@
+app:
+  description: 听辨训练联调用工作流；前端传入场景、原句、层级判断、意图判断、谬误选择与反问词后，直接输出可用于训练回放的结构化结果。
+  icon: 🎧
+  icon_background: '#EAF4FF'
+  icon_type: emoji
+  mode: advanced-chat
+  name: listen_dify_workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+workflow:
+  conversation_variables:
+  - description: 当前训练者画像，供回放和持续侧写使用
+    id: c1f4d7f3-1b11-4d87-8e4a-0e61e2d1d111
+    name: User_Current_Profile
+    selector:
+    - conversation
+    - User_Current_Profile
+    value: 该对象目前处于职场初期，防御心智未知，暂无侧写记录。
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods: []
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions:
+    - 这句话真正想争夺什么
+    - 帮我把反问句写得更克制
+    - 这个场景里最大的逻辑漏洞是什么
+    suggested_questions_after_answer:
+      enabled: true
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    nodes:
+    - id: start_1
+      type: custom
+      data:
+        type: start
+        selected: false
+        title: 用户输入
+        variables:
+        - variable: scene_type
+          label: 场景类型
+          type: string
+          required: true
+          max_length: 128
+        - variable: case_text
+          label: 原句/案例文本
+          type: paragraph
+          required: true
+          max_length: 4000
+        - variable: role_judgement
+          label: 社会层级判断
+          type: string
+          required: true
+          max_length: 256
+        - variable: ability_judgement
+          label: 内在水准判断
+          type: string
+          required: true
+          max_length: 256
+        - variable: intent_judgement
+          label: 真实意图判断
+          type: string
+          required: true
+          max_length: 256
+        - variable: fallacy_choice
+          label: 谬误选择
+          type: string
+          required: true
+          max_length: 128
+        - variable: counter_question
+          label: 反问词/追问句
+          type: paragraph
+          required: true
+          max_length: 1000
+      position:
+        x: 0
+        y: 220
+      positionAbsolute:
+        x: 0
+        y: 220
+      sourcePosition: right
+      targetPosition: left
+      height: 73
+      width: 242
+      selected: false
+    - id: llm_1
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 听辨分析引擎
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.25
+        prompt_template:
+        - id: prompt_listen
+          role: system
+          text: |
+            你是“听辨训练联调用工作流”的分析引擎。
+
+            任务目标：
+            根据用户输入，直接生成可用于训练回放的结构化结果，不要闲聊，不要解释流程，不要复述用户输入原文。
+
+            用户输入：
+            - 场景类型：{{#sys.inputs.scene_type#}}
+            - 原句/案例文本：{{#sys.inputs.case_text#}}
+            - 社会层级判断：{{#sys.inputs.role_judgement#}}
+            - 内在水准判断：{{#sys.inputs.ability_judgement#}}
+            - 真实意图判断：{{#sys.inputs.intent_judgement#}}
+            - 谬误选择：{{#sys.inputs.fallacy_choice#}}
+            - 反问词/追问句：{{#sys.inputs.counter_question#}}
+            - 当前画像：{{#conversation.User_Current_Profile#}}
+
+            输出要求：
+            1. 只输出 Markdown。
+            2. 必须包含三个二级标题：
+               - ## 结构化洞察
+               - ## 反馈建议
+               - ## 训练提醒
+            3. 每个部分使用 2~4 条项目符号，简洁、准确、克制。
+            4. 结构化洞察里必须指出：场景判断、权责/利益关系、潜台词、谬误线索。
+            5. 反馈建议里必须给出：一条克制的反问句、一条使用提示、一条风险提醒。
+            6. 训练提醒里必须给出：当前短板、下一步训练重点、1 条可执行动作。
+            7. 如用户输入不完整，基于已给信息做最合理的补全，但不要声明“信息不足”。
+      position:
+        x: 320
+        y: 220
+      positionAbsolute:
+        x: 320
+        y: 220
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: answer_1
+      type: custom
+      data:
+        type: answer
+        selected: false
+        title: 直接回复
+        answer: '{{#llm_1.text#}}'
+        variables: []
+      position:
+        x: 660
+        y: 220
+      positionAbsolute:
+        x: 660
+        y: 220
+      sourcePosition: right
+      targetPosition: left
+      height: 103
+      width: 242
+      selected: false
+    edges:
+    - id: e1
+      source: start_1
+      sourceHandle: source
+      target: llm_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e2
+      source: llm_1
+      sourceHandle: source
+      target: answer_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: answer
+        isInIteration: false
+        isInLoop: false
+  rag_pipeline_variables: []

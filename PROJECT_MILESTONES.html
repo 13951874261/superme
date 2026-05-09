@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>商业项目执行里程碑计划书 (Milestone Roadmap)</title>
+    <style>
+        :root {
+            --brand-color: #FF5722;
+            --brand-hover: #E64A19;
+            --text-main: #202124;
+            --text-muted: #5f6368;
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --border-color: #e0e0e0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 1300px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.06);
+            padding: 60px 80px;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: 36px;
+            font-weight: 900;
+            margin-bottom: 20px;
+            letter-spacing: -0.5px;
+            color: var(--text-main);
+        }
+        p.subtitle {
+            font-size: 16px;
+            color: var(--text-muted);
+            margin-bottom: 40px;
+        }
+        p.subtitle strong {
+            color: var(--text-main);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            margin-bottom: 40px;
+            background-color: white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+            border-radius: 8px;
+            overflow: hidden;
+            font-size: 15px;
+        }
+        th, td {
+            text-align: left;
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #f1f3f4;
+            color: var(--text-main);
+            font-weight: 800;
+            text-transform: uppercase;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+        }
+        td {
+            vertical-align: top;
+            color: #3c4043;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+        .phase-col {
+            font-weight: 900;
+            color: var(--text-main);
+            text-align: center;
+            white-space: nowrap;
+            background-color: #fafbfc;
+            border-right: 1px solid var(--border-color);
+        }
+        .time-col {
+            font-weight: 800;
+            color: var(--brand-color);
+            text-align: center;
+            white-space: nowrap;
+            background-color: #fff3e0;
+        }
+        .title-col {
+            font-weight: 800;
+            color: var(--text-main);
+            font-size: 16px;
+        }
+        td code {
+            background-color: #f1f3f4;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+            font-size: 13px;
+            color: #d84315;
+            font-weight: bold;
+        }
+        .alert {
+            background-color: #fff3e0;
+            border-left: 6px solid var(--brand-color);
+            padding: 24px 30px;
+            border-radius: 8px;
+            margin-top: 50px;
+        }
+        .alert strong {
+            color: #d84315;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+        }
+        .alert strong::before {
+            content: '⚠️';
+            margin-right: 10px;
+        }
+        .alert ol {
+            margin-top: 15px;
+            margin-bottom: 0;
+            padding-left: 20px;
+            color: var(--text-main);
+            font-weight: 500;
+            font-size: 15px;
+            line-height: 1.8;
+        }
+        .divider {
+            height: 2px;
+            background-color: var(--border-color);
+            margin: 40px 0;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>商业项目执行里程碑计划书</h1>
+        <p class="subtitle">
+            <strong>项目代号：</strong> 高管能力特训数字沙盘 (AI-Driven Executive Training System)<br>
+            <strong>汇报对象：</strong> 客户层 / 项目管理层 (PM)<br>
+            <strong>文档密级：</strong> 内部商用
+        </p>
+
+        <hr class="divider" />
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="text-align: center; border-right: 1px solid #e0e0e0;">阶段标号</th>
+                    <th>开发里程碑阶段</th>
+                    <th style="text-align: center;">预估周期</th>
+                    <th>核心开发动作与架构选型</th>
+                    <th>里程碑交付物与价值说明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="phase-col">阶段 0</td>
+                    <td class="title-col">视觉原型的构建与验证</td>
+                    <td class="time-col">T + 0</td>
+                    <td>1. Tailwind/Material 底层设计语言全盘重构<br/>2. 八大交互模块的布局框架硬编码封装脱水</td>
+                    <td><strong>脱机演示系统 (<code>dist/index.html</code>)</strong><br/>直观展示阶层审美与架构完整度，打通产品落地的基础风控壁垒。</td>
+                </tr>
+                <tr>
+                    <td class="phase-col">阶段 1</td>
+                    <td class="title-col">状态托管与 AI 思维接入</td>
+                    <td class="time-col">2 - 3 周</td>
+                    <td>1. 引入 Zustand 接管用户在八个面板层的输入流<br/>2. 连通 Gemini / Claude 等商用大模型层 API<br/>3. 将逻辑谬误、述职批阅等 Prompt 强约束重铸</td>
+                    <td><strong>V1.0 可交互演示版</strong><br/>产品从静态脱离，达到“有问必有深层次神级解答”的质变。</td>
+                </tr>
+                <tr>
+                    <td class="phase-col">阶段 2</td>
+                    <td class="title-col">用户壁垒与职场数据容器</td>
+                    <td class="time-col">2 周</td>
+                    <td>1. 植入 Supabase 实现企业级用户私域防泄漏隔离<br/>2. 建立标准数据流储存生词引擎、打卡、复盘矩阵<br/>3. 设计记忆流的回溯与调阅组件</td>
+                    <td><strong>V2.0 SaaS 内测版</strong><br/>确立商模基础：安全注册、多端同步以及关键隐私留存。</td>
+                </tr>
+                <tr>
+                    <td class="phase-col">阶段 3</td>
+                    <td class="title-col">长臂复盘引擎架构</td>
+                    <td class="time-col">3 周</td>
+                    <td>1. 搭建 Pinecone 向量检索 (Vector RAG) 库<br/>2. 检索回调：AI 通过分析户过去的绝密坦白，动态干预本周博弈结论<br/>3. 系统自主触发题目难度的动态迭代</td>
+                    <td><strong>V3.0 护城河终极版</strong><br/>真正护城河：具备自主长线记忆、随主人思维迭代的拟人智囊。</td>
+                </tr>
+                <tr>
+                    <td class="phase-col">阶段 4</td>
+                    <td class="title-col">高可用部署与安防压测</td>
+                    <td class="time-col">1 - 2 周</td>
+                    <td>1. 评估落地 Vercel / AWS 部署方案<br/>2. 搭建高并发防线与商业涉密名称过滤网</td>
+                    <td><strong>GTM 正式公网部署版</strong><br/>达标的防呆、防渗漏与低时延商业公测架构。</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="alert">
+            <strong>PM与资方确认事项反馈提示板：</strong>
+            <ol>
+                <li>上方的阶段排期流是否能契合资方的上线/内侧预期节奏？</li>
+                <li>为确保“阶段4”的顺利切入，开发部门是要优先使用 Serverless 服务架构 (快落地/极低预算) 还是采用专有云隔离方案（重隐私高防卫）？此决策直接波及底层架构，请尽快给出绿灯批示。</li>
+            </ol>
+        </div>
+    </div>
+</body>
+</html>

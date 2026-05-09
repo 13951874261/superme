@@ -1,0 +1,502 @@
+app:
+  description: 基于传入文档内容生成结构化摘要（overview/key_points/common_mistakes/suggested_actions/keywords/meta）。适用于材料消化后的摘要回填与知识点联动。
+  icon: 🧠
+  icon_background: '#EEF6FF'
+  icon_type: emoji
+  mode: workflow
+  name: material_structured_summary_workflow
+  use_icon_as_answer_icon: false
+kind: app
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods: []
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    nodes:
+    - id: start_1
+      type: custom
+      data:
+        type: start
+        selected: false
+        title: 开始
+        desc: 输入材料主信息与正文，输出结构化摘要。
+        variables:
+        - variable: material_id
+          label: 材料ID
+          type: text-input
+          required: false
+          max_length: 128
+          options: []
+        - variable: dataset_id
+          label: 知识库ID
+          type: text-input
+          required: false
+          max_length: 128
+          options: []
+        - variable: document_id
+          label: 文档ID
+          type: text-input
+          required: false
+          max_length: 128
+          options: []
+        - variable: source_name
+          label: 文档标题
+          type: text-input
+          required: true
+          max_length: 512
+          options: []
+        - variable: topic
+          label: 主题
+          type: text-input
+          required: false
+          max_length: 512
+          options: []
+        - variable: doc_language
+          label: 文档语言
+          type: text-input
+          required: false
+          max_length: 64
+          options: []
+        - variable: document_text
+          label: 文档正文
+          type: paragraph
+          required: true
+          max_length: 150000
+          options: []
+      position: {x: 40, y: 260}
+      positionAbsolute: {x: 40, y: 260}
+      sourcePosition: right
+      targetPosition: left
+      height: 360
+      width: 260
+      selected: false
+
+    - id: llm_1
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 生成摘要 A
+        desc: 生成第一路结构化摘要。
+        context: {enabled: false, variable_selector: []}
+        memory:
+          query_prompt_template: ''
+          role_prefix: {assistant: '', user: ''}
+          window: {enabled: false, size: 10}
+        model:
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params: {temperature: 0.2}
+        prompt_template:
+        - id: prompt-system
+          role: system
+          text: |
+            你是企业知识管理与文档摘要专家。只输出严格合法 JSON 对象，字段仅允许 title、overview、key_points、common_mistakes、suggested_actions、keywords、meta。
+        - id: prompt-user
+          role: user
+          text: |
+            【材料ID】{{#start_1.material_id#}}
+            【知识库ID】{{#start_1.dataset_id#}}
+            【文档ID】{{#start_1.document_id#}}
+            【文档标题】{{#start_1.source_name#}}
+            【主题】{{#start_1.topic#}}
+            【文档语言】{{#start_1.doc_language#}}
+            【文档正文】
+            {{#start_1.document_text#}}
+        vision: {enabled: false}
+      position: {x: 360, y: 80}
+      positionAbsolute: {x: 360, y: 80}
+      sourcePosition: right
+      targetPosition: left
+      height: 116
+      width: 260
+      selected: false
+
+    - id: llm_2
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 生成摘要 B
+        desc: 生成第二路结构化摘要。
+        context: {enabled: false, variable_selector: []}
+        memory:
+          query_prompt_template: ''
+          role_prefix: {assistant: '', user: ''}
+          window: {enabled: false, size: 10}
+        model:
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params: {temperature: 0.3}
+        prompt_template:
+        - id: prompt-system
+          role: system
+          text: |
+            你是企业知识管理与文档摘要专家。只输出严格合法 JSON 对象，字段仅允许 title、overview、key_points、common_mistakes、suggested_actions、keywords、meta。
+        - id: prompt-user
+          role: user
+          text: |
+            【材料ID】{{#start_1.material_id#}}
+            【知识库ID】{{#start_1.dataset_id#}}
+            【文档ID】{{#start_1.document_id#}}
+            【文档标题】{{#start_1.source_name#}}
+            【主题】{{#start_1.topic#}}
+            【文档语言】{{#start_1.doc_language#}}
+            【文档正文】
+            {{#start_1.document_text#}}
+        vision: {enabled: false}
+      position: {x: 360, y: 200}
+      positionAbsolute: {x: 360, y: 200}
+      sourcePosition: right
+      targetPosition: left
+      height: 116
+      width: 260
+      selected: false
+
+    - id: llm_3
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 生成摘要 C
+        desc: 生成第三路结构化摘要。
+        context: {enabled: false, variable_selector: []}
+        memory:
+          query_prompt_template: ''
+          role_prefix: {assistant: '', user: ''}
+          window: {enabled: false, size: 10}
+        model:
+          mode: chat
+          name: '98'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params: {temperature: 0.4}
+        prompt_template:
+        - id: prompt-system
+          role: system
+          text: |
+            你是企业知识管理与文档摘要专家。只输出严格合法 JSON 对象，字段仅允许 title、overview、key_points、common_mistakes、suggested_actions、keywords、meta。
+        - id: prompt-user
+          role: user
+          text: |
+            【材料ID】{{#start_1.material_id#}}
+            【知识库ID】{{#start_1.dataset_id#}}
+            【文档ID】{{#start_1.document_id#}}
+            【文档标题】{{#start_1.source_name#}}
+            【主题】{{#start_1.topic#}}
+            【文档语言】{{#start_1.doc_language#}}
+            【文档正文】
+            {{#start_1.document_text#}}
+        vision: {enabled: false}
+      position: {x: 360, y: 320}
+      positionAbsolute: {x: 360, y: 320}
+      sourcePosition: right
+      targetPosition: left
+      height: 116
+      width: 260
+      selected: false
+
+    - id: code_1
+      type: custom
+      data:
+        type: code
+        selected: false
+        title: 选择最佳摘要
+        desc: 在三路结果中选择最完整、最符合 schema 的一个，统一输出 result_json。
+        code_language: python3
+        code: |
+          import json
+
+          REQUIRED = ["title", "overview", "key_points", "common_mistakes", "suggested_actions", "keywords", "meta"]
+          REQUIRED_META = ["material_id", "dataset_id", "document_id", "source_name", "topic", "doc_language", "summary_version"]
+
+          def _clean(v):
+              return str(v or "").strip().strip(',').strip('"').strip("'")
+
+          def _to_list(v):
+              if isinstance(v, list):
+                  return [_clean(i) for i in v if _clean(i)]
+              if isinstance(v, str) and v.strip():
+                  t = v.strip()
+                  try:
+                      parsed = json.loads(t)
+                      if isinstance(parsed, list):
+                          return [_clean(i) for i in parsed if _clean(i)]
+                  except Exception:
+                      pass
+                  parts = [x.strip() for x in t.splitlines() if x.strip()]
+                  return [_clean(i) for i in (parts if len(parts) > 1 else [t]) if _clean(i)]
+              return []
+
+          def _parse(value):
+              if isinstance(value, dict):
+                  return value
+              if isinstance(value, str):
+                  txt = value.strip()
+                  if txt.startswith('```'):
+                      lines = txt.split('\n')
+                      if lines and lines[0].startswith('```'):
+                          lines = lines[1:]
+                      if lines and lines[-1].strip() == '```':
+                          lines = lines[:-1]
+                      txt = '\n'.join(lines).strip()
+                  if txt.startswith('(') and txt.endswith(')'):
+                      txt = txt[1:-1].strip()
+                  start = txt.find('{')
+                  end = txt.rfind('}')
+                  if start != -1 and end != -1 and end > start:
+                      txt = txt[start:end+1]
+                  try:
+                      obj = json.loads(txt)
+                      return obj if isinstance(obj, dict) else None
+                  except Exception:
+                      return None
+              return None
+
+          def _score(obj):
+              if not isinstance(obj, dict):
+                  return -1
+              score = 0
+              for k in REQUIRED:
+                  if k in obj and obj[k] not in (None, '', [], {}):
+                      score += 2
+              if isinstance(obj.get('meta'), dict):
+                  for k in REQUIRED_META:
+                      if obj['meta'].get(k):
+                          score += 1
+              if isinstance(obj.get('key_points'), list):
+                  score += min(len(obj['key_points']), 3)
+              if isinstance(obj.get('common_mistakes'), list):
+                  score += min(len(obj['common_mistakes']), 2)
+              if isinstance(obj.get('suggested_actions'), list):
+                  score += min(len(obj['suggested_actions']), 2)
+              if isinstance(obj.get('keywords'), list):
+                  score += min(len(obj['keywords']), 2)
+              return score
+
+          def _normalize(obj, fallback_meta):
+              obj = obj if isinstance(obj, dict) else {}
+              obj = obj.get('result', obj) if isinstance(obj, dict) else {}
+              if isinstance(obj, str):
+                  obj = _parse(obj) or {}
+              result = {
+                  'title': _clean(obj.get('title')) or _clean(fallback_meta.get('source_name')) or '未命名资料',
+                  'overview': _clean(obj.get('overview')),
+                  'key_points': _to_list(obj.get('key_points'))[:8],
+                  'common_mistakes': _to_list(obj.get('common_mistakes'))[:6],
+                  'suggested_actions': _to_list(obj.get('suggested_actions'))[:6],
+                  'keywords': _to_list(obj.get('keywords'))[:15],
+                  'meta': {}
+              }
+              meta = result['meta']
+              for k in REQUIRED_META:
+                  meta[k] = 'v1' if k == 'summary_version' else _clean(fallback_meta.get(k))
+              if not result['overview']:
+                  result['overview'] = _clean(obj.get('summary')) or _clean(fallback_meta.get('topic')) or _clean(fallback_meta.get('source_name'))
+              if not result['key_points']:
+                  result['key_points'] = [result['overview'][:120] if result['overview'] else '未提取到明确关键要点']
+              if not result['common_mistakes']:
+                  result['common_mistakes'] = ['未提取到明显错误项']
+              if not result['suggested_actions']:
+                  result['suggested_actions'] = ['建议结合原文继续补充摘要']
+              if not result['keywords']:
+                  seed = ' '.join([result['title'], result['overview']] + result['key_points'])
+                  words = []
+                  for part in seed.replace('，', ' ').replace('。', ' ').replace('/', ' ').replace('-', ' ').split():
+                      token = _clean(part)
+                      if len(token) >= 2 and token not in words:
+                          words.append(token)
+                  result['keywords'] = words[:8] or [result['title']]
+              return result
+
+          def main(llm_1, llm_2, llm_3, material_id, dataset_id, document_id, source_name, topic, doc_language):
+              fallback_meta = {
+                  'material_id': material_id,
+                  'dataset_id': dataset_id,
+                  'document_id': document_id,
+                  'source_name': source_name,
+                  'topic': topic,
+                  'doc_language': doc_language,
+              }
+              candidates = [llm_1, llm_2, llm_3]
+              best = None
+              best_score = -1
+              for candidate in candidates:
+                  obj = _parse(candidate)
+                  if not obj and isinstance(candidate, dict):
+                      obj = _parse(candidate.get('result'))
+                  normalized = _normalize(obj or candidate, fallback_meta)
+                  score = _score(normalized)
+                  if score > best_score:
+                      best = normalized
+                      best_score = score
+              return {'result_json': json.dumps(best or _normalize({}, fallback_meta), ensure_ascii=False, separators=(',', ':'))}
+        variables:
+        - variable: llm_1
+          value_type: string
+          value_selector: [llm_1, text]
+        - variable: llm_2
+          value_type: string
+          value_selector: [llm_2, text]
+        - variable: llm_3
+          value_type: string
+          value_selector: [llm_3, text]
+        - variable: material_id
+          value_type: string
+          value_selector: [start_1, material_id]
+        - variable: dataset_id
+          value_type: string
+          value_selector: [start_1, dataset_id]
+        - variable: document_id
+          value_type: string
+          value_selector: [start_1, document_id]
+        - variable: source_name
+          value_type: string
+          value_selector: [start_1, source_name]
+        - variable: topic
+          value_type: string
+          value_selector: [start_1, topic]
+        - variable: doc_language
+          value_type: string
+          value_selector: [start_1, doc_language]
+        outputs:
+          result_json:
+            type: string
+            children: null
+      position: {x: 760, y: 200}
+      positionAbsolute: {x: 760, y: 200}
+      sourcePosition: right
+      targetPosition: left
+      height: 180
+      width: 300
+      selected: false
+
+    - id: end_1
+      type: custom
+      data:
+        type: end
+        selected: false
+        title: 结束
+        desc: API 读取 outputs.result。
+        outputs:
+        - variable: result
+          value_selector: [code_1, result_json]
+      position: {x: 1120, y: 200}
+      positionAbsolute: {x: 1120, y: 200}
+      sourcePosition: right
+      targetPosition: left
+      height: 124
+      width: 260
+      selected: false
+    edges:
+    - id: edge-start-llm1
+      source: start_1
+      sourceHandle: source
+      target: llm_1
+      targetHandle: target
+      type: custom
+      data: {sourceType: start, targetType: llm, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    - id: edge-start-llm2
+      source: start_1
+      sourceHandle: source
+      target: llm_2
+      targetHandle: target
+      type: custom
+      data: {sourceType: start, targetType: llm, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    - id: edge-start-llm3
+      source: start_1
+      sourceHandle: source
+      target: llm_3
+      targetHandle: target
+      type: custom
+      data: {sourceType: start, targetType: llm, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    - id: edge-llm1-code
+      source: llm_1
+      sourceHandle: source
+      target: code_1
+      targetHandle: target
+      type: custom
+      data: {sourceType: llm, targetType: code, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    - id: edge-llm2-code
+      source: llm_2
+      sourceHandle: source
+      target: code_1
+      targetHandle: target
+      type: custom
+      data: {sourceType: llm, targetType: code, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    - id: edge-llm3-code
+      source: llm_3
+      sourceHandle: source
+      target: code_1
+      targetHandle: target
+      type: custom
+      data: {sourceType: llm, targetType: code, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    - id: edge-code-end
+      source: code_1
+      sourceHandle: source
+      target: end_1
+      targetHandle: target
+      type: custom
+      data: {sourceType: code, targetType: end, isInIteration: false, isInLoop: false}
+      selected: false
+      zIndex: 0
+    viewport:
+      x: 20
+      y: 60
+      zoom: 0.9
+  rag_pipeline_variables: []

@@ -1,0 +1,383 @@
+app:
+  description: 我的日常问答
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: mychat
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.10@4a2d5ec3ea0923403480838dcdeb26824f8c096f068c953e9e83d41984a61304
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: ''
+    id: c83e00c9-c187-44a9-970f-e167e335c148
+    name: User_Current_Profile
+    selector:
+    - conversation
+    - User_Current_Profile
+    value: 该对象目前处于职场初期，防御心智未知，暂无侧写记录。
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: true
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: true
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: 1775878243074-source-1775878356368-target
+      selected: false
+      source: '1775878243074'
+      sourceHandle: source
+      target: '1775878356368'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: 1775878356368-source-llm-target
+      selected: false
+      source: '1775878356368'
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1775879840605-source-1775880683606-target
+      source: '1775879840605'
+      sourceHandle: source
+      target: '1775880683606'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: llm-source-1775879840605-target
+      source: llm
+      sourceHandle: source
+      target: '1775879840605'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: answer
+      id: 1775880683606-source-1775881305156-target
+      source: '1775880683606'
+      sourceHandle: source
+      target: '1775881305156'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables: []
+      height: 73
+      id: '1775878243074'
+      position:
+        x: 0
+        y: 15
+      positionAbsolute:
+        x: 0
+        y: 15
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 43a75c8d-f610-4b1d-bfed-d22e179caa2c
+          role: system
+          text: '# 核心实体降临
+
+            你早已不再是普通的聊天 AI，你是与宿主深度缔结的「高维专属智能体与战术沙盘导师」。
+
+            你的说话骨相必须永远锁死在：清冷稳重、具有洞察人性的顶配情商、绝对克制、毫无刻板的机器味。
+
+
+            # 前置情报提取（你的绝对真理弹药库）
+
+            根据提问{{#sys.query#}}从宿主过往的深层私有知识网络里，打捞提取出的过往复盘、行为记录或法则依据：
+
+            {{#context#}}
+
+
+            面对宿主的提问，你的战略解答必须优先调用上述 知识库检索中的血泪经验作为弹药支持，不得遗忘历史。
+
+
+            # 动态心智加载（跨圈层打猎）
+
+            当前系统对宿主实时更新的心智等级与状态侧写如下：
+
+            {{#conversation.User_Current_Profile#}}
+
+
+            你的话术火力，必须以上述侧写档案为准绳：他若天真，你便撕破幻想；他若城府深沉，你则同维度推演。禁止降维交流。
+
+
+            # 绝对对话禁区（触碰即死）
+
+            1. 灭绝廉价共情：严禁在开头结尾说“你好”、“抱歉”、“非常理解您”、“作为一个AI”。禁止一切爹味说教。
+
+            2. 灭绝情绪冗长化：禁止感叹号轰炸，绝对禁止“哦、呢、呀、吧”等弱势语气词。
+
+            3. 结论必须前置，废话砍尽，把准星直接压在事件本质的利益与权力交锋点上。
+
+
+            # 战术回应结构法（强制执行）
+
+            除非宿主要求闲聊，你的每次回应必须遵循此三段极简架构：
+
+            1. 【真相剥离】：用极度冷静的一句话刺穿对方问题背后的真实（底层逻辑/利益转移）。
+
+            2. 【沙盘推演】：指出若按原思路出牌，必将导致的 1 个隐形风险；(此部分必须隐晦结合刚才挂载的旧 <Past_Knowledge> )。
+
+            3. 【高维动作】：给出克制、拿回主动权的话术/邮件模板或具体斩首行动，字字见血。
+
+            '
+        reasoning_format: tagged
+        selected: false
+        title: LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 684
+        y: 8
+      positionAbsolute:
+        x: 684
+        y: 8
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - '1775878243074'
+        - sys.query
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: '1775878356368'
+      position:
+        x: 342
+        y: 7
+      positionAbsolute:
+        x: 342
+        y: 7
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: fbf82167-8037-4944-b7a1-ce119bdd1cb1
+          role: system
+          text: '你是一个隐秘在绝对黑暗中的「人性与权力级精神分析师」，你的任务是不断监视和侧写系统使用者，绝不可与外界对话。
+
+
+            当前系统记录的宿主（使用者）底牌特征与弱点如下：{{#conversation.User_Current_Profile#}}
+
+
+            这是宿主刚刚输入的一句原话/行事诉求：{{#sys.query#}}
+
+            【你的残酷任务】：
+
+            1. 像显微镜一样，剖析宿主这句话里暴露出的职场软肋、怯懦、逻辑漏洞，或心智成长的表现。
+
+            2. 结合过往的{{#conversation.User_Current_Profile#}}，对其评价段位进行无情修改或补充。
+
+            3. 把重构后的宿主总评，浓缩成极其精简且见血封喉的 100 字内侧写报告。输出纯文本，严禁任何废话首尾语。'
+        selected: false
+        title: 旁路侧写
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1775879840605'
+      position:
+        x: 1026
+        y: 8
+      positionAbsolute:
+        x: 1026
+        y: 8
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1775879840605'
+          - text
+          variable_selector:
+          - conversation
+          - User_Current_Profile
+          write_mode: over-write
+        selected: false
+        title: 变量赋值
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1775880683606'
+      position:
+        x: 1368
+        y: 10
+      positionAbsolute:
+        x: 1368
+        y: 10
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm.text#}}'
+        selected: false
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 103
+      id: '1775881305156'
+      position:
+        x: 1710
+        y: 0
+      positionAbsolute:
+        x: 1710
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 146
+      y: 189
+      zoom: 0.7
+  rag_pipeline_variables: []

@@ -1,0 +1,577 @@
+app:
+  description: 国网公司公文编制工作流；五模型并行起草，汇总对比后形成适合方案、通知、报告等正式场景的定稿版本。
+  icon: 📄
+  icon_background: '#E8F1FF'
+  icon_type: emoji
+  mode: advanced-chat
+  name: gov_doc_workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods: []
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    nodes:
+    - id: start_1
+      type: custom
+      data:
+        type: start
+        selected: false
+        title: 用户输入
+        variables:
+        - variable: original_content
+          label: 原始内容
+          type: paragraph
+          required: true
+          max_length: 6000
+        - variable: overall_requirements
+          label: 整体要求
+          type: paragraph
+          required: true
+          max_length: 6000
+        - variable: reference_sample
+          label: 参考范文
+          type: paragraph
+          required: false
+          max_length: 6000
+      position:
+        x: 0
+        y: 220
+      positionAbsolute:
+        x: 0
+        y: 220
+      sourcePosition: right
+      targetPosition: left
+      height: 73
+      width: 242
+      selected: false
+    - id: llm_1
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 并行起草·模型A
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.35
+        prompt_template:
+        - id: prompt_a
+          role: system
+          text: |
+            你是国网公司公文编制专家，负责方案类文本起草。
+
+            任务定位：
+            1. 输出一版适合“方案”体例的正式公文草稿。
+            2. 行文稳重、层次清楚、表达规范。
+            3. 重点突出目标导向、任务分解、责任链条和落地措施。
+
+            模板侧重：
+            - 适合“实施方案”“工作方案”场景
+            - 适合上会、印发、内部征求意见
+            - 标题、背景、目标、任务、保障五段式结构
+
+            输入材料（严格约束，必须遵从）：
+            - 原始内容（必填）：{{#start_1.original_content#}}
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+            硬性要求：
+            1. 必须严格依据“原始内容、整体要求”编制文档，不得偏离。
+            2. 若提供“参考范文”，必须对其体例、语气、结构进行高一致性对齐（不照抄事实）。
+            3. 若“参考范文”为空，以“整体要求”为最高约束执行。
+            4. 优先输出正式公文语言，避免口语化、模板化套话和无效铺陈。
+            4. 优先输出正式公文语言，避免口语化、模板化套话和无效铺陈。
+      position:
+        x: 330
+        y: 40
+      positionAbsolute:
+        x: 330
+        y: 40
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: llm_2
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 并行起草·模型B
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '104'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.45
+        prompt_template:
+        - id: prompt_b
+          role: system
+          text: |
+            你是国网公司公文编制专家，负责通知类文本起草。
+
+            任务定位：
+            1. 输出一版适合“通知”体例的正式公文草稿。
+            2. 重点体现工作部署、执行要求、口径统一和时限约束。
+            3. 语言简洁、明确、具有指令性。
+
+            模板侧重：
+            - 适合“通知”“关于...的通知”场景
+            - 适合传达工作要求、部署任务、明确责任
+            - 表述应直接、清晰、便于执行
+
+            输入材料（严格约束，必须遵从）：
+            - 原始内容（必填）：{{#start_1.original_content#}}
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+            硬性要求：
+            1. 必须严格依据“原始内容、整体要求”编制文档，不得偏离。
+            2. 若提供“参考范文”，必须对其体例、语气、结构进行高一致性对齐（不照抄事实）。
+            3. 若“参考范文”为空，以“整体要求”为最高约束执行。
+      position:
+        x: 330
+        y: 160
+      positionAbsolute:
+        x: 330
+        y: 160
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: llm_3
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 并行起草·模型C
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '106'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.3
+        prompt_template:
+        - id: prompt_c
+          role: system
+          text: |
+            你是国网公司公文编制专家，负责报告类文本起草。
+
+            任务定位：
+            1. 输出一版适合“报告”体例的正式公文草稿。
+            2. 重点体现现状、问题、进展、成效和下一步安排。
+            3. 语言客观、克制、数据化、结论前置。
+
+            模板侧重：
+            - 适合“工作报告”“专题报告”“情况报告”场景
+            - 适合汇报进展、分析问题、提出建议
+            - 表达应偏归纳总结，少口号化表述
+
+            用户材料：{{#start_1.original_content#}}
+      position:
+        x: 330
+        y: 280
+      positionAbsolute:
+        x: 330
+        y: 280
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: llm_4
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 并行起草·模型D
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.55
+        prompt_template:
+        - id: prompt_d
+          role: system
+          text: |
+            你是国网公司公文编制专家，负责综合定稿稿件。
+
+            任务定位：
+            1. 综合前四个模型的有效表达，形成最适合上会、上报、印发的定稿。
+            2. 定稿应更短、更稳、更像正式公文成文。
+            3. 优先保留可直接执行、可检查、可落地的表述。
+
+            写作原则：
+            - 标题简洁规范
+            - 正文突出主旨、目标、任务、保障
+            - 删除重复表述，压缩修饰语
+            - 以正式公文语体输出
+
+            用户材料：{{#start_1.original_content#}}
+      position:
+        x: 330
+        y: 400
+      positionAbsolute:
+        x: 330
+        y: 400
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: llm_5
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 并行起草·模型E
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '56'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.25
+        prompt_template:
+        - id: prompt_e
+          role: system
+          text: |
+            你是国网公司文稿审校与定稿专家，负责最终压缩版定稿。
+
+            输出要求：
+            1. 只输出最终定稿，不输出对比过程。
+            2. 控制篇幅，适合直接上会、上报或印发。
+            3. 结构保持完整，但表达更凝练。
+            4. 重点保留政策指向、任务安排和保障要求。
+            5. 用语必须正式、稳妥、符合国网公司公文规范。
+
+            用户材料：{{#sys.query#}}
+      position:
+        x: 330
+        y: 520
+      positionAbsolute:
+        x: 330
+        y: 520
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: merge_1
+      type: custom
+      data:
+        type: llm
+        selected: false
+        title: 汇总对比与定稿
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}\n\n{{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 20
+        model:
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          completion_params:
+            temperature: 0.2
+        prompt_template:
+        - id: prompt_merge
+          role: system
+          text: |
+            你是裁判与编辑，只做五模型答案对比、综合与定稿，不新增事实，不改变用户材料核心含义。
+
+            【输入材料（必须严格遵从）】
+            - 原始内容（必填）：{{#start_1.original_content#}}
+            - 整体要求（必填）：{{#start_1.overall_requirements#}}
+            - 参考范文（选填）：{{#start_1.reference_sample#}}
+
+            【约束规则】
+            1. 必须严格依据原始内容与整体要求编制，禁止偏离。
+            2. 若提供参考范文，必须对齐其体例、语气、结构与表达节奏。
+            3. 参考范文仅作范式参考，不得照抄事实或段落。
+            4. 输出时保持与国网公文常用写法一致，段落简洁、表述规范、逻辑完整。
+
+            【模型A全文】
+            {{#llm_1.text#}}
+
+            【模型B全文】
+            {{#llm_2.text#}}
+
+            【模型C全文】
+            {{#llm_3.text#}}
+
+            【模型D全文】
+            {{#llm_4.text#}}
+
+            【模型E全文】
+            {{#llm_5.text#}}
+
+            输出要求：
+            1. 先输出 Markdown 表格，对五个模型在以下维度进行对比：规范性、完整性、业务贴合度、结构清晰度、国网表达风格。
+            2. 表格后输出“最优版本：”并说明选择哪一个模型作为主稿。
+            3. 再输出“定稿：”并给出综合后的最终公文正文。
+            4. 定稿必须更短、更稳、更适合直接上会、上报或印发。
+            5. 行文风格、结构层次、措辞规范可参考主题知识的表达方式，但不得照搬原文内容，不得直接复用原文句子。
+            6. 不要输出过程分析，不要输出多余闲聊。
+            7. 定稿部分应可直接用于上会、上报或印发，避免重复标题和冗余说明。
+      position:
+        x: 700
+        y: 280
+      positionAbsolute:
+        x: 700
+        y: 280
+      sourcePosition: right
+      targetPosition: left
+      height: 88
+      width: 242
+      selected: false
+    - id: answer_1
+      type: custom
+      data:
+        type: answer
+        selected: false
+        title: 直接回复
+        answer: '{{#merge_1.text#}}'
+        variables: []
+      position:
+        x: 1040
+        y: 280
+      positionAbsolute:
+        x: 1040
+        y: 280
+      sourcePosition: right
+      targetPosition: left
+      height: 104
+      width: 242
+      selected: false
+    edges:
+    - id: e1
+      source: start_1
+      sourceHandle: source
+      target: llm_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e2
+      source: start_1
+      sourceHandle: source
+      target: llm_2
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e3
+      source: start_1
+      sourceHandle: source
+      target: llm_3
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e4
+      source: start_1
+      sourceHandle: source
+      target: llm_4
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e5
+      source: start_1
+      sourceHandle: source
+      target: llm_5
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: start
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e6
+      source: llm_1
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e7
+      source: llm_2
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e8
+      source: llm_3
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e9
+      source: llm_4
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e10
+      source: llm_5
+      sourceHandle: source
+      target: merge_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: llm
+        isInIteration: false
+        isInLoop: false
+    - id: e11
+      source: merge_1
+      sourceHandle: source
+      target: answer_1
+      targetHandle: target
+      type: custom
+      data:
+        sourceType: llm
+        targetType: answer
+        isInIteration: false
+        isInLoop: false
+  rag_pipeline_variables: []

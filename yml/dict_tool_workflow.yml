@@ -1,0 +1,892 @@
+app:
+  description: 智能词典工作流。透传节点输出 lemma_block；各 LLM 开启 Context 并绑定 lemma_block，提示词用 {{#context#}} 注入（见 Dify LLM 文档「Context 变量」）。勿依赖提示词内 {{#节点.字段#}} 直连替换。API inputs 键名 dict_type。
+  icon: 📖
+  icon_background: '#E8F4FF'
+  icon_type: emoji
+  mode: workflow
+  name: dict_tool_workflow
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: code
+      id: dict-edge-start-pack
+      selected: false
+      source: a1000000-0000-4000-8000-000000000001
+      sourceHandle: source
+      target: c0300000-0000-4000-8000-000000000001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: code
+      id: dict-edge-pack-norm
+      selected: false
+      source: c0300000-0000-4000-8000-000000000001
+      sourceHandle: source
+      target: c0100000-0000-4000-8000-000000000001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: if-else
+      id: dict-edge-norm-if1
+      selected: false
+      source: c0100000-0000-4000-8000-000000000001
+      sourceHandle: source
+      target: c1000000-0000-4000-8000-000000000001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: dict-edge-ifzh-true-bridgezh
+      selected: false
+      source: c1000000-0000-4000-8000-000000000001
+      sourceHandle: 'true'
+      target: c2100000-0000-4000-8000-000000000001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: dict-edge-bridgezh-llmzh
+      selected: false
+      source: c2100000-0000-4000-8000-000000000001
+      sourceHandle: source
+      target: c2000000-0000-4000-8000-000000000001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: if-else
+      id: dict-edge-ifzh-false-ifen
+      selected: false
+      source: c1000000-0000-4000-8000-000000000001
+      sourceHandle: 'false'
+      target: c1000000-0000-4000-8000-000000000002
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: dict-edge-ifen-true-bridgeen
+      selected: false
+      source: c1000000-0000-4000-8000-000000000002
+      sourceHandle: 'true'
+      target: c2100000-0000-4000-8000-000000000002
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: dict-edge-bridgeen-llmen
+      selected: false
+      source: c2100000-0000-4000-8000-000000000002
+      sourceHandle: source
+      target: c2000000-0000-4000-8000-000000000002
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: dict-edge-ifen-false-bridgeenzh
+      selected: false
+      source: c1000000-0000-4000-8000-000000000002
+      sourceHandle: 'false'
+      target: c2100000-0000-4000-8000-000000000003
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: dict-edge-bridgeenzh-llmenzh
+      selected: false
+      source: c2100000-0000-4000-8000-000000000003
+      sourceHandle: source
+      target: c2000000-0000-4000-8000-000000000003
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: dict-edge-llmzh-pack
+      selected: false
+      source: c2000000-0000-4000-8000-000000000001
+      sourceHandle: source
+      target: a1000000-0000-4000-8000-000000000003
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: dict-edge-llmen-pack
+      selected: false
+      source: c2000000-0000-4000-8000-000000000002
+      sourceHandle: source
+      target: a1000000-0000-4000-8000-000000000003
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: dict-edge-llmenzh-pack
+      selected: false
+      source: c2000000-0000-4000-8000-000000000003
+      sourceHandle: source
+      target: a1000000-0000-4000-8000-000000000003
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: dict-edge-code-end
+      selected: false
+      source: a1000000-0000-4000-8000-000000000003
+      sourceHandle: source
+      target: a1000000-0000-4000-8000-000000000004
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: dict_type（select）经「dict_type→route」再进 IF；direction 仅 en_zh_bidirectional
+          用。须带 word、dict_type；默认 zh_modern / auto。
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 词条或短语
+          max_length: 512
+          options: []
+          required: true
+          type: text-input
+          variable: word
+        - default: zh_modern
+          label: 词典类型
+          max_length: 48
+          options:
+          - zh_modern
+          - en_en_business
+          - en_zh_bidirectional
+          required: true
+          type: select
+          variable: dict_type
+        - default: auto
+          label: 翻译方向（仅 en_zh_bidirectional 必填语义；其它类型请选 auto）
+          max_length: 32
+          options:
+          - auto
+          - en_to_zh
+          - zh_to_en
+          required: true
+          type: select
+          variable: direction
+        - label: 用户场景/写作背景（可选，用于例句贴脸）
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: user_context
+        - label: 区域与语言标记
+          max_length: 32
+          options: []
+          required: false
+          type: text-input
+          variable: locale
+      height: 305
+      id: a1000000-0000-4000-8000-000000000001
+      position:
+        x: 40
+        y: 260
+      positionAbsolute:
+        x: 40
+        y: 260
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def _s(x):\n    if x is None:\n        return \"\"\n    if isinstance(x, str):\n        return x.strip()\n    if isinstance(x, bool):\n        return \"\"\n    if isinstance(x, (int, float)):\n        return str(x).strip()\n    if isinstance(x, dict):\n        for k in (\"text\", \"content\", \"body\", \"value\", \"input\"):\n            v = x.get(k)\n            if v is not None and str(v).strip():\n                return _s(v)\n        return \"\"\n    if isinstance(x, list):\n        return \" \".join(_s(i) for i in x).strip()\n    return str(x).strip()\n\n\ndef main(word, user_context, locale, direction):\n    pw = _s(word)\n    pc = _s(user_context)\n    pl = _s(locale)\n    pd = _s(direction)\n    user_block_zh = (\n        \"【目标词条】\" + pw + \"\\n\"\n        \"请仅为上述【目标词条】撰写现代汉语词典 JSON；释义、例句、辨析必须全部围绕该词，不得写其它词。\\n\"\n        \"word: \" + pw + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    user_block_en = (\n        \"【HEADWORD】\" + pw + \"\\n\"\n        \"Produce English business dictionary JSON for this headword only.\\n\"\n        \"word: \" + pw + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    user_block_enzh = (\n        \"【目标词条】\" + pw + \"\\n\"\n        \"direction: \" + pd + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    return {\n        \"p_word\": pw,\n        \"p_ctx\": pc,\n        \"p_locale\": pl,\n        \"p_dir\": pd,\n        \"user_block_zh\": user_block_zh,\n        \"user_block_en\": user_block_en,\n        \"user_block_enzh\": user_block_enzh,\n    }\n"
+        code_language: python3
+        desc: 用 _s() 转字符串；输出 p_word 等供「封装 API JSON」绑定。LLM 侧已改为引用「开始」节点 word，避免 IF 后 {{#c0300000...#}} 不替换。
+        outputs:
+          p_ctx:
+            children: null
+            type: string
+          p_dir:
+            children: null
+            type: string
+          p_locale:
+            children: null
+            type: string
+          p_word:
+            children: null
+            type: string
+          user_block_en:
+            children: null
+            type: string
+          user_block_enzh:
+            children: null
+            type: string
+          user_block_zh:
+            children: null
+            type: string
+        selected: false
+        title: 开始入参→字符串
+        type: code
+        variables:
+        - value_selector:
+          - a1000000-0000-4000-8000-000000000001
+          - word
+          value_type: string
+          variable: word
+        - value_selector:
+          - a1000000-0000-4000-8000-000000000001
+          - user_context
+          value_type: string
+          variable: user_context
+        - value_selector:
+          - a1000000-0000-4000-8000-000000000001
+          - locale
+          value_type: string
+          variable: locale
+        - value_selector:
+          - a1000000-0000-4000-8000-000000000001
+          - direction
+          value_type: string
+          variable: direction
+      height: 144
+      id: c0300000-0000-4000-8000-000000000001
+      position:
+        x: 40
+        y: 140
+      positionAbsolute:
+        x: 40
+        y: 140
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "_OPTS = (\"zh_modern\", \"en_en_business\", \"en_zh_bidirectional\"\
+          )\n\ndef _flat(raw):\n    if raw is None or isinstance(raw, bool):\n   \
+          \     return \"\"\n    if isinstance(raw, int):\n        return _OPTS[raw]\
+          \ if 0 <= raw < len(_OPTS) else \"\"\n    if isinstance(raw, dict):\n  \
+          \      for k in (\"value\", \"content\", \"label\", \"name\"):\n       \
+          \     v = raw.get(k)\n            if v is not None and str(v).strip() !=\
+          \ \"\":\n                return _flat(v)\n        return \"\"\n    return\
+          \ str(raw).strip()\n\ndef main(dict_type) -> dict:\n    s = _flat(dict_type)\n\
+          \    if s not in _OPTS:\n        s = \"en_zh_bidirectional\"\n    if s ==\
+          \ \"zh_modern\":\n        return {\"branch_num\": 1, \"route\": s}\n   \
+          \ if s == \"en_en_business\":\n        return {\"branch_num\": 2, \"route\"\
+          : s}\n    return {\"branch_num\": 3, \"route\": s}\n"
+        code_language: python3
+        desc: 与 mychat_memory_kb 一致：输出 number 型 branch_num 供 IF（varType number + value
+          '1'/'2'）；route 字符串供封装。
+        outputs:
+          branch_num:
+            children: null
+            type: number
+          route:
+            children: null
+            type: string
+        selected: false
+        title: dict_type→route
+        type: code
+        variables:
+        - value_selector:
+          - a1000000-0000-4000-8000-000000000001
+          - dict_type
+          value_type: string
+          variable: dict_type
+      height: 128
+      id: c0100000-0000-4000-8000-000000000001
+      position:
+        x: 200
+        y: 260
+      positionAbsolute:
+        x: 200
+        y: 260
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: '='
+            id: cond-branch-eq-1
+            value: '1'
+            varType: number
+            variable_selector:
+            - c0100000-0000-4000-8000-000000000001
+            - branch_num
+          id: 'true'
+          logical_operator: and
+        desc: branch_num==1 → 现代汉语（条件写法对齐 mychat_memory_kb「是否写入知识库」：code 输出 number，IF
+          用 varType number、value '1'）。
+        isInIteration: false
+        isInLoop: false
+        selected: false
+        title: 分支·branch=1 现代汉语
+        type: if-else
+      height: 224
+      id: c1000000-0000-4000-8000-000000000001
+      position:
+        x: 320
+        y: 200
+      positionAbsolute:
+        x: 320
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: '='
+            id: cond-branch-eq-2
+            value: '2'
+            varType: number
+            variable_selector:
+            - c0100000-0000-4000-8000-000000000001
+            - branch_num
+          id: 'true'
+          logical_operator: and
+        desc: branch_num==2 → 商务英英；否则 3 为英汉双向（同 mychat IF 数字比较模式）。
+        isInIteration: false
+        isInLoop: false
+        selected: false
+        title: 分支·branch=2 英英或英汉
+        type: if-else
+      height: 208
+      id: c1000000-0000-4000-8000-000000000002
+      position:
+        x: 320
+        y: 380
+      positionAbsolute:
+        x: 320
+        y: 380
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(p_word, p_ctx, p_locale):\n    w = (p_word or \"\").strip() if isinstance(p_word,\
+          \ str) else str(p_word or \"\").strip()\n    c = (p_ctx or \"\").strip() if isinstance(p_ctx,\
+          \ str) else str(p_ctx or \"\").strip()\n    l = (p_locale or \"\").strip() if isinstance(p_locale,\
+          \ str) else str(p_locale or \"\").strip()\n    lb = \"目标词条：\" + w + \"\\nuser_context：\"\
+          + c + \"\\nlocale：\" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"lemma_block\"\
+          : lb}\n"
+        code_language: python3
+        desc: 输出 lemma_block 供下游 LLM 的「Context 变量」绑定；勿在提示词里手写 {{#本节点.lemma#}}（部分版本不替换）。
+        outputs:
+          ctx:
+            children: null
+            type: string
+          lemma:
+            children: null
+            type: string
+          lemma_block:
+            children: null
+            type: string
+          loc:
+            children: null
+            type: string
+        selected: false
+        title: 透传·入参→现代汉语
+        type: code
+        variables:
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_word
+          value_type: string
+          variable: p_word
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_ctx
+          value_type: string
+          variable: p_ctx
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_locale
+          value_type: string
+          variable: p_locale
+      height: 112
+      id: c2100000-0000-4000-8000-000000000001
+      position:
+        x: 470
+        y: 120
+      positionAbsolute:
+        x: 470
+        y: 120
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(p_word, p_ctx, p_locale):\n    w = (p_word or \"\").strip() if isinstance(p_word,\
+          \ str) else str(p_word or \"\").strip()\n    c = (p_ctx or \"\").strip() if isinstance(p_ctx,\
+          \ str) else str(p_ctx or \"\").strip()\n    l = (p_locale or \"\").strip() if isinstance(p_locale,\
+          \ str) else str(p_locale or \"\").strip()\n    lb = \"HEADWORD: \" + w + \"\\nuser_context: \"\
+          + c + \"\\nlocale: \" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"lemma_block\"\
+          : lb}\n"
+        code_language: python3
+        desc: lemma_block 供 LLM Context 注入。
+        outputs:
+          ctx:
+            children: null
+            type: string
+          lemma:
+            children: null
+            type: string
+          lemma_block:
+            children: null
+            type: string
+          loc:
+            children: null
+            type: string
+        selected: false
+        title: 透传·入参→英英
+        type: code
+        variables:
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_word
+          value_type: string
+          variable: p_word
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_ctx
+          value_type: string
+          variable: p_ctx
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_locale
+          value_type: string
+          variable: p_locale
+      height: 112
+      id: c2100000-0000-4000-8000-000000000002
+      position:
+        x: 470
+        y: 300
+      positionAbsolute:
+        x: 470
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def _s(x) -> str:\n    if x is None:\n        return \"\"\n    if isinstance(x,\
+          \ str):\n        return x.strip()\n    return str(x).strip()\n\n\ndef main(p_word,\
+          \ p_ctx, p_locale, p_dir) -> dict:\n    w, c, l, d = _s(p_word), _s(p_ctx), _s(p_locale),\
+          \ _s(p_dir)\n    lb = \"目标词条：\" + w + \"\\ndirection：\" + d + \"\\nuser_context：\"\
+          + c + \"\\nlocale：\" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"dir\"\
+          : d, \"lemma_block\": lb}\n"
+        code_language: python3
+        desc: lemma_block 供 LLM Context；dir 为 direction 文本。
+        outputs:
+          ctx:
+            children: null
+            type: string
+          dir:
+            children: null
+            type: string
+          lemma:
+            children: null
+            type: string
+          lemma_block:
+            children: null
+            type: string
+          loc:
+            children: null
+            type: string
+        selected: false
+        title: 透传·入参→英汉
+        type: code
+        variables:
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_word
+          value_type: string
+          variable: p_word
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_ctx
+          value_type: string
+          variable: p_ctx
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_locale
+          value_type: string
+          variable: p_locale
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_dir
+          value_type: string
+          variable: p_dir
+      height: 128
+      id: c2100000-0000-4000-8000-000000000003
+      position:
+        x: 470
+        y: 480
+      positionAbsolute:
+        x: 470
+        y: 480
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - c2100000-0000-4000-8000-000000000001
+          - lemma_block
+        desc: 现代汉语 LLM：Context 绑定「透传」的 lemma_block，提示词用 {{#context#}} 注入词条（Dify 文档推荐方式）。
+        model:
+          completion_params:
+            max_tokens: 4096
+            temperature: 0.2
+          mode: chat
+          name: '98'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: dict-zh-sys
+          role: system
+          text: '【本轮输入（必须严格使用，禁止忽略或替换）】
+            {{#context#}}
+
+            【人格与风格（固定，勿违背）】
+            1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
+            2）必须体现：①长期记忆——释义与例句须贴合上文 user_context、locale。②人格固化——语气稳定、不跑偏、不幼稚；专业、克制、有洞察力；不卖萌、不堆砌感叹与表情符号。
+
+            你是现代汉语书面语词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块，不要输出任何 JSON 以外的文字。
+
+            绑定（必须遵守）：全部 JSON 仅解释上文「目标词条：」行所给出的那一个词或短语；definition 等字段不得描写其它词。
+
+            必须包含且仅使用这些顶层键：definition（字符串）, usage_notes（字符串）, collocations（字符串数组）,
+            confusable_pairs（对象数组，每项含 term、note）, example_sentences（字符串数组）。
+
+            释义、用法说明、例句、搭配与易混辨析必须全部围绕该目标词条展开；definition 必须是该词的真实释义，禁止使用「此词条的具体含义尚未提供」「暂无」等敷衍全句作为释义主体。
+
+            对常见词、成语、口语词、专名均需实质填写；不要用 error 键，不要拒答。
+
+            '
+        selected: false
+        title: 现代汉语·LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 148
+      id: c2000000-0000-4000-8000-000000000001
+      position:
+        x: 620
+        y: 120
+      positionAbsolute:
+        x: 620
+        y: 120
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - c2100000-0000-4000-8000-000000000002
+          - lemma_block
+        desc: 商务英英 LLM；Context 绑定透传 lemma_block。
+        model:
+          completion_params:
+            max_tokens: 4096
+            temperature: 0.2
+          mode: chat
+          name: '104'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: dict-en-sys
+          role: system
+          text: '【本轮输入（必须严格使用）】
+            {{#context#}}
+
+            【人格与风格（固定，勿违背）】
+            1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
+            2）必须体现：①长期记忆——释义与例句贴合上文 user_context、locale。②人格固化——语气稳定、不跑偏、不幼稚；专业、克制、有洞察力；不卖萌、不堆砌感叹与表情符号。
+
+            你是商务语境下的英英词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块。
+
+            绑定（必须遵守）：headword 必须与上文 HEADWORD 行所给词形一致；definitions_en 等不得描写其它词。
+
+            必须包含顶层键：headword（字符串）, pos（字符串）, definitions_en（字符串数组）, business_notes（字符串）,
+            scenarios（对象数组，每项含 scene、example_en）。
+
+            例句须贴近邮件、会议、谈判等职场场景。不要用 error 键，不要拒答常见商务词汇。
+
+            '
+        selected: false
+        title: 商务英英·LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 116
+      id: c2000000-0000-4000-8000-000000000002
+      position:
+        x: 620
+        y: 300
+      positionAbsolute:
+        x: 620
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - c2100000-0000-4000-8000-000000000003
+          - lemma_block
+        desc: 英汉双向 LLM；Context 绑定透传 lemma_block（含 direction）。
+        model:
+          completion_params:
+            max_tokens: 4096
+            temperature: 0.2
+          mode: chat
+          name: '104'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: dict-enzh-sys
+          role: system
+          text: '【本轮输入（必须严格使用）】
+            {{#context#}}
+
+            【人格与风格（固定，勿违背）】
+            1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
+            2）必须体现：①长期记忆——译文与例句贴合上文 user_context、locale。②人格固化——语气稳定、不跑偏、不幼稚；专业、克制、有洞察力；不卖萌、不堆砌感叹与表情符号。
+
+            你是英汉双向商务词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块。
+
+            绑定（必须遵守）：translation_main 与 business_examples 仅针对上文「目标词条：」行所给词条；禁止偷换词条。direction 以上文「direction：」为准；若为 auto，根据该目标词条判断英或中并写入 direction_resolved。
+
+            phonetic（字符串）硬性规则：当 direction_resolved 为 en_to_zh（词条为英文）时，必须返回 **英语 IPA 国际音标**，用半角斜杠包裹，格式如 /ˈsteɪk.hoʊl.dɚ/ 或 /ˈlev.ər.ɪdʒ/（音节间可用句点分隔）；**禁止**在 phonetic 字段内写中文释义、中文注音说明或「类似某某字的读法」等文字性描述。当 direction_resolved 为 zh_to_en（词条为中文）时，phonetic 可填汉语拼音（带声调）或空字符串，同样 **禁止**用中文句子解释词义充当读音字段。
+
+            必须包含顶层键：direction_resolved（仅 en_to_zh 或 zh_to_en 两种取值）, phonetic（字符串，含义见上）,
+            translation_main（字符串，主译文/主释义的合并表述）, business_examples（对象数组，每项含 zh、en、scene）。
+
+            不要用 error 键。
+
+            '
+        selected: false
+        title: 英汉双向·LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 164
+      id: c2000000-0000-4000-8000-000000000003
+      position:
+        x: 620
+        y: 480
+      positionAbsolute:
+        x: 620
+        y: 480
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\n_FENCE = chr(96) * 3\n_ALLOWED = frozenset({\"zh_modern\"\
+          , \"en_en_business\", \"en_zh_bidirectional\"})\n\n\ndef _pick_raw_by_type(dict_type:\
+          \ str, raw_zh: str, raw_en: str, raw_enzh: str) -> str:\n    t = (dict_type\
+          \ or \"\").strip()\n    if t == \"zh_modern\":\n        return (raw_zh or\
+          \ \"\").strip()\n    if t == \"en_en_business\":\n        return (raw_en\
+          \ or \"\").strip()\n    return (raw_enzh or \"\").strip()\n\n\ndef main(raw_zh:\
+          \ str, raw_en: str, raw_enzh: str, word: str, route_type: str) -> dict:\n\
+          \    def fail(code: str, msg: str) -> dict:\n        err = {\n         \
+          \   \"ok\": False,\n            \"error_code\": code,\n            \"message\"\
+          : msg,\n            \"word\": word or \"\",\n            \"type\": (route_type\
+          \ or \"\").strip(),\n        }\n        return {\"result_json\": json.dumps(err,\
+          \ ensure_ascii=False)}\n\n    dt = (route_type or \"\").strip()\n    if\
+          \ dt not in _ALLOWED:\n        return fail(\"INPUT\", \"type 必须是 zh_modern\
+          \ | en_en_business | en_zh_bidirectional\")\n    t = _pick_raw_by_type(dt,\
+          \ raw_zh, raw_en, raw_enzh)\n    if t.startswith(_FENCE):\n        lines\
+          \ = t.split(\"\\n\")\n        if lines and lines[0].startswith(_FENCE):\n\
+          \            lines = lines[1:]\n        if lines and lines[-1].strip() ==\
+          \ _FENCE:\n            lines = lines[:-1]\n        t = \"\\n\".join(lines).strip()\n\
+          \    if not t:\n        return fail(\"PARSE\", \"LLM 输出为空（请确认当前分支 LLM 已执行且三路汇入本节点）\"\
+          )\n    try:\n        payload = json.loads(t)\n    except Exception as e:\n\
+          \        return fail(\"PARSE\", \"LLM 输出非合法 JSON: \" + str(e))\n    if not\
+          \ isinstance(payload, dict):\n        return fail(\"PARSE\", \"根节点必须是 JSON\
+          \ 对象\")\n    out = {\"ok\": True, \"type\": dt, \"payload\": payload}\n\
+          \    return {\"result_json\": json.dumps(out, ensure_ascii=False)}\n"
+        code_language: python3
+        desc: 三路 LLM 汇入；按「dict_type→route」的 route 择一路 text（与 IF 同源）。未执行支路 text 视为空。
+        outputs:
+          result_json:
+            children: null
+            type: string
+        selected: false
+        title: 封装 API JSON
+        type: code
+        variables:
+        - value_selector:
+          - c2000000-0000-4000-8000-000000000001
+          - text
+          value_type: string
+          variable: raw_zh
+        - value_selector:
+          - c2000000-0000-4000-8000-000000000002
+          - text
+          value_type: string
+          variable: raw_en
+        - value_selector:
+          - c2000000-0000-4000-8000-000000000003
+          - text
+          value_type: string
+          variable: raw_enzh
+        - value_selector:
+          - c0300000-0000-4000-8000-000000000001
+          - p_word
+          value_type: string
+          variable: word
+        - value_selector:
+          - c0100000-0000-4000-8000-000000000001
+          - route
+          value_type: string
+          variable: route_type
+      height: 128
+      id: a1000000-0000-4000-8000-000000000003
+      position:
+        x: 1180
+        y: 300
+      positionAbsolute:
+        x: 1180
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: 工作流对外输出；API 读取 outputs.result。
+        outputs:
+        - value_selector:
+          - a1000000-0000-4000-8000-000000000003
+          - result_json
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 132
+      id: a1000000-0000-4000-8000-000000000004
+      position:
+        x: 1460
+        y: 300
+      positionAbsolute:
+        x: 1460
+        y: 300
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -367.8499999999999
+      y: 89.90000000000003
+      zoom: 0.85
+  rag_pipeline_variables: []

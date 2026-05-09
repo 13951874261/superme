@@ -1,0 +1,21 @@
+[Unit]
+Description=Super-Agent Vocab Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/vocab-server
+ExecStart=/usr/bin/node /opt/vocab-server/server.js
+Restart=always
+RestartSec=3
+User=ubuntu
+Environment=NODE_ENV=production
+Environment=DIFY_BASE_URL=https://dify.234124123.xyz
+Environment=DIFY_KB_DATASET_ID=99abd904-f0e0-45f3-95a8-660b44b17cc5
+Environment=DIFY_KB_API_KEY=dataset-Jk5ehEEDT72wmXI5P68hcTlI
+Environment=DIFY_CHAT_API_KEY=app-TyztRkdBVX4kNUxA8dZ0frk7
+Environment=DIFY_DICT_API_KEY=app-zGyrsyvvzHAIO5yx11OcYdpa
+Environment=DIFY_MATERIAL_SUMMARY_API_KEY=app-T6YxlWIOttg8gNpN6CYvBq6y
+
+[Install]
+WantedBy=multi-user.target

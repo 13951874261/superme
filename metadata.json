@@ -1,0 +1,7 @@
+{
+  "name": "Super Agent",
+  "description": "高层管理者锻造系统",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}

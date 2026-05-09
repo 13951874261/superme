@@ -1,0 +1,245 @@
+# Super-Agent 项目发布与回溯 SOP
+# 外网访问地址：http://app.234124123.xyz
+# 更新时间：2026-04-26
+
+================================================================================
+【A. 先说结论：当前服务器的部署形态（根据截图回溯）】
+================================================================================
+
+1) 静态前端（index.html）
+   - 仍然是 Nginx 托管，目录确定为：
+     /var/www/super-agent/
+   - 发布动作改为“本地 pnpm build -> 上传 dist/index.html -> nginx reload”
+   - 当前项目使用 `vite-plugin-singlefile`，构建后通常只需覆盖 `index.html`
+
+2) 生词本 API（Node + Express + better-sqlite3）
+   - 服务器上的正式目录已确认：
+     /opt/vocab-server/
+     且内有 server.js、package.json、node_modules
+   - 线上服务通过 systemd 托管（不是 pm2）：
+     super-agent-vocab.service
+   - 运行命令已确认：
+     /usr/bin/node /opt/vocab-server/server.js
+
+3) 风险提醒（已解决旧目录漂移，但要保留排查步骤）
+   - 旧服务曾运行在：
+     /var/www/super-agent/vocab-server/server.js
+   - 当前新服务已切换到：
+     /opt/vocab-server/server.js
+   - 数据库统一使用：
+     /var/www/super-agent/vocab.db
+   - 若后续再次出现旧服务抢占 3001，优先查 systemd 是否仍指向旧目录
+
+================================================================================
+【B. 一次性排查：确认“线上到底怎么跑的”】
+================================================================================
+
+登录服务器后，按顺序执行以下命令：
+
+1. 查 Node 进程
+   ps -ef | grep -E "node|vocab-server|server.js" | grep -v grep
+
+2. 查 systemd（当前正式托管方式）
+   sudo systemctl status super-agent-vocab.service
+   sudo systemctl cat super-agent-vocab.service
+
+3. 查端口占用
+   sudo lsof -i :3001
+   sudo ss -ltnp | grep 3001
+
+4. 查旧目录残留（历史排查）
+   ls -lah /var/www/super-agent/vocab-server
+   ps -ef | grep "/var/www/super-agent/vocab-server" | grep -v grep
+
+5. 查 Nginx 是否反向代理到 3001
+   rg "3001|/api/vocab|vocab-server" /etc/nginx -n
+
+6. 查正式 server.js（重点核对 DB_PATH / Dify 配置）
+   rg "DB_PATH|PORT|DIFY_BASE_URL|DIFY_WORKFLOW_API_KEY|DIFY_DATASET_ID|/api/training|/api/review|dify" /opt/vocab-server/server.js -n
+
+7. 查数据库文件实际位置与时间
+   ls -lh /var/www/super-agent/vocab.db
+   ls -lh /opt/vocab-server/*.db
+
+判定规则：
+- 若 `super-agent-vocab.service` active 且 `ExecStart` 指向 /opt/vocab-server/server.js，则线上 API 来自 /opt/vocab-server
+- 若 3001 被旧目录进程占用，则优先停 `super-agent-vocab.service` 后修正其 `ExecStart`
+- 若 DB 文件只在 /var/www/super-agent 下更新，则继续使用该统一数据库路径
+
+================================================================================
+【C. 标准部署流程（前端 + API，统一执行）】
+================================================================================
+
+----------------------------------------
+C1. 本地打包前端（PowerShell / pnpm）
+----------------------------------------
+1. 进入项目目录：
+   cd d:\cursor\work\super-agent
+2. 安装依赖（项目为 pnpm / workspace 项目，不建议用 npm install）：
+   pnpm install
+3. 构建：
+   pnpm build
+4. 产物：
+   d:\cursor\work\super-agent\dist\index.html
+   （当前为 vite-plugin-singlefile，通常只需覆盖 index.html）
+
+----------------------------------------
+C2. 用 PowerShell 上传前端到服务器（成功方案）
+----------------------------------------
+1. 在 Windows PowerShell 中执行（不要在 SSH 进入服务器后执行）：
+   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+2. 若需要批量覆盖单文件产物，也可执行：
+   scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/
+3. 登录服务器确认：
+   ls -lh /var/www/super-agent/index.html
+4. 服务器重载 Nginx：
+   sudo nginx -t
+   sudo systemctl reload nginx
+
+----------------------------------------
+C3. 用 PowerShell 上传 API 到服务器（成功方案）
+----------------------------------------
+1. 在 Windows PowerShell 中执行（不要在 SSH 进入服务器后执行）：
+   scp d:\cursor\work\super-agent\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
+   scp d:\cursor\work\super-agent\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json
+2. 登录服务器后执行：
+   cd /opt/vocab-server
+   npm install
+3. 若系统未安装 systemd 服务或需重建配置：
+   sudo systemctl edit --full super-agent-vocab.service
+4. 当前正式运行方式（已验证）：
+   sudo systemctl daemon-reload
+   sudo systemctl enable super-agent-vocab.service
+   sudo systemctl start super-agent-vocab.service
+   sudo systemctl status super-agent-vocab.service
+5. 当前 service 需确保指向：
+   WorkingDirectory=/opt/vocab-server
+   ExecStart=/usr/bin/node /opt/vocab-server/server.js
+
+----------------------------------------
+C4. 线上接口健康检查（已验证命令）
+----------------------------------------
+1. 查看 3001 端口监听：
+   sudo lsof -i :3001
+2. 查看正式服务状态：
+   sudo systemctl status super-agent-vocab.service
+3. 检查资料接口：
+   curl http://127.0.0.1:3001/api/material/list?userId=default-user
+4. 检查训练会话接口（应返回 400 或业务 JSON，不应 404）：
+   curl -X POST http://127.0.0.1:3001/api/training/session/upsert \
+   -H "Content-Type: application/json" \
+   -d '{"userId":"default-user","trainingDate":"2026-04-14"}'
+5. 浏览器验证：
+   http://app.234124123.xyz
+   Ctrl + Shift + R 强刷
+
+================================================================================
+【D. 当前版本的数据库统一策略】
+================================================================================
+
+统一数据库：SQLite 单库（vocab.db）
+
+当前统一路径：
+- /var/www/super-agent/vocab.db
+
+说明：
+- vocabulary（已有）
+- users / training_sessions / training_attempts / ai_feedback / daily_reviews / dify_call_logs（新增）
+- 所有训练、复盘、资料与知识点数据统一入同一库，避免多源分裂
+
+================================================================================
+【E. 回滚与故障处理】
+================================================================================
+
+1) 前端回滚：
+   用 PowerShell / scp 把上一版 index.html 覆盖回 /var/www/super-agent/index.html
+   sudo systemctl reload nginx
+
+2) API 回滚：
+   cd /opt/vocab-server
+   cp server.js server.js.bak-<date>
+   （部署前先备份，异常时恢复备份并 sudo systemctl restart super-agent-vocab.service）
+
+3) 常见故障：
+   - 访问前端正常但词本失败：先看 3001 是否存活（sudo lsof -i :3001 / systemctl status super-agent-vocab.service）
+   - API 启动失败：看日志中 better-sqlite3、Dify 环境变量或路径权限问题
+   - 数据不更新：重点检查 DB_PATH 与实际 db 文件是否一致
+   - Windows PowerShell 上传失败：确认 scp 在本地 PowerShell 执行，不要在 SSH 登录后的 Linux 终端里执行 Windows 路径
+
+================================================================================
+【F. 下次上线前检查清单】
+================================================================================
+
+[ ] /opt/vocab-server/server.js 是否为最新版本
+[ ] systemd 服务 super-agent-vocab.service 是否指向 /opt/vocab-server/server.js
+[ ] DB_PATH 是否和线上预期一致
+[ ] /api/material/list 返回 JSON
+[ ] /api/training/session/upsert 非 404
+[ ] 前端强刷后功能正常
+[ ] 若上传前端/后端，是否使用 Windows PowerShell 的 scp 成功方案
+
+================================================================================
+【G. 最短上线命令清单（本地构建 + Windows PowerShell 上传 + Nginx reload + systemd restart）】
+================================================================================
+
+1. 本地构建前端
+   cd d:\cursor\work\super-agent
+   pnpm install
+   pnpm build
+
+2. 用 Windows PowerShell 上传前端静态产物到服务器
+   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+   （如需批量覆盖：scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/）
+
+3. 服务器侧重载 Nginx
+   ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx"
+
+4. 用 Windows PowerShell 上传后端到服务器
+   scp d:\cursor\work\super-agent\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
+   scp d:\cursor\work\super-agent\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json
+
+5. 服务器侧重启 systemd 服务并保存
+   ssh ubuntu@150.158.34.217 "sudo systemctl daemon-reload && sudo systemctl restart super-agent-vocab.service && sudo systemctl status super-agent-vocab.service"
+
+6. 一次性串联版（适合已确认权限与服务配置时使用）
+   pnpm install && pnpm build
+   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+   scp d:\cursor\work\super-agent\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
+   scp d:\cursor\work\super-agent\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json
+   ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx && sudo systemctl restart super-agent-vocab.service && sudo systemctl status super-agent-vocab.service"
+
+提示：
+- `scp` 必须在 Windows PowerShell 本地执行，不要在已经登录的 Ubuntu 终端里执行 Windows 路径。
+- 前端项目使用 pnpm（存在 pnpm-lock.yaml），不要用 npm install 重新装依赖。
+- 当前生产后端由 systemd 服务 `super-agent-vocab.service` 管理，不再使用 PM2。
+
+================================================================================
+
+一、本地执行
+1. 进入项目目录
+cd D:\cursor\work\super-agent
+2. 安装依赖
+pnpm install
+3. 构建前端
+pnpm build
+4. 上传前端静态文件
+scp .\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+如果你这版需要把 dist 里的其他文件也一起传上去，就用：
+
+scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/
+5. 上传后端文件
+scp .\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
+scp .\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json
+二、服务器上执行
+1. 进入后端目录
+cd /opt/vocab-server
+2. 安装后端依赖
+npm install
+3. 检查 Nginx
+sudo nginx -t
+4. 重载 Nginx
+sudo systemctl reload nginx
+5. 重启后端服务
+sudo systemctl daemon-reload
+sudo systemctl restart super-agent-vocab.service
+sudo systemctl status super-agent-vocab.service
