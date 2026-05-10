@@ -1,5 +1,5 @@
 # Super-Agent 项目发布与回溯 SOP
-# 外网访问地址：http://app.234124123.xyz
+# 外网访问地址：https://app.liujingzhuwo.site/
 # 更新时间：2026-04-26
 
 ================================================================================
@@ -8,7 +8,8 @@
 
 1) 静态前端（index.html）
    - 仍然是 Nginx 托管，目录确定为：
-     /var/www/super-agent/
+     /var/www/super-agent/dist/
+   - Nginx root 配置：root /var/www/super-agent/dist;
    - 发布动作改为“本地 pnpm build -> 上传 dist/index.html -> nginx reload”
    - 当前项目使用 `vite-plugin-singlefile`，构建后通常只需覆盖 `index.html`
 
@@ -87,11 +88,11 @@ C1. 本地打包前端（PowerShell / pnpm）
 C2. 用 PowerShell 上传前端到服务器（成功方案）
 ----------------------------------------
 1. 在 Windows PowerShell 中执行（不要在 SSH 进入服务器后执行）：
-   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
 2. 若需要批量覆盖单文件产物，也可执行：
-   scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/
+   scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/
 3. 登录服务器确认：
-   ls -lh /var/www/super-agent/index.html
+   ls -lh /var/www/super-agent/dist/index.html
 4. 服务器重载 Nginx：
    sudo nginx -t
    sudo systemctl reload nginx
@@ -130,7 +131,7 @@ C4. 线上接口健康检查（已验证命令）
    -H "Content-Type: application/json" \
    -d '{"userId":"default-user","trainingDate":"2026-04-14"}'
 5. 浏览器验证：
-   http://app.234124123.xyz
+   https://app.liujingzhuwo.site/
    Ctrl + Shift + R 强刷
 
 ================================================================================
@@ -152,7 +153,7 @@ C4. 线上接口健康检查（已验证命令）
 ================================================================================
 
 1) 前端回滚：
-   用 PowerShell / scp 把上一版 index.html 覆盖回 /var/www/super-agent/index.html
+   用 PowerShell / scp 把上一版 index.html 覆盖回 /var/www/super-agent/dist/index.html
    sudo systemctl reload nginx
 
 2) API 回滚：
@@ -188,8 +189,8 @@ C4. 线上接口健康检查（已验证命令）
    pnpm build
 
 2. 用 Windows PowerShell 上传前端静态产物到服务器
-   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
-   （如需批量覆盖：scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/）
+   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
+   （如需批量覆盖：scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/）
 
 3. 服务器侧重载 Nginx
    ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx"
@@ -203,7 +204,7 @@ C4. 线上接口健康检查（已验证命令）
 
 6. 一次性串联版（适合已确认权限与服务配置时使用）
    pnpm install && pnpm build
-   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
    scp d:\cursor\work\super-agent\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
    scp d:\cursor\work\super-agent\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json
    ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx && sudo systemctl restart super-agent-vocab.service && sudo systemctl status super-agent-vocab.service"
@@ -223,10 +224,10 @@ pnpm install
 3. 构建前端
 pnpm build
 4. 上传前端静态文件
-scp .\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/index.html
+scp .\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
 如果你这版需要把 dist 里的其他文件也一起传上去，就用：
 
-scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/
+scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/
 5. 上传后端文件
 scp .\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
 scp .\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json

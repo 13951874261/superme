@@ -102,11 +102,32 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
                </div>
              </div>
              
+             {/* 习惯矩阵 (Habit Tracker) */}
+             <div className="mt-8 border-t border-gray-100 pt-6">
+               <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+                 <span>Habit Matrix</span>
+               </div>
+               <div className="grid grid-cols-2 gap-3">
+                 {['睡眠达标', '饮食克制', '核心运动', '日行一善'].map((habit, idx) => (
+                   <label key={idx} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#FF5722] hover:shadow-sm transition-all group">
+                     <input 
+                       type="checkbox" 
+                       className="w-4 h-4 text-[#FF5722] border-gray-300 rounded focus:ring-[#FF5722] cursor-pointer"
+                     />
+                     <span className="text-xs font-bold text-gray-600 group-hover:text-[#202124]">{habit}</span>
+                   </label>
+                 ))}
+               </div>
+             </div>
+
           </div>
         </div>
 
         {/* 2. 即时答疑模块 (多模型舱) */}
-        <div className="flex-1 px-5 xl:px-6 py-6 min-h-[300px] flex flex-col">
+        <div className="flex-1 px-5 xl:px-6 py-6 min-h-[200px] flex flex-col">
+          <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mb-2 flex items-center">
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> E2E Encrypted
+          </div>
           <ChatModule />
         </div>
 

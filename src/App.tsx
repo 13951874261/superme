@@ -3,20 +3,29 @@ import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import { getTodayDateDot } from './utils/date';
 
+// 定义八大核心模块的类型
+export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
+
 export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  // 【全局心脏】：主控全局阅读页面的日期状态
   const [selectedDate, setSelectedDate] = useState(getTodayDateDot()); 
+  
+  // 【新增】当前专注的训练模块，默认聚焦您的核心诉求：英语
+  const [activeModule, setActiveModule] = useState<ModuleType>('english');
 
   return (
-    <div className="bg-white text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-brand-light selection:text-brand-hover">
+    <div className="bg-[#F8F9FA] text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722]">
       <Sidebar 
         isOpen={isSidebarOpen} 
         toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
         selectedDate={selectedDate}
         onDateSelect={setSelectedDate}
       />
-      <MainContent selectedDate={selectedDate} />
+      <MainContent 
+        selectedDate={selectedDate} 
+        activeModule={activeModule}
+        setActiveModule={setActiveModule}
+      />
     </div>
   );
 }
