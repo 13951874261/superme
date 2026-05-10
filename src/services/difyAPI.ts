@@ -76,15 +76,23 @@ export interface WritingReviewResult {
 const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const DIFY_APP_ID = import.meta.env.VITE_DIFY_APP_ID || '56a4d2c1-006c-4c46-95cc-7b6bedafbcff';
 
-// 各智能体独立 API Key（后续在 .env 中配置）
-const ORAL_SANDBOX_API_KEY  = import.meta.env.VITE_DIFY_ORAL_SANDBOX_API_KEY  || '';
-const VOCAB_PURIFY_API_KEY  = import.meta.env.VITE_DIFY_VOCAB_PURIFY_API_KEY  || '';
-const WRITING_REVIEW_API_KEY = import.meta.env.VITE_DIFY_WRITING_REVIEW_API_KEY || '';
-
 function getDifyApiKey() {
   const key = import.meta.env.VITE_DIFY_API_KEY;
   if (!key) throw new Error('Missing VITE_DIFY_API_KEY');
   return key;
+}
+
+function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
+  if (typeof raw !== 'string') {
+    return raw as T;
+  }
+
+  const cleanJson = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+  try {
+    return JSON.parse(cleanJson) as T;
+  } catch {
+    throw new Error(fallbackMessage);
+  }
 }
 
 async function request<T>(path: string, apiKey: string, options?: RequestInit): Promise<T> {
@@ -161,16 +169,7 @@ export async function callVocabPurify(
   }
 
   const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
-  if (typeof rawResult !== 'string') {
-    return rawResult as VocabPurifyResult;
-  }
-
-  const cleanJson = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
-  try {
-    return JSON.parse(cleanJson) as VocabPurifyResult;
-  } catch {
-    throw new Error('AI 返回的词汇数据格式异常');
-  }
+  return parseMaybeJson<VocabPurifyResult>(rawResult, 'AI 返回的词汇数据格式异常');
 }
 
 /**
@@ -204,11 +203,35 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
   // 解析 Dify 返回的 JSON 字符串结果
   try {
     const rawResult = data.data.outputs.result;
-    // 去除可能存在的 Markdown 围栏
-    const cleanJson = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson);
+    return parseMaybeJson<WritingReviewResult>(rawResult, 'AI 返回格式异常');
   } catch (e) {
     console.error('解析批阅结果失败:', e, data);
     throw new Error('AI 返回格式异常');
   }
+}
+
+export async function sendOralChatMessage(query: string, conversationId: string | null = null, userId = 'default-user') {
+  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY');
+
+  const body = {
+    inputs: {},
+    query,
+    response_mode: 'blocking' as const,
+    user: userId,
+    ...(conversationId ? { conversation_id: conversationId } : {}),
+  };
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || data.error || 'Dify Chat API 请求失败');
+  return data;
 }

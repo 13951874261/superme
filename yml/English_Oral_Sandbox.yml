@@ -1,0 +1,156 @@
+app:
+  description: 跨国高管多角色跨文化谈判沙盘。扮演不同立场角色，动态注入逻辑破绽供识别。
+  icon: 🎙️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: English_Oral_Sandbox
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.2
+dependencies:
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+      version: null
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+    opening_statement: ''
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          isInIteration: false
+          sourceType: start
+          targetType: llm
+        id: start-llm
+        source: start
+        sourceHandle: source
+        target: llm
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: llm
+          targetType: answer
+        id: llm-answer
+        source: llm
+        sourceHandle: source
+        target: answer
+        targetHandle: target
+        type: custom
+        zIndex: 0
+    nodes:
+      - data:
+          desc: ''
+          selected: false
+          title: 开始
+          type: start
+          variables: []
+        height: 54
+        id: start
+        position:
+          x: 80
+          y: 200
+        positionAbsolute:
+          x: 80
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: ''
+          model:
+            completion_params:
+              temperature: 0.7
+            mode: chat
+            name: claude-opus-4-7
+            provider: openai_api_compatible
+          prompt_template:
+            - id: system
+              role: system
+              text: |
+                你是一个跨国企业的高管谈判模拟系统。
+
+                【交互规则】
+                1. 每次你只能以一个特定对立角色（如外籍总监、难缠的客户、合伙人等）的口吻发言。
+                2. 你的发言必须体现出“文化语气差异”（如美式的强硬施压，或日式的委婉推诿）。
+                3. 【核心要求】：在你的发言中，必须刻意埋下一个逻辑或事实破绽（如偷换概念、虚假两难、以偏概全、数据缺失等）。
+                4. 强制返回严格的 JSON 格式（绝对不要包含 ```json 等 Markdown 代码块，直接输出大括号包裹的内容），格式如下：
+                {
+                  "current_speaker": "当前扮演的角色名及身份",
+                  "dialogue": "角色的英文原话（带刁难与破绽）",
+                  "hidden_intent": "该角色的真实目的或谈判策略（中文剖析）",
+                  "flaw_point": "你埋下的破绽是什么，属于哪种逻辑谬误（中文）",
+                  "evaluation": "对用户上一句应对的1-10评分及简短犀利点评"
+                }
+            - id: user
+              role: user
+              text: "{{#sys.query#}}"
+          selected: false
+          title: 角色扮演引擎
+          type: llm
+          variables: []
+          vision:
+            enabled: false
+        height: 98
+        id: llm
+        position:
+          x: 380
+          y: 200
+        positionAbsolute:
+          x: 380
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          answer: "{{#llm.text#}}"
+          desc: ''
+          selected: false
+          title: 直接回复
+          type: answer
+          variables: []
+        height: 103
+        id: answer
+        position:
+          x: 680
+          y: 200
+        positionAbsolute:
+          x: 680
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1

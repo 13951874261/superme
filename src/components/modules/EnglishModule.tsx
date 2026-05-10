@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle } from 'lucide-react';
+import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle, Loader2 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import MaterialUploader from '../MaterialUploader';
-import { runEnglishWriteReview } from '../../services/difyAPI';
+import { runEnglishWriteReview, sendOralChatMessage } from '../../services/difyAPI';
 
 type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
 
@@ -48,6 +48,10 @@ export default function EnglishModule() {
   const [reviewResult, setReviewResult] = useState<any>(null);
   const [wordLimit, setWordLimit] = useState(200);
   const [playbackRate, setPlaybackRate] = useState(1.0); // 无级调速：0.5x - 2.0x
+  const [oralMessages, setOralMessages] = useState<any[]>([]);
+  const [oralInput, setOralInput] = useState('');
+  const [isOralLoading, setIsOralLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const handleReview = async () => {
     if (!writingText || !writeIntent) return alert('请输入意图和内容');
@@ -59,6 +63,34 @@ export default function EnglishModule() {
       alert('批阅失败，请检查 API 配置或网络');
     } finally {
       setIsReviewing(false);
+    }
+  };
+
+  const handleOralSubmit = async () => {
+    if (!oralInput.trim()) return;
+    const userMsg = { role: 'user', content: oralInput };
+    setOralMessages(prev => [...prev, userMsg]);
+    setOralInput('');
+    setIsOralLoading(true);
+
+    try {
+      const res = await sendOralChatMessage(userMsg.content, conversationId);
+      if (res.conversation_id) setConversationId(res.conversation_id);
+
+      let parsed: any = null;
+      try {
+        const cleanStr = String(res.answer || '').replace(/```json/g, '').replace(/```/g, '').trim();
+        parsed = JSON.parse(cleanStr);
+      } catch (e) {
+        parsed = { current_speaker: 'System', dialogue: res.answer || 'AI 返回为空' };
+      }
+
+      setOralMessages(prev => [...prev, { role: 'ai', parsed }]);
+    } catch (error) {
+      console.error(error);
+      alert('沙盘推演请求失败，请检查网络或 HTTPS 证书配置。');
+    } finally {
+      setIsOralLoading(false);
     }
   };
 
@@ -300,71 +332,84 @@ export default function EnglishModule() {
             4. 多角色谈判沙盘 (Oral War Room)
         ═══════════════════════════════════════════════ */}
         {activeTab === 'oral' && (
-          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm flex flex-col min-h-[600px]">
-            <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
+          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm flex flex-col min-h-[600px] h-[80vh]">
+            <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100 shrink-0">
               <div>
                 <h4 className="text-xl font-black text-[#202124] flex items-center">
-                  <Mic className="w-6 h-6 mr-3 text-[#FF5722]" /> 国际银团贷款谈判 (高阶实战)
+                  <Mic className="w-6 h-6 mr-3 text-[#FF5722]" /> 跨文化谈判沙盘
                 </h4>
                 <p className="text-xs text-gray-500 font-bold tracking-widest mt-2 uppercase">多立场跟踪 / 联合与分化 / 破绽反击</p>
               </div>
-              <span className="text-[10px] bg-red-50 text-red-600 px-4 py-2 rounded-full font-black uppercase tracking-widest animate-pulse border border-red-100">
-                Hostile Lv.5
-              </span>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { setOralMessages([]); setConversationId(null); }} className="text-[10px] text-gray-400 hover:text-[#202124] font-bold uppercase tracking-widest cursor-pointer">
+                  ↻ 重置推演沙盘
+                </button>
+                <span className="text-[10px] bg-red-50 text-red-600 px-4 py-2 rounded-full font-black uppercase tracking-widest animate-pulse border border-red-100">
+                  Hostile Environment Level 5
+                </span>
+              </div>
             </div>
 
-            {/* 对话流 */}
-            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-[2rem] p-6 mb-6 space-y-6 overflow-y-auto max-h-[400px]">
-              {/* AI 角色发言 */}
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-full bg-blue-100 border border-blue-200 flex flex-col items-center justify-center shrink-0">
-                  <span className="text-blue-700 font-black text-[10px]">CFO</span>
-                  <span className="text-blue-400 text-[8px]">Client</span>
+            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-[2rem] p-6 mb-6 space-y-6 overflow-y-auto scroll-smooth">
+              {oralMessages.length === 0 && (
+                <div className="flex h-full items-center justify-center text-gray-400 text-sm font-medium italic">
+                  系统提示：输入您的开场白或应对策略，激活高管级别的交叉谈判...
                 </div>
-                <div className="bg-white p-5 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-gray-700 max-w-[80%] relative group">
-                  <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded font-bold uppercase tracking-widest hover:bg-red-200"
-                    >
-                      🎯 指出破绽
-                    </button>
-                  </div>
-                  "We cannot accept a rate higher than SOFR + 200bps.{' '}
-                  <span className="underline decoration-red-300 decoration-wavy cursor-help" title="逻辑谬误：虚假两难">
-                    Otherwise, we will immediately walk away and find another lead arranger.
-                  </span>"
-                  <div className="mt-4 pt-3 border-t border-gray-100 text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                    <AlertTriangle className="w-3 h-3 text-amber-500" /> 文化信号：美式强硬施压，试图制造焦虑
-                  </div>
-                </div>
-              </div>
+              )}
 
-              {/* 用户输入区 */}
-              <div className="flex items-start gap-4 flex-row-reverse">
-                <div className="w-12 h-12 rounded-full bg-[#FF5722]/10 border border-[#FF5722]/20 flex items-center justify-center text-[#FF5722] font-black text-[10px] shrink-0">YOU</div>
-                <div className="max-w-[80%] w-full relative">
-                  <textarea
-                    rows={4}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-white p-5 rounded-2xl rounded-tr-none border-2 border-blue-200 focus:border-[#FF5722] outline-none text-sm text-[#202124] resize-none shadow-inner transition-colors placeholder-gray-400"
-                    placeholder="【系统提示】：对方抛出虚假两难。请用英语设计精准提问进行反击，分化其立场..."
-                  />
-                  <div className="absolute right-4 bottom-4 flex gap-2">
-                    <button
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-2.5 bg-[#f8f9fa] rounded-full text-gray-400 hover:text-[#FF5722] hover:bg-gray-100 transition-colors shadow-sm"
-                    >
-                      <Mic className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={(e) => e.stopPropagation()}
-                      className="px-4 py-2 bg-[#202124] text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors"
-                    >
-                      发送 &amp; 呼出下一角色
-                    </button>
-                  </div>
+              {oralMessages.map((msg, idx) => (
+                <div key={idx}>
+                  {msg.role === 'ai' ? (
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 border border-blue-200 flex flex-col items-center justify-center shrink-0 shadow-sm">
+                        <span className="text-blue-800 font-black text-[9px] text-center leading-tight break-words px-1">{msg.parsed?.current_speaker || 'AI'}</span>
+                      </div>
+                      <div className="bg-white p-5 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-[#202124] w-[80%] relative group">
+                        {msg.parsed?.flaw_point && (
+                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                            <button className="text-[10px] bg-red-100 text-red-600 px-3 py-1.5 rounded font-black uppercase tracking-widest shadow-sm border border-red-200" title={`隐藏意图: ${msg.parsed?.hidden_intent}`}>
+                              🎯 识别破绽: {msg.parsed.flaw_point}
+                            </button>
+                          </div>
+                        )}
+                        <p className="font-serif leading-relaxed text-base">{msg.parsed?.dialogue}</p>
+                        {msg.parsed?.evaluation && (
+                          <div className="mt-4 pt-3 border-t border-gray-100 text-[10px] text-[#FF5722] font-bold uppercase tracking-widest bg-[#FF5722]/5 p-2 rounded-lg">
+                            系统侧写评分：{msg.parsed.evaluation}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-4 flex-row-reverse">
+                      <div className="w-12 h-12 rounded-full bg-[#202124] border border-gray-700 flex items-center justify-center text-white font-black text-[10px] shrink-0 shadow-md">YOU</div>
+                      <div className="bg-[#f8f9fa] p-5 rounded-2xl rounded-tr-none border border-gray-200 text-sm text-gray-700 w-[80%] font-medium">{msg.content}</div>
+                    </div>
+                  )}
                 </div>
+              ))}
+              {isOralLoading && (
+                <div className="text-xs text-gray-400 italic flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin"/> 对方正在权衡回应...</div>
+              )}
+            </div>
+
+            <div className="relative shrink-0">
+              <textarea 
+                rows={3}
+                value={oralInput}
+                onChange={e => setOralInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleOralSubmit(); } }}
+                className="w-full bg-white p-5 pr-32 rounded-2xl border-2 border-blue-200 focus:border-[#FF5722] outline-none text-sm text-[#202124] resize-none shadow-inner transition-colors placeholder-gray-400"
+                placeholder="【系统提示】：用英语输入反击话术 (按 Enter 发送，Shift+Enter 换行)..."
+              />
+              <div className="absolute right-4 bottom-4 flex gap-2">
+                <button 
+                  onClick={handleOralSubmit}
+                  disabled={isOralLoading || !oralInput.trim()}
+                  className="px-6 py-2.5 bg-[#202124] text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center cursor-pointer"
+                >
+                  {isOralLoading ? '回合推演中...' : '发送反击'}
+                </button>
               </div>
             </div>
           </div>
