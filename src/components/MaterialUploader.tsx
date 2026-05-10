@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { UploadCloud, Link as LinkIcon, FileText } from 'lucide-react';
-import { createMaterialIngestJob, uploadMaterialDocument } from '../services/trainingAPI';
+import { CheckCircle2, FileText, Link as LinkIcon, Loader2, UploadCloud } from 'lucide-react';
+import { callVocabPurify } from '../services/difyAPI';
+import { addWord } from '../services/vocabAPI';
 
 interface MaterialUploaderProps {
   topicHint?: string;
@@ -10,22 +11,47 @@ interface MaterialUploaderProps {
 export default function MaterialUploader({ topicHint = '政商务外刊/信函', onUploadSuccess }: MaterialUploaderProps) {
   const [materialText, setMaterialText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleSubmit = async () => {
     if (!materialText.trim()) return;
     setIsSubmitting(true);
+    setIsSuccess(false);
+    setStatusMsg('Dify 引擎深层提纯中...');
+
     try {
-      await createMaterialIngestJob({
-        userId: 'default-user',
-        sourceType: 'text',
-        sourceName: `${topicHint} - 文本投喂`,
-        sourceText: materialText.trim(),
-        topic: topicHint,
-      });
+      const parsedData = await callVocabPurify({ article_text: materialText.trim() });
+      setStatusMsg('提纯完成，正在写入政商务生词本...');
+
+      const words = Array.isArray(parsedData.words) ? parsedData.words : [];
+      for (const w of words) {
+        await addWord({
+          word: w.word,
+          dictType: 'dify_extracted',
+          category: 'business',
+          payload: {
+            phonetic: w.phonetic,
+            pos: w.pos,
+            meaning: w.zh_meaning,
+            related_phrases: parsedData.phrases || [],
+            related_sentences: parsedData.sentences || [],
+          },
+        });
+      }
+
+      setStatusMsg(`成功入库 ${words.length} 个高阶词汇`);
       setMaterialText('');
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        setStatusMsg('');
+      }, 3000);
+
       if (onUploadSuccess) onUploadSuccess();
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
+      setStatusMsg(`处理失败: ${e?.message || '未知错误'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -42,11 +68,11 @@ export default function MaterialUploader({ topicHint = '政商务外刊/信函',
       </div>
       
       <textarea
-        rows={4}
+        rows={5}
         value={materialText}
         onChange={(e) => setMaterialText(e.target.value)}
         className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/30 focus:bg-white rounded-2xl p-4 text-sm text-[#202124] outline-none resize-none transition-all placeholder-gray-400 mb-4"
-        placeholder="粘贴外部的商务邮件、外刊长文或会议录音文本...系统将自动提纯生词与结构。"
+        placeholder="粘贴外部的长文、宏观报告或跨国会议录音文本... Dify 将自动提纯商业黑话，并写入左侧的「政商务区」生词本。"
       />
       
       <div className="flex items-center justify-between">
@@ -58,13 +84,22 @@ export default function MaterialUploader({ topicHint = '政商务外刊/信函',
             <FileText className="w-4 h-4" />
           </button>
         </div>
-        <button 
-          onClick={handleSubmit}
-          disabled={isSubmitting || !materialText.trim()}
-          className="px-6 py-2.5 bg-[#202124] text-white text-xs font-black tracking-widest uppercase rounded-full hover:bg-[#FF5722] transition-colors disabled:opacity-50"
-        >
-          {isSubmitting ? '解析入库中...' : '提交提纯'}
-        </button>
+        <div className="flex items-center gap-4">
+          {statusMsg && (
+            <span className={`text-[10px] font-bold uppercase tracking-widest flex items-center ${isSuccess ? 'text-emerald-500' : 'text-gray-400'}`}>
+              {isSuccess && <CheckCircle2 className="w-3 h-3 mr-1" />}
+              {statusMsg}
+            </span>
+          )}
+          <button 
+            onClick={handleSubmit}
+            disabled={isSubmitting || !materialText.trim()}
+            className="px-6 py-2.5 bg-[#202124] text-white text-xs font-black tracking-widest uppercase rounded-full hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center"
+          >
+            {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {isSubmitting ? '引擎解析中' : '执行提纯'}
+          </button>
+        </div>
       </div>
     </div>
   );

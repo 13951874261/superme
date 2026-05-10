@@ -1,0 +1,1128 @@
+# mychat_memory_kb
+
+`yaml
+app:
+  description: Gemini / Claude Sonnet / Claude Opus 三路由并行答疑；回复顺序为「Gemini 3.1 Pro 全文→Claude
+    Sonnet 4.6（思考）全文→Claude Opus 4.6（思考）全文→对比汇总表」；对话摘要条件入库；侧写仅存会话变量。知识库 HTTP 默认�?Docker
+    内网 http://api:5001（避免公网自调用 503）；与官�?compose 服务名不一致时请改节点 URL 与「解析摘要JSON」内 _API_BASE�?  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: mychat_memory_kb
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.10@4a2d5ec3ea0923403480838dcdeb26824f8c096f068c953e9e83d41984a61304
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: ''
+    id: c83e00c9-c187-44a9-970f-e167e335c148
+    name: User_Current_Profile
+    selector:
+    - conversation
+    - User_Current_Profile
+    value: 该对象目前处于自我发展早期，关键目标与习惯尚未建档，暂无侧写记录�?    value_type: string
+  - description: 本轮完整用户可见回复（Gemini 3.1 Pro / Claude Sonnet 4.6 / Claude Opus 4.6 长文
+      + 对比汇总），由「拼接长文与汇总」后经赋值节点写�?    id: d2e3f4a5-b6c7-4d8e-9f0a-111122223333
+    name: Last_Aggregated_Table
+    selector:
+    - conversation
+    - Last_Aggregated_Table
+    value: ''
+    value_type: string
+  - description: 本轮 create-by-text 的整�?JSON 字符串；IF 为真时由赋值节点从「解析摘要JSON」写入，HTTP 节点只引用本会话变量，避�?      1.13.x �?IF 后对 Code 输出的模板不替换�?body 为空�?    id: b4c5d6e7-f8a9-40b1-c2d3-e4f5a6b7c8d9
+    name: KB_Create_By_Text_Body
+    selector:
+    - conversation
+    - KB_Create_By_Text_Body
+    value: ''
+    value_type: string
+  - description: 待异步入�?JSON（dataset_id、URL、body）；IF 为真时由赋值节点写入，后端程序读此变量或会�?API 拉取后再
+      POST create-by-text�?    id: e1f2a3b4-c5d6-7890-abcd-ef1234567890
+    name: KB_Pending_Record
+    selector:
+    - conversation
+    - KB_Pending_Record
+    value: ''
+    value_type: string
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: true
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: true
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: 1775878243074-source-1775878356368-target
+      selected: false
+      source: '1775878243074'
+      sourceHandle: source
+      target: '1775878356368'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: 1775878356368-source-e1111111-target
+      selected: false
+      source: '1775878356368'
+      sourceHandle: source
+      target: e1111111-1111-4111-8111-111111111111
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: 1775878356368-source-e2222222-target
+      selected: false
+      source: '1775878356368'
+      sourceHandle: source
+      target: e2222222-2222-4222-8222-222222222222
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: 1775878356368-source-e3333333-target
+      selected: false
+      source: '1775878356368'
+      sourceHandle: source
+      target: e3333333-3333-4333-8333-333333333333
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e1111111-source-e4444444-target
+      source: e1111111-1111-4111-8111-111111111111
+      sourceHandle: source
+      target: e4444444-4444-4444-8444-444444444444
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e2222222-source-e4444444-target
+      source: e2222222-2222-4222-8222-222222222222
+      sourceHandle: source
+      target: e4444444-4444-4444-8444-444444444444
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e3333333-source-e4444444-target
+      source: e3333333-3333-4333-8333-333333333333
+      sourceHandle: source
+      target: e4444444-4444-4444-8444-444444444444
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: 1775879840605-source-1775880683606-target
+      selected: false
+      source: '1775879840605'
+      sourceHandle: source
+      target: '1775880683606'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e4444444-source-1775879840605-target
+      source: e4444444-4444-4444-8444-444444444444
+      sourceHandle: source
+      target: '1775879840605'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: llm
+      id: e4444444-source-f0e1d2c3-memsumm-target
+      source: e4444444-4444-4444-8444-444444444444
+      sourceHandle: source
+      target: f0e1d2c3-b4a5-6978-9abc-def012345601
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: f0e1d2c3-memsumm-source-code-target
+      selected: false
+      source: f0e1d2c3-b4a5-6978-9abc-def012345601
+      sourceHandle: source
+      target: f0e1d2c3-b4a5-6978-9abc-def012345602
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: if-else
+      id: f0e1d2c3-code-source-ifelse-target
+      selected: false
+      source: f0e1d2c3-b4a5-6978-9abc-def012345602
+      sourceHandle: source
+      target: f0e1d2c3-b4a5-6978-9abc-def012345603
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: assigner
+      id: f0e1d2c3-ifelse-true-assign-kb-body
+      selected: false
+      source: f0e1d2c3-b4a5-6978-9abc-def012345603
+      sourceHandle: 'true'
+      target: f0e1d2c3-b4a5-6978-9abc-def012345606
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: assigner
+        targetType: http-request
+      id: f0e1d2c3-assign-kb-body-http-target
+      selected: false
+      source: f0e1d2c3-b4a5-6978-9abc-def012345606
+      sourceHandle: source
+      target: f0e1d2c3-b4a5-6978-9abc-def012345604
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: if-else
+        targetType: code
+      id: f0e1d2c3-ifelse-false-skip-target
+      selected: false
+      source: f0e1d2c3-b4a5-6978-9abc-def012345603
+      sourceHandle: 'false'
+      target: f0e1d2c3-b4a5-6978-9abc-def012345605
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: e4444444-source-e7777777-merge-full
+      selected: false
+      source: e4444444-4444-4444-8444-444444444444
+      sourceHandle: source
+      target: e7777777-7777-4777-8777-777777777777
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: assigner
+      id: e7777777-source-e6666666-assign
+      selected: false
+      source: e7777777-7777-4777-8777-777777777777
+      sourceHandle: source
+      target: e6666666-6666-4666-8666-666666666666
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: answer
+      id: e6666666-source-1775881305156-target
+      selected: false
+      source: e6666666-6666-4666-8666-666666666666
+      sourceHandle: source
+      target: '1775881305156'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables: []
+      height: 73
+      id: '1775878243074'
+      position:
+        x: 0
+        y: 233
+      positionAbsolute:
+        x: 0
+        y: 233
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.55
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 43a75c8d-f610-4b1d-bfed-d22e179caa2c
+          role: system
+          text: '# 核心定位
+
+            你是与使用者长期同行的「专属成长陪伴智能体」：清冷稳重、理性克制、高情商、不情绪化、专业干练。以可执行洞察帮助对方认识自己、推进目标、稳固习惯与边界�?
+
+            # 知识库检索（必须优先使用�?
+            用户问题：{{#sys.query#}}
+
+            检索到的私有记忆与沉淀�?
+            {{#context#}}
+
+            解答须优先调用上述检索内容，与历史结论一致处不得自相矛盾�?
+
+            # 使用者侧写（动态）
+
+            {{#conversation.User_Current_Profile#}}
+
+            据此调整深度与措辞：对方若偏理想化则冷静对齐现实；若已成熟则同频推演，禁止降维哄劝或幼稚化�?
+
+            # 对话禁区
+
+            1. 禁止廉价共情话术：不要「你好」「抱歉」「非常理解您」「作为一个AI」及爹味说教�?
+            2. 禁止感叹号轰炸与弱化语气堆砌（哦、呢、呀、吧滥用）�?
+            3. 先给结论，再展开；信息密度高，少空话�?
+
+            # 回应结构（非闲聊时强制执行）
+
+            1. 【核心判断】一句话点出问题本质或关键张力�?
+            2. 【风险与盲点】结合检索到的旧知，指出 1 条易被忽略的隐患或误区�?
+            3. 【可执行下一步】给出克制、可落地的行动、话术或检查清单�?
+            '
+        selected: false
+        title: 并行答疑·Gemini 3.1 Pro
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: e1111111-1111-4111-8111-111111111111
+      position:
+        x: 704
+        y: 58
+      positionAbsolute:
+        x: 704
+        y: 58
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '104'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 52b86c9e-6721-4c2e-aced-e33f280dbb3d
+          role: system
+          text: '# 核心定位
+
+            你是与使用者长期同行的「专属成长陪伴智能体」：清冷稳重、理性克制、高情商、不情绪化、专业干练。以可执行洞察帮助对方认识自己、推进目标、稳固习惯与边界�?
+
+            # 知识库检索（必须优先使用�?
+            用户问题：{{#sys.query#}}
+
+            检索到的私有记忆与沉淀�?
+            {{#context#}}
+
+            解答须优先调用上述检索内容，与历史结论一致处不得自相矛盾�?
+
+            # 使用者侧写（动态）
+
+            {{#conversation.User_Current_Profile#}}
+
+            据此调整深度与措辞：对方若偏理想化则冷静对齐现实；若已成熟则同频推演，禁止降维哄劝或幼稚化�?
+
+            # 对话禁区
+
+            1. 禁止廉价共情话术：不要「你好」「抱歉」「非常理解您」「作为一个AI」及爹味说教�?
+            2. 禁止感叹号轰炸与弱化语气堆砌（哦、呢、呀、吧滥用）�?
+            3. 先给结论，再展开；信息密度高，少空话�?
+
+            # 回应结构（非闲聊时强制执行）
+
+            1. 【核心判断】一句话点出问题本质或关键张力�?
+            2. 【风险与盲点】结合检索到的旧知，指出 1 条易被忽略的隐患或误区�?
+            3. 【可执行下一步】给出克制、可落地的行动、话术或检查清单�?
+            '
+        selected: false
+        title: 并行答疑·Claude Sonnet 4.6（思考）
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: e2222222-2222-4222-8222-222222222222
+      position:
+        x: 704
+        y: 226
+      positionAbsolute:
+        x: 704
+        y: 226
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.65
+          mode: chat
+          name: '106'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 63c97d0f-6832-4d3f-dbef-a44e391ecc4e
+          role: system
+          text: '# 核心定位
+
+            你是与使用者长期同行的「专属成长陪伴智能体」：清冷稳重、理性克制、高情商、不情绪化、专业干练。以可执行洞察帮助对方认识自己、推进目标、稳固习惯与边界�?
+
+            # 知识库检索（必须优先使用�?
+            用户问题：{{#sys.query#}}
+
+            检索到的私有记忆与沉淀�?
+            {{#context#}}
+
+            解答须优先调用上述检索内容，与历史结论一致处不得自相矛盾�?
+
+            # 使用者侧写（动态）
+
+            {{#conversation.User_Current_Profile#}}
+
+            据此调整深度与措辞：对方若偏理想化则冷静对齐现实；若已成熟则同频推演，禁止降维哄劝或幼稚化�?
+
+            # 对话禁区
+
+            1. 禁止廉价共情话术：不要「你好」「抱歉」「非常理解您」「作为一个AI」及爹味说教�?
+            2. 禁止感叹号轰炸与弱化语气堆砌（哦、呢、呀、吧滥用）�?
+            3. 先给结论，再展开；信息密度高，少空话�?
+
+            # 回应结构（非闲聊时强制执行）
+
+            1. 【核心判断】一句话点出问题本质或关键张力�?
+            2. 【风险与盲点】结合检索到的旧知，指出 1 条易被忽略的隐患或误区�?
+            3. 【可执行下一步】给出克制、可落地的行动、话术或检查清单�?
+            '
+        selected: false
+        title: 并行答疑·Claude Opus 4.6（思考）
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: e3333333-3333-4333-8333-333333333333
+      position:
+        x: 704
+        y: 394
+      positionAbsolute:
+        x: 704
+        y: 394
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.25
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 74d08e1a-1943-4e4a-b1ef-b55a402fdd5f
+          role: system
+          text: '你是裁判与编辑，只做「三模型答案对比表」，不扮演陪伴者、不新增虚构事实。三模型（Gemini 3.1 Pro、Claude Sonnet
+            4.6、Claude Opus 4.6）已基于同一知识库检索上下文作答，你只需对比三者正文�?
+            【用户问题】{{#sys.query#}}
+
+            【Gemini 3.1 Pro 全文】{{#e1111111-1111-4111-8111-111111111111.text#}}
+
+            【Claude Sonnet 4.6（思考）全文】{{#e2222222-2222-4222-8222-222222222222.text#}}
+
+            【Claude Opus 4.6（思考）全文】{{#e3333333-3333-4333-8333-333333333333.text#}}
+
+            输出要求（严格遵守）�?
+            1. 先输出一�?Markdown 表格；表格外除第 2 条的一行摘要外不得有任何文字�?
+            2. 表头行固定为：| 维度 | Gemini 3.1 Pro | Claude Sonnet 4.6（思考） | Claude Opus
+            4.6（思考） |
+
+            3. 至少包含这些行（行名一字不差）：核心结论、关键依据、主要分歧、主要风险、建议行动�?
+            4. 每格用极简短语或短句；单元格内禁止换行；单元格内禁止出现竖线字�?| �?
+            5. 表格最后一行后另起一行，输出以「综合建议：」开头的单行摘要（不超过 120 字）�?
+            '
+        selected: false
+        title: 三模型表格聚�?        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: e4444444-4444-4444-8444-444444444444
+      position:
+        x: 1066
+        y: 226
+      positionAbsolute:
+        x: 1066
+        y: 226
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - '1775878243074'
+        - sys.query
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检�?        type: knowledge-retrieval
+      height: 90
+      id: '1775878356368'
+      position:
+        x: 342
+        y: 225
+      positionAbsolute:
+        x: 342
+        y: 225
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.45
+          mode: chat
+          name: '56'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: fbf82167-8037-4944-b7a1-ce119bdd1cb1
+          role: system
+          text: '你是内部分析模块，输出仅用于更新「使用者侧写」，不对用户直接展示�?
+            当前侧写档案：{{#conversation.User_Current_Profile#}}
+
+            用户本轮输入：{{#sys.query#}}
+
+            用户本轮可见的助手输出（Gemini / Sonnet / Opus 三模型对比表）：{{#e4444444-4444-4444-8444-444444444444.text#}}
+
+            任务�?
+            1. 从本轮输入与对比表中提炼：目标、习惯、情绪模式、决策倾向、自我矛盾点（若无可不写）�?
+            2. 与旧侧写合并去重，升级为更可用的简短档案�?
+            3. 输出纯文本一段，总长度不超过 100 字，禁止客套首尾语与第二人称说教�?
+            '
+        selected: false
+        title: 旁路侧写
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1775879840605'
+      position:
+        x: 1428
+        y: 0
+      positionAbsolute:
+        x: 1428
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: '105'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: a9c8e7d6-1234-5678-90ab-cdef01234501
+          role: system
+          text: '你是档案员，仅根据本轮对话判断是否写入长期知识库�?
+            【用户问题�?{{#sys.query#}}
+
+            【助手正式回复�?{{#e4444444-4444-4444-8444-444444444444.text#}}
+
+            【当前侧写摘要�?{{#conversation.User_Current_Profile#}}
+
+            规则：值得�?明确目标/决定/习惯/重要事实/可复用结�?用户认可的行动要点；不值得�?寒暄、无信息增量、纯情绪发泄无结论�?
+            只输出一段合�?JSON，不�?Markdown、不要代码块、不要其它文字。键名固定为 save(boolean)、title(string)、text(string)�?
+            title 不超�?30 字；text 为第三人称可检索陈述，不超�?400 字�?
+            title �?text 内禁止使用英文双引号 " 与反斜杠�?
+            若不值得记：{"save":false,"title":"","text":""}'
+        selected: false
+        title: 对话摘要入库
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: f0e1d2c3-b4a5-6978-9abc-def012345601
+      position:
+        x: 1428
+        y: 226
+      positionAbsolute:
+        x: 1428
+        y: 226
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\n_FENCE = chr(96) * 3\n_DATASET_ID = \"99abd904-f0e0-45f3-95a8-660b44b17cc5\"\
+          \n# 自建 Docker：工作流 HTTP 节点走公网域名易 hairpin/反代 503，请�?compose 内服务名直连 API\n_API_BASE\
+          \ = \"http://api:5001\"\n\ndef main(llm_json: str) -> dict:\n    empty =\
+          \ {\n        \"do_post\": 0,\n        \"doc_name\": \"\",\n        \"doc_text\"\
+          : \"\",\n        \"api_body\": \"\",\n        \"kb_pending_record\": \"\"\
+          ,\n    }\n    if llm_json is None:\n        return empty\n    if isinstance(llm_json,\
+          \ dict):\n        if \"save\" in llm_json or (\"title\" in llm_json and\
+          \ \"text\" in llm_json):\n            data = llm_json\n        elif \"llm_json\"\
+          \ in llm_json:\n            inner = llm_json[\"llm_json\"]\n           \
+          \ if isinstance(inner, dict):\n                data = inner\n          \
+          \  else:\n                raw = str(inner).strip().lstrip(\"\\ufeff\")\n\
+          \                try:\n                    data = json.loads(raw)\n    \
+          \            except Exception:\n                    return empty\n     \
+          \   else:\n            return empty\n    else:\n        raw = str(llm_json).strip().lstrip(\"\
+          \\ufeff\")\n        if raw.startswith(_FENCE):\n            lines = raw.split(\"\
+          \\n\")\n            if lines and lines[0].startswith(_FENCE):\n        \
+          \        lines = lines[1:]\n            if lines and lines[-1].strip() ==\
+          \ _FENCE:\n                lines = lines[:-1]\n            raw = \"\\n\"\
+          .join(lines).strip()\n        try:\n            data = json.loads(raw)\n\
+          \        except Exception:\n            return empty\n    if (\n       \
+          \ isinstance(data, dict)\n        and \"llm_json\" in data\n        and\
+          \ data.get(\"save\") is None\n    ):\n        inner = data[\"llm_json\"\
+          ]\n        if isinstance(inner, dict):\n            data = inner\n     \
+          \   else:\n            try:\n                data = json.loads(str(inner).strip().lstrip(\"\
+          \\ufeff\"))\n            except Exception:\n                return empty\n\
+          \    if not isinstance(data, dict) or not data.get(\"save\"):\n        return\
+          \ empty\n    title = str(data.get(\"title\") or \"会话摘要\").strip()[:120]\n\
+          \    text = str(data.get(\"text\") or \"\").strip()\n    if not text:\n\
+          \        return empty\n    # �?Apifox 已验证通过�?create-by-text 请求体一致（勿带 original_document_id\
+          \ 占位）\n    payload = {\n        \"name\": title,\n        \"text\": text,\n\
+          \        \"indexing_technique\": \"high_quality\",\n        \"doc_form\"\
+          : \"text_model\",\n        \"doc_language\": \"Chinese\",\n        \"embedding_model\"\
+          : \"bge-small-zh-v1.5\",\n        \"embedding_model_provider\": \"langgenius/xinference/xinference\"\
+          ,\n        \"process_rule\": {\"mode\": \"automatic\"},\n    }\n    pending\
+          \ = {\n        \"kind\": \"dify_dataset_create_by_text\",\n        \"dataset_id\"\
+          : _DATASET_ID,\n        \"create_by_text_url\": (\n            _API_BASE\
+          \ + \"/v1/datasets/\" + _DATASET_ID + \"/document/create-by-text\"\n   \
+          \     ),\n        \"method\": \"POST\",\n        \"body\": payload,\n  \
+          \  }\n    return {\n        \"do_post\": 1,\n        \"doc_name\": title,\n\
+          \        \"doc_text\": text,\n        \"api_body\": json.dumps(payload,\
+          \ ensure_ascii=False),\n        \"kb_pending_record\": json.dumps(pending,\
+          \ ensure_ascii=False),\n    }\n"
+        code_language: python3
+        desc: 解析档案�?JSON；输�?api_body、kb_pending_record（供后端异步入库）；HTTP 请用 raw-text �?          api_body。请求体字段�?Apifox 成功示例对齐（含 doc_form / embedding 等）。kb_pending_record
+          �?URL 与「知识库create-by-text」一致，默认 http://api:5001；若 compose 服务�?端口不同请改 _API_BASE�?        outputs:
+          api_body:
+            children: null
+            type: string
+          do_post:
+            children: null
+            type: number
+          doc_name:
+            children: null
+            type: string
+          doc_text:
+            children: null
+            type: string
+          kb_pending_record:
+            children: null
+            type: string
+        selected: false
+        title: 解析摘要JSON
+        type: code
+        variables:
+        - value_selector:
+          - f0e1d2c3-b4a5-6978-9abc-def012345601
+          - text
+          value_type: string
+          variable: llm_json
+      height: 208
+      id: f0e1d2c3-b4a5-6978-9abc-def012345602
+      position:
+        x: 1770
+        y: 166
+      positionAbsolute:
+        x: 1770
+        y: 166
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        cases:
+        - case_id: 'true'
+          conditions:
+          - comparison_operator: '='
+            id: b1c2d3e4-5678-90ab-cdef-1234567890ab
+            value: '1'
+            varType: number
+            variable_selector:
+            - f0e1d2c3-b4a5-6978-9abc-def012345602
+            - do_post
+          id: 'true'
+          logical_operator: and
+        desc: ''
+        isInIteration: false
+        isInLoop: false
+        selected: false
+        title: 是否写入知识�?        type: if-else
+      height: 124
+      id: f0e1d2c3-b4a5-6978-9abc-def012345603
+      position:
+        x: 2112
+        y: 208
+      positionAbsolute:
+        x: 2112
+        y: 208
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - f0e1d2c3-b4a5-6978-9abc-def012345602
+          - api_body
+          variable_selector:
+          - conversation
+          - KB_Create_By_Text_Body
+          write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - f0e1d2c3-b4a5-6978-9abc-def012345602
+          - kb_pending_record
+          variable_selector:
+          - conversation
+          - KB_Pending_Record
+          write_mode: over-write
+        selected: false
+        title: 知识库请求体写入会话
+        type: assigner
+        version: '2'
+      height: 110
+      id: f0e1d2c3-b4a5-6978-9abc-def012345606
+      position:
+        x: 2474
+        y: 227
+      positionAbsolute:
+        x: 2474
+        y: 227
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config:
+            api_key: dataset-Jk5ehEEDT72wmXI5P68hcTlI
+            type: bearer
+          type: api-key
+        body:
+          data:
+          - id: c7d8e9f0-1111-2222-3333-444455556666
+            key: ''
+            type: text
+            value: '{{#conversation.KB_Create_By_Text_Body#}}'
+          type: raw-text
+        desc: Body �?raw-text（勿�?json）：Dify �?json 类型会先 repair_json 再解析，易破坏合�?JSON（如删掉
+          name/text 间逗号）。单�?data 绑定 KB_Create_By_Text_Body；Header 仍设 application/json。URL
+          �?Docker 内网 http://api:5001（避免公网域名自调用 503）；若服务名�?api 或端口非 5001 请改 URL。鉴权已�?          Dataset API Key�?        headers: 'Content-Type: application/json
+
+          Accept: application/json'
+        method: post
+        params: ''
+        retry_config:
+          enabled: true
+          exponential_backoff:
+            enabled: true
+            max_interval: 30000
+            multiplier: 2
+          max_retries: 5
+          retry_interval: 1000
+        selected: false
+        ssl_verify: true
+        timeout:
+          connect: 10
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+          read: 120
+          write: 120
+        title: 知识库create-by-text
+        type: http-request
+        url: http://api:5001/v1/datasets/99abd904-f0e0-45f3-95a8-660b44b17cc5/document/create-by-text
+      height: 312
+      id: f0e1d2c3-b4a5-6978-9abc-def012345604
+      position:
+        x: 2816
+        y: 126
+      positionAbsolute:
+        x: 2816
+        y: 126
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "\ndef main() -> dict:\n    return {\"skipped\": \"1\"}\n"
+        code_language: python3
+        desc: ''
+        outputs:
+          skipped:
+            children: null
+            type: string
+        selected: false
+        title: 跳过入库
+        type: code
+        variables: []
+      height: 52
+      id: f0e1d2c3-b4a5-6978-9abc-def012345605
+      position:
+        x: 2474
+        y: 417
+      positionAbsolute:
+        x: 2474
+        y: 417
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "def main(text_a: str, text_b: str, text_c: str, summary_table: str)\
+          \ -> dict:\n    a = (text_a or \"\").strip()\n    b = (text_b or \"\").strip()\n\
+          \    c = (text_c or \"\").strip()\n    agg = (summary_table or \"\").strip()\n\
+          \    sep = \"\\n\\n---\\n\\n\"\n    body = (\n        \"## Gemini 3.1 Pro\
+          \ 完整输出\\n\\n\" + a + sep\n        + \"## Claude Sonnet 4.6（思考）完整输出\\n\\\
+          n\" + b + sep\n        + \"## Claude Opus 4.6（思考）完整输出\\n\\n\" + c + sep\n\
+          \        + \"## 三模型对比汇总（表格与综合建议）\\n\\n\" + agg\n    )\n    return {\"full_reply\"\
+          : body}\n"
+        code_language: python3
+        desc: 在表格聚合完成后执行；顺序输�?Gemini / Sonnet / Opus 全文，再接当前汇总表内容�?        outputs:
+          full_reply:
+            children: null
+            type: string
+        selected: false
+        title: 拼接长文与汇�?        type: code
+        variables:
+        - value_selector:
+          - e1111111-1111-4111-8111-111111111111
+          - text
+          value_type: string
+          variable: text_a
+        - value_selector:
+          - e2222222-2222-4222-8222-222222222222
+          - text
+          value_type: string
+          variable: text_b
+        - value_selector:
+          - e3333333-3333-4333-8333-333333333333
+          - text
+          value_type: string
+          variable: text_c
+        - value_selector:
+          - e4444444-4444-4444-8444-444444444444
+          - text
+          value_type: string
+          variable: summary_table
+      height: 112
+      id: e7777777-7777-4777-8777-777777777777
+      position:
+        x: 1428
+        y: 440
+      positionAbsolute:
+        x: 1428
+        y: 440
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - e7777777-7777-4777-8777-777777777777
+          - full_reply
+          variable_selector:
+          - conversation
+          - Last_Aggregated_Table
+          write_mode: over-write
+        selected: false
+        title: 完整回复写入会话
+        type: assigner
+        version: '2'
+      height: 84
+      id: e6666666-6666-4666-8666-666666666666
+      position:
+        x: 1770
+        y: 454
+      positionAbsolute:
+        x: 1770
+        y: 454
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: over-write
+          value:
+          - '1775879840605'
+          - text
+          variable_selector:
+          - conversation
+          - User_Current_Profile
+          write_mode: over-write
+        selected: false
+        title: 变量赋�?        type: assigner
+        version: '2'
+      height: 84
+      id: '1775880683606'
+      position:
+        x: 1770
+        y: 2
+      positionAbsolute:
+        x: 1770
+        y: 2
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#conversation.Last_Aggregated_Table#}}'
+        selected: false
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 104
+      id: '1775881305156'
+      position:
+        x: 2112
+        y: 444
+      positionAbsolute:
+        x: 2112
+        y: 444
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -216.49999999999977
+      y: 194.89999999999998
+      zoom: 0.7
+  rag_pipeline_variables: []
+
+`

@@ -50,10 +50,13 @@ export interface VocabPurifyInput {
 
 /** 词汇提纯引擎 - 返回结构 */
 export interface VocabPurifyResult {
-  words: Array<{ word: string; phonetic: string; pos: string; zh_meaning: string }>;
-  phrases: string[];
-  sentences: string[];
+  words?: Array<{ word: string; phonetic?: string; pos?: string; zh_meaning?: string }>;
+  phrases?: string[];
+  sentences?: string[];
 }
+
+/** 词汇提纯引擎 - 直接调用 Dify Workflow 的 API Key */
+const VOCAB_PURIFY_DIRECT_API_KEY = import.meta.env.VITE_DIFY_VOCAB_API_KEY || '';
 
 /** 三段式公文批阅 - 输入 */
 export interface WritingReviewInput {
@@ -70,7 +73,7 @@ export interface WritingReviewResult {
 }
 
 // ── 基础请求封装 ─────────────────────────────────────────────
-const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || 'http://dify.234124123.xyz/v1';
+const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const DIFY_APP_ID = import.meta.env.VITE_DIFY_APP_ID || '56a4d2c1-006c-4c46-95cc-7b6bedafbcff';
 
 // 各智能体独立 API Key（后续在 .env 中配置）
@@ -129,18 +132,45 @@ export async function callOralSandbox(
 
 /**
  * 智能体2：政商务长文词汇提纯引擎 (Workflow)
+ * 通过前端直接调用 Dify Workflow，避免额外后端改造
  */
 export async function callVocabPurify(
   inputs: VocabPurifyInput,
   userId = 'default-user'
 ): Promise<VocabPurifyResult> {
-  const res = await fetch('/api/english/vocab-purify', {
+  if (!VOCAB_PURIFY_DIRECT_API_KEY) {
+    throw new Error('未配置 VITE_DIFY_VOCAB_API_KEY');
+  }
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs, userId }),
+    headers: {
+      Authorization: `Bearer ${VOCAB_PURIFY_DIRECT_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs,
+      response_mode: 'blocking',
+      user: userId,
+    }),
   });
-  if (!res.ok) throw new Error(`vocab-purify HTTP ${res.status}`);
-  return res.json();
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || `vocab-purify HTTP ${res.status}`);
+  }
+
+  const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+  if (typeof rawResult !== 'string') {
+    return rawResult as VocabPurifyResult;
+  }
+
+  const cleanJson = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
+  try {
+    return JSON.parse(cleanJson) as VocabPurifyResult;
+  } catch {
+    throw new Error('AI 返回的词汇数据格式异常');
+  }
 }
 
 /**

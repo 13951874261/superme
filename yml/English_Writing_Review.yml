@@ -1,0 +1,158 @@
+app:
+  description: 跨国高管级别英文书面表达的三段式残酷批阅引擎。
+  icon: ✒️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: English_Writing_Review
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+    image:
+      enabled: false
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          isInIteration: false
+          sourceType: start
+          targetType: llm
+        id: edge-start-llm
+        source: start_node
+        sourceHandle: source
+        target: llm_node
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: llm
+          targetType: end
+        id: edge-llm-end
+        source: llm_node
+        sourceHandle: source
+        target: end_node
+        targetHandle: target
+        type: custom
+        zIndex: 0
+    nodes:
+      - data:
+          desc: ''
+          selected: false
+          title: 开始
+          type: start
+          variables:
+            - max_length: 4000
+              options: []
+              required: true
+              type: paragraph
+              variable: user_text
+            - max_length: 256
+              options: []
+              required: true
+              type: string
+              variable: mail_intent
+        height: 116
+        id: start_node
+        position:
+          x: 80
+          y: 282
+        positionAbsolute:
+          x: 80
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: ''
+          model:
+            completion_params:
+              temperature: 0.2
+            mode: chat
+            name: gpt-4o
+            provider: openai
+          prompt_template:
+            - id: system_prompt
+              role: system
+              text: |
+                你是一位外企合规总监与法务专家。用户意图是：{{#start_node.mail_intent#}}。
+                请对用户的英文行文进行三段式残酷批阅。
+                
+                【待批阅的原文】：
+                {{#start_node.user_text#}}
+                
+                【强制要求】：必须返回合法的 JSON 格式，不要包含 ```json 等 Markdown 标记，直接输出大括号包裹的内容。
+                返回格式必须严格如下：
+                {
+                  "L1": "表层语法与中式英语纠错分析",
+                  "L2": "中层问题：是否符合西方商业直接/委婉的分寸感及语气评估",
+                  "L3": "深层问题：政治站位、利益切割、合规风险、是否把责任揽到了自己身上",
+                  "optimized_version": "你重写的高管级完美示范文本"
+                }
+          selected: false
+          title: 三段式残酷批阅
+          type: llm
+          variables: []
+          vision:
+            enabled: false
+        height: 98
+        id: llm_node
+        position:
+          x: 380
+          y: 282
+        positionAbsolute:
+          x: 380
+          y: 282
+        selected: true
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          desc: ''
+          outputs:
+            - value_selector:
+                - llm_node
+                - text
+              variable: result
+          selected: false
+          title: 结束
+          type: end
+        height: 90
+        id: end_node
+        position:
+          x: 680
+          y: 282
+        positionAbsolute:
+          x: 680
+          y: 282
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
