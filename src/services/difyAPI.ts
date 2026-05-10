@@ -144,17 +144,41 @@ export async function callVocabPurify(
 }
 
 /**
- * 智能体3：三段式公文纵深批阅 (Workflow)
+ * 英语公文纵深批阅接口 (前端直接调用 Dify)
+ * @param userText 用户写的原始英文草稿
+ * @param mailIntent 行文意图
  */
-export async function callWritingReview(
-  inputs: WritingReviewInput,
-  userId = 'default-user'
-): Promise<WritingReviewResult> {
-  const res = await fetch('/api/english/writing-review', {
+export async function runEnglishWriteReview(userText: string, mailIntent: string): Promise<WritingReviewResult> {
+  const apiKey = import.meta.env.VITE_DIFY_WRITE_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_WRITE_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs, userId }),
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: {
+        user_text: userText,
+        mail_intent: mailIntent
+      },
+      response_mode: 'blocking',
+      user: 'default-user',
+    }),
   });
-  if (!res.ok) throw new Error(`writing-review HTTP ${res.status}`);
-  return res.json();
+
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.message || 'Dify Workflow Error');
+
+  // 解析 Dify 返回的 JSON 字符串结果
+  try {
+    const rawResult = data.data.outputs.result;
+    // 去除可能存在的 Markdown 围栏
+    const cleanJson = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson);
+  } catch (e) {
+    console.error('解析批阅结果失败:', e, data);
+    throw new Error('AI 返回格式异常');
+  }
 }

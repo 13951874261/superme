@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import MaterialUploader from '../MaterialUploader';
+import { runEnglishWriteReview } from '../../services/difyAPI';
 
 type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
 
@@ -13,14 +14,53 @@ const SUB_TABS = [
   { id: 'write',     label: '纵深书面',   icon: <PenTool className="w-4 h-4" /> },
 ] as const;
 
+const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark = false, optimized = '' }: any) => (
+  <div className={`rounded-2xl p-6 border flex-1 ${isDark ? 'bg-[#202124] text-white border-gray-800' : 'bg-white border-gray-100'}`}>
+    <h5 className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-[#FF5722]' : color}`}>
+      {title}
+    </h5>
+    {isLoading ? (
+      <p className="text-sm text-gray-400 italic">Dify 正在审阅中...</p>
+    ) : content ? (
+      <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{content}</p>
+    ) : (
+      <p className="text-sm text-gray-400 italic">等待提交分析...</p>
+    )}
+    {isDark && optimized && (
+      <div className="mt-4 pt-4 border-t border-gray-800">
+        <h5 className="text-[10px] font-black uppercase tracking-widest mb-3 text-[#FF5722]">
+          AI 高管级示范文本 (Optimized Version)
+        </h5>
+        <p className="text-sm text-gray-300 leading-relaxed italic">{optimized}</p>
+      </div>
+    )}
+  </div>
+);
+
 export default function EnglishModule() {
   const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
   const [stage, setStage] = useState<'0-6' | '6-12'>('0-6');
   const [theme, setTheme] = useState('商务谈判：让步与施压');
   const [isMastered, setIsMastered] = useState(false);
   const [writingText, setWritingText] = useState('');
+  const [writeIntent, setWriteIntent] = useState('');
+  const [isReviewing, setIsReviewing] = useState(false);
+  const [reviewResult, setReviewResult] = useState<any>(null);
   const [wordLimit, setWordLimit] = useState(200);
   const [playbackRate, setPlaybackRate] = useState(1.0); // 无级调速：0.5x - 2.0x
+
+  const handleReview = async () => {
+    if (!writingText || !writeIntent) return alert('请输入意图和内容');
+    setIsReviewing(true);
+    try {
+      const result = await runEnglishWriteReview(writingText, writeIntent);
+      setReviewResult(result);
+    } catch (error) {
+      alert('批阅失败，请检查 API 配置或网络');
+    } finally {
+      setIsReviewing(false);
+    }
+  };
 
   return (
     <ModuleWrapper
@@ -337,67 +377,61 @@ export default function EnglishModule() {
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
             {/* 左：起草区 */}
             <div className="lg:col-span-7 bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm flex flex-col">
-              <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Drafting Zone // 行文起草区</h4>
-              <textarea
-                rows={12}
-                value={writingText}
-                onChange={(e) => setWritingText(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-                className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/50 rounded-2xl p-6 text-sm text-[#202124] outline-none resize-none leading-relaxed flex-1 placeholder-gray-400"
-                placeholder="撰写涉外邮件或跨部门合规通告。系统将进行三段式残酷批阅：表层语法 → 商务分寸 → 战略站位与合规风险..."
-              />
-              <div className="flex items-center justify-between mt-6">
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-gray-500">字数压缩挑战：</span>
-                  <input
-                    type="range" min="50" max="500"
-                    value={wordLimit}
-                    onChange={(e) => setWordLimit(Number(e.target.value))}
+              <h4 className="text-sm font-black text-[#202124] uppercase tracking-widest mb-6">Drafting Zone // 纵深书面起草</h4>
+              
+              <div className="flex flex-col gap-5 flex-1">
+                {/* 意图输入 */}
+                <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">
+                    Step 1: Writing Intent // 行文意图
+                  </label>
+                  <input 
+                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-[#FF5722] font-bold outline-none focus:border-[#FF5722]/50 transition-colors shadow-sm"
+                    placeholder="例如：解释信贷项目延期，并申请追加资源..."
+                    value={writeIntent}
+                    onChange={(e) => setWriteIntent(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-28 accent-[#FF5722]"
                   />
-                  <span className="text-xs font-black text-[#FF5722] w-16">{wordLimit} words</span>
                 </div>
+
+                {/* 正文输入 */}
+                <div className="flex-1 flex flex-col">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2 ml-2">
+                    Step 2: Draft Content // 原始草稿
+                  </label>
+                  <textarea
+                    rows={12}
+                    value={writingText}
+                    onChange={(e) => setWritingText(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/30 rounded-2xl p-6 text-sm text-[#202124] outline-none resize-none leading-relaxed flex-1 placeholder-gray-400 shadow-inner"
+                    placeholder="在此粘贴或撰写您的英文草稿..."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end mt-6">
                 <button
-                  onClick={(e) => e.stopPropagation()}
-                  disabled={!writingText.trim()}
-                  className="bg-[#202124] text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50"
+                  onClick={(e) => { e.stopPropagation(); handleReview(); }}
+                  disabled={isReviewing}
+                  className="bg-[#202124] text-white px-10 py-4 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-all disabled:opacity-50 shadow-lg"
                 >
-                  提交三维批阅
+                  {isReviewing ? 'Dify 正在审阅...' : '提交三维批阅'}
                 </button>
               </div>
             </div>
 
-            {/* 右：三级批阅卡片 */}
+            {/* 右侧批阅展示区 */}
             <div className="lg:col-span-5 flex flex-col gap-4">
-              {[
-                { label: 'L1 — 语法与用词', sub: 'Grammar & Phrasing', dark: false },
-                { label: 'L2 — 商务分寸与语态', sub: 'Business Tone', dark: false },
-                { label: 'L3 — 战略站位与风险切割', sub: 'Strategic Position', dark: true },
-              ].map((level, idx) => (
-                <div
-                  key={idx}
-                  className={`rounded-2xl p-6 border flex-1 ${level.dark ? 'bg-[#202124] text-white border-gray-800' : 'bg-white border-gray-100'}`}
-                >
-                  <h5 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${level.dark ? 'text-[#FF5722]' : 'text-gray-500'}`}>
-                    {level.label}
-                  </h5>
-                  <p className={`text-[10px] mb-3 ${level.dark ? 'text-gray-500' : 'text-gray-300'} uppercase tracking-widest font-bold`}>
-                    {level.sub}
-                  </p>
-                  <p className={`text-sm leading-relaxed ${level.dark ? 'text-gray-400' : 'text-gray-400'} italic`}>
-                    等待提交分析... Dify 工作流将注入{level.dark ? '战略站位与合规风控建议' : idx === 0 ? '语法纠错与用词精准度评估' : '外企文化分寸与语态分析'}。
-                  </p>
-                </div>
-              ))}
-
-              {/* 优化示范文本区 */}
-              <div className="rounded-2xl p-6 border border-[#FF5722]/20 bg-[#FF5722]/5">
-                <h5 className="text-[10px] font-black uppercase tracking-widest mb-3 text-[#FF5722]">
-                  AI 高管级示范文本 (Optimized Version)
-                </h5>
-                <p className="text-sm text-gray-500 italic">提交批阅后，系统将在此输出重写后的高管级范本...</p>
-              </div>
+              <ReviewCard title="L1 语法与措辞" content={reviewResult?.L1} isLoading={isReviewing} />
+              <ReviewCard title="L2 商务分寸" content={reviewResult?.L2} isLoading={isReviewing} color="text-[#d84315]" />
+              <ReviewCard 
+                title="L3 战略站位" 
+                content={reviewResult?.L3} 
+                isLoading={isReviewing} 
+                isDark 
+                optimized={reviewResult?.optimized_version} 
+              />
             </div>
           </div>
         )}
