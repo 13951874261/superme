@@ -1,158 +1,407 @@
 import React, { useState } from 'react';
-import { Globe, Mic, Volume2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import MaterialUploader from '../MaterialUploader';
 
+type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
+
+const SUB_TABS = [
+  { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
+  { id: 'vocab',     label: '词汇矩阵',   icon: <BookOpen className="w-4 h-4" /> },
+  { id: 'listen',    label: '精听盲听',   icon: <Volume2 className="w-4 h-4" /> },
+  { id: 'oral',      label: '多角色沙盘', icon: <Mic className="w-4 h-4" /> },
+  { id: 'write',     label: '纵深书面',   icon: <PenTool className="w-4 h-4" /> },
+] as const;
+
 export default function EnglishModule() {
+  const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
   const [stage, setStage] = useState<'0-6' | '6-12'>('0-6');
   const [theme, setTheme] = useState('商务谈判：让步与施压');
   const [isMastered, setIsMastered] = useState(false);
+  const [writingText, setWritingText] = useState('');
+  const [wordLimit, setWordLimit] = useState(200);
+  const [playbackRate, setPlaybackRate] = useState(1.0); // 无级调速：0.5x - 2.0x
 
   return (
-    <ModuleWrapper 
-      title="英语战略 ｜ 跨文化信任构建" 
+    <ModuleWrapper
+      title="英语战略 ｜ 跨文化信任构建"
       icon={<Globe className="w-8 h-8" strokeWidth={2.5} />}
-      description="核心定位：不仅是交流，而是用英语构建信任、影响他人并主导跨国谈判。当前阶段必须达成硬性通关标准方可解锁下行主题。"
+      description="不仅是交流，而是用英语构建信任、影响他人并主导跨国谈判。必须达成硬性通关标准方可解锁下行主题。"
     >
-      <div className="space-y-8">
-
-        {/* ── 模块内设置面板（与顶层Tab导航无关，仅控制本模块内的视图） ── */}
-        <div className="bg-[#f8f9fa] rounded-2xl p-4 border border-gray-200 flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0">模块内设置 ▸</span>
-
-          {/* 阶段选择 */}
-          <div className="flex bg-white p-1 rounded-xl border border-gray-100 shadow-sm">
-            <button
-              onClick={(e) => { e.stopPropagation(); setStage('0-6'); }}
-              className={`px-4 py-1.5 text-[11px] font-black tracking-wider rounded-lg transition-all ${stage === '0-6' ? 'bg-[#202124] text-white shadow' : 'text-gray-400 hover:text-[#202124]'}`}
-            >0-6月：政商务攻坚</button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setStage('6-12'); }}
-              className={`px-4 py-1.5 text-[11px] font-black tracking-wider rounded-lg transition-all ${stage === '6-12' ? 'bg-[#202124] text-white shadow' : 'text-gray-400 hover:text-[#202124]'}`}
-            >6-12月：全场景延伸</button>
-          </div>
-
-          {/* 主题选择 */}
-          <select
-            value={theme}
-            onChange={(e) => setTheme(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            className="flex-1 min-w-0 bg-white border border-gray-200 text-[#202124] text-xs font-bold rounded-xl px-3 py-2 outline-none focus:border-[#FF5722] transition-colors"
-          >
-            <option>商务谈判：让步与施压</option>
-            <option>危机公关：外媒答疑</option>
-            <option>项目汇报：跨国董事会</option>
-          </select>
-
-          {/* 通关打卡 */}
+      {/* ── 子导航 Tab ── */}
+      <div className="flex flex-wrap gap-2 mb-8 bg-[#f8f9fa] p-2 rounded-2xl border border-gray-100 w-max">
+        {SUB_TABS.map(tab => (
           <button
-            onClick={(e) => { e.stopPropagation(); setIsMastered(!isMastered); }}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-[11px] font-black tracking-widest uppercase transition-all shrink-0 ${isMastered ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
-            title="标记为已掌握，解锁下一关"
+            key={tab.id}
+            onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id as EnglishTab); }}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all ${
+              activeTab === tab.id
+                ? 'bg-[#202124] text-white shadow-md'
+                : 'text-gray-500 hover:text-[#202124] hover:bg-white'
+            }`}
           >
-            <CheckCircle2 className="w-4 h-4" />
-            {isMastered ? '已通关' : '标记通关'}
+            {tab.icon} {tab.label}
           </button>
-        </div>
+        ))}
+      </div>
 
-        {/* 基础唤醒区 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-1 bg-[#202124] rounded-[2rem] p-6 text-white shadow-xl relative overflow-hidden">
-            <div className="absolute -right-10 -bottom-10 w-32 h-32 bg-[#FF5722]/20 rounded-full blur-2xl"></div>
-            <h4 className="text-xs font-black uppercase tracking-widest text-[#FF5722] mb-4">基础唤醒打卡</h4>
-            <p className="text-sm font-medium text-gray-300 mb-4 leading-relaxed">前1个月基建：每日10分钟连读纠音与核心商务语法（被动/虚拟）重构。</p>
-            <textarea rows={2} className="w-full bg-white/10 border border-gray-700 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none resize-none mb-3" placeholder="记录今日纠音成果或语法复健..."></textarea>
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className="w-full bg-[#FF5722] text-white text-xs font-black py-3 rounded-xl uppercase tracking-widest hover:bg-[#E64A19] transition"
-            >同步至数据舱</button>
-          </div>
+      <div className="animate-[fadeIn_0.3s_ease-out]">
 
-          <div className="md:col-span-2">
-            <MaterialUploader topicHint={`英语专项解析：${theme}`} />
-          </div>
-        </div>
-
-        {/* 高阶实战演练舱 */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
-          
-          {/* 左侧：精听泛听矩阵 */}
-          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm flex flex-col h-full">
-            <div className="flex justify-between items-center mb-6">
-              <h4 className="text-sm font-black text-[#202124] uppercase tracking-widest flex items-center">
-                <Volume2 className="w-5 h-5 mr-3 text-[#FF5722]" /> 精听泛听矩阵
-              </h4>
-              <div className="flex gap-1 text-[10px] font-bold text-gray-400 uppercase tracking-widest bg-gray-50 p-1 rounded-lg">
-                <span className="px-2 py-1 rounded bg-white text-[#202124] shadow-sm cursor-pointer select-none">1.0x</span>
-                <span className="px-2 py-1 rounded hover:bg-white cursor-pointer select-none">1.2x</span>
-                <span className="px-2 py-1 rounded hover:bg-white cursor-pointer select-none">1.5x</span>
-              </div>
-            </div>
-            
-            <div className="bg-[#f8f9fa] rounded-2xl p-6 mb-6 flex-1 border border-gray-100 relative group">
-              <div className="absolute inset-0 backdrop-blur-sm bg-white/30 z-10 flex items-center justify-center opacity-100 group-hover:opacity-0 transition-opacity duration-500 rounded-2xl pointer-events-none">
-                <span className="bg-[#202124] text-white text-xs font-bold px-4 py-2 rounded-full flex items-center shadow-lg">
-                  <Volume2 className="w-4 h-4 mr-2" /> 悬浮解开盲听文本
-                </span>
-              </div>
-              <p className="text-sm text-gray-700 leading-8 font-serif italic">
-                "Our current supply chain topology lacks the <span className="bg-yellow-100 text-yellow-800 font-bold px-1 rounded">redundancy</span> required to absorb macroeconomic shocks. Therefore, an immediate pivot to <span className="bg-yellow-100 text-yellow-800 font-bold px-1 rounded">near-shoring</span> is non-negotiable."
-              </p>
-            </div>
-            
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 border border-[#202124] text-[#202124] hover:bg-[#202124] hover:text-white py-3 rounded-full text-xs font-black tracking-widest uppercase transition-colors"
-            >
-              提纯破绽词句入库
-            </button>
-          </div>
-
-          {/* 右侧：多角色口语圆桌推演 */}
-          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm flex flex-col">
-            <div className="flex justify-between items-center mb-6">
-              <h4 className="text-sm font-black text-[#202124] uppercase tracking-widest flex items-center">
-                <Mic className="w-5 h-5 mr-3 text-[#1a73e8]" /> 跨文化多角色沙盘
-              </h4>
-              <span className="text-[10px] bg-red-50 text-red-600 px-3 py-1 rounded-full font-black uppercase tracking-widest animate-pulse border border-red-100">
-                Hostile Env
-              </span>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-6 space-y-4">
-              <div className="flex items-start gap-4">
-                <div className="w-10 h-10 rounded-full bg-blue-100 border border-blue-200 flex items-center justify-center text-blue-700 font-black text-xs shrink-0">CEO</div>
-                <div className="bg-white p-4 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-gray-700 relative">
-                  <AlertTriangle className="absolute -top-2 -right-2 w-5 h-5 text-amber-500 fill-amber-100" title="隐含逻辑破绽：无数据支撑" />
-                  "The budget overrun is unacceptable. We need a 20% cut across the board immediately, no exceptions."
+        {/* ═══════════════════════════════════════════════
+            1. 进度总控 (Dashboard)
+        ═══════════════════════════════════════════════ */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-8">
+            {/* 战略阶段 + 主题锁 */}
+            <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col md:flex-row gap-8">
+              <div className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5722] mb-3">战略阶段 (Stage)</span>
+                <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setStage('0-6'); }}
+                    className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '0-6' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}
+                  >0-6个月: 政商务</button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setStage('6-12'); }}
+                    className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '6-12' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}
+                  >6-12个月: 全场景</button>
                 </div>
               </div>
-              
-              <div className="flex items-start gap-4 flex-row-reverse">
-                <div className="w-10 h-10 rounded-full bg-[#FF5722]/10 border border-[#FF5722]/20 flex items-center justify-center text-[#FF5722] font-black text-xs shrink-0">You</div>
-                <div className="w-full relative">
-                  <textarea 
-                    rows={3}
+
+              <div className="flex flex-col flex-1">
+                <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 (Theme Gateway)</span>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={theme}
+                    onChange={(e) => setTheme(e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-white p-4 rounded-2xl rounded-tr-none border-2 border-blue-200 focus:border-[#FF5722] outline-none text-sm text-[#202124] resize-none shadow-inner transition-colors"
-                    placeholder="识别对方以偏概全的漏洞。分化阵营，录入你的反驳与提问..."
-                  />
-                  <button 
-                    onClick={(e) => e.stopPropagation()}
-                    className="absolute right-3 bottom-3 p-2 bg-[#f8f9fa] rounded-full text-gray-400 hover:text-[#FF5722] hover:bg-gray-100 transition-colors"
+                    className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
                   >
-                    <Mic className="w-4 h-4" />
+                    <option>商务谈判：让步与施压 (Day 4/10)</option>
+                    <option>危机公关：外媒答疑 (Day 1/10)</option>
+                    <option>项目汇报：跨国董事会 (Day 1/10)</option>
+                  </select>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setIsMastered(!isMastered); }}
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap ${isMastered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                  >
+                    <CheckCircle2 className="w-5 h-5" />
+                    <span className="text-xs font-black uppercase tracking-widest">{isMastered ? '已通关' : '未达标'}</span>
                   </button>
                 </div>
               </div>
             </div>
 
-            <button className="w-full bg-[#1a73e8] hover:bg-blue-700 text-white py-4 rounded-full text-xs font-black tracking-widest uppercase transition-shadow shadow-[0_4px_14px_rgba(26,115,232,0.3)]">
-              提交高阶回合裁决
-            </button>
-          </div>
+            {/* 基础唤醒追踪 */}
+            <div className="bg-[#202124] rounded-[2rem] p-8 text-white relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF5722]/10 rounded-full blur-3xl pointer-events-none"></div>
+              <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-6 flex items-center">
+                <Clock className="w-5 h-5 mr-3" /> 基础唤醒追踪 (Foundation)
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2">发音纠正 (10min/Day)</span>
+                  <textarea
+                    rows={2}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none"
+                    placeholder="记录今日纠正的商务重音词汇..."
+                  />
+                </div>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2">核心语法复健 (8-10个核心点)</span>
+                  <textarea
+                    rows={2}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none"
+                    placeholder="如：被动语态/虚拟语气的商务应用..."
+                  />
+                </div>
+              </div>
+            </div>
 
-        </div>
+            <MaterialUploader topicHint={`投喂提纯材料 - ${theme}`} />
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════
+            2. 词汇矩阵 (Vocab Flashcard)
+        ═══════════════════════════════════════════════ */}
+        {activeTab === 'vocab' && (
+          <div className="bg-white rounded-[2rem] p-10 border border-gray-100 shadow-sm flex flex-col items-center justify-center min-h-[500px]">
+            <div className="w-full max-w-2xl">
+              <div className="text-center mb-8">
+                <span className="inline-block px-4 py-1.5 bg-[#FF5722]/10 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-full mb-4">
+                  Theme Words // 主题核心词汇
+                </span>
+                <h2 className="text-5xl font-black text-[#202124] tracking-tight font-serif mb-2">Concession</h2>
+                <p className="text-gray-400 font-bold tracking-widest text-lg">/kənˈseʃ.ən/</p>
+                <div className="flex justify-center gap-3 mt-4">
+                  <span className="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-black uppercase rounded-lg">名词 Noun</span>
+                  <span className="px-3 py-1 bg-blue-50 text-blue-600 text-[10px] font-black uppercase rounded-lg">商务高频</span>
+                  <span className="px-3 py-1 bg-amber-50 text-amber-600 text-[10px] font-black uppercase rounded-lg">政治语境</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
+                  <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">英英释义</h5>
+                  <p className="text-sm text-gray-700 leading-relaxed">Something given up or allowed in order to reach an agreement, especially in a negotiation.</p>
+                </div>
+                <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
+                  <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">商务例句</h5>
+                  <p className="text-sm text-gray-700 leading-relaxed italic">"Making a small <strong className="text-[#FF5722]">concession</strong> on price can facilitate a faster payment cycle."</p>
+                </div>
+              </div>
+
+              {/* 强制闭环造句区 */}
+              <div className="bg-[#f8f9fa] border border-gray-200 rounded-3xl p-6">
+                <label className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center mb-4">
+                  <Zap className="w-4 h-4 mr-2 text-[#FF5722]" /> 强制闭环造句 (Forced Application)
+                </label>
+                <textarea
+                  rows={3}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full bg-white border-2 border-transparent focus:border-[#FF5722] rounded-2xl p-4 text-sm text-[#202124] outline-none resize-none shadow-inner transition-colors"
+                  placeholder={`使用 "concession" 结合场景【${theme}】造句，AI 将实时评估语法与商务分寸...`}
+                />
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full mt-4 bg-[#202124] text-white py-3.5 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#FF5722] transition-colors"
+                >
+                  提交评估并加入艾宾浩斯序列
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════
+            3. 精听盲听 (Listen)
+        ═══════════════════════════════════════════════ */}
+        {activeTab === 'listen' && (
+          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm">
+            <div className="flex flex-col gap-3 mb-6">
+              {/* 首行：标题 + 预设速度按鈕 */}
+              <div className="flex justify-between items-center">
+                <h4 className="text-sm font-black text-[#202124] uppercase tracking-widest flex items-center">
+                  <Volume2 className="w-5 h-5 mr-3 text-[#FF5722]" /> 精听泛听矩阵
+                </h4>
+                <div className="flex gap-1 bg-gray-50 p-1 rounded-lg">
+                  {([1.0, 1.2, 1.5] as const).map((rate) => (
+                    <button
+                      key={rate}
+                      onClick={(e) => { e.stopPropagation(); setPlaybackRate(rate); }}
+                      className={`px-3 py-1 rounded-md text-[10px] font-black tracking-widest transition-all ${
+                        Math.abs(playbackRate - rate) < 0.01
+                          ? 'bg-[#202124] text-white shadow-sm'
+                          : 'text-gray-400 hover:bg-white hover:text-[#202124]'
+                      }`}
+                    >{rate.toFixed(1)}x</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 第二行：无级调速滚条 */}
+              <div className="flex items-center gap-4 bg-[#f8f9fa] rounded-2xl px-5 py-3 border border-gray-100">
+                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0">Speed</span>
+                <span className="text-[10px] text-gray-300 shrink-0">0.5x</span>
+                <input
+                  type="range"
+                  min={0.5}
+                  max={2.0}
+                  step={0.05}
+                  value={playbackRate}
+                  onChange={(e) => { e.stopPropagation(); setPlaybackRate(parseFloat(e.target.value)); }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex-1 h-1.5 accent-[#FF5722] cursor-pointer"
+                />
+                <span className="text-[10px] text-gray-300 shrink-0">2.0x</span>
+                <span className="min-w-[3rem] text-center text-sm font-black text-[#FF5722] tracking-widest">
+                  {playbackRate.toFixed(2)}x
+                </span>
+              </div>
+            </div>
+
+            {/* 盲听文本（悬浮揭开） */}
+            <div className="bg-[#f8f9fa] rounded-2xl p-8 mb-6 border border-gray-100 relative group min-h-[160px]">
+              <div className="absolute inset-0 backdrop-blur-[6px] bg-white/40 z-10 flex items-center justify-center opacity-100 group-hover:opacity-0 transition-opacity duration-500 rounded-2xl pointer-events-none">
+                <span className="bg-[#202124] text-white text-xs font-bold px-4 py-2 rounded-full flex items-center shadow-lg">
+                  <Volume2 className="w-4 h-4 mr-2" /> 悬浮揭开盲听文本
+                </span>
+              </div>
+              <p className="text-base text-gray-700 leading-9 font-serif italic">
+                "Our current supply chain topology lacks the{' '}
+                <span className="bg-yellow-100 text-yellow-800 font-bold px-1.5 rounded">redundancy</span>{' '}
+                required to absorb macroeconomic shocks. Therefore, an immediate pivot to{' '}
+                <span className="bg-yellow-100 text-yellow-800 font-bold px-1.5 rounded">near-shoring</span>{' '}
+                is non-negotiable."
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 border-2 border-[#202124] text-[#202124] hover:bg-[#202124] hover:text-white py-3 rounded-full text-xs font-black tracking-widest uppercase transition-colors"
+              >
+                提纯破绽词句入库
+              </button>
+              <button
+                onClick={(e) => e.stopPropagation()}
+                className="px-6 py-3 bg-[#f8f9fa] border border-gray-200 text-gray-600 rounded-full text-xs font-black tracking-widest uppercase hover:bg-gray-100 transition-colors"
+              >
+                换一篇素材
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════
+            4. 多角色谈判沙盘 (Oral War Room)
+        ═══════════════════════════════════════════════ */}
+        {activeTab === 'oral' && (
+          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm flex flex-col min-h-[600px]">
+            <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100">
+              <div>
+                <h4 className="text-xl font-black text-[#202124] flex items-center">
+                  <Mic className="w-6 h-6 mr-3 text-[#FF5722]" /> 国际银团贷款谈判 (高阶实战)
+                </h4>
+                <p className="text-xs text-gray-500 font-bold tracking-widest mt-2 uppercase">多立场跟踪 / 联合与分化 / 破绽反击</p>
+              </div>
+              <span className="text-[10px] bg-red-50 text-red-600 px-4 py-2 rounded-full font-black uppercase tracking-widest animate-pulse border border-red-100">
+                Hostile Lv.5
+              </span>
+            </div>
+
+            {/* 对话流 */}
+            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-[2rem] p-6 mb-6 space-y-6 overflow-y-auto max-h-[400px]">
+              {/* AI 角色发言 */}
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-full bg-blue-100 border border-blue-200 flex flex-col items-center justify-center shrink-0">
+                  <span className="text-blue-700 font-black text-[10px]">CFO</span>
+                  <span className="text-blue-400 text-[8px]">Client</span>
+                </div>
+                <div className="bg-white p-5 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-gray-700 max-w-[80%] relative group">
+                  <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[10px] bg-red-100 text-red-600 px-2 py-1 rounded font-bold uppercase tracking-widest hover:bg-red-200"
+                    >
+                      🎯 指出破绽
+                    </button>
+                  </div>
+                  "We cannot accept a rate higher than SOFR + 200bps.{' '}
+                  <span className="underline decoration-red-300 decoration-wavy cursor-help" title="逻辑谬误：虚假两难">
+                    Otherwise, we will immediately walk away and find another lead arranger.
+                  </span>"
+                  <div className="mt-4 pt-3 border-t border-gray-100 text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                    <AlertTriangle className="w-3 h-3 text-amber-500" /> 文化信号：美式强硬施压，试图制造焦虑
+                  </div>
+                </div>
+              </div>
+
+              {/* 用户输入区 */}
+              <div className="flex items-start gap-4 flex-row-reverse">
+                <div className="w-12 h-12 rounded-full bg-[#FF5722]/10 border border-[#FF5722]/20 flex items-center justify-center text-[#FF5722] font-black text-[10px] shrink-0">YOU</div>
+                <div className="max-w-[80%] w-full relative">
+                  <textarea
+                    rows={4}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-white p-5 rounded-2xl rounded-tr-none border-2 border-blue-200 focus:border-[#FF5722] outline-none text-sm text-[#202124] resize-none shadow-inner transition-colors placeholder-gray-400"
+                    placeholder="【系统提示】：对方抛出虚假两难。请用英语设计精准提问进行反击，分化其立场..."
+                  />
+                  <div className="absolute right-4 bottom-4 flex gap-2">
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-2.5 bg-[#f8f9fa] rounded-full text-gray-400 hover:text-[#FF5722] hover:bg-gray-100 transition-colors shadow-sm"
+                    >
+                      <Mic className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      className="px-4 py-2 bg-[#202124] text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors"
+                    >
+                      发送 &amp; 呼出下一角色
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════════════
+            5. 纵深书面 (Writing Review)
+        ═══════════════════════════════════════════════ */}
+        {activeTab === 'write' && (
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            {/* 左：起草区 */}
+            <div className="lg:col-span-7 bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm flex flex-col">
+              <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Drafting Zone // 行文起草区</h4>
+              <textarea
+                rows={12}
+                value={writingText}
+                onChange={(e) => setWritingText(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/50 rounded-2xl p-6 text-sm text-[#202124] outline-none resize-none leading-relaxed flex-1 placeholder-gray-400"
+                placeholder="撰写涉外邮件或跨部门合规通告。系统将进行三段式残酷批阅：表层语法 → 商务分寸 → 战略站位与合规风险..."
+              />
+              <div className="flex items-center justify-between mt-6">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs font-bold text-gray-500">字数压缩挑战：</span>
+                  <input
+                    type="range" min="50" max="500"
+                    value={wordLimit}
+                    onChange={(e) => setWordLimit(Number(e.target.value))}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-28 accent-[#FF5722]"
+                  />
+                  <span className="text-xs font-black text-[#FF5722] w-16">{wordLimit} words</span>
+                </div>
+                <button
+                  onClick={(e) => e.stopPropagation()}
+                  disabled={!writingText.trim()}
+                  className="bg-[#202124] text-white px-6 py-3 rounded-full text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50"
+                >
+                  提交三维批阅
+                </button>
+              </div>
+            </div>
+
+            {/* 右：三级批阅卡片 */}
+            <div className="lg:col-span-5 flex flex-col gap-4">
+              {[
+                { label: 'L1 — 语法与用词', sub: 'Grammar & Phrasing', dark: false },
+                { label: 'L2 — 商务分寸与语态', sub: 'Business Tone', dark: false },
+                { label: 'L3 — 战略站位与风险切割', sub: 'Strategic Position', dark: true },
+              ].map((level, idx) => (
+                <div
+                  key={idx}
+                  className={`rounded-2xl p-6 border flex-1 ${level.dark ? 'bg-[#202124] text-white border-gray-800' : 'bg-white border-gray-100'}`}
+                >
+                  <h5 className={`text-[10px] font-black uppercase tracking-widest mb-1 ${level.dark ? 'text-[#FF5722]' : 'text-gray-500'}`}>
+                    {level.label}
+                  </h5>
+                  <p className={`text-[10px] mb-3 ${level.dark ? 'text-gray-500' : 'text-gray-300'} uppercase tracking-widest font-bold`}>
+                    {level.sub}
+                  </p>
+                  <p className={`text-sm leading-relaxed ${level.dark ? 'text-gray-400' : 'text-gray-400'} italic`}>
+                    等待提交分析... Dify 工作流将注入{level.dark ? '战略站位与合规风控建议' : idx === 0 ? '语法纠错与用词精准度评估' : '外企文化分寸与语态分析'}。
+                  </p>
+                </div>
+              ))}
+
+              {/* 优化示范文本区 */}
+              <div className="rounded-2xl p-6 border border-[#FF5722]/20 bg-[#FF5722]/5">
+                <h5 className="text-[10px] font-black uppercase tracking-widest mb-3 text-[#FF5722]">
+                  AI 高管级示范文本 (Optimized Version)
+                </h5>
+                <p className="text-sm text-gray-500 italic">提交批阅后，系统将在此输出重写后的高管级范本...</p>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     </ModuleWrapper>
   );
