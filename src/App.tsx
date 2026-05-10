@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
+import TextHighlighter from './components/TextHighlighter';
 import { getTodayDateDot } from './utils/date';
 
 // 定义八大核心模块的类型
@@ -15,6 +16,7 @@ export default function App() {
 
   return (
     <div className="bg-[#F8F9FA] text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722]">
+      <TextHighlighter />
       <Sidebar 
         isOpen={isSidebarOpen} 
         toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 

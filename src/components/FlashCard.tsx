@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { X, RotateCcw, ChevronRight, Brain, CheckCircle2, XCircle, AlertTriangle, Zap } from 'lucide-react';
-import { getReviewWords, submitReview, VocabEntry } from '../services/vocabAPI';
-import { renderValue } from './DictionaryPanel';
+import { X, ChevronRight, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout, ScanLine } from 'lucide-react';
+import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
+import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 
 interface FlashCardProps {
   onClose: () => void;
@@ -29,6 +29,11 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isFinished, setIsFinished] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [sentenceInput, setSentenceInput] = useState('');
+  const [isEvalLoading, setIsEvalLoading] = useState(false);
+  const [evalResult, setEvalResult] = useState<SentenceEvaluationResult | null>(null);
+  const [localPayload, setLocalPayload] = useState<any>(null);
+  const [isEnriching, setIsEnriching] = useState(false);
 
   const loadWords = useCallback(async () => {
     setIsLoading(true);
@@ -41,12 +46,19 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     }
   }, []);
 
+  const current = words[currentIndex];
+  const progress = session.total > 0 ? (session.done / session.total) * 100 : 0;
+
   useEffect(() => {
     loadWords();
   }, [loadWords]);
 
-  const current = words[currentIndex];
-  const progress = session.total > 0 ? (session.done / session.total) * 100 : 0;
+  useEffect(() => {
+    setLocalPayload(current?.payload || null);
+    setSentenceInput('');
+    setEvalResult(null);
+    setIsFlipped(false);
+  }, [current?.id]);
 
   const handleQuality = async (quality: number) => {
     if (!current || submitting) return;
@@ -72,13 +84,60 @@ export default function FlashCard({ onClose }: FlashCardProps) {
 
   const getPayloadSummary = (payload: any): string => {
     if (!payload) return '';
-    const keys = ['translation_main', 'definition', 'definitions'];
+    const keys = ['translation_main', 'definition', 'definitions', 'meaning'];
     for (const k of keys) {
       if (payload[k] && typeof payload[k] === 'string') {
         return payload[k].slice(0, 120) + (payload[k].length > 120 ? '...' : '');
       }
     }
     return '';
+  };
+
+  const ensureEnrichedPayload = async () => {
+    if (!current || isEnriching) return;
+    setIsEnriching(true);
+    try {
+      const enriched = await runWordEnrichment(current.word);
+      const normalized = {
+        ...toVocabEnrichmentPayload(enriched),
+        source: '闪卡自动补全',
+      };
+      setLocalPayload(normalized);
+      await updateWordPayload(current.id, normalized);
+    } catch (error) {
+      console.error('闪卡自动补全失败:', error);
+      setLocalPayload(prev => ({
+        ...prev,
+        meaning: prev?.meaning || '补全失败',
+        definition_en: prev?.definition_en || '请检查 Dify 配置或网络。',
+        business_note: prev?.business_note || '',
+        examples: prev?.examples || [],
+      }));
+    } finally {
+      setIsEnriching(false);
+    }
+  };
+
+  const handleSentenceSubmit = async (targetWord: string) => {
+    if (!sentenceInput.trim()) return;
+    setIsEvalLoading(true);
+    setEvalResult(null);
+    try {
+      const result = await runEnglishSentenceEvaluation(targetWord, sentenceInput);
+      setEvalResult(result);
+      if (result.isPass) {
+        await addWord({
+          word: targetWord,
+          dictType: 'manual_capture',
+          category: 'business',
+          payload: { meaning: '句子考核通过', source: '闪卡造句评估' },
+        });
+      }
+    } catch {
+      alert('AI 评估失败，请检查网络或 HTTPS API 配置。');
+    } finally {
+      setIsEvalLoading(false);
+    }
   };
 
   const content = (
@@ -163,52 +222,82 @@ export default function FlashCard({ onClose }: FlashCardProps) {
           {!isLoading && !isFinished && current && (
             <div className="px-6 py-6 flex flex-col gap-4">
               {/* 正面：词条 */}
-              <div
-                className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center cursor-pointer select-none"
-                onClick={() => setIsFlipped(!isFlipped)}
-              >
+              <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none">
                 <div className="text-3xl font-black text-[#202124] mb-2">{current.word}</div>
                 {!isFlipped && (
-                  <div className="text-[11px] text-gray-400 flex items-center justify-center gap-1 mt-3">
-                    <RotateCcw className="w-3 h-3" />
+                  <button
+                    onClick={async () => {
+                      await ensureEnrichedPayload();
+                      setIsFlipped(true);
+                    }}
+                    disabled={isEnriching}
+                    className="mt-3 inline-flex items-center justify-center gap-1 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white hover:bg-[#FF5722] transition disabled:opacity-50"
+                  >
+                    <ScanLine className="w-4 h-4" />
                     点击翻转查看释义
-                  </div>
+                  </button>
                 )}
               </div>
 
               {/* 背面：释义（翻转后显示） */}
               {isFlipped && (
-                <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease]">
-                  {/* 核心释义 */}
-                  {getPayloadSummary(current.payload) && (
-                    <div>
-                      <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                        <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
-                        核心释义
-                      </div>
-                      <div className="text-sm text-gray-700 leading-relaxed">
-                        {getPayloadSummary(current.payload)}
+                <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
+                  {isEnriching && (
+                    <div className="absolute inset-0 z-10 rounded-2xl bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                      <div className="flex items-center gap-2 text-xs text-[#FF5722] font-black uppercase tracking-widest">
+                        <ScanLine className="w-4 h-4 animate-pulse" />
+                        情报补全中...
                       </div>
                     </div>
                   )}
 
-                  {/* 商务例句（如有） */}
-                  {current.payload?.business_examples && Array.isArray(current.payload.business_examples) && (
-                    <div>
-                      <div className="text-[10px] font-black text-purple-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                        <span className="w-1 h-3 bg-purple-400 rounded-full inline-block" />
-                        商务例句
-                      </div>
-                      {current.payload.business_examples.slice(0, 1).map((ex: any, i: number) => (
-                        <div key={i} className="bg-gray-50 rounded-lg p-2.5 text-xs text-gray-600 space-y-1">
-                          {ex.zh && <div>🇨🇳 {ex.zh}</div>}
-                          {ex.en && <div className="text-gray-400 italic">🇺🇸 {ex.en}</div>}
+                  {/* 1. 核心释义 */}
+                  <div>
+                    <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
+                      核心释义
+                    </div>
+                    <div className="text-sm text-gray-700 leading-relaxed">
+                      {getPayloadSummary(localPayload || current.payload) || '待补全'}
+                    </div>
+                  </div>
+
+                  {/* 2. 英文定义 */}
+                  <div>
+                    <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <BookOpen className="w-3 h-3" /> English Definition / 英文定义
+                    </div>
+                    <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                      {localPayload?.definition_en || current.payload?.definition_en || 'AI正在抓取此黑话的深层商务含义...'}
+                    </div>
+                  </div>
+
+                  {/* 3. 商务注解 */}
+                  <div>
+                    <div className="text-[10px] font-black text-purple-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Briefcase className="w-3 h-3" /> Business Context / 商务注解
+                    </div>
+                    <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
+                      {localPayload?.business_note || current.payload?.business_note || '暂无特定商务场景备注。'}
+                    </div>
+                  </div>
+
+                  {/* 4. 应用场景 */}
+                  <div>
+                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                      <Layout className="w-3 h-3" /> Usage Scenarios / 应用场景
+                    </div>
+                    <div className="space-y-3">
+                      {(localPayload?.examples || current.payload?.examples || []).map((ex: string, i: number) => (
+                        <div key={i} className="text-xs text-gray-600 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 relative pl-6">
+                          <div className="absolute left-2 top-3 w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                          {ex}
                         </div>
                       ))}
                     </div>
-                  )}
+                  </div>
 
-                  {/* 复习历史 */}
+                  {/* 5. 复习历史 */}
                   <div className="text-[10px] text-gray-300 text-right">
                     已复习 {current.repetitions} 次 · 间隔 {current.interval_days} 天
                   </div>
@@ -234,6 +323,46 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                   </div>
                 </div>
               )}
+
+              <div className="mt-6 border-t border-gray-100 pt-6">
+                <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 block">
+                  Mandatory Usage Test // 强制应用考核
+                </label>
+                <textarea
+                  rows={3}
+                  value={sentenceInput}
+                  onChange={(e) => setSentenceInput(e.target.value)}
+                  className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/30 rounded-xl p-4 text-sm text-[#202124] outline-none resize-none mb-3 shadow-inner"
+                  placeholder={`请使用目标词汇造一个外企商务场景的句子...`}
+                />
+                <button
+                  onClick={() => handleSentenceSubmit(current.word)}
+                  disabled={isEvalLoading || !sentenceInput.trim()}
+                  className="px-6 py-2.5 bg-[#202124] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center cursor-pointer"
+                >
+                  {isEvalLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在提交高管审阅...</> : '提交造句'}
+                </button>
+
+                {evalResult && (
+                  <div className={`mt-4 p-5 rounded-xl border ${evalResult.isPass ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'} animate-[fadeIn_0.3s_ease-out]`}>
+                    <div className="flex justify-between items-center mb-3">
+                      <span className="text-xs font-black uppercase tracking-widest flex items-center">
+                        {evalResult.isPass ? <CheckCircle2 className="w-4 h-4 text-emerald-600 mr-2"/> : <XCircle className="w-4 h-4 text-red-600 mr-2"/>}
+                        高管侧写评分：{evalResult.score} / 10
+                      </span>
+                      <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${evalResult.isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                        {evalResult.isPass ? 'APPROVED (允许升阶)' : 'REJECTED (打回重造)'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 mb-4 font-medium leading-relaxed">{evalResult.feedback}</p>
+                    <div className="text-xs bg-white p-4 rounded-lg border border-gray-100 text-gray-800 font-serif relative">
+                      <div className="absolute -left-1 top-4 w-1 h-8 bg-[#FF5722] rounded-r-md"></div>
+                      <span className="font-bold text-[#FF5722] mr-2 text-[10px] uppercase tracking-widest">地道重构:</span>
+                      <br />{evalResult.correctedSentence}
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* 跳过按钮 */}
               {!isFlipped && (

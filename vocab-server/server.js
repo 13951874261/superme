@@ -454,6 +454,23 @@ app.post('/api/vocab/add', (req, res) => {
   res.json({ success: true, id, message: '收录成功，5 分钟后开始强化复习' });
 });
 
+// 更新词条 payload
+app.patch('/api/vocab/update_payload/:id', (req, res) => {
+  const { payload } = req.body || {};
+  if (!payload) return res.status(400).json({ error: '缺少 payload 字段' });
+
+  const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: '词条不存在' });
+
+  db.prepare(
+    `UPDATE vocabulary
+     SET payload = ?
+     WHERE id = ?`
+  ).run(JSON.stringify(payload), req.params.id);
+
+  res.json({ success: true, message: 'payload 更新成功' });
+});
+
 // 提交复习结果（SM-2 更新）
 app.put('/api/vocab/review/:id', (req, res) => {
   const { quality } = req.body; // 0-5

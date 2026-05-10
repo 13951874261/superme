@@ -74,6 +74,17 @@ export async function addWord(params: {
   });
 }
 
+/** 更新词条 payload */
+export async function updateWordPayload(
+  wordId: string,
+  newPayload: any
+): Promise<{ success: boolean; message?: string }> {
+  return request(`/update_payload/${wordId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ payload: newPayload }),
+  });
+}
+
 /** 提交复习结果（quality: 0=完全忘记 2=朦胧 4=记住 5=轻松） */
 export async function submitReview(
   id: string,

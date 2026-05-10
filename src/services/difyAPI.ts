@@ -72,6 +72,171 @@ export interface WritingReviewResult {
   optimized_version: string;
 }
 
+export interface ListenJargonItem {
+  word: string;
+  meaning: string;
+}
+
+export interface ListenEngineResult {
+  surfaceMeaning: string;
+  hiddenSubtext: string;
+  powerDynamics: string;
+  keyJargons: ListenJargonItem[];
+}
+
+export interface SentenceEvaluationResult {
+  isPass: boolean;
+  score: number;
+  feedback: string;
+  correctedSentence: string;
+}
+
+export interface WordEnrichmentResult {
+  word: string;
+  phonetic: string;
+  partOfSpeech: string;
+  meaning: string;
+  definitionEn: string;
+  businessNote: string;
+  examples: string[];
+}
+
+export interface VocabEnrichmentPayload {
+  word: string;
+  phonetic: string;
+  partOfSpeech: string;
+  meaning: string;
+  definition_en: string;
+  business_note: string;
+  examples: string[];
+  source: string;
+}
+
+interface RawWordEnrichmentResult {
+  word?: unknown;
+  phonetic?: unknown;
+  part_of_speech?: unknown;
+  partOfSpeech?: unknown;
+  meaning?: unknown;
+  definition_en?: unknown;
+  definitionEn?: unknown;
+  business_note?: unknown;
+  businessNote?: unknown;
+  examples?: unknown;
+}
+
+interface RawSentenceEvaluationResult {
+  is_pass?: unknown;
+  score?: unknown;
+  feedback?: unknown;
+  corrected_sentence?: unknown;
+}
+
+interface RawListenEngineResult {
+  surface_meaning?: unknown;
+  hidden_subtext?: unknown;
+  power_dynamics?: unknown;
+  key_jargons?: unknown;
+}
+
+function normalizeListenJargons(raw: unknown): ListenJargonItem[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw
+    .map((item): ListenJargonItem | null => {
+      if (!item || typeof item !== 'object') return null;
+      const record = item as Record<string, unknown>;
+      const word = typeof record.word === 'string' ? record.word.trim() : '';
+      const meaning = typeof record.meaning === 'string' ? record.meaning.trim() : '';
+      if (!word || !meaning) return null;
+      return { word, meaning };
+    })
+    .filter((item): item is ListenJargonItem => item !== null);
+}
+
+function mapListenEngineResult(raw: unknown): ListenEngineResult {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('AI 返回数据格式异常');
+  }
+
+  const result = raw as RawListenEngineResult;
+  return {
+    surfaceMeaning: typeof result.surface_meaning === 'string' ? result.surface_meaning : '',
+    hiddenSubtext: typeof result.hidden_subtext === 'string' ? result.hidden_subtext : '',
+    powerDynamics: typeof result.power_dynamics === 'string' ? result.power_dynamics : '',
+    keyJargons: normalizeListenJargons(result.key_jargons),
+  };
+}
+
+function mapSentenceEvaluationResult(raw: unknown): SentenceEvaluationResult {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('AI 返回数据格式异常');
+  }
+
+  const result = raw as RawSentenceEvaluationResult;
+  return {
+    isPass: Boolean(result.is_pass),
+    score: typeof result.score === 'number' ? result.score : Number(result.score ?? 0),
+    feedback: typeof result.feedback === 'string' ? result.feedback : '',
+    correctedSentence: typeof result.corrected_sentence === 'string' ? result.corrected_sentence : '',
+  };
+}
+
+function mapWordEnrichmentResult(raw: unknown): WordEnrichmentResult {
+  if (!raw || typeof raw !== 'object') {
+    throw new Error('AI 返回数据格式异常');
+  }
+
+  const result = raw as RawWordEnrichmentResult;
+  const examples = Array.isArray(result.examples)
+    ? result.examples.filter((item): item is string => typeof item === 'string')
+    : [];
+
+  const partOfSpeech =
+    typeof result.part_of_speech === 'string'
+      ? result.part_of_speech
+      : typeof result.partOfSpeech === 'string'
+        ? result.partOfSpeech
+        : '';
+
+  const definitionEn =
+    typeof result.definition_en === 'string'
+      ? result.definition_en
+      : typeof result.definitionEn === 'string'
+        ? result.definitionEn
+        : '';
+
+  const businessNote =
+    typeof result.business_note === 'string'
+      ? result.business_note
+      : typeof result.businessNote === 'string'
+        ? result.businessNote
+        : '';
+
+  return {
+    word: typeof result.word === 'string' ? result.word : '',
+    phonetic: typeof result.phonetic === 'string' ? result.phonetic : '',
+    partOfSpeech,
+    meaning: typeof result.meaning === 'string' ? result.meaning : '',
+    definitionEn,
+    businessNote,
+    examples,
+  };
+}
+
+export function toVocabEnrichmentPayload(result: WordEnrichmentResult): VocabEnrichmentPayload {
+  return {
+    word: result.word,
+    phonetic: result.phonetic,
+    partOfSpeech: result.partOfSpeech,
+    meaning: result.meaning,
+    definition_en: result.definitionEn,
+    business_note: result.businessNote,
+    examples: result.examples,
+    source: '全局划线截获',
+  };
+}
+
 // ── 基础请求封装 ─────────────────────────────────────────────
 const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const DIFY_APP_ID = import.meta.env.VITE_DIFY_APP_ID || '56a4d2c1-006c-4c46-95cc-7b6bedafbcff';
@@ -234,4 +399,130 @@ export async function sendOralChatMessage(query: string, conversationId: string 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || 'Dify Chat API 请求失败');
   return data;
+}
+
+export async function runEnglishListenEngine(text: string, userId = 'default-user'): Promise<ListenEngineResult> {
+  const apiKey = import.meta.env.VITE_DIFY_LISTEN_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { listening_text: text },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Dify Listen Engine Error');
+
+  try {
+    const rawResult = data.data.outputs.result;
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    return mapListenEngineResult(JSON.parse(cleanJson));
+  } catch (e) {
+    console.error('解析听辨结果失败:', e);
+    throw new Error('AI 返回数据格式异常');
+  }
+}
+
+export async function runWordEnrichment(targetWord: string, userId = 'default-user'): Promise<WordEnrichmentResult> {
+  const apiKey = import.meta.env.VITE_DIFY_ENRICH_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_ENRICH_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { target_word: targetWord },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Enrich Error');
+
+  const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+  if (typeof rawResult !== 'string') {
+    console.error('词汇补全原始返回不是字符串:', data);
+    throw new Error('AI 格式异常');
+  }
+
+  try {
+    const cleanJson = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleanJson) as Record<string, unknown>;
+
+    return {
+      word: typeof parsed.word === 'string' && parsed.word.trim() ? parsed.word : targetWord,
+      phonetic: typeof parsed.phonetic === 'string' ? parsed.phonetic : '',
+      partOfSpeech:
+        typeof parsed.partOfSpeech === 'string'
+          ? parsed.partOfSpeech
+          : typeof parsed.part_of_speech === 'string'
+            ? parsed.part_of_speech
+            : '',
+      meaning: typeof parsed.meaning === 'string' ? parsed.meaning : '',
+      definitionEn:
+        typeof parsed.definition_en === 'string'
+          ? parsed.definition_en
+          : typeof parsed.definitionEn === 'string'
+            ? parsed.definitionEn
+            : '',
+      businessNote:
+        typeof parsed.business_note === 'string'
+          ? parsed.business_note
+          : typeof parsed.businessNote === 'string'
+            ? parsed.businessNote
+            : '',
+      examples: Array.isArray(parsed.examples)
+        ? parsed.examples.filter((item): item is string => typeof item === 'string')
+        : [],
+    };
+  } catch (e) {
+    console.error('解析词汇补全失败:', e, data);
+    throw new Error('AI 格式异常');
+  }
+}
+
+export async function runEnglishSentenceEvaluation(
+  targetWord: string,
+  userSentence: string,
+  userId = 'default-user'
+): Promise<SentenceEvaluationResult> {
+  const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SENTENCE_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { target_word: targetWord, user_sentence: userSentence },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || 'Dify Sentence Eval Error');
+
+  try {
+    const rawResult = data.data.outputs.result;
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    return mapSentenceEvaluationResult(JSON.parse(cleanJson));
+  } catch (e) {
+    console.error('解析造句评估失败:', e);
+    throw new Error('AI 返回数据格式异常');
+  }
 }

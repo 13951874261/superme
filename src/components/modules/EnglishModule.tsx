@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle, Loader2, PlayCircle, FastForward, Eye, EyeOff, Headphones } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import MaterialUploader from '../MaterialUploader';
-import { runEnglishWriteReview, sendOralChatMessage } from '../../services/difyAPI';
+import { runEnglishWriteReview, sendOralChatMessage, runEnglishListenEngine } from '../../services/difyAPI';
 
 type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
 
@@ -52,6 +52,16 @@ export default function EnglishModule() {
   const [oralInput, setOralInput] = useState('');
   const [isOralLoading, setIsOralLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [listenInput, setListenInput] = useState('');
+  const [listenMaterial, setListenMaterial] = useState("I hear what you're saying about the Q3 budget, and I completely agree in principle. Let's circle back to this offline so we can take a more holistic view before committing to any hard deliverables.");
+  const [isTextVisible, setIsTextVisible] = useState(false);
+  const [isListenLoading, setIsListenLoading] = useState(false);
+  const [listenResult, setListenResult] = useState<{
+    surfaceMeaning: string;
+    hiddenSubtext: string;
+    powerDynamics: string;
+    keyJargons: Array<{ word: string; meaning: string }>;
+  } | null>(null);
 
   const handleReview = async () => {
     if (!writingText || !writeIntent) return alert('请输入意图和内容');
@@ -91,6 +101,18 @@ export default function EnglishModule() {
       alert('沙盘推演请求失败，请检查网络或 HTTPS 证书配置。');
     } finally {
       setIsOralLoading(false);
+    }
+  };
+
+  const handleListenAnalyze = async () => {
+    setIsListenLoading(true);
+    try {
+      const result = await runEnglishListenEngine(listenMaterial);
+      setListenResult(result);
+    } catch (e) {
+      alert('听辨解析失败，请检查网络或 API 配置。');
+    } finally {
+      setIsListenLoading(false);
     }
   };
 
@@ -248,82 +270,125 @@ export default function EnglishModule() {
           </div>
         )}
 
-        {/* ═══════════════════════════════════════════════
-            3. 精听盲听 (Listen)
-        ═══════════════════════════════════════════════ */}
+        {/* ================= 2. 听辨与弦外之音盲听舱 (Listen) ================= */}
         {activeTab === 'listen' && (
-          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm">
-            <div className="flex flex-col gap-3 mb-6">
-              {/* 首行：标题 + 预设速度按鈕 */}
-              <div className="flex justify-between items-center">
-                <h4 className="text-sm font-black text-[#202124] uppercase tracking-widest flex items-center">
-                  <Volume2 className="w-5 h-5 mr-3 text-[#FF5722]" /> 精听泛听矩阵
-                </h4>
-                <div className="flex gap-1 bg-gray-50 p-1 rounded-lg">
-                  {([1.0, 1.2, 1.5] as const).map((rate) => (
-                    <button
-                      key={rate}
-                      onClick={(e) => { e.stopPropagation(); setPlaybackRate(rate); }}
-                      className={`px-3 py-1 rounded-md text-[10px] font-black tracking-widest transition-all ${
-                        Math.abs(playbackRate - rate) < 0.01
-                          ? 'bg-[#202124] text-white shadow-sm'
-                          : 'text-gray-400 hover:bg-white hover:text-[#202124]'
-                      }`}
-                    >{rate.toFixed(1)}x</button>
-                  ))}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 min-h-[600px] h-[80vh]">
+            {/* 左侧：音频控制与盲听输入 */}
+            <div className="lg:col-span-5 flex flex-col gap-6">
+              
+              {/* 模块 A：情报原文与 AI 解析引擎 */}
+              <div className="bg-[#202124] rounded-[2rem] p-8 text-white shadow-[0_10px_30px_rgba(0,0,0,0.15)] relative overflow-hidden shrink-0">
+                <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FF5722]/20 rounded-full blur-3xl"></div>
+                <div className="flex justify-between items-center mb-6 relative z-10">
+                  <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722]">Daily Interception // 截获片段</h4>
+                  <span className="text-[10px] bg-white/10 px-3 py-1 rounded-full font-bold">高管会议盲听</span>
                 </div>
+                
+                {/* 波形播放器 (增加了未接入的 Alert 提示) */}
+                <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl mb-6 border border-white/10 relative z-10">
+                  <button onClick={() => alert('🎵 真实 MP3 音频流将在下一步战役中接入，敬请期待...')} className="text-white hover:text-[#FF5722] transition-colors cursor-pointer" title="播放截获音频">
+                    <PlayCircle className="w-10 h-10" />
+                  </button>
+                  <div className="flex-1 h-8 flex items-center gap-1 opacity-70">
+                    {[...Array(20)].map((_, i) => (
+                      <div key={i} className="flex-1 bg-white rounded-full animate-pulse" style={{ height: `${Math.random() * 80 + 20}%`, animationDelay: `${i * 0.1}s` }}></div>
+                    ))}
+                  </div>
+                  <button className="text-white hover:text-gray-300 transition-colors cursor-pointer"><FastForward className="w-5 h-5" /></button>
+                </div>
+
+                <div className="relative z-10 mb-6">
+                  <div className="flex justify-between items-center mb-3">
+                    <span className="text-[10px] uppercase tracking-widest text-gray-400">Target Transcript // 目标原文</span>
+                    <button onClick={() => setIsTextVisible(!isTextVisible)} className="flex items-center text-[10px] text-gray-400 hover:text-white transition-colors cursor-pointer">
+                      {isTextVisible ? <><EyeOff className="w-3 h-3 mr-1"/> 隐藏 (开启盲听)</> : <><Eye className="w-3 h-3 mr-1"/> 显示文本</>}
+                    </button>
+                  </div>
+                  <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none' : 'bg-black text-white/5 blur-[4px] select-none'}`}>
+                    {listenMaterial}
+                  </div>
+                </div>
+
+                {/* 【重点修改】：将请求 Dify 的按钮绑定在原文下方，逻辑绝对清晰 */}
+                <button 
+                  onClick={handleListenAnalyze}
+                  disabled={isListenLoading || listenResult !== null}
+                  className="w-full relative z-10 bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer shadow-lg"
+                >
+                  {isListenLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在解码潜台词...</> : (listenResult ? '✅ 潜台词已解码 (见右侧)' : '🧠 请求 Dify 侧写此段原文')}
+                </button>
               </div>
 
-              {/* 第二行：无级调速滚条 */}
-              <div className="flex items-center gap-4 bg-[#f8f9fa] rounded-2xl px-5 py-3 border border-gray-100">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest shrink-0">Speed</span>
-                <span className="text-[10px] text-gray-300 shrink-0">0.5x</span>
-                <input
-                  type="range"
-                  min={0.5}
-                  max={2.0}
-                  step={0.05}
-                  value={playbackRate}
-                  onChange={(e) => { e.stopPropagation(); setPlaybackRate(parseFloat(e.target.value)); }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="flex-1 h-1.5 accent-[#FF5722] cursor-pointer"
+              {/* 模块 B：影子键入区 (纯草稿本) */}
+              <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex-1 flex flex-col">
+                <div className="flex justify-between items-center mb-3">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block">Shadowing Dictation // 盲打笔记区</label>
+                  <span className="text-[9px] text-gray-400 font-bold">Local Draft</span>
+                </div>
+                <textarea 
+                  rows={4}
+                  value={listenInput}
+                  onChange={(e) => setListenInput(e.target.value)}
+                  className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-blue-200 rounded-xl p-4 text-sm text-[#202124] outline-none resize-none flex-1 mb-4 shadow-inner"
+                  placeholder="边听音频，边将您捕捉到的职场黑话或复述文本键入此区域（此区域仅作自我比对草稿，不上传云端）..."
                 />
-                <span className="text-[10px] text-gray-300 shrink-0">2.0x</span>
-                <span className="min-w-[3rem] text-center text-sm font-black text-[#FF5722] tracking-widest">
-                  {playbackRate.toFixed(2)}x
-                </span>
+                <button 
+                  onClick={() => setIsTextVisible(true)}
+                  className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-gray-200 transition-colors flex items-center justify-center cursor-pointer"
+                >
+                  👀 盲打完成，揭晓上方原文进行比对
+                </button>
               </div>
             </div>
 
-            {/* 盲听文本（悬浮揭开） */}
-            <div className="bg-[#f8f9fa] rounded-2xl p-8 mb-6 border border-gray-100 relative group min-h-[160px]">
-              <div className="absolute inset-0 backdrop-blur-[6px] bg-white/40 z-10 flex items-center justify-center opacity-100 group-hover:opacity-0 transition-opacity duration-500 rounded-2xl pointer-events-none">
-                <span className="bg-[#202124] text-white text-xs font-bold px-4 py-2 rounded-full flex items-center shadow-lg">
-                  <Volume2 className="w-4 h-4 mr-2" /> 悬浮揭开盲听文本
-                </span>
-              </div>
-              <p className="text-base text-gray-700 leading-9 font-serif italic">
-                "Our current supply chain topology lacks the{' '}
-                <span className="bg-yellow-100 text-yellow-800 font-bold px-1.5 rounded">redundancy</span>{' '}
-                required to absorb macroeconomic shocks. Therefore, an immediate pivot to{' '}
-                <span className="bg-yellow-100 text-yellow-800 font-bold px-1.5 rounded">near-shoring</span>{' '}
-                is non-negotiable."
-              </p>
-            </div>
+            <div className="lg:col-span-7 bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm overflow-y-auto">
+              <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-6 border-b border-gray-100 pb-4">Decrypted Intelligence // 情报解密</h4>
 
-            <div className="flex gap-3">
-              <button
-                onClick={(e) => e.stopPropagation()}
-                className="flex-1 border-2 border-[#202124] text-[#202124] hover:bg-[#202124] hover:text-white py-3 rounded-full text-xs font-black tracking-widest uppercase transition-colors"
-              >
-                提纯破绽词句入库
-              </button>
-              <button
-                onClick={(e) => e.stopPropagation()}
-                className="px-6 py-3 bg-[#f8f9fa] border border-gray-200 text-gray-600 rounded-full text-xs font-black tracking-widest uppercase hover:bg-gray-100 transition-colors"
-              >
-                换一篇素材
-              </button>
+              {!listenResult ? (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50 space-y-4 pt-10">
+                  <Headphones className="w-16 h-16" />
+                  <p className="text-xs font-bold tracking-widest uppercase">等待执行声纹解码</p>
+                </div>
+              ) : (
+                <div className="space-y-6 animate-[fadeIn_0.3s_ease-out]">
+                  <div>
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">1. Surface Meaning (伪装层)</h5>
+                    <div className="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 leading-relaxed border border-gray-100">
+                      {listenResult.surfaceMeaning}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-2 flex items-center">
+                      <AlertTriangle className="w-4 h-4 mr-1" /> 2. Hidden Subtext (真实意图)
+                    </h5>
+                    <div className="bg-[#FF5722]/5 p-5 rounded-xl text-sm text-[#d84315] leading-relaxed border border-[#FF5722]/20 font-medium shadow-sm">
+                      {listenResult.hiddenSubtext}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">3. Power Dynamics (权力场)</h5>
+                    <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-900 leading-relaxed border border-blue-100">
+                      {listenResult.powerDynamics}
+                    </div>
+                  </div>
+
+                  {listenResult.keyJargons.length > 0 && (
+                    <div>
+                      <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">4. Extracted Jargons (截获黑话)</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {listenResult.keyJargons.map((item, idx) => (
+                          <div key={idx} className="bg-[#202124] rounded-lg p-3 text-white shadow-md">
+                            <div className="text-xs font-black text-[#FF5722] mb-1">{item.word}</div>
+                            <div className="text-[10px] text-gray-300">{item.meaning}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
