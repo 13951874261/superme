@@ -123,12 +123,14 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
           </div>
         </div>
 
-        {/* 2. 即时答疑模块 (多模型舱) */}
-        <div className="flex-1 px-5 xl:px-6 py-6 min-h-[200px] flex flex-col">
+        {/* 2. 即时答疑模块 (多模型舱) — 固定最大高度，避免撑满侧边栏 */}
+        <div className="px-5 xl:px-6 py-6 flex flex-col" style={{ maxHeight: '320px' }}>
           <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mb-2 flex items-center">
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> E2E Encrypted
           </div>
-          <ChatModule />
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
+            <ChatModule />
+          </div>
         </div>
 
         {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}

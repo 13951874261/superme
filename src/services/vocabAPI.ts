@@ -9,6 +9,7 @@ export interface VocabEntry {
   id: string;
   word: string;
   dict_type: string;
+  category: 'business' | 'general';
   payload: any;
   added_at: number;
   repetitions: number;
@@ -64,11 +65,12 @@ export async function getReviewWords(): Promise<VocabEntry[]> {
 export async function addWord(params: {
   word: string;
   dictType: string;
+  category?: 'business' | 'general';
   payload: any;
 }): Promise<{ success: boolean; id?: string; message: string }> {
   return request('/add', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({ ...params, category: params.category || 'business' }),
   });
 }
 

@@ -39,6 +39,7 @@ db.exec(`
     word            TEXT NOT NULL,
     user_id         TEXT    DEFAULT 'default-user',
     dict_type       TEXT,
+    category        TEXT    DEFAULT 'business', /* 新增：business(政商务) 或 general(全场景) */
     payload         TEXT,
     added_at        INTEGER,
     repetitions     INTEGER DEFAULT 0,
@@ -165,6 +166,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_doc ON knowledge_nodes(source_document_id);
   CREATE INDEX IF NOT EXISTS idx_dify_logs_user_time ON dify_call_logs(user_id, created_at);
 `);
+
+// 补丁：如果旧表没有 category 列，自动添加 (静默执行)
+try {
+  db.exec(`ALTER TABLE vocabulary ADD COLUMN category TEXT DEFAULT 'business';`);
+} catch (e) {}
 
 db.prepare(
   `INSERT OR IGNORE INTO users (id, nickname, created_at) VALUES (?, ?, ?)`
@@ -427,25 +433,23 @@ app.get('/api/vocab/review', (req, res) => {
 
 // 收录词条
 app.post('/api/vocab/add', (req, res) => {
-  const { word, dictType, payload, userId = 'default-user' } = req.body;
+  const { word, dictType, category = 'business', payload, userId = 'default-user' } = req.body;
   if (!word) return res.status(400).json({ error: '缺少 word 字段' });
 
-  const existing = db
-    .prepare('SELECT id FROM vocabulary WHERE word = ? AND user_id = ?')
-    .get(word, userId);
+  const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? AND user_id = ?').get(word, userId);
   if (existing) {
     return res.json({ success: false, message: '该词条已在生词本中', id: existing.id });
   }
 
   const id = uuidv4();
   const now = Date.now();
-  const nextReview = now + 5 * 60 * 1000; // 5分钟后首次复习
+  const nextReview = now + 5 * 60 * 1000;
 
   db.prepare(
     `INSERT INTO vocabulary
-      (id, word, user_id, dict_type, payload, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date, review_history)
-     VALUES (?, ?, ?, ?, ?, ?, 0, 2.5, 0, ?, null, '[]')`
-  ).run(id, word, userId, dictType || '', JSON.stringify(payload || {}), now, nextReview);
+      (id, word, user_id, dict_type, category, payload, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date, review_history)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 2.5, 0, ?, null, '[]')`
+  ).run(id, word, userId, dictType || '', category, JSON.stringify(payload || {}), now, nextReview);
 
   res.json({ success: true, id, message: '收录成功，5 分钟后开始强化复习' });
 });
