@@ -1,0 +1,26 @@
+---
+description: Prevent Dify/Vite environment variable and deployment regressions
+alwaysApply: true
+---
+
+# Dify + Vite Env + Deployment Rule
+
+When changing Dify API integrations or frontend code that depends on `import.meta.env.VITE_*`, always remember:
+
+1. Vite injects `VITE_*` variables only at build time. Updating `.env.local` is not enough; rebuild and redeploy `dist/index.html`.
+2. Before diagnosing Dify workflow failures as network/backend issues, verify the required key exists in `.env.local`, for example:
+   - `VITE_DIFY_ENRICH_API_KEY`
+   - `VITE_DIFY_SENTENCE_API_KEY`
+   - `VITE_DIFY_API_BASE_URL`
+3. After build, confirm the key or workflow marker is present in the single-file bundle because this project uses `vite-plugin-singlefile`:
+   - PowerShell: `Select-String -Path .\dist\index.html -Pattern "app-|workflows/run|VITE_DIFY"`
+   - Server: `grep -n "app-\|workflows/run\|VITE_DIFY" /var/www/super-agent/dist/index.html`
+4. Dify workflow functions must throw precise errors instead of generic “check network” messages:
+   - missing key
+   - fetch/CORS failure
+   - Dify non-200 response
+   - malformed model JSON
+5. For LLM JSON outputs, defensively extract the first JSON object with `/\{[\s\S]*\}/` before `JSON.parse`, because models may add prose around JSON.
+6. For flashcard enrichment UX, request Dify data before flipping the card. Show a front-side loading state while `isEnriching`, then flip only after enrichment completes.
+7. Deployment command for frontend-only changes should rebuild and upload `dist`, then reload Nginx:
+   `cd D:\cursor\work\super-agent; pnpm install; pnpm build; scp .\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html; scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/; ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx"`

@@ -150,8 +150,10 @@ export default function FlashCard({ onClose }: FlashCardProps) {
           payload: { meaning: '句子考核通过', source: '闪卡造句评估' },
         });
       }
-    } catch {
-      alert('AI 评估失败，请检查网络或 HTTPS API 配置。');
+    } catch (error) {
+      console.error('强制应用考核失败:', error);
+      const message = error instanceof Error ? error.message : '请按 F12 查看控制台详情';
+      alert(`长官，考核引擎异常:\n${message}`);
     } finally {
       setIsEvalLoading(false);
     }

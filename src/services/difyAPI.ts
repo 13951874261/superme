@@ -499,30 +499,49 @@ export async function runEnglishSentenceEvaluation(
   userId = 'default-user'
 ): Promise<SentenceEvaluationResult> {
   const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_SENTENCE_API_KEY');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: { target_word: targetWord, user_sentence: userSentence },
-      response_mode: 'blocking',
-      user: userId,
-    }),
-  });
+  if (!apiKey) {
+    throw new Error('未配置造句 API 密钥，请检查 .env.local 并重新运行 build/dev');
+  }
+
+  let res: Response;
+  try {
+    res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: { target_word: targetWord, user_sentence: userSentence },
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+  } catch (err) {
+    console.error('Fetch 通讯异常:', err);
+    throw new Error('与 Dify 总部失去连接，请检查 HTTPS 接口是否可达');
+  }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Dify Sentence Eval Error');
+
+  if (!res.ok) {
+    console.error('Dify 拒绝请求:', data);
+    throw new Error(data?.message || data?.error || 'Dify 引擎返回非 200 状态');
+  }
 
   try {
-    const rawResult = data.data.outputs.result;
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
-    return mapSentenceEvaluationResult(JSON.parse(cleanJson));
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+    const rawText = String(rawResult);
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+
+    if (!jsonMatch) {
+      throw new Error('AI 未返回有效的大括号 JSON 结构');
+    }
+
+    return mapSentenceEvaluationResult(JSON.parse(jsonMatch[0]));
   } catch (e) {
-    console.error('解析造句评估失败:', e);
-    throw new Error('AI 返回数据格式异常');
+    console.error('脱水解析失败. 原始数据:', data?.data?.outputs?.result ?? data);
+    throw new Error('AI 返回数据格式异常，解析 JSON 崩溃');
   }
 }
