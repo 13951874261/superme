@@ -454,6 +454,104 @@ app.post('/api/vocab/add', (req, res) => {
   res.json({ success: true, id, message: '收录成功，5 分钟后开始强化复习' });
 });
 
+// 批量收录词条
+app.post('/api/vocab/batch-add', (req, res) => {
+  if (!Array.isArray(req.body)) {
+    return res.status(400).json({ error: '请求体必须是词条数组' });
+  }
+
+  const now = Date.now();
+  const nextReview = now + 5 * 60 * 1000;
+  const selectExisting = db.prepare('SELECT id FROM vocabulary WHERE word = ? AND user_id = ?');
+  const insertWord = db.prepare(
+    `INSERT INTO vocabulary
+      (id, word, user_id, dict_type, category, payload, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date, review_history)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, 2.5, 0, ?, null, '[]')`
+  );
+
+  const results = [];
+  let inserted = 0;
+  let duplicated = 0;
+  let failed = 0;
+
+  const addMany = db.transaction((items) => {
+    items.forEach((item, index) => {
+      try {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          failed += 1;
+          results.push({ index, success: false, status: 'failed', error: '词条必须是对象' });
+          return;
+        }
+
+        const { word, dictType, category = 'business', payload, userId = 'default-user' } = item;
+        const normalizedWord = typeof word === 'string' ? word.trim() : '';
+
+        if (!normalizedWord) {
+          failed += 1;
+          results.push({ index, success: false, status: 'failed', error: '缺少 word 字段' });
+          return;
+        }
+
+        const existing = selectExisting.get(normalizedWord, userId || 'default-user');
+        if (existing) {
+          duplicated += 1;
+          results.push({
+            index,
+            success: false,
+            status: 'duplicated',
+            word: normalizedWord,
+            id: existing.id,
+            message: '该词条已在生词本中',
+          });
+          return;
+        }
+
+        const id = uuidv4();
+        insertWord.run(
+          id,
+          normalizedWord,
+          userId || 'default-user',
+          dictType || '',
+          category || 'business',
+          JSON.stringify(payload || {}),
+          now,
+          nextReview
+        );
+
+        inserted += 1;
+        results.push({
+          index,
+          success: true,
+          status: 'inserted',
+          word: normalizedWord,
+          id,
+          message: '收录成功，5 分钟后开始强化复习',
+        });
+      } catch (error) {
+        failed += 1;
+        results.push({
+          index,
+          success: false,
+          status: 'failed',
+          word: item?.word,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    });
+  });
+
+  addMany(req.body);
+
+  res.json({
+    success: failed === 0,
+    total: req.body.length,
+    inserted,
+    duplicated,
+    failed,
+    results,
+  });
+});
+
 // 更新词条 payload
 app.patch('/api/vocab/update_payload/:id', (req, res) => {
   const { payload } = req.body || {};
