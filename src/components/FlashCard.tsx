@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { X, ChevronRight, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout, ScanLine } from 'lucide-react';
+import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout } from 'lucide-react';
 import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 
@@ -93,8 +93,24 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     return '';
   };
 
-  const ensureEnrichedPayload = async () => {
-    if (!current || isEnriching) return;
+  const shouldEnrichPayload = (payload: any): boolean => {
+    return !payload?.definition_en || payload?.meaning === '解析中...' || payload?.meaning === '待复习补充';
+  };
+
+  const handleFlip = async () => {
+    if (!current) return;
+
+    if (isFlipped) {
+      setIsFlipped(false);
+      setEvalResult(null);
+      return;
+    }
+
+    if (!shouldEnrichPayload(localPayload || current.payload)) {
+      setIsFlipped(true);
+      return;
+    }
+
     setIsEnriching(true);
     try {
       const enriched = await runWordEnrichment(current.word);
@@ -115,6 +131,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       }));
     } finally {
       setIsEnriching(false);
+      setIsFlipped(true);
     }
   };
 
@@ -225,32 +242,26 @@ export default function FlashCard({ onClose }: FlashCardProps) {
               <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none">
                 <div className="text-3xl font-black text-[#202124] mb-2">{current.word}</div>
                 {!isFlipped && (
-                  <button
-                    onClick={async () => {
-                      await ensureEnrichedPayload();
-                      setIsFlipped(true);
-                    }}
-                    disabled={isEnriching}
-                    className="mt-3 inline-flex items-center justify-center gap-1 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white hover:bg-[#FF5722] transition disabled:opacity-50"
-                  >
-                    <ScanLine className="w-4 h-4" />
-                    点击翻转查看释义
-                  </button>
+                  isEnriching ? (
+                    <div className="mt-3 inline-flex items-center justify-center rounded-full bg-[#FF5722]/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-[#FF5722] border border-[#FF5722]/20 shadow-inner animate-pulse">
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      正在接入总部数据库解密...
+                    </div>
+                  ) : (
+                    <button
+                      onClick={handleFlip}
+                      className="mt-3 inline-flex items-center justify-center gap-1 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95"
+                    >
+                      <BookOpen className="w-4 h-4" />
+                      {shouldEnrichPayload(localPayload || current.payload) ? '点击连接 Dify 解密释义' : '翻转查看释义'}
+                    </button>
+                  )
                 )}
               </div>
 
               {/* 背面：释义（翻转后显示） */}
               {isFlipped && (
                 <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
-                  {isEnriching && (
-                    <div className="absolute inset-0 z-10 rounded-2xl bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                      <div className="flex items-center gap-2 text-xs text-[#FF5722] font-black uppercase tracking-widest">
-                        <ScanLine className="w-4 h-4 animate-pulse" />
-                        情报补全中...
-                      </div>
-                    </div>
-                  )}
-
                   {/* 1. 核心释义 */}
                   <div>
                     <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
@@ -364,16 +375,6 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                 )}
               </div>
 
-              {/* 跳过按钮 */}
-              {!isFlipped && (
-                <button
-                  onClick={() => setIsFlipped(true)}
-                  className="w-full flex items-center justify-center gap-1 bg-[#FF5722] text-white font-bold py-3 rounded-xl hover:bg-[#E64A19] transition text-sm"
-                >
-                  查看释义
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              )}
             </div>
           )}
         </div>
