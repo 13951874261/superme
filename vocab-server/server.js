@@ -21,6 +21,7 @@ const DIFY_KB_API_KEY = process.env.DIFY_KB_API_KEY || 'dataset-Jk5ehEEDT72wmXI5
 const DIFY_CHAT_API_KEY = process.env.DIFY_CHAT_API_KEY || '';
 const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || '';
 const DIFY_MATERIAL_SUMMARY_API_KEY = process.env.DIFY_MATERIAL_SUMMARY_API_KEY || '';
+const DIFY_ENGLISH_MASTERY_API_KEY = process.env.DIFY_ENGLISH_MASTERY_API_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
 
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '2mb' }));
@@ -1071,16 +1072,50 @@ app.post('/api/material/ingest', (req, res) => {
   res.json({ success: true, materialId: id, status: 'pending' });
 });
 
-app.post('/api/material/upload', async (req, res) => {
-  const { userId = 'default-user', sourceName = '', topic = '', fileName = '', mimeType = '', base64Content = '' } = req.body || {};
+async function listDifyDatasetDocuments() {
+  const response = await fetch(`${DIFY_BASE_URL.replace(/\/$/, '')}/v1/datasets/${DIFY_KB_DATASET_ID}/documents?limit=100`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${DIFY_KB_API_KEY}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `获取知识库文档列表失败 (HTTP ${response.status})`);
+  }
+  return Array.isArray(data?.data) ? data.data : Array.isArray(data?.documents) ? data.documents : [];
+}
+
+async function deleteDifyDatasetDocument(documentId) {
+  const response = await fetch(`${DIFY_BASE_URL.replace(/\/$/, '')}/v1/datasets/${DIFY_KB_DATASET_ID}/documents/${documentId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${DIFY_KB_API_KEY}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `删除知识库文档失败 (HTTP ${response.status})`);
+  }
+  return data;
+}
+
+async function clearDifyDatasetDocuments() {
+  const documents = await listDifyDatasetDocuments();
+  for (const document of documents) {
+    const documentId = document?.id;
+    if (documentId) {
+      await deleteDifyDatasetDocument(documentId);
+    }
+  }
+  return documents.length;
+}
+
+async function uploadFileToDifyKnowledgeBase({ userId = 'default-user', sourceName = '', topic = '', fileName = '', mimeType = '', base64Content = '' }) {
   if (!fileName || !base64Content) {
-    return res.status(400).json({ error: '缺少文件内容' });
+    throw new Error('缺少文件内容');
   }
   if (!DIFY_KB_DATASET_ID) {
-    return res.status(500).json({ error: '未配置 DIFY_KB_DATASET_ID' });
+    throw new Error('未配置 DIFY_KB_DATASET_ID');
   }
   if (!DIFY_KB_API_KEY) {
-    return res.status(500).json({ error: '未配置 DIFY_KB_API_KEY' });
+    throw new Error('未配置 DIFY_KB_API_KEY');
   }
 
   const id = uuidv4();
@@ -1104,19 +1139,6 @@ app.post('/api/material/upload', async (req, res) => {
     });
 
     const formParts = [];
-    const pushText = (name, value, contentType = 'text/plain') => {
-      formParts.push(Buffer.from(`--${boundary}\r\n`));
-      formParts.push(Buffer.from(`Content-Disposition: form-data; name="${name}"\r\n`));
-      if (name === 'file') {
-        formParts.push(Buffer.from(`Content-Disposition: form-data; name="${name}"; filename="${fileName}"\r\n`));
-        formParts.push(Buffer.from(`Content-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`));
-        formParts.push(fileBuffer);
-        formParts.push(Buffer.from('\r\n'));
-      } else {
-        formParts.push(Buffer.from(`Content-Type: ${contentType}\r\n\r\n${value}\r\n`));
-      }
-    };
-    formParts.length = 0;
     formParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="data"\r\nContent-Type: application/json\r\n\r\n${data}\r\n`));
     formParts.push(Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${fileName}"\r\nContent-Type: ${mimeType || 'application/octet-stream'}\r\n\r\n`));
     formParts.push(fileBuffer);
@@ -1134,7 +1156,7 @@ app.post('/api/material/upload', async (req, res) => {
     if (!createRes.ok) {
       const message = createData?.message || createData?.error || `Dify HTTP ${createRes.status}`;
       db.prepare(`UPDATE material_ingest_jobs SET status = ?, error_message = ?, updated_at = ? WHERE id = ?`).run('failed', message, nowTs(), id);
-      return res.status(500).json({ success: false, error: message });
+      throw new Error(message);
     }
 
     const documentId = createData?.document?.id || '';
@@ -1151,11 +1173,233 @@ app.post('/api/material/upload', async (req, res) => {
        WHERE id = ?`
     ).run('processing', documentId, batchId, docStatus, displayStatus, segmentCount, wordCount, docLanguage, nowTs(), id);
 
-    res.json({ success: true, materialId: id, status: 'processing', datasetId: DIFY_KB_DATASET_ID, dify: createData });
+    return { success: true, materialId: id, status: 'processing', datasetId: DIFY_KB_DATASET_ID, dify: createData };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Dify 上传失败';
     db.prepare(`UPDATE material_ingest_jobs SET status = ?, error_message = ?, updated_at = ? WHERE id = ?`).run('failed', message, nowTs(), id);
+    throw error;
+  }
+}
+
+async function getDifyDocumentStatus(batchId) {
+  const response = await fetch(`${DIFY_BASE_URL.replace(/\/$/, '')}/v1/datasets/${DIFY_KB_DATASET_ID}/documents/${batchId}/indexing-status`, {
+    method: 'GET',
+    headers: { Authorization: `Bearer ${DIFY_KB_API_KEY}` },
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.message || data?.error || `获取文档嵌入状态失败 (HTTP ${response.status})`);
+  }
+
+  const candidate = Array.isArray(data?.data) ? data.data[0] : data?.data;
+  const status = candidate?.indexing_status || candidate?.status || data?.indexing_status || data?.status || 'unknown';
+  return { status, data };
+}
+
+function isCompletedDifyStatus(status) {
+  return ['completed', 'available', 'ready', 'success'].includes(String(status).toLowerCase());
+}
+
+function isFailedDifyStatus(status) {
+  return ['error', 'failed', 'paused'].includes(String(status).toLowerCase());
+}
+
+async function waitForDifyDocumentCompleted(batchId, addLog, timeoutMs = 180000, intervalMs = 5000) {
+  const startedAt = Date.now();
+  let lastStatus = 'unknown';
+
+  while (Date.now() - startedAt < timeoutMs) {
+    const result = await getDifyDocumentStatus(batchId);
+    lastStatus = result.status;
+    addLog(`当前状态：${lastStatus}`);
+
+    if (isCompletedDifyStatus(lastStatus)) {
+      return result;
+    }
+    if (isFailedDifyStatus(lastStatus)) {
+      throw new Error(`文档嵌入失败：${lastStatus}`);
+    }
+
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error(`等待文档嵌入 completed 超时，最后状态：${lastStatus}`);
+}
+
+async function runEnglishMasteryWorkflow({ topic = '', materialText = '', userId = 'default-user' }) {
+  if (!DIFY_ENGLISH_MASTERY_API_KEY) {
+    throw new Error('未配置 DIFY_ENGLISH_MASTERY_API_KEY');
+  }
+
+  const url = `${DIFY_BASE_URL.replace(/\/$/, '')}/v1/workflows/run`;
+  const payload = {
+    inputs: {
+      topic,
+      material_text: materialText || '',
+    },
+    response_mode: 'blocking',
+    user: userId,
+  };
+
+  const attempts = [
+    { timeoutMs: 80000, retryDelayMs: 5000 },
+    { timeoutMs: 90000, retryDelayMs: 10000 },
+    { timeoutMs: 120000, retryDelayMs: 0 },
+  ];
+
+  let lastError = null;
+
+  for (let index = 0; index < attempts.length; index += 1) {
+    const { timeoutMs, retryDelayMs } = attempts[index];
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new Error(`Dify 工作流超时 ${timeoutMs / 1000} 秒`)), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${DIFY_ENGLISH_MASTERY_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        clearTimeout(timer);
+        return data;
+      }
+
+      const message = data?.message || data?.error || `Dify 请求失败 (HTTP ${response.status})`;
+      lastError = new Error(message);
+
+      if (response.status === 504 && index < attempts.length - 1) {
+        clearTimeout(timer);
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        continue;
+      }
+
+      clearTimeout(timer);
+      throw lastError;
+    } catch (error) {
+      clearTimeout(timer);
+      const isAbort = error?.name === 'AbortError' || String(error?.message || '').includes('超时');
+      lastError = error instanceof Error ? error : new Error('Dify 工作流执行失败');
+
+      if (isAbort && index < attempts.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+        continue;
+      }
+
+      throw lastError;
+    }
+  }
+
+  throw lastError || new Error('Dify 工作流执行失败');
+}
+
+app.post('/api/material/upload', async (req, res) => {
+  try {
+    const result = await uploadFileToDifyKnowledgeBase(req.body || {});
+    res.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Dify 上传失败';
     res.status(500).json({ success: false, error: message });
+  }
+});
+
+app.post('/api/dify/run-english-mastery', async (req, res) => {
+  const { topic = '', materialText = '', userId = 'default-user' } = req.body || {};
+
+  try {
+    const data = await runEnglishMasteryWorkflow({ topic, materialText, userId });
+    res.json({ success: true, data });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Dify 工作流执行失败';
+    console.error('[Dify Workflow Error]', error);
+    res.status(500).json({ success: false, error: message });
+  }
+});
+
+app.post('/api/material/process-and-extract', async (req, res) => {
+  const { topic = '', userId = 'default-user', files = [] } = req.body || {};
+  const logs = [];
+  const results = [];
+  const addLog = (message) => logs.push(`${new Date().toLocaleTimeString('zh-CN', { hour12: false })} ${message}`);
+
+  if (!topic) {
+    return res.status(400).json({ success: false, error: '缺少 topic 字段' });
+  }
+  if (!Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({ success: false, error: '缺少 files 文件数组' });
+  }
+
+  try {
+    addLog(`已选择主题：${topic}`);
+    addLog(`已选择 ${files.length} 个文件`);
+
+    for (const [index, file] of files.entries()) {
+      const fileName = file?.fileName || `未命名文件-${index + 1}`;
+      addLog(`开始处理：${fileName}`);
+      addLog('正在检查知识库现有文档...');
+
+      const deletedCount = await clearDifyDatasetDocuments();
+      if (deletedCount > 0) {
+        addLog(`发现 ${deletedCount} 个旧文档，正在删除...`);
+        addLog('旧文档删除完成');
+      } else {
+        addLog('知识库内无旧文档，跳过删除');
+      }
+
+      addLog(`正在上传：${fileName}`);
+      const uploadResult = await uploadFileToDifyKnowledgeBase({
+        ...file,
+        userId,
+        topic,
+        sourceName: file?.sourceName || fileName,
+      });
+      const documentId = uploadResult?.dify?.document?.id || '';
+      const batchId = uploadResult?.dify?.batch || uploadResult?.dify?.batch_id || '';
+      addLog(`上传成功，Dify 文档 ID：${documentId || '未知'}`);
+      addLog(`上传批次 Batch ID：${batchId || '未知'}`);
+
+      if (!documentId) {
+        throw new Error(`未获取到 Dify 文档 ID：${fileName}`);
+      }
+      if (!batchId) {
+        throw new Error(`未获取到 Dify 上传批次 Batch ID：${fileName}`);
+      }
+
+      addLog('正在等待向量化完成...');
+      const statusResult = await waitForDifyDocumentCompleted(batchId, addLog);
+      addLog('当前状态：completed');
+
+      addLog('正在触发 Dify 提纯工作流...');
+      const workflowData = await runEnglishMasteryWorkflow({ topic, materialText: '', userId });
+      addLog('提纯完成，已写入生词本');
+
+      results.push({
+        fileName,
+        materialId: uploadResult.materialId,
+        documentId,
+        batchId,
+        status: statusResult.status,
+        workflowRunId: workflowData?.workflow_run_id || workflowData?.data?.workflow_run_id || '',
+      });
+
+      if (index < files.length - 1) {
+        addLog('开始处理下一个文件...');
+      }
+    }
+
+    addLog('全部处理完成');
+    res.json({ success: true, topic, total: files.length, results, logs });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '材料提纯流程失败';
+    addLog(`处理失败：${message}`);
+    console.error('[Material Process Error]', error);
+    res.status(500).json({ success: false, error: message, topic, results, logs });
   }
 });
 

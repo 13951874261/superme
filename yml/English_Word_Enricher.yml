@@ -1,0 +1,79 @@
+app:
+  description: 专为前端 FlashCard 翻转时提供毫秒级的词汇情报解密。
+  icon: 📡
+  icon_background: '#E8F1FF'
+  icon_type: emoji
+  mode: workflow
+  name: English_Word_Enricher
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.2
+dependencies:
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+      version: null
+workflow:
+  graph:
+    edges:
+      - data: {isInIteration: false, sourceType: start, targetType: llm}
+        id: start-llm
+        source: start
+        sourceHandle: source
+        target: llm
+        targetHandle: target
+        type: custom
+      - data: {isInIteration: false, sourceType: llm, targetType: answer}
+        id: llm-answer
+        source: llm
+        sourceHandle: source
+        target: end
+        targetHandle: target
+        type: custom
+    nodes:
+      - data:
+          title: 开始
+          type: start
+          variables:
+            - {max_length: 256, required: true, type: text-input, variable: target_word}
+        id: start
+        position: {x: 80, y: 200}
+        type: custom
+      - data:
+          context: {enabled: false, variable_selector: []}
+          model: {completion_params: {temperature: 0.1}, mode: chat, name: claude-opus-4-7, provider: openai_api_compatible}
+          prompt_template:
+            - id: system
+              role: system
+              text: |
+                你是一个跨国企业的高管词典引擎。用户提供一个截获的生词/短语。
+                请直接输出该词的情报，必须是合法的纯 JSON 格式（绝不可包含 ```json 等 Markdown 标记）。
+                
+                目标词汇：{{#start.target_word#}}
+                
+                返回格式严格如下：
+                {
+                  "meaning": "简明扼要的中文直译",
+                  "phonetic": "音标",
+                  "partOfSpeech": "词性(如 n. / v. / adj.)",
+                  "definition_en": "英英词典级别的精准商业定义",
+                  "business_note": "它在外企/体制内商务沟通中的潜台词或运用禁忌",
+                  "examples": [
+                    "例句1(英文) - 中文翻译",
+                    "例句2(英文) - 中文翻译"
+                  ]
+                }
+          title: 情报解密核心
+          type: llm
+        id: llm
+        position: {x: 380, y: 200}
+        type: custom
+      - data:
+          outputs:
+            - {value_selector: [llm, text], variable: result}
+          title: 结束
+          type: end
+        id: end
+        position: {x: 680, y: 200}
+        type: custom

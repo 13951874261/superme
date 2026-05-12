@@ -168,6 +168,12 @@ function mapListenEngineResult(raw: unknown): ListenEngineResult {
   };
 }
 
+function normalizeScore(value: unknown): number {
+  const num = typeof value === 'number' ? value : Number(value ?? 0);
+  if (!Number.isFinite(num)) return 0;
+  return Math.max(0, Math.min(5, Math.round(num)));
+}
+
 function mapSentenceEvaluationResult(raw: unknown): SentenceEvaluationResult {
   if (!raw || typeof raw !== 'object') {
     throw new Error('AI 返回数据格式异常');
@@ -176,7 +182,7 @@ function mapSentenceEvaluationResult(raw: unknown): SentenceEvaluationResult {
   const result = raw as RawSentenceEvaluationResult;
   return {
     isPass: Boolean(result.is_pass),
-    score: typeof result.score === 'number' ? result.score : Number(result.score ?? 0),
+    score: normalizeScore(result.score),
     feedback: typeof result.feedback === 'string' ? result.feedback : '',
     correctedSentence: typeof result.corrected_sentence === 'string' ? result.corrected_sentence : '',
   };
@@ -339,6 +345,60 @@ export async function uploadMaterialToKB(file: File, topic: string): Promise<any
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
     throw new Error(data?.error || data?.message || '上传至知识库失败');
+  }
+  return data;
+}
+
+async function fileToBase64Content(file: File): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const base64String = result.includes(',') ? result.split(',')[1] : result;
+      if (!base64String) {
+        reject(new Error('文件读取失败，未获得 Base64 内容'));
+        return;
+      }
+      resolve(base64String);
+    };
+    reader.onerror = () => reject(new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user') {
+  const payloadFiles = await Promise.all(files.map(async file => ({
+    fileName: file.name,
+    mimeType: file.type || 'application/octet-stream',
+    base64Content: await fileToBase64Content(file),
+    sourceName: file.name,
+  })));
+
+  const response = await fetch('/api/material/process-and-extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, userId, files: payloadFiles }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success) {
+    const error = new Error(data?.error || data?.message || '上传并提纯失败');
+    (error as Error & { logs?: string[] }).logs = data?.logs || [];
+    throw error;
+  }
+  return data as { success: true; topic: string; total: number; results: any[]; logs: string[] };
+}
+
+export async function triggerEnglishMasteryExtraction(topic: string, materialText = '', userId = 'default-user') {
+  const response = await fetch('/api/dify/run-english-mastery', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topic, materialText, userId }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error || data?.message || '提纯工作流执行失败');
   }
   return data;
 }
@@ -580,4 +640,11 @@ export async function runEnglishSentenceEvaluation(
     console.error('脱水解析失败. 原始数据:', data?.data?.outputs?.result ?? data);
     throw new Error('AI 返回数据格式异常，解析 JSON 崩溃');
   }
+}
+
+export async function getDueVocabulary(userId = 'default-user') {
+  const res = await fetch(`/api/vocab/review?userId=${encodeURIComponent(userId)}`);
+  const data = await res.json().catch(() => ([]));
+  if (!res.ok) throw new Error(data?.error || '获取待复习词条失败');
+  return Array.isArray(data) ? data : [];
 }

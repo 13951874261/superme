@@ -1,0 +1,165 @@
+app:
+  description: 闪卡造句商务分寸与语法评估引擎。
+  icon: 📝
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: English_Sentence_Evaluation
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.2
+dependencies:
+  - current_identifier: null
+    type: marketplace
+    value:
+      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+      version: null
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          isInIteration: false
+          sourceType: start
+          targetType: llm
+        id: start-llm
+        source: start
+        sourceHandle: source
+        target: llm
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          sourceType: llm
+          targetType: answer
+        id: llm-answer
+        source: llm
+        sourceHandle: source
+        target: end
+        targetHandle: target
+        type: custom
+        zIndex: 0
+    nodes:
+      - data:
+          desc: ''
+          selected: false
+          title: 开始
+          type: start
+          variables:
+            - max_length: 256
+              options: []
+              required: true
+              type: text-input
+              variable: target_word
+            - max_length: 1024
+              options: []
+              required: true
+              type: paragraph
+              variable: user_sentence
+        height: 90
+        id: start
+        position:
+          x: 80
+          y: 200
+        positionAbsolute:
+          x: 80
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: ''
+          model:
+            completion_params:
+              temperature: 0.2
+            mode: chat
+            name: claude-opus-4-7
+            provider: openai_api_compatible
+          prompt_template:
+            - id: system
+              role: system
+              text: |
+                你是一位严苛的外企高管兼语言专家。用户正在进行“商务词汇闪卡造句”训练。
+                【目标词汇】：{{#start.target_word#}}
+                【用户造句】：{{#start.user_sentence#}}
+                
+                请评估：
+                1. 语法准确性。
+                2. 商务分寸感和地道程度。
+                3. 是否正确使用了目标词汇。
+                
+                强制要求：必须返回合法的 JSON 格式，直接输出大括号包裹的内容（绝不可有 ```json 的 markdown 标记）。
+                返回格式如下：
+                {
+                  "score": 1到10的整数评分,
+                  "feedback": "简短犀利的中文点评（指出优缺点）",
+                  "is_pass": 布尔值(score大于等于7且正确使用目标词即为true，否则为false),
+                  "corrected_sentence": "改进后的地道商务版本"
+                }
+          selected: false
+          title: 造句评估引擎
+          type: llm
+          variables: []
+          vision:
+            enabled: false
+        height: 98
+        id: llm
+        position:
+          x: 380
+          y: 200
+        positionAbsolute:
+          x: 380
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+      - data:
+          desc: ''
+          outputs:
+            - value_selector:
+                - llm
+                - text
+              variable: result
+          selected: false
+          title: 结束
+          type: end
+        height: 90
+        id: end
+        position:
+          x: 680
+          y: 200
+        positionAbsolute:
+          x: 680
+          y: 200
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 244
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
