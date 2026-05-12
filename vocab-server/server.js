@@ -15,8 +15,9 @@ const app = express();
 const PORT = 3001;
 const DB_PATH = path.join('/var/www/super-agent', 'vocab.db');
 const DIFY_BASE_URL = process.env.DIFY_BASE_URL || 'https://dify.234124123.xyz';
-const DIFY_KB_DATASET_ID = process.env.DIFY_KB_DATASET_ID || '';
-const DIFY_KB_API_KEY = process.env.DIFY_KB_API_KEY || '';
+const ENGLISH_PRO_SCENARIOS_DATASET_ID = 'f36f5681-86ed-483d-abc4-0f2376ec20e8';
+const DIFY_KB_DATASET_ID = ENGLISH_PRO_SCENARIOS_DATASET_ID;
+const DIFY_KB_API_KEY = process.env.DIFY_KB_API_KEY || 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
 const DIFY_CHAT_API_KEY = process.env.DIFY_CHAT_API_KEY || '';
 const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || '';
 const DIFY_MATERIAL_SUMMARY_API_KEY = process.env.DIFY_MATERIAL_SUMMARY_API_KEY || '';
@@ -1097,7 +1098,7 @@ app.post('/api/material/upload', async (req, res) => {
     const fileBuffer = Buffer.from(base64Content, 'base64');
     const data = JSON.stringify({
       indexing_technique: 'high_quality',
-      doc_form: 'text_model',
+      doc_form: 'hierarchical_model',
       doc_language: 'Chinese',
       process_rule: { mode: 'automatic' },
     });
@@ -1150,7 +1151,7 @@ app.post('/api/material/upload', async (req, res) => {
        WHERE id = ?`
     ).run('processing', documentId, batchId, docStatus, displayStatus, segmentCount, wordCount, docLanguage, nowTs(), id);
 
-    res.json({ success: true, materialId: id, status: 'processing', dify: createData });
+    res.json({ success: true, materialId: id, status: 'processing', datasetId: DIFY_KB_DATASET_ID, dify: createData });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Dify 上传失败';
     db.prepare(`UPDATE material_ingest_jobs SET status = ?, error_message = ?, updated_at = ? WHERE id = ?`).run('failed', message, nowTs(), id);

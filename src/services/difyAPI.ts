@@ -307,6 +307,42 @@ export async function callOralSandbox(
  * 智能体2：政商务长文词汇提纯引擎 (Workflow)
  * 通过前端直接调用 Dify Workflow，避免额外后端改造
  */
+export async function uploadMaterialToKB(file: File, topic: string): Promise<any> {
+  const base64Content = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const base64String = result.includes(',') ? result.split(',')[1] : result;
+      if (!base64String) {
+        reject(new Error('文件读取失败，未获得 Base64 内容'));
+        return;
+      }
+      resolve(base64String);
+    };
+    reader.onerror = () => reject(new Error('文件读取失败'));
+    reader.readAsDataURL(file);
+  });
+
+  const response = await fetch('/api/material/upload', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      fileName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      base64Content,
+      topic,
+      sourceName: file.name,
+      userId: 'default-user',
+    }),
+  });
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || '上传至知识库失败');
+  }
+  return data;
+}
+
 export async function callVocabPurify(
   inputs: VocabPurifyInput,
   userId = 'default-user'
