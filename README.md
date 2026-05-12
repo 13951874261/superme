@@ -18,3 +18,7 @@ View your app in AI Studio: https://ai.studio/apps/6131025c-3450-4c2a-8e93-e01de
 2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
 3. Run the app:
    `npm run dev`
+
+
+1、分析本轮修改，将修改内容上传到服务器。输出适合在powershel执行的一行命令。｜
+2、根据本轮修改，给出测试用例。

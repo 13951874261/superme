@@ -5,6 +5,7 @@ import SpeakModule from './modules/SpeakModule';
 import ReadModule from './modules/ReadModule';
 import WriteModule from './modules/WriteModule';
 import EnglishModule from './modules/EnglishModule';
+import DailyWakeupModule from './modules/DailyWakeupModule';
 import EntertainmentModule from './modules/EntertainmentModule';
 import GameTheoryModule from './modules/GameTheoryModule';
 import SummaryArea from './SummaryArea';
@@ -32,7 +33,12 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
   // 渲染当前选中的模块 (专注模式)
   const renderActiveModule = () => {
     switch (activeModule) {
-      case 'english': return <EnglishModule />;
+      case 'english': return (
+        <div className="space-y-10">
+          <DailyWakeupModule />
+          <EnglishModule />
+        </div>
+      );
       case 'listen': return <ListenModule selectedDate={selectedDate} />;
       case 'speak': return <SpeakModule />;
       case 'read': return <ReadModule />;

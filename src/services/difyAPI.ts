@@ -589,6 +589,45 @@ export async function runWordEnrichment(targetWord: string, userId = 'default-us
   }
 }
 
+export async function runEnglishWakeupRoutine(theme: string, userId = 'default-user'): Promise<{
+  theme: string;
+  vocab: Array<{
+    word: string;
+    ipa: string;
+    pronunciation_note: string;
+    meaning_zh: string;
+    example: string;
+  }>;
+  grammar: {
+    point: string;
+    explanation: string;
+    examples: Array<{ correct: string; incorrect: string }>;
+  };
+}> {
+  const apiKey = import.meta.env.VITE_DIFY_WAKEUP_API_KEY || import.meta.env.VITE_DIFY_WAKUP_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_WAKEUP_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { theme },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Wakeup Engine Error');
+
+  const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
+  const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+  return JSON.parse(clean);
+}
+
 export async function runEnglishSentenceEvaluation(
   targetWord: string,
   userSentence: string,
