@@ -1,0 +1,408 @@
+app:
+  description: 生成带有 A2-C1 难度评级、真实音频接入字段及潜台词分析的商务/政务听力语料
+  icon: 🎧
+  icon_background: '#E0E7FF'
+  icon_type: emoji
+  mode: workflow
+  name: english_listening_material_engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: 1780000000001-source-1780000000002-target
+      source: '1780000000001'
+      sourceHandle: source
+      target: '1780000000002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1780000000002-source-1780000000003-target
+      source: '1780000000002'
+      sourceHandle: source
+      target: '1780000000003'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: template-transform
+      id: 1780000000003-source-1780000000004-target
+      source: '1780000000003'
+      sourceHandle: source
+      target: '1780000000004'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: template-transform
+        targetType: http-request
+      id: 1780000000004-source-1780000000005-target
+      source: '1780000000004'
+      sourceHandle: source
+      target: '1780000000005'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: end
+      id: 1780000000005-source-1780000000006-target
+      source: '1780000000005'
+      sourceHandle: source
+      target: '1780000000006'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables:
+        - default: 跨国并购谈判
+          hint: 输入新闻、商务、政务或跨文化场景主题；也可填真实 URL 让后端爬虫扩展抓取。
+          label: 场景主题 / 抓取关键词
+          max_length: 256
+          options: []
+          placeholder: 跨国并购谈判 / central bank press briefing / trade dispute
+          required: true
+          type: text-input
+          variable: topic
+        - default: B2
+          hint: 听力材料必须严格落在 CEFR A2-C1 分级。
+          label: 目标难度
+          options:
+          - A2
+          - B1
+          - B2
+          - C1
+          placeholder: ''
+          required: true
+          type: select
+          variable: difficulty
+        - default: 商务谈判
+          hint: 将写入 listening_materials.category。
+          label: 语料分类
+          options:
+          - 商务谈判
+          - 政务发布
+          - 跨文化闲聊
+          - 金融监管
+          - 职场会议
+          - 新闻评论
+          placeholder: ''
+          required: true
+          type: select
+          variable: category
+        - default: tts
+          hint: tts 表示后端生成语音；crawler 表示后端可替换为真实抓取音频 URL。
+          label: 音频来源
+          options:
+          - tts
+          - crawler
+          required: true
+          type: select
+          variable: audio_source
+        - default: alloy
+          hint: TTS 声音名称，会传给 vocab-server /api/listening/generate-audio。
+          label: TTS 声音
+          max_length: 64
+          options: []
+          placeholder: alloy
+          required: false
+          type: text-input
+          variable: voice
+      height: 219
+      id: '1780000000001'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 1780000000002-system
+          role: system
+          text: "你是一个资深的高管沟通教练、商务英语听力材料编辑和 CEFR 分级审校员。请根据用户提供的主题、分类和难度，生成可直接入库到 vocab-server.listening_materials 的听力盲听舱真实语料。\n\n任务目标：\n1. 输出适合盲听、复述、听写和潜台词拆解的英文材料。\n2. 难度必须严格符合 CEFR A2、B1、B2、C1。A2 使用基础高频词和短句；B1 使用常见职场表达；B2 使用较复杂商务逻辑、转折和让步；C1 需要包含隐喻、地道习语、长难句、委婉施压和复杂从句。\n3. 必须包含弦外之音训练点，解释说话者的真实利益、权力位置、风险暗示与听者应对策略。\n4. content_text 必须是英文原文，适合交给 TTS 或后端爬虫音频对齐。\n5. duration 估算朗读时长，单位为秒。\n6. audio_url 先输出空字符串，由 vocab-server 的 /api/listening/generate-audio 或爬虫任务补全。\n\n严格输出 JSON 对象，不要包含 Markdown 代码块，不要输出额外解释。结构必须完全符合：\n{\n  \"title\": \"对话标题\",\n  \"content_text\": \"完整英文对话或发言原文\",\n  \"audio_url\": \"\",\n  \"difficulty\": \"A2/B1/B2/C1\",\n  \"category\": \"商务谈判/政务发布/跨文化闲聊等\",\n  \"duration\": 90,\n  \"has_subtext\": true,\n  \"subtext_analysis\": \"中文解析：分析社会层级、真实目的、风险信号以及听者应如何回应\",\n  \"source\": {\n    \"type\": \"tts 或 crawler\",\n    \"topic\": \"用户输入主题\",\n    \"voice\": \"TTS 声音名\"\n  }\n}"
+        - id: 1780000000002-user
+          role: user
+          text: '主题：{{#1780000000001.topic#}}；目标难度：{{#1780000000001.difficulty#}}；分类：{{#1780000000001.category#}}；音频来源：{{#1780000000001.audio_source#}}；TTS 声音：{{#1780000000001.voice#}}'
+        selected: false
+        title: 语料生成与 A2-C1 评级
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780000000002'
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\ndef main(llm_text: str, topic: str, difficulty: str, category: str, audio_source: str, voice: str) -> dict:\n    raw = (llm_text or '').strip()\n    raw = raw.removeprefix('```json').removeprefix('```').removesuffix('```').strip()\n    allowed = {'A2', 'B1', 'B2', 'C1'}\n\n    try:\n        material = json.loads(raw)\n        if not isinstance(material, dict):\n            raise ValueError('LLM output is not a JSON object')\n\n        material['difficulty'] = material.get('difficulty') if material.get('difficulty') in allowed else difficulty\n        material['category'] = material.get('category') or category\n        material['audio_url'] = material.get('audio_url') or ''\n        material['has_subtext'] = bool(material.get('has_subtext', True))\n        material['duration'] = int(material.get('duration') or max(30, round(len(material.get('content_text', '').split()) / 2.4)))\n        material['source'] = material.get('source') or {}\n        material['source']['type'] = material['source'].get('type') or audio_source\n        material['source']['topic'] = material['source'].get('topic') or topic\n        material['source']['voice'] = material['source'].get('voice') or (voice or 'alloy')\n\n        db_payload = {\n            'title': material.get('title', '').strip(),\n            'content_text': material.get('content_text', '').strip(),\n            'audio_url': material.get('audio_url', ''),\n            'difficulty': material['difficulty'],\n            'category': material['category'],\n            'duration': material['duration'],\n            'has_subtext': material['has_subtext'],\n            'subtext_analysis': material.get('subtext_analysis', '').strip(),\n            'source': material['source']\n        }\n\n        markdown_lines = [\n            f\"# 听力盲听舱语料 - {db_payload['title']}\",\n            '',\n            f\"- 难度: {db_payload['difficulty']}\",\n            f\"- 分类: {db_payload['category']}\",\n            f\"- 预计时长: {db_payload['duration']} 秒\",\n            f\"- 音频来源: {db_payload['source'].get('type', audio_source)}\",\n            '',\n            '## 英文原文',\n            db_payload['content_text'],\n            '',\n            '## 弦外之音与博弈分析',\n            db_payload['subtext_analysis']\n        ]\n\n        return {\n            'material_json': json.dumps(db_payload, ensure_ascii=False),\n            'markdown_text': '\\n'.join(markdown_lines),\n            'tts_payload': json.dumps({\n                'text': db_payload['content_text'],\n                'voice': db_payload['source'].get('voice', 'alloy'),\n                'difficulty': db_payload['difficulty'],\n                'category': db_payload['category'],\n                'title': db_payload['title']\n            }, ensure_ascii=False)\n        }\n    except Exception as e:\n        fallback = {\n            'title': f'{topic} Listening Material',\n            'content_text': '',\n            'audio_url': '',\n            'difficulty': difficulty if difficulty in allowed else 'B2',\n            'category': category,\n            'duration': 0,\n            'has_subtext': True,\n            'subtext_analysis': f'JSON 解析失败：{str(e)}',\n            'source': {'type': audio_source, 'topic': topic, 'voice': voice or 'alloy'}\n        }\n        return {\n            'material_json': json.dumps(fallback, ensure_ascii=False),\n            'markdown_text': '> ⚠️ JSON 解析失败，LLM 输出可能格式异常。',\n            'tts_payload': json.dumps({'text': '', 'voice': voice or 'alloy'}, ensure_ascii=False)\n        }"
+        code_language: python3
+        outputs:
+          material_json:
+            children: null
+            type: string
+          markdown_text:
+            children: null
+            type: string
+          tts_payload:
+            children: null
+            type: string
+        selected: false
+        title: JSON 清洗与入库结构化
+        type: code
+        variables:
+        - value_selector:
+          - '1780000000002'
+          - text
+          value_type: string
+          variable: llm_text
+        - value_selector:
+          - '1780000000001'
+          - topic
+          value_type: string
+          variable: topic
+        - value_selector:
+          - '1780000000001'
+          - difficulty
+          value_type: string
+          variable: difficulty
+        - value_selector:
+          - '1780000000001'
+          - category
+          value_type: string
+          variable: category
+        - value_selector:
+          - '1780000000001'
+          - audio_source
+          value_type: string
+          variable: audio_source
+        - value_selector:
+          - '1780000000001'
+          - voice
+          value_type: string
+          variable: voice
+      height: 52
+      id: '1780000000003'
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        selected: false
+        template: "{{ markdown_text }}\n\n---\n\n## vocab-server 入库 JSON\n\n{{ material_json }}\n\n## TTS 请求 JSON\n\n{{ tts_payload }}"
+        title: 模板转换
+        type: template-transform
+        variables:
+        - value_selector:
+          - '1780000000003'
+          - markdown_text
+          value_type: string
+          variable: markdown_text
+        - value_selector:
+          - '1780000000003'
+          - material_json
+          value_type: string
+          variable: material_json
+        - value_selector:
+          - '1780000000003'
+          - tts_payload
+          value_type: string
+          variable: tts_payload
+      height: 52
+      id: '1780000000004'
+      position:
+        x: 980
+        y: 282
+      positionAbsolute:
+        x: 980
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: key-value-listening-material
+            key: ''
+            type: text
+            value: '{{#1780000000003.material_json#}}'
+          type: raw-text
+        headers: Content-Type:application/json
+        method: post
+        params: ''
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 100
+        selected: false
+        ssl_verify: true
+        timeout:
+          max_connect_timeout: 0
+          max_read_timeout: 0
+          max_write_timeout: 0
+        title: 写入 vocab-server listening_materials
+        type: http-request
+        url: http://localhost:3001/api/listening/materials
+        variables: []
+      height: 137
+      id: '1780000000005'
+      position:
+        x: 1280
+        y: 282
+      positionAbsolute:
+        x: 1280
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1780000000004'
+          - output
+          value_type: string
+          variable: listening_material_preview
+        - value_selector:
+          - '1780000000003'
+          - material_json
+          value_type: string
+          variable: material_json
+        - value_selector:
+          - '1780000000003'
+          - tts_payload
+          value_type: string
+          variable: tts_payload
+        selected: false
+        title: 输出
+        type: end
+      height: 116
+      id: '1780000000006'
+      position:
+        x: 1580
+        y: 282
+      positionAbsolute:
+        x: 1580
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -4.683164300119074
+      y: 20.31844113915065
+      zoom: 1.0000000000000027
+  rag_pipeline_variables: []

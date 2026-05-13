@@ -9,11 +9,14 @@ const express = require('express');
 const cors = require('cors');
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const PORT = 3001;
 const DB_PATH = path.join('/var/www/super-agent', 'vocab.db');
+const AUDIO_DIR = process.env.LISTENING_AUDIO_DIR || path.join('/var/www/super-agent', 'public', 'audio', 'listening');
+const AUDIO_PUBLIC_PREFIX = process.env.LISTENING_AUDIO_PUBLIC_PREFIX || '/audio/listening';
 const DIFY_BASE_URL = process.env.DIFY_BASE_URL || 'https://dify.234124123.xyz';
 const ENGLISH_PRO_SCENARIOS_DATASET_ID = 'f36f5681-86ed-483d-abc4-0f2376ec20e8';
 const DIFY_KB_DATASET_ID = ENGLISH_PRO_SCENARIOS_DATASET_ID;
@@ -156,6 +159,24 @@ db.exec(`
     created_at            INTEGER
   );
 
+  CREATE TABLE IF NOT EXISTS listening_materials (
+    id                    TEXT PRIMARY KEY,
+    title                 TEXT NOT NULL,
+    content_text          TEXT NOT NULL,
+    audio_url             TEXT DEFAULT '',
+    difficulty            TEXT NOT NULL CHECK(difficulty IN ('A2', 'B1', 'B2', 'C1')),
+    category              TEXT DEFAULT '',
+    duration              INTEGER DEFAULT 0,
+    has_subtext           INTEGER DEFAULT 0,
+    subtext_analysis      TEXT DEFAULT '',
+    source_type           TEXT DEFAULT 'tts',
+    source_topic          TEXT DEFAULT '',
+    source_url            TEXT DEFAULT '',
+    source_json           TEXT DEFAULT '{}',
+    created_at            INTEGER,
+    updated_at            INTEGER
+  );
+
   CREATE INDEX IF NOT EXISTS idx_next_review ON vocabulary(next_review_date);
   CREATE INDEX IF NOT EXISTS idx_word ON vocabulary(word);
   CREATE INDEX IF NOT EXISTS idx_vocab_user ON vocabulary(user_id);
@@ -167,6 +188,9 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_knowledge_user_topic ON knowledge_nodes(user_id, topic);
   CREATE INDEX IF NOT EXISTS idx_knowledge_source_doc ON knowledge_nodes(source_document_id);
   CREATE INDEX IF NOT EXISTS idx_dify_logs_user_time ON dify_call_logs(user_id, created_at);
+  CREATE INDEX IF NOT EXISTS idx_listening_difficulty ON listening_materials(difficulty);
+  CREATE INDEX IF NOT EXISTS idx_listening_category ON listening_materials(category);
+  CREATE INDEX IF NOT EXISTS idx_listening_created_at ON listening_materials(created_at);
 `);
 
 // 补丁：如果旧表没有 category 列，自动添加 (静默执行)
@@ -397,6 +421,60 @@ function estimateWordCount(text) {
 function detectDirection(query) {
   const hasChinese = /[\u4e00-\u9fa5]/.test(query || '');
   return hasChinese ? '中文 → 英文' : '英文 → 中文';
+}
+
+const CEFR_LEVELS = new Set(['A2', 'B1', 'B2', 'C1']);
+
+function normalizeListeningMaterial(input = {}) {
+  const source = input.source && typeof input.source === 'object' ? input.source : {};
+  const title = String(input.title || '').trim();
+  const contentText = String(input.content_text || input.contentText || '').trim();
+  const difficulty = String(input.difficulty || '').trim().toUpperCase();
+
+  if (!title) throw new Error('缺少 title 字段');
+  if (!contentText) throw new Error('缺少 content_text 字段');
+  if (!CEFR_LEVELS.has(difficulty)) throw new Error('difficulty 必须为 A2/B1/B2/C1');
+
+  return {
+    title,
+    contentText,
+    audioUrl: String(input.audio_url || input.audioUrl || '').trim(),
+    difficulty,
+    category: String(input.category || '').trim(),
+    duration: Number(input.duration || Math.max(30, Math.round(contentText.split(/\s+/).filter(Boolean).length / 2.4))),
+    hasSubtext: input.has_subtext || input.hasSubtext ? 1 : 0,
+    subtextAnalysis: String(input.subtext_analysis || input.subtextAnalysis || '').trim(),
+    sourceType: String(source.type || input.source_type || input.sourceType || 'tts').trim(),
+    sourceTopic: String(source.topic || input.source_topic || input.sourceTopic || '').trim(),
+    sourceUrl: String(source.url || input.source_url || input.sourceUrl || '').trim(),
+    sourceJson: JSON.stringify(source || {}),
+  };
+}
+
+function parseListeningMaterial(row) {
+  if (!row) return null;
+  return {
+    ...row,
+    has_subtext: Boolean(row.has_subtext),
+    source: parseJson(row.source_json, {}),
+  };
+}
+
+function buildListeningAudioUrl(fileName) {
+  return `${AUDIO_PUBLIC_PREFIX.replace(/\/$/, '')}/${fileName}`;
+}
+
+function ensureAudioDir() {
+  fs.mkdirSync(AUDIO_DIR, { recursive: true });
+}
+
+async function downloadAudioToListeningDir(sourceUrl, fileName) {
+  const response = await fetch(sourceUrl);
+  if (!response.ok) throw new Error(`音频抓取失败：HTTP ${response.status}`);
+  const arrayBuffer = await response.arrayBuffer();
+  ensureAudioDir();
+  fs.writeFileSync(path.join(AUDIO_DIR, fileName), Buffer.from(arrayBuffer));
+  return buildListeningAudioUrl(fileName);
 }
 
 // ── API 路由 ──────────────────────────────────────────────────
@@ -1016,6 +1094,244 @@ app.get('/api/training/session-by-date', (req, res) => {
         }
       : null,
   });
+});
+
+// 听力盲听舱：Dify Webhook 入库，支持 A2-C1 分级
+app.post('/api/listening/materials', (req, res) => {
+  try {
+    const material = normalizeListeningMaterial(req.body || {});
+    const id = uuidv4();
+    const ts = nowTs();
+
+    db.prepare(
+      `INSERT INTO listening_materials
+        (id, title, content_text, audio_url, difficulty, category, duration, has_subtext, subtext_analysis, source_type, source_topic, source_url, source_json, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      id,
+      material.title,
+      material.contentText,
+      material.audioUrl,
+      material.difficulty,
+      material.category,
+      material.duration,
+      material.hasSubtext,
+      material.subtextAnalysis,
+      material.sourceType,
+      material.sourceTopic,
+      material.sourceUrl,
+      material.sourceJson,
+      ts,
+      ts,
+    );
+
+    const row = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(id);
+    res.status(201).json({ success: true, id, data: parseListeningMaterial(row) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '听力材料入库失败';
+    res.status(400).json({ success: false, error: message });
+  }
+});
+
+app.get('/api/listening/materials', (req, res) => {
+  const difficulty = String(req.query.difficulty || '').trim().toUpperCase();
+  const category = String(req.query.category || '').trim();
+  const sourceType = String(req.query.sourceType || req.query.source_type || '').trim();
+  const limit = Math.min(Math.max(Number(req.query.limit || 50), 1), 200);
+  const params = [];
+  let sql = `SELECT * FROM listening_materials WHERE 1=1`;
+
+  if (difficulty) {
+    if (!CEFR_LEVELS.has(difficulty)) return res.status(400).json({ success: false, error: 'difficulty 必须为 A2/B1/B2/C1' });
+    sql += ` AND difficulty = ?`;
+    params.push(difficulty);
+  }
+  if (category) {
+    sql += ` AND category = ?`;
+    params.push(category);
+  }
+  if (sourceType) {
+    sql += ` AND source_type = ?`;
+    params.push(sourceType);
+  }
+  sql += ` ORDER BY created_at DESC LIMIT ?`;
+  params.push(limit);
+
+  const rows = db.prepare(sql).all(...params);
+  res.json({ success: true, data: rows.map(parseListeningMaterial) });
+});
+
+app.get('/api/listening/materials/:id', (req, res) => {
+  const row = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ success: false, error: '听力材料不存在' });
+  res.json({ success: true, data: parseListeningMaterial(row) });
+});
+
+app.patch('/api/listening/materials/:id', (req, res) => {
+  const row = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ success: false, error: '听力材料不存在' });
+
+  const next = normalizeListeningMaterial({
+    title: req.body.title ?? row.title,
+    content_text: req.body.content_text ?? row.content_text,
+    audio_url: req.body.audio_url ?? row.audio_url,
+    difficulty: req.body.difficulty ?? row.difficulty,
+    category: req.body.category ?? row.category,
+    duration: req.body.duration ?? row.duration,
+    has_subtext: req.body.has_subtext ?? Boolean(row.has_subtext),
+    subtext_analysis: req.body.subtext_analysis ?? row.subtext_analysis,
+    source: req.body.source ?? parseJson(row.source_json, {}),
+    source_type: req.body.source_type ?? row.source_type,
+    source_topic: req.body.source_topic ?? row.source_topic,
+    source_url: req.body.source_url ?? row.source_url,
+  });
+
+  db.prepare(
+    `UPDATE listening_materials
+     SET title=?, content_text=?, audio_url=?, difficulty=?, category=?, duration=?, has_subtext=?, subtext_analysis=?, source_type=?, source_topic=?, source_url=?, source_json=?, updated_at=?
+     WHERE id=?`
+  ).run(
+    next.title,
+    next.contentText,
+    next.audioUrl,
+    next.difficulty,
+    next.category,
+    next.duration,
+    next.hasSubtext,
+    next.subtextAnalysis,
+    next.sourceType,
+    next.sourceTopic,
+    next.sourceUrl,
+    next.sourceJson,
+    nowTs(),
+    req.params.id,
+  );
+
+  const updated = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(req.params.id);
+  res.json({ success: true, data: parseListeningMaterial(updated) });
+});
+
+app.delete('/api/listening/materials/:id', (req, res) => {
+  const result = db.prepare(`DELETE FROM listening_materials WHERE id = ?`).run(req.params.id);
+  if (result.changes === 0) return res.status(404).json({ success: false, error: '听力材料不存在' });
+  res.json({ success: true });
+});
+
+// 听力盲听舱：接入 TTS 生成结果或爬虫抓取音频
+app.post('/api/listening/materials/:id/audio', async (req, res) => {
+  const row = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ success: false, error: '听力材料不存在' });
+
+  try {
+    const mode = String(req.body.mode || req.body.sourceType || 'url').trim();
+    const ts = nowTs();
+    let audioUrl = String(req.body.audioUrl || req.body.audio_url || '').trim();
+
+    if (mode === 'base64') {
+      const audioBase64 = String(req.body.audioBase64 || req.body.audio_base64 || '').trim();
+      if (!audioBase64) return res.status(400).json({ success: false, error: '缺少 audioBase64' });
+      const format = String(req.body.format || 'mp3').replace(/[^a-zA-Z0-9]/g, '') || 'mp3';
+      const fileName = `${row.id}-${ts}.${format}`;
+      ensureAudioDir();
+      fs.writeFileSync(path.join(AUDIO_DIR, fileName), Buffer.from(audioBase64, 'base64'));
+      audioUrl = buildListeningAudioUrl(fileName);
+    } else if (mode === 'crawler' || mode === 'url') {
+      const sourceUrl = String(req.body.sourceUrl || req.body.source_url || audioUrl || '').trim();
+      if (!sourceUrl) return res.status(400).json({ success: false, error: '缺少 sourceUrl 或 audioUrl' });
+      const shouldDownload = req.body.download !== false;
+      if (shouldDownload) {
+        const ext = path.extname(new URL(sourceUrl).pathname).replace('.', '') || 'mp3';
+        audioUrl = await downloadAudioToListeningDir(sourceUrl, `${row.id}-${ts}.${ext}`);
+      } else {
+        audioUrl = sourceUrl;
+      }
+    } else if (mode === 'tts') {
+      if (!audioUrl) return res.status(202).json({ success: true, pending: true, message: '请由外部 TTS 服务生成音频后，用 base64 或 audioUrl 回写。' });
+    } else {
+      return res.status(400).json({ success: false, error: 'mode 必须为 base64/url/crawler/tts' });
+    }
+
+    db.prepare(
+      `UPDATE listening_materials SET audio_url = ?, source_type = ?, source_url = ?, updated_at = ? WHERE id = ?`
+    ).run(audioUrl, mode, String(req.body.sourceUrl || req.body.source_url || ''), ts, row.id);
+
+    const updated = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(row.id);
+    return res.json({ success: true, audioUrl, data: parseListeningMaterial(updated) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '音频接入失败';
+    return res.status(500).json({ success: false, error: message });
+  }
+});
+
+// 兼容 mt.md 中的 TTS 预留地址
+app.post('/api/listening/tts/:id', async (req, res) => {
+  const row = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(req.params.id);
+  if (!row) return res.status(404).json({ success: false, error: '听力材料不存在' });
+
+  try {
+    const ttsEndpoint = process.env.TTS_ENDPOINT || '';
+    if (!ttsEndpoint) {
+      return res.status(202).json({
+        success: true,
+        pending: true,
+        id: row.id,
+        text: row.content_text,
+        message: '未配置 TTS_ENDPOINT。请调用 /api/listening/materials/:id/audio 回写 base64 或 audioUrl。',
+      });
+    }
+
+    const response = await fetch(ttsEndpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(process.env.TTS_API_KEY ? { Authorization: `Bearer ${process.env.TTS_API_KEY}` } : {}),
+      },
+      body: JSON.stringify({
+        text: row.content_text,
+        voice: req.body.voice || 'alloy',
+        format: req.body.format || 'mp3',
+        title: row.title,
+        difficulty: row.difficulty,
+      }),
+    });
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!response.ok) {
+      const detail = await response.text().catch(() => '');
+      throw new Error(`TTS 服务失败：HTTP ${response.status} ${detail}`.trim());
+    }
+
+    let audioUrl = '';
+    const ts = nowTs();
+    if (contentType.includes('application/json')) {
+      const data = await response.json();
+      audioUrl = String(data.audioUrl || data.audio_url || '').trim();
+      const audioBase64 = String(data.audioBase64 || data.audio_base64 || '').trim();
+      if (!audioUrl && audioBase64) {
+        const format = String(data.format || req.body.format || 'mp3').replace(/[^a-zA-Z0-9]/g, '') || 'mp3';
+        const fileName = `${row.id}-${ts}.${format}`;
+        ensureAudioDir();
+        fs.writeFileSync(path.join(AUDIO_DIR, fileName), Buffer.from(audioBase64, 'base64'));
+        audioUrl = buildListeningAudioUrl(fileName);
+      }
+    } else {
+      const ext = contentType.includes('wav') ? 'wav' : contentType.includes('mpeg') || contentType.includes('mp3') ? 'mp3' : 'audio';
+      const fileName = `${row.id}-${ts}.${ext}`;
+      const arrayBuffer = await response.arrayBuffer();
+      ensureAudioDir();
+      fs.writeFileSync(path.join(AUDIO_DIR, fileName), Buffer.from(arrayBuffer));
+      audioUrl = buildListeningAudioUrl(fileName);
+    }
+
+    if (!audioUrl) throw new Error('TTS 服务未返回 audioUrl 或音频内容');
+
+    db.prepare(`UPDATE listening_materials SET audio_url = ?, source_type = 'tts', updated_at = ? WHERE id = ?`).run(audioUrl, ts, row.id);
+    const updated = db.prepare(`SELECT * FROM listening_materials WHERE id = ?`).get(row.id);
+    res.json({ success: true, audioUrl, data: parseListeningMaterial(updated) });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'TTS 生成失败';
+    res.status(500).json({ success: false, error: message });
+  }
 });
 
 // Dify 调用日志（用于后续统一追踪）
