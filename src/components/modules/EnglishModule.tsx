@@ -4,10 +4,42 @@ import ModuleWrapper from './ModuleWrapper';
 import MaterialUploader from '../MaterialUploader';
 import SpeakButton, { speakEnglish } from '../SpeakButton';
 import OralWarRoom from './OralWarRoom';
-import { getDueVocabulary, runEnglishWriteReview, runEnglishListenEngine, runEnglishSentenceEvaluation } from '../../services/difyAPI';
+import { getDueVocabulary, runEnglishWriteReview, runEnglishListenEngine, runEnglishSentenceEvaluation, type WritingReviewResult } from '../../services/difyAPI';
 import { submitReview } from '../../services/vocabAPI';
+import {
+  checkThemeMastery,
+  createTrainingAttempt,
+  getTrainingSessionByDate,
+  setThemeFocus,
+  submitTrainingFeedback,
+  upsertTrainingSession,
+} from '../../services/trainingAPI';
 
 type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
+
+function localTrainingDate() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+const THEME_OPTIONS = [
+  { value: '商务谈判：让步与施压', label: '商务谈判：让步与施压 (Day 4/10)' },
+  { value: '危机公关：外媒答疑', label: '危机公关：外媒答疑 (Day 1/10)' },
+  { value: '项目汇报：跨国董事会', label: '项目汇报：跨国董事会 (Day 1/10)' },
+] as const;
+
+function deriveL3MasteryScore(raw: WritingReviewResult & Record<string, unknown>): number {
+  const L3 = String(raw.L3_Strategic_Position || raw.L3 || raw.l3_strategic_position || '').trim();
+  const m = L3.match(/(?:评分|分数|score|rating)[：:\s]*(\d+(?:\.\d+)?)/i);
+  if (m) return Math.min(10, Math.max(0, Number(m[1])));
+  if (L3.length >= 120) return 8.5;
+  if (L3.length >= 60) return 8;
+  if (L3.length >= 30) return 7;
+  return 6;
+}
 
 const SUB_TABS = [
   { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
@@ -47,7 +79,11 @@ export default function EnglishModule() {
   const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
   const [stage, setStage] = useState<'0-6' | '6-12'>('0-6');
   const [theme, setTheme] = useState('商务谈判：让步与施压');
-  const [isMastered, setIsMastered] = useState(false);
+  const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0 });
+  const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [pronunciationNotes, setPronunciationNotes] = useState('');
+  const [grammarNotes, setGrammarNotes] = useState('');
   const [writingText, setWritingText] = useState('');
   const [writeIntent, setWriteIntent] = useState('');
   const [isReviewing, setIsReviewing] = useState(false);
@@ -80,6 +116,80 @@ export default function EnglishModule() {
   };
 
   useEffect(() => {
+    const refresh = () => {
+      checkThemeMastery(theme)
+        .then((res) => {
+          if (res.success) {
+            setMasteryData({
+              isMastered: res.isMastered,
+              oralCount: res.oralCount,
+              maxWriteScore: res.maxWriteScore,
+            });
+          }
+        })
+        .catch(() => {});
+    };
+    refresh();
+    const id = window.setInterval(refresh, 45000);
+    return () => clearInterval(id);
+  }, [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const td = localTrainingDate();
+    void (async () => {
+      try {
+        const up = await upsertTrainingSession({ trainingDate: td });
+        if (cancelled) return;
+        setSessionId(up.sessionId);
+        const detail = await getTrainingSessionByDate({ trainingDate: td });
+        const ex = detail.session?.extra_json;
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed =
+            typeof ex === 'string'
+              ? (JSON.parse(ex || '{}') as Record<string, unknown>)
+              : ((ex as Record<string, unknown>) || {});
+        } catch {
+          parsed = {};
+        }
+        const ef = (parsed.englishFoundation as Record<string, unknown>) || {};
+        if (cancelled) return;
+        if (typeof ef.pronunciationNotes === 'string') setPronunciationNotes(ef.pronunciationNotes);
+        if (typeof ef.grammarNotes === 'string') setGrammarNotes(ef.grammarNotes);
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionId) return undefined;
+    const t = window.setTimeout(() => {
+      void upsertTrainingSession({
+        trainingDate: localTrainingDate(),
+        extraJson: {
+          englishFoundation: {
+            pronunciationNotes,
+            grammarNotes,
+            lastSavedAt: Date.now(),
+          },
+        },
+      });
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [pronunciationNotes, grammarNotes, sessionId]);
+
+  useEffect(() => {
+    void setThemeFocus({ theme }).catch(() => {});
+    // 仅挂载时同步默认主题供 Cron 读取
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (activeTab !== 'vocab') return;
     setLoadingDueWords(true);
     getDueVocabulary()
@@ -110,9 +220,55 @@ export default function EnglishModule() {
     setInlineNotice(null);
     setNoticeAnchor('review');
     try {
-      const result = await runEnglishWriteReview(writingText, writeIntent);
-      setReviewResult(result);
+      const raw = (await runEnglishWriteReview(writingText, writeIntent)) as WritingReviewResult & Record<string, unknown>;
+      const normalized = {
+        L1: String(raw.L1_Grammar || raw.L1 || ''),
+        L2: String(raw.L2_Business_Tone || raw.L2 || ''),
+        L3: String(raw.L3_Strategic_Position || raw.L3 || ''),
+        optimized_version: String(raw.optimized_version || ''),
+      };
+      setReviewResult(normalized);
       showNotice('review', '批阅完成', 'success');
+
+      const l3Score = deriveL3MasteryScore({ ...raw, ...normalized });
+      if (sessionId) {
+        const att = await createTrainingAttempt({
+          sessionId,
+          userId: 'default-user',
+          moduleType: 'write',
+          sceneType: theme,
+          caseText: writingText.slice(0, 4000),
+          userAnswer: {
+            writeLevel: 'L3',
+            theme,
+            mailIntent: writeIntent.slice(0, 2000),
+          },
+          durationSeconds: 0,
+          score: l3Score,
+        });
+        await submitTrainingFeedback({
+          attemptId: att.attemptId,
+          userId: 'default-user',
+          decomposition: { L1: normalized.L1, L2: normalized.L2 },
+          logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
+          strengths: '纵深书面 L3 已归档',
+          weaknesses: '',
+          nextFocus: '继续巩固口语沙盘与书面站位',
+          score: l3Score,
+          rawResponse: JSON.stringify(raw).slice(0, 12000),
+        });
+      }
+      checkThemeMastery(theme)
+        .then((res) => {
+          if (res.success) {
+            setMasteryData({
+              isMastered: res.isMastered,
+              oralCount: res.oralCount,
+              maxWriteScore: res.maxWriteScore,
+            });
+          }
+        })
+        .catch(() => {});
     } catch (error) {
       showNotice('review', '批阅失败，请检查 API 配置或网络', 'error');
     } finally {
@@ -180,19 +336,77 @@ export default function EnglishModule() {
                   <button onClick={(e) => { e.stopPropagation(); setStage('6-12'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '6-12' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>6-12个月: 全场景</button>
                 </div>
               </div>
-              <div className="flex flex-col flex-1">
+                <div className="flex flex-col flex-1">
                 <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 (Theme Gateway)</span>
+
+                {/* 拦截 Banner：显示在下拉框正上方 */}
+                {themeSwitchError && (
+                  <div className="flex items-start gap-3 mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                    <div className="flex-1">
+                      <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1">🚫 跨国高管拦截指令</p>
+                      <p className="text-xs font-medium leading-relaxed whitespace-pre-line">{themeSwitchError}</p>
+                    </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setThemeSwitchError(null); }}
+                      className="text-red-400 hover:text-red-600 text-lg leading-none font-bold shrink-0"
+                    >×</button>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3">
-                  <select value={theme} onChange={(e) => setTheme(e.target.value)} onClick={(e) => e.stopPropagation()} className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]">
-                    <option>商务谈判：让步与施压 (Day 4/10)</option>
-                    <option>危机公关：外媒答疑 (Day 1/10)</option>
-                    <option>项目汇报：跨国董事会 (Day 1/10)</option>
+                  <select
+                    value={theme}
+                    onChange={async (e) => {
+                      const target = e.target;
+                      const next = target.value;
+                      if (next === theme) return;
+                      setThemeSwitchError(null);
+                      try {
+                        const m = await checkThemeMastery(theme);
+                        if (!m.isMastered) {
+                          // 强制回滚 DOM 选框值（async onChange 中 preventDefault 无效）
+                          target.value = theme;
+                          setThemeSwitchError(
+                            `当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n• 沉浸式口语沙盘：${m.oralCount}/10 轮\n• L3 书面评估最高分：${m.maxWriteScore}/10 分（及格线: 8分）\n\n请把当前阵地打透再拔营。`
+                          );
+                          return;
+                        }
+                        setTheme(next);
+                        await setThemeFocus({ theme: next }).catch(() => {});
+                      } catch {
+                        // 强制回滚 DOM 选框值
+                        target.value = theme;
+                        setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。');
+                      }
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
+                  >
+                    {THEME_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
                   </select>
-                  <button onClick={(e) => { e.stopPropagation(); setIsMastered(!isMastered); }} className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap ${isMastered ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}>
-                    <CheckCircle2 className="w-5 h-5" />
-                    <span className="text-xs font-black uppercase tracking-widest">{isMastered ? '已通关' : '未达标'}</span>
-                  </button>
+                  <div
+                    className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap border ${
+                      masteryData.isMastered
+                        ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                        : 'bg-red-50 border-red-200 text-red-600'
+                    }`}
+                  >
+                    {masteryData.isMastered ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                    <span className="text-xs font-black uppercase tracking-widest">
+                      {masteryData.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
+                    </span>
+                  </div>
                 </div>
+                {!masteryData.isMastered && (
+                  <div className="text-[10px] text-gray-500 font-medium mt-2">
+                    当前通关进度：口语对抗 {masteryData.oralCount}/10 轮 | L3 书面最高分 {masteryData.maxWriteScore}/8 分
+                  </div>
+                )}
               </div>
             </div>
 
@@ -204,11 +418,25 @@ export default function EnglishModule() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
                   <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2">发音纠正 (10min/Day)</span>
-                  <textarea rows={2} onClick={(e) => e.stopPropagation()} className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none" placeholder="记录今日纠正的商务重音词汇..." />
+                  <textarea
+                    rows={2}
+                    value={pronunciationNotes}
+                    onChange={(e) => setPronunciationNotes(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none"
+                    placeholder="记录今日纠正的商务重音词汇..."
+                  />
                 </div>
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
                   <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2">核心语法复健 (8-10个核心点)</span>
-                  <textarea rows={2} onClick={(e) => e.stopPropagation()} className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none" placeholder="如：被动语态/虚拟语气的商务应用..." />
+                  <textarea
+                    rows={2}
+                    value={grammarNotes}
+                    onChange={(e) => setGrammarNotes(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none"
+                    placeholder="如：被动语态/虚拟语气的商务应用..."
+                  />
                 </div>
               </div>
             </div>
@@ -432,7 +660,27 @@ export default function EnglishModule() {
           </div>
         )}
 
-        {activeTab === 'oral' && <OralWarRoom embedded />}
+        {activeTab === 'oral' && (
+          <OralWarRoom
+            embedded
+            sceneTheme={theme}
+            sessionId={sessionId}
+            userId="default-user"
+            onOralRoundLogged={() => {
+              checkThemeMastery(theme)
+                .then((res) => {
+                  if (res.success) {
+                    setMasteryData({
+                      isMastered: res.isMastered,
+                      oralCount: res.oralCount,
+                      maxWriteScore: res.maxWriteScore,
+                    });
+                  }
+                })
+                .catch(() => {});
+            }}
+          />
+        )}
 
         {activeTab === 'write' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

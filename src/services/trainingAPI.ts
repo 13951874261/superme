@@ -67,6 +67,8 @@ export async function upsertTrainingSession(params: {
   totalMinutes?: number;
   listenMinutes?: number;
   logicMinutes?: number;
+  /** 浅合并进 training_sessions.extra_json（含 englishFoundation 子对象合并） */
+  extraJson?: Record<string, unknown>;
 }): Promise<SessionUpsertResponse> {
   return request<SessionUpsertResponse>('/api/training/session/upsert', {
     method: 'POST',
@@ -76,6 +78,31 @@ export async function upsertTrainingSession(params: {
 
 export async function createTrainingAttempt(params: Record<string, unknown>): Promise<{ success: boolean; attemptId: string }> {
   return request('/api/training/attempt', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export interface ThemeMasteryCheck {
+  success: boolean;
+  theme: string;
+  userId?: string;
+  oralCount: number;
+  maxWriteScore: number;
+  isMastered: boolean;
+}
+
+export async function checkThemeMastery(theme: string, userId = 'default-user'): Promise<ThemeMasteryCheck> {
+  const q = new URLSearchParams({ theme, userId });
+  return request<ThemeMasteryCheck>(`/api/theme/check-mastery?${q.toString()}`);
+}
+
+export async function setThemeFocus(params: {
+  theme: string;
+  difficulty?: string;
+  userId?: string;
+}): Promise<{ success: boolean; theme: string; difficulty: string }> {
+  return request('/api/theme/focus', {
     method: 'POST',
     body: JSON.stringify(params),
   });

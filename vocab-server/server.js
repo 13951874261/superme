@@ -11,6 +11,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
+const cron = require('node-cron');
+const { runDailyFeeder } = require('./cron/dailyFeeder');
 
 const app = express();
 const PORT = 3001;
@@ -25,6 +27,7 @@ const DIFY_CHAT_API_KEY = process.env.DIFY_CHAT_API_KEY || '';
 const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || '';
 const DIFY_MATERIAL_SUMMARY_API_KEY = process.env.DIFY_MATERIAL_SUMMARY_API_KEY || '';
 const DIFY_ENGLISH_MASTERY_API_KEY = process.env.DIFY_ENGLISH_MASTERY_API_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
+const CRON_DAILY_FEEDER = process.env.CRON_DAILY_FEEDER || '0 0 * * *';
 
 app.use(cors({ origin: '*' }));
 app.use(express.json({ limit: '2mb' }));
@@ -197,6 +200,46 @@ db.exec(`
 try {
   db.exec(`ALTER TABLE vocabulary ADD COLUMN category TEXT DEFAULT 'business';`);
 } catch (e) {}
+
+try {
+  db.exec(`ALTER TABLE training_sessions ADD COLUMN extra_json TEXT DEFAULT '{}';`);
+} catch (e) {}
+
+try {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS theme_focus (
+      user_id     TEXT PRIMARY KEY,
+      theme       TEXT NOT NULL,
+      difficulty  TEXT DEFAULT 'B2',
+      updated_at  INTEGER
+    );
+  `);
+} catch (e) {}
+
+try {
+  db.prepare(
+    `INSERT OR IGNORE INTO theme_focus (user_id, theme, difficulty, updated_at) VALUES (?, ?, ?, ?)`
+  ).run('default-user', '商务谈判：让步与施压', 'B2', Date.now());
+} catch (e) {}
+
+function mergeSessionExtraJson(existingStr, patch) {
+  let base = {};
+  try {
+    base = JSON.parse(existingStr || '{}');
+    if (typeof base !== 'object' || base === null) base = {};
+  } catch {
+    base = {};
+  }
+  const p = patch && typeof patch === 'object' ? patch : {};
+  const next = { ...base, ...p };
+  if (p.englishFoundation && typeof p.englishFoundation === 'object') {
+    next.englishFoundation = {
+      ...(typeof base.englishFoundation === 'object' && base.englishFoundation ? base.englishFoundation : {}),
+      ...p.englishFoundation,
+    };
+  }
+  return JSON.stringify(next);
+}
 
 db.prepare(
   `INSERT OR IGNORE INTO users (id, nickname, created_at) VALUES (?, ?, ?)`
@@ -789,23 +832,31 @@ app.post('/api/training/session/upsert', (req, res) => {
     `SELECT * FROM training_sessions WHERE user_id = ? AND training_date = ?`
   ).get(userId, trainingDate);
 
+  const { extraJson } = req.body || {};
+
   if (existing) {
     const updatedAt = nowTs();
+    const extraStr =
+      extraJson && typeof extraJson === 'object'
+        ? mergeSessionExtraJson(existing.extra_json, extraJson)
+        : existing.extra_json || '{}';
     db.prepare(
       `UPDATE training_sessions
-       SET total_minutes=?, listen_minutes=?, logic_minutes=?, updated_at=?
+       SET total_minutes=?, listen_minutes=?, logic_minutes=?, updated_at=?, extra_json=?
        WHERE id=?`
-    ).run(totalMinutes, listenMinutes, logicMinutes, updatedAt, existing.id);
+    ).run(totalMinutes, listenMinutes, logicMinutes, updatedAt, extraStr, existing.id);
     return res.json({ success: true, sessionId: existing.id, status: 'updated' });
   }
 
   const id = uuidv4();
   const ts = nowTs();
+  const initialExtra =
+    extraJson && typeof extraJson === 'object' ? JSON.stringify(extraJson) : '{}';
   db.prepare(
     `INSERT INTO training_sessions
-      (id, user_id, training_date, total_minutes, listen_minutes, logic_minutes, status, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, ?)`
-  ).run(id, userId, trainingDate, totalMinutes, listenMinutes, logicMinutes, ts, ts);
+      (id, user_id, training_date, total_minutes, listen_minutes, logic_minutes, status, created_at, updated_at, extra_json)
+     VALUES (?, ?, ?, ?, ?, ?, 'in_progress', ?, ?, ?)`
+  ).run(id, userId, trainingDate, totalMinutes, listenMinutes, logicMinutes, ts, ts, initialExtra);
 
   res.json({ success: true, sessionId: id, status: 'created' });
 });
@@ -2341,6 +2392,114 @@ app.post('/api/dify/dict-query', async (req, res) => {
     return res.status(500).json({ ok: false, message });
   }
 });
+
+// ── 主题闭环：防作弊校验 / 定时投喂 / 当前主题 ─────────────────────
+app.get('/api/theme/check-mastery', (req, res) => {
+  const theme = String(req.query.theme || '').trim();
+  const userId = String(req.query.userId || 'default-user');
+  if (!theme) {
+    return res.status(400).json({ success: false, error: '缺少 theme' });
+  }
+  try {
+    const oralRow = db
+      .prepare(
+        `SELECT COUNT(*) AS c FROM training_attempts
+         WHERE user_id = ? AND scene_type = ? AND module_type = 'oral'`
+      )
+      .get(userId, theme);
+    const oralCount = oralRow && typeof oralRow.c === 'number' ? oralRow.c : 0;
+
+    const writeRow = db
+      .prepare(
+        `SELECT MAX(score) AS s FROM training_attempts
+         WHERE user_id = ? AND scene_type = ? AND module_type = 'write'
+           AND json_extract(user_answer_json, '$.writeLevel') = 'L3'`
+      )
+      .get(userId, theme);
+    const maxWriteScore =
+      writeRow && writeRow.s != null && !Number.isNaN(Number(writeRow.s)) ? Number(writeRow.s) : 0;
+
+    const isMastered = oralCount >= 10 && maxWriteScore >= 8;
+
+    res.json({
+      success: true,
+      theme,
+      userId,
+      oralCount,
+      maxWriteScore,
+      isMastered,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post('/api/theme/focus', (req, res) => {
+  const userId = String(req.body?.userId || 'default-user');
+  const theme = String(req.body?.theme || '').trim();
+  const difficulty = String(req.body?.difficulty || 'B2').trim() || 'B2';
+  if (!theme) {
+    return res.status(400).json({ success: false, error: '缺少 theme' });
+  }
+  try {
+    db.prepare(
+      `INSERT INTO theme_focus (user_id, theme, difficulty, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(user_id) DO UPDATE SET
+         theme = excluded.theme,
+         difficulty = excluded.difficulty,
+         updated_at = excluded.updated_at`
+    ).run(userId, theme, difficulty, Date.now());
+    res.json({ success: true, theme, difficulty });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+app.post('/api/theme/trigger-feed', async (req, res) => {
+  const theme = String(req.body?.theme || '').trim();
+  const difficulty = String(req.body?.difficulty || 'B2');
+  const userId = String(req.body?.userId || 'default-user');
+  try {
+    const row = theme
+      ? { theme, difficulty }
+      : db.prepare(`SELECT theme, difficulty FROM theme_focus WHERE user_id = ?`).get(userId);
+    const t = row?.theme || process.env.CRON_DAILY_THEME || '商务谈判：让步与施压';
+    const d = row?.difficulty || difficulty || 'B2';
+    await runDailyFeeder(db, { theme: theme || t, difficulty: d, userId });
+    res.json({ success: true, message: '全自动投喂指令已执行', theme: theme || t, difficulty: d });
+  } catch (err) {
+    console.error('[trigger-feed]', err);
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+cron.schedule(
+  CRON_DAILY_FEEDER,
+  () => {
+    try {
+      const row = db.prepare(`SELECT theme, difficulty FROM theme_focus WHERE user_id = ?`).get('default-user');
+      const theme = row?.theme || process.env.CRON_DAILY_THEME || '商务谈判：让步与施压';
+      const difficulty = row?.difficulty || 'B2';
+      runDailyFeeder(db, { theme, difficulty, userId: 'default-user' }).catch((e) =>
+        console.error('[cron daily-feeder]', e)
+      );
+    } catch (e) {
+      console.error('[cron daily-feeder]', e);
+    }
+  },
+  { timezone: process.env.CRON_TZ || 'Asia/Shanghai' }
+);
+console.log(`[vocab-server] Daily feeder cron: ${CRON_DAILY_FEEDER} (${process.env.CRON_TZ || 'Asia/Shanghai'})`);
 
 // ── 启动 ─────────────────────────────────────────────────────
 app.listen(PORT, '0.0.0.0', () => {
