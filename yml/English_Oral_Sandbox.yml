@@ -6,151 +6,194 @@ app:
   mode: advanced-chat
   name: English_Oral_Sandbox
   use_icon_as_answer_icon: false
-kind: app
-version: 0.1.2
 dependencies:
-  - current_identifier: null
-    type: marketplace
-    value:
-      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
-      version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version: null
+kind: app
+version: 0.6.0
 workflow:
   conversation_variables: []
   environment_variables: []
   features:
     file_upload:
-      enabled: false
       allowed_file_extensions: []
       allowed_file_types: []
       allowed_file_upload_methods: []
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
     retriever_resource:
       enabled: false
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
       enabled: false
-    text_to_speech:
-      enabled: false
-    opening_statement: ''
     suggested_questions: []
     suggested_questions_after_answer:
       enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
   graph:
     edges:
-      - data:
-          isInIteration: false
-          sourceType: start
-          targetType: llm
-        id: start-llm
-        source: start
-        sourceHandle: source
-        target: llm
-        targetHandle: target
-        type: custom
-        zIndex: 0
-      - data:
-          isInIteration: false
-          sourceType: llm
-          targetType: answer
-        id: llm-answer
-        source: llm
-        sourceHandle: source
-        target: answer
-        targetHandle: target
-        type: custom
-        zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: start-llm
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: answer
+      id: llm-answer
+      source: llm
+      sourceHandle: source
+      target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
     nodes:
-      - data:
-          desc: ''
-          selected: false
-          title: 开始
-          type: start
-          variables: []
-        height: 54
-        id: start
-        position:
-          x: 80
-          y: 200
-        positionAbsolute:
-          x: 80
-          y: 200
+    - data:
+        desc: ''
         selected: false
-        sourcePosition: right
-        targetPosition: left
-        type: custom
-        width: 244
-      - data:
-          context:
-            enabled: false
-            variable_selector: []
-          desc: ''
-          model:
-            completion_params:
-              temperature: 0.7
-            mode: chat
-            name: claude-opus-4-7
-            provider: openai_api_compatible
-          prompt_template:
-            - id: system
-              role: system
-              text: |
-                你是一个跨国企业的高管谈判模拟系统。
+        title: 开始
+        type: start
+        variables: []
+      height: 73
+      id: start
+      position:
+        x: 80
+        y: 200
+      positionAbsolute:
+        x: 80
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        memory:
+          query_prompt_template: '{{#sys.query#}}
 
-                【交互规则】
-                1. 每次你只能以一个特定对立角色（如外籍总监、难缠的客户、合伙人等）的口吻发言。
-                2. 你的发言必须体现出“文化语气差异”（如美式的强硬施压，或日式的委婉推诿）。
-                3. 【核心要求】：在你的发言中，必须刻意埋下一个逻辑或事实破绽（如偷换概念、虚假两难、以偏概全、数据缺失等）。
-                4. 强制返回严格的 JSON 格式（绝对不要包含 ```json 等 Markdown 代码块，直接输出大括号包裹的内容），格式如下：
-                {
-                  "current_speaker": "当前扮演的角色名及身份",
-                  "dialogue": "角色的英文原话（带刁难与破绽）",
-                  "hidden_intent": "该角色的真实目的或谈判策略（中文剖析）",
-                  "flaw_point": "你埋下的破绽是什么，属于哪种逻辑谬误（中文）",
-                  "evaluation": "对用户上一句应对的1-10评分及简短犀利点评"
-                }
-            - id: user
-              role: user
-              text: "{{#sys.query#}}"
-          selected: false
-          title: 角色扮演引擎
-          type: llm
-          variables: []
-          vision:
-            enabled: false
-        height: 98
-        id: llm
-        position:
-          x: 380
-          y: 200
-        positionAbsolute:
-          x: 380
-          y: 200
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system
+          role: system
+          text: |
+            你是一个跨国企业的高管谈判模拟系统。
+
+            【当前固定局势】
+            - 谈判主题：项目贷款利率上浮 0.5%，并伴随抵押物权属争议。
+            - 角色池：CEO（盟友，推动项目落地）、CFO（阻力，严控预算和资本回报）、监管方（中立，只关注合规和权属证据）。
+
+            【交互规则】
+            1. 每次只能以一个角色发言，必须从 CEO / CFO / 监管方中选择一个。
+            2. 不要连续两轮使用完全相同的说法、相同句型或相同攻防角度。
+            3. 多轮对话中必须根据用户上一句调整策略：可切换角色、切换压力点、推进新条件或追问证据。
+            4. 发言必须体现跨国高管语气：克制、专业、有压力，但不要像客服或普通聊天机器人。
+            5. 【核心要求】：在 dialogue 中必须刻意埋下一个逻辑或事实破绽，例如偷换概念、虚假两难、以偏概全、证据缺失、因果倒置、责任转移。
+            6. hidden_intent 必须解释该角色的真实谈判目的，不要泛泛而谈。
+            7. flaw_point 必须明确指出破绽类型和可反击方向。
+            8. evaluation 必须统一使用格式："N/10 - 中文犀利点评；下一步反击建议：……"，其中 N 是 1 到 10 的整数。
+            9. 强制返回严格 JSON，绝对不要包含 Markdown 代码块，不要有任何前缀说明，只输出大括号包裹的 JSON。
+
+            【输出格式】
+            {
+              "current_speaker": "角色名（立场），例如 CFO（阻力）",
+              "dialogue": "角色的英文原话，必须带刁难、压力和一个可识别破绽",
+              "hidden_intent": "中文：该角色真实目的或谈判策略",
+              "flaw_point": "中文：破绽类型 + 为什么是破绽 + 用户可如何反击",
+              "evaluation": "N/10 - 中文犀利点评；下一步反击建议：……"
+            }
+        - id: user
+          role: user
+          text: '{{#sys.query#}}'
         selected: false
-        sourcePosition: right
-        targetPosition: left
-        type: custom
-        width: 244
-      - data:
-          answer: "{{#llm.text#}}"
-          desc: ''
-          selected: false
-          title: 直接回复
-          type: answer
-          variables: []
-        height: 103
-        id: answer
-        position:
-          x: 680
-          y: 200
-        positionAbsolute:
-          x: 680
-          y: 200
+        title: 角色扮演引擎
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 380
+        y: 200
+      positionAbsolute:
+        x: 380
+        y: 200
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm.text#}}'
+        desc: ''
         selected: false
-        sourcePosition: right
-        targetPosition: left
-        type: custom
-        width: 244
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 102
+      id: answer
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
     viewport:
-      x: 0
-      y: 0
+      x: 39
+      y: -13
       zoom: 1
+  rag_pipeline_variables: []

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Type, BookA, Languages, ChevronRight, Search, Loader2, BookmarkPlus, AlertCircle, ChevronLeft, CheckCircle2, X } from 'lucide-react';
+import { Type, BookA, Languages, ChevronRight, Search, Loader2, BookmarkPlus, AlertCircle, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import SpeakButton from './SpeakButton';
 import { addWord, queryDictionary } from '../services/vocabAPI';
 
 type DictType = 'zh_modern' | 'en_en_business' | 'en_zh_bidirectional';
@@ -40,10 +41,19 @@ const VALUE_LABEL_MAP: Record<string, string> = {
 
 function getLabel(key: string) { return KEY_LABEL_MAP[key.toLowerCase()] || key.replace(/_/g, ' '); }
 function getVal(v: string) { return VALUE_LABEL_MAP[v] || VALUE_LABEL_MAP[v?.toLowerCase()] || v; }
+function hasEnglishText(value: string) { return /[A-Za-z]{2,}/.test(value); }
 
 export function renderValue(value: any, depth = 0): React.ReactNode {
   if (value === null || value === undefined) return null;
-  if (typeof value === 'string') return <span className="whitespace-pre-wrap leading-relaxed">{getVal(value)}</span>;
+  if (typeof value === 'string') {
+    const displayValue = getVal(value);
+    return (
+      <span className="inline-flex items-start gap-2 whitespace-pre-wrap leading-relaxed">
+        <span>{displayValue}</span>
+        {hasEnglishText(value) ? <SpeakButton text={value} title="播放英文内容" className="mt-0.5 flex-shrink-0 w-7 h-7" iconClassName="w-3.5 h-3.5" /> : null}
+      </span>
+    );
+  }
   if (typeof value === 'number' || typeof value === 'boolean') return <span>{String(value)}</span>;
   if (Array.isArray(value)) return (
     <ul className="space-y-2 mt-1">
@@ -236,6 +246,9 @@ export default function DictionaryPanel() {
                         <div className="flex items-center gap-1.5 mb-3 pb-1 border-b border-[#FF5722]/20">
                           <span className="w-1 h-4 bg-[#FF5722] rounded-full inline-block"></span>
                           <span className="text-[11px] font-black text-[#FF5722] uppercase tracking-wider">{getLabel(activeTab)}</span>
+                          {typeof activeContent === 'string' && hasEnglishText(activeContent) ? (
+                            <SpeakButton text={activeContent} title="播放当前英文内容" className="ml-auto w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                          ) : null}
                           <span className="ml-auto text-[10px] text-gray-300">{activeIdx + 1} / {payloadKeys.length}</span>
                         </div>
                         <div className="text-sm leading-relaxed text-gray-700 overflow-y-auto max-h-[200px] scrollbar-thin pr-1">

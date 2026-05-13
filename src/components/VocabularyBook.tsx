@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, Clock, AlertCircle, Settings2, RotateCcw, FastForward, Rewind, CheckCircle2 } from 'lucide-react';
+import SpeakButton from './SpeakButton';
 import { getStats, getAllWords, deleteWord, manualIntervention, VocabEntry, VocabStats } from '../services/vocabAPI';
 import FlashCard from './FlashCard';
 
@@ -193,8 +194,11 @@ export default function VocabularyBook() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1 min-w-0">
-                        <div className="font-bold text-[#202124] text-sm truncate">
-                          {word.word}
+                        <div className="flex items-center gap-2">
+                          <div className="font-bold text-[#202124] text-sm truncate">
+                            {word.word}
+                          </div>
+                          <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <Clock className="w-3 h-3 text-gray-300" />

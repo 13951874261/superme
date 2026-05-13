@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Globe, Mic, Volume2, Target, CheckCircle2, Zap, PenTool, BookOpen, Clock, AlertTriangle, Loader2, PlayCircle, FastForward, Eye, EyeOff, Headphones } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import MaterialUploader from '../MaterialUploader';
-import { getDueVocabulary, runEnglishWriteReview, sendOralChatMessage, runEnglishListenEngine, runEnglishSentenceEvaluation } from '../../services/difyAPI';
+import SpeakButton, { speakEnglish } from '../SpeakButton';
+import OralWarRoom from './OralWarRoom';
+import { getDueVocabulary, runEnglishWriteReview, runEnglishListenEngine, runEnglishSentenceEvaluation } from '../../services/difyAPI';
 import { submitReview } from '../../services/vocabAPI';
 
 type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
@@ -29,9 +31,12 @@ const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark
     )}
     {isDark && optimized && (
       <div className="mt-4 pt-4 border-t border-gray-800">
-        <h5 className="text-[10px] font-black uppercase tracking-widest mb-3 text-[#FF5722]">
-          AI 高管级示范文本 (Optimized Version)
-        </h5>
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5722]">
+            AI 高管级示范文本 (Optimized Version)
+          </h5>
+          <SpeakButton text={optimized} title="播放 AI 高管级示范文本" />
+        </div>
         <p className="text-sm text-gray-300 leading-relaxed italic">{optimized}</p>
       </div>
     )}
@@ -49,10 +54,6 @@ export default function EnglishModule() {
   const [reviewResult, setReviewResult] = useState<any>(null);
   const [wordLimit, setWordLimit] = useState(200);
   const [playbackRate, setPlaybackRate] = useState(1.0);
-  const [oralMessages, setOralMessages] = useState<any[]>([]);
-  const [oralInput, setOralInput] = useState('');
-  const [isOralLoading, setIsOralLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
   const [listenInput, setListenInput] = useState('');
   const [listenMaterial, setListenMaterial] = useState("I hear what you're saying about the Q3 budget, and I completely agree in principle. Let's circle back to this offline so we can take a more holistic view before committing to any hard deliverables.");
   const [isTextVisible, setIsTextVisible] = useState(false);
@@ -93,6 +94,12 @@ export default function EnglishModule() {
   }, [activeTab]);
 
   const currentWord = useMemo(() => dueWords[currentWordIdx], [dueWords, currentWordIdx]);
+  const currentWordExample = useMemo(() => (
+    currentWord?.payload?.examples?.[0]
+    || currentWord?.payload?.related_sentences?.[0]
+    || currentWord?.payload?.related_phrases?.[0]
+    || ''
+  ), [currentWord]);
 
   const handleReview = async () => {
     if (!writingText || !writeIntent) {
@@ -110,37 +117,6 @@ export default function EnglishModule() {
       showNotice('review', '批阅失败，请检查 API 配置或网络', 'error');
     } finally {
       setIsReviewing(false);
-    }
-  };
-
-  const handleOralSubmit = async () => {
-    if (!oralInput.trim()) {
-      showNotice('oral', '请输入要发送的内容', 'error');
-      return;
-    }
-    const userMsg = { role: 'user', content: oralInput };
-    setOralMessages(prev => [...prev, userMsg]);
-    setOralInput('');
-    setIsOralLoading(true);
-
-    try {
-      const res = await sendOralChatMessage(userMsg.content, conversationId);
-      if (res.conversation_id) setConversationId(res.conversation_id);
-
-      let parsed: any = null;
-      try {
-        const cleanStr = String(res.answer || '').replace(/```json/g, '').replace(/```/g, '').trim();
-        parsed = JSON.parse(cleanStr);
-      } catch (e) {
-        parsed = { current_speaker: 'System', dialogue: res.answer || 'AI 返回为空' };
-      }
-
-      setOralMessages(prev => [...prev, { role: 'ai', parsed }]);
-    } catch (error) {
-      console.error(error);
-      showNotice('oral', '沙盘推演请求失败，请检查网络或 HTTPS 证书配置。', 'error');
-    } finally {
-      setIsOralLoading(false);
     }
   };
 
@@ -262,7 +238,10 @@ export default function EnglishModule() {
               <div className="w-full max-w-2xl">
                 <div className="text-center mb-8">
                   <span className="inline-block px-4 py-1.5 bg-[#FF5722]/10 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-full mb-4">Theme Words // 主题核心词汇</span>
-                  <h2 className="text-5xl font-black text-[#202124] tracking-tight font-serif mb-2">{currentWord.word}</h2>
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    <h2 className="text-5xl font-black text-[#202124] tracking-tight font-serif">{currentWord.word}</h2>
+                    <SpeakButton text={currentWord.word} title={`播放 ${currentWord.word}`} className="w-11 h-11" iconClassName="w-5 h-5" />
+                  </div>
                   <p className="text-gray-400 font-bold tracking-widest text-lg">{currentWord.payload?.phonetic || currentWord.payload?.definition_en || ''}</p>
                   {inlineNotice && noticeAnchor === 'eval' && (
                     <div className={`mx-auto mt-4 inline-flex rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
@@ -282,8 +261,11 @@ export default function EnglishModule() {
                     <p className="text-sm text-gray-700 leading-relaxed">{currentWord.payload?.definition_en || currentWord.payload?.meaning || '暂无释义'}</p>
                   </div>
                   <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-100">
-                    <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">商务例句</h5>
-                    <p className="text-sm text-gray-700 leading-relaxed italic">{currentWord.payload?.examples?.[0] || currentWord.payload?.related_sentences?.[0] || currentWord.payload?.related_phrases?.[0] ? `"${currentWord.payload?.examples?.[0] || currentWord.payload?.related_sentences?.[0] || currentWord.payload?.related_phrases?.[0]}"` : '暂无例句'}</p>
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">商务例句</h5>
+                      <SpeakButton text={currentWordExample} title="播放商务例句" />
+                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed italic">{currentWordExample ? `"${currentWordExample}"` : '暂无例句'}</p>
                   </div>
                 </div>
 
@@ -345,7 +327,7 @@ export default function EnglishModule() {
                   <span className="text-[10px] bg-white/10 px-3 py-1 rounded-full font-bold">高管会议盲听</span>
                 </div>
                 <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl mb-6 border border-white/10 relative z-10">
-                  <button onClick={() => alert('🎵 真实 MP3 音频流将在下一步战役中接入，敬请期待...')} className="text-white hover:text-[#FF5722] transition-colors cursor-pointer" title="播放截获音频">
+                  <button onClick={() => speakEnglish(listenMaterial, 0.9)} className="text-white hover:text-[#FF5722] transition-colors cursor-pointer" title="播放截获音频">
                     <PlayCircle className="w-10 h-10" />
                   </button>
                   <div className="flex-1 h-8 flex items-center gap-1 opacity-70">
@@ -356,11 +338,14 @@ export default function EnglishModule() {
                   <button className="text-white hover:text-gray-300 transition-colors cursor-pointer"><FastForward className="w-5 h-5" /></button>
                 </div>
                 <div className="relative z-10 mb-6">
-                  <div className="flex justify-between items-center mb-3">
+                  <div className="flex justify-between items-center mb-3 gap-3">
                     <span className="text-[10px] uppercase tracking-widest text-gray-400">Target Transcript // 目标原文</span>
-                    <button onClick={() => setIsTextVisible(!isTextVisible)} className="flex items-center text-[10px] text-gray-400 hover:text-white transition-colors cursor-pointer">
-                      {isTextVisible ? <><EyeOff className="w-3 h-3 mr-1"/> 隐藏 (开启盲听)</> : <><Eye className="w-3 h-3 mr-1"/> 显示文本</>}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <SpeakButton text={listenMaterial} title="播放目标原文" className="bg-white/10 text-white hover:bg-[#FF5722]" />
+                      <button onClick={() => setIsTextVisible(!isTextVisible)} className="flex items-center text-[10px] text-gray-400 hover:text-white transition-colors cursor-pointer">
+                        {isTextVisible ? <><EyeOff className="w-3 h-3 mr-1"/> 隐藏 (开启盲听)</> : <><Eye className="w-3 h-3 mr-1"/> 显示文本</>}
+                      </button>
+                    </div>
                   </div>
                   <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none' : 'bg-black text-white/5 blur-[4px] select-none'}`}>
                     {listenMaterial}
@@ -431,7 +416,10 @@ export default function EnglishModule() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {listenResult.keyJargons.map((item, idx) => (
                           <div key={idx} className="bg-[#202124] rounded-lg p-3 text-white shadow-md">
-                            <div className="text-xs font-black text-[#FF5722] mb-1">{item.word}</div>
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="text-xs font-black text-[#FF5722]">{item.word}</div>
+                              <SpeakButton text={item.word} title={`播放 ${item.word}`} className="w-7 h-7 bg-white/10 text-white hover:bg-[#FF5722]" iconClassName="w-3.5 h-3.5" />
+                            </div>
                             <div className="text-[10px] text-gray-300">{item.meaning}</div>
                           </div>
                         ))}
@@ -444,90 +432,7 @@ export default function EnglishModule() {
           </div>
         )}
 
-        {activeTab === 'oral' && (
-          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm flex flex-col min-h-[600px] h-[80vh]">
-            <div className="flex justify-between items-center mb-6 pb-6 border-b border-gray-100 shrink-0">
-              <div>
-                <h4 className="text-xl font-black text-[#202124] flex items-center">
-                  <Mic className="w-6 h-6 mr-3 text-[#FF5722]" /> 跨文化谈判沙盘
-                </h4>
-                <p className="text-xs text-gray-500 font-bold tracking-widest mt-2 uppercase">多立场跟踪 / 联合与分化 / 破绽反击</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <button onClick={() => { setOralMessages([]); setConversationId(null); }} className="text-[10px] text-gray-400 hover:text-[#202124] font-bold uppercase tracking-widest cursor-pointer">↻ 重置推演沙盘</button>
-                <span className="text-[10px] bg-red-50 text-red-600 px-4 py-2 rounded-full font-black uppercase tracking-widest animate-pulse border border-red-100">Hostile Environment Level 5</span>
-              </div>
-            </div>
-
-            <div className="flex-1 bg-slate-50 border border-slate-200 rounded-[2rem] p-6 mb-6 space-y-6 overflow-y-auto scroll-smooth">
-              {oralMessages.length === 0 && (
-                <div className="flex h-full items-center justify-center text-gray-400 text-sm font-medium italic">
-                  系统提示：输入您的开场白或应对策略，激活高管级别的交叉谈判...
-                </div>
-              )}
-
-              {oralMessages.map((msg, idx) => (
-                <div key={idx}>
-                  {msg.role === 'ai' ? (
-                    <div className="flex items-start gap-4">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 border border-blue-200 flex flex-col items-center justify-center shrink-0 shadow-sm">
-                        <span className="text-blue-800 font-black text-[9px] text-center leading-tight break-words px-1">{msg.parsed?.current_speaker || 'AI'}</span>
-                      </div>
-                      <div className="bg-white p-5 rounded-2xl rounded-tl-none border border-gray-100 shadow-sm text-sm text-[#202124] w-[80%] relative group">
-                        {msg.parsed?.flaw_point && (
-                          <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                            <button className="text-[10px] bg-red-100 text-red-600 px-3 py-1.5 rounded font-black uppercase tracking-widest shadow-sm border border-red-200" title={`隐藏意图: ${msg.parsed?.hidden_intent}`}>
-                              🎯 识别破绽: {msg.parsed.flaw_point}
-                            </button>
-                          </div>
-                        )}
-                        <p className="font-serif leading-relaxed text-base">{msg.parsed?.dialogue}</p>
-                        {msg.parsed?.evaluation && (
-                          <div className="mt-4 pt-3 border-t border-gray-100 text-[10px] text-[#FF5722] font-bold uppercase tracking-widest bg-[#FF5722]/5 p-2 rounded-lg">
-                            系统侧写评分：{msg.parsed.evaluation}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-4 flex-row-reverse">
-                      <div className="w-12 h-12 rounded-full bg-[#202124] border border-gray-700 flex items-center justify-center text-white font-black text-[10px] shrink-0 shadow-md">YOU</div>
-                      <div className="bg-[#f8f9fa] p-5 rounded-2xl rounded-tr-none border border-gray-200 text-sm text-gray-700 w-[80%] font-medium">{msg.content}</div>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {isOralLoading && (
-                <div className="text-xs text-gray-400 italic flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin"/> 对方正在权衡回应...</div>
-              )}
-            </div>
-
-            <div className="relative shrink-0">
-              <textarea 
-                rows={3}
-                value={oralInput}
-                onChange={e => setOralInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleOralSubmit(); } }}
-                className="w-full bg-white p-5 pr-32 rounded-2xl border-2 border-blue-200 focus:border-[#FF5722] outline-none text-sm text-[#202124] resize-none shadow-inner transition-colors placeholder-gray-400"
-                placeholder="【系统提示】：用英语输入反击话术 (按 Enter 发送，Shift+Enter 换行)..."
-              />
-              <div className="absolute right-4 bottom-4 flex gap-2">
-                {inlineNotice && noticeAnchor === 'oral' && (
-                  <div className={`absolute right-0 -top-12 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
-                    {inlineNotice.text}
-                  </div>
-                )}
-                <button 
-                  onClick={handleOralSubmit}
-                  disabled={isOralLoading || !oralInput.trim()}
-                  className="px-6 py-2.5 bg-[#202124] text-white rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center cursor-pointer"
-                >
-                  {isOralLoading ? '回合推演中...' : '发送反击'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {activeTab === 'oral' && <OralWarRoom embedded />}
 
         {activeTab === 'write' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

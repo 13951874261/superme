@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout } from 'lucide-react';
+import SpeakButton from './SpeakButton';
 import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 
@@ -96,6 +97,11 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const shouldEnrichPayload = (payload: any): boolean => {
     return !payload?.definition_en || payload?.meaning === '解析中...' || payload?.meaning === '待复习补充';
   };
+
+  const currentPayload = localPayload || current?.payload || null;
+  const currentDefinition = currentPayload?.definition_en || current?.payload?.definition_en || '';
+  const currentBusinessNote = currentPayload?.business_note || current?.payload?.business_note || '';
+  const currentExamples = currentPayload?.examples || current?.payload?.examples || [];
 
   const handleFlip = async () => {
     if (!current) return;
@@ -242,7 +248,10 @@ export default function FlashCard({ onClose }: FlashCardProps) {
             <div className="px-6 py-6 flex flex-col gap-4">
               {/* 正面：词条 */}
               <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none">
-                <div className="text-3xl font-black text-[#202124] mb-2">{current.word}</div>
+                <div className="flex items-center justify-center gap-3 mb-2">
+                  <div className="text-3xl font-black text-[#202124]">{current.word}</div>
+                  <SpeakButton text={current.word} title={`播放 ${current.word}`} className="w-10 h-10" iconClassName="w-5 h-5" />
+                </div>
                 {!isFlipped && (
                   isEnriching ? (
                     <div className="mt-3 inline-flex items-center justify-center rounded-full bg-[#FF5722]/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-[#FF5722] border border-[#FF5722]/20 shadow-inner animate-pulse">
@@ -277,21 +286,23 @@ export default function FlashCard({ onClose }: FlashCardProps) {
 
                   {/* 2. 英文定义 */}
                   <div>
-                    <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <BookOpen className="w-3 h-3" /> English Definition / 英文定义
+                    <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> English Definition / 英文定义</span>
+                      <SpeakButton text={currentDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
                     </div>
                     <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      {localPayload?.definition_en || current.payload?.definition_en || 'AI正在抓取此黑话的深层商务含义...'}
+                      {currentDefinition || 'AI正在抓取此黑话的深层商务含义...'}
                     </div>
                   </div>
 
                   {/* 3. 商务注解 */}
                   <div>
-                    <div className="text-[10px] font-black text-purple-500 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <Briefcase className="w-3 h-3" /> Business Context / 商务注解
+                    <div className="text-[10px] font-black text-purple-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> Business Context / 商务注解</span>
+                      <SpeakButton text={currentBusinessNote} title="播放商务注解" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
                     </div>
                     <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
-                      {localPayload?.business_note || current.payload?.business_note || '暂无特定商务场景备注。'}
+                      {currentBusinessNote || '暂无特定商务场景备注。'}
                     </div>
                   </div>
 
@@ -301,10 +312,11 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                       <Layout className="w-3 h-3" /> Usage Scenarios / 应用场景
                     </div>
                     <div className="space-y-3">
-                      {(localPayload?.examples || current.payload?.examples || []).map((ex: string, i: number) => (
-                        <div key={i} className="text-xs text-gray-600 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 relative pl-6">
+                      {currentExamples.map((ex: string, i: number) => (
+                        <div key={i} className="text-xs text-gray-600 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 relative pl-6 pr-11">
                           <div className="absolute left-2 top-3 w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-                          {ex}
+                          <span>{ex}</span>
+                          <SpeakButton text={ex} title="播放应用场景例句" className="absolute right-2 top-2 w-7 h-7" iconClassName="w-3.5 h-3.5" />
                         </div>
                       ))}
                     </div>
@@ -368,8 +380,9 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mb-4 font-medium leading-relaxed">{evalResult.feedback}</p>
-                    <div className="text-xs bg-white p-4 rounded-lg border border-gray-100 text-gray-800 font-serif relative">
+                    <div className="text-xs bg-white p-4 pr-12 rounded-lg border border-gray-100 text-gray-800 font-serif relative">
                       <div className="absolute -left-1 top-4 w-1 h-8 bg-[#FF5722] rounded-r-md"></div>
+                      <SpeakButton text={evalResult.correctedSentence} title="播放地道重构句" className="absolute right-3 top-3 w-7 h-7" iconClassName="w-3.5 h-3.5" />
                       <span className="font-bold text-[#FF5722] mr-2 text-[10px] uppercase tracking-widest">地道重构:</span>
                       <br />{evalResult.correctedSentence}
                     </div>

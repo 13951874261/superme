@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Clock3, Loader2, PlayCircle, Target, TimerReset, Volume2, Zap } from 'lucide-react';
+import { CheckCircle2, Clock3, Loader2, Target, TimerReset, Volume2, Zap } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
+import SpeakButton from '../SpeakButton';
 import { runEnglishWakeupRoutine } from '../../services/difyAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 
@@ -59,27 +60,6 @@ export default function DailyWakeupModule() {
   };
 
   useEffect(() => () => stopTimer(), []);
-
-  const playTTS = (text: string) => {
-    if (!('speechSynthesis' in window)) {
-      setNotice('当前浏览器不支持语音朗读');
-      return;
-    }
-
-    const synth = window.speechSynthesis;
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.92;
-
-    const voices = synth.getVoices();
-    const preferredVoice = voices.find((voice) => /en/i.test(voice.lang) || /english/i.test(voice.name));
-    if (preferredVoice) {
-      utterance.voice = preferredVoice;
-    }
-
-    synth.cancel();
-    synth.speak(utterance);
-  };
 
   const handleStart = async () => {
     setLoading(true);
@@ -185,27 +165,28 @@ export default function DailyWakeupModule() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {result.vocab.map((item) => (
-                  <button
+                  <div
                     key={item.word}
-                    type="button"
-                    onClick={() => playTTS(item.word)}
                     className="text-left rounded-2xl border border-gray-100 p-4 bg-[#f8f9fa] hover:border-[#FF5722] hover:bg-white transition-colors group"
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="text-lg font-black text-[#202124]">{item.word}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-lg font-black text-[#202124]">{item.word}</div>
+                          <SpeakButton text={item.word} title={`播放 ${item.word}`} />
+                        </div>
                         <div className="text-sm text-blue-600 font-mono mt-1">{item.ipa}</div>
                       </div>
-                      <PlayCircle className="w-5 h-5 text-gray-300 group-hover:text-[#FF5722]" />
                     </div>
                     <div className="text-sm text-gray-600 mt-2">{item.meaning_zh}</div>
                     <div className="mt-3 rounded-xl bg-orange-50 text-orange-700 text-xs font-medium p-3 leading-relaxed">
                       {item.pronunciation_note}
                     </div>
-                    <div className="mt-3 text-xs text-gray-500 italic leading-relaxed">
-                      {item.example}
+                    <div className="mt-3 text-xs text-gray-500 italic leading-relaxed flex items-start justify-between gap-3">
+                      <span>{item.example}</span>
+                      <SpeakButton text={item.example} title="播放例句" className="flex-shrink-0" />
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
