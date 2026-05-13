@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Bot, Clock3, Headphones, Target } from 'lucide-react';
+import { Bot, Clock3, Headphones, Loader2, RefreshCw, Target } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
+import BlindListeningCabin from '../BlindListeningCabin';
 import { createTrainingAttempt, submitTrainingFeedback, upsertTrainingSession, upsertKnowledgeNode } from '../../services/trainingAPI';
 import { runListenWorkflow } from '../../services/difyAPI';
+import { fetchListeningMaterials, ListeningDifficulty, ListeningMaterial } from '../../services/listeningAPI';
 
 interface ListenModuleProps {
   selectedDate: string;
@@ -23,6 +25,8 @@ const fallacies = [
   { id: '3', label: '预设滑坡' },
   { id: '4', label: '偷换概念' },
 ];
+
+const difficultyOptions: Array<ListeningDifficulty | 'all'> = ['all', 'A2', 'B1', 'B2', 'C1'];
 
 function parseMarkdownBlocks(markdown: string) {
   const sections = markdown.split(/\n(?=##\s+)/g).map((chunk) => chunk.trim()).filter(Boolean);
@@ -45,6 +49,11 @@ export default function ListenModule({ selectedDate, initialAttempt, readOnly = 
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'saving' | 'done' | 'error'>('idle');
   const [difyOutput, setDifyOutput] = useState('');
   const [difyError, setDifyError] = useState('');
+  const [listeningMaterials, setListeningMaterials] = useState<ListeningMaterial[]>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState('');
+  const [difficultyFilter, setDifficultyFilter] = useState<ListeningDifficulty | 'all'>('B2');
+  const [materialsLoading, setMaterialsLoading] = useState(false);
+  const [materialsError, setMaterialsError] = useState('');
 
   const selectedFallacyLabel = fallacies.find((f) => f.id === selectedFallacy)?.label || '';
   const selectedScene = sceneOptions.find((scene) => scene.id === sceneType) || sceneOptions[0];
@@ -55,6 +64,35 @@ export default function ListenModule({ selectedDate, initialAttempt, readOnly = 
     setIntentJudgement(initialAttempt?.intent_judgement || '');
     setCounterQuestion(initialAttempt?.counter_question || '');
   }, [initialAttempt]);
+
+  const loadListeningMaterials = async () => {
+    try {
+      setMaterialsLoading(true);
+      setMaterialsError('');
+      const rows = await fetchListeningMaterials({ difficulty: difficultyFilter, limit: 20 });
+      setListeningMaterials(rows);
+      setSelectedMaterialId((current) => {
+        if (rows.some((item) => item.id === current)) return current;
+        return rows[0]?.id || '';
+      });
+    } catch (error) {
+      setMaterialsError(error instanceof Error ? error.message : '听力材料加载失败');
+      setListeningMaterials([]);
+      setSelectedMaterialId('');
+    } finally {
+      setMaterialsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadListeningMaterials();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficultyFilter]);
+
+  const selectedMaterial = useMemo(
+    () => listeningMaterials.find((item) => item.id === selectedMaterialId) || listeningMaterials[0] || null,
+    [listeningMaterials, selectedMaterialId],
+  );
 
   const completeness = useMemo(
     () =>
@@ -202,6 +240,81 @@ export default function ListenModule({ selectedDate, initialAttempt, readOnly = 
       description="核心定位：听懂潜台词与利益弦外之音、抓取他人的表达漏洞，解码人心。时间建议：每日 60 分钟。"
     >
       <div className="space-y-12">
+        <section className="rounded-[2rem] bg-white border border-gray-100 p-6 shadow-[0_18px_60px_-32px_rgba(0,0,0,0.18)]">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 mb-6">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#202124] text-white text-xs font-black tracking-[0.22em] uppercase mb-3">
+                <Headphones className="w-4 h-4" />
+                听力盲听舱
+              </div>
+              <h3 className="text-3xl font-black text-[#202124] leading-tight">真实语料截获与潜台词拆解</h3>
+              <p className="text-sm text-gray-500 mt-2">读取 Dify 写入的 listening_materials，支持 A2-C1 分级、真实音频、盲听笔记和底牌翻看。</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              {difficultyOptions.map((difficulty) => (
+                <button
+                  key={difficulty}
+                  onClick={() => setDifficultyFilter(difficulty)}
+                  className={`px-4 py-2 rounded-full text-xs font-black transition-all ${
+                    difficultyFilter === difficulty
+                      ? 'bg-[#FF5722] text-white shadow-[0_10px_22px_-10px_rgba(255,87,34,0.7)]'
+                      : 'bg-[#f8f9fa] text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  {difficulty === 'all' ? '全部' : difficulty}
+                </button>
+              ))}
+              <button
+                onClick={loadListeningMaterials}
+                disabled={materialsLoading}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#e8f0fe] text-[#1a73e8] text-xs font-black disabled:opacity-60"
+              >
+                {materialsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                刷新语料
+              </button>
+            </div>
+          </div>
+
+          {materialsError && (
+            <div className="mb-5 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-sm text-red-600 font-bold">
+              {materialsError}
+            </div>
+          )}
+
+          {listeningMaterials.length > 0 && (
+            <div className="mb-6 flex gap-3 overflow-x-auto pb-2">
+              {listeningMaterials.map((material) => (
+                <button
+                  key={material.id}
+                  onClick={() => setSelectedMaterialId(material.id)}
+                  className={`min-w-[260px] text-left rounded-3xl border p-4 transition-all ${
+                    selectedMaterial?.id === material.id
+                      ? 'border-[#FF5722] bg-[#fff4ef] shadow-[0_12px_32px_-20px_rgba(255,87,34,0.7)]'
+                      : 'border-gray-100 bg-[#f8f9fa] hover:bg-white hover:border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <span className="px-2.5 py-1 rounded-full bg-white text-[10px] font-black text-[#FF5722]">{material.difficulty}</span>
+                    <span className="text-[10px] font-bold text-gray-400">{material.audio_url ? '有音频' : '待配音'}</span>
+                  </div>
+                  <div className="text-sm font-black text-[#202124] line-clamp-2">{material.title}</div>
+                  <div className="text-xs text-gray-500 mt-2 line-clamp-1">{material.category}</div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!materialsLoading && listeningMaterials.length === 0 ? (
+            <div className="rounded-[2rem] border border-dashed border-gray-200 bg-[#f8f9fa] min-h-[260px] flex flex-col items-center justify-center text-center text-gray-400">
+              <Headphones className="w-12 h-12 mb-3" strokeWidth={1.5} />
+              <p className="text-sm font-black tracking-widest uppercase">暂无该难度听力材料</p>
+              <p className="text-xs mt-2">请先通过 Dify 工作流写入 /api/listening/materials，或切换难度筛选。</p>
+            </div>
+          ) : (
+            <BlindListeningCabin material={selectedMaterial} onRefresh={loadListeningMaterials} />
+          )}
+        </section>
+
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 items-stretch">
           <div className="xl:col-span-1 flex flex-col gap-6">
             <div className="rounded-3xl bg-[#f8f9fa] p-6 border border-gray-100">
