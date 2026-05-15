@@ -1,268 +1,358 @@
-### 一、 改造文档结构与总览
+本次改造将彻底打破之前单一、硬编码的界面，为**纵深书面起草 (`WriteModule.tsx`)** 注入强大的跨文化辅助指导阵列，并为**多角色口语战争室 (`OralWarRoom.tsx`)** 注入 5 大顶级高压商业场景的动态切换引擎。
 
-本次集成将触及前后端核心链路，具体涉及的文件树如下：
+以下是完整的改造与升级方案。
+
+---
+
+### 一、 改造文档结构与总体架构
+
+本次战役主要涉及前端界面的重构，使其能够完美接住新的 Dify 引擎能力。
 
 ```text
 superme/
-├── vocab-server/
-│   ├── package.json                     <-- [修改] 新增 node-cron 依赖
-│   ├── cron/
-│   │   └── dailyFeeder.js               <-- [新增] 核心引擎：调用 Dify 并将 JSON 拆解入库
-│   └── server.js                        <-- [修改] 挂载 Cron 定时任务，新增防作弊拦截 API
+├── dify-workflows/
+│   └── English_Oral_Sandbox.yml         <-- [更新] 您提供的最新带 5 大场景的 DSL (已完成)
 └── src/
-    ├── services/
-    │   └── trainingAPI.ts               <-- [修改] 新增 checkThemeMastery 接口
     └── components/
         └── modules/
-            └── EnglishModule.tsx        <-- [修改] 接管主题下拉框，实现未达标时的 UI 强锁定
+            ├── WriteModule.tsx          <-- [重构] 新增左侧跨文化静态指导抽屉 (Grid 拆分)
+            └── OralWarRoom.tsx          <-- [重构] 植入 5 大场景数据字典、下拉切换开关及解析新 JSON 字段
 
 ```
 
 ---
 
-### 二、 核心代码实现方案
+### 二、 核心代码改造：纵深书面起草面板补全 (`WriteModule.tsx`)
 
-#### 1. 后端依赖补全 (`vocab-server/package.json`)
+我们将原本单列的书面起草区拆分为左右布局（`grid-cols-12`），左侧建立一个“跨文化合规辅导侧边栏”，供高管在起草时进行“作弊级”的对照参考。
 
-请在 `dependencies` 中添加 `node-cron` 和 `node-fetch`：
-
-```json
-  "dependencies": {
-    "better-sqlite3": "^9.4.3",
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "uuid": "^9.0.0",
-    "node-cron": "^3.0.3",
-    "node-fetch": "^3.3.2"
-  }
-
-```
-
-#### 2. 全自动投喂引擎 (`vocab-server/cron/dailyFeeder.js`)
-
-在 `vocab-server` 目录下新建 `cron` 文件夹，并创建 `dailyFeeder.js`。该脚本负责每天自动调用您的 Dify 工作流，并将复杂的 JSON 无缝切片落库：
-
-```javascript
-const { v4: uuidv4 } = require('uuid');
-
-async function runDailyFeeder(db, theme = '商务谈判：让步与施压', difficulty = 'B2') {
-  console.log(`[Auto-Feeder] 启动战术投喂任务，当前主题：${theme}`);
-  
-  // 填入您刚刚生成的 API Key
-  const apiKey = process.env.DIFY_AUTO_FEEDER_API_KEY || 'app-BvxaAkVfKNB19EfJ7qw1Zzsw';
-  const baseUrl = process.env.DIFY_BASE_URL || 'https://dify.234124123.xyz';
-
-  try {
-    const { default: fetch } = await import('node-fetch');
-    const response = await fetch(`${baseUrl}/v1/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: { theme, difficulty },
-        response_mode: 'blocking',
-        user: 'system-cron-worker'
-      })
-    });
-
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.message || 'Dify Workflow 执行失败');
-
-    // 提取并解析您示例中的标准 JSON
-    const resultStr = data.data?.outputs?.result_json || data.data?.outputs?.result;
-    const parsed = JSON.parse(resultStr);
-
-    const now = Date.now();
-    const nextReview = now + 5 * 60 * 1000; // 5分钟后进入艾宾浩斯首次复习
-
-    // 1. 拆解写入词汇与短语 (艾宾浩斯生词本)
-    const insertVocab = db.prepare(`
-      INSERT INTO vocabulary 
-      (id, word, user_id, dict_type, category, payload, added_at, repetitions, ease_factor, interval_days, next_review_date, review_history) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 2.5, 0, ?, '[]')
-    `);
-
-    db.transaction(() => {
-      if (parsed.vocab && Array.isArray(parsed.vocab)) {
-        parsed.vocab.forEach(v => {
-          insertVocab.run(uuidv4(), v.word, 'default-user', 'auto_feeder', 'business', JSON.stringify({
-            meaning: v.meaning, phonetic: v.phonetic, partOfSpeech: v.pos, definition_en: '', business_note: '', examples: []
-          }), now, nextReview);
-        });
-      }
-      if (parsed.phrases_and_sentences && Array.isArray(parsed.phrases_and_sentences)) {
-        parsed.phrases_and_sentences.forEach(p => {
-          insertVocab.run(uuidv4(), p.phrase, 'default-user', 'auto_feeder', 'business', JSON.stringify({
-            meaning: p.meaning, examples: [p.example], source: '每日弹药投喂'
-          }), now, nextReview);
-        });
-      }
-    })();
-
-    // 2. 拆解写入盲听舱语料
-    const lm = parsed.listening_material;
-    if (lm) {
-      db.prepare(`
-        INSERT INTO listening_materials 
-        (id, title, content_text, audio_url, difficulty, category, duration, has_subtext, subtext_analysis, source_type, source_topic, created_at, updated_at) 
-        VALUES (?, ?, ?, '', ?, '商务谈判', ?, 1, ?, 'tts', ?, ?, ?)
-      `).run(uuidv4(), lm.title, lm.content_text, difficulty, lm.duration || 60, lm.subtext_analysis, theme, now, now);
-    }
-
-    // 3. 记录长文日志
-    if (parsed.daily_article) {
-       console.log(`[Auto-Feeder] 今日长文已截获: ${parsed.daily_article.title}`);
-    }
-
-    console.log(`[Auto-Feeder] 投喂成功！新增弹药: ${(parsed.vocab?.length||0) + (parsed.phrases_and_sentences?.length||0)} 发`);
-  } catch (error) {
-    console.error('[Auto-Feeder] 引擎运转异常:', error.message);
-  }
-}
-
-module.exports = { runDailyFeeder };
-
-```
-
-#### 3. 挂载定时任务与防作弊 API (`vocab-server/server.js`)
-
-在您的 `server.js` 顶部引入依赖，并在现有的 API 路由区加入以下代码：
-
-```javascript
-const cron = require('node-cron');
-const { runDailyFeeder } = require('./cron/dailyFeeder');
-
-// ... (现有的初始化代码) ...
-
-// [自动化投喂引擎] 每天凌晨 02:00 自动执行
-cron.schedule('0 2 * * *', () => {
-  // 此处可从数据库读取用户的当前聚焦 Theme
-  runDailyFeeder(db, "商务谈判：让步与施压", "B2");
-});
-
-// [测试后门] 手动触发投喂
-app.post('/api/theme/trigger-feed', async (req, res) => {
-  await runDailyFeeder(db, req.body.theme || "国际银团贷款", req.body.difficulty || "C1");
-  res.json({ success: true, message: '全自动投喂指令已下达' });
-});
-
-// [防作弊拦截器] 强校验主题通关状态
-app.get('/api/theme/check-mastery', (req, res) => {
-  const theme = String(req.query.theme || '');
-  try {
-    // 1. 口语沙盘：统计该主题下真实交锋回合数
-    const oralRow = db.prepare(`SELECT count(*) as c FROM training_attempts WHERE scene_type = ? AND module_type = 'oral'`).get(theme);
-    const oralCount = oralRow ? oralRow.c : 0;
-
-    // 2. 纵深书面：查询该主题下取得的历史最高分
-    const writeRow = db.prepare(`SELECT MAX(score) as s FROM training_attempts WHERE scene_type = ? AND module_type = 'write'`).get(theme);
-    const maxWriteScore = writeRow ? (writeRow.s || 0) : 0;
-
-    // 硬性指标：口语对抗 ≥ 10轮，且书面 L3 批阅 ≥ 8分
-    const isMastered = oralCount >= 10 && maxWriteScore >= 8;
-
-    res.json({ success: true, theme, oralCount, maxWriteScore, isMastered });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-```
-
-#### 4. 前端接口挂载 (`src/services/trainingAPI.ts`)
-
-在文件中补充 API 调用：
-
-```typescript
-export async function checkThemeMastery(theme: string): Promise<{ isMastered: boolean; oralCount: number; maxWriteScore: number }> {
-  const res = await fetch(`/api/theme/check-mastery?theme=${encodeURIComponent(theme)}`);
-  if (!res.ok) throw new Error('Failed to check mastery');
-  return res.json();
-}
-
-```
-
-#### 5. 跨国高管级 UI 拦截 (`src/components/modules/EnglishModule.tsx`)
-
-将原有的下拉框代码替换为带有数据绑定的强拦截状态，彻底封死随意切换主题的可能。
+请替换 `src/components/modules/WriteModule.tsx`：
 
 ```tsx
-import React, { useEffect, useMemo, useState } from 'react';
-// ... 补充引入 API
-import { checkThemeMastery } from '../../services/trainingAPI';
+import React, { useState } from 'react';
+import { PenTool, ChevronDown, BookOpen, AlertTriangle, ShieldCheck } from 'lucide-react';
+import ModuleWrapper from './ModuleWrapper';
 
-// ... 组件内部
-const [theme, setTheme] = useState('商务谈判：让步与施压');
-const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0 });
+// 静态跨文化指导库数据
+const GUIDANCE_LIBRARY = [
+  {
+    id: 'compliance',
+    title: '《外企跨国合规函件指南》',
+    icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />,
+    content: '1. 责任隔离：使用被动语态描述客观问题 (e.g., "It has been observed that..." 而非 "We made a mistake")。\n2. 方案前置：外企高层不看过程，起首第一段必须包含 Bottom Line (底线数据) 和 Solution (解决方案)。\n3. 抄送礼仪：CC 列表中层级最高者决定了行文的最高涉密级别，慎用 BCC。'
+  },
+  {
+    id: 'minefields',
+    title: '《欧美非三地沟通雷区》',
+    icon: <AlertTriangle className="w-4 h-4 text-red-500" />,
+    content: '【美企】极度结果导向，忌讳冗长的中式寒暄，直接切入核心商业价值。\n【欧企(英/德/法)】注重程序正义与 ESG，委婉但极度较真，忌讳侵略性施压，多用 "Would it be possible..."\n【中东/非洲】关系先于业务。必须先建立私人层面的 Respect (尊重)，忌讳在邮件中直接用法律条款施压。'
+  }
+];
 
-// 监听主题切换，实时核对通关进度
-useEffect(() => {
-  checkThemeMastery(theme).then(res => setMasteryData(res)).catch(() => {});
-}, [theme]);
+export default function WriteModule() {
+  const [expandedLevel, setExpandedLevel] = useState<number | null>(3);
+  const [openGuide, setOpenGuide] = useState<string | null>('compliance');
 
-// 找到原有渲染 theme 下拉框的地方，替换为：
-<div className="flex flex-col flex-1">
-  <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 (Theme Gateway)</span>
-  <div className="flex items-center gap-3">
-    <select 
-      value={theme} 
-      onChange={(e) => {
-        // 残酷拦截逻辑
-        if (!masteryData.isMastered && e.target.value !== theme) {
-          alert(`🚫 跨国高管拦截指令：\n\n当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n- 沉浸式口语沙盘：${masteryData.oralCount}/10 轮\n- L3 级书面评估最高分：${masteryData.maxWriteScore}/10 分（及格线: 8分）\n\n请不要好高骛远，把当前阵地打透再拔营。`);
-          return;
-        }
-        setTheme(e.target.value);
-      }} 
-      onClick={(e) => e.stopPropagation()} 
-      className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
+  return (
+    <ModuleWrapper 
+      title="立言 ｜ 高维决策文治" 
+      icon={<PenTool className="w-8 h-8" strokeWidth={2.5} />}
+      description="左翼引入跨文化红线指南，右翼进行三级纵深批阅，彻底隔离政治与合规风险。"
     >
-      <option value="商务谈判：让步与施压">商务谈判：让步与施压 (Day 4/10)</option>
-      <option value="危机公关：外媒答疑">危机公关：外媒答疑 (Day 1/10)</option>
-      <option value="项目汇报：跨国董事会">项目汇报：跨国董事会 (Day 1/10)</option>
-    </select>
-    
-    <div className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap border ${masteryData.isMastered ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-red-50 border-red-200 text-red-600'}`}>
-      {masteryData.isMastered ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-      <span className="text-xs font-black uppercase tracking-widest">
-        {masteryData.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
-      </span>
-    </div>
-  </div>
-  {!masteryData.isMastered && (
-    <div className="text-[10px] text-gray-500 font-medium mt-2">
-      当前通关进度：口语对抗 {masteryData.oralCount}/10轮 | 顶级书面评估 {masteryData.maxWriteScore}/8分
-    </div>
-  )}
-</div>
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
+        
+        {/* 左翼：静态跨文化指导抽屉面板 */}
+        <aside className="xl:col-span-4 flex flex-col gap-4">
+          <div className="bg-[#202124] text-white rounded-[2rem] p-6 shadow-lg">
+            <h4 className="text-xs font-black tracking-widest uppercase flex items-center mb-6 text-[#FF5722]">
+              <BookOpen className="w-4 h-4 mr-2" />
+              Cross-Cultural Guidance
+            </h4>
+            <div className="space-y-4">
+              {GUIDANCE_LIBRARY.map((guide) => (
+                <div key={guide.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all">
+                  <button 
+                    onClick={() => setOpenGuide(openGuide === guide.id ? null : guide.id)}
+                    className="w-full flex items-center justify-between p-4 hover:bg-white/10 transition-colors"
+                  >
+                    <span className="text-sm font-bold flex items-center gap-2">
+                      {guide.icon} {guide.title}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${openGuide === guide.id ? 'rotate-180 text-white' : ''}`} />
+                  </button>
+                  {openGuide === guide.id && (
+                    <div className="p-4 pt-0 text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-medium border-t border-white/5 mt-2">
+                      {guide.content}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        {/* 右翼：核心草稿与批阅区 (原有代码架构调整) */}
+        <section className="xl:col-span-8 bg-white rounded-[2.5rem] p-8 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <label className="text-xs font-black text-gray-400 tracking-widest uppercase">战略行文起草台</label>
+            <select className="text-xs border border-gray-200 bg-[#f8f9fa] rounded-full px-4 py-2 outline-none focus:border-[#FF5722] text-[#202124] font-bold cursor-pointer">
+              <option>跨国合规/法务信函</option>
+              <option>外企高管越级汇报</option>
+              <option>危机公关对外声明</option>
+            </select>
+          </div>
+          
+          <textarea 
+            rows={8} 
+            className="w-full bg-[#f8f9fa] rounded-3xl p-6 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-400 font-medium focus:bg-white focus:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all mb-6 border border-transparent focus:border-[#FF5722]/30" 
+            placeholder="结合左侧跨文化指南，起草您的英文决策指令..."
+          ></textarea>
+          
+          <button className="w-full btn-primary text-sm py-4 rounded-full tracking-widest uppercase font-black hover:-translate-y-1 transition-transform mb-8 shadow-lg">
+            开启三层阶梯纵深批阅
+          </button>
+
+          {/* ... 此处保留原有的 L1, L2, L3 极简无框风琴展板代码 ... */}
+          {/* (为节省篇幅省略原有未更改的风琴展板代码，直接复用您项目中的现有代码即可) */}
+        </section>
+
+      </div>
+    </ModuleWrapper>
+  );
+}
 
 ```
 
 ---
 
-### 三、 一键部署指令 (PowerShell)
+### 三、 核心代码改造：口语战争室动态场景引擎 (`OralWarRoom.tsx`)
 
-在项目根目录 (`D:\cursor\work\super-agent`) 运行以下命令，完成本轮代码的前后端同步部署：
+我们需要建立 5 大场景的本地数据字典，在用户切换场景时，动态渲染左侧的角色和冲突点，并在发送给 Dify 时**强制注入场景切换指令**。
 
-```powershell
-pnpm install; pnpm build; scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/; ssh ubuntu@150.158.34.217 "mkdir -p /opt/vocab-server/cron"; scp .\vocab-server\cron\dailyFeeder.js ubuntu@150.158.34.217:/opt/vocab-server/cron/dailyFeeder.js; scp .\vocab-server\package.json ubuntu@150.158.34.217:/opt/vocab-server/package.json; scp .\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js; ssh ubuntu@150.158.34.217 "cd /opt/vocab-server && npm install node-cron node-fetch && sudo systemctl restart super-agent-vocab.service && sudo nginx -t && sudo systemctl reload nginx"
+请替换 `src/components/modules/OralWarRoom.tsx`，加入场景引擎：
+
+```tsx
+import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { Mic, Send, ShieldAlert, Sparkles, Target, Users, Clock, Globe } from 'lucide-react';
+import ModuleWrapper from './ModuleWrapper';
+import SpeakButton from '../SpeakButton';
+import { sendOralChatMessage } from '../../services/difyAPI';
+
+// === 新增：5 大高压场景字典 ===
+const SCENE_DATABASE = [
+  {
+    id: 'scene-1',
+    title: '场景一：国际银团贷款谈判',
+    desc: '核心争议：利率上浮 0.5% 与抵押物权属争议。借款方资金缺口倒逼 72 小时谈判时限。',
+    allies: [{ name: 'CEO', label: '盟友', desc: '极力推动落地，愿让步换时间' }],
+    blockers: [{ name: 'CFO', label: '阻力', desc: '严控 IRR 红线，要求重跑估值' }],
+    neutrals: [{ name: '监管方', label: '中立', desc: '只关注合规证据与权属文件' }],
+    conflicts: ['利率上浮 0.5%', '抵押物权属']
+  },
+  {
+    id: 'scene-2',
+    title: '场景二：危机公关媒体发布会',
+    desc: '核心争议：亚太子公司环保数据造假，监管介入，各方博弈信息披露边界。',
+    allies: [{ name: '公关总监', label: '盟友', desc: '试图用技术性误差推锅给第三方' }],
+    blockers: [{ name: '法务官', label: '阻力', desc: '警告承认将触发天价罚款' }],
+    neutrals: [{ name: '财经记者', label: '对立', desc: '掌握邮件截图，紧逼决策链' }],
+    conflicts: ['数据造假责任', '披露边界']
+  },
+  {
+    id: 'scene-3',
+    title: '场景三：中东商务晚宴谈判',
+    desc: '核心争议：主权基金新能源开发，核心条款在礼仪博弈中暗中交锋。',
+    allies: [{ name: '投资总监', label: '盟友', desc: '用家族荣誉包装强制回购条款' }],
+    blockers: [{ name: '战略负责人', label: '阻力', desc: '担心 ESG 违规，私下施压' }],
+    neutrals: [{ name: '王室合伙人', label: '中立', desc: '暗示宗教禁忌与政商潜规则' }],
+    conflicts: ['对赌回购条款', 'ESG 披露']
+  },
+  {
+    id: 'scene-4',
+    title: '场景四：跨国并购尽调对话',
+    desc: '核心争议：发现标的方隐瞒 4700 万美元专利诉讼，高压博弈估值调整。',
+    allies: [{ name: '投行 FA', label: '中立', desc: '找价差空间，靠佣金驱动防破裂' }],
+    blockers: [{ name: '标的 CEO', label: '阻力', desc: '以协同溢价模糊财务缺口' }],
+    neutrals: [{ name: '买方 CFO', label: '对立', desc: '要求拆分财务，隔离争议资产' }],
+    conflicts: ['4700万诉讼', '估值下调']
+  },
+  {
+    id: 'scene-5',
+    title: '场景五：董事会战略否决博弈',
+    desc: '核心争议：CEO 提案 6 亿美元出海战略，遭大股东联合否决，独立董事成关键票。',
+    allies: [{ name: '创始人 CEO', label: '盟友', desc: '诉诸竞争威胁，争情感逻辑双支持' }],
+    blockers: [{ name: '大股东', label: '阻力', desc: '死守 ROE 红线，欲换血管理层' }],
+    neutrals: [{ name: '独立董事', label: '关键', desc: '只看程序合规与受托责任边界' }],
+    conflicts: ['6亿预算', '管理权争夺']
+  }
+];
+
+// ... (忽略 MessageItem 和 ParsedAiResponse 等基础接口定义，保持不变，但在 ParsedAiResponse 中新增 scene 字段)
+interface ParsedAiResponse {
+  scene?: string;
+  current_speaker: unknown;
+  dialogue: unknown;
+  hidden_intent: unknown;
+  flaw_point: unknown;
+  evaluation: unknown;
+}
+
+export default function OralWarRoom({ embedded = false }: { embedded?: boolean }) {
+  const [messages, setMessages] = useState<any[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  
+  // 场景引擎 State
+  const [activeSceneId, setActiveSceneId] = useState('scene-1');
+  const activeScene = useMemo(() => SCENE_DATABASE.find(s => s.id === activeSceneId)!, [activeSceneId]);
+  const [lastNotice, setLastNotice] = useState('沙盘已就绪，输入你的开场白。');
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // 语音流相关状态 (战役二成果)
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(10);
+  const recognitionRef = useRef<any>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 初始化语音... (此处保留战役二的初始化代码)
+
+  // 场景切换逻辑
+  const handleSceneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setActiveSceneId(e.target.value);
+    // 切换场景时，清空当前战局
+    setMessages([]);
+    setConversationId(null);
+    setLastNotice(`已重置战局。进入：${e.target.selectedOptions[0].text}`);
+  };
+
+  const handleSend = async () => {
+    const content = inputText.trim();
+    if (!content || isSending) return;
+
+    // === 核心机制：如果是第一句话，强制注入场景切换指令 ===
+    let apiPayload = content;
+    if (messages.length === 0) {
+       apiPayload = `[系统隐性指令：切换场景 ${activeScene.title.split('：')[0].replace('场景', '')}] \n用户发言：${content}`;
+    }
+
+    const userMsg = { id: `${Date.now()}-u`, role: 'user', content };
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    setIsSending(true);
+    setLastNotice('华尔街/中东对手正在推演回应...');
+
+    try {
+      const res = await sendOralChatMessage(apiPayload, conversationId);
+      if (res.conversation_id) setConversationId(res.conversation_id);
+
+      const rawText = String(res.answer || res.message || '');
+      const parsed = parseAiPayload(rawText);
+      const aiMsg = { id: `${Date.now()}-a`, role: 'ai', content: rawText, parsed };
+      
+      setMessages(prev => [...prev, aiMsg]);
+      setLastNotice(parsed?.flaw_point ? `🎯 发现破绽` : '已收到回应，继续交锋。');
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (error) {
+      setLastNotice(error instanceof Error ? error.message : '对话失败');
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const contentUI = (
+    <div className="bg-[#f8f9fa] rounded-[2rem] p-4 md:p-6 border border-gray-100 shadow-sm">
+      
+      {/* 顶部场景选择器 */}
+      <div className="mb-4 flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-2 text-xs font-black text-[#FF5722] tracking-widest uppercase">
+          <Globe className="w-4 h-4" /> Global Scenario
+        </div>
+        <select 
+          value={activeSceneId} 
+          onChange={handleSceneChange}
+          className="bg-[#f8f9fa] border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-4 py-2 outline-none focus:border-[#FF5722] cursor-pointer"
+        >
+          {SCENE_DATABASE.map(s => (
+            <option key={s.id} value={s.id}>{s.title}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-1 2xl:grid-cols-12 gap-4 h-[760px]">
+        {/* 左翼：局势面板 (动态读取 activeScene) */}
+        <aside className="2xl:col-span-4 flex flex-col gap-4 h-full">
+          <div className="bg-[#202124] text-white rounded-[2rem] p-6 shadow-lg relative overflow-hidden">
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">当前局势 (Situation)</div>
+            <h3 className="text-xl font-black leading-tight mb-2">{activeScene.title.split('：')[1]}</h3>
+            <p className="text-xs text-gray-300 leading-relaxed">{activeScene.desc}</p>
+          </div>
+
+          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex-1 overflow-y-auto">
+            <div className="text-[10px] font-black uppercase tracking-widest text-[#202124] mb-4">核心参局者 (Stakeholders)</div>
+            <div className="space-y-3">
+              {/* 动态渲染盟友、阻力、中立 */}
+              {activeScene.allies.map(r => (
+                <div key={r.name} className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-black text-emerald-900">{r.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800">{r.label}</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700">{r.desc}</p>
+                </div>
+              ))}
+              {activeScene.blockers.map(r => (
+                <div key={r.name} className="rounded-xl border border-red-100 bg-red-50 p-3 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-black text-red-900">{r.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-red-200 text-red-800">{r.label}</span>
+                  </div>
+                  <p className="text-[11px] text-red-700">{r.desc}</p>
+                </div>
+              ))}
+              {activeScene.neutrals.map(r => (
+                <div key={r.name} className="rounded-xl border border-gray-200 bg-gray-50 p-3 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-black text-gray-700">{r.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">{r.label}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500">{r.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </aside>
+
+        {/* 右翼：对战公屏 (这部分复用战役二的语音流代码即可，此处略去重复细节) */}
+        <section className="2xl:col-span-8 flex flex-col bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden h-full">
+           {/* ... 聊天展示区与语音流输入框保持不变 ... */}
+           {/* 为展示新 JSON 字段，可以在解析块中加上： */}
+           {/* msg.parsed?.scene && <div className="text-[9px] text-gray-400 mb-2">Scene System Sync: {msg.parsed.scene}</div> */}
+        </section>
+      </div>
+    </div>
+  );
+
+  if (embedded) return contentUI;
+  return <ModuleWrapper title="破局 ｜ 多角色口语战争室" icon={<Mic />} >{contentUI}</ModuleWrapper>;
+}
 
 ```
 
 ---
 
-### 四、 本轮验收测试用例 (Test Cases)
+### 四、 完善升级方案与验证标准
 
-部署完成后，请依次执行以下测试以确保闭环严密：
+此轮（战役三）是对内容广度与深度的究极扩张。
 
-**Test Case 1: 后门手动投喂测试 (验证解析引擎)**
+1. **工作流层兼容性验证**：
+* 您的 Dify 工作流 `English_Oral_Sandbox` 中设定的提示词为 `[切换场景 N]`。前端在第一次发送请求时，通过 `if (messages.length === 0)` 拦截，隐性将 `[系统隐性指令：切换场景 X] 用户发言：...` 拼接发送给 Dify。
+* **验证方法**：在界面选择“场景三：中东晚宴”，第一句话随意发送 "Hello"。等待 Dify 回复，观察返回的 JSON 中 `"current_speaker"` 是否变成了中东晚宴角色池中的人物（如 `王室合伙人`），以此证明隐性注入成功。
 
-* **操作**：在本地终端执行 `curl -X POST http://150.158.34.217:3001/api/theme/trigger-feed -H "Content-Type: application/json" -d "{\"theme\":\"国际银团贷款\",\"difficulty\":\"C1\"}"`
-* **预期**：服务器后台应打印 `[Auto-Feeder] 成功投喂！写入词汇+短语...`。回到前端网页，刷新左下角**艾宾浩斯生词本**，应出现 `syndicate`, `repayment` 等新词，且**精听盲听舱**应多出一个名为 `Understanding Syndicated Loans` 的音频材料（暂无发音需后续补充 TTS）。
 
-**Test Case 2: 纪律拦截测试 (验证防作弊 UI)**
+2. **状态重置（Context Flush）**：
+* 每次切换下拉框，React 状态会执行 `setConversationId(null)`。这意味着对 Dify API 的调用将不带旧的 `conversation_id`，从而彻底清空 Dify 后端的会话上下文记忆，保证从中东晚宴切回华尔街谈判时不会发生“角色认知精神分裂”。
 
-* **操作**：在 `英语战略 ｜ 跨文化信任构建` 面板，查看 `进度总控`。
-* **预期**：由于您的口语沙盘轮数和写作得分尚未达标，右侧状态强制显示红色的“未达标 (强制锁定)”。此时若试图在下拉框中选择“危机公关：外媒答疑”，浏览器将立刻弹出无情的警告弹窗，且下拉框值被强行重置，无法跳转。
+
+3. **跨文化抽屉扩展性**：
+* `WriteModule` 左侧采用数组映射 `GUIDANCE_LIBRARY`。后续如果您需要添加更多《涉密政府公文安全指南》或《合规法务指南》，无需改动组件内部代码，只需向文件顶部的常量数组增加一条对象记录即可实现无限拓展。

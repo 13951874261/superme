@@ -12,8 +12,12 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const cron = require('node-cron');
-const { runDailyFeeder } = require('./cron/dailyFeeder');
+const { runDailyFeeder, runFlawDetectionFeeder } = require('./cron/dailyFeeder');
+const multer = require('multer');
+const FormData = require('form-data');
 
+
+const upload = multer({ dest: path.join('/tmp', 'uploads/') }); // 用于接收临时录音文件
 const app = express();
 const PORT = 3001;
 const DB_PATH = path.join('/var/www/super-agent', 'vocab.db');
@@ -2407,7 +2411,7 @@ app.get('/api/theme/check-mastery', (req, res) => {
          WHERE user_id = ? AND scene_type = ? AND module_type = 'oral'`
       )
       .get(userId, theme);
-    const oralCount = oralRow && typeof oralRow.c === 'number' ? oralRow.c : 0;
+    const oralCount = Math.min(oralRow && typeof oralRow.c === 'number' ? oralRow.c : 0, 10);
 
     const writeRow = db
       .prepare(
@@ -2419,13 +2423,15 @@ app.get('/api/theme/check-mastery', (req, res) => {
     const maxWriteScore =
       writeRow && writeRow.s != null && !Number.isNaN(Number(writeRow.s)) ? Number(writeRow.s) : 0;
 
-    const isMastered = oralCount >= 10 && maxWriteScore >= 8;
+    const oralPassed = oralCount >= 10;
+    const isMastered = oralPassed && maxWriteScore >= 8;
 
     res.json({
       success: true,
       theme,
       userId,
       oralCount,
+      oralPassed,
       maxWriteScore,
       isMastered,
     });
@@ -2482,6 +2488,160 @@ app.post('/api/theme/trigger-feed', async (req, res) => {
     });
   }
 });
+
+// 手动触发：仅调用 Dify 破绽识别词汇工作流（不触发主 Feeder，适合测试）
+app.post('/api/theme/inject-flaw-arsenal', async (req, res) => {
+  const userId = String(req.body?.userId || 'default-user');
+  const theme = String(req.body?.theme || '').trim();
+  const difficulty = String(req.body?.difficulty || 'B2');
+  try {
+    const row = theme
+      ? { theme, difficulty }
+      : db.prepare(`SELECT theme, difficulty FROM theme_focus WHERE user_id = ?`).get(userId);
+    const t = row?.theme || process.env.CRON_DAILY_THEME || '商务谈判：让步与施压';
+    const d = row?.difficulty || difficulty || 'B2';
+
+    let fetch;
+    try {
+      ({ default: fetch } = await import('node-fetch'));
+    } catch {
+      if (typeof globalThis.fetch === 'function') fetch = globalThis.fetch.bind(globalThis);
+      else throw new Error('无可用 fetch 实现');
+    }
+    const baseUrl = process.env.DIFY_BASE_URL || 'https://dify.234124123.xyz';
+
+    const count = await runFlawDetectionFeeder({ theme: theme || t, difficulty: d, userId, fetch, baseUrl });
+    res.json({
+      success: true,
+      message: `🎯 破绽识别词汇投喂完成（Dify 工作流）`,
+      injected: count,
+      theme: theme || t,
+    });
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// AI 发音诊断接口：接收纯文本并调用 Dify 工作流
+app.post('/api/pronunciation-assessment', express.json(), async (req, res) => {
+  try {
+    const { targetText, recognizedText, userId = 'default-user' } = req.body;
+    if (!targetText || recognizedText === undefined) {
+      return res.status(400).json({ success: false, error: '缺少目标文本或识别文本' });
+    }
+
+    // Dify API Keys
+    const DIFY_BASE_URL = process.env.DIFY_BASE_URL || 'https://dify.234124123.xyz';
+    const workflowApiKey = process.env.DIFY_PRONUNCIATION_ASSESSMENT_API_KEY || 'app-gfR3SBAHyXp3iKnIWyyRpmlI';
+    
+    let fetch;
+    try {
+      ({ default: fetch } = await import('node-fetch'));
+    } catch {
+      if (typeof globalThis.fetch === 'function') fetch = globalThis.fetch.bind(globalThis);
+      else throw new Error('无可用 fetch 实现');
+    }
+
+    // 调用发音诊断工作流
+    const workflowResponse = await fetch(`${DIFY_BASE_URL}/v1/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${workflowApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: {
+          target_text: targetText,
+          recognized_text: recognizedText
+        },
+        response_mode: 'blocking',
+        user: userId
+      })
+    });
+
+    const workflowData = await workflowResponse.json();
+    if (!workflowResponse.ok) {
+      throw new Error(workflowData?.message || `Workflow 失败 (HTTP ${workflowResponse.status})`);
+    }
+
+    // 提取工作流输出的纠音笔记
+    const correctionNote =
+      workflowData?.data?.outputs?.correction_note ??
+      workflowData?.outputs?.correction_note ??
+      '';
+
+    res.json({
+      success: true,
+      recognizedText, // 透传回前端
+      correctionNote
+    });
+
+  } catch (err) {
+    console.error('[pronunciation-assessment] Error:', err);
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// 商务语法润色与进阶引擎接口
+app.post('/api/grammar-polish', express.json(), async (req, res) => {
+  try {
+    const { originalText, userId = 'default-user' } = req.body;
+    if (!originalText) {
+      return res.status(400).json({ success: false, error: '缺少需要润色的文本' });
+    }
+
+    const DIFY_BASE_URL = process.env.DIFY_BASE_URL || 'https://dify.234124123.xyz';
+    // 优先读取环境变量，如果没有则使用硬编码的 Key（避免服务器端忘了配 .env 导致 401）
+    const workflowApiKey = process.env.DIFY_GRAMMAR_API_KEY || 'app-547Sa5oIC3Qb9RUZdasJs1Ef';
+    
+    let fetch;
+    try {
+      ({ default: fetch } = await import('node-fetch'));
+    } catch {
+      if (typeof globalThis.fetch === 'function') fetch = globalThis.fetch.bind(globalThis);
+      else throw new Error('无可用 fetch 实现');
+    }
+
+    const workflowResponse = await fetch(`${DIFY_BASE_URL}/v1/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${workflowApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: {
+          original_text: originalText
+        },
+        response_mode: 'blocking',
+        user: userId
+      })
+    });
+
+    const workflowData = await workflowResponse.json();
+    if (!workflowResponse.ok) {
+      throw new Error(workflowData?.message || `Workflow 失败 (HTTP ${workflowResponse.status})`);
+    }
+
+    // 提取工作流输出的润色结果 (根据我们 DSL 中的变量名 'polished_result')
+    const polishedText =
+      workflowData?.data?.outputs?.polished_result ??
+      workflowData?.outputs?.polished_result ??
+      '> ⚠️ Dify 工作流未返回预期结果，请检查工作流配置。';
+
+    res.json({
+      success: true,
+      polishedText
+    });
+
+  } catch (err) {
+    console.error('[grammar-polish] Error:', err);
+    res.status(500).json({ success: false, error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 
 cron.schedule(
   CRON_DAILY_FEEDER,

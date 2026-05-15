@@ -88,6 +88,7 @@ export interface ThemeMasteryCheck {
   theme: string;
   userId?: string;
   oralCount: number;
+  oralPassed: boolean;
   maxWriteScore: number;
   isMastered: boolean;
 }

@@ -1,10 +1,10 @@
 app:
-  description: 跨国高管听辨与弦外之音解析引擎。深度剖析听力材料中的表面含义、权力结构与潜台词。
-  icon: 🎧
-  icon_background: '#EAF4FF'
+  description: 专门用于处理用户英语发音评测的高阶工作流。接收用户原本想要朗读的目标词/句，以及通过STT识别出的实际发音文本，分析发音错误、重音偏移及连读问题。
+  icon: 🗣️
+  icon_background: '#FFEAD5'
   icon_type: emoji
   mode: workflow
-  name: English_Listening_Engine
+  name: Pronunciation_Assessment_Engine
   use_icon_as_answer_icon: false
 dependencies:
 - current_identifier: null
@@ -19,9 +19,18 @@ workflow:
   environment_variables: []
   features:
     file_upload:
-      allowed_file_extensions: []
-      allowed_file_types: []
-      allowed_file_upload_methods: []
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
       enabled: false
       fileUploadConfig:
         attachment_image_file_size_limit: 2
@@ -47,7 +56,7 @@ workflow:
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
-      enabled: false
+      enabled: true
     suggested_questions: []
     suggested_questions_after_answer:
       enabled: false
@@ -61,26 +70,22 @@ workflow:
         isInIteration: false
         sourceType: start
         targetType: llm
-      id: start-llm
-      selected: false
+      id: start-to-llm
       source: start
       sourceHandle: source
       target: llm
       targetHandle: target
       type: custom
-      zIndex: 0
     - data:
         isInIteration: false
         sourceType: llm
-        targetType: answer
-      id: llm-answer
-      selected: false
+        targetType: end
+      id: llm-to-end
       source: llm
       sourceHandle: source
       target: end
       targetHandle: target
       type: custom
-      zIndex: 0
     nodes:
     - data:
         desc: ''
@@ -88,20 +93,28 @@ workflow:
         title: 开始
         type: start
         variables:
-        - label: listening_text
-          max_length: 10000
+        - desc: 用户原本想说的目标词汇或句子
+          max_length: 256
           options: []
           required: true
-          type: paragraph
-          variable: listening_text
-      height: 109
+          type: text-input
+          label: target_text
+          variable: target_text
+        - desc: 通过 Whisper 或 STT 识别出的用户实际录音文本
+          max_length: 1024
+          options: []
+          required: true
+          type: text-input
+          label: recognized_text
+          variable: recognized_text
+      height: 135
       id: start
       position:
-        x: 0
-        y: 0
+        x: 80
+        y: 281
       positionAbsolute:
-        x: 0
-        y: 0
+        x: 80
+        y: 281
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -114,21 +127,27 @@ workflow:
         desc: ''
         model:
           completion_params:
-            temperature: 0.3
+            temperature: 0.2
+            top_p: 0.8
           mode: chat
-          name: '109'
+          name: '111'
           provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
-        - id: system
+        - id: 6fd756ac-eb0f-4cb6-ad2e-0f1308c2d41e
           role: system
-          text: "你是一位顶级的跨国企业行为心理学与语言学专家。\n用户将提供一段外企会议、商务谈判或社交场合的听力原声文本。你的任务是“剥开表面看本质”，解析其中的弦外之音（Subtext）和权力动态。\n\
-            \n【输入文本】：\n{{#start.listening_text#}}\n\n【强制要求】：必须返回合法的 JSON 格式，直接输出大括号包裹的内容（绝不可有\
-            \ ```json 的 markdown 标记）。\n返回格式如下：\n{\n  \"surface_meaning\": \"字面意思摘要（客观总结）\"\
-            ,\n  \"hidden_subtext\": \"弦外之音剖析（深层权力博弈、情绪或真实意图）\",\n  \"power_dynamics\"\
-            : \"当前对话中的同盟、施压或阻力关系分析\",\n  \"key_jargons\": [\n    { \"word\": \"黑话/短语\"\
-            , \"meaning\": \"在此语境下的真实含义\" }\n  ]\n}\n"
+          text: '你是一名极其严苛的顶尖英语发音教练。 你将收到两个信息： 1. target_text: 用户本来想发音的单词或句子。 2. recognized_text:
+            STT (Speech-to-Text) 引擎听到的结果（如果发音极差，STT 会识别成发音相近的错误词汇）。
+
+            你的任务是： 比对两者，敏锐地指出用户发音中可能存在的问题。 如果两者一致，说明发音基本过关，给出标准音标即可。 如果存在偏差，请通过发音学的角度（元音饱满度、辅音浊化、重音偏移、连读弱读等）指出为何会被听错。
+
+            输出格式（严格返回纯文本，无需markdown语法包裹，字数精简在100字以内）： 目标：{target_text} [{音标}] 诊断：[你犀利的纠音诊断]'
+        - id: c5fbe526-b667-4b1e-bafb-c259f8c580d5
+          role: user
+          text: 'Target: {{#start.target_text#}}
+
+            Recognized: {{#start.recognized_text#}}'
         selected: false
-        title: 弦外之音解析引擎
+        title: 发音诊断 (LLM)
         type: llm
         variables: []
         vision:
@@ -136,11 +155,11 @@ workflow:
       height: 88
       id: llm
       position:
-        x: 342
-        y: 11
+        x: 372
+        y: 314
       positionAbsolute:
-        x: 342
-        y: 11
+        x: 372
+        y: 314
       selected: true
       sourcePosition: right
       targetPosition: left
@@ -152,25 +171,25 @@ workflow:
         - value_selector:
           - llm
           - text
-          variable: result
+          variable: correction_note
         selected: false
         title: 结束
         type: end
       height: 88
       id: end
       position:
-        x: 684
-        y: 11
+        x: 694
+        y: 314
       positionAbsolute:
-        x: 684
-        y: 11
+        x: 694
+        y: 314
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: 100
-      y: 237
-      zoom: 0.7
+      x: 154
+      y: -72
+      zoom: 1
   rag_pipeline_variables: []

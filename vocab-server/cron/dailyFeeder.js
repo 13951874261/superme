@@ -178,11 +178,67 @@ async function runDailyFeeder(db, { theme = '商务谈判：让步与施压', di
     console.log(`[Auto-Feeder] 今日长文已截获: ${parsed.daily_article.title || '(未命名)'}`);
   }
 
-  console.log(
-    `[Auto-Feeder] ✅ 投喂成功！` +
-    `新增词汇 ${vocabCount} 发 / 短语 ${phraseCount} 发 / ` +
-    `听力语料 ${listeningInserted ? 1 : 0} 篇`
-  );
+
+  // ── 4. 调用「破绽识别」Dify 工作流 ─────────────────────────
+  try {
+    const flawCount = await runFlawDetectionFeeder({ theme, difficulty, userId, fetch, baseUrl });
+    console.log(
+      `[Auto-Feeder] ✅ 投喂成功！` +
+      `新增词汇 ${vocabCount} 发 / 短语 ${phraseCount} 发 / ` +
+      `听力语料 ${listeningInserted ? 1 : 0} 篇 / ` +
+      `🎯 破绽识别弹药 ${flawCount} 发`
+    );
+  } catch (flawErr) {
+    console.warn('[Auto-Feeder] ⚠️ 破绽识别词汇投喂失败（不影响主流程）:', flawErr.message);
+    console.log(
+      `[Auto-Feeder] ✅ 主流程投喂成功！` +
+      `新增词汇 ${vocabCount} 发 / 短语 ${phraseCount} 发 / ` +
+      `听力语料 ${listeningInserted ? 1 : 0} 篇`
+    );
+  }
 }
 
-module.exports = { runDailyFeeder };
+/**
+ * 调用 Dify Flaw_Detection_Vocab_Engine 工作流，
+ * 由 LLM 动态生成与当前主题强绑定的"破绽识别"词汇并写入生词本。
+ *
+ * @param {{ theme: string, difficulty: string, userId: string, fetch: Function, baseUrl: string }} opts
+ * @returns {Promise<number>} 实际写入条数（由 Dify HTTP 节点直接入库，此处返回工作流报告数）
+ */
+async function runFlawDetectionFeeder({ theme, difficulty = 'B2', userId = 'default-user', fetch, baseUrl }) {
+  const apiKey = process.env.DIFY_FLAW_DETECTION_API_KEY || 'app-FHP7HJ6L6ctMe1TKxz013jPz';
+
+  console.log(`[Flaw-Feeder] 启动破绽识别词汇投喂，主题：${theme} / 难度：${difficulty}`);
+
+  const response = await fetch(`${baseUrl}/v1/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { theme, difficulty, userId },
+      response_mode: 'blocking',
+      user: 'system-cron-flaw-worker',
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.message || `Dify Flaw Workflow 执行失败 (HTTP ${response.status})`);
+  }
+
+  // 取工作流输出的注入数量（由 Dify Code 节点返回 count 字段）
+  const injectedCount =
+    data?.data?.outputs?.injected_count ??
+    data?.outputs?.injected_count ??
+    data?.data?.outputs?.count ??
+    data?.outputs?.count ??
+    '?';
+
+  console.log(`[Flaw-Feeder] ✅ 破绽识别词汇投喂完成，Dify 报告注入 ${injectedCount} 条`);
+  return Number(injectedCount) || 0;
+}
+
+module.exports = { runDailyFeeder, runFlawDetectionFeeder };
+

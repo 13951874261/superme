@@ -1,0 +1,399 @@
+app:
+  description: >
+    破绽识别专属词汇引擎 (Flaw_Detection_Vocab_Engine)。
+    根据当前谈判主题，由 LLM 生成 8-12 个专用于识别逻辑破绽、追问矛盾、揭穿回避的
+    高阶英文词汇与句式，并通过 HTTP 节点自动写入生词本 (batch-add)。
+    每日由 Cron 驱动，也可手动调用测试。
+  icon: 🎯
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Flaw_Detection_Vocab_Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    # Start → LLM
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: flaw-start-llm
+      source: flaw_start
+      sourceHandle: source
+      target: flaw_llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    # LLM → Code
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: flaw-llm-code
+      source: flaw_llm
+      sourceHandle: source
+      target: flaw_code
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    # Code → HTTP
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: flaw-code-http
+      source: flaw_code
+      sourceHandle: source
+      target: flaw_http
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    # HTTP → End
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: http-request
+        targetType: end
+      id: flaw-http-end
+      source: flaw_http
+      sourceHandle: source
+      target: flaw_end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    # ── 1. Start ──────────────────────────────────────────────
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - default: '商务谈判：让步与施压'
+          hint: 当前学习主题，用于生成与主题强绑定的破绽识别词汇
+          label: 学习主题 (e.g. 银团贷款谈判)
+          max_length: 256
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: theme
+        - default: 'B2'
+          hint: 词汇难度等级
+          label: 难度 (A2/B1/B2/C1)
+          max_length: 10
+          options:
+          - A2
+          - B1
+          - B2
+          - C1
+          placeholder: ''
+          required: false
+          type: select
+          variable: difficulty
+        - default: 'default-user'
+          hint: 写入生词本的用户ID
+          label: userId
+          max_length: 64
+          options: []
+          placeholder: ''
+          required: false
+          type: text-input
+          variable: userId
+      height: 150
+      id: flaw_start
+      position:
+        x: 79
+        y: 282
+      positionAbsolute:
+        x: 79
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+
+    # ── 2. LLM：生成破绽识别词汇 ──────────────────────────────
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: '根据主题生成专用于识别逻辑破绽、追问矛盾的高阶英文词汇与句式'
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: flaw-system-prompt
+          role: system
+          text: |
+            你是一位跨国高管谈判语言专家，专注于训练高压商务场景下的"逻辑破绽识别"与"追问反击"能力。
+
+            当前学习主题：{{#flaw_start.theme#}}
+            目标难度：{{#flaw_start.difficulty#}}
+
+            你的任务：
+            针对上述主题，生成 10 个专属于【识别逻辑破绽 / 追问矛盾 / 揭穿回避】的高阶英文词汇与句式。
+
+            选词原则：
+            1. 词汇必须服务于"发现破绽、追问矛盾、要求澄清"的口语对抗场景
+            2. 涵盖：逻辑谬误类词（如 fallacy, conflate, premise）、数据矛盾类词（如 discrepancy, inconsistency）、
+               追问句式（如 "Walk me through the logic here."）、要求证据句式（如 "Can you substantiate that claim?"）
+            3. 每个词汇的 business_note 必须包含：在{{#flaw_start.theme#}}场景中如何具体使用此词识别对方破绽
+            4. examples 必须包含至少 2 个与{{#flaw_start.theme#}}强相关的实战对话例句
+            5. 对于句式类条目，word 字段填写完整句式模板，partOfSpeech 填 "sentence pattern"
+
+            【强制要求】：
+            必须返回合法的 JSON 数组，禁止包含 ```json 等 Markdown 标记，直接输出方括号包裹的数组。
+            每个对象必须严格符合以下结构：
+            [
+              {
+                "word": "目标词汇或完整句式模板",
+                "dictType": "flaw_detection",
+                "category": "oral_flaw_detection",
+                "payload": {
+                  "meaning": "中文含义（含使用场景说明）",
+                  "phonetic": "IPA国际音标（句式类可留空）",
+                  "partOfSpeech": "词性 或 sentence pattern",
+                  "definition_en": "英文释义（强调逻辑攻防用途）",
+                  "business_note": "在{{#flaw_start.theme#}}场景下的具体破绽识别用法",
+                  "examples": [
+                    "与{{#flaw_start.theme#}}强相关的实战例句1",
+                    "实战例句2"
+                  ],
+                  "tag": "🎯 破绽识别专属武器",
+                  "source": "Dify_FlawDetection_Auto"
+                },
+                "userId": "{{#flaw_start.userId#}}"
+              }
+            ]
+        selected: false
+        title: LLM 生成破绽词汇
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: flaw_llm
+      position:
+        x: 381
+        y: 282
+      positionAbsolute:
+        x: 381
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+
+    # ── 3. Code：解析清洗 JSON ─────────────────────────────────
+    - data:
+        code: |
+          import json
+
+          def main(llm_text: str) -> dict:
+              # 去除可能残留的 markdown 标记
+              clean = llm_text.strip()
+              for marker in ['```json', '```']:
+                  clean = clean.strip(marker).strip()
+
+              try:
+                  parsed = json.loads(clean)
+
+                  # 强校验：确保每条词汇含必要字段
+                  validated = []
+                  for item in parsed:
+                      if not isinstance(item, dict):
+                          continue
+                      word = str(item.get('word', '')).strip()
+                      if not word:
+                          continue
+                      payload = item.get('payload', {})
+                      if not isinstance(payload, dict):
+                          payload = {}
+                      # 确保 category 和 dictType 正确
+                      item['dictType'] = 'flaw_detection'
+                      item['category'] = 'oral_flaw_detection'
+                      # 确保 tag 字段存在
+                      if 'tag' not in payload:
+                          payload['tag'] = '🎯 破绽识别专属武器'
+                      item['payload'] = payload
+                      validated.append(item)
+
+                  clean_json = json.dumps(validated, ensure_ascii=False)
+
+                  # 生成 Markdown 摘要（用于 End 节点展示）
+                  md_lines = [f"## 🎯 破绽识别词汇投喂报告\n共生成 {len(validated)} 条\n---"]
+                  for item in validated:
+                      w = item.get('word', '')
+                      p = item.get('payload', {})
+                      md_lines.append(f"### {w}")
+                      md_lines.append(f"* **含义**: {p.get('meaning', '')}")
+                      md_lines.append(f"* **实战笔记**: {p.get('business_note', '')}")
+                      exs = p.get('examples', [])
+                      if exs:
+                          md_lines.append(f"* **例句**: {exs[0]}")
+                      md_lines.append("---")
+
+                  return {
+                      'clean_json': clean_json,
+                      'count': str(len(validated)),
+                      'summary_md': '\n'.join(md_lines)
+                  }
+
+              except Exception as e:
+                  return {
+                      'clean_json': '[]',
+                      'count': '0',
+                      'summary_md': f'> ⚠️ JSON 解析失败：{str(e)}'
+                  }
+        code_language: python3
+        outputs:
+          clean_json:
+            children: null
+            type: string
+          count:
+            children: null
+            type: string
+          summary_md:
+            children: null
+            type: string
+        selected: false
+        title: 代码执行（解析清洗）
+        type: code
+        variables:
+        - value_selector:
+          - flaw_llm
+          - text
+          value_type: string
+          variable: llm_text
+      height: 52
+      id: flaw_code
+      position:
+        x: 683
+        y: 282
+      positionAbsolute:
+        x: 683
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+
+    # ── 4. HTTP：写入生词本 ────────────────────────────────────
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: flaw-http-body
+            key: ''
+            type: text
+            value: '{{#flaw_code.clean_json#}}'
+          type: raw-text
+        headers: Content-Type:application/json
+        method: post
+        params: ''
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 200
+        selected: false
+        ssl_verify: true
+        timeout:
+          max_connect_timeout: 30
+          max_read_timeout: 60
+          max_write_timeout: 30
+        title: HTTP 写入生词本 (batch-add)
+        type: http-request
+        url: https://app.liujingzhuwo.site/api/vocab/batch-add
+        variables: []
+      height: 137
+      id: flaw_http
+      position:
+        x: 985
+        y: 282
+      positionAbsolute:
+        x: 985
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+
+    # ── 5. End ────────────────────────────────────────────────
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - flaw_code
+          - count
+          value_type: string
+          variable: injected_count
+        - value_selector:
+          - flaw_code
+          - clean_json
+          value_type: string
+          variable: result_json
+        - value_selector:
+          - flaw_code
+          - summary_md
+          value_type: string
+          variable: summary
+        selected: false
+        title: 输出
+        type: end
+      height: 110
+      id: flaw_end
+      position:
+        x: 1286
+        y: 282
+      positionAbsolute:
+        x: 1286
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
+  rag_pipeline_variables: []

@@ -1,10 +1,61 @@
-import React, { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Mic, Send, ShieldAlert, Sparkles, Target, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
 import { sendOralChatMessage } from '../../services/difyAPI';
+import { createTrainingAttempt } from '../../services/trainingAPI';
+
+// === 5 大高压场景字典 ===
+const SCENE_DATABASE = [
+  {
+    id: 'scene-1',
+    title: '场景一：国际银团贷款谈判',
+    desc: '核心争议：利率上浮 0.5% 与抵押物权属争议。借款方资金缺口倒逼 72 小时谈判时限。',
+    allies: [{ name: 'CEO', label: '盟友', desc: '极力推动落地，愿让步换时间' }],
+    blockers: [{ name: 'CFO', label: '阻力', desc: '严控 IRR 红线，要求重跑估值' }],
+    neutrals: [{ name: '监管方', label: '中立', desc: '只关注合规证据与权属文件' }],
+    conflicts: ['利率上浮 0.5%', '抵押物权属']
+  },
+  {
+    id: 'scene-2',
+    title: '场景二：危机公关媒体发布会',
+    desc: '核心争议：亚太子公司环保数据造假，监管介入，各方博弈信息披露边界。',
+    allies: [{ name: '公关总监', label: '盟友', desc: '试图用技术性误差推锅给第三方' }],
+    blockers: [{ name: '法务官', label: '阻力', desc: '警告承认将触发天价罚款' }],
+    neutrals: [{ name: '财经记者', label: '对立', desc: '掌握邮件截图，紧逼决策链' }],
+    conflicts: ['数据造假责任', '披露边界']
+  },
+  {
+    id: 'scene-3',
+    title: '场景三：中东商务晚宴谈判',
+    desc: '核心争议：主权基金新能源开发，核心条款在礼仪博弈中暗中交锋。',
+    allies: [{ name: '投资总监', label: '盟友', desc: '用家族荣誉包装强制回购条款' }],
+    blockers: [{ name: '战略负责人', label: '阻力', desc: '担心 ESG 违规，私下施压' }],
+    neutrals: [{ name: '王室合伙人', label: '中立', desc: '暗示宗教禁忌与政商潜规则' }],
+    conflicts: ['对赌回购条款', 'ESG 披露']
+  },
+  {
+    id: 'scene-4',
+    title: '场景四：跨国并购尽调对话',
+    desc: '核心争议：发现标的方隐瞒 4700 万美元专利诉讼，高压博弈估值调整。',
+    allies: [{ name: '投行 FA', label: '中立', desc: '找价差空间，靠佣金驱动防破裂' }],
+    blockers: [{ name: '标的 CEO', label: '阻力', desc: '以协同溢价模糊财务缺口' }],
+    neutrals: [{ name: '买方 CFO', label: '对立', desc: '要求拆分财务，隔离争议资产' }],
+    conflicts: ['4700万诉讼', '估值下调']
+  },
+  {
+    id: 'scene-5',
+    title: '场景五：董事会战略否决博弈',
+    desc: '核心争议：CEO 提案 6 亿美元出海战略，遭大股东联合否决，独立董事成关键票。',
+    allies: [{ name: '创始人 CEO', label: '盟友', desc: '诉诸竞争威胁，争情感逻辑双支持' }],
+    blockers: [{ name: '大股东', label: '阻力', desc: '死守 ROE 红线，欲换血管理层' }],
+    neutrals: [{ name: '独立董事', label: '关键', desc: '只看程序合规与受托责任边界' }],
+    conflicts: ['6亿预算', '管理权争夺']
+  }
+];
 
 interface ParsedAiResponse {
+  scene?: string;
   current_speaker: unknown;
   dialogue: unknown;
   hidden_intent: unknown;
@@ -43,9 +94,20 @@ function safeText(value: unknown) {
 
 interface OralWarRoomProps {
   embedded?: boolean;
+  /** 与 training_attempts.scene_type 对齐，用于主题通关统计 */
+  sceneTheme?: string;
+  sessionId?: string | null;
+  userId?: string;
+  onOralRoundLogged?: () => void;
 }
 
-export default function OralWarRoom({ embedded = false }: OralWarRoomProps) {
+export default function OralWarRoom({
+  embedded = false,
+  sceneTheme = '',
+  sessionId = null,
+  userId = 'default-user',
+  onOralRoundLogged,
+}: OralWarRoomProps) {
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -53,43 +115,140 @@ export default function OralWarRoom({ embedded = false }: OralWarRoomProps) {
   const [lastNotice, setLastNotice] = useState('沙盘已就绪，输入你的开场白。');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const situation = useMemo(() => ({
-    topic: '利率上浮 0.5% / 抵押物权属争议',
-    allies: ['CEO（盟友）'],
-    blockers: ['CFO（阻力）'],
-    neutrals: ['监管方（中立）'],
-  }), []);
+  // ── 语音引擎 & 高压倒计时 ─────────────────────────────────
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(10);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pendingTextRef = useRef('');
+
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    setSpeechSupported(true);
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+    rec.onresult = (event: any) => {
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      pendingTextRef.current = transcript;
+      setInputText(transcript);
+    };
+    rec.onerror = () => stopRecording();
+    recognitionRef.current = rec;
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    setIsRecording(false);
+    recognitionRef.current?.stop();
+  }, []);
+
+  const startRecording = useCallback(() => {
+    if (!recognitionRef.current || isSending) return;
+    pendingTextRef.current = '';
+    setInputText('');
+    setRecordingTime(10);
+    setIsRecording(true);
+    try { recognitionRef.current.start(); } catch { return; }
+    timerRef.current = setInterval(() => {
+      setRecordingTime(prev => {
+        if (prev <= 1) {
+          stopRecording();
+          // 倒计时耗尽：自动截断并发送
+          setTimeout(() => {
+            const text = pendingTextRef.current.trim();
+            if (text) {
+              setInputText(text);
+              handleSendWithText(text);
+            }
+          }, 550);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, [isSending, stopRecording]);
+
+  // 松手即发送：直接传文本给 handleSend，不依赖异步 state
+  const stopRecordingAndSend = useCallback(() => {
+    stopRecording();
+    setTimeout(() => {
+      const text = pendingTextRef.current.trim();
+      if (text) {
+        setInputText(text);
+        // 直接传入文本，不等待 inputText state 更新
+        handleSendWithText(text);
+      }
+    }, 550);
+  }, [stopRecording]);
+  // ─────────────────────────────────────────────────────────
+
+  // 场景引擎 State
+  const [activeSceneId, setActiveSceneId] = useState('scene-1');
+  const activeScene = useMemo(() => SCENE_DATABASE.find(s => s.id === activeSceneId)!, [activeSceneId]);
+
+  // 场景切换逻辑
+  const handleSceneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setActiveSceneId(e.target.value);
+    setMessages([]);
+    setConversationId(null);
+    setLastNotice(`已重置战局。进入：${e.target.selectedOptions[0].text}`);
+  };
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };
 
-  const handleSend = async () => {
-    const content = inputText.trim();
+  // 核心发送逻辑（接受显式文本，不依赖 inputText state 异步更新）
+  const handleSendWithText = async (forceContent: string) => {
+    const content = forceContent.trim();
     if (!content || isSending) return;
+
+    // === 核心机制：如果是第一句话，强制注入场景切换指令 ===
+    let apiPayload = content;
+    if (messages.length === 0) {
+       apiPayload = `[系统隐性指令：切换场景 ${activeScene.title.split('：')[0].replace('场景', '')}] \n用户发言：${content}`;
+    }
 
     const userMsg: MessageItem = { id: `${Date.now()}-u`, role: 'user', content };
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
+    pendingTextRef.current = '';
     setIsSending(true);
-    setLastNotice('对手正在推演回应...');
+    setLastNotice('华尔街/中东对手正在推演回应...');
 
     try {
-      const res = await sendOralChatMessage(content, conversationId);
+      const res = await sendOralChatMessage(apiPayload, conversationId);
       if (res.conversation_id) setConversationId(res.conversation_id);
 
       const rawText = String(res.answer || res.message || '');
       const parsed = parseAiPayload(rawText);
-      const aiMsg: MessageItem = {
-        id: `${Date.now()}-a`,
-        role: 'ai',
-        content: rawText,
-        parsed,
-      };
+      const aiMsg: MessageItem = { id: `${Date.now()}-a`, role: 'ai', content: rawText, parsed };
       setMessages(prev => [...prev, aiMsg]);
 
+      if (sessionId && sceneTheme) {
+        void createTrainingAttempt({
+          sessionId,
+          userId,
+          moduleType: 'oral',
+          sceneType: sceneTheme,
+          caseText: content.slice(0, 800),
+          userAnswer: { round: 'user_turn', conversationId: res.conversation_id || null },
+          durationSeconds: 0,
+          score: null,
+        })
+          .then(() => onOralRoundLogged?.())
+          .catch(() => {});
+      }
+
       if (parsed?.flaw_point) {
-        setLastNotice(`🎯 发现破绽：${safeText(parsed.flaw_point)}`);
+        setLastNotice('🎯 已识别破绽，见上方红色卡片 ↑');
       } else {
         setLastNotice('已收到回应，继续追问。');
       }
@@ -102,63 +261,83 @@ export default function OralWarRoom({ embedded = false }: OralWarRoomProps) {
     }
   };
 
+  // 键盘发送：读取当前 inputText state
+  const handleSend = () => handleSendWithText(inputText);
+
   const content = (
     <div className="bg-[#f8f9fa] rounded-[2rem] xl:rounded-[2.5rem] p-3 sm:p-4 md:p-6 border border-gray-100 shadow-sm">
+      
+      {/* 顶部场景选择器 */}
+      <div className="mb-4 flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200 shadow-sm">
+        <div className="flex items-center gap-2 text-xs font-black text-[#FF5722] tracking-widest uppercase">
+          <Globe className="w-4 h-4" /> Global Scenario
+        </div>
+        <select 
+          value={activeSceneId} 
+          onChange={handleSceneChange}
+          className="bg-[#f8f9fa] border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-4 py-2 outline-none focus:border-[#FF5722] cursor-pointer"
+        >
+          {SCENE_DATABASE.map(s => (
+            <option key={s.id} value={s.id}>{s.title}</option>
+          ))}
+        </select>
+      </div>
+
       <div className="grid grid-cols-1 2xl:grid-cols-12 gap-4 xl:gap-6 h-auto 2xl:h-[760px]">
-        <aside className="2xl:col-span-4 grid grid-cols-1 md:grid-cols-3 2xl:flex 2xl:flex-col gap-4 xl:gap-5 h-full">
-          <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-5 xl:p-6 shadow-lg relative overflow-hidden md:min-h-[210px] 2xl:min-h-0">
+        {/* 左翼：局势面板 (动态读取 activeScene) */}
+        <aside className="2xl:col-span-4 flex flex-col gap-4 h-full">
+          <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-5 xl:p-6 shadow-lg relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-36 h-36 bg-[#FF5722]/15 rounded-full blur-3xl" />
             <div className="relative z-10">
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 mb-3">
-                <Target className="w-4 h-4 text-[#FF5722]" /> 当前局势
+                <Target className="w-4 h-4 text-[#FF5722]" /> 当前局势 (Situation)
               </div>
-              <h3 className="text-xl xl:text-2xl font-black leading-tight mb-3">{situation.topic}</h3>
-              <p className="text-sm text-gray-300 leading-relaxed">
-                争议重点集中在利率上浮 0.5% 的成本分摊，以及抵押物权属争议引发的合规风险。
-              </p>
+              <h3 className="text-xl font-black leading-tight mb-2">{activeScene.title.split('：')[1]}</h3>
+              <p className="text-xs text-gray-300 leading-relaxed">{activeScene.desc}</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] p-5 xl:p-6 border border-gray-100 shadow-sm md:col-span-2 2xl:col-span-1 flex-1">
-            <div className="text-[10px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-2 mb-5">
-              <Users className="w-4 h-4 text-[#FF5722]" /> 角色列表
+          <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] p-5 xl:p-6 border border-gray-100 shadow-sm flex-1 overflow-y-auto">
+            <div className="text-[10px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-2 mb-4">
+              <Users className="w-4 h-4 text-[#FF5722]" /> 核心参局者 (Stakeholders)
             </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 2xl:grid-cols-1 gap-3 xl:gap-4">
-              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-4 relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500" />
-                <div className="flex items-center justify-between gap-3 mb-1">
-                  <span className="font-black text-emerald-900">CEO（盟友）</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">盟友</span>
+            <div className="space-y-3">
+              {activeScene.allies.map(r => (
+                <div key={r.name} className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-black text-emerald-900">{r.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800">{r.label}</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700">{r.desc}</p>
                 </div>
-                <p className="text-xs text-emerald-700 leading-relaxed">支持推进交易，但需要你拿出更强的收益与落地方案。</p>
-              </div>
-
-              <div className="rounded-2xl border border-red-100 bg-red-50 p-4 relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#FF5722]" />
-                <div className="flex items-center justify-between gap-3 mb-1">
-                  <span className="font-black text-red-900">CFO（阻力）</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-red-100 text-[#FF5722]">阻力</span>
+              ))}
+              {activeScene.blockers.map(r => (
+                <div key={r.name} className="rounded-xl border border-red-100 bg-red-50 p-3 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-black text-red-900">{r.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-red-200 text-red-800">{r.label}</span>
+                  </div>
+                  <p className="text-[11px] text-red-700">{r.desc}</p>
                 </div>
-                <p className="text-xs text-red-700 leading-relaxed">擅长用预算、资本回报和风险条款压缩你的谈判空间。</p>
-              </div>
-
-              <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4 relative overflow-hidden">
-                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-400" />
-                <div className="flex items-center justify-between gap-3 mb-1">
-                  <span className="font-black text-gray-700">监管方（中立）</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-gray-200 text-gray-600">中立</span>
+              ))}
+              {activeScene.neutrals.map(r => (
+                <div key={r.name} className="rounded-xl border border-gray-200 bg-gray-50 p-3 relative">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-sm font-black text-gray-700">{r.name}</span>
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-600">{r.label}</span>
+                  </div>
+                  <p className="text-[11px] text-gray-500">{r.desc}</p>
                 </div>
-                <p className="text-xs text-gray-500 leading-relaxed">关注抵押物权属、合规文本和程序正义，不参与商业偏好站队。</p>
-              </div>
+              ))}
             </div>
           </div>
 
-          <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] p-5 border border-gray-100 shadow-sm md:col-span-3 2xl:col-span-1">
+          <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] p-5 border border-gray-100 shadow-sm">
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">冲突点</div>
             <div className="flex flex-wrap gap-2">
-              <span className="px-3 py-1 rounded-full bg-[#FF5722]/10 text-[#FF5722] text-[11px] font-black uppercase tracking-widest">利率上浮 0.5%</span>
-              <span className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-black uppercase tracking-widest">抵押物权属争议</span>
+              {activeScene.conflicts.map(c => (
+                <span key={c} className="px-3 py-1 rounded-full bg-[#FF5722]/10 text-[#FF5722] text-[11px] font-black uppercase tracking-widest">{c}</span>
+              ))}
             </div>
           </div>
         </aside>
@@ -196,11 +375,6 @@ export default function OralWarRoom({ embedded = false }: OralWarRoomProps) {
                             <span className="inline-flex items-center gap-1 rounded-full bg-[#202124] text-white text-[10px] font-black uppercase tracking-widest px-3 py-1">
                               {safeText(msg.parsed.current_speaker)}
                             </span>
-                            {msg.parsed.flaw_point ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-widest px-3 py-1">
-                                <Sparkles className="w-3 h-3" /> 🎯 发现破绽
-                              </span>
-                            ) : null}
                           </div>
 
                           <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 mb-3">
@@ -251,29 +425,63 @@ export default function OralWarRoom({ embedded = false }: OralWarRoomProps) {
           <div className="border-t border-gray-100 p-5 bg-white">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <div className="text-sm font-bold text-[#202124]">{lastNotice}</div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">当前局势：利率上浮 0.5% / 抵押权争议</div>
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">当前局势：{activeScene.conflicts.join(' / ')}</div>
             </div>
-            <div className="relative">
+            <div className="relative flex flex-col">
+              {/* 高压 10 秒倒计时 */}
+              {isRecording && (
+                <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10
+                               bg-red-500 text-white px-5 py-2 rounded-full text-xs font-black
+                               tracking-widest uppercase flex items-center gap-2
+                               shadow-[0_4px_20px_rgba(239,68,68,0.55)] animate-pulse whitespace-nowrap">
+                  <Clock className="w-3.5 h-3.5" /> 剩余 {recordingTime} 秒脱口而出
+                </div>
+              )}
               <textarea
                 rows={3}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
+                  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
                 }}
-                className="w-full rounded-3xl border-2 border-gray-200 bg-[#f8f9fa] px-5 py-4 pr-24 text-sm text-[#202124] outline-none resize-none focus:border-[#FF5722] transition-colors"
-                placeholder="输入你的破局发言，按 Enter 发送，Shift+Enter 换行..."
+                className={`w-full rounded-3xl border-2 px-5 py-4 pr-48 text-sm text-[#202124]
+                           outline-none resize-none transition-colors
+                           ${ isRecording
+                               ? 'border-red-400 bg-red-50/40 placeholder-red-300'
+                               : 'border-gray-200 bg-[#f8f9fa] focus:border-[#FF5722]' }`}
+                placeholder={isRecording ? '🎙 正在倾听您的反击...' : '长按麦克风说话，或直接输入破局发言...'}
               />
-              <button
-                onClick={handleSend}
-                disabled={isSending || !inputText.trim()}
-                className="absolute right-3 bottom-3 rounded-2xl bg-[#202124] text-white px-4 py-3 text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center gap-2"
-              >
-                <Send className="w-4 h-4" /> 发送
-              </button>
+              <div className="absolute right-3 bottom-3 flex items-center gap-2">
+                {/* 麦克风长按按钮 */}
+                {speechSupported ? (
+                  <button
+                    onMouseDown={startRecording}
+                    onMouseUp={stopRecordingAndSend}
+                    onMouseLeave={() => { if (isRecording) stopRecordingAndSend(); }}
+                    onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
+                    onTouchEnd={(e) => { e.preventDefault(); stopRecordingAndSend(); }}
+                    disabled={isSending}
+                    className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest
+                               transition-all select-none flex items-center gap-2
+                               ${ isRecording
+                                   ? 'bg-red-500 text-white shadow-[0_0_18px_rgba(239,68,68,0.6)] scale-105'
+                                   : 'bg-gray-100 text-gray-600 hover:bg-gray-200' }`}
+                  >
+                    {isRecording
+                      ? <><MicOff className="w-4 h-4 animate-bounce" /> 松开发送</>  
+                      : <><Mic className="w-4 h-4" /> 长按说话</>}
+                  </button>
+                ) : null}
+                <button
+                  onClick={handleSend}
+                  disabled={isSending || !inputText.trim() || isRecording}
+                  className="rounded-2xl bg-[#202124] text-white px-4 py-3 text-xs font-black
+                             uppercase tracking-widest hover:bg-[#FF5722] transition-colors
+                             disabled:opacity-50 flex items-center gap-2"
+                >
+                  <Send className="w-4 h-4" /> 发送
+                </button>
+              </div>
             </div>
           </div>
         </section>

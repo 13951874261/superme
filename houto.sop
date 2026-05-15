@@ -244,3 +244,38 @@ sudo systemctl reload nginx
 sudo systemctl daemon-reload
 sudo systemctl restart super-agent-vocab.service
 sudo systemctl status super-agent-vocab.service
+
+================================================================================
+【H. 部署进阶：按需更新策略（AIM 推荐）】
+================================================================================
+
+为了避免每次全量部署带来的高频密码输入与时间损耗，建议根据实际修改范围采用以下剥离策略。
+*注意：在本地执行以下命令前，请确保您的 PowerShell 已进入项目根目录：`cd d:\cursor\work\super-agent`*
+
+----------------------------------------
+H1. 策略 A：仅更新前端（修改了 UI / React 组件 / 前端环境配置）
+----------------------------------------
+无需重启 Node 服务，也不必上传 server.js。
+
+1. 极速命令：
+   pnpm build
+   scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/
+
+*上传完成后，直接在浏览器按 Ctrl+Shift+R 强制刷新即可生效。*
+
+----------------------------------------
+H2. 策略 B：仅更新后端（修改了 API 接口 / server.js / 后端逻辑）
+----------------------------------------
+无需执行耗时的 pnpm build，也不必上传前端产物。
+
+1. 极速命令：
+   scp .\vocab-server\server.js ubuntu@150.158.34.217:/opt/vocab-server/server.js
+   ssh ubuntu@150.158.34.217 "sudo systemctl restart super-agent-vocab.service"
+
+----------------------------------------
+H3. 策略 C：终极提效（免密全量自动部署）
+----------------------------------------
+若涉及前后端联动的大版本更新（或添加了新依赖），且希望避免多次手动输入服务器密码的困扰，建议直接使用现成的 PowerShell 自动化脚本。该脚本基于 pscp/plink，运行时仅需输入一次密码，即可完成全流程的打包、上传、覆盖及双端服务重启。
+
+1. 执行命令：
+   .\deploy-super-agent.ps1

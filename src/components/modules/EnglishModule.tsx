@@ -14,6 +14,8 @@ import {
   submitTrainingFeedback,
   upsertTrainingSession,
 } from '../../services/trainingAPI';
+import PronunciationTrainer from './PronunciationTrainer';
+import GrammarPolishTrainer from './GrammarPolishTrainer';
 
 type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
 
@@ -416,27 +418,25 @@ export default function EnglishModule() {
                 <Clock className="w-5 h-5 mr-3" /> 基础唤醒追踪 (Foundation)
               </h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2">发音纠正 (10min/Day)</span>
-                  <textarea
-                    rows={2}
-                    value={pronunciationNotes}
-                    onChange={(e) => setPronunciationNotes(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none"
-                    placeholder="记录今日纠正的商务重音词汇..."
-                  />
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 flex-shrink-0">发音纠正 (10min/Day)</span>
+                  <div className="flex-1 min-h-0">
+                    <PronunciationTrainer 
+                      initialNotes={pronunciationNotes} 
+                      onNotesChange={setPronunciationNotes} 
+                      userId="default-user" 
+                    />
+                  </div>
                 </div>
-                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
-                  <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2">核心语法复健 (8-10个核心点)</span>
-                  <textarea
-                    rows={2}
-                    value={grammarNotes}
-                    onChange={(e) => setGrammarNotes(e.target.value)}
-                    onClick={(e) => e.stopPropagation()}
-                    className="w-full bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none"
-                    placeholder="如：被动语态/虚拟语气的商务应用..."
-                  />
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col">
+                  <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 flex-shrink-0">核心语法复健 (8-10个核心点)</span>
+                  <div className="flex-1 min-h-0">
+                    <GrammarPolishTrainer 
+                      initialNotes={grammarNotes} 
+                      onNotesChange={setGrammarNotes} 
+                      userId="default-user" 
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -575,7 +575,7 @@ export default function EnglishModule() {
                       </button>
                     </div>
                   </div>
-                  <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none' : 'bg-black text-white/5 blur-[4px] select-none'}`}>
+                  <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none select-text' : 'bg-black text-white/5 blur-[4px] select-text cursor-text'}`}>
                     {listenMaterial}
                   </div>
                 </div>

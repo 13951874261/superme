@@ -1,0 +1,177 @@
+app:
+  description: 跨国高管听辨与弦外之音解析引擎。深度剖析听力材料中的表面含义、权力结构与潜台词。
+  icon: 🎧
+  icon_background: '#EAF4FF'
+  icon_type: emoji
+  mode: workflow
+  name: Listening_Comparison_Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: true
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: start-llm
+      selected: false
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: answer
+      id: llm-answer
+      selected: false
+      source: llm
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: user_input
+          max_length: 10000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_input
+        - label: standard_text
+          max_length: 10000
+          options: []
+          required: true
+          type: paragraph
+          variable: standard_text
+      height: 109
+      id: start
+      position:
+        x: 0
+        y: 0
+      positionAbsolute:
+        x: 0
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system
+          role: system
+          text: "你是一位顶级的跨国企业行为心理学专家与高级英语听力教练。\n用户将进行“精听盲听”训练。你将接收到两段文本：一段是用户盲听后口述的【用户草稿】，另一段是真实的【标准原文】。\n\n你的任务分为两步：\n第一步【听辨比对】：对比两者的差异，指出用户在哪里漏听、错听（特别是连读、弱读或生僻词）。\n第二步【弦外之音】：对【标准原文】“剥开表面看本质”，解析其中的弦外之音（Subtext）、权力动态和高阶黑话。\n\n【用户草稿】（What the user heard）：\n{{#start.user_input#}}\n\n【标准原文】（The actual transcript）：\n{{#start.standard_text#}}\n\n【强制要求】：必须返回合法的 JSON 格式，直接输出大括号包裹的内容（绝不可有 ```json 的 markdown 标记）。\n返回的 JSON 结构必须严格如下：\n{\n  \"comparison\": {\n    \"accuracy_score\": \"用户听写准确率（如 85%）\",\n    \"errors\": [\n      {\n        \"user_heard\": \"用户听错的词/句\",\n        \"actual_words\": \"正确的词/句\",\n        \"reason\": \"错误原因分析（如：连读失音、词汇不熟、逻辑误判等）\"\n      }\n    ],\n    \"coach_comment\": \"给用户的一句简短鼓励或听力提升建议\"\n  },\n  \"subtext_analysis\": {\n    \"surface_meaning\": \"原文的字面意思摘要\",\n    \"hidden_subtext\": \"弦外之音剖析（深层权力博弈、情绪或真实意图）\",\n    \"power_dynamics\": \"当前对话中的同盟、施压或阻力关系分析\",\n    \"key_jargons\": [\n      { \"word\": \"黑话/短语\", \"meaning\": \"在此语境下的真实含义\" }\n    ]\n  }\n}\n"
+        selected: false
+        title: 弦外之音解析引擎
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 342
+        y: 11
+      positionAbsolute:
+        x: 342
+        y: 11
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - llm
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: end
+      position:
+        x: 684
+        y: 11
+      positionAbsolute:
+        x: 684
+        y: 11
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 99.99999999999999
+      y: 237
+      zoom: 0.7
+  rag_pipeline_variables: []
