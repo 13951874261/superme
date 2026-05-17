@@ -1,0 +1,74 @@
+app:
+  description: 动态生成精听盲听模块所需的高压商务英语听力片段
+  icon: 🎧
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: completion
+  name: listen_material_generator
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.1
+model_config:
+  agent_mode:
+    enabled: false
+    max_iteration: 5
+    strategy: react
+    tools: []
+  annotation_reply:
+    enabled: false
+  chat_prompt_config: {}
+  completion_prompt_config: {}
+  dataset_configs:
+    datasets:
+      datasets: []
+    retrieval_model: multiple
+  dataset_query_variable: ''
+  external_data_tools: []
+  file_upload:
+    image:
+      detail: high
+      enabled: false
+      number_limits: 3
+      transfer_methods:
+      - remote_url
+      - local_file
+  model:
+    completion_params:
+      temperature: 0.7
+    mode: chat
+    name: claude-3-5-sonnet-20240620
+    provider: anthropic
+  more_like_this:
+    enabled: false
+  opening_statement: ''
+  pre_prompt: |
+    You are an elite C-level executive scriptwriter. Your task is to generate a realistic, high-pressure business English audio script (approx 40-60 words) based on the provided {{theme}}. 
+
+    Requirements:
+    1. MUST include hidden subtext and power dynamics (e.g., politely rejecting, subtle threats, shifting blame).
+    2. MUST include 1-2 advanced business idioms or jargons.
+    3. NO intro, NO outro, just the raw spoken text.
+    4. The language should sound like an intercepted zoom meeting recording (natural, slightly fragmented, but impactful).
+  prompt_type: simple
+  retriever_resource:
+    enabled: true
+  sensitive_word_avoidance:
+    configs: []
+    enabled: false
+    type: ''
+  speech_to_text:
+    enabled: false
+  suggested_questions: []
+  suggested_questions_after_answer:
+    enabled: false
+  text_to_speech:
+    enabled: true
+    language: ''
+    voice: ''
+  user_input_form:
+  - text-input:
+      default: ''
+      label: theme
+      max_length: 256
+      required: true
+      variable: theme

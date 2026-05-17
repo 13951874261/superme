@@ -687,3 +687,29 @@ export async function getDueVocabulary(userId = 'default-user') {
   if (!res.ok) throw new Error(data?.error || '获取待复习词条失败');
   return Array.isArray(data) ? data : [];
 }
+
+export async function runListenMaterialGenerator(theme: string, userId = 'default-user'): Promise<string> {
+  const apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成截获剧本。');
+
+  // 因为应用模式已由 Workflow 变为 Text Generator (Completion)，接口改为 /completion-messages
+  const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { theme },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '生成截获剧本失败');
+
+  // Text Generator 的返回结果字段为 answer
+  const raw = data?.answer ?? data?.data?.outputs?.script ?? data?.data?.outputs?.result ?? data?.message ?? '';
+  return String(raw).trim();
+}

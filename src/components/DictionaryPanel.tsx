@@ -43,14 +43,16 @@ function getLabel(key: string) { return KEY_LABEL_MAP[key.toLowerCase()] || key.
 function getVal(v: string) { return VALUE_LABEL_MAP[v] || VALUE_LABEL_MAP[v?.toLowerCase()] || v; }
 function hasEnglishText(value: string) { return /[A-Za-z]{2,}/.test(value); }
 
-export function renderValue(value: any, depth = 0): React.ReactNode {
+export function renderValue(value: any, depth = 0, keyName?: string, queryWord?: string): React.ReactNode {
   if (value === null || value === undefined) return null;
   if (typeof value === 'string') {
     const displayValue = getVal(value);
+    const isPhonetic = keyName && (keyName.toLowerCase().includes('phonetic') || keyName.toLowerCase().includes('pronunciation'));
+    const speakText = isPhonetic && queryWord ? queryWord : value;
     return (
       <span className="inline-flex items-start gap-2 whitespace-pre-wrap leading-relaxed">
         <span>{displayValue}</span>
-        {hasEnglishText(value) ? <SpeakButton text={value} title="播放英文内容" className="mt-0.5 flex-shrink-0 w-7 h-7" iconClassName="w-3.5 h-3.5" /> : null}
+        {hasEnglishText(speakText) ? <SpeakButton text={speakText} title="播放英文内容" className="mt-0.5 flex-shrink-0 w-7 h-7" iconClassName="w-3.5 h-3.5" /> : null}
       </span>
     );
   }
@@ -60,7 +62,7 @@ export function renderValue(value: any, depth = 0): React.ReactNode {
       {value.map((item, i) => (
         <li key={i} className="flex items-start gap-2">
           <span className="mt-2 w-1.5 h-1.5 rounded-full bg-[#FF5722]/50 shrink-0"></span>
-          <span className="text-gray-700">{renderValue(item, depth + 1)}</span>
+          <span className="text-gray-700">{renderValue(item, depth + 1, keyName, queryWord)}</span>
         </li>
       ))}
     </ul>
@@ -73,7 +75,7 @@ export function renderValue(value: any, depth = 0): React.ReactNode {
             <span className="w-1 h-4 rounded-full bg-[#FF5722] inline-block shrink-0"></span>
             <span className="text-[13px] font-black text-[#202124] tracking-wide">{getLabel(k)}</span>
           </div>
-          <div className="px-3 py-2.5 text-sm text-gray-700 leading-relaxed">{renderValue(v, depth + 1)}</div>
+          <div className="px-3 py-2.5 text-sm text-gray-700 leading-relaxed">{renderValue(v, depth + 1, k, queryWord)}</div>
         </div>
       ))}
     </div>
@@ -247,13 +249,13 @@ export default function DictionaryPanel() {
                           <span className="w-1 h-4 bg-[#FF5722] rounded-full inline-block"></span>
                           <span className="text-[11px] font-black text-[#FF5722] uppercase tracking-wider">{getLabel(activeTab)}</span>
                           {typeof activeContent === 'string' && hasEnglishText(activeContent) ? (
-                            <SpeakButton text={activeContent} title="播放当前英文内容" className="ml-auto w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                            <SpeakButton text={activeTab.toLowerCase().includes('phonetic') || activeTab.toLowerCase().includes('pronunciation') ? query : activeContent} title="播放当前英文内容" className="ml-auto w-7 h-7" iconClassName="w-3.5 h-3.5" />
                           ) : null}
                           <span className="ml-auto text-[10px] text-gray-300">{activeIdx + 1} / {payloadKeys.length}</span>
                         </div>
                         <div className="text-sm leading-relaxed text-gray-700 overflow-y-auto max-h-[200px] scrollbar-thin pr-1">
                           {activeContent !== null && activeContent !== undefined && activeContent !== ''
-                            ? renderValue(activeContent)
+                            ? renderValue(activeContent, 0, activeTab, query)
                             : <div className="text-gray-300 text-center text-xs py-4 italic">当前维度暂无数据</div>}
                         </div>
                         {/* 前后导航 */}

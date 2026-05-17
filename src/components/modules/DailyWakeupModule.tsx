@@ -104,7 +104,7 @@ export default function DailyWakeupModule() {
 
   return (
     <ModuleWrapper
-      title="英语战略 ｜ 每日唤醒"
+      title="每日唤醒 ｜ 发音与语法闭环"
       icon={<Target className="w-8 h-8" strokeWidth={2.5} />}
       description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
     >
@@ -116,11 +116,30 @@ export default function DailyWakeupModule() {
               <h3 className="text-2xl font-black text-[#202124]">发音与语法唤醒机制</h3>
               <p className="text-sm text-gray-500 mt-2">主题驱动生成 10 个高频词 + 1 个关联语法点，并记录练习时长。</p>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl bg-[#f8f9fa] border border-gray-100 px-4 py-3">
-              <Clock3 className="w-5 h-5 text-[#FF5722]" />
-              <div>
-                <div className="text-[10px] uppercase tracking-widest text-gray-400 font-black">专注时长</div>
-                <div className="text-lg font-black text-[#202124]">{formatSeconds(seconds)}</div>
+            <div className="flex items-center gap-4">
+              {/* 右上角：简短功能说明区 */}
+              <div className="hidden md:flex flex-col items-start justify-center gap-1.5 text-xs text-gray-500 font-medium mr-4 border-l-2 border-gray-100 pl-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
+                  <span>场景高频词汇实时生成</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
+                  <span>标准发音示范与影子跟读</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
+                  <span>商业语法提取与正误对比</span>
+                </div>
+              </div>
+
+              {/* 计时器组件 */}
+              <div className="flex items-center gap-3 rounded-2xl bg-[#f8f9fa] border border-gray-100 px-4 py-3">
+                <Clock3 className="w-5 h-5 text-[#FF5722]" />
+                <div>
+                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-black">专注时长</div>
+                  <div className="text-lg font-black text-[#202124]">{formatSeconds(seconds)}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -191,22 +210,59 @@ export default function DailyWakeupModule() {
               </div>
             </div>
 
-            <div className="bg-[#202124] rounded-[2rem] border border-gray-900 p-6 text-white shadow-sm">
-              <div className="flex items-center gap-2 mb-4">
-                <TimerReset className="w-5 h-5 text-[#FF5722]" />
-                <h4 className="text-sm font-black uppercase tracking-widest">关联语法点</h4>
-              </div>
-              <h5 className="text-2xl font-black mb-3">{result.grammar.point}</h5>
-              <p className="text-gray-300 text-sm leading-relaxed mb-4">{result.grammar.explanation}</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {result.grammar.examples.map((ex, idx) => (
-                  <div key={idx} className="rounded-2xl bg-white/5 border border-white/10 p-4">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-emerald-300 mb-2">Correct</div>
-                    <div className="text-sm text-white mb-3">{ex.correct}</div>
-                    <div className="text-[10px] font-black uppercase tracking-widest text-red-300 mb-2">Incorrect</div>
-                    <div className="text-sm text-gray-300">{ex.incorrect}</div>
+            <div className="bg-[#202124] rounded-[2rem] border border-gray-900 p-6 lg:p-8 text-white shadow-sm flex flex-col gap-6">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                <div className="flex items-center gap-2">
+                  <TimerReset className="w-5 h-5 text-[#FF5722]" />
+                  <h4 className="text-sm font-black uppercase tracking-widest">关联语法点</h4>
+                </div>
+                <div className="text-[11px] text-gray-400 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 flex flex-col gap-1.5 leading-relaxed">
+                  <div className="flex items-start gap-1.5">
+                    <div className="w-1 h-1 rounded-full bg-[#FF5722] mt-1.5 shrink-0"></div>
+                    <div><span className="text-gray-300 font-bold">作用：</span>提供造句底层骨架，完成从单词发音到严谨商务长句的升维闭环。</div>
                   </div>
-                ))}
+                  <div className="flex items-start gap-1.5">
+                    <div className="w-1 h-1 rounded-full bg-[#FF5722] mt-1.5 shrink-0"></div>
+                    <div><span className="text-gray-300 font-bold">用法：</span>结合上方高频词，对照正误示例进行场景化跟读与造句训练。</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center mt-2">
+                {/* 左侧：语法核心与释义 */}
+                <div className="lg:col-span-5 flex flex-col">
+                  <h5 className="text-2xl lg:text-3xl font-black mb-4">{result.grammar.point}</h5>
+                  <p className="text-gray-300 text-sm lg:text-base leading-relaxed">{result.grammar.explanation}</p>
+                </div>
+                
+                {/* 右侧：实战例句对错阵列 */}
+                <div className="lg:col-span-7 flex flex-col gap-4">
+                  {result.grammar.examples.map((ex, idx) => (
+                    <div key={idx} className="rounded-2xl bg-white/5 border border-white/10 p-5 flex flex-col md:flex-row gap-6">
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> Correct
+                          </div>
+                          <SpeakButton text={ex.correct} title="播放正确商务例句" />
+                        </div>
+                        <div className="text-sm text-white font-medium leading-relaxed">{ex.correct}</div>
+                      </div>
+                      
+                      <div className="hidden md:block w-px bg-white/10"></div>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-red-400 flex items-center gap-2">
+                            <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Incorrect
+                          </div>
+                          <SpeakButton text={ex.incorrect} title="播放常见错误发音以作比对" />
+                        </div>
+                        <div className="text-sm text-gray-400 leading-relaxed">{ex.incorrect}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </>

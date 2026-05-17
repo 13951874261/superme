@@ -10,10 +10,26 @@ const DIFY_BASE_URL = import.meta.env.VITE_DIFY_BASE_URL || 'https://dify.234124
  */
 async function convertToWav(audioBlob: Blob): Promise<Blob> {
   const arrayBuffer = await audioBlob.arrayBuffer();
-  const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-  const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+  const tempContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+  const originalBuffer = await tempContext.decodeAudioData(arrayBuffer);
   
-  const numOfChan = audioBuffer.numberOfChannels;
+  // 核心修复：强制重采样为 16kHz 单声道
+  // 【关键追加】：为了防止单侧单词时间太短（<1秒）被大模型的 VAD (人声检测) 引擎当成噪音过滤掉，我们在前后各追加 0.5 秒静音。
+  const targetSampleRate = 16000;
+  const paddingSeconds = 0.5;
+  const paddingFrames = Math.floor(paddingSeconds * targetSampleRate);
+  const originalFrames = Math.ceil(originalBuffer.duration * targetSampleRate);
+  const totalFrames = paddingFrames + originalFrames + paddingFrames;
+
+  const offlineContext = new OfflineAudioContext(1, totalFrames, targetSampleRate);
+  const source = offlineContext.createBufferSource();
+  source.buffer = originalBuffer;
+  source.connect(offlineContext.destination);
+  // 在 0.5 秒处开始播放原始音频
+  source.start(paddingSeconds);
+  const audioBuffer = await offlineContext.startRendering();
+  
+  const numOfChan = 1;
   const length = audioBuffer.length * numOfChan * 2 + 44;
   const buffer = new ArrayBuffer(length);
   const view = new DataView(buffer);
@@ -29,25 +45,21 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
   view.setUint32(16, 16, true);
   view.setUint16(20, 1, true);
   view.setUint16(22, numOfChan, true);
-  view.setUint32(24, audioBuffer.sampleRate, true);
-  view.setUint32(28, audioBuffer.sampleRate * numOfChan * 2, true);
+  view.setUint32(24, 16000, true);
+  view.setUint32(28, 16000 * numOfChan * 2, true);
   view.setUint16(32, numOfChan * 2, true);
   view.setUint16(34, 16, true);
   writeString(36, 'data');
   view.setUint32(40, audioBuffer.length * numOfChan * 2, true);
   
-  const channels = [];
+  const channelData = audioBuffer.getChannelData(0);
   let offset = 44;
-  for (let i = 0; i < numOfChan; i++) channels.push(audioBuffer.getChannelData(i));
-  
   for (let i = 0; i < audioBuffer.length; i++) {
-    for (let channel = 0; channel < numOfChan; channel++) {
-      let sample = channels[channel][i];
-      sample = Math.max(-1, Math.min(1, sample));
-      sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-      view.setInt16(offset, sample, true);
-      offset += 2;
-    }
+    let sample = channelData[i];
+    sample = Math.max(-1, Math.min(1, sample));
+    sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+    view.setInt16(offset, sample, true);
+    offset += 2;
   }
   
   return new Blob([buffer], { type: 'audio/wav' });
@@ -59,7 +71,7 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
   const apiKey = getApiKey('DIFY_STT_API_KEY');
   
-  // 核心修复：将浏览器默认的 WebM (Opus) 强行转码为血统纯正的 PCM WAV
+  // 因为 Dify (部分版本或配置下) 不接受 WebM (415 Unsupported Media Type)，所以必须由前端转为 WAV
   const wavBlob = await convertToWav(audioBlob);
   
   const formData = new FormData();
@@ -107,4 +119,28 @@ export async function runListeningEngine(userInput: string, standardText: string
   } catch (e) {
     throw new Error('解析 AI 返回的 JSON 格式失败');
   }
+}
+
+/**
+ * 调用 Dify 的 /text-to-audio 获取高保真 MP3 音频流
+ */
+export async function fetchDifyTTS(text: string, userId = 'default-user'): Promise<string> {
+  const apiKey = getApiKey('DIFY_LISTEN_GEN_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY');
+  
+  const response = await fetch(`${DIFY_BASE_URL}/text-to-audio`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      text,
+      user: userId
+    }),
+  });
+
+  if (!response.ok) throw new Error('生成高保真音频失败');
+  
+  const blob = await response.blob();
+  return URL.createObjectURL(blob); // 返回可供 <audio> 播放的本地虚拟 URL
 }

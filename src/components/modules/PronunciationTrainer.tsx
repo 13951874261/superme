@@ -26,6 +26,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const streamRef = useRef<MediaStream | null>(null);
 
   // 同步外部状态
   useEffect(() => {
@@ -67,8 +68,10 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
       return;
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      if (!streamRef.current) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+      const mediaRecorder = new MediaRecorder(streamRef.current);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -81,7 +84,8 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await handleAssessment(audioBlob);
-        stream.getTracks().forEach(track => track.stop());
+        // 核心修复：绝对不要在这里 stop track！保持麦克风热启动状态，实现零延迟按住即录
+        // stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();

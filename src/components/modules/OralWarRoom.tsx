@@ -14,7 +14,8 @@ const SCENE_DATABASE = [
     allies: [{ name: 'CEO', label: '盟友', desc: '极力推动落地，愿让步换时间' }],
     blockers: [{ name: 'CFO', label: '阻力', desc: '严控 IRR 红线，要求重跑估值' }],
     neutrals: [{ name: '监管方', label: '中立', desc: '只关注合规证据与权属文件' }],
-    conflicts: ['利率上浮 0.5%', '抵押物权属']
+    conflicts: ['利率上浮 0.5%', '抵押物权属'],
+    culturalContext: '美系主导（Action-oriented, Direct）。切忌过分谦逊，直面利益冲突并明确亮出 Bottom Line。'
   },
   {
     id: 'scene-2',
@@ -23,7 +24,8 @@ const SCENE_DATABASE = [
     allies: [{ name: '公关总监', label: '盟友', desc: '试图用技术性误差推锅给第三方' }],
     blockers: [{ name: '法务官', label: '阻力', desc: '警告承认将触发天价罚款' }],
     neutrals: [{ name: '财经记者', label: '对立', desc: '掌握邮件截图，紧逼决策链' }],
-    conflicts: ['数据造假责任', '披露边界']
+    conflicts: ['数据造假责任', '披露边界'],
+    culturalContext: '欧系合规文化（Regulation-first）。强调程序正义与透明度，切忌掩盖或使用含糊用词，以免触发公关灾难。'
   },
   {
     id: 'scene-3',
@@ -32,7 +34,8 @@ const SCENE_DATABASE = [
     allies: [{ name: '投资总监', label: '盟友', desc: '用家族荣誉包装强制回购条款' }],
     blockers: [{ name: '战略负责人', label: '阻力', desc: '担心 ESG 违规，私下施压' }],
     neutrals: [{ name: '王室合伙人', label: '中立', desc: '暗示宗教禁忌与政商潜规则' }],
-    conflicts: ['对赌回购条款', 'ESG 披露']
+    conflicts: ['对赌回购条款', 'ESG 披露'],
+    culturalContext: '中东政商文化（Relationship & Hierarchy）。重视关系与家族荣誉，避免当众逼迫对方妥协，注意预留谈判台阶。'
   },
   {
     id: 'scene-4',
@@ -41,7 +44,8 @@ const SCENE_DATABASE = [
     allies: [{ name: '投行 FA', label: '中立', desc: '找价差空间，靠佣金驱动防破裂' }],
     blockers: [{ name: '标的 CEO', label: '阻力', desc: '以协同溢价模糊财务缺口' }],
     neutrals: [{ name: '买方 CFO', label: '对立', desc: '要求拆分财务，隔离争议资产' }],
-    conflicts: ['4700万诉讼', '估值下调']
+    conflicts: ['4700万诉讼', '估值下调'],
+    culturalContext: '英系保守主义（Risk-averse）。极端注重细节与免责声明，警惕对方通过冗长模糊的法律条款设置陷阱。'
   },
   {
     id: 'scene-5',
@@ -50,7 +54,8 @@ const SCENE_DATABASE = [
     allies: [{ name: '创始人 CEO', label: '盟友', desc: '诉诸竞争威胁，争情感逻辑双支持' }],
     blockers: [{ name: '大股东', label: '阻力', desc: '死守 ROE 红线，欲换血管理层' }],
     neutrals: [{ name: '独立董事', label: '关键', desc: '只看程序合规与受托责任边界' }],
-    conflicts: ['6亿预算', '管理权争夺']
+    conflicts: ['6亿预算', '管理权争夺'],
+    culturalContext: '多边复合博弈（Consensus-building）。需同时识别中、美、欧不同利益方的底层诉求，平衡短期利益与长期战略，避免陷入单点争论。'
   }
 ];
 
@@ -190,7 +195,32 @@ export default function OralWarRoom({
   // ─────────────────────────────────────────────────────────
 
   // 场景引擎 State
-  const [activeSceneId, setActiveSceneId] = useState('scene-1');
+  // 新增：全局 theme 到场景 ID 的映射
+  const themeToSceneMap: Record<string, string> = {
+    '商务谈判：让步与施压': 'scene-1',
+    '危机公关：外媒答疑': 'scene-2',
+    '项目汇报：跨国董事会': 'scene-5',
+  };
+
+  const [activeSceneId, setActiveSceneId] = useState(() => {
+    if (embedded && sceneTheme && themeToSceneMap[sceneTheme]) {
+      return themeToSceneMap[sceneTheme];
+    }
+    return 'scene-1';
+  });
+
+  useEffect(() => {
+    if (embedded && sceneTheme && themeToSceneMap[sceneTheme]) {
+      const nextId = themeToSceneMap[sceneTheme];
+      if (nextId !== activeSceneId) {
+        setActiveSceneId(nextId);
+        setMessages([]);
+        setConversationId(null);
+        setLastNotice(`已根据全局指令切换战局。进入：${SCENE_DATABASE.find(s => s.id === nextId)?.title}`);
+      }
+    }
+  }, [embedded, sceneTheme]);
+
   const activeScene = useMemo(() => SCENE_DATABASE.find(s => s.id === activeSceneId)!, [activeSceneId]);
 
   // 场景切换逻辑
@@ -212,8 +242,13 @@ export default function OralWarRoom({
 
     // === 核心机制：如果是第一句话，强制注入场景切换指令 ===
     let apiPayload = content;
+    const diff = localStorage.getItem('super_agent_global_diff') || 'standard';
+    const difficultyPrefix = diff === 'hardcore' ? '【全局指令：当前为极限施压模式，请在回复中表现出极强的压迫感、敌意与找破绽倾向，不可轻易让步。】\n' : '';
+
     if (messages.length === 0) {
-       apiPayload = `[系统隐性指令：切换场景 ${activeScene.title.split('：')[0].replace('场景', '')}] \n用户发言：${content}`;
+       apiPayload = `[系统隐性指令：切换场景 ${activeScene.title.split('：')[0].replace('场景', '')}]\n${difficultyPrefix}用户发言：${content}`;
+    } else {
+       apiPayload = `${difficultyPrefix}用户发言：${content}`;
     }
 
     const userMsg: MessageItem = { id: `${Date.now()}-u`, role: 'user', content };
@@ -267,21 +302,38 @@ export default function OralWarRoom({
   const content = (
     <div className="bg-[#f8f9fa] rounded-[2rem] xl:rounded-[2.5rem] p-3 sm:p-4 md:p-6 border border-gray-100 shadow-sm">
       
-      {/* 顶部场景选择器 */}
-      <div className="mb-4 flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200 shadow-sm">
-        <div className="flex items-center gap-2 text-xs font-black text-[#FF5722] tracking-widest uppercase">
-          <Globe className="w-4 h-4" /> Global Scenario
+      {/* 战术使用指南 SOP */}
+      <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm mb-4">
+        <div className="bg-rose-500 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-sm">
+           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
         </div>
-        <select 
-          value={activeSceneId} 
-          onChange={handleSceneChange}
-          className="bg-[#f8f9fa] border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-4 py-2 outline-none focus:border-[#FF5722] cursor-pointer"
-        >
-          {SCENE_DATABASE.map(s => (
-            <option key={s.id} value={s.id}>{s.title}</option>
-          ))}
-        </select>
+        <div className="flex-1">
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-rose-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
+          <div className="text-[13px] text-rose-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
+            <div><span className="font-black text-rose-600 mr-2">操作说明：</span>长按下方麦克风语音反击，或打字回复。沙盘会根据当前 Theme 自动锁定剧本。倒计时 10 秒内必须给出回应。</div>
+            <div><span className="font-black text-rose-600 mr-2">功能亮点：</span>多方势力动态对抗。AI 同步扮演发难者与盟友，配以不同音调的声纹特征，对您进行跨文化和权力的双重极限施压。</div>
+            <div><span className="font-black text-rose-600 mr-2">生态定位：</span>【肌肉记忆】消化所有前置弹药。强迫您在毫秒级的高压对抗中，建立直觉性的、不打草稿的商务谈判反击能力。</div>
+          </div>
+        </div>
       </div>
+      
+      {/* 顶部场景选择器 */}
+      {!embedded && (
+        <div className="mb-4 flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-black text-[#FF5722] tracking-widest uppercase">
+            <Globe className="w-4 h-4" /> Global Scenario
+          </div>
+          <select 
+            value={activeSceneId} 
+            onChange={handleSceneChange}
+            className="bg-[#f8f9fa] border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-4 py-2 outline-none focus:border-[#FF5722] cursor-pointer"
+          >
+            {SCENE_DATABASE.map(s => (
+              <option key={s.id} value={s.id}>{s.title}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 2xl:grid-cols-12 gap-4 xl:gap-6 h-auto 2xl:h-[760px]">
         {/* 左翼：局势面板 (动态读取 activeScene) */}
@@ -332,7 +384,18 @@ export default function OralWarRoom({
             </div>
           </div>
 
-          <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] p-5 border border-gray-100 shadow-sm">
+          {/* 跨文化语境预警 */}
+          {activeScene.culturalContext && (
+            <div className="bg-purple-50 rounded-3xl p-6 border border-purple-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+              <h3 className="text-sm font-black text-purple-900 uppercase tracking-widest mb-4 flex items-center">
+                <Globe className="w-4 h-4 mr-2" /> 跨文化预警 (Cultural Context)
+              </h3>
+              <p className="text-sm text-purple-800 leading-relaxed font-medium">{activeScene.culturalContext}</p>
+            </div>
+          )}
+
+          {/* 战场动态情报 */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">冲突点</div>
             <div className="flex flex-wrap gap-2">
               {activeScene.conflicts.map(c => (

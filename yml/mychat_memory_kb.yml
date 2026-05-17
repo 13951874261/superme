@@ -12,12 +12,12 @@ dependencies:
 - current_identifier: null
   type: marketplace
   value:
-    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.10@4a2d5ec3ea0923403480838dcdeb26824f8c096f068c953e9e83d41984a61304
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.12@7f769997473871d962db4a6f24ef94ecab2de78466b970882a49a4b169c4fceb
     version: null
 - current_identifier: null
   type: marketplace
   value:
-    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
     version: null
 kind: app
 version: 0.6.0
@@ -30,6 +30,30 @@ workflow:
     - conversation
     - User_Current_Profile
     value: 该对象目前处于自我发展早期，关键目标与习惯尚未建档，暂无侧写记录。
+    value_type: string
+  - description: 三路并行答疑：路由A（节点 e1111111...）对应模型的展示标题；用于最终拼接回复的动态标题。
+    id: 9b9e6b2f-7b50-4b13-9a0f-4a7b7c5d9f01
+    name: LLM_A_Title
+    selector:
+    - conversation
+    - LLM_A_Title
+    value: Gemini 3.1 Pro
+    value_type: string
+  - description: 三路并行答疑：路由B（节点 e2222222...）对应模型的展示标题；用于最终拼接回复的动态标题。
+    id: 5c4e1c8a-9a3c-4a2d-9c38-27d8d6d5e102
+    name: LLM_B_Title
+    selector:
+    - conversation
+    - LLM_B_Title
+    value: Claude Sonnet 4.6（思考）
+    value_type: string
+  - description: 三路并行答疑：路由C（节点 e3333333...）对应模型的展示标题；用于最终拼接回复的动态标题。
+    id: 1a8c7d6e-5b2e-4d13-8a1f-4e2d9a6f2103
+    name: LLM_C_Title
+    selector:
+    - conversation
+    - LLM_C_Title
+    value: Claude Opus 4.6（思考）
     value_type: string
   - description: 本轮完整用户可见回复（Gemini 3.1 Pro / Claude Sonnet 4.6 / Claude Opus 4.6 长文
       + 对比汇总），由「拼接长文与汇总」后经赋值节点写入
@@ -427,7 +451,7 @@ workflow:
       positionAbsolute:
         x: 704
         y: 58
-      selected: false
+      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -538,7 +562,7 @@ workflow:
           completion_params:
             temperature: 0.65
           mode: chat
-          name: '106'
+          name: '105'
           provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
         - id: 63c97d0f-6832-4d3f-dbef-a44e391ecc4e
@@ -597,7 +621,7 @@ workflow:
       positionAbsolute:
         x: 704
         y: 394
-      selected: true
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -621,28 +645,27 @@ workflow:
           completion_params:
             temperature: 0.25
           mode: chat
-          name: '105'
+          name: hermes
           provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
         - id: 74d08e1a-1943-4e4a-b1ef-b55a402fdd5f
           role: system
-          text: '你是裁判与编辑，只做「三模型答案对比表」，不扮演陪伴者、不新增虚构事实。三模型（Gemini 3.1 Pro、Claude Sonnet
-            4.6、Claude Opus 4.6）已基于同一知识库检索上下文作答，你只需对比三者正文。
+          text: '你是裁判与编辑，只做「三模型答案对比表」，不扮演陪伴者、不新增虚构事实。三模型（{{#conversation.LLM_A_Title#}}、{{#conversation.LLM_B_Title#}}、{{#conversation.LLM_C_Title#}}）已基于同一知识库检索上下文作答，你只需对比三者正文。
 
             【用户问题】{{#sys.query#}}
 
-            【Gemini 3.1 Pro 全文】{{#e1111111-1111-4111-8111-111111111111.text#}}
+            【{{#conversation.LLM_A_Title#}} 全文】{{#e1111111-1111-4111-8111-111111111111.text#}}
 
-            【Claude Sonnet 4.6（思考）全文】{{#e2222222-2222-4222-8222-222222222222.text#}}
+            【{{#conversation.LLM_B_Title#}} 全文】{{#e2222222-2222-4222-8222-222222222222.text#}}
 
-            【Claude Opus 4.6（思考）全文】{{#e3333333-3333-4333-8333-333333333333.text#}}
+            【{{#conversation.LLM_C_Title#}} 全文】{{#e3333333-3333-4333-8333-333333333333.text#}}
 
             输出要求（严格遵守）：
 
             1. 先输出一个 Markdown 表格；表格外除第 2 条的一行摘要外不得有任何文字。
 
-            2. 表头行固定为：| 维度 | Gemini 3.1 Pro | Claude Sonnet 4.6（思考） | Claude Opus
-            4.6（思考） |
+            2. 表头行固定为：| 维度 | {{#conversation.LLM_A_Title#}} | {{#conversation.LLM_B_Title#}}
+            | {{#conversation.LLM_C_Title#}} |
 
             3. 至少包含这些行（行名一字不差）：核心结论、关键依据、主要分歧、主要风险、建议行动。
 
@@ -659,11 +682,11 @@ workflow:
       height: 88
       id: e4444444-4444-4444-8444-444444444444
       position:
-        x: 1066
-        y: 226
+        x: 1064.5714285714287
+        y: 225
       positionAbsolute:
-        x: 1066
-        y: 226
+        x: 1064.5714285714287
+        y: 225
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1055,14 +1078,16 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "def main(text_a: str, text_b: str, text_c: str, summary_table: str)\
-          \ -> dict:\n    a = (text_a or \"\").strip()\n    b = (text_b or \"\").strip()\n\
-          \    c = (text_c or \"\").strip()\n    agg = (summary_table or \"\").strip()\n\
-          \    sep = \"\\n\\n---\\n\\n\"\n    body = (\n        \"## Gemini 3.1 Pro\
-          \ 完整输出\\n\\n\" + a + sep\n        + \"## Claude Sonnet 4.6（思考）完整输出\\n\\\
-          n\" + b + sep\n        + \"## Claude Opus 4.6（思考）完整输出\\n\\n\" + c + sep\n\
-          \        + \"## 三模型对比汇总（表格与综合建议）\\n\\n\" + agg\n    )\n    return {\"full_reply\"\
-          : body}\n"
+        code: "def main(text_a: str, text_b: str, text_c: str, summary_table: str,\
+          \ title_a: str = \"\", title_b: str = \"\", title_c: str = \"\") -> dict:\n\
+          \    a = (text_a or \"\").strip()\n    b = (text_b or \"\").strip()\n  \
+          \  c = (text_c or \"\").strip()\n    agg = (summary_table or \"\").strip()\n\
+          \    ta = (title_a or \"模型A\").strip()\n    tb = (title_b or \"模型B\").strip()\n\
+          \    tc = (title_c or \"模型C\").strip()\n    sep = \"\\n\\n---\\n\\n\"\n\
+          \    body = (\n        f\"## {ta} 完整输出\\n\\n\" + a + sep\n        + f\"\
+          ## {tb} 完整输出\\n\\n\" + b + sep\n        + f\"## {tc} 完整输出\\n\\n\" + c +\
+          \ sep\n        + \"## 三模型对比汇总（表格与综合建议）\\n\\n\" + agg\n    )\n    return\
+          \ {\"full_reply\": body}\n"
         code_language: python3
         desc: 在表格聚合完成后执行；顺序输出 Gemini / Sonnet / Opus 全文，再接当前汇总表内容。
         outputs:
@@ -1093,6 +1118,21 @@ workflow:
           - text
           value_type: string
           variable: summary_table
+        - value_selector:
+          - conversation
+          - LLM_A_Title
+          value_type: string
+          variable: title_a
+        - value_selector:
+          - conversation
+          - LLM_B_Title
+          value_type: string
+          variable: title_b
+        - value_selector:
+          - conversation
+          - LLM_C_Title
+          value_type: string
+          variable: title_c
       height: 112
       id: e7777777-7777-4777-8777-777777777777
       position:
@@ -1182,7 +1222,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: -216.49999999999977
-      y: 194.89999999999998
+      x: -149.5
+      y: 125.90000000000003
       zoom: 0.7
   rag_pipeline_variables: []
