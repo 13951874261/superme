@@ -91,8 +91,8 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
 /**
  * 运行 Listening_Comparison_Engine 工作流
  */
-export async function runListeningEngine(userInput: string, standardText: string): Promise<ComparisonResult> {
-  const apiKey = getApiKey('DIFY_WORKFLOW_API_KEY');
+export async function runListeningEngine(userInput: string, standardText: string, theme: string): Promise<ComparisonResult> {
+  const apiKey = getApiKey('DIFY_WORKFLOW_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY'); // 兼容新版配置
   
   const response = await fetch(`${DIFY_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -101,7 +101,7 @@ export async function runListeningEngine(userInput: string, standardText: string
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { user_input: userInput, standard_text: standardText },
+      inputs: { user_input: userInput, standard_text: standardText, theme: theme },
       response_mode: 'blocking',
       user: 'local-user'
     }),

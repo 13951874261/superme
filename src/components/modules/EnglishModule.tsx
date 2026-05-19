@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, Mic, Volume2, Target, PenTool, BookOpen } from 'lucide-react';
+import { Globe, Mic, Volume2, Target, PenTool, BookOpen, Radio } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import OralWarRoom from './OralWarRoom';
 import { EnglishProvider, useEnglishContext, EnglishTab } from './english/context/EnglishContext';
@@ -7,6 +7,7 @@ import DashboardTab from './english/tabs/DashboardTab';
 import VocabTab from './english/tabs/VocabTab';
 import ListenTab from './english/tabs/ListenTab';
 import WriteTab from './english/tabs/WriteTab';
+import ImpromptuSpeechTab from './english/tabs/ImpromptuSpeechTab';
 import { checkThemeMastery } from '../../services/trainingAPI';
 import GlobalSettingsPanel from '../GlobalSettingsPanel';
 import ThemeMasteryOverlay from '../ThemeMasteryOverlay';
@@ -17,6 +18,7 @@ const SUB_TABS = [
   { id: 'listen',    label: '精听盲听',   icon: <Volume2 className="w-4 h-4" /> },
   { id: 'oral',      label: '多角色沙盘', icon: <Mic className="w-4 h-4" /> },
   { id: 'write',     label: '纵深书面',   icon: <PenTool className="w-4 h-4" /> },
+  { id: 'impromptu', label: '即兴演讲', icon: <Radio className="w-4 h-4" /> },
 ] as const;
 
 function EnglishModuleContent() {
@@ -71,6 +73,7 @@ function EnglishModuleContent() {
           />
         )}
         {activeTab === 'write' && <WriteTab />}
+        {activeTab === 'impromptu' && <ImpromptuSpeechTab />}
       </div>
     </ModuleWrapper>
     </>

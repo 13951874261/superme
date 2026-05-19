@@ -76,7 +76,7 @@ export default function WriteTab() {
     playScan();
     showNotice('review', '提交批阅中...', 'info');
     try {
-      const raw = (await runEnglishWriteReview(writingText, writeIntent)) as any;
+      const raw = (await runEnglishWriteReview(writingText, writeIntent, theme)) as any;
       const normalized = {
         L1: String(raw.L1_Grammar || raw.L1 || ''),
         L2: String(raw.L2_Business_Tone || raw.L2 || ''),

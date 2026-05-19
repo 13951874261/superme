@@ -1,10 +1,10 @@
 app:
-  description: 跨国高管级别英文书面表达的三段式残酷批阅引擎。
-  icon: ✒️
-  icon_background: '#FFEAD5'
+  description: 跨国高管听辨与弦外之音解析引擎。深度剖析听力材料中的表面含义、权力结构与潜台词。
+  icon: 🎧
+  icon_background: '#EAF4FF'
   icon_type: emoji
   mode: workflow
-  name: English_Writing_Review
+  name: Listening_Comparison_Engine
   use_icon_as_answer_icon: false
 dependencies:
 - current_identifier:
@@ -48,7 +48,7 @@ workflow:
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
-      enabled: false
+      enabled: true
     suggested_questions: []
     suggested_questions_after_answer:
       enabled: false
@@ -62,21 +62,23 @@ workflow:
         isInIteration: false
         sourceType: start
         targetType: llm
-      id: edge-start-llm
-      source: start_node
+      id: start-llm
+      selected: false
+      source: start
       sourceHandle: source
-      target: llm_node
+      target: llm
       targetHandle: target
       type: custom
       zIndex: 0
     - data:
         isInIteration: false
         sourceType: llm
-        targetType: end
-      id: edge-llm-end
-      source: llm_node
+        targetType: answer
+      id: llm-answer
+      selected: false
+      source: llm
       sourceHandle: source
-      target: end_node
+      target: end
       targetHandle: target
       type: custom
       zIndex: 0
@@ -87,18 +89,18 @@ workflow:
         title: 开始
         type: start
         variables:
-        - label: user_text
-          max_length: 4000
+        - label: user_input
+          max_length: 10000
           options: []
           required: true
           type: paragraph
-          variable: user_text
-        - label: mail_intent
-          max_length: 256
+          variable: user_input
+        - label: standard_text
+          max_length: 10000
           options: []
           required: true
-          type: text-input
-          variable: mail_intent
+          type: paragraph
+          variable: standard_text
         - default: ''
           hint: ''
           label: 阵地主题(theme)
@@ -109,14 +111,14 @@ workflow:
           type: text-input
           variable: theme
       height: 135
-      id: start_node
+      id: start
       position:
-        x: 78
-        y: 282
+        x: 0
+        y: 0
       positionAbsolute:
-        x: 78
-        y: 282
-      selected: false
+        x: 0
+        y: 0
+      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -128,33 +130,42 @@ workflow:
         desc: ''
         model:
           completion_params:
-            temperature: 0.2
+            temperature: 0.3
           mode: chat
-          name: '111'
+          name: '109'
           provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
-        - id: system_prompt
+        - id: system
           role: system
-          text: "你是一位外企合规总监与法务专家。用户意图是：{{#start_node.mail_intent#}}。\n请对用户的英文行文进行三段式残酷批阅。\n\
-            \n【待批阅的原文】：\n{{#start_node.user_text#}}\n\n【强制要求】：必须返回合法的 JSON 格式，不要包含
-            ```json 等 Markdown 标记，直接输出大括号包裹的内容。\n返回格式必须严格如下：\n{\n  \"L1\": \"表层语法与中式英语纠错分析\"\
-            ,\n  \"L2\": \"中层问题：是否符合西方商业直接/委婉的分寸感及语气评估\",\n  \"L3\": \"深层问题：政治站位、利益切割、合规风险、是否把责任揽到了自己身上\"\
-            ,\n  \"optimized_version\": \"你重写的高管级完美示范文本\"\n}\n\n\n【系统隐性约束】：当前用户的谈判阵地是【{{start_node.theme#}}】。请在批阅其战略站位（L3_Strategic_Position）时，严格根据该阵地的特有文化与核心冲突来评判其权力分寸是否得当。"
+          text: "你是一位顶级的跨国企业行为心理学专家与高级英语听力教练。\n用户将进行“精听盲听”训练。你将接收到两段文本：一段是用户盲听后口述的【用户草稿】，另一段是真实的【标准原文】。\n\
+            \n你的任务分为两步：\n第一步【听辨比对】：对比两者的差异，指出用户在哪里漏听、错听（特别是连读、弱读或生僻词）。\n第二步【弦外之音】：对【标准原文】“剥开表面看本质”，解析其中的弦外之音（Subtext）、权力动态和高阶黑话。\n\
+            \n【用户草稿】（What the user heard）：\n{{#start.user_input#}}\n\n【标准原文】（The actual
+            transcript）：\n{{#start.standard_text#}}\n\n【强制要求】：必须返回合法的 JSON 格式，直接输出大括号包裹的内容（绝不可有
+            ```json 的 markdown 标记）。\n返回的 JSON 结构必须严格如下：\n{\n  \"comparison\": {\n\
+            \    \"accuracy_score\": \"用户听写准确率（如 85%）\",\n    \"errors\": [\n    \
+            \  {\n        \"user_heard\": \"用户听错的词/句\",\n        \"actual_words\"\
+            : \"正确的词/句\",\n        \"reason\": \"错误原因分析（如：连读失音、词汇不熟、逻辑误判等）\"\n   \
+            \   }\n    ],\n    \"coach_comment\": \"给用户的一句简短鼓励或听力提升建议\"\n  },\n  \"\
+            subtext_analysis\": {\n    \"surface_meaning\": \"原文的字面意思摘要\",\n    \"\
+            hidden_subtext\": \"弦外之音剖析（深层权力博弈、情绪或真实意图）\",\n    \"power_dynamics\"\
+            : \"当前对话中的同盟、施压或阻力关系分析\",\n    \"key_jargons\": [\n      { \"word\": \"\
+            黑话/短语\", \"meaning\": \"在此语境下的真实含义\" }\n    ]\n  }\n}\n\n\n【系统隐性约束】：请结合背景大环境【{{start.theme#}}】，深度剖析对话双方的
+            hidden_subtext (潜台词) 与 power_dynamics (权力动态)。不要做泛泛而谈，必须与该背景下的利益冲突强绑定。"
         selected: false
-        title: 三段式残酷批阅
+        title: 弦外之音解析引擎
         type: llm
         variables: []
         vision:
           enabled: false
       height: 88
-      id: llm_node
+      id: llm
       position:
-        x: 380
-        y: 282
+        x: 342
+        y: 11
       positionAbsolute:
-        x: 380
-        y: 282
-      selected: true
+        x: 342
+        y: 11
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -163,27 +174,27 @@ workflow:
         desc: ''
         outputs:
         - value_selector:
-          - llm_node
+          - llm
           - text
           variable: result
         selected: false
         title: 结束
         type: end
       height: 88
-      id: end_node
+      id: end
       position:
-        x: 681
-        y: 282
+        x: 684
+        y: 11
       positionAbsolute:
-        x: 681
-        y: 282
+        x: 684
+        y: 11
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: 51
-      y: -32
-      zoom: 1
+      x: 260.99999999999994
+      y: 240
+      zoom: 0.7
   rag_pipeline_variables: []

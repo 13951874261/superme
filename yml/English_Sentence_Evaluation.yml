@@ -6,160 +6,186 @@ app:
   mode: workflow
   name: English_Sentence_Evaluation
   use_icon_as_answer_icon: false
-kind: app
-version: 0.1.2
 dependencies:
-  - current_identifier: null
-    type: marketplace
-    value:
-      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
-      version: null
+- current_identifier:
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: 
+      langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version:
+kind: app
+version: 0.6.0
 workflow:
   conversation_variables: []
   environment_variables: []
   features:
     file_upload:
-      enabled: false
       allowed_file_extensions: []
       allowed_file_types: []
       allowed_file_upload_methods: []
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
     retriever_resource:
       enabled: false
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
       enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
     text_to_speech:
       enabled: false
+      language: ''
+      voice: ''
   graph:
     edges:
-      - data:
-          isInIteration: false
-          sourceType: start
-          targetType: llm
-        id: start-llm
-        source: start
-        sourceHandle: source
-        target: llm
-        targetHandle: target
-        type: custom
-        zIndex: 0
-      - data:
-          isInIteration: false
-          sourceType: llm
-          targetType: answer
-        id: llm-answer
-        source: llm
-        sourceHandle: source
-        target: end
-        targetHandle: target
-        type: custom
-        zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: start-llm
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: answer
+      id: llm-answer
+      source: llm
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
     nodes:
-      - data:
-          desc: ''
-          selected: false
-          title: 开始
-          type: start
-          variables:
-            - max_length: 256
-              options: []
-              required: true
-              type: text-input
-              variable: target_word
-            - max_length: 1024
-              options: []
-              required: true
-              type: paragraph
-              variable: user_sentence
-        height: 90
-        id: start
-        position:
-          x: 80
-          y: 200
-        positionAbsolute:
-          x: 80
-          y: 200
+    - data:
+        desc: ''
         selected: false
-        sourcePosition: right
-        targetPosition: left
-        type: custom
-        width: 244
-      - data:
-          context:
-            enabled: false
-            variable_selector: []
-          desc: ''
-          model:
-            completion_params:
-              temperature: 0.2
-            mode: chat
-            name: claude-opus-4-7
-            provider: openai_api_compatible
-          prompt_template:
-            - id: system
-              role: system
-              text: |
-                你是一位严苛的外企高管兼语言专家。用户正在进行“商务词汇闪卡造句”训练。
-                【目标词汇】：{{#start.target_word#}}
-                【用户造句】：{{#start.user_sentence#}}
-                
-                请评估：
-                1. 语法准确性。
-                2. 商务分寸感和地道程度。
-                3. 是否正确使用了目标词汇。
-                
-                强制要求：必须返回合法的 JSON 格式，直接输出大括号包裹的内容（绝不可有 ```json 的 markdown 标记）。
-                返回格式如下：
-                {
-                  "score": 1到10的整数评分,
-                  "feedback": "简短犀利的中文点评（指出优缺点）",
-                  "is_pass": 布尔值(score大于等于7且正确使用目标词即为true，否则为false),
-                  "corrected_sentence": "改进后的地道商务版本"
-                }
-          selected: false
-          title: 造句评估引擎
-          type: llm
-          variables: []
-          vision:
-            enabled: false
-        height: 98
-        id: llm
-        position:
-          x: 380
-          y: 200
-        positionAbsolute:
-          x: 380
-          y: 200
+        title: 开始
+        type: start
+        variables:
+        - label: target_word
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: target_word
+        - label: user_sentence
+          max_length: 10240
+          options: []
+          required: true
+          type: paragraph
+          variable: user_sentence
+        - default: ''
+          hint: ''
+          label: 阵地主题(theme)
+          max_length: 256
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: theme
+      height: 135
+      id: start
+      position:
+        x: 80
+        y: 199
+      positionAbsolute:
+        x: 80
+        y: 199
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system
+          role: system
+          text: "你是一位严苛的外企高管兼语言专家。用户正在进行“商务词汇闪卡造句”训练。\n【目标词汇】：{{#start.target_word#}}\n\
+            【用户造句】：{{#start.user_sentence#}}\n\n请评估：\n1. 语法准确性。\n2. 商务分寸感和地道程度。\n\
+            3. 是否正确使用了目标词汇。\n\n强制要求：必须返回合法的 JSON 格式，直接输出大括号包裹的内容（绝不可有 ```json 的 markdown
+            标记）。\n返回格式如下：\n{\n  \"score\": 1到10的整数评分,\n  \"feedback\": \"简短犀利的中文点评（指出优缺点）\"\
+            ,\n  \"is_pass\": 布尔值(score大于等于7且正确使用目标词即为true，否则为false),\n  \"corrected_sentence\"\
+            : \"改进后的地道商务版本\"\n}\n\n\n【系统隐性约束】：请判定用户造句的得体性。注意！当前的实战场景为【{{start.theme#}}】。如果造句语法正确，但在该场景下显得过于冒犯或过于软弱，请判定为不合格，并在
+            feedback 中给出符合该场景的商务建议。"
         selected: false
-        sourcePosition: right
-        targetPosition: left
-        type: custom
-        width: 244
-      - data:
-          desc: ''
-          outputs:
-            - value_selector:
-                - llm
-                - text
-              variable: result
-          selected: false
-          title: 结束
-          type: end
-        height: 90
-        id: end
-        position:
-          x: 680
-          y: 200
-        positionAbsolute:
-          x: 680
-          y: 200
+        title: 造句评估引擎
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 380
+        y: 200
+      positionAbsolute:
+        x: 380
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - llm
+          - text
+          variable: result
         selected: false
-        sourcePosition: right
-        targetPosition: left
-        type: custom
-        width: 244
+        title: 结束
+        type: end
+      height: 88
+      id: end
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
     viewport:
-      x: 0
-      y: 0
+      x: -240
+      y: 143.5
       zoom: 1
+  rag_pipeline_variables: []

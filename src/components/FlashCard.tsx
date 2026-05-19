@@ -152,7 +152,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
         await addWord({
           word: targetWord,
           dictType: 'manual_capture',
-          category: 'business',
+          category: 'general',  // 闪卡造句属于日常场景，存入全场景区
           payload: { meaning: '句子考核通过', source: '闪卡造句评估' },
         });
       }

@@ -437,8 +437,9 @@ export async function callVocabPurify(
  * 英语公文纵深批阅接口 (前端直接调用 Dify)
  * @param userText 用户写的原始英文草稿
  * @param mailIntent 行文意图
+ * @param theme 全局阵地主题
  */
-export async function runEnglishWriteReview(userText: string, mailIntent: string): Promise<WritingReviewResult> {
+export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
   const apiKey = import.meta.env.VITE_DIFY_WRITE_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_WRITE_API_KEY');
 
@@ -451,7 +452,8 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
     body: JSON.stringify({
       inputs: {
         user_text: userText,
-        mail_intent: mailIntent
+        mail_intent: mailIntent,
+        theme: theme
       },
       response_mode: 'blocking',
       user: 'default-user',
@@ -497,7 +499,7 @@ export async function sendOralChatMessage(query: string, conversationId: string 
   return data;
 }
 
-export async function runEnglishListenEngine(text: string, userId = 'default-user'): Promise<ListenEngineResult> {
+export async function runEnglishListenEngine(text: string, theme: string, userId = 'default-user'): Promise<ListenEngineResult> {
   const apiKey = import.meta.env.VITE_DIFY_LISTEN_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_API_KEY');
 
@@ -508,7 +510,7 @@ export async function runEnglishListenEngine(text: string, userId = 'default-use
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { listening_text: text },
+      inputs: { listening_text: text, theme },
       response_mode: 'blocking',
       user: userId,
     }),
@@ -527,7 +529,7 @@ export async function runEnglishListenEngine(text: string, userId = 'default-use
   }
 }
 
-export async function runWordEnrichment(targetWord: string, userId = 'default-user'): Promise<WordEnrichmentResult> {
+export async function runWordEnrichment(targetWord: string, theme: string, userId = 'default-user'): Promise<WordEnrichmentResult> {
   const apiKey = import.meta.env.VITE_DIFY_ENRICH_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_ENRICH_API_KEY');
 
@@ -538,7 +540,7 @@ export async function runWordEnrichment(targetWord: string, userId = 'default-us
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { target_word: targetWord },
+      inputs: { target_word: targetWord, theme },
       response_mode: 'blocking',
       user: userId,
     }),
@@ -631,6 +633,7 @@ export async function runEnglishWakeupRoutine(theme: string, userId = 'default-u
 export async function runEnglishSentenceEvaluation(
   targetWord: string,
   userSentence: string,
+  theme: string,
   userId = 'default-user'
 ): Promise<SentenceEvaluationResult> {
   const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
@@ -648,7 +651,7 @@ export async function runEnglishSentenceEvaluation(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { target_word: targetWord, user_sentence: userSentence },
+        inputs: { target_word: targetWord, user_sentence: userSentence, theme },
         response_mode: 'blocking',
         user: userId,
       }),
@@ -688,11 +691,16 @@ export async function getDueVocabulary(userId = 'default-user') {
   return Array.isArray(data) ? data : [];
 }
 
-export async function runListenMaterialGenerator(theme: string, userId = 'default-user'): Promise<string> {
+export async function runListenMaterialGenerator(
+  theme: string,
+  genre: 'news' | 'meeting' | 'podcast' = 'meeting',
+  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
+  userId = 'default-user'
+): Promise<string> {
   const apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成截获剧本。');
 
-  // 因为应用模式已由 Workflow 变为 Text Generator (Completion)，接口改为 /completion-messages
+  // 该应用为 Text Generator (Completion) 模式，使用 /completion-messages 接口
   const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
     method: 'POST',
     headers: {
@@ -700,7 +708,8 @@ export async function runListenMaterialGenerator(theme: string, userId = 'defaul
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { theme },
+      inputs: { theme, genre, cefr_level: cefrLevel },
+      query: "",
       response_mode: 'blocking',
       user: userId,
     }),
@@ -709,7 +718,50 @@ export async function runListenMaterialGenerator(theme: string, userId = 'defaul
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || '生成截获剧本失败');
 
-  // Text Generator 的返回结果字段为 answer
-  const raw = data?.answer ?? data?.data?.outputs?.script ?? data?.data?.outputs?.result ?? data?.message ?? '';
-  return String(raw).trim();
+  // Completion 结果在 data.answer
+  return String(data?.answer || '').trim();
+}
+
+export interface ImpromptuSpeechEvaluationResult {
+  total_score: number;
+  logic: number;
+  vocabulary: number;
+  fluency: number;
+  relevance: number;
+  feedback: string;
+}
+
+export async function runImpromptuSpeechEvaluation(
+  theme: string,
+  duration: string,
+  transcript: string,
+  userId = 'default-user'
+): Promise<ImpromptuSpeechEvaluationResult> {
+  const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EVAL_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { theme, duration, transcript },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '评测失败');
+
+  try {
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson) as ImpromptuSpeechEvaluationResult;
+  } catch (e) {
+    console.error('解析即兴演讲评测结果失败:', e, data);
+    throw new Error('AI 返回数据格式异常，无法提取四维分数');
+  }
 }

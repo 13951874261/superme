@@ -25,10 +25,14 @@ export function speakEnglish(text: unknown, rate = 0.92, roleType?: 'ally' | 'bl
   const content = normalizeSpeakText(text);
   if (!content || typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
 
+  // 读取全局语速乘数，穿透到所有发音按钮
+  const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
+  const effectiveRate = rate * globalRateMultiplier;
+
   const synth = window.speechSynthesis;
   const utterance = new SpeechSynthesisUtterance(content);
   utterance.lang = 'en-US';
-  utterance.rate = rate;
+  utterance.rate = effectiveRate;
   utterance.pitch = 1.0;
 
   const voices = synth.getVoices();

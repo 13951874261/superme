@@ -1,13 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle } from 'lucide-react';
+import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { runListeningEngine, fetchDifyTTS } from '../../../../services/listeningAPI';
+import { submitReview, addWord } from '../../../../services/vocabAPI';
 
 export default function ListenTab() {
   const {
     activeTab,
     theme,
+    stage,
     listenMaterialTheme, setListenMaterialTheme,
     listenMaterial, setListenMaterial,
     listenAudioUrl, setListenAudioUrl,
@@ -24,6 +26,11 @@ export default function ListenTab() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [highlightedWord, setHighlightedWord] = useState('');
+  const [listenGenre, setListenGenre] = useState<'news' | 'meeting' | 'podcast'>('meeting');
+  const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
+  const [isFullscreenText, setIsFullscreenText] = useState(false);
+
 
   const [globalRateMultiplier, setGlobalRateMultiplier] = useState(
     Number(localStorage.getItem('super_agent_global_rate') || 1.0)
@@ -53,7 +60,7 @@ export default function ListenTab() {
     
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
-      const script = await runListenMaterialGenerator(targetTheme);
+      const script = await runListenMaterialGenerator(targetTheme, listenGenre, listenCefr);
       setListenMaterial(script);
       
       try {
@@ -84,7 +91,7 @@ export default function ListenTab() {
     }
     setIsListenLoading(true);
     try {
-      const result = await runListeningEngine(listenInput, listenMaterial);
+      const result = await runListeningEngine(listenInput, listenMaterial, theme);
       setListenResult(result);
     } catch (e) {
       showNotice('listen', '听辨解析失败，请检查网络或 API 配置。', 'error');
@@ -110,14 +117,44 @@ export default function ListenTab() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        <div className="lg:col-span-5 flex flex-col gap-6 overflow-y-auto min-h-0 pr-2 pb-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.1) transparent' }}>
           <div className="bg-[#202124] rounded-[2rem] p-8 text-white shadow-[0_10px_30px_rgba(0,0,0,0.15)] relative overflow-hidden shrink-0">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FF5722]/20 rounded-full blur-3xl"></div>
-            <div className="flex justify-between items-center mb-6 relative z-10">
-              <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722]">Daily Interception // 截获片段</h4>
-              <span className="text-[10px] bg-white/10 px-3 py-1 rounded-full font-bold">高管会议盲听</span>
+            <div className="flex flex-col gap-4 mb-6 relative z-10 border-b border-white/10 pb-5">
+              <h4 className="text-[13px] font-black uppercase tracking-widest text-[#FF5722] leading-relaxed">
+                Daily Interception <br/> 
+                <span className="text-[10px] text-white/50">// 截获片段</span>
+              </h4>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  value={listenGenre}
+                  onChange={(e) => setListenGenre(e.target.value as any)}
+                  className="bg-black/20 text-white/90 text-[10px] px-3 py-1.5 rounded-lg border border-white/10 outline-none focus:border-[#FF5722] focus:bg-black/40 transition-all cursor-pointer hover:border-white/20"
+                >
+                  <option value="meeting" className="text-black">高管会议 (Meeting)</option>
+                  <option value="news" className="text-black">财经新闻 (News)</option>
+                  <option value="podcast" className="text-black">深度播客 (Podcast)</option>
+                </select>
+                <select
+                  value={listenCefr}
+                  onChange={(e) => setListenCefr(e.target.value as any)}
+                  className="bg-black/20 text-white/90 text-[10px] px-3 py-1.5 rounded-lg border border-white/10 outline-none focus:border-[#FF5722] focus:bg-black/40 transition-all cursor-pointer hover:border-white/20"
+                >
+                  <option value="A2" className="text-black">A2 初阶</option>
+                  <option value="B1" className="text-black">B1 进阶</option>
+                  <option value="B2" className="text-black">B2 高阶</option>
+                  <option value="C1" className="text-black">C1 母语级</option>
+                </select>
+                <button
+                  onClick={() => generateListenMaterial(theme)}
+                  disabled={isListenMaterialLoading}
+                  className="ml-auto shrink-0 whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-4 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-all disabled:opacity-50 disabled:grayscale"
+                >
+                  重新生成
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-4 bg-white/5 p-4 rounded-2xl mb-6 border border-white/10 relative z-10">
+            <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl mb-6 border border-white/10 relative z-10 w-full overflow-hidden">
               {isListenMaterialLoading ? (
                 <div className="flex items-center gap-2 text-gray-400">
                   <Loader2 className="w-6 h-6 animate-spin" />
@@ -153,8 +190,8 @@ export default function ListenTab() {
                   >
                     {isPlaying ? <PauseCircle className="w-10 h-10" /> : <PlayCircle className="w-10 h-10" />}
                   </button>
-                  <div className="flex-1 flex items-center gap-3 px-2">
-                    <span className="text-[10px] font-mono w-6 text-right text-gray-400">{Math.floor(currentTime)}s</span>
+                  <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-1 sm:px-2">
+                    <span className="text-[10px] font-mono w-5 sm:w-6 text-right text-gray-400 shrink-0">{Math.floor(currentTime)}s</span>
                     <input 
                       type="range" 
                       min={0} 
@@ -165,9 +202,9 @@ export default function ListenTab() {
                         setCurrentTime(t);
                         if (audioRef.current) audioRef.current.currentTime = t;
                       }}
-                      className="flex-1 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
+                      className="flex-1 min-w-0 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
                     />
-                    <span className="text-[10px] font-mono w-6 text-gray-400">{Math.floor(duration)}s</span>
+                    <span className="text-[10px] font-mono w-5 sm:w-6 text-gray-400 shrink-0">{Math.floor(duration)}s</span>
                   </div>
                   <button 
                     onClick={() => {
@@ -187,14 +224,52 @@ export default function ListenTab() {
                 <span className="text-[10px] uppercase tracking-widest text-gray-400">Target Transcript // 目标原文</span>
                 <div className="flex items-center gap-2">
                   <SpeakButton text={listenMaterial} title="播放目标原文" className="bg-white/10 text-white hover:bg-[#FF5722]" />
+                  <button onClick={() => setIsFullscreenText(true)} className="flex items-center text-[10px] text-gray-400 hover:text-white transition-colors cursor-pointer" title="全屏查看原文">
+                    <Zap className="w-3 h-3 mr-1"/> 弹窗放大
+                  </button>
                   <button onClick={() => setIsTextVisible(!isTextVisible)} className="flex items-center text-[10px] text-gray-400 hover:text-white transition-colors cursor-pointer">
                     {isTextVisible ? <><EyeOff className="w-3 h-3 mr-1"/> 隐藏 (开启盲听)</> : <><Eye className="w-3 h-3 mr-1"/> 显示文本</>}
                   </button>
                 </div>
               </div>
-              <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none select-text' : 'bg-black text-white/5 blur-[4px] select-text cursor-text'}`}>
+              <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 max-h-[260px] overflow-y-auto ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none select-text' : 'bg-black text-white/5 blur-[4px] select-text cursor-text'}`}
+                onMouseUp={() => {
+                  const sel = window.getSelection()?.toString().trim();
+                  if (sel && sel.split(/\s+/).length <= 5 && isTextVisible) {
+                    setHighlightedWord(sel);
+                  }
+                }}
+                style={{
+                  scrollbarWidth: 'thin',
+                  scrollbarColor: 'rgba(255,255,255,0.2) transparent'
+                }}
+              >
                 {isListenMaterialLoading ? '正在生成敌方动态剧本...' : listenMaterial}
               </div>
+              {highlightedWord && (
+                <div className="mt-2 flex items-center gap-2 bg-white/10 rounded-xl px-4 py-2 animate-[fadeIn_0.2s_ease-out]">
+                  <span className="text-xs text-[#FF5722] font-black">"{highlightedWord}"</span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await addWord({
+                          word: highlightedWord,
+                          dictType: 'listen-highlight',
+                          category: 'general',   // 听力划线词归入「全场景区」
+                          payload: { source: 'listen', theme },
+                        });
+                        showNotice('listen', `"${highlightedWord}" 已划线入库（全场景区）`, 'success');
+                        window.dispatchEvent(new Event('vocab-updated'));
+                      } catch { showNotice('listen', '入库失败', 'error'); }
+                      setHighlightedWord('');
+                    }}
+                    className="flex items-center gap-1 px-3 py-1 bg-[#FF5722] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#e64a19] transition-colors cursor-pointer"
+                  >
+                    <BookPlus className="w-3 h-3" /> 划线入库
+                  </button>
+                  <button onClick={() => setHighlightedWord('')} className="text-gray-400 hover:text-white text-sm">×</button>
+                </div>
+              )}
             </div>
             <div className="relative">
               {inlineNotice && noticeAnchor === 'listen' && (
@@ -212,7 +287,7 @@ export default function ListenTab() {
             </div>
           </div>
 
-          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex-1 flex flex-col">
+          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm shrink-0 flex flex-col min-h-[250px]">
             <div className="flex justify-between items-center mb-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block">Shadowing Dictation // 盲打笔记区</label>
               <span className="text-[9px] text-gray-400 font-bold">Local Draft</span>
@@ -310,7 +385,27 @@ export default function ListenTab() {
                         <div key={idx} className="bg-[#202124] rounded-lg p-3 text-white shadow-md">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <div className="text-xs font-black text-[#FF5722]">{item.word}</div>
-                            <SpeakButton text={item.word} title={`播放 ${item.word}`} className="w-7 h-7 bg-white/10 text-white hover:bg-[#FF5722]" iconClassName="w-3.5 h-3.5" />
+                            <div className="flex items-center gap-1">
+                              <button
+                                title="划线入库"
+                                onClick={async () => {
+                                  try {
+                                    await addWord({
+                                      word: item.word,
+                                      dictType: 'listen-jargon',
+                                      category: 'general',   // 听力黑话归入「全场景区」
+                                      payload: { meaning: item.meaning, source: 'listen_jargon', theme },
+                                    });
+                                    showNotice('listen', `"${item.word}" 已入库（全场景区）`, 'success');
+                                    window.dispatchEvent(new Event('vocab-updated'));
+                                  } catch { /* ignore */ }
+                                }}
+                                className="w-7 h-7 flex items-center justify-center bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-full transition-colors cursor-pointer"
+                              >
+                                <BookPlus className="w-3.5 h-3.5" />
+                              </button>
+                              <SpeakButton text={item.word} title={`播放 ${item.word}`} className="w-7 h-7 bg-white/10 text-white hover:bg-[#FF5722]" iconClassName="w-3.5 h-3.5" />
+                            </div>
                           </div>
                           <div className="text-[10px] text-gray-300">{item.meaning}</div>
                         </div>
@@ -323,6 +418,29 @@ export default function ListenTab() {
           )}
         </div>
       </div>
+      {/* 原文全屏弹窗 */}
+      {isFullscreenText && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-[#1a1b1e] w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col border border-white/10">
+            <div className="flex justify-between items-center p-6 border-b border-white/10">
+              <h3 className="text-[#FF5722] font-black uppercase tracking-widest text-sm flex items-center gap-2">
+                <Target className="w-4 h-4" /> Target Transcript // 完整情报原文
+              </h3>
+              <button 
+                onClick={() => setIsFullscreenText(false)}
+                className="w-8 h-8 flex items-center justify-center bg-white/5 hover:bg-white/10 text-gray-400 hover:text-white rounded-full transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-8 overflow-y-auto text-gray-200 text-base font-serif leading-loose"
+                 style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,87,34,0.5) transparent' }}
+            >
+              {listenMaterial}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

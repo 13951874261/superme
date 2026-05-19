@@ -3,18 +3,28 @@ import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, set
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
 
-export type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write';
+export type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write' | 'impromptu';
 
 export const BUSINESS_THEMES = [
-  { value: '商务谈判：让步与施压', label: '商务谈判：让步与施压 (Day 4/10)' },
-  { value: '危机公关：外媒答疑', label: '危机公关：外媒答疑 (Day 1/10)' },
-  { value: '项目汇报：跨国董事会', label: '项目汇报：跨国董事会 (Day 1/10)' },
+  { value: '商务谈判：让步与施压', label: '商务谈判：让步与施压' },
+  { value: '危机公关：外媒答疑', label: '危机公关：外媒答疑' },
+  { value: '项目汇报：跨国董事会', label: '项目汇报：跨国董事会' },
+  { value: '商务破冰：高管Small Talk', label: '商务破冰：高管Small Talk' },
+  { value: '会议主持：跨文化控场', label: '会议主持：跨文化控场' },
+  { value: '跨部门协调：资源争夺', label: '跨部门协调：资源争夺' },
+  { value: '绩效反馈：员工评估', label: '绩效反馈：员工评估' },
+  { value: '商业路演：投资人汇报', label: '商业路演：投资人汇报' },
+  { value: '供应商审计：合规谈判', label: '供应商审计：合规谈判' },
+  { value: '组织重组：人事沟通', label: '组织重组：人事沟通' },
 ];
 
 export const GENERAL_THEMES = [
-  { value: '跨文化社交：艺术展交流', label: '跨文化社交：艺术展交流 (Day 1/7)' },
-  { value: '应急沟通：海外就医', label: '应急沟通：海外就医 (Day 1/7)' },
-  { value: '文化破冰：外企晚宴', label: '文化破冰：外企晚宴 (Day 1/7)' },
+  { value: '跨文化社交：艺术展交流', label: '跨文化社交：艺术展交流' },
+  { value: '应急沟通：海外就医', label: '应急沟通：海外就医' },
+  { value: '文化破冰：外企晚宴', label: '文化破冰：外企晚宴' },
+  { value: '中日韩三方会议：跨文化卟局', label: '中日韩三方会议：跨文化卟局' },
+  { value: '娱乐审美：艺术讲述', label: '娱乐审美：艺术讲述' },
+  { value: '中东商务：跨文化禁忌', label: '中东商务：跨文化禁忌' },
 ];
 
 export const getThemeOptions = (stage: '0-6' | '6-12') => stage === '0-6' ? BUSINESS_THEMES : GENERAL_THEMES;
@@ -45,8 +55,8 @@ interface EnglishContextType {
   setStage: React.Dispatch<React.SetStateAction<'0-6' | '6-12'>>;
   theme: string;
   setTheme: React.Dispatch<React.SetStateAction<string>>;
-  masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number };
-  setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number }>>;
+  masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; _isInitial?: boolean };
+  setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number; _isInitial?: boolean }>>;
   themeSwitchError: string | null;
   setThemeSwitchError: React.Dispatch<React.SetStateAction<string | null>>;
   sessionId: string | null;
@@ -56,6 +66,10 @@ interface EnglishContextType {
   hideNotice: () => void;
   showMasteryOverlay: boolean;
   setShowMasteryOverlay: React.Dispatch<React.SetStateAction<boolean>>;
+  masteredThemes: string[];
+  setMasteredThemes: React.Dispatch<React.SetStateAction<string[]>>;
+  impromptuPassed: boolean;
+  setImpromptuPassed: React.Dispatch<React.SetStateAction<boolean>>;
 
   // Dashboard
   pronunciationNotes: string;
@@ -64,6 +78,8 @@ interface EnglishContextType {
   setGrammarNotes: React.Dispatch<React.SetStateAction<string>>;
 
   // Vocab
+  vocabZone: 'business' | 'general';
+  setVocabZone: React.Dispatch<React.SetStateAction<'business' | 'general'>>;
   dueWords: any[];
   setDueWords: React.Dispatch<React.SetStateAction<any[]>>;
   currentWordIdx: number;
@@ -110,25 +126,55 @@ const EnglishContext = createContext<EnglishContextType | undefined>(undefined);
 
 export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
-  const [stage, setStage] = useState<'0-6' | '6-12'>('0-6');
-  const [theme, setTheme] = useState(BUSINESS_THEMES[0].value);
-  const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0 });
+  const [stage, setStage] = useState<'0-6' | '6-12'>(() => {
+    return (localStorage.getItem('english_stage') as '0-6' | '6-12') || '0-6';
+  });
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;
+  });
+  const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, _isInitial: true });
   const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('english_stage', stage);
+  }, [stage]);
+
+  useEffect(() => {
+    localStorage.setItem('english_theme', theme);
+  }, [theme]);
+
   
   const [inlineNotice, setInlineNotice] = useState<{ text: string; tone: 'success' | 'error' | 'info' } | null>(null);
   const [noticeAnchor, setNoticeAnchor] = useState<'review' | 'oral' | 'listen' | 'eval' | 'dashboard' | null>(null);
   const noticeTimeoutId = useRef<number | null>(null);
 
   const [showMasteryOverlay, setShowMasteryOverlay] = useState(false);
+  const [masteredThemes, setMasteredThemes] = useState<string[]>([]);
+  const [impromptuPassed, setImpromptuPassed] = useState(false);
+  const [vocabZone, setVocabZone] = useState<'business' | 'general'>('business');
+
+  const prevMasteryStatusRef = useRef<Record<string, boolean>>({});
 
   useEffect(() => {
+    // 忽略组件挂载时的无意义默认占位数据
+    if (masteryData._isInitial) return;
+
     const isMastered = masteryData.oralCount >= 10 && masteryData.maxWriteScore >= 8;
-    const storageKey = `super_agent_mastered_overlay_${theme}`;
-    if (isMastered && !localStorage.getItem(storageKey)) {
-      setShowMasteryOverlay(true);
-      localStorage.setItem(storageKey, '1');
+    const prev = prevMasteryStatusRef.current[theme];
+
+    // 方案B核心：严格捕捉状态的瞬间跃迁
+    // 只有当该主题之前被系统明确鉴定为【未达标】(false)，而【现在达标】(true)时，才触发勋章！
+    // 刚进页面第一次拿到远端数据时（哪怕已满分），prev 是 undefined，绝不会触发弹窗。
+    if (prev === false && isMastered === true) {
+      if (!masteredThemes.includes(theme)) {
+        setShowMasteryOverlay(true);
+        setMasteredThemes(prevThemes => [...prevThemes, theme]);
+      }
     }
+
+    // 无论如何，将当前的真实状态记录到状态机中
+    prevMasteryStatusRef.current[theme] = isMastered;
   }, [masteryData, theme]);
 
   const showNotice = (anchor: 'review' | 'oral' | 'listen' | 'eval' | 'dashboard', text: string, tone: 'success' | 'error' | 'info') => {
@@ -180,6 +226,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
               isMastered: res.isMastered,
               oralCount: res.oralCount,
               maxWriteScore: res.maxWriteScore,
+              _isInitial: false,
             });
           }
         })
@@ -245,8 +292,11 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         sessionId,
         inlineNotice, noticeAnchor, showNotice, hideNotice,
         showMasteryOverlay, setShowMasteryOverlay,
+        masteredThemes, setMasteredThemes,
+        impromptuPassed, setImpromptuPassed,
         pronunciationNotes, setPronunciationNotes,
         grammarNotes, setGrammarNotes,
+        vocabZone, setVocabZone,
         dueWords, setDueWords,
         currentWordIdx, setCurrentWordIdx,
         sentenceInput, setSentenceInput,

@@ -1,0 +1,136 @@
+app:
+  description: 动态生成精听盲听模块所需的高压商务英语听力片段
+  icon: 🎧
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: completion
+  name: listen_material_generator
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version: null
+kind: app
+model_config:
+  agent_mode:
+    enabled: false
+    max_iteration: 10
+    strategy: react
+    tools: []
+  annotation_reply:
+    enabled: false
+  chat_prompt_config:
+    prompt:
+    - role: system
+      text: ''
+  completion_prompt_config:
+    conversation_histories_role:
+      assistant_prefix: ''
+      user_prefix: ''
+    prompt:
+      text: ''
+  dataset_configs:
+    datasets:
+      datasets: []
+    retrieval_model: multiple
+    top_k: 4
+  dataset_query_variable: ''
+  external_data_tools: []
+  file_upload:
+    allowed_file_extensions:
+    - .JPG
+    - .JPEG
+    - .PNG
+    - .GIF
+    - .WEBP
+    - .SVG
+    - .MP4
+    - .MOV
+    - .MPEG
+    - .WEBM
+    allowed_file_types: []
+    allowed_file_upload_methods:
+    - remote_url
+    - local_file
+    enabled: false
+    image:
+      detail: high
+      enabled: false
+      number_limits: 3
+      transfer_methods:
+      - remote_url
+      - local_file
+    number_limits: 3
+  model:
+    completion_params:
+      stop: []
+      temperature: 0.7
+    mode: chat
+    name: '103'
+    provider: langgenius/openai_api_compatible/openai_api_compatible
+  more_like_this:
+    enabled: false
+  opening_statement: null
+  pre_prompt: "You are an elite cross-cultural business English listening material\
+    \ specialist. Generate a listening script strictly following the three parameters\
+    \ below:\n\n- Theme: {{theme}}\n- Genre: {{genre}} (news / meeting / podcast)\n\
+    - CEFR Level: {{cefr_level}} (A2 / B1 / B2 / C1)\n\n【Genre Rules】\n- news:\
+    \ BBC/Reuters broadcast style — concise, objective, formal, third-person narration.\n\
+    - meeting: Multinational corporate meeting recording — multi-role dialogue (e.g.\
+    \ CEO, CFO, ally, blocker), natural interruptions, polite deflections.\n- podcast:\
+    \ Business podcast conversation style — slightly informal, interactive tone, two\
+    \ hosts discussing real business cases.\n\n【CEFR Level Rules】\n- A2: Short simple\
+    \ sentences, common vocabulary, no idioms, 150-200 words.\n- B1: Medium-length\
+    \ sentences, basic business terms, clear logic, 180-240 words.\n- B2: Complex\
+    \ sentences, connective phrases, 3-5 business jargons, subtle subtext, 220-300\
+    \ words.\n- C1: High information density, advanced idioms, multiple layers of\
+    \ subtext, power dynamics, cultural nuance, 260-350 words.\n\n【Hard Rules】\n\
+    1. Output ONLY the raw English listening script — no titles, no Chinese, no explanations.\n\
+    2. MUST embed hidden subtext and power dynamics appropriate to the genre.\n3.\
+    \ MUST include business jargon proportional to CEFR level.\n4. Script must sound\
+    \ like a genuine intercepted recording — natural, slightly fragmented when appropriate.\n"
+  prompt_type: simple
+  retriever_resource:
+    enabled: true
+  sensitive_word_avoidance:
+    configs: []
+    enabled: false
+    type: ''
+  speech_to_text:
+    enabled: false
+  suggested_questions: []
+  suggested_questions_after_answer:
+    enabled: false
+  text_to_speech:
+    enabled: true
+    language: ''
+    voice: ''
+  user_input_form:
+  - text-input:
+      default: ''
+      label: theme
+      max_length: 256
+      required: true
+      variable: theme
+  - select:
+      default: meeting
+      label: genre
+      options:
+      - news
+      - meeting
+      - podcast
+      required: true
+      variable: genre
+  - select:
+      default: B1
+      label: cefr_level
+      options:
+      - A2
+      - B1
+      - B2
+      - C1
+      required: true
+      variable: cefr_level
+version: 0.6.0

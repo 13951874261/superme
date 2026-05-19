@@ -58,7 +58,8 @@ export default function TextHighlighter() {
 
     try {
       try {
-        const enriched = await runWordEnrichment(targetWord);
+        const theme = localStorage.getItem('english_theme') || '政商务沟通';
+        const enriched = await runWordEnrichment(targetWord, theme);
         payload = toVocabEnrichmentPayload(enriched);
       } catch (enrichError) {
         console.error('词汇补全失败，使用占位 payload 继续入库:', enrichError);
@@ -67,7 +68,7 @@ export default function TextHighlighter() {
       const created = await addWord({
         word: targetWord,
         dictType: 'manual_capture',
-        category: 'business',
+        category: 'general',  // 划词属于日常场景，存入全场景区
         payload,
       });
 
@@ -77,7 +78,7 @@ export default function TextHighlighter() {
       }
 
       const existedMessage = created?.success === false ? '（已自动更新释义）' : '';
-      setSaveResult({ message: `🎯 战术词汇「${targetWord}」已秘密存入政商库！${existedMessage}`, isError: false });
+      setSaveResult({ message: `战术词汇「${targetWord}」已存入全场景区！${existedMessage}`, isError: false });
       
       // 触发高端烟花效果
       confetti({

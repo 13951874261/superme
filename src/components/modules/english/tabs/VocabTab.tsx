@@ -1,10 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { BookOpen, Loader2, CheckCircle2, Mic, Zap } from 'lucide-react';
+import { BookOpen, Loader2, CheckCircle2, Mic, Zap, Briefcase, Globe, CalendarCheck, Library } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { getDueVocabulary } from '../../../../services/difyAPI';
-import { submitReview } from '../../../../services/vocabAPI';
+import { submitReview, getAllWords, getReviewWords } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 
@@ -12,6 +11,7 @@ export default function VocabTab() {
   const {
     activeTab,
     theme,
+    vocabZone, setVocabZone,
     dueWords, setDueWords,
     currentWordIdx, setCurrentWordIdx,
     sentenceInput, setSentenceInput,
@@ -22,22 +22,50 @@ export default function VocabTab() {
 
   const [evalResult, setEvalResult] = useState<{ quality: number; feedback: string } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isFallback, setIsFallback] = useState(false); // true=全量练习模式，false=今日复习模式
 
   useEffect(() => {
     if (activeTab !== 'vocab') return;
     setLoadingDueWords(true);
-    getDueVocabulary()
-      .then((data) => {
-        setDueWords(data);
+    setIsFallback(false);
+    // 优先加载今日待复习词（与左侧 FlashCard 同一接口）
+    getReviewWords()
+      .then(async (data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setDueWords(data);
+          setIsFallback(false);
+        } else {
+          // 今日无到期词：回退全量词库（与左侧艾宾浩斯生词本同源）
+          const allData = await getAllWords().catch(() => []);
+          setDueWords(allData);
+          setIsFallback(true);
+        }
         setCurrentWordIdx(0);
         setSentenceInput('');
         setEvalResult(null);
       })
-      .catch(() => setDueWords([]))
+      .catch(async () => {
+        const allData = await getAllWords().catch(() => []);
+        setDueWords(allData);
+        setIsFallback(allData.length > 0);
+      })
       .finally(() => setLoadingDueWords(false));
   }, [activeTab]);
 
-  const currentWord = useMemo(() => dueWords[currentWordIdx], [dueWords, currentWordIdx]);
+  // 双区过滤逻辑：使用 VocabEntry.category 字段（'business' | 'general'）
+  // 注意：dict_type 是字典类型（如 en-zh），不是分区标记，不可用于过滤
+  // category 默认为 'business'，存量词均在政商务区可见
+  // 修复：如果词没有 category 字段（存量数据），两区都可见（保守处理）
+  const filteredWords = useMemo(() => {
+    return dueWords.filter(w => {
+      const cat = w.category;
+      // 如果没有 category 字段，两区都可见
+      if (!cat) return true;
+      return vocabZone === 'business' ? cat !== 'general' : cat === 'general';
+    });
+  }, [dueWords, vocabZone]);
+
+  const currentWord = useMemo(() => filteredWords[currentWordIdx], [filteredWords, currentWordIdx]);
   const currentWordExample = useMemo(() => (
     currentWord?.payload?.examples?.[0]
     || currentWord?.payload?.related_sentences?.[0]
@@ -51,7 +79,7 @@ export default function VocabTab() {
     setEvalResult(null);
     playScan();
     try {
-      const result = await runEnglishSentenceEvaluation(currentWord.word, sentenceInput);
+      const result = await runEnglishSentenceEvaluation(currentWord.word, sentenceInput, theme);
       const quality = Math.max(0, Math.min(5, Math.round(Number(result.score ?? 4))));
       setEvalResult({ feedback: result.feedback, quality });
       
@@ -89,9 +117,59 @@ export default function VocabTab() {
         </div>
       </div>
       
+      {/* 双区生词本切换 — 含区别说明 */}
+      <div className="flex flex-col gap-2">
+        <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
+          <button
+            onClick={() => { setVocabZone('business'); setCurrentWordIdx(0); }}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+              vocabZone === 'business' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
+            }`}
+          >
+            <Briefcase className="w-3.5 h-3.5" /> 政商务区
+          </button>
+          <button
+            onClick={() => { setVocabZone('general'); setCurrentWordIdx(0); }}
+            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+              vocabZone === 'general' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" /> 全场景区
+          </button>
+        </div>
+        {/* 区别说明 */}
+        <div className="text-[11px] text-gray-400 leading-relaxed font-medium px-1">
+          {vocabZone === 'business' ? (
+            <span>
+              <span className="font-black text-gray-600 mr-1">💼 政商务区：</span>
+              收录由「进度总控 → 一键提纯」从商务英语长文中提取的高频词汇与短语（谈判/汇报/危机公关场景专用）。数据来源：Dify 长文提纯 Workflow → 生词本 API（/api/vocab）。
+            </span>
+          ) : (
+            <span>
+              <span className="font-black text-gray-600 mr-1">🌐 全场景区：</span>
+              收录由「精听盲听 → 划线入库」、口语沙盘截获黑话等日常场景中手动标记的词汇（社交/应急/文化破冰通用）。数据来源：精听划线 + 口语截获 → 生词本 API（/api/vocab）。
+            </span>
+          )}
+          <span className="ml-2 text-gray-300">｜ 无分区标记的存量词两区均可见。</span>
+        </div>
+      </div>
+
       <div className="bg-white rounded-[2rem] p-10 border border-gray-100 shadow-sm flex flex-col items-center justify-center min-h-[500px]">
+      {/* 模式标签 */}
+      {!loadingDueWords && filteredWords.length > 0 && (
+        <div className={`self-stretch flex items-center gap-2 mb-6 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest ${
+          isFallback
+            ? 'bg-amber-50 text-amber-700 border border-amber-200'
+            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+        }`}>
+          {isFallback
+            ? <><Library className="w-3.5 h-3.5 shrink-0" /> 全量练习模式 — 今日无到期词，已加载全部词库（{filteredWords.length} 词）供随时练习。复习提交后将更新 SM-2 记忆算法。</>
+            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — {filteredWords.length} 个待复习单词已到期，完成并提交评估将写入 SM-2 周期。</>
+          }
+        </div>
+      )}
       {loadingDueWords ? (
-        <div className="text-gray-400 text-sm font-bold flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> 拉取今日待复习生词中...</div>
+        <div className="text-gray-400 text-sm font-bold flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> 正在检查今日待复习词条...</div>
       ) : !currentWord ? (
         <div className="w-full max-w-2xl text-center py-24">
           <CheckCircle2 className="w-16 h-16 text-emerald-400 mx-auto mb-4" />

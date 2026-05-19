@@ -16,15 +16,37 @@ export default function DashboardTab() {
     themeSwitchError, setThemeSwitchError,
     pronunciationNotes, setPronunciationNotes,
     grammarNotes, setGrammarNotes,
+    impromptuPassed,
     inlineNotice, noticeAnchor, setActiveTab
   } = useEnglishContext();
 
-  const handleStageChange = (newStage: '0-6' | '6-12') => {
-    setStage(newStage);
-    const options = getThemeOptions(newStage);
-    if (!options.find(o => o.value === theme)) {
+  const handleStageChange = async (newStage: '0-6' | '6-12') => {
+    // 核心修复：切回当前阶段时，不加限制并直接清理可能残留的弹窗
+    if (newStage === stage) {
       setThemeSwitchError(null);
-      setTheme(options[0].value);
+      return;
+    }
+    
+    // 堵住漏洞：切换阶段也会导致主题变更，必须执行强制拦截校验！
+    try {
+      const m = await checkThemeMastery(theme);
+      if (!m.isMastered) {
+        setThemeSwitchError(
+          `当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n• 沉浸式口语沙盘：${m.oralCount}/10 轮\n• L3 书面评估最高分：${m.maxWriteScore}/10 分（及格线: 8分）\n\n请把当前阵地打透再拔营。`
+        );
+        return;
+      }
+      
+      // 校验通过，放行阶段切换
+      setThemeSwitchError(null);
+      setStage(newStage);
+      const options = getThemeOptions(newStage);
+      if (!options.find(o => o.value === theme)) {
+        setTheme(options[0].value);
+        await setThemeFocus({ theme: options[0].value }).catch(() => {});
+      }
+    } catch {
+      setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。');
     }
   };
 
@@ -37,10 +59,19 @@ export default function DashboardTab() {
     showNotice('dashboard', '正在呼叫 AI 撰写长文...', 'info');
     try {
       const { runListenMaterialGenerator, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
-      const script = await runListenMaterialGenerator(theme);
+      const script = await runListenMaterialGenerator(theme, 'meeting', 'B1');
       showNotice('dashboard', '长文撰写完毕，正在提纯词汇...', 'info');
-      await triggerEnglishMasteryExtraction(theme, script, 'default-user');
-      showNotice('dashboard', '提取完成！今日弹药已入库', 'success');
+      const result = await triggerEnglishMasteryExtraction(theme, script, 'default-user');
+      // 定量校验提示（不阻塞流程，仅提示用户）
+      const wordCount = (result as any)?.wordCount || (result as any)?.words?.length || 0;
+      const phraseCount = (result as any)?.phraseCount || (result as any)?.phrases?.length || 0;
+      if (wordCount > 0 && wordCount < 50) {
+        showNotice('dashboard', `提取词汇 ${wordCount}/50，误差较大，建议重新生成`, 'info');
+      } else if (phraseCount > 0 && phraseCount < 30) {
+        showNotice('dashboard', `提取短语 ${phraseCount}/30，可适当补充`, 'info');
+      } else {
+        showNotice('dashboard', '提取完成！今日弹药已入库', 'success');
+      }
       playSuccess();
       setShowConfetti(true);
       window.dispatchEvent(new Event('vocab-updated'));
@@ -121,7 +152,11 @@ export default function DashboardTab() {
                   setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。');
                 }
               }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                // 核心修复：一旦用户重新点击下拉框（意图切回当前任务/阶段），立刻清理旧的红色拦截弹窗
+                setThemeSwitchError(null);
+              }}
               className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
             >
               {getThemeOptions(stage).map((o) => (
@@ -145,7 +180,7 @@ export default function DashboardTab() {
           </div>
           {!masteryData.isMastered && (
             <div className="text-[10px] text-gray-500 font-medium mt-2">
-              当前通关进度：口语对抗 {masteryData.oralCount}/10 轮 | L3 书面最高分 {masteryData.maxWriteScore}/8 分
+              当前通关进度：口语对抗 {masteryData.oralCount}/10 轮 | L3 书面最高分 {masteryData.maxWriteScore}/8 分 | 即兴演讲 {impromptuPassed ? '✅已达标' : '⚠️未达标'}
             </div>
           )}
         </div>

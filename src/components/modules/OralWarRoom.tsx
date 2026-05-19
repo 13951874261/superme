@@ -66,6 +66,11 @@ interface ParsedAiResponse {
   hidden_intent: unknown;
   flaw_point: unknown;
   evaluation: unknown;
+  // 四维反馈面板
+  feedback_pronunciation?: unknown;
+  feedback_vocab?: unknown;
+  feedback_role_switch?: unknown;
+  feedback_strategy?: unknown;
 }
 
 interface MessageItem {
@@ -203,25 +208,39 @@ export default function OralWarRoom({
   };
 
   const [activeSceneId, setActiveSceneId] = useState(() => {
-    if (embedded && sceneTheme && themeToSceneMap[sceneTheme]) {
-      return themeToSceneMap[sceneTheme];
+    if (embedded && sceneTheme) {
+      return themeToSceneMap[sceneTheme] || 'dynamic-scene';
     }
     return 'scene-1';
   });
 
   useEffect(() => {
-    if (embedded && sceneTheme && themeToSceneMap[sceneTheme]) {
-      const nextId = themeToSceneMap[sceneTheme];
+    if (embedded && sceneTheme) {
+      const nextId = themeToSceneMap[sceneTheme] || 'dynamic-scene';
       if (nextId !== activeSceneId) {
         setActiveSceneId(nextId);
         setMessages([]);
         setConversationId(null);
-        setLastNotice(`已根据全局指令切换战局。进入：${SCENE_DATABASE.find(s => s.id === nextId)?.title}`);
+        setLastNotice(`已根据全局指令切换战局。进入：${sceneTheme}`);
       }
     }
-  }, [embedded, sceneTheme]);
+  }, [embedded, sceneTheme, activeSceneId]);
 
-  const activeScene = useMemo(() => SCENE_DATABASE.find(s => s.id === activeSceneId)!, [activeSceneId]);
+  const activeScene = useMemo(() => {
+    if (activeSceneId === 'dynamic-scene') {
+      return {
+        id: 'dynamic-scene',
+        title: `当前阵地：${sceneTheme}`,
+        desc: `围绕核心阵地【${sceneTheme}】展开的高压口语对抗。`,
+        allies: [{ name: '业务助攻', label: '盟友', desc: '尝试推进流程' }],
+        blockers: [{ name: '施压方', label: '阻力', desc: '抛出尖锐问题' }],
+        neutrals: [{ name: '关键决策人', label: '中立', desc: '观察您的表现' }],
+        conflicts: [sceneTheme.split('：')[0] || sceneTheme],
+        culturalContext: '根据当前跨文化主题，精准把握商务分寸与情感张力。',
+      };
+    }
+    return SCENE_DATABASE.find(s => s.id === activeSceneId)!;
+  }, [activeSceneId, sceneTheme]);
 
   // 场景切换逻辑
   const handleSceneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -246,7 +265,8 @@ export default function OralWarRoom({
     const difficultyPrefix = diff === 'hardcore' ? '【全局指令：当前为极限施压模式，请在回复中表现出极强的压迫感、敌意与找破绽倾向，不可轻易让步。】\n' : '';
 
     if (messages.length === 0) {
-       apiPayload = `[系统隐性指令：切换场景 ${activeScene.title.split('：')[0].replace('场景', '')}]\n${difficultyPrefix}用户发言：${content}`;
+       const sceneNameForAI = activeSceneId === 'dynamic-scene' ? sceneTheme : activeScene.title.split('：')[0].replace('场景', '');
+       apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}]\n${difficultyPrefix}用户发言：${content}`;
     } else {
        apiPayload = `${difficultyPrefix}用户发言：${content}`;
     }
@@ -459,10 +479,31 @@ export default function OralWarRoom({
                             </div>
                           </div>
 
-                          <div className="mt-3 rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
-                            <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-2">Evaluation</div>
-                            <p className="text-sm text-emerald-900 leading-relaxed">{safeText(msg.parsed.evaluation)}</p>
-                          </div>
+                          {(() => {
+                            const feedbacks = [
+                              { key: 'feedback_pronunciation', label: '发音与语调', color: 'blue', fallback: msg.parsed.evaluation },
+                              { key: 'feedback_vocab', label: '高阶用语', color: 'purple', fallback: null },
+                              { key: 'feedback_role_switch', label: '角色切换', color: 'amber', fallback: null },
+                              { key: 'feedback_strategy', label: '谈判策略', color: 'rose', fallback: null },
+                            ];
+                            const validFeedbacks = feedbacks.map(f => ({ ...f, val: safeText((msg.parsed as any)[f.key] || f.fallback || '') })).filter(f => f.val);
+                            
+                            if (validFeedbacks.length === 0) return null;
+
+                            return (
+                              <div className="mt-3 rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
+                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-3">AI 多维反馈 // Multi-Dimensional Feedback</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {validFeedbacks.map(({ key, label, color, val }) => (
+                                    <div key={key} className={`rounded-xl bg-${color}-50 border border-${color}-100 p-3`}>
+                                      <div className={`text-[9px] font-black uppercase tracking-widest text-${color}-600 mb-1`}>{label}</div>
+                                      <p className={`text-xs text-${color}-900 leading-relaxed`}>{val}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </>
                       ) : (
                         <>

@@ -1,0 +1,116 @@
+
+A2Wq!app:
+  description: 即兴演讲专精评测 (Impromptu_Speech_Evaluation)
+  icon: 🎙️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Impromptu_Speech_Evaluation
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    retriever_resource:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: 'start_node'
+      sourceHandle: source
+      target: 'llm_node'
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-end
+      source: 'llm_node'
+      sourceHandle: source
+      target: 'end_node'
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        title: 开始
+        type: start
+        variables:
+        - label: theme
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: theme
+        - label: duration
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: duration
+        - label: transcript
+          required: true
+          type: paragraph
+          variable: transcript
+      id: 'start_node'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.1
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+          - role: system
+            text: '你是一位资深的高管英语外教，擅长从多个维度评估学生的即兴演讲表现。你的评估必须专业、严厉且一针见血，符合政商务场景要求。'
+          - role: user
+            text: "【即兴演讲评估任务】\n主题：{{#start_node.theme#}}\n演讲时长：{{#start_node.duration#}}\n演讲文本：\n{{#start_node.transcript#}}\n\n请从以下4个维度进行评估（满分10分），并给出总分：\n1. 逻辑连贯性（Logic & Coherence）\n2. 词汇丰富度（Vocabulary Range）\n3. 语言流利度（Fluency）\n4. 主题相关性（Topic Relevance）\n\n请严格仅以JSON格式返回，不要包含任何其他文字或Markdown标记，格式如下：\n{\"total_score\": 7.5, \"logic\": 8.0, \"vocabulary\": 7.0, \"fluency\": 7.5, \"relevance\": 8.0, \"feedback\": \"总体点评...\"}"
+        title: LLM 深度评测
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      id: 'llm_node'
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: false
+      type: custom
+    - data:
+        outputs:
+        - value_selector:
+          - 'llm_node'
+          - text
+          variable: result
+        title: 结束
+        type: end
+      id: 'end_node'
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom

@@ -6,74 +6,175 @@ app:
   mode: workflow
   name: English_Word_Enricher
   use_icon_as_answer_icon: false
-kind: app
-version: 0.1.2
 dependencies:
-  - current_identifier: null
-    type: marketplace
-    value:
-      marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
-      version: null
+- current_identifier:
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: 
+      langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    version:
+kind: app
+version: 0.6.0
 workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
   graph:
     edges:
-      - data: {isInIteration: false, sourceType: start, targetType: llm}
-        id: start-llm
-        source: start
-        sourceHandle: source
-        target: llm
-        targetHandle: target
-        type: custom
-      - data: {isInIteration: false, sourceType: llm, targetType: answer}
-        id: llm-answer
-        source: llm
-        sourceHandle: source
-        target: end
-        targetHandle: target
-        type: custom
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: start-llm
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: answer
+      id: llm-answer
+      source: llm
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
     nodes:
-      - data:
-          title: 开始
-          type: start
-          variables:
-            - {max_length: 256, required: true, type: text-input, variable: target_word}
-        id: start
-        position: {x: 80, y: 200}
-        type: custom
-      - data:
-          context: {enabled: false, variable_selector: []}
-          model: {completion_params: {temperature: 0.1}, mode: chat, name: claude-opus-4-7, provider: openai_api_compatible}
-          prompt_template:
-            - id: system
-              role: system
-              text: |
-                你是一个跨国企业的高管词典引擎。用户提供一个截获的生词/短语。
-                请直接输出该词的情报，必须是合法的纯 JSON 格式（绝不可包含 ```json 等 Markdown 标记）。
-                
-                目标词汇：{{#start.target_word#}}
-                
-                返回格式严格如下：
-                {
-                  "meaning": "简明扼要的中文直译",
-                  "phonetic": "音标",
-                  "partOfSpeech": "词性(如 n. / v. / adj.)",
-                  "definition_en": "英英词典级别的精准商业定义",
-                  "business_note": "它在外企/体制内商务沟通中的潜台词或运用禁忌",
-                  "examples": [
-                    "例句1(英文) - 中文翻译",
-                    "例句2(英文) - 中文翻译"
-                  ]
-                }
-          title: 情报解密核心
-          type: llm
-        id: llm
-        position: {x: 380, y: 200}
-        type: custom
-      - data:
-          outputs:
-            - {value_selector: [llm, text], variable: result}
-          title: 结束
-          type: end
-        id: end
-        position: {x: 680, y: 200}
-        type: custom
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: target_word
+          max_length: 256
+          required: true
+          type: text-input
+          variable: target_word
+        - default: ''
+          hint: ''
+          label: 阵地主题(theme)
+          max_length: 256
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: theme
+      height: 109
+      id: start
+      position:
+        x: 79
+        y: 200
+      positionAbsolute:
+        x: 79
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.1
+          mode: chat
+          name: '109'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system
+          role: system
+          text: "你是一个跨国企业的高管词典引擎。用户提供一个截获的生词/短语。\n请直接输出该词的情报，必须是合法的纯 JSON 格式（绝不可包含
+            ```json 等 Markdown 标记）。\n\n目标词汇：{{#start.target_word#}}\n\n返回格式严格如下：\n\
+            {\n  \"meaning\": \"简明扼要的中文直译\",\n  \"phonetic\": \"音标\",\n  \"partOfSpeech\"\
+            : \"词性(如 n. / v. / adj.)\",\n  \"definition_en\": \"英英词典级别的精准商业定义\",\n\
+            \  \"business_note\": \"它在外企/体制内商务沟通中的潜台词或运用禁忌\",\n  \"examples\": [\n\
+            \    \"例句1(英文) - 中文翻译\",\n    \"例句2(英文) - 中文翻译\"\n  ]\n}\n\n\n【系统隐性约束】：请结合【{{start.theme#}}】这一特定场景，为用户提取单词释义。特别是在生成
+            business_note 时，必须给出该词在【{{start.theme#}}】中的地道用法和潜在陷阱。"
+        selected: true
+        title: 情报解密核心
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 379
+        y: 200
+      positionAbsolute:
+        x: 379
+        y: 200
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: end
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      type: custom
+      width: 242
+    viewport:
+      x: -480
+      y: 107
+      zoom: 1
+  rag_pipeline_variables: []
