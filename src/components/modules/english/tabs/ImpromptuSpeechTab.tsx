@@ -1,10 +1,30 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star } from 'lucide-react';
+import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
 
 const MAX_SECONDS = 300; // 5分钟上限
+
+interface SpeechPrompterResult {
+  outline: {
+    opening: string;
+    main_points: string[];
+    closing: string;
+  };
+  key_arguments: Array<{ point: string; evidence: string; transition: string }>;
+  useful_phrases: {
+    openings: string[];
+    transitions: string[];
+    emphasizing: string[];
+    conclusions: string[];
+  };
+  mindmap: {
+    center: string;
+    branches: Array<{ title: string; keywords: string[] }>;
+  };
+  tips: string[];
+}
 
 export default function ImpromptuSpeechTab() {
   const { theme, impromptuPassed, setImpromptuPassed, masteryData, showNotice, inlineNotice, noticeAnchor } = useEnglishContext();
@@ -13,8 +33,26 @@ export default function ImpromptuSpeechTab() {
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [evalResult, setEvalResult] = useState<{ score: number; logic: number; vocabulary: number; fluency: number; relevance: number; feedback: string } | null>(null);
+  const [evalResult, setEvalResult] = useState<{
+    score: number;
+    logic: number;
+    vocabulary: number;
+    fluency: number;
+    relevance: number;
+    feedback: string;
+    structure?: number;
+    improvement_suggestions?: string[];
+    audio_features?: { estimated_pace: string; estimated_clarity: string; estimated_confidence: string };
+  } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
+
+  // 音频录制相关
+  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoadingPrompter, setIsLoadingPrompter] = useState(false);
+  const [showPrompter, setShowPrompter] = useState(false);
+  const [prompterResult, setPrompterResult] = useState<SpeechPrompterResult | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -22,10 +60,16 @@ export default function ImpromptuSpeechTab() {
   const accumulatedTranscriptRef = useRef('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // 音频录制 refs
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioPlaybackRef = useRef<HTMLAudioElement | null>(null);
+
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       recognitionRef.current?.stop();
+      if (audioUrl) URL.revokeObjectURL(audioUrl);
     };
   }, []);
 
@@ -36,21 +80,97 @@ export default function ImpromptuSpeechTab() {
     }
   }, [transcript]);
 
+  // 加载主题提示
+  const loadPrompter = async () => {
+    if (prompterResult) {
+      setShowPrompter(!showPrompter);
+      return;
+    }
+    setIsLoadingPrompter(true);
+    try {
+      const { runSpeechPrompter } = await import('../../../../services/difyAPI');
+      const result = await runSpeechPrompter(theme, '中等');
+      setPrompterResult(result);
+      setShowPrompter(true);
+    } catch (err: any) {
+      showNotice('oral', `提示词加载失败: ${err.message}`, 'error');
+    } finally {
+      setIsLoadingPrompter(false);
+    }
+  };
+
+  const startAudioRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        setAudioBlob(blob);
+        const url = URL.createObjectURL(blob);
+        setAudioUrl(url);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+    } catch (err) {
+      console.warn('音频录制初始化失败:', err);
+    }
+  };
+
+  const stopAudioRecording = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+  };
+
+  const togglePlayback = () => {
+    if (!audioUrl) return;
+    if (!audioPlaybackRef.current) {
+      audioPlaybackRef.current = new Audio(audioUrl);
+      audioPlaybackRef.current.onended = () => setIsPlaying(false);
+    }
+    if (isPlaying) {
+      audioPlaybackRef.current.pause();
+    } else {
+      audioPlaybackRef.current.play();
+    }
+    setIsPlaying(!isPlaying);
+  };
+
+  const resetAudio = () => {
+    if (audioPlaybackRef.current) {
+      audioPlaybackRef.current.pause();
+      audioPlaybackRef.current = null;
+    }
+    setIsPlaying(false);
+    setAudioUrl(null);
+    setAudioBlob(null);
+  };
+
   const startRecording = (isContinue = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       showNotice('oral', '当前浏览器不支持语音识别（建议使用 Chrome）', 'error');
       return;
     }
-    
+
     manualStopRef.current = false;
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
-    
+
     let sessionFinalText = '';
-    
+
     recognition.onresult = (event: any) => {
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -59,7 +179,7 @@ export default function ImpromptuSpeechTab() {
       }
       setTranscript(accumulatedTranscriptRef.current + sessionFinalText + interim);
     };
-    
+
     recognition.onerror = (event: any) => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         showNotice('oral', `麦克风权限被拒: ${event.error}`, 'error');
@@ -71,7 +191,7 @@ export default function ImpromptuSpeechTab() {
 
     recognition.onstart = () => {
       setIsEngineReady(true);
-      // 只有引擎真正在云端就绪，才启动倒计时走字
+      startAudioRecording();
       if (!timerRef.current) {
         timerRef.current = setInterval(() => {
           setElapsed(prev => {
@@ -86,10 +206,8 @@ export default function ImpromptuSpeechTab() {
     };
 
     recognition.onend = () => {
-      // 彻底销毁旧实例成果并沉淀入库，切断闭包陷阱
       accumulatedTranscriptRef.current += sessionFinalText;
-      
-      // 防止 race condition：只有当它仍然是当前激活的实例，且不是用户主动停止时，才执行金蝉脱壳
+
       if (!manualStopRef.current && recognitionRef.current === recognition) {
         startRecording(true);
       }
@@ -98,19 +216,21 @@ export default function ImpromptuSpeechTab() {
     recognitionRef.current = recognition;
     recognition.start();
     setIsRecording(true);
-    
+
     if (!isContinue) {
       setElapsed(0);
       setTranscript('');
       accumulatedTranscriptRef.current = '';
       setEvalResult(null);
       setIsEngineReady(false);
+      resetAudio();
     }
   };
 
   const stopRecording = () => {
     manualStopRef.current = true;
     recognitionRef.current?.stop();
+    stopAudioRecording();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -124,8 +244,12 @@ export default function ImpromptuSpeechTab() {
       showNotice('oral', '请先完成演讲录音', 'error');
       return;
     }
-    if (elapsed < 60) {
-      showNotice('oral', '演讲时长需超过 1 分钟，请继续录音', 'error');
+    if (elapsed < 300) {
+      const remaining = 300 - elapsed;
+      const remMin = Math.floor(remaining / 60);
+      const remSec = remaining % 60;
+      const remStr = remMin > 0 ? `${remMin} 分 ${remSec} 秒` : `${remSec} 秒`;
+      showNotice('oral', `演讲时长需达到 5 分钟，还差 ${remStr}，请继续录音`, 'error');
       return;
     }
     setIsEvaluating(true);
@@ -133,16 +257,16 @@ export default function ImpromptuSpeechTab() {
     try {
       const { runImpromptuSpeechEvaluation } = await import('../../../../services/difyAPI');
       const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
-      
+
       const res = await runImpromptuSpeechEvaluation(theme, durationStr, transcript);
-      
+
       const score = Number(res.total_score || 0);
-      setEvalResult({ 
-        score, 
-        logic: Number(res.logic || 0), 
-        vocabulary: Number(res.vocabulary || 0), 
-        fluency: Number(res.fluency || 0), 
-        relevance: Number(res.relevance || 0), 
+      setEvalResult({
+        score,
+        logic: Number(res.logic || 0),
+        vocabulary: Number(res.vocabulary || 0),
+        fluency: Number(res.fluency || 0),
+        relevance: Number(res.relevance || 0),
         feedback: String(res.feedback || '')
       });
       if (score >= 8) {
@@ -169,6 +293,7 @@ export default function ImpromptuSpeechTab() {
     setEvalResult(null);
     setIsEngineReady(false);
     manualStopRef.current = false;
+    resetAudio();
   };
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -177,7 +302,7 @@ export default function ImpromptuSpeechTab() {
   return (
     <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out] relative">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
-      
+
       {inlineNotice && noticeAnchor === 'oral' && (
         <div className={`absolute left-1/2 -translate-x-1/2 top-4 z-50 rounded-xl px-5 py-2.5 text-[11px] font-black tracking-widest uppercase shadow-2xl border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
           {inlineNotice.text}
@@ -192,7 +317,7 @@ export default function ImpromptuSpeechTab() {
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-violet-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
           <div className="text-[13px] text-violet-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
-            <div><span className="font-black text-violet-600 mr-2">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 1 分钟的即兴脱稿演讲。结束后提交 AI 评测。</div>
+            <div><span className="font-black text-violet-600 mr-2">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>5 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</div>
             <div><span className="font-black text-violet-600 mr-2">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</div>
             <div><span className="font-black text-violet-600 mr-2">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</div>
           </div>
@@ -227,7 +352,7 @@ export default function ImpromptuSpeechTab() {
                   {!isRecording ? 'STANDBY' : (isEngineReady ? 'REC' : 'CONNECTING')}
                 </span>
               </div>
-              <div className={`text-3xl font-black font-mono tabular-nums ${elapsed > 240 ? 'text-emerald-400' : elapsed > 60 ? 'text-amber-400' : 'text-gray-400'}`}>
+              <div className={`text-3xl font-black font-mono tabular-nums ${elapsed >= 300 ? 'text-emerald-400' : elapsed >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
                 {formatTime(elapsed)}
               </div>
             </div>
@@ -243,14 +368,38 @@ export default function ImpromptuSpeechTab() {
 
           {/* 实时转录 */}
           {(isRecording || transcript) && (
-            <div 
+            <div
               ref={scrollRef}
-              className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6 min-h-[80px] max-h-[160px] overflow-y-auto scroll-smooth"
+              className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-4 min-h-[80px] max-h-[160px] overflow-y-auto scroll-smooth"
             >
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">实时转录 (Live Transcript)</span>
               <p className={`text-sm leading-relaxed ${!transcript && isRecording && !isEngineReady ? 'text-yellow-500/80 animate-pulse font-bold' : 'text-gray-200'}`}>
                 {transcript || (isRecording ? (isEngineReady ? '🎙️ 正在录音，请开始发言...' : '⏳ 正在打通云端音频流，请稍候...') : '等待您的发言...')}
               </p>
+            </div>
+          )}
+
+          {/* 音频回放区 */}
+          {audioUrl && !isRecording && (
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6">
+              <div className="flex items-center gap-4">
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">录音回放</span>
+                <button
+                  onClick={togglePlayback}
+                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
+                >
+                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {isPlaying ? '暂停' : '播放'}
+                </button>
+                <button
+                  onClick={resetAudio}
+                  className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors px-3 py-2 rounded-xl text-xs font-black cursor-pointer"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  清除
+                </button>
+              </div>
+              <audio ref={audioPlaybackRef} src={audioUrl} onEnded={() => setIsPlaying(false)} className="hidden" />
             </div>
           )}
 
@@ -280,7 +429,31 @@ export default function ImpromptuSpeechTab() {
               {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin" /> AI 评测中...</> : '提交 AI 评测 ➔'}
             </button>
           </div>
-          
+
+          {/* 主题提示按钮 */}
+          {!isRecording && !evalResult && (
+            <div className="mt-4 flex justify-between items-center">
+              <button
+                onClick={loadPrompter}
+                disabled={isLoadingPrompter}
+                className="flex items-center gap-2 text-amber-400 hover:text-amber-300 transition-colors text-xs font-black uppercase tracking-widest cursor-pointer disabled:opacity-50"
+              >
+                {isLoadingPrompter ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Lightbulb className="w-4 h-4" />
+                )}
+                {isLoadingPrompter ? '加载提示...' : '演讲提示'}
+              </button>
+              <button
+                onClick={handleReset}
+                className="flex items-center gap-2 text-violet-300 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" /> 重置
+              </button>
+            </div>
+          )}
+
           {/* 新增：开启下一个演讲 */}
           {!isRecording && evalResult && (
             <div className="mt-4 flex justify-end">
@@ -295,7 +468,103 @@ export default function ImpromptuSpeechTab() {
         </div>
       </div>
 
-      {/* 评测结果 */}
+      {/* 主题提示面板 */}
+      {showPrompter && prompterResult && (
+        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out]">
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-black uppercase tracking-widest text-amber-800 flex items-center gap-2">
+              <Lightbulb className="w-5 h-5 text-amber-500" />
+              演讲准备提示
+            </h4>
+            <button
+              onClick={() => setShowPrompter(false)}
+              className="text-amber-600 hover:text-amber-800 cursor-pointer"
+            >
+              <ChevronUp className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {/* 思维导图 */}
+            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">思维导图</h5>
+              <div className="flex flex-wrap gap-2">
+                <span className="bg-amber-500 text-white px-3 py-1.5 rounded-full text-xs font-black">
+                  {prompterResult.mindmap.center}
+                </span>
+                {prompterResult.mindmap.branches.map((branch, i) => (
+                  <div key={i} className="flex flex-wrap gap-1 items-center">
+                    <span className="text-amber-600">→</span>
+                    <div className="flex flex-col gap-1">
+                      <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-bold">{branch.title}</span>
+                      <div className="flex flex-wrap gap-1">
+                        {branch.keywords.map((kw, j) => (
+                          <span key={j} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px]">{kw}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 演讲结构 */}
+            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">演讲结构</h5>
+              <div className="space-y-2 text-xs">
+                <div><span className="font-black text-amber-600">开场：</span>{prompterResult.outline.opening}</div>
+                <div className="ml-4 space-y-1">
+                  {prompterResult.outline.main_points.map((p, i) => (
+                    <div key={i} className="flex gap-2"><span className="text-amber-400">•</span>{p}</div>
+                  ))}
+                </div>
+                <div><span className="font-black text-amber-600">结尾：</span>{prompterResult.outline.closing}</div>
+              </div>
+            </div>
+
+            {/* 实用短语 */}
+            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">实用短语</h5>
+              <div className="grid grid-cols-2 gap-4 text-[11px]">
+                <div>
+                  <span className="font-black text-emerald-600 block mb-1">开场</span>
+                  {prompterResult.useful_phrases.openings.map((p, i) => (
+                    <div key={i} className="text-gray-600 mb-1">{p}</div>
+                  ))}
+                </div>
+                <div>
+                  <span className="font-black text-blue-600 block mb-1">过渡</span>
+                  {prompterResult.useful_phrases.transitions.map((p, i) => (
+                    <div key={i} className="text-gray-600 mb-1">{p}</div>
+                  ))}
+                </div>
+                <div>
+                  <span className="font-black text-purple-600 block mb-1">强调</span>
+                  {prompterResult.useful_phrases.emphasizing.map((p, i) => (
+                    <div key={i} className="text-gray-600 mb-1">{p}</div>
+                  ))}
+                </div>
+                <div>
+                  <span className="font-black text-orange-600 block mb-1">结尾</span>
+                  {prompterResult.useful_phrases.conclusions.map((p, i) => (
+                    <div key={i} className="text-gray-600 mb-1">{p}</div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 小贴士 */}
+            <div className="bg-amber-100/50 rounded-xl p-3 border border-amber-200">
+              <div className="flex gap-2 flex-wrap">
+                {prompterResult.tips.map((tip, i) => (
+                  <span key={i} className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-full">💡 {tip}</span>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 评测结果 */}
       {evalResult && (
         <div className={`rounded-[2rem] p-8 border-2 animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
@@ -329,6 +598,23 @@ export default function ImpromptuSpeechTab() {
                   </div>
                 </div>
               ))}
+              {/* 音频特征（如果有） */}
+              {evalResult.audio_features && (
+                <div className="col-span-2 bg-amber-50/50 rounded-2xl p-3 border border-amber-200">
+                  <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-2">音频特征</div>
+                  <div className="flex gap-3 text-[10px]">
+                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                      语速: {evalResult.audio_features.estimated_pace}
+                    </span>
+                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                      清晰度: {evalResult.audio_features.estimated_clarity}
+                    </span>
+                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                      自信度: {evalResult.audio_features.estimated_confidence}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 名师点评 */}
@@ -341,7 +627,21 @@ export default function ImpromptuSpeechTab() {
                   {evalResult.feedback}
                 </p>
               </div>
-              
+
+              {/* 改进建议 */}
+              {evalResult.improvement_suggestions && evalResult.improvement_suggestions.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">改进建议</div>
+                  <div className="flex flex-wrap gap-2">
+                    {evalResult.improvement_suggestions.map((s, i) => (
+                      <span key={i} className="text-[11px] text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+                        → {s}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {evalResult.score < 8 && (
                 <div className="mt-6 inline-flex items-center gap-2 bg-red-100/80 text-red-700 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-200/50 self-start">
                   ⚠️ 未达标 (8分及格线) — 请重置开启新一轮挑战

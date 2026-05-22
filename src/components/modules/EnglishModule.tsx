@@ -81,9 +81,5 @@ function EnglishModuleContent() {
 }
 
 export default function EnglishModule() {
-  return (
-    <EnglishProvider>
-      <EnglishModuleContent />
-    </EnglishProvider>
-  );
+  return <EnglishModuleContent />;
 }

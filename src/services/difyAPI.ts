@@ -367,26 +367,38 @@ async function fileToBase64Content(file: File): Promise<string> {
 }
 
 export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user') {
-  const payloadFiles = await Promise.all(files.map(async file => ({
-    fileName: file.name,
-    mimeType: file.type || 'application/octet-stream',
-    base64Content: await fileToBase64Content(file),
-    sourceName: file.name,
-  })));
+  // 将前端 File 对象转为 Base64 传递给后端的统一提纯路由
+  const filePayloads = await Promise.all(
+    files.map(async (f) => {
+      const base64Content = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+        reader.onerror = () => reject(new Error('前端文件读取失败'));
+        reader.readAsDataURL(f);
+      });
+      return {
+        fileName: f.name,
+        content: base64Content
+      };
+    })
+  );
 
   const response = await fetch('/api/material/process-and-extract', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ topic, userId, files: payloadFiles }),
+    body: JSON.stringify({
+      files: filePayloads,
+      topic,
+      userId
+    })
   });
 
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || !data?.success) {
-    const error = new Error(data?.error || data?.message || '上传并提纯失败');
-    (error as Error & { logs?: string[] }).logs = data?.logs || [];
-    throw error;
+  if (!response.ok) {
+    throw new Error(data?.error || data?.message || '提纯流水线执行失败，请检查后端状态');
   }
-  return data as { success: true; topic: string; total: number; results: any[]; logs: string[] };
+
+  return data;
 }
 
 export async function triggerEnglishMasteryExtraction(topic: string, materialText = '', userId = 'default-user') {
@@ -747,7 +759,12 @@ export async function runImpromptuSpeechEvaluation(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { theme, duration, transcript },
+      inputs: { 
+        theme, 
+        duration, 
+        target_text: transcript, // 为了兼容同一个发音纠正工作流的硬性校验
+        recognized_text: transcript // Dify 工作流强制要求该字段
+      },
       response_mode: 'blocking',
       user: userId,
     }),
@@ -763,5 +780,267 @@ export async function runImpromptuSpeechEvaluation(
   } catch (e) {
     console.error('解析即兴演讲评测结果失败:', e, data);
     throw new Error('AI 返回数据格式异常，无法提取四维分数');
+  }
+}
+
+// ── 发音纠正相关接口 ─────────────────────────────────────────
+
+/** Dify audio-to-text 接口返回结果 */
+export interface AudioToTextResult {
+  text: string;
+  task_id?: string;
+}
+
+/**
+ * 步骤1: 调用 Dify audio-to-text 接口将音频转为英文文本
+ * @param audioFile 录音文件 (Blob/File)
+ * @param userId 用户ID
+ * @returns 识别出的英文文本
+ */
+export async function audioToText(audioFile: Blob, userId = 'default-user'): Promise<AudioToTextResult> {
+  const apiKey = import.meta.env.VITE_DIFY_STT_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_STT_API_KEY');
+
+  const formData = new FormData();
+  formData.append('file', audioFile, 'audio.wav');
+  formData.append('user', userId);
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/audio-to-text`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`语音识别失败 (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  return {
+    text: typeof data.text === 'string' ? data.text.trim() : '',
+    task_id: data.task_id,
+  };
+}
+
+/** 发音纠正结果 - 结构化格式 */
+export interface PronunciationAssessmentResult {
+  score: number;
+  phonetic?: string;
+  issueType?: string;
+  analysis?: string;
+  suggestion?: string;
+  correctionNote?: string;
+  corrections?: string[];
+  target_text: string;
+  recognized_text: string;
+}
+
+/**
+ * 步骤2: 调用发音纠正工作流
+ * @param targetText 用户输入的目标单词/句子
+ * @param recognizedText 语音识别返回的文本
+ * @param userId 用户ID
+ * @returns 发音纠正结果
+ */
+export async function runPronunciationAssessment(
+  targetText: string,
+  recognizedText: string,
+  userId = 'default-user'
+): Promise<PronunciationAssessmentResult> {
+  // 通过后端代理调用 Dify 发音纠正工作流
+  const res = await fetch(`/api/pronunciation-assessment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      targetText,
+      recognizedText,
+      userId,
+    }),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`发音纠正请求失败 (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  
+  try {
+    const rawResult = data?.data?.outputs?.result 
+      ?? data?.data?.outputs 
+      ?? data?.answer 
+      ?? data?.message 
+      ?? data;
+    
+    // 尝试提取 JSON
+    const rawText = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        score: typeof parsed.score === 'number' ? parsed.score : (typeof parsed.total_score === 'number' ? parsed.total_score : 0),
+        analysis: typeof parsed.analysis === 'string' ? parsed.analysis : (typeof parsed.feedback === 'string' ? parsed.feedback : (typeof parsed.evaluation === 'string' ? parsed.evaluation : '')),
+        suggestion: typeof parsed.suggestion === 'string' ? parsed.suggestion : '',
+        corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
+        target_text: targetText,
+        recognized_text: recognizedText,
+      };
+    }
+    
+    // 如果没有 JSON 结构，返回原始结果
+    return {
+      score: 0,
+      analysis: rawText || '无法解析评测结果',
+      corrections: [],
+      target_text: targetText,
+      recognized_text: recognizedText,
+    };
+  } catch (e) {
+    console.error('解析发音纠正结果失败:', e, data);
+    throw new Error('发音纠正结果解析失败');
+  }
+}
+
+// ── 即兴演讲增强功能 ─────────────────────────────────────────
+
+/** 即兴演讲提示词生成结果 */
+export interface SpeechPrompterResult {
+  outline: {
+    opening: string;
+    main_points: string[];
+    closing: string;
+  };
+  key_arguments: Array<{
+    point: string;
+    evidence: string;
+    transition: string;
+  }>;
+  useful_phrases: {
+    openings: string[];
+    transitions: string[];
+    emphasizing: string[];
+    conclusions: string[];
+  };
+  mindmap: {
+    center: string;
+    branches: Array<{ title: string; keywords: string[] }>;
+  };
+  tips: string[];
+}
+
+/**
+ * 获取即兴演讲主题提示词
+ * @param theme 演讲主题
+ * @param difficulty 难度级别：基础/中等/进阶
+ */
+export async function runSpeechPrompter(
+  theme: string,
+  difficulty: '基础' | '中等' | '进阶' = '中等',
+  userId = 'default-user'
+): Promise<SpeechPrompterResult> {
+  const apiKey = import.meta.env.VITE_DIFY_SPEECH_PROMPTER_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_PROMPTER_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { theme, difficulty },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '生成提示词失败');
+
+  try {
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? '';
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson) as SpeechPrompterResult;
+  } catch (e) {
+    console.error('解析提示词结果失败:', e, data);
+    throw new Error('AI 返回提示词格式异常');
+  }
+}
+
+/** 即兴演讲增强评测结果 */
+export interface EnhancedSpeechEvalResult {
+  total_score: number;
+  logic: number;
+  vocabulary: number;
+  fluency: number;
+  relevance: number;
+  structure: number;
+  feedback: string;
+  improvement_suggestions: string[];
+  audio_features: {
+    estimated_pace: string;
+    estimated_clarity: string;
+    estimated_confidence: string;
+  };
+}
+
+/**
+ * 即兴演讲增强评测（支持音频上传）
+ * @param theme 演讲主题
+ * @param durationMinutes 时长（分钟）
+ * @param audioFile 音频文件
+ */
+export async function runEnhancedSpeechEvaluation(
+  theme: string,
+  durationMinutes: string,
+  audioFile: File | Blob,
+  userId = 'default-user'
+): Promise<EnhancedSpeechEvalResult> {
+  const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EVAL_API_KEY');
+
+  const formData = new FormData();
+  formData.append('file', audioFile, 'speech_audio.webm');
+  formData.append('user', userId);
+  formData.append('inputs', JSON.stringify({ theme, duration_minutes: durationMinutes }));
+  formData.append('response_mode', 'blocking');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '增强评测失败');
+
+  try {
+    const outputs = data?.data?.outputs ?? {};
+    return {
+      total_score: Number(outputs.total_score || 0),
+      logic: Number(outputs.logic || 0),
+      vocabulary: Number(outputs.vocabulary || 0),
+      fluency: Number(outputs.fluency || 0),
+      relevance: Number(outputs.relevance || 0),
+      structure: Number(outputs.structure || 0),
+      feedback: String(outputs.feedback || ''),
+      improvement_suggestions: Array.isArray(outputs.improvement_suggestions) ? outputs.improvement_suggestions : [],
+      audio_features: outputs.audio_features || {
+        estimated_pace: 'moderate',
+        estimated_clarity: 'good',
+        estimated_confidence: 'high',
+      },
+    };
+  } catch (e) {
+    console.error('解析增强评测结果失败:', e, data);
+    throw new Error('增强评测结果解析失败');
   }
 }

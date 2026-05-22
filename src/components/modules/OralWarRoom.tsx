@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users } from 'lucide-react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, BookPlus, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
 import { sendOralChatMessage } from '../../services/difyAPI';
 import { createTrainingAttempt } from '../../services/trainingAPI';
+import { addWord } from '../../services/vocabAPI';
 
 // === 5 大高压场景字典 ===
 const SCENE_DATABASE = [
@@ -124,6 +125,49 @@ export default function OralWarRoom({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [lastNotice, setLastNotice] = useState('沙盘已就绪，输入你的开场白。');
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // ── 划线取词入库 state ────────────────────────────────────
+  const [highlightedWord, setHighlightedWord] = useState('');
+  const [highlightPos, setHighlightPos] = useState<{ x: number; y: number } | null>(null);
+  const [isAddingWord, setIsAddingWord] = useState(false);
+  const [addWordResult, setAddWordResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const sceneThemeRef = useRef(sceneTheme);
+  useEffect(() => { sceneThemeRef.current = sceneTheme; }, [sceneTheme]);
+
+  const handleDialogueMouseUp = () => {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const text = sel.toString().trim();
+    if (text.length >= 2 && text.length <= 60 && /^[a-zA-Z\s\-',.]+$/.test(text) && text.split(/\s+/).length <= 5) {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      setHighlightedWord(text);
+      setHighlightPos({ x: rect.left + rect.width / 2, y: rect.top - 52 });
+      setAddWordResult(null);
+    }
+  };
+
+  const handleAddHighlightedWord = async () => {
+    if (!highlightedWord || isAddingWord) return;
+    setIsAddingWord(true);
+    try {
+      await addWord({
+        word: highlightedWord,
+        dictType: 'oral-highlight',
+        category: 'general',
+        payload: { source: 'oral_warroom', theme: sceneThemeRef.current },
+      });
+      window.dispatchEvent(new Event('vocab-updated'));
+      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已划线入库` });
+      setTimeout(() => { setHighlightedWord(''); setHighlightPos(null); setAddWordResult(null); }, 2000);
+    } catch {
+      setAddWordResult({ ok: false, msg: '入库失败，请重试' });
+      setTimeout(() => { setAddWordResult(null); }, 2000);
+    } finally {
+      setIsAddingWord(false);
+    }
+  };
+  // ─────────────────────────────────────────────────────────
 
   // ── 语音引擎 & 高压倒计时 ─────────────────────────────────
   const [isRecording, setIsRecording] = useState(false);
@@ -463,9 +507,33 @@ export default function OralWarRoom({
                           <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 mb-3">
                             <div className="flex items-center justify-between gap-3 mb-2">
                               <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">Dialogue</p>
-                              <SpeakButton text={safeText(msg.parsed.dialogue)} title="播放 AI 英文发言" />
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
+划
+选
+词
+汇
+可
+入
+库
+</span>
+                                <SpeakButton text={safeText(msg.parsed.dialogue)} title="
+播
+放
+ AI 
+英
+文
+发
+言
+" />
+                              </div>
                             </div>
-                            <p className="text-sm leading-relaxed text-[#202124] italic">“{safeText(msg.parsed.dialogue)}”</p>
+                            <p
+                              className="text-sm leading-relaxed text-[#202124] italic select-text cursor-text"
+                              onMouseUp={handleDialogueMouseUp}
+                            >
+“{safeText(msg.parsed.dialogue)}”
+</p>
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -590,6 +658,27 @@ export default function OralWarRoom({
           </div>
         </section>
       </div>
+
+
+      {/* 口语沙盘区：划线取词悬浮入库组件 */}
+      {highlightPos && highlightedWord && (
+        <div
+          style={{ position: "fixed", left: highlightPos.x, top: highlightPos.y, zIndex: 9999, transform: "translateX(-50%)" }}
+        >
+          {addWordResult ? (
+            <span className={`text-xs font-black tracking-widest px-4 py-2.5 rounded-xl border shadow-xl ${addWordResult.ok ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-red-700 bg-red-50 border-red-200"}`}>{addWordResult.msg}</span>
+          ) : (
+            <div className="flex items-center gap-2 bg-[#202124] text-white px-4 py-2.5 rounded-xl border border-gray-700 shadow-2xl animate-[fadeIn_0.15s_ease-out]">
+              <BookPlus className="w-4 h-4 text-[#FF5722]" />
+              <button
+                onMouseDown={(e) => { e.preventDefault(); handleAddHighlightedWord(); }}
+                className="text-xs font-black uppercase tracking-widest hover:text-[#FF5722] transition-colors cursor-pointer"
+              >{isAddingWord ? "入库中.." : ("截获 " + JSON.stringify(highlightedWord.slice(0, 20) + (highlightedWord.length > 20 ? ".." : "")))}</button>
+              <button onMouseDown={(e) => { e.preventDefault(); setHighlightedWord(""); setHighlightPos(null); }} className="text-gray-400 hover:text-white text-sm ml-1 cursor-pointer">x</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 

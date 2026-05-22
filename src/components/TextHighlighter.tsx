@@ -80,6 +80,11 @@ export default function TextHighlighter() {
       const existedMessage = created?.success === false ? '（已自动更新释义）' : '';
       setSaveResult({ message: `战术词汇「${targetWord}」已存入全场景区！${existedMessage}`, isError: false });
       
+      // 触发右侧 30% 视窗自动弹出并显示该词详情
+      window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+        detail: { open: true, tab: 'context', wordData: payload }
+      }));
+
       // 触发高端烟花效果
       confetti({
         particleCount: 120,
