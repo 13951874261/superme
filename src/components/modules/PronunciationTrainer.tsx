@@ -1,11 +1,22 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Mic, Loader2, History, ChevronDown } from 'lucide-react';
+import { Mic, Loader2, History, ChevronDown, CheckCircle, AlertCircle, Volume2 } from 'lucide-react';
 import { transcribeAudio } from '../../services/listeningAPI';
 
 interface PronunciationTrainerProps {
   initialNotes: string;
   onNotesChange: (notes: string) => void;
   userId?: string;
+}
+
+interface AssessmentResult {
+  score: number;
+  phonetic?: string;
+  issueType?: string;
+  analysis?: string;
+  suggestion?: string;
+  correctionNote?: string;
+  target_text: string;
+  recognized_text: string;
 }
 
 export default function PronunciationTrainer({ initialNotes, onNotesChange, userId = 'default-user' }: PronunciationTrainerProps) {
@@ -16,6 +27,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
   const [toast, setToast] = useState<{show: boolean, message: string}>({show: false, message: ''});
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [lastResult, setLastResult] = useState<AssessmentResult | null>(null);
 
   const showToast = (message: string) => {
     setToast({ show: true, message });
@@ -105,6 +117,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
 
   const handleAssessment = async (audioBlob: Blob) => {
     setIsAssessing(true);
+    setLastResult(null);
     try {
       const recognizedText = await transcribeAudio(audioBlob);
 
@@ -125,7 +138,26 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
         throw new Error(data.error || '发音诊断失败');
       }
 
-      const newNote = `[${new Date().toLocaleTimeString()}] 目标: ${targetText}\n实际识别: ${recognizedText || '无法识别'}\n诊断: ${data.correctionNote}\n\n`;
+      const result: AssessmentResult = {
+        score: data.score || 0,
+        phonetic: data.phonetic,
+        issueType: data.issueType,
+        analysis: data.analysis,
+        suggestion: data.suggestion,
+        correctionNote: data.correctionNote,
+        target_text: targetText,
+        recognized_text: recognizedText || '',
+      };
+      setLastResult(result);
+
+      // 生成笔记内容（仅记录核心信息，避免与卡片重复）
+      const noteLines = [
+        `[${new Date().toLocaleTimeString()}] 练习: ${targetText}`,
+        `识别: ${recognizedText || '无法识别'}`,
+        `评分: ${data.score}分`
+      ].filter(Boolean);
+
+      const newNote = noteLines.join('\n') + '\n';
       const updatedNotes = newNote + localNotes;
       setLocalNotes(updatedNotes);
       onNotesChange(updatedNotes);
@@ -238,6 +270,95 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
           </div>
         )}
       </div>
+
+      {/* 结构化评测结果展示 */}
+      {lastResult && (
+        <div className="bg-gradient-to-br from-[#1a1a2e] to-[#16213e] rounded-xl p-4 border border-white/10">
+          {/* 头部：得分和音标 */}
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              {/* 得分圆环 */}
+              <div className="relative w-16 h-16">
+                <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
+                  <path
+                    className="stroke-[#333] stroke-[3]"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                  <path
+                    className={`stroke-[3] ${
+                      lastResult.score >= 80 ? 'stroke-green-500' :
+                      lastResult.score >= 60 ? 'stroke-yellow-500' : 'stroke-red-500'
+                    }`}
+                    strokeDasharray={`${lastResult.score}, 100`}
+                    strokeLinecap="round"
+                    d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className={`text-lg font-bold ${
+                    lastResult.score >= 80 ? 'text-green-400' :
+                    lastResult.score >= 60 ? 'text-yellow-400' : 'text-red-400'
+                  }`}>
+                    {lastResult.score}
+                  </span>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-white font-semibold text-lg">{lastResult.target_text}</span>
+                  {lastResult.phonetic && (
+                    <span className="text-gray-400 text-sm flex items-center gap-1">
+                      <Volume2 className="w-3 h-3" />
+                      {lastResult.phonetic}
+                    </span>
+                  )}
+                </div>
+                <div className="text-gray-400 text-xs mt-0.5">
+                  识别: {lastResult.recognized_text || '无法识别'}
+                </div>
+              </div>
+            </div>
+            {/* 问题类型标签 */}
+            <span className={`px-2 py-1 rounded text-xs font-medium ${
+              lastResult.issueType === 'vowel' ? 'bg-blue-500/20 text-blue-400' :
+              lastResult.issueType === 'consonant' ? 'bg-purple-500/20 text-purple-400' :
+              lastResult.issueType === 'stress' ? 'bg-orange-500/20 text-orange-400' :
+              lastResult.issueType === 'rhythm' ? 'bg-cyan-500/20 text-cyan-400' :
+              'bg-gray-500/20 text-gray-400'
+            }`}>
+              {{
+                vowel: '元音',
+                consonant: '辅音',
+                stress: '重音',
+                rhythm: '节奏',
+                other: '综合'
+              }[lastResult.issueType || 'other'] || '综合'}
+            </span>
+          </div>
+
+          {/* 分析和建议 */}
+          <div className="space-y-2">
+            {lastResult.analysis && (
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-[#FF5722] mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="text-gray-400 text-xs mb-0.5">问题分析</div>
+                  <div className="text-white/90 text-sm">{lastResult.analysis}</div>
+                </div>
+              </div>
+            )}
+            {lastResult.suggestion && (
+              <div className="flex items-start gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                <div>
+                  <div className="text-gray-400 text-xs mb-0.5">改进建议</div>
+                  <div className="text-white/90 text-sm">{lastResult.suggestion}</div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

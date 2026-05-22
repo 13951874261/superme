@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Header from './Header';
 import ListenModule from './modules/ListenModule';
 import SpeakModule from './modules/SpeakModule';
@@ -10,15 +10,22 @@ import EntertainmentModule from './modules/EntertainmentModule';
 import GameTheoryModule from './modules/GameTheoryModule';
 import SummaryArea from './SummaryArea';
 import { ModuleType } from '../App';
-import { Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain, MessageSquare } from 'lucide-react';
+import { Lock, Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain } from 'lucide-react';
+import { playError } from '../utils/soundEffects';
+import { useEnglishContext } from './modules/english/context/EnglishContext';
+import CyberneticLockModal from './CyberneticLockModal';
 
 interface MainContentProps {
   selectedDate: string;
   activeModule: ModuleType;
   setActiveModule: (m: ModuleType) => void;
+  isLocked: boolean;
 }
 
-export default function MainContent({ selectedDate, activeModule, setActiveModule }: MainContentProps) {
+export default function MainContent({ selectedDate, activeModule, setActiveModule, isLocked }: MainContentProps) {
+  const { theme, masteryData } = useEnglishContext();
+  const [isLockModalOpen, setIsLockModalOpen] = useState(false);
+
   // 定义金属质感的导航选项卡
   const TABS = [
     { id: 'english', label: '英语引擎', icon: <Globe className="w-4 h-4" /> },
@@ -49,6 +56,15 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
     }
   };
 
+  const handleTabClick = (tabId: ModuleType) => {
+    if (isLocked && tabId !== 'english') {
+      playError();
+      setIsLockModalOpen(true);
+    } else {
+      setActiveModule(tabId);
+    }
+  };
+
   return (
     <main id="main-content" className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#F8F9FA] relative scroll-smooth font-sans">
       <Header />
@@ -57,25 +73,36 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
         
         {/* 顶部 Tab 导航 (The Execution 调度器) */}
         <div className="mb-10 flex flex-wrap gap-3 border-b border-gray-200 pb-4">
-          {TABS.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveModule(tab.id as ModuleType)}
-              className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-black text-xs tracking-widest uppercase transition-all duration-300 ${
-                activeModule === tab.id
-                  ? 'bg-white text-[#202124] border-t-2 border-[#FF5722] shadow-[0_-4px_10px_rgba(0,0,0,0.02)] scale-105 transform origin-bottom'
-                  : 'bg-transparent text-gray-400 hover:text-gray-700 hover:bg-white/50'
-              }`}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
+          {TABS.map(tab => {
+            const isTabLocked = isLocked && tab.id !== 'english';
+            const isActive = activeModule === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleTabClick(tab.id as ModuleType)}
+                className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-black text-xs tracking-widest uppercase transition-all duration-300 relative ${
+                  isActive
+                    ? 'bg-white text-[#202124] border-t-2 border-[#FF5722] shadow-[0_-4px_10px_rgba(0,0,0,0.02)] scale-105 transform origin-bottom z-10'
+                    : isTabLocked
+                    ? 'bg-transparent text-gray-300 hover:text-red-400 cursor-not-allowed'
+                    : 'bg-transparent text-gray-400 hover:text-gray-700 hover:bg-white/50'
+                }`}
+              >
+                {isTabLocked ? <Lock className="w-3.5 h-3.5 text-gray-300" /> : tab.icon}
+                {tab.label}
+                {isTabLocked && (
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         {/* 专注模式：单模块渲染区 */}
         <div className="flex-1 w-full animate-[fadeIn_0.5s_ease-out]">
-          {/* 注：全局的 Material Control Console 已被移除，后续将封装为 <MaterialUploader /> 下放到具体模块中 */}
           {renderActiveModule()}
         </div>
 
@@ -84,6 +111,15 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
           <SummaryArea selectedDate={selectedDate} />
         </div>
       </div>
+
+      {/* 控制论闭环警示弹窗 */}
+      <CyberneticLockModal
+        isOpen={isLockModalOpen}
+        onClose={() => setIsLockModalOpen(false)}
+        theme={theme}
+        oralCount={masteryData.oralCount}
+        maxWriteScore={masteryData.maxWriteScore}
+      />
     </main>
   );
 }

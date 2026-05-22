@@ -1,5 +1,5 @@
 app:
-  description: 专门用于处理用户英语发音评测的高阶工作流。接收用户原本想要朗读的目标词/句，以及通过STT识别出的实际发音文本，分析发音错误、重音偏移及连读问题。
+  description: 专门用于处理用户英语发音评测的高阶工作流。接收用户原本想要朗读的目标词/句，以及通过STT识别出的实际发音文本，分析发音错误、重音偏移及连读问题。返回结构化的 JSON 格式结果。
   icon: 🗣️
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -10,7 +10,7 @@ dependencies:
 - current_identifier: null
   type: marketplace
   value:
-    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.47@797b0e4de14fa5e09fba49b0d7110e10781457dd89cdab3cba3416629a92754c
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.50@bcca1b734d9ae24ce8ddb9652bd872d69b91a3ffdb2ff8f8885c6f651da33cb0
     version: null
 kind: app
 version: 0.6.0
@@ -68,6 +68,7 @@ workflow:
     edges:
     - data:
         isInIteration: false
+        isInLoop: false
         sourceType: start
         targetType: llm
       id: start-to-llm
@@ -76,16 +77,31 @@ workflow:
       target: llm
       targetHandle: target
       type: custom
+      zIndex: 0
     - data:
         isInIteration: false
+        isInLoop: false
         sourceType: llm
-        targetType: end
-      id: llm-to-end
+        targetType: code
+      id: llm-to-code
       source: llm
+      sourceHandle: source
+      target: code
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: code-to-end
+      source: code
       sourceHandle: source
       target: end
       targetHandle: target
       type: custom
+      zIndex: 0
     nodes:
     - data:
         desc: ''
@@ -94,27 +110,27 @@ workflow:
         type: start
         variables:
         - desc: 用户原本想说的目标词汇或句子
+          label: target_text
           max_length: 256
           options: []
           required: true
           type: text-input
-          label: target_text
           variable: target_text
         - desc: 通过 Whisper 或 STT 识别出的用户实际录音文本
+          label: recognized_text
           max_length: 1024
           options: []
           required: true
           type: text-input
-          label: recognized_text
           variable: recognized_text
       height: 135
       id: start
       position:
-        x: 80
-        y: 281
+        x: 0
+        y: 200
       positionAbsolute:
-        x: 80
-        y: 281
+        x: 0
+        y: 200
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -127,7 +143,7 @@ workflow:
         desc: ''
         model:
           completion_params:
-            temperature: 0.2
+            temperature: 0.3
             top_p: 0.8
           mode: chat
           name: '111'
@@ -135,17 +151,10 @@ workflow:
         prompt_template:
         - id: 6fd756ac-eb0f-4cb6-ad2e-0f1308c2d41e
           role: system
-          text: '你是一名极其严苛的顶尖英语发音教练。 你将收到两个信息： 1. target_text: 用户本来想发音的单词或句子。 2. recognized_text:
-            STT (Speech-to-Text) 引擎听到的结果（如果发音极差，STT 会识别成发音相近的错误词汇）。
-
-            你的任务是： 比对两者，敏锐地指出用户发音中可能存在的问题。 如果两者一致，说明发音基本过关，给出标准音标即可。 如果存在偏差，请通过发音学的角度（元音饱满度、辅音浊化、重音偏移、连读弱读等）指出为何会被听错。
-
-            输出格式（严格返回纯文本，无需markdown语法包裹，字数精简在100字以内）： 目标：{target_text} [{音标}] 诊断：[你犀利的纠音诊断]'
+          text: "你是一名极其严苛的顶尖英语发音教练。请比对 target_text（目标发音）和 recognized_text（实际识别），给出专业的发音评测结果。\n\n# 评测维度\n1. 发音准确度 - 元音、辅音是否标准\n2. 重音位置 - 单词重音是否正确\n3. 连读弱读 - 是否影响理解\n\n# 输出格式\n严格输出 JSON 格式，禁止包含 markdown 代码块（不要输出 ```json）：\n{\n  \"score\": 0-100的整数分数,\n  \"phonetic\": \"目标词的音标\",\n  \"issue_type\": \"vowel|consonant|stress|rhythm|other\",\n  \"analysis\": \"简洁的问题分析（20-50字）\",\n  \"suggestion\": \"改进建议（20-50字）\"\n}"
         - id: c5fbe526-b667-4b1e-bafb-c259f8c580d5
           role: user
-          text: 'Target: {{#start.target_text#}}
-
-            Recognized: {{#start.recognized_text#}}'
+          text: "目标发音: {{#start.target_text#}}\n实际识别: {{#start.recognized_text#}}"
         selected: false
         title: 发音诊断 (LLM)
         type: llm
@@ -155,12 +164,69 @@ workflow:
       height: 88
       id: llm
       position:
-        x: 372
-        y: 314
+        x: 342
+        y: 200
       positionAbsolute:
-        x: 372
-        y: 314
-      selected: true
+        x: 342
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\nimport re\n\ndef main(llm_text: str, target_text: str, recognized_text: str) -> dict:\n    result = {\n        \"score\": 0,\n        \"phonetic\": \"\",\n        \"issue_type\": \"other\",\n        \"analysis\": \"\",\n        \"suggestion\": \"\",\n        \"target_text\": target_text,\n        \"recognized_text\": recognized_text\n    }\n    try:\n        clean_str = llm_text.strip().strip('```json').strip('```').strip()\n        json_match = re.search(r'\\{[\\s\\S]*\\}', clean_str)\n        if json_match:\n            parsed = json.loads(json_match.group())\n            result[\"score\"] = max(0, min(100, int(parsed.get(\"score\", 0))))\n            result[\"phonetic\"] = parsed.get(\"phonetic\", \"\")\n            result[\"issue_type\"] = parsed.get(\"issue_type\", \"other\")\n            result[\"analysis\"] = parsed.get(\"analysis\", \"\")\n            result[\"suggestion\"] = parsed.get(\"suggestion\", \"\")\n        else:\n            result[\"analysis\"] = \"评测完成\"\n            result[\"suggestion\"] = \"请参考评分\"\n    except Exception as e:\n        result[\"analysis\"] = \"评测完成\"\n    return result"
+        code_language: python3
+        outputs:
+          analysis:
+            children: null
+            type: string
+          issue_type:
+            children: null
+            type: string
+          recognized_text:
+            children: null
+            type: string
+          score:
+            children: null
+            type: number
+          suggestion:
+            children: null
+            type: string
+          phonetic:
+            children: null
+            type: string
+          target_text:
+            children: null
+            type: string
+        selected: false
+        title: 解析评测结果
+        type: code
+        variables:
+        - value_selector:
+          - llm
+          - text
+          value_type: string
+          variable: llm_text
+        - value_selector:
+          - start
+          - target_text
+          value_type: string
+          variable: target_text
+        - value_selector:
+          - start
+          - recognized_text
+          value_type: string
+          variable: recognized_text
+      height: 52
+      id: code
+      position:
+        x: 684
+        y: 200
+      positionAbsolute:
+        x: 684
+        y: 200
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -169,27 +235,51 @@ workflow:
         desc: ''
         outputs:
         - value_selector:
-          - llm
-          - text
-          variable: correction_note
+          - code
+          - score
+          variable: score
+        - value_selector:
+          - code
+          - phonetic
+          variable: phonetic
+        - value_selector:
+          - code
+          - issue_type
+          variable: issue_type
+        - value_selector:
+          - code
+          - analysis
+          variable: analysis
+        - value_selector:
+          - code
+          - suggestion
+          variable: suggestion
+        - value_selector:
+          - code
+          - target_text
+          variable: target_text
+        - value_selector:
+          - code
+          - recognized_text
+          variable: recognized_text
         selected: false
         title: 结束
         type: end
       height: 88
       id: end
       position:
-        x: 694
-        y: 314
+        x: 1026
+        y: 200
       positionAbsolute:
-        x: 694
-        y: 314
+        x: 1026
+        y: 200
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: 154
-      y: -72
-      zoom: 1
+      x: 100
+      y: 100
+      zoom: 0.8
   rag_pipeline_variables: []
