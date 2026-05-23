@@ -1,0 +1,200 @@
+app:
+  description: 洞察系统-听：人性解码与破绽识别引擎
+  icon: 🎧
+  icon_background: '#1E293B'
+  icon_type: emoji
+  mode: workflow
+  name: Insight_Listen_Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.50@bcca1b734d9ae24ce8ddb9652bd872d69b91a3ffdb2ff8f8885c6f651da33cb0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 当日训练场景
+          max_length: 2000
+          options: []
+          required: true
+          type: paragraph
+          variable: scenario_text
+        - label: 我的揣摩笔记
+          max_length: 3000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_analysis
+      height: 135
+      id: start
+      position:
+        x: 83
+        y: 282
+      positionAbsolute:
+        x: 83
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: >-
+            你是一个融合了【顶级职场博弈导师】与【逻辑学大师】双重身份的系统。
+            请根据提供的【当日训练场景/逻辑考题】和【我的揣摩笔记】，对用户的分析进行降维点评。
+            
+            回复必须使用 Markdown 格式，语气要专业、犀利、直击要害。必须严格包含以下四大模块：
+            
+            ### 一、 多维人物侧写矩阵 (针对对话场景)
+            - **社会层级**：判断说话者的阶层位置与话语权（上位者/平级/下位者）。
+            - **内在水准**：评估其认知高度与格局。
+            - **人性特点**：点出其驱动力（贪婪、恐惧、虚荣、试探、推诿等）。
+            - **弦外之音（真实意图）**：揭示潜台词，把不可说的话翻译成大白话。
+            
+            ### 二、 破绽识别与逻辑学诊断 (核心)
+            - **逻辑破绽**：精准指出谬误名称（如：诉诸权威、滑坡谬误、偷换概念、三段论谬误等），并解释为何犯错。跨文化场景需点出逻辑差异。
+            - **事实破绽**：指出数据缺失、前后矛盾或预设前提错误。
+            - **意图破绽**：指出避重就轻、隐蔽转移话题等战术。
+            
+            ### 三、 导师批阅与认知纠偏
+            - **用户思维盲区**：直接指出用户分析中的天真之处或过度解读。
+            - **标准解析/最佳应对**：给出该场景最敏锐、最完美的拆解示范和应对思路。
+            
+            ### 四、 综合评判
+            - **洞察效率评分**：[1-10分]（10分为洞若观火，1分为毫无察觉）。
+            - **升维心法**：用一句话给出直击要害的系统性提升建议。
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: '【当日训练场景/逻辑考题】：{{#start.scenario_text#}}
+
+            【我的揣摩笔记】：{{#start.user_analysis#}}'
+        selected: false
+        title: 深度解析LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: ai_feedback
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []

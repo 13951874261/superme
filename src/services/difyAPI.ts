@@ -761,9 +761,8 @@ export async function runImpromptuSpeechEvaluation(
     body: JSON.stringify({
       inputs: { 
         theme, 
-        duration, 
-        target_text: transcript, // 为了兼容同一个发音纠正工作流的硬性校验
-        recognized_text: transcript // Dify 工作流强制要求该字段
+        duration,
+        transcript
       },
       response_mode: 'blocking',
       user: userId,
@@ -964,8 +963,23 @@ export async function runSpeechPrompter(
   if (!res.ok) throw new Error(data?.message || data?.error || '生成提示词失败');
 
   try {
-    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? '';
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    const outputs = data?.data?.outputs;
+
+    // 黄金路径：Dify 直接返回了结构化的 JSON 对象（无需再解析字符串）
+    if (outputs && typeof outputs === 'object' && outputs.outline && outputs.tips) {
+      return outputs as SpeechPrompterResult;
+    }
+
+    // 兜底路径：如果 Dify 把内容包在了某个变量里的字符串中
+    const rawResult = outputs?.result ?? outputs?.text ?? data?.answer ?? '';
+    const rawText = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
+    
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      return JSON.parse(jsonMatch[0]) as SpeechPrompterResult;
+    }
+    
+    const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as SpeechPrompterResult;
   } catch (e) {
     console.error('解析提示词结果失败:', e, data);
@@ -1043,4 +1057,65 @@ export async function runEnhancedSpeechEvaluation(
     console.error('解析增强评测结果失败:', e, data);
     throw new Error('增强评测结果解析失败');
   }
+}
+
+// ── 洞察(听) 人性解码与破绽识别 ─────────────────────────────────────────
+
+export interface InsightListenInputs {
+  scenario_text: string;
+  user_analysis: string;
+}
+
+export async function fetchInsightFeedback(inputs: InsightListenInputs, userId = 'default-user'): Promise<string> {
+  const apiKey = import.meta.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
+  if (!apiKey) throw new Error("未配置 VITE_DIFY_INSIGHT_LISTEN_KEY");
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: inputs,
+      response_mode: "blocking",
+      user: userId
+    })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
+
+  const rawResult = data?.data?.outputs?.ai_feedback ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? "未获取到有效反馈";
+  return String(rawResult);
+}
+
+/**
+ * 动态获取洞察考题 (文本生成应用)
+ * 依赖环境变量: VITE_DIFY_INSIGHT_GEN_KEY
+ */
+export async function fetchDynamicInsightScenario(category: string, userId = 'default-user'): Promise<string> {
+  const apiKey = import.meta.env.VITE_DIFY_INSIGHT_GEN_KEY;
+  if (!apiKey) {
+    throw new Error("未配置 VITE_DIFY_INSIGHT_GEN_KEY，请在 Dify 中创建一个【文本生成】应用专门用于出题，并配置此环境变量。");
+  }
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { category },
+      query: "", // 触发文本生成
+      response_mode: 'blocking',
+      user: userId
+    })
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || `获取动态考题失败 HTTP ${res.status}`);
+
+  return String(data?.answer || "【未能生成有效题目，请重试】").trim();
 }

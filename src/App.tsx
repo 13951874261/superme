@@ -23,7 +23,19 @@ function AppContent() {
 
   const { masteryData } = useEnglishContext();
 
-  const isLocked = !masteryData._isInitial && (masteryData.oralCount < 10 || masteryData.maxWriteScore < 8);
+  const [isInterceptorEnabled, setIsInterceptorEnabled] = useState(
+    localStorage.getItem('super_agent_global_interceptor') !== 'false'
+  );
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setIsInterceptorEnabled(localStorage.getItem('super_agent_global_interceptor') !== 'false');
+    };
+    window.addEventListener('global-settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
+  }, []);
+
+  const isLocked = isInterceptorEnabled && !masteryData._isInitial && (masteryData.oralCount < 10 || masteryData.maxWriteScore < 8);
 
   // 当触发控制论强制锁定且当前不在英语引擎时，强行重定向至英语引擎
   useEffect(() => {
