@@ -191,16 +191,9 @@ export default function ImpromptuSpeechTab() {
 
     recognition.onstart = () => {
       setIsEngineReady(true);
-      startAudioRecording();
       if (!timerRef.current) {
         timerRef.current = setInterval(() => {
-          setElapsed(prev => {
-            if (prev >= MAX_SECONDS) {
-              stopRecording();
-              return prev;
-            }
-            return prev + 1;
-          });
+          setElapsed(prev => prev + 1);
         }, 1000);
       }
     };
@@ -224,6 +217,7 @@ export default function ImpromptuSpeechTab() {
       setEvalResult(null);
       setIsEngineReady(false);
       resetAudio();
+      startAudioRecording();
     }
   };
 

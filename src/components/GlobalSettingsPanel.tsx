@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, ZapOff, Activity } from 'lucide-react';
+import { Settings, Zap, ZapOff, Activity, Lock, Unlock } from 'lucide-react';
 import { playScan } from '../utils/soundEffects';
 
 export type GlobalDifficulty = 'standard' | 'hardcore';
@@ -10,12 +10,16 @@ export default function GlobalSettingsPanel() {
   const [difficulty, setDifficulty] = useState<GlobalDifficulty>(
     (localStorage.getItem('super_agent_global_diff') as GlobalDifficulty) || 'standard'
   );
+  const [isInterceptorEnabled, setIsInterceptorEnabled] = useState<boolean>(
+    localStorage.getItem('super_agent_global_interceptor') !== 'false'
+  );
 
   useEffect(() => {
     localStorage.setItem('super_agent_global_rate', String(rate));
     localStorage.setItem('super_agent_global_diff', difficulty);
+    localStorage.setItem('super_agent_global_interceptor', String(isInterceptorEnabled));
     window.dispatchEvent(new Event('global-settings-changed'));
-  }, [rate, difficulty]);
+  }, [rate, difficulty, isInterceptorEnabled]);
 
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
@@ -45,24 +49,44 @@ export default function GlobalSettingsPanel() {
             </div>
 
             <div>
-              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
-                大模型对抗烈度
-              </label>
-              <div className="flex bg-gray-800 p-1 rounded-xl">
-                <button
-                  onClick={() => { setDifficulty('standard'); playScan(); }}
-                  className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${difficulty === 'standard' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
-                >
-                  <ZapOff className="w-3 h-3 mr-1" /> 标准
-                </button>
-                <button
-                  onClick={() => { setDifficulty('hardcore'); playScan(); }}
-                  className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${difficulty === 'hardcore' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'text-gray-400 hover:text-white'}`}
-                >
-                  <Zap className="w-3 h-3 mr-1" /> 极限
-                </button>
-              </div>
-            </div>
+               <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
+                 大模型对抗烈度
+               </label>
+               <div className="flex bg-gray-800 p-1 rounded-xl">
+                 <button
+                   onClick={() => { setDifficulty('standard'); playScan(); }}
+                   className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${difficulty === 'standard' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+                 >
+                   <ZapOff className="w-3 h-3 mr-1" /> 标准
+                 </button>
+                 <button
+                   onClick={() => { setDifficulty('hardcore'); playScan(); }}
+                   className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${difficulty === 'hardcore' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'text-gray-400 hover:text-white'}`}
+                 >
+                   <Zap className="w-3 h-3 mr-1" /> 极限
+                 </button>
+               </div>
+             </div>
+
+             <div>
+               <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
+                 全局控制阻断
+               </label>
+               <div className="flex bg-gray-800 p-1 rounded-xl">
+                 <button
+                   onClick={() => { setIsInterceptorEnabled(true); playScan(); }}
+                   className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${isInterceptorEnabled ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+                 >
+                   <Lock className="w-3 h-3 mr-1" /> 启用
+                 </button>
+                 <button
+                   onClick={() => { setIsInterceptorEnabled(false); playScan(); }}
+                   className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!isInterceptorEnabled ? 'bg-green-600 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]' : 'text-gray-400 hover:text-white'}`}
+                 >
+                   <Unlock className="w-3 h-3 mr-1" /> 禁用
+                 </button>
+               </div>
+             </div>
           </div>
         </div>
       )}
