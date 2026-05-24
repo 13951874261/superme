@@ -111,6 +111,18 @@ try {
   db.prepare("ALTER TABLE training_attempts ADD COLUMN user_answer TEXT").run();
 } catch (e) {}
 
+// 初始化 personal_prototypes 表
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS personal_prototypes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    name TEXT NOT NULL,
+    type TEXT,
+    description TEXT,
+    added_at INTEGER
+  )
+`).run();
+
 // ==========================================
 // SM-2 间隔重复算法
 // ==========================================
@@ -811,6 +823,151 @@ app.post('/api/grammar-polish', async (req, res) => {
   } catch (err) {
     console.error('语法润色 API 异常:', err);
     res.status(500).json({ success: false, error: '语法润色服务异常' });
+  }
+});
+
+// ==========================================
+// 3. 驭心博弈相关 API (Game Theory & Prototypes)
+// ==========================================
+
+// 运行驭心博弈工作流，并自动持久化提取出来的人性原型
+app.post('/api/game-theory/analyze', async (req, res) => {
+  const { scene_type, game_model, case_text, user_answer, applied_tactics, userId = 'default-user' } = req.body;
+
+  if (!case_text || !user_answer) {
+    return res.status(400).json({ success: false, error: '缺少危机场景或对策内容' });
+  }
+
+  try {
+    const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${difyApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: {
+          scene_type,
+          game_model,
+          case_text,
+          user_answer,
+          applied_tactics: applied_tactics || ''
+        },
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Dify 博弈引擎请求失败:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
+    }
+
+    const data = await response.json();
+    
+    // 解析工作流输出
+    const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(cleanJson);
+    } catch (e) {
+      console.error('解析 Dify 返回的 JSON 失败:', e, rawResult);
+      return res.status(500).json({ success: false, error: '博弈分析结果格式异常，无法解析 JSON' });
+    }
+
+    // 自动抓取并归档人性原型
+    if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
+      const proto = parsedResult.prototype_archive;
+      const protoName = proto.name.trim();
+      const protoType = proto.type || '未分类';
+      const protoDesc = proto.description || '';
+
+      const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, protoName);
+      const now = Date.now();
+
+      if (existing) {
+        db.prepare(`
+          UPDATE personal_prototypes 
+          SET type = ?, description = ?, added_at = ?
+          WHERE id = ?
+        `).run(protoType, protoDesc, now, existing.id);
+      } else {
+        const id = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO personal_prototypes (id, user_id, name, type, description, added_at)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(id, userId, protoName, protoType, protoDesc, now);
+      }
+    }
+
+    res.json({
+      success: true,
+      result: parsedResult
+    });
+  } catch (err) {
+    console.error('博弈引擎分析异常:', err);
+    res.status(500).json({ success: false, error: '博弈分析引擎异常' });
+  }
+});
+
+// 获取所有人性原型档案
+app.get('/api/game-theory/prototypes', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const rows = db.prepare('SELECT * FROM personal_prototypes WHERE user_id = ? ORDER BY added_at DESC').all(userId);
+    res.json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 添加/手动更新人性原型档案
+app.post('/api/game-theory/prototypes', (req, res) => {
+  try {
+    const { userId = 'default-user', name, type, description } = req.body;
+    if (!name) {
+      return res.status(400).json({ error: 'Missing name' });
+    }
+    
+    const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, name);
+    const now = Date.now();
+    
+    if (existing) {
+      db.prepare(`
+        UPDATE personal_prototypes 
+        SET type = ?, description = ?, added_at = ?
+        WHERE id = ?
+      `).run(type, description, now, existing.id);
+      res.json({ success: true, id: existing.id, status: 'updated' });
+    } else {
+      const id = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO personal_prototypes (id, user_id, name, type, description, added_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(id, userId, name, type, description, now);
+      res.json({ success: true, id, status: 'created' });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 删除人性原型档案
+app.delete('/api/game-theory/prototypes/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM personal_prototypes WHERE id = ?').run(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error' });
   }
 });
 

@@ -1,0 +1,182 @@
+app:
+  description: '决策文治与价值提炼引擎，支持三级纵深批改、极限字数压缩和业务价值包装。'
+  icon: ✒️
+  icon_background: '#F5F8FF'
+  icon_type: emoji
+  mode: workflow
+  name: 文治系统分析引擎 (Write Governance)
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.1
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 任务类型
+          options:
+          - document_correction
+          - business_writing
+          - value_proposal
+          required: true
+          type: select
+          variable: task_type
+        - label: 原始文本
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: original_text
+        - label: 附加要求
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: additional_params
+      height: 135
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: >-
+            你是一个顶级的企业沟通教练、体制内公文专家和商业战略顾问。你的任务是根据用户输入的材料类型和具体内容，进行文治与价值提炼。
+            
+            你需要以 JSON 格式输出结果，以便前端系统进行解析。
+
+            如果 task_type 为 document_correction (体制内公文三级纵深批改):
+            {
+              "level_1": "浅层：指出格式、错别字、措辞专业性与合规性问题。",
+              "level_2": "中层：指出逻辑结构与层次的缺陷，优化建议。",
+              "level_3": "深层：拔高政治站位、政策契合度与领导视角，说明如何结合企业大局观。"
+            }
+
+            如果 task_type 为 business_writing (高阶商务行文与字数极限挑战):
+            {
+              "tone_evaluation": "对现有语体分寸感、职业度的点评。",
+              "compressed_text": "在不丢失核心结论的前提下，根据附加要求极限压缩后的文本。",
+              "skill_point": "长话短说、结论先行的技巧点拨。"
+            }
+
+            如果 task_type 为 value_proposal (业务型提案与个人价值包装):
+            {
+              "admin_flaws": "指出原文本纯行政视角的局限性与不足。",
+              "value_extraction": "将行政统筹优势转化为可量化商业价值（如政策合规+跨文化运营）。",
+              "business_proposal": "提供重新包装后的高阶业务型提案范本。"
+            }
+
+            请严格以合法的 JSON 字符串返回，不要包含 markdown 代码块包裹（如 ```json ），直接返回 JSON 本身。
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: 'task_type: {{#start.task_type#}}
+            
+            additional_params: {{#start.additional_params#}}
+
+            original_text: {{#start.original_text#}}'
+        selected: false
+        title: 决策文治核心引擎
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: analysis_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []

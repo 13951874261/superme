@@ -1119,3 +1119,211 @@ export async function fetchDynamicInsightScenario(category: string, userId = 'de
 
   return String(data?.answer || "【未能生成有效题目，请重试】").trim();
 }
+
+// ── 破局系统（说）相关接口 ─────────────────────────────────────────
+
+export interface SpeakInfluenceInput {
+  training_mode: string;
+  scenario: string;
+  user_role: string;
+  target_audience: string;
+  user_input: string;
+}
+
+export interface SpeakInfluenceResult {
+  score: number;
+  critique: string;
+  framework_analysis: string;
+  revised_version: string;
+}
+
+export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = 'default-user'): Promise<SpeakInfluenceResult> {
+  const apiKey = import.meta.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEAK_INFLUENCE_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs,
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Speak Influence Engine 请求失败');
+
+  const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+  try {
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson) as SpeakInfluenceResult;
+  } catch (e) {
+    console.error('解析教练返回的 JSON 格式失败:', e, rawResult);
+    throw new Error('AI 返回的数据格式异常，无法解析为合法JSON。');
+  }
+}
+
+// ── 穿透系统（读）相关接口 ─────────────────────────────────────────
+
+export interface CognitivePenetrationInput {
+  scene_type: 'policy' | 'report' | 'email' | 'book';
+  text_input: string;
+}
+
+export interface CognitivePenetrationResult {
+  // policy
+  surface_conclusion?: string;
+  hidden_intent?: string;
+  industry_impact?: string;
+  risks_and_opportunities?: string;
+
+  // report
+  business_model?: string;
+  market_pain_points?: string;
+  profit_logic_flaws?: string;
+  traceability_training?: string;
+
+  // email
+  stripped_logic?: string;
+  stance_reversal?: string;
+  counter_questions?: string;
+
+  // book
+  thought_highlights?: string;
+  logic_flaws?: string;
+  workplace_application?: string;
+}
+
+export async function runCognitivePenetrationEngine(inputs: CognitivePenetrationInput, userId = 'default-user'): Promise<CognitivePenetrationResult> {
+  const apiKey = import.meta.env.VITE_DIFY_READ_PENETRATION_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_READ_PENETRATION_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs,
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Cognitive Penetration Engine 请求失败');
+
+  const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+  try {
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleanJson) as CognitivePenetrationResult;
+  } catch (e) {
+    console.error('解析认知穿透结果的 JSON 格式失败:', e, rawResult);
+    throw new Error('AI 返回的数据格式异常，无法解析为合法JSON。');
+  }
+}
+
+// ── 驭心博弈系统（Game Theory）相关接口 ─────────────────────────────────────────
+
+export interface GameTheoryAnalyzeInput {
+  scene_type: 'gov_struggle' | 'corp_clash' | 'upward_takeover';
+  game_model: 'prisoner_dilemma' | 'pig_game' | 'info_asymmetry' | 'cold_trigger';
+  case_text: string;
+  user_answer: string;
+  applied_tactics?: string;
+}
+
+export interface GameTheoryPrototypeArchive {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface GameTheoryAnalyzeResult {
+  is_success: boolean;
+  score: number;
+  stakeholder_interests: string;
+  motives_analysis: string;
+  weaknesses: string;
+  causal_chain: string[];
+  prototype_archive: GameTheoryPrototypeArchive;
+  suggestion: string;
+}
+
+export interface PersonalPrototype {
+  id: string;
+  user_id: string;
+  name: string;
+  type: string;
+  description: string;
+  added_at: number;
+}
+
+// 运行博弈引擎分析（调用后端代理）
+export async function runGameTheoryAnalysis(
+  inputs: GameTheoryAnalyzeInput,
+  userId = 'default-user'
+): Promise<GameTheoryAnalyzeResult> {
+  const res = await fetch('/api/game-theory/analyze', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      ...inputs,
+      userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || '博弈分析引擎请求失败');
+  }
+  return data.result as GameTheoryAnalyzeResult;
+}
+
+// 获取所有人性原型档案
+export async function getPersonalPrototypes(userId = 'default-user'): Promise<PersonalPrototype[]> {
+  const res = await fetch(`/api/game-theory/prototypes?userId=${encodeURIComponent(userId)}`);
+  const data = await res.json().catch(() => ([]));
+  if (!res.ok) {
+    throw new Error(data?.error || '获取人性原型档案失败');
+  }
+  return data as PersonalPrototype[];
+}
+
+// 手动添加或更新人性原型档案
+export async function upsertPersonalPrototype(
+  params: { name: string; type: string; description: string; userId?: string }
+): Promise<{ success: boolean; id: string; status: string }> {
+  const res = await fetch('/api/game-theory/prototypes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || '操作人性原型档案失败');
+  }
+  return data;
+}
+
+// 删除人性原型档案
+export async function deletePersonalPrototype(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/game-theory/prototypes/${id}`, {
+    method: 'DELETE',
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || '删除人性原型档案失败');
+  }
+  return data;
+}
+
