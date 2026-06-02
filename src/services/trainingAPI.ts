@@ -90,6 +90,7 @@ export interface ThemeMasteryCheck {
   oralCount: number;
   oralPassed: boolean;
   maxWriteScore: number;
+  emailCompleted: boolean;
   isMastered: boolean;
 }
 
@@ -104,6 +105,16 @@ export async function setThemeFocus(params: {
   userId?: string;
 }): Promise<{ success: boolean; theme: string; difficulty: string }> {
   return request('/api/theme/focus', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function markEmailComplete(params: {
+  theme: string;
+  userId?: string;
+}): Promise<{ success: boolean }> {
+  return request('/api/theme/mark-email-complete', {
     method: 'POST',
     body: JSON.stringify(params),
   });

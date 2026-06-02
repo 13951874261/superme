@@ -1,123 +1,79 @@
-太棒了，拿到 API Key (`app-PCvZEHnNFOGT6NppMqtudw60`) 意味着后端的“大脑”已经准备就绪。接下来我们需要在前端 React/Vite 项目中打通“任督二脉”，将 UI 与真实的 AI 推演能力连接起来。
+**《“Superme”个人成长与全方位能力训练系统》完整业务需求文档**
 
-为了保证代码的清晰和可维护性，我们将分三步进行集成：**环境配置、服务封装、组件对接**。
+### 一、 核心定位与全局底层架构
+**1. 产品定位与风格**
+本系统定位为**AI时代不可替代的高层管理者锻造系统**（陪伴高管阶层成长的专属 AI 智能体），风格保持清冷稳重、理性克制、高情商与专业干练，数据采取私有部署与私有向量库确保绝对隐私。系统旨在将偏行政化的体制内中层，锻造为具备“政策+业务+跨文化+英语”复合竞争力的国际化决策层。
 
-### 第一步：环境变里配置 (Security & Config)
+**2. 现代奢华的UI/UX设计规范**
+*   **70/30空间折叠布局**：彻底摒弃传统的无限模态框嵌套（Nested Modals）。采用左侧70%为主控区（承载长文阅读、输入表单），右侧30%为动态滑出上下文面板（Context Sheet），实现视线平移即可查看解析的零认知摩擦。
+*   **控制论闭环（Cybernetic Closed-Loops）**：UI层强制引入“动态任务卡片”，将AI的修改建议化为强制性微任务（如重写反驳话术），用户需执行达标后方可解锁后续进度，将开环浏览变为刻意练习。
+*   **极简高级美学**：全面引入Tailwind CSS与Shadcn UI规范，基调采用低调冷灰调（Zinc/Slate），大面积留白，仅在核心节点使用靛蓝色强调。配备Ctrl+K全局命令面板。
 
-在你的项目根目录找到 `.env` 或 `.env.local` 文件。为了安全起见，我们将 API Key 存放在环境变量中。
+**3. 全局功能模块布局**
+*   **康奈尔结构顶栏**：上方留白作为全局抬头背景。
+*   **左侧导航与追踪**：包含月度日历、可折叠的Habit Tracker（睡眠、饮食、运动、日行一善），以及“职业发展意向跟踪表”（历史职位向意向职位跃迁的路径规划）。
+*   **后端引擎架构**：全面向Dify v0.6+迁移，利用`Conversation Variables`（如持久化数组`User_Current_Profile`）跨会话追踪用户弱点，依据用户成长轨迹动态调高任务难度。
 
-```env
-# Dify API 基础路径 (如果是私有化部署请替换为你的实际域名，例如 http://xxx.xxx/v1)
-VITE_DIFY_API_URL=https://api.dify.ai/v1
+---
 
-# 洞察(听) 模块专属 API Key
-VITE_DIFY_INSIGHT_LISTEN_KEY=app-PCvZEHnNFOGT6NppMqtudw60
+### 二、 八大核心训练系统需求
 
-```
+#### 1. 洞察系统（听）：人性解码与破绽识别
+*   **弦外之音与心理侧写**：覆盖体制内（汇报、晋升）与跨国企业（绩效反馈、跨文化交流）及社交场景。强制要求分析发话者的社会层级、内在水准、利益诉求与弦外之音。
+*   **逻辑学判断与破绽抓取**：每日推送三段论、归纳演绎及非形式谬误（如以偏概全、滑坡谬误）的训练实例。强制要求用户在复杂信息中精准抓取对方的**逻辑破绽、事实破绽与意图破绽**。
 
-### 第二步：封装 Dify API 服务 (`src/services/difyAPI.ts`)
+#### 2. 破局系统（说）：高阶影响力与精准提问
+*   **结构化表达与分寸度**：提供金字塔、因果、对比等表达模板。要求用户根据不同的权力角色（向上汇报、平级协调、向下布置、对外公关）调整称呼、语气和内容边界，进行口播练习。
+*   **即兴逻辑回击与精准提问**：针对“听”模块抓出的破绽，设计符合分寸的提问话术（如体制内的“委婉探讨”vs外企的“直接专业”），训练面对突发刁难时的逻辑反击。
 
-为了隔离网络请求逻辑，在现有的 `difyAPI.ts`（或者新建一个 `insightAPI.ts`）中，编写针对 Workflow 的调用函数。Dify 的工作流推荐使用 `blocking`（阻塞）模式来获取最终结果。
+#### 3. 穿透系统（读）：认知穿透与商业决策逻辑
+*   **政策文件与财报拆解**：深度挖掘宏观政策或行业监管文件的隐藏意图、风险与机会。引入出海企业商业案例/财报解析，补齐商业思维（挖掘盈利逻辑破绽）。
+*   **外企邮件逆向拆解**：针对隐性施压或委婉拒绝的邮件，剥离真实立场。训练**“立场反转练习”**（站在相反利益方解读）与**“信息溯源训练”**（追问数据真伪）。
+*   **课外书投喂闭环**：供用户上传书籍章节与感悟，由AI寻找认知漏洞并深化启示。
 
-```typescript
-// src/services/difyAPI.ts
+#### 4. 决策文治系统（写）：高管行文与价值提炼
+*   **体制内公文三级纵深批改**：提供①浅层（格式/措辞）、②中层（逻辑结构）、③深层（政治站位/政策契合度/领导视角）的阶梯式批阅。
+*   **字数压缩挑战**：强制字数极限压缩挑战（如500字材料压至50字核心结论），锻炼长话短说的高层写作本能。
+*   **个人价值提案**：指导用户将偏行政化的经验，包装提炼为出海或跨国企业所需的“政策合规+跨文化运营”商业价值提案。
 
-const API_URL = import.meta.env.VITE_DIFY_API_URL || 'https://api.dify.ai/v1';
-const INSIGHT_LISTEN_KEY = import.meta.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
+#### 5. 驭心博弈系统（人性认知）：底层操作系统
+*   **真实高管斗争拆解**：每日推送体制内派系博弈、外企高管倾轧、以下克上的真实案例，剖析各方利益结构、善恶动机与权力弱点。
+*   **人性原型库与善恶利用**：建立“人性分类档案”（利益驱动/恐惧驱动等）。训练如何用善凝聚人心，控恶防范背叛。
+*   **博弈论落地与上下级手段**：结合囚徒困境、信息不对称等理论，系统教授上级驭下术（恩威并施、制衡术）与以下克上术（借势上位、信息垄断）。
+*   **顶层认知升维**：跳出做事层，通过大历史观、权力结构、周期规律与第一性原理，进行5-10层的长期因果链推演，完成战略级决策者的思维跃迁。
 
-export interface InsightListenInputs {
-  scenario_text: string;
-  user_analysis: string;
-}
+#### 6. 高阶审美系统（娱乐）：阶层软实力与隐性资本
+*   **政商务顶级社交规范**：推送饭局敬酒礼仪、茶席社交、高尔夫、红酒/雪茄品鉴规范，提供“绝对不能做的避坑指南”。
+*   **跨文化高阶审美培育**：推送古典音乐、艺术史、香道花道知识。对比中西方/中东宴请礼仪差异，将审美转化为阶层跃迁的社交辨识度。同时嵌入德州扑克、国际象棋等智力博弈对抗。
 
-export const fetchInsightFeedback = async (inputs: InsightListenInputs): Promise<string> => {
-  if (!INSIGHT_LISTEN_KEY) {
-    throw new Error("Missing Dify API Key for Insight Listen module.");
-  }
+#### 7. 私人认知树洞（每周一聊）
+*   建立一个极度私密的本地存储对话舱。用户每周输入实战心得、深度阅读感悟或无法对人言的职场困境，AI据此动态调整下周的人性博弈、英语和认知升维等推送方向，实现系统的动态进化。
 
-  try {
-    const response = await fetch(`${API_URL}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${INSIGHT_LISTEN_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: inputs,
-        response_mode: "blocking", // 阻塞模式，等待执行完毕返回完整结果
-        user: "superme-admin-01"   // 标识当前用户
-      })
-    });
+---
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Dify API Error: ${errorData.message || response.statusText}`);
-    }
+### 三、 【英语引擎】模块（语言核心枢纽）
+*说明：本模块已将所有涉及英语能力的训练逻辑、UI、词汇、听力、口语、书写及底层架构完全收编整合。*
 
-    const data = await response.json();
-    
-    // 解析 Dify Workflow 的标准返回结构
-    // 假设你在 Dify 中将结束节点的输出变量命名为 'ai_feedback'
-    if (data.data && data.data.status === 'succeeded') {
-      return data.data.outputs.ai_feedback || "未获取到有效反馈，请检查 Dify 工作流输出变量配置。";
-    } else {
-      throw new Error("Workflow execution failed or was interrupted.");
-    }
-  } catch (error) {
-    console.error("Failed to fetch insight feedback:", error);
-    throw error;
-  }
-};
+**1. 战略目标与阶段追踪**
+*   **时间线规划**：0-6个月专注商务场景专项攻坚（达BEC高级/CATTI二级，涵盖商务谈判、汇报），前两周优先唤醒发音重音与商务核心语法；6-12个月向文化审美、应急社交等全场景拓展。
+*   **严格主题通关机制**：每个商务主题（如谈判让步）练7-10天，须达成三大硬指标：① 5分钟脱稿发言；② 与AI对话10轮；③ 撰写1篇无错漏邮件，方可推进下一主题。
 
-```
+**2. 核心训练工作流架构**
+*   **跨文化解析引擎（`listen_analysis_chatflow.yml`）**：
+    在听力与多角色推演前，强制用户输入`scene_type`（物理场景）、`role_judgement`（权力层级判断）与`intent_judgement`（真实诉求判断）。AI以此为坐标系，生成结构化报告，点出西方委婉话术背后的逻辑谬误，并指导起草“克制的反问句”。
+*   **双轨智能词典（`dict_tool_workflow.yml`）与生词本闭环**：
+    *   每日推送包含50个主题词汇（带发音）、30个短语（5个例句）。排版遵循“词汇→短语→句子”逻辑，要求造句及Anki式闪卡记忆。
+    *   网页支持划线查询，引入`user_context`变量，将词汇与用户当前业务场景绑定。可路由至全英商务解析或双语分寸度解析。
+    *   划线词汇自动分为**“政商务区”**与**“全场景区”**两大笔记本，严格依据艾宾浩斯曲线闭环提醒复习。
 
-### 第三步：在前端组件中对接真实数据 (`ListenModule.tsx`)
-
-现在，回到我们之前编写的 `ListenModule.tsx` 组件，将模拟的 `setTimeout` 替换为真实的 API 调用。
-
-找到组件中的 `handleSubmit` 函数并进行替换：
-
-```tsx
-import { fetchInsightFeedback } from '../../services/difyAPI'; // 引入刚才封装的API
-
-// ... (保持原有的组件骨架和状态不变)
-
-  const handleSubmit = async () => {
-    if (!userInput.trim()) return;
-    
-    setIsSubmitting(true);
-    setFeedback(null); // 清空历史反馈
-
-    try {
-      // 提取当前选中的场景文本
-      const currentScenario = DAILY_SCENARIOS[activeTab];
-      
-      // 调用真实 Dify API
-      const result = await fetchInsightFeedback({
-        scenario_text: currentScenario,
-        user_analysis: userInput
-      });
-
-      // 将 Dify 返回的 Markdown 文本设置到状态中
-      setFeedback(result);
-    } catch (error) {
-      console.error(error);
-      setFeedback(`### ⚠️ 解析失败\n与智囊系统连接中断，请检查网络或 API Key 配置。\n\n**详细信息**: ${error instanceof Error ? error.message : '未知错误'}`);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-// ... (组件的 return 部分保持原样即可，你的 UI 代码已经写得非常好了)
-
-```
-
-### 集成检查清单与后续优化建议
-
-1. **测试运行**：保存代码后，在你的开发环境 (`npm run dev` 或 `pnpm dev`) 中打开该模块。输入一段简单的测试拆解，点击“提交侧写”，观察右侧是否能正确渲染出 AI 导师的 Markdown 格式点评。
-2. **跨域问题 (CORS)**：如果在本地测试时浏览器报 CORS 跨域错误，这是由于前端直接请求了 Dify 服务器。你有两种解决方式：
-* **方案 A（快速）**：使用 Vite 的 `server.proxy` 功能，在 `vite.config.ts` 中配置代理，将请求转发到 Dify API。
-* **方案 B（生产级）**：借助你项目中现有的 Cloudflare Workers / Nginx 进行反向代理，隐藏真实的 API Key 和请求地址。
-
-
-3. **渲染优化**：由于 Dify 返回的是 Markdown 格式的文本，右侧区域目前是 `whitespace-pre-wrap` 渲染。为了达到最顶级的视觉效果，建议后续引入 `react-markdown` 库，配合 Tailwind Typography 插件，让标题、列表、加粗文本的渲染更具层次感。
+**3. 四大专项功能矩阵**
+*   **听力全场景泛听区**：每日按主题推送3个素材（外企录音、新闻、播客等，A2至C1难度递进），内容默认折叠，含播放、倒放、快进、倍速功能及语速调整反馈框。
+*   **高阶多角色控场交互（口语实战）**：
+    *   **核心目标**：跟踪多方立场、识别联合分化、切换表达对象（对CEO汇报与对客户施压切换）、管理会议节奏。
+    *   **固定界面结构**：【场景名称】【角色列表】【背景信息】【冲突点】【AI启动句】【录入区】【分支演化】【AI多维反馈（含角色切换自然度、谈判策略）】。
+    *   **场景库**：含三方初阶（如跨部门资源争夺）、四方高阶（如国际银团贷款博弈、危机公关）、跨文化特殊局（中日韩会议、欧美非视频会，需规避宗教与文化表达误区）。口语交互支持实时生成文本并划线入库。
+*   **找破绽与精准反击专项**：
+    *   每日专属推送关于“识别破绽”的词汇（如contradiction, ambiguity）与句型。
+    *   在口语与听力模拟中，AI会刻意埋设逻辑漏洞，要求用户用英语指出破绽，并设计兼顾商务分寸的精准提问。
+*   **三段式书面英语批阅**：
+    采用左侧（推送商务表达技巧）、中部（用户键入具体要求的书信）、右侧（AI进行纵深批阅，并出具优秀对标范例）的并列视图界面。并允许用户上传专属网址和PDF等书籍用于AI提纯英语学习材料。

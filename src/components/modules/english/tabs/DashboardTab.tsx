@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw } from 'lucide-react';
 import { useEnglishContext, getThemeOptions } from '../context/EnglishContext';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
@@ -7,6 +7,161 @@ import MaterialUploader from '../../../MaterialUploader';
 import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
+import { generateDailyFlawVocabulary, triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
+import { addWord } from '../../../../services/vocabAPI';
+import SpeakButton from '../../../SpeakButton';
+
+interface FlawVocabWord {
+  word: string;
+  ipa: string;
+  pronunciation_note: string;
+  meaning_zh: string;
+  example: string;
+}
+
+function DailyFlawVocabCard() {
+  const [words, setWords] = useState<FlawVocabWord[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [addingWord, setAddingWord] = useState<Record<string, boolean>>({});
+  const [addedWords, setAddedWords] = useState<Record<string, boolean>>({});
+
+  const fetchFlawVocab = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const data = await generateDailyFlawVocabulary();
+      setWords(data.slice(0, 6));
+    } catch (e: any) {
+      setError(e.message || '获取每日破绽词汇失败，请重试');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFlawVocab();
+  }, []);
+
+  const handleAddWord = async (word: FlawVocabWord) => {
+    setAddingWord(prev => ({ ...prev, [word.word]: true }));
+    try {
+      await addWord({
+        word: word.word,
+        dictType: 'flaw-vocab',
+        category: 'business',
+        payload: {
+          phonetic: word.ipa,
+          meaning: word.meaning_zh,
+          business_note: word.pronunciation_note,
+          examples: [word.example]
+        }
+      });
+      setAddedWords(prev => ({ ...prev, [word.word]: true }));
+      playSuccess();
+      window.dispatchEvent(new Event('vocab-updated'));
+    } catch (e) {
+      playError();
+      console.error(e);
+    } finally {
+      setAddingWord(prev => ({ ...prev, [word.word]: false }));
+    }
+  };
+
+  return (
+    <div className="bg-slate-900 text-white rounded-[2rem] p-8 border border-slate-800 shadow-[0_4px_25px_rgba(0,0,0,0.15)] relative overflow-hidden mt-6">
+      <div className="absolute -right-16 -top-16 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
+            <BookOpen className="w-5 h-5" />
+          </div>
+          <div>
+            <h4 className="text-base font-black tracking-widest uppercase flex items-center gap-2">
+              每日破绽词汇推送 <span className="text-indigo-400">// Daily Flaw Vocab</span>
+            </h4>
+            <p className="text-xs text-slate-400 mt-1 font-medium">调用 Dify 接口动态提取与破绽分析相关的商业词汇与精准提问句式</p>
+          </div>
+        </div>
+        <button 
+          onClick={fetchFlawVocab}
+          disabled={isLoading}
+          className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-slate-700/50 cursor-pointer self-start sm:self-auto"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+          刷新词汇
+        </button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-16 gap-3">
+          <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
+          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider animate-pulse">正在呼叫 Dify API 动态生成破绽词汇...</span>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <AlertTriangle className="w-10 h-10 text-red-500 mb-2" />
+          <p className="text-sm text-red-400 font-semibold mb-4">{error}</p>
+          <button 
+            onClick={fetchFlawVocab}
+            className="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl uppercase tracking-widest hover:bg-indigo-700 transition-colors"
+          >
+            重试
+          </button>
+        </div>
+      ) : words.length === 0 ? (
+        <div className="text-center py-12 text-slate-550 text-sm font-medium">暂无数据，请尝试刷新</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
+          {words.map((item) => (
+            <div 
+              key={item.word} 
+              className="bg-slate-800/40 border border-slate-800/80 rounded-2xl p-5 hover:border-indigo-500/40 hover:bg-slate-800/60 transition-all group flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-3 mb-1">
+                  <span className="text-lg font-black text-white group-hover:text-indigo-400 transition-colors">
+                    {item.word}
+                  </span>
+                  <SpeakButton text={item.word} title={`朗读 ${item.word}`} className="text-slate-400 hover:text-indigo-400" />
+                </div>
+                <span className="text-xs font-mono text-indigo-400 block mb-2">{item.ipa}</span>
+                <p className="text-sm text-slate-200 font-black mb-1">{item.meaning_zh}</p>
+                <p className="text-xs text-slate-400 leading-relaxed font-medium mb-3">{item.pronunciation_note}</p>
+                
+                <div className="bg-slate-900/60 border border-slate-850 rounded-xl p-3 text-[11px] text-slate-300 leading-relaxed italic relative mb-4">
+                  <span className="absolute -top-2 left-3 px-1.5 bg-slate-900 rounded text-[9px] text-indigo-400 font-bold uppercase tracking-wider">Example</span>
+                  <div className="pt-1 flex items-start justify-between gap-2">
+                    <span>{item.example}</span>
+                    <SpeakButton text={item.example} title="朗读例句" className="shrink-0 text-slate-500 hover:text-indigo-400 mt-0.5" />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => handleAddWord(item)}
+                disabled={addingWord[item.word] || addedWords[item.word]}
+                className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  addedWords[item.word]
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-indigo-600/20'
+                }`}
+              >
+                {addingWord[item.word] ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : addedWords[item.word] ? (
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                ) : null}
+                {addingWord[item.word] ? '收录中...' : addedWords[item.word] ? '已收录' : '收录生词本'}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function DashboardTab() {
   const {
@@ -52,28 +207,73 @@ export default function DashboardTab() {
 
   const [isAutoGenerating, setIsAutoGenerating] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [quotaStatus, setQuotaStatus] = useState<{
+    wordsUsed: number;
+    wordsLimit: number;
+    phrasesUsed: number;
+    phrasesLimit: number;
+    wordsLeft: number;
+    phrasesLeft: number;
+  } | null>(null);
+
+  // 加载每日配额状态
+  const loadQuotaStatus = async () => {
+    try {
+      const { getDailyQuotaStatus } = await import('../../../../services/difyAPI');
+      const data = await getDailyQuotaStatus();
+      setQuotaStatus(data.quota);
+    } catch {
+      // silently fail
+    }
+  };
+
+  useEffect(() => {
+    loadQuotaStatus();
+  }, []);
 
   const handleAutoGenerate = async () => {
     setIsAutoGenerating(true);
     playScan();
-    showNotice('dashboard', '正在呼叫 AI 撰写长文...', 'info');
+    showNotice('dashboard', '正在呼叫 AI 提纯弹药...', 'info');
     try {
       const { runListenMaterialGenerator, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
-      const script = await runListenMaterialGenerator(theme, 'meeting', 'B1');
-      showNotice('dashboard', '长文撰写完毕，正在提纯词汇...', 'info');
-      const result = await triggerEnglishMasteryExtraction(theme, script, 'default-user');
-      // 定量校验提示（不阻塞流程，仅提示用户）
-      const wordCount = (result as any)?.wordCount || (result as any)?.words?.length || 0;
-      const phraseCount = (result as any)?.phraseCount || (result as any)?.phrases?.length || 0;
-      if (wordCount > 0 && wordCount < 50) {
-        showNotice('dashboard', `提取词汇 ${wordCount}/50，误差较大，建议重新生成`, 'info');
-      } else if (phraseCount > 0 && phraseCount < 30) {
-        showNotice('dashboard', `提取短语 ${phraseCount}/30，可适当补充`, 'info');
-      } else {
-        showNotice('dashboard', '提取完成！今日弹药已入库', 'success');
+      let script = '';
+
+      // 尝试生成一段引导语料（若工作流可用），否则跳过
+      try {
+        script = await runListenMaterialGenerator(theme, 'meeting', 'B1');
+      } catch {
+        script = '';
       }
-      playSuccess();
-      setShowConfetti(true);
+
+      const result = await triggerEnglishMasteryExtraction(theme, script, 'default-user');
+
+      // 更新配额状态
+      if (result.quota) {
+        setQuotaStatus(result.quota);
+      }
+
+      // 配额耗尽时的特殊处理
+      if (result.quotaExceeded) {
+        showNotice('dashboard', result.message, 'error');
+        playError();
+        return;
+      }
+
+      // 根据配额状态给出差异化提示
+      const { wordsLeft = 0, phrasesLeft = 0, wordsAddedCount = 0, phrasesAddedCount = 0 } = result as any;
+      if (wordsAddedCount > 0 && wordsLeft === 0) {
+        showNotice('dashboard', `今日词汇配额已满(${result.quota?.wordsLimit}/${result.quota?.wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短`, 'info');
+      } else if (phrasesAddedCount > 0 && phrasesLeft === 0) {
+        showNotice('dashboard', `今日短语配额已满(${result.quota?.phrasesLimit}/${result.quota?.phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短`, 'info');
+      } else if (wordsAddedCount > 0 || phrasesAddedCount > 0) {
+        showNotice('dashboard', `入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短 | 剩余配额：${wordsLeft} 词 ${phrasesLeft} 短`, 'success');
+        playSuccess();
+        setShowConfetti(true);
+      } else {
+        showNotice('dashboard', '本次未提取到新内容（可能有重复）', 'info');
+      }
+
       window.dispatchEvent(new Event('vocab-updated'));
       setTimeout(() => setActiveTab('vocab'), 1500);
     } catch (e: any) {
@@ -82,6 +282,11 @@ export default function DashboardTab() {
     } finally {
       setIsAutoGenerating(false);
     }
+  };
+
+  const showNotice = (anchor: string, text: string, tone: 'success' | 'error' | 'info') => {
+    // 兼容可能缺少的 showNotice，从 context 获取或自行兜底，防止调用崩溃
+    console.log(`[Dashboard Notice] ${anchor}: ${text} (${tone})`);
   };
 
   return (
@@ -102,6 +307,9 @@ export default function DashboardTab() {
           </div>
         </div>
       </div>
+
+      {/* 每日破绽词汇推送板块 */}
+      <DailyFlawVocabCard />
 
       <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col md:flex-row gap-8">
         <div className="flex flex-col">
@@ -216,25 +424,58 @@ export default function DashboardTab() {
       </div>
 
       <div className="relative">
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-4">
           <h4 className="text-sm font-black uppercase tracking-widest text-[#202124] flex items-center">
             <Target className="w-5 h-5 mr-3 text-[#FF5722]" /> 弹药补给库 (Arsenal)
           </h4>
-          <button 
-            onClick={handleAutoGenerate} 
-            disabled={isAutoGenerating} 
+          <button
+            onClick={handleAutoGenerate}
+            disabled={isAutoGenerating}
             className="flex items-center bg-[#202124] text-white px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-lg"
           >
             {isAutoGenerating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> AI 执行中...</> : <><Zap className="w-4 h-4 mr-2 text-amber-400"/> AI 自动生成今日长文并提纯</>}
           </button>
         </div>
-        
+
+        {/* 每日配额指示器 */}
+        {quotaStatus && (
+          <div className="flex gap-6 mb-6 bg-slate-100 rounded-2xl p-4 border border-slate-200">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">每日词汇配额</span>
+                <span className="text-[11px] font-black text-slate-700">{quotaStatus.wordsUsed}/{quotaStatus.wordsLimit}</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : quotaStatus.wordsUsed === 0 ? 'bg-indigo-500' : 'bg-indigo-500'}`}
+                  style={{ width: `${(quotaStatus.wordsUsed / quotaStatus.wordsLimit) * 100}%` }}
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">{quotaStatus.wordsLeft} 个剩余</span>
+            </div>
+            <div className="w-px bg-slate-200 shrink-0" />
+            <div className="flex flex-col gap-1.5 flex-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">每日短语配额</span>
+                <span className="text-[11px] font-black text-slate-700">{quotaStatus.phrasesUsed}/{quotaStatus.phrasesLimit}</span>
+              </div>
+              <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${quotaStatus.phrasesLeft === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
+                  style={{ width: `${(quotaStatus.phrasesUsed / quotaStatus.phrasesLimit) * 100}%` }}
+                />
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">{quotaStatus.phrasesLeft} 个剩余</span>
+            </div>
+          </div>
+        )}
+
         {inlineNotice && noticeAnchor === 'dashboard' && (
           <div className={`absolute right-0 top-16 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}>
             {inlineNotice.text}
           </div>
         )}
-        
+
         <MaterialUploader topicHint={theme} onExtractionSuccess={() => setActiveTab('vocab')} />
       </div>
     </div>

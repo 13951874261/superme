@@ -1,151 +1,416 @@
-import React, { useState } from 'react';
-import { PenTool, ChevronDown, BookOpen, AlertTriangle, ShieldCheck } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { PenTool, ChevronDown, BookOpen, AlertTriangle, ShieldCheck, Activity, Zap, FileText, CheckCircle2, Sparkles } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 
-// 静态跨文化指导库数据
-const GUIDANCE_LIBRARY = [
-  {
-    id: 'compliance',
-    title: '《外企跨国合规函件指南》',
-    icon: <ShieldCheck className="w-4 h-4 text-emerald-500" />,
-    content: '1. 责任隔离：使用被动语态描述客观问题 (e.g., "It has been observed that..." 而非 "We made a mistake")。\n2. 方案前置：外企高层不看过程，起首第一段必须包含 Bottom Line (底线数据) 和 Solution (解决方案)。\n3. 抄送礼仪：CC 列表中层级最高者决定了行文的最高涉密级别，慎用 BCC。'
-  },
-  {
-    id: 'minefields',
-    title: '《欧美非三地沟通雷区》',
-    icon: <AlertTriangle className="w-4 h-4 text-red-500" />,
-    content: '【美企】极度结果导向，忌讳冗长的中式寒暄，直接切入核心商业价值。\n【欧企(英/德/法)】注重程序正义与 ESG，委婉但极度较真，忌讳侵略性施压，多用 "Would it be possible..."\n【中东/非洲】关系先于业务。必须先建立私人层面的 Respect (尊重)，忌讳在邮件中直接用法律条款施压。'
-  }
-];
-
 export default function WriteModule() {
-  const [expandedLevel, setExpandedLevel] = useState<number | null>(3);
-  const [openGuide, setOpenGuide] = useState<string | null>('compliance');
+  const [taskType, setTaskType] = useState('document_correction');
+  const [originalText, setOriginalText] = useState('');
+  const [additionalParams, setAdditionalParams] = useState('');
+  
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scanStep, setScanStep] = useState(0);
+  const [result, setResult] = useState<any>(null);
+
+  // 原生 AudioContext 生成具有科技感的音效 (声)
+  const playSound = (type: 'scan' | 'success') => {
+    try {
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      
+      if (type === 'scan') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(300, ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.05, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.1);
+      } else if (type === 'success') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(600, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1200, ctx.currentTime + 0.3);
+        gain.gain.setValueAtTime(0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+      }
+    } catch (e) {
+      console.log("Audio not supported");
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!originalText.trim()) return;
+    
+    setIsProcessing(true);
+    setResult(null);
+    setScanStep(0);
+    
+    playSound('scan');
+    const intervalId = setInterval(() => playSound('scan'), 800);
+
+    const steps = [
+      "初始化决策文治核心引擎...",
+      "正在执行浅层合规与格式特征提取...",
+      "正在深入剖析逻辑架构与因果链条...",
+      "重组深层商业价值与政治站位...",
+      "正在生成高维重构方案..."
+    ];
+    
+    let stepIdx = 0;
+    const stepInterval = setInterval(() => {
+      stepIdx++;
+      if (stepIdx < steps.length) setScanStep(stepIdx);
+    }, 1200);
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_DIFY_API_BASE_URL}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_DIFY_WRITE_GOVERNANCE_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: {
+            task_type: taskType,
+            original_text: originalText,
+            additional_params: additionalParams
+          },
+          response_mode: "blocking",
+          user: "user-write-gov"
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data && data.data && data.data.outputs && data.data.outputs.analysis_result) {
+         try {
+            const parsed = JSON.parse(data.data.outputs.analysis_result);
+            setResult(parsed);
+            playSound('success');
+         } catch(e) {
+            setResult({ raw: data.data.outputs.analysis_result });
+            playSound('success');
+         }
+      } else {
+         throw new Error("Invalid response format");
+      }
+    } catch (error) {
+      console.error(error);
+      setResult({ error: "系统分析失败，请检查网络或 API Key。" });
+    } finally {
+      clearInterval(intervalId);
+      clearInterval(stepInterval);
+      setIsProcessing(false);
+    }
+  };
+
+  const renderResult = () => {
+    if (!result) return null;
+    if (result.error) return (
+      <div className="mt-8 animate-[fade-in_0.5s_ease-out] flex items-center gap-3 bg-red-50/80 backdrop-blur-sm border border-red-200 text-red-600 p-5 rounded-2xl shadow-sm">
+        <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+        <span className="font-medium text-sm">{result.error}</span>
+      </div>
+    );
+
+    if (taskType === 'document_correction') {
+      return (
+        <div className="space-y-6 mt-10 animate-[fade-in_0.5s_ease-out]">
+           {/* Level 1 */}
+           <div className="relative group">
+             <div className="absolute inset-0 bg-gradient-to-r from-gray-100 to-slate-50 rounded-[2rem] transform transition-transform group-hover:scale-[1.01]" />
+             <div className="relative bg-white/60 backdrop-blur-md border border-white/80 rounded-[2rem] p-7 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+               <div className="flex items-center text-slate-700 font-bold tracking-widest mb-4 text-xs uppercase">
+                  <span className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center mr-3 text-[10px] font-black shadow-inner">L1</span>
+                  浅层扫描 / 格式与合规
+               </div>
+               <p className="text-slate-600 text-[15px] leading-relaxed whitespace-pre-wrap pl-11">{result.level_1}</p>
+             </div>
+           </div>
+
+           {/* Level 2 */}
+           <div className="relative group">
+             <div className="absolute inset-0 bg-gradient-to-r from-orange-50 to-amber-50 rounded-[2rem] transform transition-transform group-hover:scale-[1.01]" />
+             <div className="relative bg-white/60 backdrop-blur-md border border-orange-100/50 rounded-[2rem] p-7 shadow-[0_4px_20px_rgba(255,138,101,0.05)]">
+               <div className="flex items-center text-orange-600 font-bold tracking-widest mb-4 text-xs uppercase">
+                  <span className="w-8 h-8 rounded-full bg-orange-100 border border-orange-200 flex items-center justify-center mr-3 text-[10px] font-black shadow-inner">L2</span>
+                  中层透视 / 逻辑与结构
+               </div>
+               <p className="text-orange-900/80 text-[15px] leading-relaxed whitespace-pre-wrap pl-11">{result.level_2}</p>
+             </div>
+           </div>
+
+           {/* Level 3 */}
+           <div className="relative group">
+             <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 rounded-[2rem] transform transition-transform group-hover:scale-[1.01] shadow-2xl" />
+             <div className="relative rounded-[2rem] p-7 overflow-hidden border border-slate-700/50">
+               {/* 装饰光效 */}
+               <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-orange-500/20 to-rose-500/20 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/3" />
+               <div className="absolute bottom-0 left-0 w-40 h-40 bg-blue-500/10 rounded-full blur-[60px] translate-y-1/3 -translate-x-1/3" />
+               
+               <div className="flex items-center text-white font-bold tracking-widest mb-5 text-xs uppercase relative z-10">
+                  <span className="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-rose-500 flex items-center justify-center mr-3 text-[10px] font-black shadow-[0_0_15px_rgba(249,115,22,0.5)]">L3</span>
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-300">深层重构 / 战略与政治站位</span>
+               </div>
+               
+               <div className="relative z-10 pl-11">
+                 <div className="absolute left-[26px] top-2 bottom-2 w-[2px] bg-gradient-to-b from-orange-500 to-rose-500 rounded-full opacity-80" />
+                 <p className="text-slate-300 text-[15px] leading-relaxed whitespace-pre-wrap">
+                   {result.level_3}
+                 </p>
+               </div>
+             </div>
+           </div>
+        </div>
+      );
+    }
+
+    if (taskType === 'business_writing') {
+      return (
+        <div className="space-y-6 mt-10 animate-[fade-in_0.5s_ease-out]">
+           <div className="relative rounded-[2rem] p-[2px] bg-gradient-to-r from-orange-500 via-rose-500 to-purple-600 shadow-xl">
+             <div className="bg-slate-900 rounded-[calc(2rem-2px)] p-7 h-full relative overflow-hidden">
+               <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/10 rounded-full blur-3xl" />
+               <h4 className="text-[11px] font-black tracking-[0.2em] text-orange-400 uppercase mb-4 flex items-center">
+                 <Zap className="w-4 h-4 mr-2 text-orange-500"/> 
+                 极限压缩输出 (Compressed)
+               </h4>
+               <p className="text-white/90 text-[15px] leading-relaxed whitespace-pre-wrap pl-6 relative">
+                 <span className="absolute left-0 top-1 bottom-1 w-1 bg-gradient-to-b from-orange-500 to-rose-500 rounded-full" />
+                 {result.compressed_text}
+               </p>
+             </div>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+             <div className="bg-white/60 backdrop-blur-xl border border-slate-200/60 rounded-[2rem] p-7 shadow-sm hover:shadow-md transition-shadow">
+                <h4 className="text-[11px] font-black text-slate-500 mb-3 uppercase tracking-[0.2em] flex items-center">
+                  <Activity className="w-3.5 h-3.5 mr-2" />
+                  语体分寸点评
+                </h4>
+                <p className="text-slate-700 text-[14px] leading-relaxed">{result.tone_evaluation}</p>
+             </div>
+             <div className="bg-gradient-to-br from-orange-50/80 to-rose-50/80 backdrop-blur-xl border border-orange-100 rounded-[2rem] p-7 shadow-sm hover:shadow-md transition-shadow">
+                <h4 className="text-[11px] font-black text-orange-600 mb-3 uppercase tracking-[0.2em] flex items-center">
+                  <Sparkles className="w-3.5 h-3.5 mr-2" />
+                  核心技巧点拨
+                </h4>
+                <p className="text-orange-900/80 text-[14px] leading-relaxed">{result.skill_point}</p>
+             </div>
+           </div>
+        </div>
+      );
+    }
+
+    if (taskType === 'value_proposal') {
+      return (
+        <div className="space-y-6 mt-10 animate-[fade-in_0.5s_ease-out]">
+           <div className="relative overflow-hidden bg-red-50/50 backdrop-blur-sm border border-red-100 rounded-[2rem] p-7">
+             <div className="absolute top-0 right-0 w-24 h-24 bg-red-200/20 rounded-full blur-2xl" />
+             <h4 className="text-[11px] font-black tracking-[0.2em] text-red-500 uppercase mb-3 flex items-center">
+               <AlertTriangle className="w-4 h-4 mr-2"/> 
+               纯行政视角局限
+             </h4>
+             <p className="text-red-900/80 text-[15px] leading-relaxed pl-6 relative">
+               <span className="absolute left-0 top-1 bottom-1 w-[2px] bg-red-200 rounded-full" />
+               {result.admin_flaws}
+             </p>
+           </div>
+           
+           <div className="bg-slate-900 rounded-[2rem] p-8 shadow-2xl relative overflow-hidden border border-slate-800">
+             <div className="absolute -top-24 -right-24 w-64 h-64 bg-emerald-500/10 rounded-full blur-[60px]" />
+             
+             <h4 className="text-[11px] font-black tracking-[0.2em] text-emerald-400 uppercase mb-5 flex items-center">
+               <ShieldCheck className="w-4 h-4 mr-2"/> 
+               商业价值提炼 (Value Extraction)
+             </h4>
+             <p className="text-slate-300 text-[15px] leading-relaxed border-l-2 border-emerald-500/50 pl-5 mb-8">
+               {result.value_extraction}
+             </p>
+             
+             <div className="w-full h-px bg-gradient-to-r from-transparent via-slate-700 to-transparent mb-8" />
+             
+             <h4 className="text-[11px] font-black tracking-[0.2em] text-white/80 uppercase mb-5 flex items-center">
+               <FileText className="w-4 h-4 mr-2 text-slate-400"/>
+               高阶业务型提案范本
+             </h4>
+             <div className="bg-slate-800/50 border border-slate-700/50 p-6 rounded-2xl">
+               <p className="text-slate-300 text-[15px] leading-relaxed whitespace-pre-wrap">
+                 {result.business_proposal}
+               </p>
+             </div>
+           </div>
+        </div>
+      );
+    }
+
+    // Fallback for raw text
+    return <div className="mt-8 bg-slate-50 border border-slate-200 p-6 rounded-[2rem] text-sm whitespace-pre-wrap text-slate-600">{result.raw || JSON.stringify(result, null, 2)}</div>;
+  };
 
   return (
     <ModuleWrapper 
-      title="立言 ｜ 高维决策文治" 
+      title="立言 ｜ 决策文治与价值提炼" 
       icon={<PenTool className="w-8 h-8" strokeWidth={2.5} />}
-      description="左翼引入跨文化红线指南，右翼进行三级纵深批阅，彻底隔离政治与合规风险。"
+      description="打破行政局限，实现三级纵深批改与商业价值转化引擎。"
     >
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
-        
-        {/* 左翼：静态跨文化指导抽屉面板 */}
-        <aside className="xl:col-span-4 flex flex-col gap-4">
-          <div className="bg-[#202124] text-white rounded-[2rem] p-6 shadow-lg">
-            <h4 className="text-xs font-black tracking-widest uppercase flex items-center mb-6 text-[#FF5722]">
-              <BookOpen className="w-4 h-4 mr-2" />
-              Cross-Cultural Guidance
-            </h4>
-            <div className="space-y-4">
-              {GUIDANCE_LIBRARY.map((guide) => (
-                <div key={guide.id} className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden transition-all">
-                  <button 
-                    onClick={() => setOpenGuide(openGuide === guide.id ? null : guide.id)}
-                    className="w-full flex items-center justify-between p-4 hover:bg-white/10 transition-colors"
-                  >
-                    <span className="text-sm font-bold flex items-center gap-2">
-                      {guide.icon} {guide.title}
-                    </span>
-                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${openGuide === guide.id ? 'rotate-180 text-white' : ''}`} />
-                  </button>
-                  {openGuide === guide.id && (
-                    <div className="p-4 pt-0 text-xs text-gray-300 leading-relaxed whitespace-pre-wrap font-medium border-t border-white/5 mt-2">
-                      {guide.content}
-                    </div>
-                  )}
+      <style>{`
+        @keyframes scanline {
+          0% { transform: translateY(-100%); }
+          50% { transform: translateY(400px); }
+          100% { transform: translateY(-100%); }
+        }
+        @keyframes fade-in {
+          0% { opacity: 0; transform: translateY(10px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes gradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+
+      {/* Cyberpunk Overlay */}
+      {isProcessing && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-xl animate-[fade-in_0.3s_ease-out]">
+          <div className="relative w-full max-w-lg bg-slate-900 border border-orange-500/30 rounded-[2.5rem] p-12 overflow-hidden shadow-[0_0_100px_rgba(249,115,22,0.15)]">
+            <div className="absolute left-0 right-0 top-0 h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent shadow-[0_0_30px_#f97316] animate-[scanline_2.5s_ease-in-out_infinite]" />
+            
+            <div className="flex flex-col items-center justify-center text-center relative z-10">
+              <div className="relative mb-10">
+                <div className="absolute inset-0 bg-orange-500 blur-2xl opacity-20 animate-pulse" />
+                <div className="w-20 h-20 bg-slate-800 rounded-full flex items-center justify-center border border-orange-500/30 relative">
+                  <Activity className="w-10 h-10 text-orange-500 animate-pulse" />
                 </div>
-              ))}
+              </div>
+              
+              <h3 className="text-xl font-black text-white mb-6 tracking-[0.3em] uppercase bg-clip-text text-transparent bg-gradient-to-r from-orange-400 to-rose-400">
+                Deep Analysis
+              </h3>
+              
+              <div className="h-10 flex items-center justify-center px-6 py-2 bg-slate-800/50 rounded-full border border-slate-700">
+                <p className="text-orange-400/90 font-mono text-[13px] tracking-wider">
+                  &gt; {["初始化决策文治引擎...", "提取浅层合规特征...", "重组逻辑链条与因果网...", "注入深层商业视角与战略维度...", "生成全息重构方案..."][scanStep]}
+                  <span className="animate-pulse ml-2 inline-block w-1.5 h-3.5 bg-orange-500 align-middle"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-0">
+        
+        {/* Left Panel: Configuration */}
+        <aside className="lg:col-span-4 flex flex-col gap-5">
+          <div className="bg-slate-900 text-white rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+            
+            <h4 className="text-[10px] font-black tracking-[0.25em] text-orange-500 uppercase flex items-center mb-8 relative z-10">
+              <Activity className="w-3.5 h-3.5 mr-3" />
+              Engine Config
+            </h4>
+            
+            <div className="space-y-8 relative z-10">
+              <div>
+                <label className="block text-[11px] text-slate-400 uppercase tracking-widest mb-4 font-bold">Analysis Mode</label>
+                <div className="space-y-3">
+                  {[
+                    { id: 'document_correction', label: '三级纵深批阅', icon: <ShieldCheck className="w-4 h-4"/>, desc: '排版 / 逻辑 / 战略' },
+                    { id: 'business_writing', label: '商务行文与压缩', icon: <FileText className="w-4 h-4"/>, desc: '语体点评 / 极限压缩' },
+                    { id: 'value_proposal', label: '业务提案与包装', icon: <Zap className="w-4 h-4"/>, desc: '去行政化 / 商业赋能' }
+                  ].map(mode => {
+                    const isActive = taskType === mode.id;
+                    return (
+                      <button
+                        key={mode.id}
+                        onClick={() => setTaskType(mode.id)}
+                        className={`w-full flex items-center p-4 rounded-[1.5rem] transition-all duration-300 border ${
+                          isActive 
+                            ? 'bg-gradient-to-r from-orange-500/10 to-rose-500/10 border-orange-500/30 shadow-inner' 
+                            : 'bg-slate-800/50 border-transparent text-slate-400 hover:bg-slate-800'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-4 transition-colors ${
+                          isActive ? 'bg-orange-500/20 text-orange-500' : 'bg-slate-700/50 text-slate-500'
+                        }`}>
+                          {mode.icon}
+                        </div>
+                        <div className="text-left">
+                          <div className={`text-sm font-bold tracking-wide mb-1 transition-colors ${isActive ? 'text-white' : 'text-slate-300'}`}>{mode.label}</div>
+                          <div className={`text-[10px] uppercase tracking-wider ${isActive ? 'text-orange-400/80' : 'text-slate-500'}`}>{mode.desc}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {taskType === 'business_writing' && (
+                <div className="animate-[fade-in_0.3s_ease-out] bg-slate-800/50 p-5 rounded-[1.5rem] border border-slate-700/50">
+                  <label className="block text-[10px] text-orange-400 uppercase tracking-widest mb-3 font-bold flex items-center">
+                    <Zap className="w-3 h-3 mr-2" />
+                    极限约束参数 (选填)
+                  </label>
+                  <input 
+                    type="text" 
+                    value={additionalParams}
+                    onChange={(e) => setAdditionalParams(e.target.value)}
+                    placeholder="e.g. 极限压缩至 50 字..."
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3.5 text-sm text-white focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/50 outline-none transition-all placeholder-slate-600"
+                  />
+                </div>
+              )}
             </div>
           </div>
         </aside>
 
-        {/* 右翼：核心草稿与批阅区 */}
-        <section className="xl:col-span-8 bg-white rounded-[2.5rem] p-8 shadow-[0_2px_40px_rgba(0,0,0,0.04)]">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <label className="text-xs font-black text-gray-400 tracking-widest uppercase">战略行文起草台</label>
-            <select className="text-xs border border-gray-200 bg-[#f8f9fa] rounded-full px-4 py-2 outline-none focus:border-[#FF5722] text-[#202124] font-bold cursor-pointer">
-              <option>跨国合规/法务信函</option>
-              <option>外企高管越级汇报</option>
-              <option>危机公关对外声明</option>
-            </select>
+        {/* Right Panel: Editor & Results */}
+        <section className="lg:col-span-8 flex flex-col">
+          <div className="bg-white/80 backdrop-blur-2xl rounded-[2.5rem] p-8 md:p-10 shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-white flex-1">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
+              <div className="flex items-center">
+                <div className="w-2 h-6 bg-gradient-to-b from-orange-500 to-rose-500 rounded-full mr-4" />
+                <label className="text-xs font-black text-slate-800 tracking-[0.2em] uppercase">战略起草控制台</label>
+              </div>
+              <span className="flex items-center text-[10px] bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-full font-bold border border-emerald-100 uppercase tracking-widest">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+                Dify Engine Ready
+              </span>
+            </div>
+            
+            <div className="relative group mb-8">
+              <div className="absolute inset-0 bg-gradient-to-b from-slate-50 to-slate-100/50 rounded-[2rem] transform transition-transform group-focus-within:scale-[1.01]" />
+              <textarea 
+                value={originalText}
+                onChange={(e) => setOriginalText(e.target.value)}
+                rows={8} 
+                className="relative w-full bg-transparent p-7 text-[15px] outline-none resize-none leading-relaxed text-slate-700 placeholder-slate-400 font-medium transition-all" 
+                placeholder="在此输入您的草稿：无论是需要纵深透视的体制内公文，还是亟待提炼商业价值的行政邮件..."
+              />
+            </div>
+            
+            <button 
+              onClick={handleAnalyze}
+              disabled={isProcessing || !originalText.trim()}
+              className="group relative w-full overflow-hidden rounded-full disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <div className="absolute inset-0 bg-gradient-to-r from-orange-600 via-rose-500 to-orange-600 bg-[length:200%_auto] animate-[gradient_3s_ease_infinite] transition-opacity group-hover:opacity-90" />
+              <div className="relative flex items-center justify-center text-white text-sm py-4.5 tracking-[0.25em] uppercase font-black transition-transform group-hover:scale-[1.02]">
+                <Activity className="w-4 h-4 mr-3" />
+                启动全息分析引擎
+              </div>
+            </button>
+
+            {/* Dynamic Results Area */}
+            {renderResult()}
           </div>
-          
-          <textarea 
-            rows={8} 
-            className="w-full bg-[#f8f9fa] rounded-3xl p-6 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-400 font-medium focus:bg-white focus:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all mb-6 border border-transparent focus:border-[#FF5722]/30" 
-            placeholder="结合左侧跨文化指南，起草您的英文决策指令..."
-          ></textarea>
-          
-          <button className="w-full btn-primary text-sm py-4 rounded-full tracking-widest uppercase font-black hover:-translate-y-1 transition-transform mb-8 shadow-lg">
-            开启三层阶梯纵深批阅
-          </button>
-
-          {/* 极简无框风琴展板 (完整保留原有 L1/L2/L3 代码) */}
-          <div className="space-y-4">
-             {/* 第一层：浅 */}
-             <div className={`rounded-3xl transition-all duration-500 overflow-hidden ${expandedLevel === 1 ? 'bg-[#f8f9fa] shadow-inner' : 'bg-white border border-gray-100 hover:border-gray-200'}`}>
-              <button 
-                onClick={() => setExpandedLevel(expandedLevel === 1 ? null : 1)}
-                className="w-full flex items-center justify-between p-6 text-[#202124]"
-              >
-                <span className="text-sm font-black tracking-widest uppercase flex items-center">
-                  <span className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center mr-4 text-xs">L1</span>
-                  合规底线与基础措辞
-                </span>
-                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${expandedLevel === 1 ? 'rotate-180 text-[#FF5722]' : ''}`} />
-              </button>
-              {expandedLevel === 1 && (
-                <div className="px-6 pb-6 pt-2 text-sm text-gray-600 leading-relaxed font-medium">
-                  您在行文中使用的"我觉得"、"但是"带有明显的学生思维。在外企函件中，请强制替换为硬性的"基于数据评估结论"以及"However"。
-                </div>
-              )}
-            </div>
-
-            {/* 第二层：中 */}
-            <div className={`rounded-3xl transition-all duration-500 overflow-hidden ${expandedLevel === 2 ? 'bg-[#fff3e0] shadow-inner' : 'bg-white border border-gray-100 hover:border-gray-200'}`}>
-              <button 
-                onClick={() => setExpandedLevel(expandedLevel === 2 ? null : 2)}
-                className="w-full flex items-center justify-between p-6 text-[#202124]"
-              >
-                <span className="text-sm font-black tracking-widest uppercase flex items-center">
-                  <span className="w-8 h-8 rounded-full bg-[#FF5722]/20 text-[#FF5722] flex items-center justify-center mr-4 text-xs">L2</span>
-                  说服闭环与漏洞修补
-                </span>
-                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${expandedLevel === 2 ? 'rotate-180 text-[#FF5722]' : ''}`} />
-              </button>
-              {expandedLevel === 2 && (
-                <div className="px-6 pb-6 pt-2 text-sm text-[#d84315] leading-relaxed font-bold">
-                  方案极度缺乏因果支撑。上层不仅看创意，更看重"若失败，底线在哪"。这封述职信没有呈现任何财务或政治风险兜底方案。
-                </div>
-              )}
-            </div>
-
-            {/* 第三层：深 */}
-            <div className={`rounded-3xl transition-all duration-500 overflow-hidden ${expandedLevel === 3 ? 'bg-[#202124] shadow-[0_10px_30px_rgba(0,0,0,0.15)]' : 'bg-[#202124] opacity-90 hover:opacity-100'}`}>
-              <button 
-                onClick={() => setExpandedLevel(expandedLevel === 3 ? null : 3)}
-                className="w-full flex items-center justify-between p-6 text-white"
-              >
-                <span className="text-sm font-black tracking-widest uppercase flex items-center">
-                  <span className="w-8 h-8 rounded-full bg-white text-[#202124] flex items-center justify-center mr-4 text-xs">L3</span>
-                  最高统御视角与利益切割隔离
-                </span>
-                <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform duration-300 ${expandedLevel === 3 ? 'rotate-180 text-white' : ''}`} />
-              </button>
-              {expandedLevel === 3 && (
-                <div className="px-6 pb-6 pt-2 text-sm text-gray-300 leading-relaxed font-medium">
-                  <p className="border-l-4 border-[#FF5722] pl-4 py-1 bg-black/20 rounded-r-lg">
-                    <strong>致命盲区锁定：</strong>这封公文的政治站位大错特错。您将所有关键责任前置揽到自己部门身上。在外企或高层机关，一旦合规出事，这就是白纸黑字的替罪羊背书。<br/><br/>
-                    <span className="text-white">高阶修改建议：通过使用"联动多部门共同复议"的泛指被动语态，建立权力缓冲垫，将功劳私有化，将风险公摊化。</span>
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-
         </section>
-
       </div>
     </ModuleWrapper>
   );

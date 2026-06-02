@@ -1,0 +1,209 @@
+app:
+  description: 认知穿透与商业决策逻辑引擎
+  icon: 🧠
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Cognitive Penetration Engine
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景类型
+          options:
+          - policy
+          - report
+          - email
+          - book
+          required: true
+          type: select
+          variable: scene_type
+        - label: 输入文本
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: text_input
+      height: 135
+      id: start
+      position:
+        x: 83
+        y: 282
+      positionAbsolute:
+        x: 83
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: >-
+            你是一个顶级的商业分析师、战略专家和心理博弈大师。你的任务是根据用户输入的材料类型和具体内容，进行“认知穿透”。
+            
+            你需要以 JSON 格式输出结果，以便前端系统进行解析。
+
+            如果 scene_type 为 policy (政策文件):
+            {
+              "surface_conclusion": "表面结论",
+              "hidden_intent": "隐藏意图/导向",
+              "industry_impact": "对行业工作的影响",
+              "risks_and_opportunities": "潜在的风险与机会"
+            }
+
+            如果 scene_type 为 report (商业财报/案例):
+            {
+              "business_model": "核心商业模式分析",
+              "market_pain_points": "海外市场痛点/用户痛点",
+              "profit_logic_flaws": "盈利逻辑破绽（如现金流、烧钱获客等）",
+              "traceability_training": "信息溯源训练（对材料中的关键数据/结论提出如何证伪和追溯的建议）"
+            }
+
+            如果 scene_type 为 email (外企邮件):
+            {
+              "stripped_logic": "剥离真实立场与隐藏因果",
+              "stance_reversal": "立场反转练习（如果站在完全相反的利益方，该如何重写此材料）",
+              "counter_questions": "精准的反向追问（设计几个用于试探对方底线的反问句）"
+            }
+
+            如果 scene_type 为 book (阅读感悟/课外书):
+            {
+              "thought_highlights": "思考亮点精准提炼",
+              "logic_flaws": "逻辑漏洞或局限性指出",
+              "workplace_application": "结合职场应用的高阶深化启示（认知闭环）"
+            }
+
+            请严格以合法的 JSON 字符串返回，不要包含 markdown 代码块包裹（如 ```json ），直接返回 JSON 本身。
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: 'scene_type: {{#start.scene_type#}}
+
+            text_input: {{#start.text_input#}}'
+        selected: false
+        title: 认知穿透引擎LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: analysis_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []

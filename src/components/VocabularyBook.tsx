@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, Clock, AlertCircle, Settings2, RotateCcw, FastForward, Rewind, CheckCircle2 } from 'lucide-react';
+import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, Clock, AlertCircle, Settings2, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import { getStats, getAllWords, deleteWord, manualIntervention, VocabEntry, VocabStats } from '../services/vocabAPI';
 import FlashCard from './FlashCard';
+import CustomCardModal from './CustomCardModal';
 
 export default function VocabularyBook() {
   const [vocabTab, setVocabTab] = useState<'business' | 'general'>('business');
@@ -11,6 +12,8 @@ export default function VocabularyBook() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showFlashCard, setShowFlashCard] = useState(false);
+  const [showCustomCardModal, setShowCustomCardModal] = useState(false);
+  const [editingWord, setEditingWord] = useState<VocabEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
@@ -162,8 +165,15 @@ export default function VocabularyBook() {
                 <button
                   onClick={loadWords}
                   className="text-gray-400 hover:text-gray-600 transition"
+                  title="刷新词条"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setShowCustomCardModal(true); }}
+                  className="flex items-center gap-1 border border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722]/5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg transition"
+                >
+                  + 制卡
                 </button>
                 {stats.dueToday > 0 && (
                   <button
@@ -216,6 +226,13 @@ export default function VocabularyBook() {
                       {/* 操作图标（悬浮显示） */}
                       <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity ml-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex bg-white shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-2">
+                            <button
+                              title="编辑卡片内容"
+                              onClick={(e) => { e.stopPropagation(); setEditingWord(word); }}
+                              className="px-2 py-1 text-gray-400 hover:bg-orange-50 hover:text-[#FF5722] transition border-r border-gray-100"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
                             <button
                               title="重新学习（第一节点）"
                               onClick={(e) => handleIntervention(word.id, 'restart', e)}
@@ -271,6 +288,32 @@ export default function VocabularyBook() {
       {/* 闪卡复习全屏 Portal */}
       {showFlashCard && (
         <FlashCard onClose={handleReviewDone} />
+      )}
+
+      {/* 自定义制卡全屏 Portal */}
+      {showCustomCardModal && (
+        <CustomCardModal
+          onClose={() => setShowCustomCardModal(false)}
+          onSuccess={() => {
+            setShowCustomCardModal(false);
+            loadStats();
+            if (isExpanded) loadWords();
+          }}
+        />
+      )}
+
+      {/* 闪卡编辑全屏 Portal */}
+      {editingWord && (
+        <CustomCardModal
+          editWord={editingWord}
+          onClose={() => setEditingWord(null)}
+          onSuccess={() => {
+            setEditingWord(null);
+            loadStats();
+            if (isExpanded) loadWords();
+            window.dispatchEvent(new Event('vocab-updated'));
+          }}
+        />
       )}
     </>
   );

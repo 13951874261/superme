@@ -1,10 +1,12 @@
-﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookPlus, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, BookPlus, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users, Trophy } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
 import { sendOralChatMessage } from '../../services/difyAPI';
 import { createTrainingAttempt } from '../../services/trainingAPI';
 import { addWord } from '../../services/vocabAPI';
+import Confetti from '../Confetti';
+import { playSuccess, playError } from '../../utils/soundEffects';
 
 // === 5 大高压场景字典 ===
 const SCENE_DATABASE = [
@@ -125,6 +127,16 @@ export default function OralWarRoom({
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [lastNotice, setLastNotice] = useState('沙盘已就绪，输入你的开场白。');
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  // ── 积分与漏洞植入状态 ────────────────────────────────────
+  const [combatPoints, setCombatPoints] = useState(() => Number(localStorage.getItem('oral_combat_points') || '0'));
+  const [showGoldGlow, setShowGoldGlow] = useState(false);
+  const [isLoopholePlanted, setIsLoopholePlanted] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('oral_combat_points', String(combatPoints));
+  }, [combatPoints]);
 
   // ── 划线取词入库 state ────────────────────────────────────
   const [highlightedWord, setHighlightedWord] = useState('');
@@ -265,6 +277,7 @@ export default function OralWarRoom({
         setActiveSceneId(nextId);
         setMessages([]);
         setConversationId(null);
+        setIsLoopholePlanted(false);
         setLastNotice(`已根据全局指令切换战局。进入：${sceneTheme}`);
       }
     }
@@ -291,28 +304,37 @@ export default function OralWarRoom({
     setActiveSceneId(e.target.value);
     setMessages([]);
     setConversationId(null);
+    setIsLoopholePlanted(false);
     setLastNotice(`已重置战局。进入：${e.target.selectedOptions[0].text}`);
   };
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   };
-
   // 核心发送逻辑（接受显式文本，不依赖 inputText state 异步更新）
   const handleSendWithText = async (forceContent: string) => {
     const content = forceContent.trim();
     if (!content || isSending) return;
+
+    const currentRound = messages.length;
 
     // === 核心机制：如果是第一句话，强制注入场景切换指令 ===
     let apiPayload = content;
     const diff = localStorage.getItem('super_agent_global_diff') || 'standard';
     const difficultyPrefix = diff === 'hardcore' ? '【全局指令：当前为极限施压模式，请在回复中表现出极强的压迫感、敌意与找破绽倾向，不可轻易让步。】\n' : '';
 
-    if (messages.length === 0) {
+    let loopholeInstruction = '';
+    if (isLoopholePlanted) {
+      loopholeInstruction = `\n[系统隐性指令：上一轮你刻意植入了逻辑漏洞。请在本次评估中，重点检查用户是否用英语准确指出了你的逻辑漏洞并设计了兼顾商务分寸的提问。如果是，请在返回的 JSON 的 evaluation 字段中包含『【破绽反击成功】』字样，并在分值/反馈中给予额外肯定奖励。]`;
+    } else if (currentRound === 2) {
+      loopholeInstruction = `\n[系统隐性指令：请在本次回复的 dialogue 中，刻意植入一个不易察觉的逻辑漏洞（例如：因果倒置、数据自相矛盾、以偏概全、偷换概念等）。你必须在返回的 JSON 的 flaw_point 字段中，明确且详细地指出你所植入的漏洞具体是什么，以便系统检测用户是否能成功识别并指出。]`;
+    }
+
+    if (currentRound === 0) {
        const sceneNameForAI = activeSceneId === 'dynamic-scene' ? sceneTheme : activeScene.title.split('：')[0].replace('场景', '');
-       apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}]\n${difficultyPrefix}用户发言：${content}`;
+       apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}]\n${difficultyPrefix}用户发言：${content}${loopholeInstruction}`;
     } else {
-       apiPayload = `${difficultyPrefix}用户发言：${content}`;
+       apiPayload = `${difficultyPrefix}用户发言：${content}${loopholeInstruction}`;
     }
 
     const userMsg: MessageItem = { id: `${Date.now()}-u`, role: 'user', content };
@@ -346,10 +368,40 @@ export default function OralWarRoom({
           .catch(() => {});
       }
 
+      let wasLoopholeActive = isLoopholePlanted;
+      let evaluatedSuccess = false;
+
+      if (wasLoopholeActive) {
+        const evalText = safeText(parsed?.evaluation || parsed?.feedback_strategy || '');
+        const successFromAI = evalText.includes('【破绽反击成功】') || evalText.includes('反击成功') || evalText.includes('指出破绽');
+        const successFromUserKeywords = /fallacy|flaw|contradict|loophole|concept-switching|causal|reversal|error|mistake/i.test(content);
+        
+        if (successFromAI || successFromUserKeywords) {
+          setCombatPoints(prev => prev + 50);
+          setShowGoldGlow(true);
+          setShowConfetti(true);
+          playSuccess();
+          setTimeout(() => setShowGoldGlow(false), 3000);
+          setLastNotice('🎉 破绽反击成功！获得 +50 XP!');
+          evaluatedSuccess = true;
+        } else {
+          playError();
+          setLastNotice('未成功指出破绽，继续加油！');
+        }
+        setIsLoopholePlanted(false);
+      }
+
       if (parsed?.flaw_point) {
-        setLastNotice('🎯 已识别破绽，见上方红色卡片 ↑');
+        setIsLoopholePlanted(true);
+        if (wasLoopholeActive && !evaluatedSuccess) {
+          setLastNotice('❌ 上轮未成功指出破绽。⚠️ 侦测到对手新发言存在逻辑漏洞！请重新进行针对性反击。');
+        } else if (!wasLoopholeActive) {
+          setLastNotice('⚠️ 侦测到对手发言存在逻辑漏洞！请进行针对性反击。');
+        }
       } else {
-        setLastNotice('已收到回应，继续追问。');
+        if (!wasLoopholeActive) {
+          setLastNotice('已收到回应，继续追问。');
+        }
       }
       scrollToBottom();
     } catch (error) {
@@ -360,11 +412,13 @@ export default function OralWarRoom({
     }
   };
 
+
   // 键盘发送：读取当前 inputText state
   const handleSend = () => handleSendWithText(inputText);
 
   const content = (
-    <div className="bg-[#f8f9fa] rounded-[2rem] xl:rounded-[2.5rem] p-3 sm:p-4 md:p-6 border border-gray-100 shadow-sm">
+    <div className="bg-[#f8f9fa] rounded-[2rem] xl:rounded-[2.5rem] p-3 sm:p-4 md:p-6 border border-gray-100 shadow-sm relative">
+      {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP */}
       <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm mb-4">
@@ -470,13 +524,25 @@ export default function OralWarRoom({
         </aside>
 
         <section className="2xl:col-span-8 flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden h-[680px] sm:h-[720px] 2xl:h-full">
-          <div className="p-5 border-b border-gray-100 bg-[#f8f9fa] flex items-center justify-between gap-4">
+          <div className="p-5 border-b border-gray-100 bg-[#f8f9fa] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-1">对抗通信通道</div>
               <h4 className="text-lg font-black text-[#202124]">实时解析 AI 破绽并引导反击</h4>
             </div>
-            <div className="text-[11px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-3 py-2 border border-gray-200">
-              {isSending ? '对手推演中' : '待命'}
+            <div className="flex items-center gap-3 self-end sm:self-auto">
+              <div 
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-black text-xs tracking-widest shadow-md transition-all duration-300 ${
+                  showGoldGlow 
+                    ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 ring-4 ring-yellow-300 scale-110 animate-bounce shadow-[0_0_25px_rgba(234,179,8,0.8)]' 
+                    : 'bg-slate-900 border border-slate-800'
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5 text-yellow-405" />
+                <span>🏆 逻辑反击积分: {combatPoints} XP</span>
+              </div>
+              <div className="text-[11px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-3 py-2 border border-gray-200">
+                {isSending ? '对手推演中' : '待命'}
+              </div>
             </div>
           </div>
 
@@ -599,6 +665,17 @@ export default function OralWarRoom({
               <div className="text-sm font-bold text-[#202124]">{lastNotice}</div>
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">当前局势：{activeScene.conflicts.join(' / ')}</div>
             </div>
+            {isLoopholePlanted && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 flex items-start gap-3 shadow-md animate-pulse mb-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h5 className="text-xs font-black uppercase tracking-widest text-amber-850 mb-1">⚠️ 警报：对手露出逻辑破绽！</h5>
+                  <p className="text-xs font-semibold leading-relaxed">
+                    侦测到上述对手发言中存在逻辑漏洞。请在您的回复中，用英语指出破绽并进行精准的商务分寸提问以获得额外积分！
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="relative flex flex-col">
               {/* 高压 10 秒倒计时 */}
               {isRecording && (

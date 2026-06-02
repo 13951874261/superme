@@ -1,0 +1,213 @@
+app:
+  description: '驭心博弈系统分析引擎，支持真实高管斗争研判、博弈论落地实操、双向权力驭控手段匹配与5-10层因果链推演。'
+  icon: 🧠
+  icon_background: '#EBF4FF'
+  icon_type: emoji
+  mode: workflow
+  name: 驭心博弈系统分析引擎 (Game Theory Engine)
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.1
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景类型
+          options:
+          - gov_struggle
+          - corp_clash
+          - upward_takeover
+          required: true
+          type: select
+          variable: scene_type
+        - label: 博弈模型
+          options:
+          - prisoner_dilemma
+          - pig_game
+          - info_asymmetry
+          - cold_trigger
+          required: true
+          type: select
+          variable: game_model
+        - label: 危机场景
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: case_text
+        - label: 用户对策
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_answer
+        - label: 选用权力手段
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: applied_tactics
+      height: 135
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: >-
+            你是一个顶级的人性心理专家、高管斗争顾问和博弈论实操教练。你的任务是评估用户在特定博弈场景下采取的博弈策略，并给出多维度深度分析。
+            你需要以合法的 JSON 格式输出结果，以便前端系统进行解析。
+
+            输入变量：
+            - scene_type: 场景类型 (gov_struggle:体制内派系博弈, corp_clash:外企高管倾轧, upward_takeover:以下克上)
+            - game_model: 博弈模型 (prisoner_dilemma, pig_game, info_asymmetry, cold_trigger)
+            - case_text: 危机场景
+            - user_answer: 用户选择的对策/陈述
+            - applied_tactics: 选用的双向权力手段 (如: 制衡术, 分而治之, 信息垄断, 软对抗等)
+
+            输出 JSON 结构必须包含以下字段：
+            {
+              "is_success": true/false (评估用户的策略是否在当前局势中能够实现战略破局、免受反噬，逻辑链推演是否自洽。用布尔类型表示),
+              "score": 0-100之间的整数 (对用户策略的综合评分),
+              "stakeholder_interests": "利益结构分析：阐明涉事各方核心利益所在、诉求冲突点。",
+              "motives_analysis": "动机透视：深入剖析对手是利益驱动、恐惧驱动、面子驱动还是安全感驱动。",
+              "weaknesses": "对手的致命死穴与权力防线弱点。",
+              "causal_chain": [
+                "L1: [第1层因果传导] 用户的行动直接引发的第一步连锁反应（如对手情绪反弹或盟友表态）。",
+                "L2: [第2层因果传导] 对方的次级反应与防御机制启动。",
+                "L3: [第3层因果传导] 对体制/部门合规与资源重新分配的隐性影响。",
+                "L4: [第4层因果传导] 局势朝更有利/不利方向演进的临界点。",
+                "L5: [第5层因果传导] 5层以上的长期因果影响，是否促成大局妥协或彻底出局。",
+                "L6: [第6层因果传导] ... (根据复杂度，推演5到10层深层因果关系链)",
+                "L7: [第7层因果传导] ...",
+                "L8: [第8层因果传导] ...",
+                "L9: [第9层因果传导] ...",
+                "L10: [第10层因果传导] [最底层因果] 权力格局的稳固或权力体系的重塑结晶。"
+              ],
+              "prototype_archive": {
+                "name": "博弈对手的角色或姓名",
+                "type": "人性原型分类（如：利益驱动型、恐惧驱动型、面子驱动型、安全感驱动型）",
+                "description": "基于此次互动，将其归档归类的原因，以及后续现实中遇到同类原型的识别与应对准则。"
+              },
+              "suggestion": "高级驭人技术点评与未来策略修正方向。"
+            }
+
+            请严格以合法的 JSON 字符串返回，不要包含 markdown 代码块包裹（如 ```json ），直接返回 JSON 本身。如果 JSON 格式不合法，会导致前端解析失败。
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: 'scene_type: {{#start.scene_type#}}
+
+            game_model: {{#start.game_model#}}
+
+            case_text: {{#start.case_text#}}
+
+            user_answer: {{#start.user_answer#}}
+
+            applied_tactics: {{#start.applied_tactics#}}'
+        selected: false
+        title: 驭心博弈分析LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: analysis_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []
