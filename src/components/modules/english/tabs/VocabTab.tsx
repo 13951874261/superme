@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { BookOpen, Loader2, CheckCircle2, Mic, Zap, Briefcase, Globe, CalendarCheck, Library } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
@@ -6,6 +6,7 @@ import Confetti from '../../../Confetti';
 import { submitReview, getAllWords, getReviewWords } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
+import CustomCardModal from '../../../CustomCardModal';
 
 export default function VocabTab() {
   const {
@@ -23,34 +24,48 @@ export default function VocabTab() {
   const [evalResult, setEvalResult] = useState<{ quality: number; feedback: string } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [isFallback, setIsFallback] = useState(false); // true=全量练习模式，false=今日复习模式
+  const [showCustomCardModal, setShowCustomCardModal] = useState(false);
 
-  useEffect(() => {
-    if (activeTab !== 'vocab') return;
+  const reloadVocab = useCallback(async () => {
     setLoadingDueWords(true);
-    setIsFallback(false);
-    // 优先加载今日待复习词（与左侧 FlashCard 同一接口）
-    getReviewWords()
-      .then(async (data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setDueWords(data);
-          setIsFallback(false);
-        } else {
-          // 今日无到期词：回退全量词库（与左侧艾宾浩斯生词本同源）
-          const allData = await getAllWords().catch(() => []);
-          setDueWords(allData);
-          setIsFallback(true);
-        }
-        setCurrentWordIdx(0);
-        setSentenceInput('');
-        setEvalResult(null);
-      })
-      .catch(async () => {
+    try {
+      const data = await getReviewWords();
+      if (Array.isArray(data) && data.length > 0) {
+        setDueWords(data);
+        setIsFallback(false);
+      } else {
         const allData = await getAllWords().catch(() => []);
         setDueWords(allData);
-        setIsFallback(allData.length > 0);
-      })
-      .finally(() => setLoadingDueWords(false));
-  }, [activeTab]);
+        setIsFallback(true);
+      }
+      setCurrentWordIdx(0);
+      setSentenceInput('');
+      setEvalResult(null);
+    } catch {
+      const allData = await getAllWords().catch(() => []);
+      setDueWords(allData);
+      setIsFallback(allData.length > 0);
+    } finally {
+      setLoadingDueWords(false);
+    }
+  }, [setDueWords, setCurrentWordIdx, setSentenceInput, setLoadingDueWords]);
+
+  useEffect(() => {
+    if (activeTab === 'vocab') {
+      reloadVocab();
+    }
+  }, [activeTab, reloadVocab]);
+
+  // 监听全局 vocab-updated 事件
+  useEffect(() => {
+    const handleUpdate = () => {
+      if (activeTab === 'vocab') {
+        reloadVocab();
+      }
+    };
+    window.addEventListener('vocab-updated', handleUpdate);
+    return () => window.removeEventListener('vocab-updated', handleUpdate);
+  }, [activeTab, reloadVocab]);
 
   // 双区过滤逻辑：使用 VocabEntry.category 字段（'business' | 'general'）
   // 注意：dict_type 是字典类型（如 en-zh），不是分区标记，不可用于过滤
@@ -119,22 +134,30 @@ export default function VocabTab() {
       
       {/* 双区生词本切换 — 含区别说明 */}
       <div className="flex flex-col gap-2">
-        <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
+        <div className="flex justify-between items-center w-full">
+          <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
+            <button
+              onClick={() => { setVocabZone('business'); setCurrentWordIdx(0); }}
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                vocabZone === 'business' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" /> 政商务区
+            </button>
+            <button
+              onClick={() => { setVocabZone('general'); setCurrentWordIdx(0); }}
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+                vocabZone === 'general' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
+              }`}
+            >
+              <Globe className="w-3.5 h-3.5" /> 全场景区
+            </button>
+          </div>
           <button
-            onClick={() => { setVocabZone('business'); setCurrentWordIdx(0); }}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-              vocabZone === 'business' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
-            }`}
+            onClick={() => setShowCustomCardModal(true)}
+            className="flex items-center gap-1.5 bg-[#FF5722] text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded-xl hover:bg-[#E64A19] transition shadow-sm"
           >
-            <Briefcase className="w-3.5 h-3.5" /> 政商务区
-          </button>
-          <button
-            onClick={() => { setVocabZone('general'); setCurrentWordIdx(0); }}
-            className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
-              vocabZone === 'general' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" /> 全场景区
+            + 自定义制卡
           </button>
         </div>
         {/* 区别说明 */}
@@ -306,6 +329,34 @@ export default function VocabTab() {
         </div>
       )}
       </div>
+
+      {showCustomCardModal && (
+        <CustomCardModal
+          onClose={() => setShowCustomCardModal(false)}
+          onSuccess={async () => {
+            setShowCustomCardModal(false);
+            setLoadingDueWords(true);
+            try {
+              const data = await getReviewWords();
+              if (Array.isArray(data) && data.length > 0) {
+                setDueWords(data);
+                setIsFallback(false);
+              } else {
+                const allData = await getAllWords().catch(() => []);
+                setDueWords(allData);
+                setIsFallback(true);
+              }
+              setCurrentWordIdx(0);
+              setSentenceInput('');
+              setEvalResult(null);
+            } catch (err) {
+              console.error(err);
+            } finally {
+              setLoadingDueWords(false);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

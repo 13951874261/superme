@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus } from '../../../../services/trainingAPI';
+import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
 
@@ -55,8 +55,8 @@ interface EnglishContextType {
   setStage: React.Dispatch<React.SetStateAction<'0-6' | '6-12'>>;
   theme: string;
   setTheme: React.Dispatch<React.SetStateAction<string>>;
-  masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; _isInitial?: boolean };
-  setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number; _isInitial?: boolean }>>;
+  masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean };
+  setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean }>>;
   themeSwitchError: string | null;
   setThemeSwitchError: React.Dispatch<React.SetStateAction<string | null>>;
   sessionId: string | null;
@@ -70,6 +70,7 @@ interface EnglishContextType {
   setMasteredThemes: React.Dispatch<React.SetStateAction<string[]>>;
   impromptuPassed: boolean;
   setImpromptuPassed: React.Dispatch<React.SetStateAction<boolean>>;
+  markEmailComplete: (theme: string) => Promise<void>;
 
   // Dashboard
   pronunciationNotes: string;
@@ -132,7 +133,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;
   });
-  const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, _isInitial: true });
+  const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, emailCompleted: false, _isInitial: true });
   const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
 
@@ -160,7 +161,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     // 忽略组件挂载时的无意义默认占位数据
     if (masteryData._isInitial) return;
 
-    const isMastered = masteryData.oralCount >= 10 && masteryData.maxWriteScore >= 8;
+    const isMastered = masteryData.oralCount >= 10 && masteryData.maxWriteScore >= 8 && masteryData.emailCompleted;
     const prev = prevMasteryStatusRef.current[theme];
 
     // 方案B核心：严格捕捉状态的瞬间跃迁
@@ -226,6 +227,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
               isMastered: res.isMastered,
               oralCount: res.oralCount,
               maxWriteScore: res.maxWriteScore,
+              emailCompleted: res.emailCompleted,
               _isInitial: false,
             });
           }
@@ -281,6 +283,18 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     void setThemeFocus({ theme }).catch(() => {});
   }, []);
 
+  const handleMarkEmailComplete = async (t: string) => {
+    await markEmailComplete({ theme: t }).catch(() => {});
+    const res = await checkThemeMastery(t).catch(() => null);
+    if (res?.success) {
+      setMasteryData(prev => ({
+        ...prev,
+        emailCompleted: res.emailCompleted,
+        isMastered: res.isMastered,
+      }));
+    }
+  };
+
   return (
     <EnglishContext.Provider
       value={{
@@ -294,6 +308,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         showMasteryOverlay, setShowMasteryOverlay,
         masteredThemes, setMasteredThemes,
         impromptuPassed, setImpromptuPassed,
+        markEmailComplete: handleMarkEmailComplete,
         pronunciationNotes, setPronunciationNotes,
         grammarNotes, setGrammarNotes,
         vocabZone, setVocabZone,

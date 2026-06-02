@@ -1,252 +1,79 @@
-收到。API Key (`app-hwSLY1DsqkE5mVWr0aKwlgJa`) 已安全接收，工作流底座已正式打通。
+**《“Superme”个人成长与全方位能力训练系统》完整业务需求文档**
 
-现在，我们直接进入**最后一步：业务逻辑与前端代码的硬核绑定**。我将把该 API Key 注入到具备“声光电”动效的核心组件中，并确保它完全映射你对【政商务顶级社交规范】和【跨文化高端审美培育】的业务要求。
+### 一、 核心定位与全局底层架构
+**1. 产品定位与风格**
+本系统定位为**AI时代不可替代的高层管理者锻造系统**（陪伴高管阶层成长的专属 AI 智能体），风格保持清冷稳重、理性克制、高情商与专业干练，数据采取私有部署与私有向量库确保绝对隐私。系统旨在将偏行政化的体制内中层，锻造为具备“政策+业务+跨文化+英语”复合竞争力的国际化决策层。
 
-### 一、 软件实现与业务需求映射说明
+**2. 现代奢华的UI/UX设计规范**
+*   **70/30空间折叠布局**：彻底摒弃传统的无限模态框嵌套（Nested Modals）。采用左侧70%为主控区（承载长文阅读、输入表单），右侧30%为动态滑出上下文面板（Context Sheet），实现视线平移即可查看解析的零认知摩擦。
+*   **控制论闭环（Cybernetic Closed-Loops）**：UI层强制引入“动态任务卡片”，将AI的修改建议化为强制性微任务（如重写反驳话术），用户需执行达标后方可解锁后续进度，将开环浏览变为刻意练习。
+*   **极简高级美学**：全面引入Tailwind CSS与Shadcn UI规范，基调采用低调冷灰调（Zinc/Slate），大面积留白，仅在核心节点使用靛蓝色强调。配备Ctrl+K全局命令面板。
 
-1. **高阶场域隔离 (70/30 折叠空间)**：左侧为主控区，陈列高频政商务与跨文化社交场景卡片。右侧为动态抽屉，仅在触发推演时滑出，符合高阶系统“克制、隐秘”的设计美学。
-2. **强制测试与避坑拦截**：用户必须在右侧输入“应对举措”。AI 结合 Dify 接口返回 `feedback`（避坑指南）和 `is_passed`（是否及格）。
-3. **“声光电”多维刺激反馈**：
-* **声**：调用原生 `Audio` API 播放清脆或警示音效。
-* **光**：利用 Tailwind 的 `shadow-[0_0_20px_...]` 配合 Framer Motion 实现呼吸光晕。
-* **电**：通过极简的边框变色与微动效（雷达扫描感）呈现系统研判过程。
-
-
-4. **智力博弈扩展口**：在卡片矩阵中预留了德州扑克、国际象棋等智力博弈的独立入口，供后期接入专用博弈模型。
-
----
-
-### 二、 核心组件代码 (`AestheticTrainingPanel.tsx`)
-
-请将此文件保存在你的 `src/components/` 目录下，并通过前文提供的 `<AestheticMenuItem/>` 路由直接挂载，**绝对不会影响其他系统的运行**。
-
-```tsx
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, ShieldAlert, Diamond, Swords, Wine, Globe } from 'lucide-react';
-// 根据你的工程环境，导入对应组件
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-
-export default function AestheticTrainingPanel() {
-  const [activeTask, setActiveTask] = useState<string | null>(null);
-  const [response, setResponse] = useState("");
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [unlockStatus, setUnlockStatus] = useState<'locked' | 'passed' | 'failed'>('locked');
-  const [difyFeedback, setDifyFeedback] = useState<any>(null);
-
-  // 场景库配置（映射业务需求）
-  const scenarios = [
-    { title: "政商务饭局与敬酒", icon: <Wine size={20} />, type: "体制内规范" },
-    { title: "茶席与茶礼社交", icon: <Wine size={20} />, type: "体制内规范" },
-    { title: "红酒与雪茄品鉴", icon: <Diamond size={20} />, type: "高端商务" },
-    { title: "跨文化宴请(西方)", icon: <Globe size={20} />, type: "跨文化界限" },
-    { title: "跨文化宴请(中东/东南亚)", icon: <Globe size={20} />, type: "跨文化界限" },
-    { title: "德州扑克智力博弈(Beta)", icon: <Swords size={20} />, type: "决策力训练" },
-  ];
-
-  // “声光电”音频触发器
-  const playAudioCue = (type: 'success' | 'alert') => {
-    try {
-      const audio = new Audio(`/sounds/${type}-chime.mp3`);
-      audio.volume = 0.5;
-      audio.play().catch(e => console.log("浏览器防自动播放拦截, 需用户交互后解锁", e));
-    } catch (e) {}
-  };
-
-  const handleSubmitTask = async () => {
-    if (!response.trim()) return;
-    setIsVerifying(true);
-    setUnlockStatus('locked');
-    setDifyFeedback(null);
-    
-    try {
-      // 核心 API 调用，已注入你的 API Key
-      const res = await fetch('https://dify.234124123.xyz/v1/workflows/run', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer app-hwSLY1DsqkE5mVWr0aKwlgJa`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          inputs: {
-            scene_category: activeTask,
-            user_response: response
-          },
-          response_mode: "blocking",
-          user: "aesthetic_user_01"
-        })
-      });
-
-      const data = await res.json();
-      
-      // 解析 Dify 返回的纯 JSON 字符串
-      const rawOutput = data.data.outputs.json_result;
-      const parsedOutputs = JSON.parse(rawOutput); 
-
-      setDifyFeedback(parsedOutputs);
-      
-      if (parsedOutputs.is_passed) {
-        setUnlockStatus('passed');
-        playAudioCue('success');
-      } else {
-        setUnlockStatus('failed');
-        playAudioCue('alert');
-      }
-    } catch (e) {
-      console.error("研判系统异常:", e);
-      setDifyFeedback({ feedback: "系统链接中断，请检查网络或控制台日志。", score: 0 });
-      setUnlockStatus('failed');
-      playAudioCue('alert');
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  return (
-    <div className="flex h-screen w-full bg-[#09090b] text-zinc-100 overflow-hidden font-sans">
-      {/* 70% 主控阵列 */}
-      <div className="w-[70%] h-full p-10 overflow-y-auto border-r border-zinc-800/50">
-        <header className="mb-12">
-          <h1 className="text-3xl font-light tracking-tight flex items-center gap-3">
-            <Diamond className="text-indigo-400" />
-            高阶审美与阶层软实力
-          </h1>
-          <p className="text-zinc-500 mt-3 text-sm tracking-wide">
-            聚焦顶层社交场域分寸感。请选择下方情境，完成应对推演以积累隐性资本。
-          </p>
-        </header>
-
-        <div className="grid grid-cols-2 gap-5">
-          {scenarios.map((scenario) => (
-            <motion.div 
-              whileHover={{ scale: 1.01 }}
-              whileTap={{ scale: 0.99 }}
-              key={scenario.title}
-              onClick={() => {
-                setActiveTask(scenario.title);
-                setUnlockStatus('locked');
-                setDifyFeedback(null);
-                setResponse("");
-              }}
-              className={`p-6 rounded-xl cursor-pointer border transition-all duration-300 flex flex-col gap-4 ${
-                activeTask === scenario.title 
-                  ? 'border-indigo-500/50 bg-indigo-950/20 shadow-[0_0_25px_rgba(99,102,241,0.15)]' 
-                  : 'border-zinc-800/60 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/50'
-              }`}
-            >
-              <div className="flex justify-between items-start">
-                <div className={`p-2 rounded-lg ${activeTask === scenario.title ? 'bg-indigo-500/20 text-indigo-400' : 'bg-zinc-800 text-zinc-400'}`}>
-                  {scenario.icon}
-                </div>
-                <span className="text-[11px] font-mono tracking-wider px-2 py-1 bg-zinc-800/50 text-zinc-500 rounded">
-                  {scenario.type}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-base font-medium text-zinc-200">{scenario.title}</h3>
-                <p className="text-xs text-zinc-500 mt-1">进入情境推演微任务 →</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </div>
-
-      {/* 30% 控制论盲盒面板 */}
-      <AnimatePresence>
-        {activeTask && (
-          <motion.div 
-            initial={{ x: "100%", opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: "100%", opacity: 0 }}
-            transition={{ type: 'spring', damping: 30, stiffness: 250 }}
-            className="w-[30%] h-full bg-[#0c0c0e] p-8 shadow-2xl flex flex-col relative z-10 border-l border-zinc-800/50"
-          >
-            <div className="flex justify-between items-center border-b border-zinc-800/50 pb-5 mb-6">
-              <h2 className="text-lg font-medium text-zinc-100 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
-                实景推演
-              </h2>
-              <button onClick={() => setActiveTask(null)} className="text-zinc-500 hover:text-zinc-300 text-sm">
-                Esc
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col gap-6">
-              <div>
-                <label className="text-xs text-zinc-500 mb-3 block tracking-wide uppercase">
-                  Current Target: {activeTask}
-                </label>
-                <Textarea 
-                  value={response}
-                  onChange={(e) => setResponse(e.target.value)}
-                  className="w-full h-40 bg-zinc-900/50 border-zinc-800 text-zinc-200 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 resize-none text-sm leading-relaxed rounded-xl p-4"
-                  placeholder="在此输入您的动作、话术与心理侧写。&#10;切记：注意文化界限与阶层分寸..."
-                />
-              </div>
-
-              <Button 
-                onClick={handleSubmitTask} 
-                disabled={isVerifying || !response.trim()}
-                className={`w-full h-12 rounded-xl text-sm font-medium transition-all ${
-                  isVerifying 
-                    ? 'bg-zinc-800 text-zinc-500 border border-zinc-700 cursor-not-allowed' 
-                    : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-[0_0_15px_rgba(79,70,229,0.3)] hover:shadow-[0_0_25px_rgba(79,70,229,0.5)]'
-                }`}
-              >
-                {isVerifying ? "专家研判中..." : "提交研判"}
-              </Button>
-
-              {/* “光电”反馈面板 */}
-              <AnimatePresence>
-                {unlockStatus !== 'locked' && difyFeedback && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    className={`mt-2 p-5 rounded-xl border relative overflow-hidden ${
-                      unlockStatus === 'passed' 
-                        ? 'border-emerald-500/30 bg-emerald-950/10 shadow-[0_0_30px_rgba(16,185,129,0.15)]' 
-                        : 'border-rose-500/30 bg-rose-950/10 shadow-[0_0_30px_rgba(244,63,94,0.15)]'
-                    }`}
-                  >
-                    {/* 背景光晕装饰 */}
-                    <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-3xl opacity-20 ${
-                      unlockStatus === 'passed' ? 'bg-emerald-500' : 'bg-rose-500'
-                    }`}></div>
-
-                    <div className="flex items-center gap-3 mb-4 relative z-10">
-                      {unlockStatus === 'passed' ? (
-                        <CheckCircle2 className="text-emerald-400 w-5 h-5" />
-                      ) : (
-                        <ShieldAlert className="text-rose-400 w-5 h-5" />
-                      )}
-                      <span className={`font-medium tracking-wide ${unlockStatus === 'passed' ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {unlockStatus === 'passed' ? "体面过关 (Passed)" : "触碰禁忌 (Failed)"}
-                      </span>
-                      <span className="ml-auto text-xl font-light font-mono text-zinc-400">
-                        {difyFeedback.score}<span className="text-xs text-zinc-600">/10</span>
-                      </span>
-                    </div>
-                    
-                    <div className="relative z-10">
-                      <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 font-semibold">避坑指南与阶层解读</div>
-                      <p className="text-sm text-zinc-300 leading-relaxed">
-                        {difyFeedback.feedback}
-                      </p>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-```
+**3. 全局功能模块布局**
+*   **康奈尔结构顶栏**：上方留白作为全局抬头背景。
+*   **左侧导航与追踪**：包含月度日历、可折叠的Habit Tracker（睡眠、饮食、运动、日行一善），以及“职业发展意向跟踪表”（历史职位向意向职位跃迁的路径规划）。
+*   **后端引擎架构**：全面向Dify v0.6+迁移，利用`Conversation Variables`（如持久化数组`User_Current_Profile`）跨会话追踪用户弱点，依据用户成长轨迹动态调高任务难度。
 
 ---
 
-这套组件现已具备极高强度的视觉与逻辑压迫感，API 联调也已就绪。为了让“声光电”体验真正完美闭环，您是否已经在本地的 `/public/sounds/` 目录下准备好了 `success-chime.mp3` 和 `alert-chime.mp3` 这两个提示音文件，还是需要我提供获取此类极简音效的建议路径？
+### 二、 八大核心训练系统需求
+
+#### 1. 洞察系统（听）：人性解码与破绽识别
+*   **弦外之音与心理侧写**：覆盖体制内（汇报、晋升）与跨国企业（绩效反馈、跨文化交流）及社交场景。强制要求分析发话者的社会层级、内在水准、利益诉求与弦外之音。
+*   **逻辑学判断与破绽抓取**：每日推送三段论、归纳演绎及非形式谬误（如以偏概全、滑坡谬误）的训练实例。强制要求用户在复杂信息中精准抓取对方的**逻辑破绽、事实破绽与意图破绽**。
+
+#### 2. 破局系统（说）：高阶影响力与精准提问
+*   **结构化表达与分寸度**：提供金字塔、因果、对比等表达模板。要求用户根据不同的权力角色（向上汇报、平级协调、向下布置、对外公关）调整称呼、语气和内容边界，进行口播练习。
+*   **即兴逻辑回击与精准提问**：针对“听”模块抓出的破绽，设计符合分寸的提问话术（如体制内的“委婉探讨”vs外企的“直接专业”），训练面对突发刁难时的逻辑反击。
+
+#### 3. 穿透系统（读）：认知穿透与商业决策逻辑
+*   **政策文件与财报拆解**：深度挖掘宏观政策或行业监管文件的隐藏意图、风险与机会。引入出海企业商业案例/财报解析，补齐商业思维（挖掘盈利逻辑破绽）。
+*   **外企邮件逆向拆解**：针对隐性施压或委婉拒绝的邮件，剥离真实立场。训练**“立场反转练习”**（站在相反利益方解读）与**“信息溯源训练”**（追问数据真伪）。
+*   **课外书投喂闭环**：供用户上传书籍章节与感悟，由AI寻找认知漏洞并深化启示。
+
+#### 4. 决策文治系统（写）：高管行文与价值提炼
+*   **体制内公文三级纵深批改**：提供①浅层（格式/措辞）、②中层（逻辑结构）、③深层（政治站位/政策契合度/领导视角）的阶梯式批阅。
+*   **字数压缩挑战**：强制字数极限压缩挑战（如500字材料压至50字核心结论），锻炼长话短说的高层写作本能。
+*   **个人价值提案**：指导用户将偏行政化的经验，包装提炼为出海或跨国企业所需的“政策合规+跨文化运营”商业价值提案。
+
+#### 5. 驭心博弈系统（人性认知）：底层操作系统
+*   **真实高管斗争拆解**：每日推送体制内派系博弈、外企高管倾轧、以下克上的真实案例，剖析各方利益结构、善恶动机与权力弱点。
+*   **人性原型库与善恶利用**：建立“人性分类档案”（利益驱动/恐惧驱动等）。训练如何用善凝聚人心，控恶防范背叛。
+*   **博弈论落地与上下级手段**：结合囚徒困境、信息不对称等理论，系统教授上级驭下术（恩威并施、制衡术）与以下克上术（借势上位、信息垄断）。
+*   **顶层认知升维**：跳出做事层，通过大历史观、权力结构、周期规律与第一性原理，进行5-10层的长期因果链推演，完成战略级决策者的思维跃迁。
+
+#### 6. 高阶审美系统（娱乐）：阶层软实力与隐性资本
+*   **政商务顶级社交规范**：推送饭局敬酒礼仪、茶席社交、高尔夫、红酒/雪茄品鉴规范，提供“绝对不能做的避坑指南”。
+*   **跨文化高阶审美培育**：推送古典音乐、艺术史、香道花道知识。对比中西方/中东宴请礼仪差异，将审美转化为阶层跃迁的社交辨识度。同时嵌入德州扑克、国际象棋等智力博弈对抗。
+
+#### 7. 私人认知树洞（每周一聊）
+*   建立一个极度私密的本地存储对话舱。用户每周输入实战心得、深度阅读感悟或无法对人言的职场困境，AI据此动态调整下周的人性博弈、英语和认知升维等推送方向，实现系统的动态进化。
+
+---
+
+### 三、 【英语引擎】模块（语言核心枢纽）
+*说明：本模块已将所有涉及英语能力的训练逻辑、UI、词汇、听力、口语、书写及底层架构完全收编整合。*
+
+**1. 战略目标与阶段追踪**
+*   **时间线规划**：0-6个月专注商务场景专项攻坚（达BEC高级/CATTI二级，涵盖商务谈判、汇报），前两周优先唤醒发音重音与商务核心语法；6-12个月向文化审美、应急社交等全场景拓展。
+*   **严格主题通关机制**：每个商务主题（如谈判让步）练7-10天，须达成三大硬指标：① 5分钟脱稿发言；② 与AI对话10轮；③ 撰写1篇无错漏邮件，方可推进下一主题。
+
+**2. 核心训练工作流架构**
+*   **跨文化解析引擎（`listen_analysis_chatflow.yml`）**：
+    在听力与多角色推演前，强制用户输入`scene_type`（物理场景）、`role_judgement`（权力层级判断）与`intent_judgement`（真实诉求判断）。AI以此为坐标系，生成结构化报告，点出西方委婉话术背后的逻辑谬误，并指导起草“克制的反问句”。
+*   **双轨智能词典（`dict_tool_workflow.yml`）与生词本闭环**：
+    *   每日推送包含50个主题词汇（带发音）、30个短语（5个例句）。排版遵循“词汇→短语→句子”逻辑，要求造句及Anki式闪卡记忆。
+    *   网页支持划线查询，引入`user_context`变量，将词汇与用户当前业务场景绑定。可路由至全英商务解析或双语分寸度解析。
+    *   划线词汇自动分为**“政商务区”**与**“全场景区”**两大笔记本，严格依据艾宾浩斯曲线闭环提醒复习。
+
+**3. 四大专项功能矩阵**
+*   **听力全场景泛听区**：每日按主题推送3个素材（外企录音、新闻、播客等，A2至C1难度递进），内容默认折叠，含播放、倒放、快进、倍速功能及语速调整反馈框。
+*   **高阶多角色控场交互（口语实战）**：
+    *   **核心目标**：跟踪多方立场、识别联合分化、切换表达对象（对CEO汇报与对客户施压切换）、管理会议节奏。
+    *   **固定界面结构**：【场景名称】【角色列表】【背景信息】【冲突点】【AI启动句】【录入区】【分支演化】【AI多维反馈（含角色切换自然度、谈判策略）】。
+    *   **场景库**：含三方初阶（如跨部门资源争夺）、四方高阶（如国际银团贷款博弈、危机公关）、跨文化特殊局（中日韩会议、欧美非视频会，需规避宗教与文化表达误区）。口语交互支持实时生成文本并划线入库。
+*   **找破绽与精准反击专项**：
+    *   每日专属推送关于“识别破绽”的词汇（如contradiction, ambiguity）与句型。
+    *   在口语与听力模拟中，AI会刻意埋设逻辑漏洞，要求用户用英语指出破绽，并设计兼顾商务分寸的精准提问。
+*   **三段式书面英语批阅**：
+    采用左侧（推送商务表达技巧）、中部（用户键入具体要求的书信）、右侧（AI进行纵深批阅，并出具优秀对标范例）的并列视图界面。并允许用户上传专属网址和PDF等书籍用于AI提纯英语学习材料。

@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
 import { runEnglishWriteReview } from '../../../../services/difyAPI';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
+
+function isL1Perfect(l1Text: string): boolean {
+  if (!l1Text) return false;
+  const lower = l1Text.toLowerCase();
+  return !lower.includes('error') && !lower.includes('mistake') && !lower.includes('incorrect') &&
+    !l1Text.includes('错误') && !l1Text.includes('不对') && !l1Text.includes('有问题') &&
+    !l1Text.includes('incorrect') && !l1Text.includes('grammar error');
+}
 
 const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark = false, optimized = '' }: any) => (
   <div className={`rounded-2xl p-6 border flex-1 ${isDark ? 'bg-[#202124] text-white border-gray-800' : 'bg-white border-gray-100'}`}>
@@ -37,6 +45,7 @@ export default function WriteTab() {
     theme,
     sessionId,
     setMasteryData,
+    markEmailComplete,
     writingText, setWritingText,
     writeIntent, setWriteIntent,
     isReviewing, setIsReviewing,
@@ -47,6 +56,8 @@ export default function WriteTab() {
   const [isGeneratingChallenge, setIsGeneratingChallenge] = useState(false);
   const [challengeText, setChallengeText] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
+  const [missionCollapsed, setMissionCollapsed] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const generateChallenge = async () => {
     setIsGeneratingChallenge(true);
@@ -122,6 +133,11 @@ export default function WriteTab() {
         playSuccess();
       }
 
+      // 检测 L1 是否无错漏，满足则触发邮件通关
+      if (isL1Perfect(normalized.L1)) {
+        await markEmailComplete(theme);
+      }
+
       checkThemeMastery(theme)
         .then((res) => {
           if (res.success) {
@@ -129,6 +145,7 @@ export default function WriteTab() {
               isMastered: res.isMastered,
               oralCount: res.oralCount,
               maxWriteScore: res.maxWriteScore,
+              emailCompleted: res.emailCompleted,
             });
           }
         })
@@ -193,7 +210,7 @@ export default function WriteTab() {
 
       {/* 中栏：AI出题与起草 */}
       <div className="lg:col-span-5 bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex flex-col h-[75vh]">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex justify-between items-center mb-3 shrink-0">
           <h4 className="text-[11px] font-black text-[#202124] uppercase tracking-widest flex items-center">
             Mission Brief // 突发行动指令
           </h4>
@@ -201,21 +218,55 @@ export default function WriteTab() {
             {isGeneratingChallenge ? '正在生成敌情...' : '获取突发刁难任务'}
           </button>
         </div>
-        
-        <div className="bg-[#202124] text-gray-300 p-5 rounded-2xl text-sm leading-relaxed mb-6 min-h-[120px] font-medium border border-gray-800 shadow-inner overflow-y-auto">
-          {challengeText || `点击右上方按钮，让 AI 根据当前阵地【${theme}】为您生成一封需要紧急处理的刁钻邮件或汇报任务。`}
+
+        {/* 任务卡：可折叠，限制高度 */}
+        <div className="bg-[#202124] text-gray-300 rounded-2xl text-sm leading-relaxed mb-4 border border-gray-800 shadow-inner overflow-hidden shrink-0 transition-all duration-300" style={{ maxHeight: missionCollapsed ? '44px' : '180px' }}>
+          <div
+            className="p-4 overflow-y-auto"
+            style={{ maxHeight: missionCollapsed ? '44px' : '180px' }}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">任务正文</span>
+              <button
+                onClick={() => setMissionCollapsed(!missionCollapsed)}
+                className="text-[10px] font-black text-gray-500 hover:text-gray-300 cursor-pointer uppercase tracking-widest transition-colors"
+              >
+                {missionCollapsed ? '展开' : '收起'}
+              </button>
+            </div>
+            <p className="font-medium text-[13px]">
+              {challengeText || `点击右上方按钮，让 AI 根据当前阵地【${theme}】为您生成一封需要紧急处理的刁钻邮件或汇报任务。`}
+            </p>
+          </div>
         </div>
 
-        <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">
+        {/* Intent 行 */}
+        <div className="mb-3 shrink-0">
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">写作意图 / Intent</label>
+          <input
+            type="text"
+            value={writeIntent}
+            onChange={(e) => setWriteIntent(e.target.value)}
+            placeholder="描述你的写作目的（如：施压、让步、寻求共识）"
+            className="w-full bg-[#f8f9fa] border border-gray-200 rounded-xl px-4 py-2 text-xs text-[#202124] outline-none focus:border-[#FF5722]/30 placeholder-gray-400 transition-colors"
+          />
+        </div>
+
+        <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 shrink-0">
           Drafting Zone // 纵深书面起草
         </h4>
-        <textarea 
-          value={writingText} 
-          onChange={(e) => setWritingText(e.target.value)} 
-          className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/30 rounded-2xl p-5 text-sm text-[#202124] outline-none resize-none leading-relaxed flex-1 shadow-inner placeholder-gray-400" 
-          placeholder="在此撰写您的破局回复..." 
+
+        {/* 主编辑器：撑满剩余高度 */}
+        <textarea
+          ref={textareaRef}
+          value={writingText}
+          onChange={(e) => setWritingText(e.target.value)}
+          className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/30 rounded-2xl px-5 py-4 text-sm text-[#202124] outline-none resize-none leading-7 flex-1 shadow-inner placeholder-gray-400 min-h-0 transition-colors"
+          placeholder="在此撰写您的破局回复..."
+          style={{ height: 'calc(100% - 120px)' }}
         />
-        
+
+        {/* Sticky 提交按钮 */}
         <div className="mt-4 shrink-0">
           <button onClick={handleReview} disabled={isReviewing || !writingText} className="bg-[#202124] text-white w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 shadow-md cursor-pointer">
             {isReviewing ? 'Dify 正在执行战术审阅...' : '提交三维战略批阅'}

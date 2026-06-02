@@ -1,5 +1,6 @@
 app:
-  description: 智能词典工作流。透传节点输出 lemma_block；各 LLM 开启 Context 并绑定 lemma_block，提示词用 {{#context#}} 注入（见 Dify LLM 文档「Context 变量」）。勿依赖提示词内 {{#节点.字段#}} 直连替换。API inputs 键名 dict_type。
+  description: 智能词典工作流。透传节点输出 lemma_block；各 LLM 开启 Context 并绑定 lemma_block，提示词用 {{#context#}}
+    注入（见 Dify LLM 文档「Context 变量」）。勿依赖提示词内 {{#节点.字段#}} 直连替换。API inputs 键名 dict_type。
   icon: 📖
   icon_background: '#E8F4FF'
   icon_type: emoji
@@ -10,7 +11,7 @@ dependencies:
 - current_identifier: null
   type: marketplace
   value:
-    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.42@cf508badd3f6c086c137a6034697e0c48a60038783b3c3ed0af2fe55000842e8
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.50@bcca1b734d9ae24ce8ddb9652bd872d69b91a3ffdb2ff8f8885c6f651da33cb0
     version: null
 kind: app
 version: 0.6.0
@@ -32,6 +33,17 @@ workflow:
       - local_file
       - remote_url
       enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
       image:
         enabled: false
         number_limits: 3
@@ -276,20 +288,43 @@ workflow:
       height: 305
       id: a1000000-0000-4000-8000-000000000001
       position:
-        x: 40
-        y: 260
+        x: 0
+        y: 0
       positionAbsolute:
-        x: 40
-        y: 260
+        x: 0
+        y: 0
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        code: "def _s(x):\n    if x is None:\n        return \"\"\n    if isinstance(x, str):\n        return x.strip()\n    if isinstance(x, bool):\n        return \"\"\n    if isinstance(x, (int, float)):\n        return str(x).strip()\n    if isinstance(x, dict):\n        for k in (\"text\", \"content\", \"body\", \"value\", \"input\"):\n            v = x.get(k)\n            if v is not None and str(v).strip():\n                return _s(v)\n        return \"\"\n    if isinstance(x, list):\n        return \" \".join(_s(i) for i in x).strip()\n    return str(x).strip()\n\n\ndef main(word, user_context, locale, direction):\n    pw = _s(word)\n    pc = _s(user_context)\n    pl = _s(locale)\n    pd = _s(direction)\n    user_block_zh = (\n        \"【目标词条】\" + pw + \"\\n\"\n        \"请仅为上述【目标词条】撰写现代汉语词典 JSON；释义、例句、辨析必须全部围绕该词，不得写其它词。\\n\"\n        \"word: \" + pw + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    user_block_en = (\n        \"【HEADWORD】\" + pw + \"\\n\"\n        \"Produce English business dictionary JSON for this headword only.\\n\"\n        \"word: \" + pw + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    user_block_enzh = (\n        \"【目标词条】\" + pw + \"\\n\"\n        \"direction: \" + pd + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    return {\n        \"p_word\": pw,\n        \"p_ctx\": pc,\n        \"p_locale\": pl,\n        \"p_dir\": pd,\n        \"user_block_zh\": user_block_zh,\n        \"user_block_en\": user_block_en,\n        \"user_block_enzh\": user_block_enzh,\n    }\n"
+        code: "def _s(x):\n    if x is None:\n        return \"\"\n    if isinstance(x,\
+          \ str):\n        return x.strip()\n    if isinstance(x, bool):\n       \
+          \ return \"\"\n    if isinstance(x, (int, float)):\n        return str(x).strip()\n\
+          \    if isinstance(x, dict):\n        for k in (\"text\", \"content\", \"\
+          body\", \"value\", \"input\"):\n            v = x.get(k)\n            if\
+          \ v is not None and str(v).strip():\n                return _s(v)\n    \
+          \    return \"\"\n    if isinstance(x, list):\n        return \" \".join(_s(i)\
+          \ for i in x).strip()\n    return str(x).strip()\n\n\ndef main(word, user_context,\
+          \ locale, direction):\n    pw = _s(word)\n    pc = _s(user_context)\n  \
+          \  pl = _s(locale)\n    pd = _s(direction)\n    user_block_zh = (\n    \
+          \    \"【目标词条】\" + pw + \"\\n\"\n        \"请仅为上述【目标词条】撰写现代汉语词典 JSON；释义、例句、辨析必须全部围绕该词，不得写其它词。\\\
+          n\"\n        \"word: \" + pw + \"\\n\"\n        \"user_context: \" + pc\
+          \ + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\n    )\n    user_block_en\
+          \ = (\n        \"【HEADWORD】\" + pw + \"\\n\"\n        \"Produce English\
+          \ business dictionary JSON for this headword only.\\n\"\n        \"word:\
+          \ \" + pw + \"\\n\"\n        \"user_context: \" + pc + \"\\n\"\n       \
+          \ \"locale: \" + pl + \"\\n\"\n    )\n    user_block_enzh = (\n        \"\
+          【目标词条】\" + pw + \"\\n\"\n        \"direction: \" + pd + \"\\n\"\n      \
+          \  \"user_context: \" + pc + \"\\n\"\n        \"locale: \" + pl + \"\\n\"\
+          \n    )\n    return {\n        \"p_word\": pw,\n        \"p_ctx\": pc,\n\
+          \        \"p_locale\": pl,\n        \"p_dir\": pd,\n        \"user_block_zh\"\
+          : user_block_zh,\n        \"user_block_en\": user_block_en,\n        \"\
+          user_block_enzh\": user_block_enzh,\n    }\n"
         code_language: python3
-        desc: 用 _s() 转字符串；输出 p_word 等供「封装 API JSON」绑定。LLM 侧已改为引用「开始」节点 word，避免 IF 后 {{#c0300000...#}} 不替换。
+        desc: 用 _s() 转字符串；输出 p_word 等供「封装 API JSON」绑定。LLM 侧已改为引用「开始」节点 word，避免 IF
+          后 {{#c0300000...#}} 不替换。
         outputs:
           p_ctx:
             children: null
@@ -336,15 +371,15 @@ workflow:
           - direction
           value_type: string
           variable: direction
-      height: 144
+      height: 128
       id: c0300000-0000-4000-8000-000000000001
       position:
-        x: 40
-        y: 140
+        x: 342
+        y: 89
       positionAbsolute:
-        x: 40
-        y: 140
-      selected: false
+        x: 342
+        y: 89
+      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -384,11 +419,11 @@ workflow:
       height: 128
       id: c0100000-0000-4000-8000-000000000001
       position:
-        x: 200
-        y: 260
+        x: 684
+        y: 89
       positionAbsolute:
-        x: 200
-        y: 260
+        x: 684
+        y: 89
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -417,11 +452,11 @@ workflow:
       height: 224
       id: c1000000-0000-4000-8000-000000000001
       position:
-        x: 320
-        y: 200
+        x: 1026
+        y: 41
       positionAbsolute:
-        x: 320
-        y: 200
+        x: 1026
+        y: 41
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -449,22 +484,23 @@ workflow:
       height: 208
       id: c1000000-0000-4000-8000-000000000002
       position:
-        x: 320
-        y: 380
+        x: 1388
+        y: 319
       positionAbsolute:
-        x: 320
-        y: 380
+        x: 1388
+        y: 319
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        code: "def main(p_word, p_ctx, p_locale):\n    w = (p_word or \"\").strip() if isinstance(p_word,\
-          \ str) else str(p_word or \"\").strip()\n    c = (p_ctx or \"\").strip() if isinstance(p_ctx,\
-          \ str) else str(p_ctx or \"\").strip()\n    l = (p_locale or \"\").strip() if isinstance(p_locale,\
-          \ str) else str(p_locale or \"\").strip()\n    lb = \"目标词条：\" + w + \"\\nuser_context：\"\
-          + c + \"\\nlocale：\" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"lemma_block\"\
+        code: "def main(p_word, p_ctx, p_locale):\n    w = (p_word or \"\").strip()\
+          \ if isinstance(p_word, str) else str(p_word or \"\").strip()\n    c = (p_ctx\
+          \ or \"\").strip() if isinstance(p_ctx, str) else str(p_ctx or \"\").strip()\n\
+          \    l = (p_locale or \"\").strip() if isinstance(p_locale, str) else str(p_locale\
+          \ or \"\").strip()\n    lb = \"目标词条：\" + w + \"\\nuser_context：\"+ c + \"\
+          \\nlocale：\" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"lemma_block\"\
           : lb}\n"
         code_language: python3
         desc: 输出 lemma_block 供下游 LLM 的「Context 变量」绑定；勿在提示词里手写 {{#本节点.lemma#}}（部分版本不替换）。
@@ -500,26 +536,27 @@ workflow:
           - p_locale
           value_type: string
           variable: p_locale
-      height: 112
+      height: 128
       id: c2100000-0000-4000-8000-000000000001
       position:
-        x: 470
-        y: 120
+        x: 1388
+        y: 111
       positionAbsolute:
-        x: 470
-        y: 120
+        x: 1388
+        y: 111
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        code: "def main(p_word, p_ctx, p_locale):\n    w = (p_word or \"\").strip() if isinstance(p_word,\
-          \ str) else str(p_word or \"\").strip()\n    c = (p_ctx or \"\").strip() if isinstance(p_ctx,\
-          \ str) else str(p_ctx or \"\").strip()\n    l = (p_locale or \"\").strip() if isinstance(p_locale,\
-          \ str) else str(p_locale or \"\").strip()\n    lb = \"HEADWORD: \" + w + \"\\nuser_context: \"\
-          + c + \"\\nlocale: \" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"lemma_block\"\
-          : lb}\n"
+        code: "def main(p_word, p_ctx, p_locale):\n    w = (p_word or \"\").strip()\
+          \ if isinstance(p_word, str) else str(p_word or \"\").strip()\n    c = (p_ctx\
+          \ or \"\").strip() if isinstance(p_ctx, str) else str(p_ctx or \"\").strip()\n\
+          \    l = (p_locale or \"\").strip() if isinstance(p_locale, str) else str(p_locale\
+          \ or \"\").strip()\n    lb = \"HEADWORD: \" + w + \"\\nuser_context: \"\
+          + c + \"\\nlocale: \" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\"\
+          : l, \"lemma_block\": lb}\n"
         code_language: python3
         desc: lemma_block 供 LLM Context 注入。
         outputs:
@@ -554,14 +591,14 @@ workflow:
           - p_locale
           value_type: string
           variable: p_locale
-      height: 112
+      height: 80
       id: c2100000-0000-4000-8000-000000000002
       position:
-        x: 470
-        y: 300
+        x: 1750
+        y: 363
       positionAbsolute:
-        x: 470
-        y: 300
+        x: 1750
+        y: 363
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -570,10 +607,10 @@ workflow:
     - data:
         code: "def _s(x) -> str:\n    if x is None:\n        return \"\"\n    if isinstance(x,\
           \ str):\n        return x.strip()\n    return str(x).strip()\n\n\ndef main(p_word,\
-          \ p_ctx, p_locale, p_dir) -> dict:\n    w, c, l, d = _s(p_word), _s(p_ctx), _s(p_locale),\
-          \ _s(p_dir)\n    lb = \"目标词条：\" + w + \"\\ndirection：\" + d + \"\\nuser_context：\"\
-          + c + \"\\nlocale：\" + l\n    return {\"lemma\": w, \"ctx\": c, \"loc\": l, \"dir\"\
-          : d, \"lemma_block\": lb}\n"
+          \ p_ctx, p_locale, p_dir) -> dict:\n    w, c, l, d = _s(p_word), _s(p_ctx),\
+          \ _s(p_locale), _s(p_dir)\n    lb = \"目标词条：\" + w + \"\\ndirection：\" +\
+          \ d + \"\\nuser_context：\"+ c + \"\\nlocale：\" + l\n    return {\"lemma\"\
+          : w, \"ctx\": c, \"loc\": l, \"dir\": d, \"lemma_block\": lb}\n"
         code_language: python3
         desc: lemma_block 供 LLM Context；dir 为 direction 文本。
         outputs:
@@ -616,14 +653,14 @@ workflow:
           - p_dir
           value_type: string
           variable: p_dir
-      height: 128
+      height: 96
       id: c2100000-0000-4000-8000-000000000003
       position:
-        x: 470
-        y: 480
+        x: 1750
+        y: 567
       positionAbsolute:
-        x: 470
-        y: 480
+        x: 1750
+        y: 567
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -646,11 +683,9 @@ workflow:
         prompt_template:
         - id: dict-zh-sys
           role: system
-          text: '【本轮输入（必须严格使用，禁止忽略或替换）】
-            {{#context#}}
+          text: '【本轮输入（必须严格使用，禁止忽略或替换）】 {{#context#}}
 
-            【人格与风格（固定，勿违背）】
-            1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
+            【人格与风格（固定，勿违背）】 1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
             2）必须体现：①长期记忆——释义与例句须贴合上文 user_context、locale。②人格固化——语气稳定、不跑偏、不幼稚；专业、克制、有洞察力；不卖萌、不堆砌感叹与表情符号。
 
             你是现代汉语书面语词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块，不要输出任何 JSON 以外的文字。
@@ -670,15 +705,15 @@ workflow:
         type: llm
         vision:
           enabled: false
-      height: 148
+      height: 164
       id: c2000000-0000-4000-8000-000000000001
       position:
-        x: 620
-        y: 120
+        x: 2092
+        y: 93
       positionAbsolute:
-        x: 620
-        y: 120
-      selected: true
+        x: 2092
+        y: 93
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -700,11 +735,9 @@ workflow:
         prompt_template:
         - id: dict-en-sys
           role: system
-          text: '【本轮输入（必须严格使用）】
-            {{#context#}}
+          text: '【本轮输入（必须严格使用）】 {{#context#}}
 
-            【人格与风格（固定，勿违背）】
-            1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
+            【人格与风格（固定，勿违背）】 1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
             2）必须体现：①长期记忆——释义与例句贴合上文 user_context、locale。②人格固化——语气稳定、不跑偏、不幼稚；专业、克制、有洞察力；不卖萌、不堆砌感叹与表情符号。
 
             你是商务语境下的英英词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块。
@@ -722,14 +755,14 @@ workflow:
         type: llm
         vision:
           enabled: false
-      height: 116
+      height: 132
       id: c2000000-0000-4000-8000-000000000002
       position:
-        x: 620
-        y: 300
+        x: 2092
+        y: 337
       positionAbsolute:
-        x: 620
-        y: 300
+        x: 2092
+        y: 337
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -752,18 +785,20 @@ workflow:
         prompt_template:
         - id: dict-enzh-sys
           role: system
-          text: '【本轮输入（必须严格使用）】
-            {{#context#}}
+          text: '【本轮输入（必须严格使用）】 {{#context#}}
 
-            【人格与风格（固定，勿违背）】
-            1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
+            【人格与风格（固定，勿违背）】 1）核心定位：陪伴个人成长的专属 AI 智能体；长期记忆、人格固定、可进化的气质。风格：清冷稳重、理性克制、高情商、不情绪化、专业干练。
             2）必须体现：①长期记忆——译文与例句贴合上文 user_context、locale。②人格固化——语气稳定、不跑偏、不幼稚；专业、克制、有洞察力；不卖萌、不堆砌感叹与表情符号。
 
             你是英汉双向商务词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块。
 
-            绑定（必须遵守）：translation_main 与 business_examples 仅针对上文「目标词条：」行所给词条；禁止偷换词条。direction 以上文「direction：」为准；若为 auto，根据该目标词条判断英或中并写入 direction_resolved。
+            绑定（必须遵守）：translation_main 与 business_examples 仅针对上文「目标词条：」行所给词条；禁止偷换词条。direction
+            以上文「direction：」为准；若为 auto，根据该目标词条判断英或中并写入 direction_resolved。
 
-            phonetic（字符串）硬性规则：当 direction_resolved 为 en_to_zh（词条为英文）时，必须返回 **英语 IPA 国际音标**，用半角斜杠包裹，格式如 /ˈsteɪk.hoʊl.dɚ/ 或 /ˈlev.ər.ɪdʒ/（音节间可用句点分隔）；**禁止**在 phonetic 字段内写中文释义、中文注音说明或「类似某某字的读法」等文字性描述。当 direction_resolved 为 zh_to_en（词条为中文）时，phonetic 可填汉语拼音（带声调）或空字符串，同样 **禁止**用中文句子解释词义充当读音字段。
+            phonetic（字符串）硬性规则：当 direction_resolved 为 en_to_zh（词条为英文）时，必须返回 **英语 IPA
+            国际音标**，用半角斜杠包裹，格式如 /ˈsteɪk.hoʊl.dɚ/ 或 /ˈlev.ər.ɪdʒ/（音节间可用句点分隔）；**禁止**在
+            phonetic 字段内写中文释义、中文注音说明或「类似某某字的读法」等文字性描述。当 direction_resolved 为 zh_to_en（词条为中文）时，phonetic
+            可填汉语拼音（带声调）或空字符串，同样 **禁止**用中文句子解释词义充当读音字段。
 
             必须包含顶层键：direction_resolved（仅 en_to_zh 或 zh_to_en 两种取值）, phonetic（字符串，含义见上）,
             translation_main（字符串，主译文/主释义的合并表述）, business_examples（对象数组，每项含 zh、en、scene）。
@@ -776,14 +811,14 @@ workflow:
         type: llm
         vision:
           enabled: false
-      height: 164
+      height: 132
       id: c2000000-0000-4000-8000-000000000003
       position:
-        x: 620
-        y: 480
+        x: 2092
+        y: 549
       positionAbsolute:
-        x: 620
-        y: 480
+        x: 2092
+        y: 549
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -852,11 +887,11 @@ workflow:
       height: 128
       id: a1000000-0000-4000-8000-000000000003
       position:
-        x: 1180
-        y: 300
+        x: 2454
+        y: 339
       positionAbsolute:
-        x: 1180
-        y: 300
+        x: 2454
+        y: 339
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -875,18 +910,18 @@ workflow:
       height: 132
       id: a1000000-0000-4000-8000-000000000004
       position:
-        x: 1460
-        y: 300
+        x: 2796
+        y: 337
       positionAbsolute:
-        x: 1460
-        y: 300
+        x: 2796
+        y: 337
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: -367.8499999999999
-      y: 89.90000000000003
-      zoom: 0.85
+      x: -621
+      y: 123
+      zoom: 0.7
   rag_pipeline_variables: []

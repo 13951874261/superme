@@ -401,8 +401,47 @@ export async function processMaterialsAndExtract(files: File[], topic: string, u
   return data;
 }
 
-export async function triggerEnglishMasteryExtraction(topic: string, materialText = '', userId = 'default-user') {
-  const response = await fetch('/api/dify/run-english-mastery', {
+export interface DailyExtractResult {
+  success: boolean;
+  message: string;
+  quotaExceeded?: boolean;
+  quota: {
+    wordsLimit: number;
+    wordsUsed: number;
+    wordsLeft: number;
+    phrasesLimit: number;
+    phrasesUsed: number;
+    phrasesLeft: number;
+  };
+  words: string[];
+  phrases: string[];
+  wordCount: number;
+  phraseCount: number;
+  wordsAddedCount: number;
+  phrasesAddedCount: number;
+}
+
+export interface DailyQuotaStatus {
+  success: boolean;
+  quota: {
+    wordsLimit: number;
+    wordsUsed: number;
+    wordsLeft: number;
+    phrasesLimit: number;
+    phrasesUsed: number;
+    phrasesLeft: number;
+  };
+}
+
+export async function getDailyQuotaStatus(userId = 'default-user'): Promise<DailyQuotaStatus> {
+  const response = await fetch(`/api/daily-quota/status?userId=${encodeURIComponent(userId)}`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data?.error || '获取每日配额失败');
+  return data as DailyQuotaStatus;
+}
+
+export async function triggerEnglishMasteryExtraction(topic: string, materialText = '', userId = 'default-user'): Promise<DailyExtractResult> {
+  const response = await fetch('/api/english/daily-extract', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ topic, materialText, userId }),
@@ -410,9 +449,13 @@ export async function triggerEnglishMasteryExtraction(topic: string, materialTex
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data?.success) {
-    throw new Error(data?.error || data?.message || '提纯工作流执行失败');
+    if (data?.quotaExceeded) {
+      // 配额耗尽也是一种"成功返回"，前端根据 quotaExceeded 字段展示提示
+      return data as DailyExtractResult;
+    }
+    throw new Error(data?.error || data?.message || '提纯流水线执行失败，请检查后端状态');
   }
-  return data;
+  return data as DailyExtractResult;
 }
 
 export async function callVocabPurify(
@@ -1325,5 +1368,43 @@ export async function deletePersonalPrototype(id: string): Promise<{ success: bo
     throw new Error(data?.error || '删除人性原型档案失败');
   }
   return data;
+}
+
+// 每日专属破绽词汇动态生成（调用 Dify 唤醒工作流）
+export async function generateDailyFlawVocabulary(userId = 'default-user'): Promise<Array<{
+  word: string;
+  ipa: string;
+  pronunciation_note: string;
+  meaning_zh: string;
+  example: string;
+}>> {
+  const apiKey = import.meta.env.VITE_DIFY_WAKEUP_API_KEY || import.meta.env.VITE_DIFY_WAKUP_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_WAKEUP_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { theme: 'identifying logical flaws and business counterattack' },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Wakeup Engine Error');
+
+  try {
+    const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
+    const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return parsed.vocab || [];
+  } catch (e) {
+    console.error('解析破绽词汇失败:', e, data);
+    throw new Error('Dify 接口返回数据格式解析失败');
+  }
 }
 

@@ -83,10 +83,210 @@ export function renderValue(value: any, depth = 0, keyName?: string, queryWord?:
   return <span>{String(value)}</span>;
 }
 
+// 现代汉语词典一体化排版
+function renderZhModern(payload: any, query: string) {
+  const { definition, usage_notes, collocations, confusable_pairs, example_sentences } = payload;
+
+  return (
+    <div className="space-y-4 text-left">
+      {/* 头部 */}
+      <div className="flex items-baseline justify-between pb-2 border-b border-gray-100">
+        <div className="flex items-baseline gap-2">
+          <span className="text-xl font-bold text-gray-900 select-all">{query}</span>
+          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">现代汉语</span>
+        </div>
+      </div>
+
+      {/* 释义 */}
+      <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-3.5 shadow-sm">
+        <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">词典释义</div>
+        <div className="text-sm font-semibold text-gray-800 leading-relaxed">{definition}</div>
+      </div>
+
+      {/* 用法说明 */}
+      {usage_notes && (
+        <div className="border-l-4 border-indigo-500 bg-indigo-50/10 p-3 rounded-r-xl border border-y-gray-100 border-r-gray-100">
+          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">用法/语境规范</div>
+          <div className="text-xs text-gray-600 leading-relaxed">{usage_notes}</div>
+        </div>
+      )}
+
+      {/* 搭配 */}
+      {Array.isArray(collocations) && collocations.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">常用搭配</div>
+          <div className="flex flex-wrap gap-1.5">
+            {collocations.map((coll: string, idx: number) => (
+              <span key={idx} className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200/50 px-2.5 py-1 rounded-full">
+                {coll}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 易混辨析 */}
+      {Array.isArray(confusable_pairs) && confusable_pairs.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">易混近义辨析</div>
+          <div className="space-y-2">
+            {confusable_pairs.map((pair: any, idx: number) => (
+              <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:shadow transition">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
+                  <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{pair.term}</span>
+                </div>
+                <div className="text-xs text-gray-500 leading-relaxed mt-1 pl-3">{pair.note}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 例句 */}
+      {Array.isArray(example_sentences) && example_sentences.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">例句支撑</div>
+          <div className="space-y-2 bg-gray-50/50 border border-gray-100 rounded-xl p-3">
+            {example_sentences.map((sent: string, idx: number) => (
+              <div key={idx} className="text-xs text-gray-700 leading-relaxed flex gap-2">
+                <span className="text-indigo-400 font-bold shrink-0">{idx + 1}.</span>
+                <span>{sent}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 商务英英词典一体化排版
+function renderEnEnBusiness(payload: any, query: string) {
+  const { headword, pos, definitions_en, business_notes, scenarios } = payload;
+  const wordDisplay = headword || query;
+
+  return (
+    <div className="space-y-4 text-left">
+      {/* 头部 */}
+      <div className="flex items-baseline justify-between pb-2 border-b border-gray-100">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-xl font-bold text-gray-900 select-all">{wordDisplay}</span>
+          {pos && (
+            <span className="text-xs italic text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-medium">{pos}</span>
+          )}
+          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">商务英英</span>
+        </div>
+        {hasEnglishText(wordDisplay) && (
+          <SpeakButton text={wordDisplay} title="播放词条发音" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+        )}
+      </div>
+
+      {/* 定义列表 */}
+      {Array.isArray(definitions_en) && definitions_en.length > 0 && (
+        <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-3.5 shadow-sm">
+          <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Definitions</div>
+          <ol className="list-decimal pl-4 space-y-2">
+            {definitions_en.map((def: string, idx: number) => (
+              <li key={idx} className="text-sm text-gray-800 leading-relaxed font-medium pl-0.5">
+                {def}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {/* 商务注解 */}
+      {business_notes && (
+        <div className="border-l-4 border-indigo-500 bg-indigo-50/10 p-3 rounded-r-xl border border-y-gray-100 border-r-gray-100">
+          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">商务用法注解</div>
+          <div className="text-xs text-gray-600 leading-relaxed font-medium">{business_notes}</div>
+        </div>
+      )}
+
+      {/* 应用场景 */}
+      {Array.isArray(scenarios) && scenarios.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">Workplace Scenarios</div>
+          <div className="space-y-2.5">
+            {scenarios.map((sc: any, idx: number) => (
+              <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:border-indigo-100 transition">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
+                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{sc.scene || '场景'}</span>
+                  {hasEnglishText(sc.example_en) && (
+                    <SpeakButton text={sc.example_en} title="播放例句发音" className="ml-auto w-6 h-6 shrink-0" iconClassName="w-3 h-3" />
+                  )}
+                </div>
+                <div className="text-sm font-medium text-gray-800 leading-relaxed pl-3">{sc.example_en}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 英汉双向商务词典一体化排版
+function renderEnZhBidirectional(payload: any, query: string) {
+  const { direction_resolved, phonetic, translation_main, business_examples } = payload;
+  const isEnToZh = direction_resolved === 'en_to_zh';
+  const speakText = query;
+
+  return (
+    <div className="space-y-4 text-left">
+      {/* 头部 */}
+      <div className="flex items-baseline justify-between pb-2 border-b border-gray-100">
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-xl font-bold text-gray-900 select-all">{query}</span>
+          {phonetic && (
+            <span className="text-xs font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{phonetic}</span>
+          )}
+          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">
+            {isEnToZh ? '英 ➜ 汉' : '汉 ➜ 英'}
+          </span>
+        </div>
+        {hasEnglishText(speakText) && (
+          <SpeakButton text={speakText} title="播放词条发音" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+        )}
+      </div>
+
+      {/* 核心翻译 */}
+      <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-3.5 shadow-sm">
+        <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">核心译义</div>
+        <div className="text-base font-bold text-gray-800 leading-relaxed">{translation_main}</div>
+      </div>
+
+      {/* 商务例句 */}
+      {Array.isArray(business_examples) && business_examples.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">商务语境例句</div>
+          <div className="space-y-2.5">
+            {business_examples.map((ex: any, idx: number) => (
+              <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:border-indigo-100 transition">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
+                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{ex.scene || '商务场景'}</span>
+                  {hasEnglishText(ex.en) && (
+                    <SpeakButton text={ex.en} title="播放例句发音" className="ml-auto w-6 h-6 shrink-0" iconClassName="w-3 h-3" />
+                  )}
+                </div>
+                <div className="text-sm font-medium text-gray-800 leading-relaxed pl-3">{ex.en}</div>
+                <div className="text-xs text-gray-500 mt-1 leading-relaxed pl-3">{ex.zh}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const DICT_CONFIG = {
-  zh_modern:           { title: '现代汉语词典', subtitle: '词汇溯源与写作文风升维支撑', icon: <Type className="w-5 h-5" />, color: 'text-blue-600 bg-blue-50' },
-  en_en_business:      { title: '英英词典',     subtitle: '沉浸获取原生商务英英解释',   icon: <BookA className="w-5 h-5" />, color: 'text-purple-600 bg-purple-50' },
-  en_zh_bidirectional: { title: '英汉双向译制', subtitle: '带音标及职场黑话穿透',       icon: <Languages className="w-5 h-5" />, color: 'text-emerald-600 bg-emerald-50' },
+  zh_modern:           { title: '现代汉语词典', subtitle: '词汇溯源与写作文风升维支撑', icon: <Type className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50' },
+  en_en_business:      { title: '英英词典',     subtitle: '沉浸获取原生商务英英解释',   icon: <BookA className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50' },
+  en_zh_bidirectional: { title: '英汉双向译制', subtitle: '带音标及职场黑话穿透',       icon: <Languages className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50' },
 } as const;
 
 const DICT_ORDER: DictType[] = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'];
@@ -157,12 +357,9 @@ export default function DictionaryPanel() {
         {DICT_ORDER.map((type) => {
           const cfg = DICT_CONFIG[type];
           const isOpen = openDict === type;
-          const payloadKeys = Object.keys(result?.payload || {});
-          const activeIdx = payloadKeys.indexOf(activeTab);
-          const activeContent = result?.payload?.[activeTab];
 
           return (
-            <div key={type} className={`rounded-2xl border transition-all ${isOpen ? 'border-gray-200 shadow-md' : 'border-gray-100 shadow-sm'} overflow-hidden bg-white`}>
+            <div key={type} className={`rounded-2xl border transition-all ${isOpen ? 'border-indigo-100 shadow-md' : 'border-gray-100 shadow-sm'} overflow-hidden bg-white`}>
               {/* 菜单行 */}
               <button
                 onClick={(e) => handleToggle(type, e)}
@@ -173,7 +370,7 @@ export default function DictionaryPanel() {
                   <div className="font-bold text-[#202124] text-sm">{cfg.title}</div>
                   <div className="text-[11px] text-gray-400 mt-0.5">{cfg.subtitle}</div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-gray-300 transition-transform duration-300 ${isOpen ? 'rotate-90 text-[#FF5722]' : 'group-hover:text-gray-500'}`} />
+                <ChevronRight className={`w-4 h-4 text-gray-300 transition-transform duration-300 ${isOpen ? 'rotate-90 text-indigo-500' : 'group-hover:text-gray-500'}`} />
               </button>
 
               {/* 内联展开的详情区 */}
@@ -188,12 +385,12 @@ export default function DictionaryPanel() {
                       onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleSearch(type); }}
                       onClick={e => e.stopPropagation()}
                       placeholder="切入精准词条..."
-                      className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:border-[#FF5722] shadow-sm transition"
+                      className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm transition animate-none"
                     />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSearch(type); }}
                       disabled={isLoading || !query.trim()}
-                      className="absolute right-2 top-1.5 bg-[#202124] text-white p-1.5 rounded-lg hover:bg-[#FF5722] disabled:opacity-50 transition"
+                      className="absolute right-2 top-1.5 bg-[#202124] text-white p-1.5 rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition"
                     >
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                     </button>
@@ -201,74 +398,60 @@ export default function DictionaryPanel() {
 
                   {/* 加载中 */}
                   {isLoading && (
-                    <div className="flex flex-col items-center py-6 text-gray-400">
-                      <Loader2 className="w-6 h-6 animate-spin mb-2 text-[#FF5722]" />
+                    <div className="flex flex-col items-center py-6 text-gray-400 animate-pulse">
+                      <Loader2 className="w-6 h-6 animate-spin mb-2 text-indigo-600" />
                       <span className="text-xs">Dify 工作流深度解构中...</span>
                     </div>
                   )}
 
                   {/* 错误 */}
                   {result?.ok === false && (
-                    <div className="flex items-start text-red-500 text-xs bg-red-50 p-3 rounded-xl">
+                    <div className="flex items-start text-red-500 text-xs bg-red-50 p-3 rounded-xl border border-red-100">
                       <AlertCircle className="w-4 h-4 mr-2 shrink-0 mt-0.5" />
                       <span>{result.message || '查询失败'}</span>
                     </div>
                   )}
 
                   {/* 结果区 */}
-                  {result?.ok && payloadKeys.length > 0 && (
-                    <>
-                      {/* Tab 导航 + 收录按钮 */}
-                      <div className="flex flex-wrap gap-1.5 items-center">
-                        {payloadKeys.map(key => (
-                          <button
-                            key={key}
-                            onClick={(e) => { e.stopPropagation(); setActiveTab(key); }}
-                            className={`text-[11px] font-bold px-2.5 py-1 rounded-lg transition-all ${activeTab === key ? 'bg-[#FF5722] text-white shadow-sm' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                          >
-                            {getLabel(key)}
-                          </button>
-                        ))}
+                  {result?.ok && result.payload && (
+                    <div className="bg-white rounded-xl border border-gray-100 p-3.5 shadow-sm space-y-4">
+                      {/* 一体化排版展示 */}
+                      {result.type === 'zh_modern' ? renderZhModern(result.payload, query) :
+                       result.type === 'en_en_business' ? renderEnEnBusiness(result.payload, query) :
+                       result.type === 'en_zh_bidirectional' ? renderEnZhBidirectional(result.payload, query) :
+                       /* Fallback 旧式渲染 */
+                       <div className="space-y-4">
+                         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                           <span className="text-sm font-bold text-gray-800">{query}</span>
+                           <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">未格式化数据</span>
+                         </div>
+                         <div className="text-xs leading-relaxed text-gray-600">
+                           {renderValue(result.payload, 0, 'payload', query)}
+                         </div>
+                       </div>
+                      }
+
+                      {/* 收录操作 */}
+                      <div className="flex justify-end pt-3 border-t border-gray-100">
                         <button
                           title={saveStatus === 'saved' ? '已收录' : saveStatus === 'exists' ? '已存在' : '收录'}
                           disabled={saveStatus === 'saving'}
                           onClick={(e) => { e.stopPropagation(); handleSave(type); }}
-                          className={`ml-auto px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold ${saveStatus === 'saved' ? 'bg-emerald-100 text-emerald-600' : saveStatus === 'exists' ? 'bg-amber-100 text-amber-600' : saveStatus === 'error' ? 'bg-red-100 text-red-500' : 'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white'}`}
+                          className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold ${
+                            saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
+                            saveStatus === 'exists' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 
+                            saveStatus === 'error' ? 'bg-red-50 text-red-500 border border-red-100' : 
+                            'bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-100/50 hover:border-indigo-600'
+                          }`}
                         >
-                          {saveStatus === 'saved' ? <><CheckCircle2 className="w-3 h-3" />已收录</> :
-                           saveStatus === 'exists' ? <><CheckCircle2 className="w-3 h-3" />已存在</> :
+                          {saveStatus === 'saved' ? <><CheckCircle2 className="w-3.5 h-3.5" />已收录</> :
+                           saveStatus === 'exists' ? <><CheckCircle2 className="w-3.5 h-3.5" />已存在</> :
                            saveStatus === 'saving' ? <>保存中...</> :
                            saveStatus === 'error' ? <>失败</> :
-                           <><BookmarkPlus className="w-3 h-3" />收录</>}
+                           <><BookmarkPlus className="w-3.5 h-3.5" />收录至生词本</>}
                         </button>
                       </div>
-
-                      {/* 内容框 */}
-                      <div className="bg-white rounded-xl border border-gray-100 shadow-inner p-3 min-h-[100px]">
-                        <div className="flex items-center gap-1.5 mb-3 pb-1 border-b border-[#FF5722]/20">
-                          <span className="w-1 h-4 bg-[#FF5722] rounded-full inline-block"></span>
-                          <span className="text-[11px] font-black text-[#FF5722] uppercase tracking-wider">{getLabel(activeTab)}</span>
-                          {typeof activeContent === 'string' && hasEnglishText(activeContent) ? (
-                            <SpeakButton text={activeTab.toLowerCase().includes('phonetic') || activeTab.toLowerCase().includes('pronunciation') ? query : activeContent} title="播放当前英文内容" className="ml-auto w-7 h-7" iconClassName="w-3.5 h-3.5" />
-                          ) : null}
-                          <span className="ml-auto text-[10px] text-gray-300">{activeIdx + 1} / {payloadKeys.length}</span>
-                        </div>
-                        <div className="text-sm leading-relaxed text-gray-700 overflow-y-auto max-h-[200px] scrollbar-thin pr-1">
-                          {activeContent !== null && activeContent !== undefined && activeContent !== ''
-                            ? renderValue(activeContent, 0, activeTab, query)
-                            : <div className="text-gray-300 text-center text-xs py-4 italic">当前维度暂无数据</div>}
-                        </div>
-                        {/* 前后导航 */}
-                        <div className="flex justify-between mt-3 pt-2 border-t border-gray-50">
-                          <button onClick={(e) => { e.stopPropagation(); const k = payloadKeys[activeIdx - 1]; if (k) setActiveTab(k); }} disabled={activeIdx === 0} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#FF5722] disabled:opacity-30 transition">
-                            <ChevronLeft className="w-4 h-4" />{activeIdx > 0 ? getLabel(payloadKeys[activeIdx - 1]) : ''}
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); const k = payloadKeys[activeIdx + 1]; if (k) setActiveTab(k); }} disabled={activeIdx === payloadKeys.length - 1} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-[#FF5722] disabled:opacity-30 transition">
-                            {activeIdx < payloadKeys.length - 1 ? getLabel(payloadKeys[activeIdx + 1]) : ''}<ChevronRight className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    </>
+                    </div>
                   )}
 
                   {/* 空态提示 */}

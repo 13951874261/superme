@@ -39,7 +39,7 @@ function Send-File {
     [string]$Destination
   )
 
-  & $Pscp @HostKeyOptions -pw $PlainPassword -batch $Source $Destination
+  & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source $Destination
   if ($LASTEXITCODE -ne 0) {
     throw "Upload failed: $Source -> $Destination"
   }
@@ -57,7 +57,7 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'pnpm build failed' }
 
   Write-Host 'Uploading frontend...' -ForegroundColor Cyan
-  Send-File "$ProjectRoot\dist\index.html" "${ServerHost}:$RemoteWebRoot/index.html"
+  Send-File "$ProjectRoot\dist\*" "${ServerHost}:$RemoteWebRoot/"
 
   Write-Host 'Uploading API files...' -ForegroundColor Cyan
   Send-File "$ProjectRoot\vocab-server\server.js" "${ServerHost}:$RemoteApiRoot/server.js"

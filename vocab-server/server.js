@@ -111,6 +111,18 @@ try {
   db.prepare("ALTER TABLE training_attempts ADD COLUMN user_answer TEXT").run();
 } catch (e) {}
 
+// 初始化 theme_progress 表（邮件通关指标持久化）
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS theme_progress (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    theme TEXT,
+    has_perfect_email INTEGER DEFAULT 0,
+    updated_at INTEGER,
+    UNIQUE(user_id, theme)
+  )
+`).run();
+
 // 初始化 personal_prototypes 表
 db.prepare(`
   CREATE TABLE IF NOT EXISTS personal_prototypes (
@@ -273,6 +285,20 @@ app.patch('/api/vocab/update_payload/:id', (req, res) => {
   }
 });
 
+// 全面更新词条（支持修改单词、分区及 payload）
+app.put('/api/vocab/update/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const { word, category, payload } = req.body;
+    db.prepare('UPDATE vocabulary SET word = ?, category = ?, payload = ? WHERE id = ?')
+      .run(word, category, JSON.stringify(payload || {}), id);
+    res.json({ success: true, message: '更新成功' });
+  } catch (error) {
+    console.error('Update vocab error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
 // 提交复习结果
 app.put('/api/vocab/review/:id', (req, res) => {
   try {
@@ -339,6 +365,23 @@ app.delete('/api/vocab/:id', (req, res) => {
     res.status(500).json({ error: 'Database error' });
   }
 });
+
+// ==========================================
+// 每日配额表（用于英语引擎词汇推送量控制）
+// ==========================================
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS daily_vocab_quota (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    quota_date TEXT NOT NULL,
+    words_added INTEGER DEFAULT 0,
+    phrases_added INTEGER DEFAULT 0,
+    last_extraction_at INTEGER,
+    created_at INTEGER,
+    updated_at INTEGER,
+    UNIQUE(user_id, quota_date)
+  )
+`).run();
 
 // ==========================================
 // 2. 占位与兼容存根 (及核心训练业务 API)
@@ -437,29 +480,35 @@ app.post('/api/training/feedback', (req, res) => {
   res.json({ success: true, feedbackId: crypto.randomBytes(16).toString('hex'), status: 'archived' });
 });
 
-// 检查主题是否达标 (口语与写作)
+// 检查主题是否达标 (口语 + 写作 + 邮件)
 app.get('/api/theme/check-mastery', (req, res) => {
   try {
     const { theme, userId = 'default-user' } = req.query;
-    
+
     // Count oral attempts for this theme
     const oralCountRow = db.prepare(`
-      SELECT COUNT(*) as count 
-      FROM training_attempts 
+      SELECT COUNT(*) as count
+      FROM training_attempts
       WHERE user_id = ? AND scene_type = ? AND module_type = 'oral'
     `).get(userId, theme);
     const oralCount = oralCountRow ? oralCountRow.count : 0;
-    
+
     // Get max write score for this theme
     const maxWriteRow = db.prepare(`
-      SELECT MAX(score) as max_score 
-      FROM training_attempts 
+      SELECT MAX(score) as max_score
+      FROM training_attempts
       WHERE user_id = ? AND scene_type = ? AND module_type = 'write'
     `).get(userId, theme);
     const maxWriteScore = (maxWriteRow && maxWriteRow.max_score !== null) ? maxWriteRow.max_score : 0;
-    
-    const isMastered = oralCount >= 10 && maxWriteScore >= 8;
-    
+
+    // Get email completion status for this theme
+    const emailRow = db.prepare(`
+      SELECT has_perfect_email FROM theme_progress WHERE user_id = ? AND theme = ?
+    `).get(userId, theme);
+    const emailCompleted = emailRow ? !!emailRow.has_perfect_email : false;
+
+    const isMastered = oralCount >= 10 && maxWriteScore >= 8 && emailCompleted;
+
     res.json({
       success: true,
       theme,
@@ -467,6 +516,7 @@ app.get('/api/theme/check-mastery', (req, res) => {
       oralCount,
       oralPassed: oralCount >= 10,
       maxWriteScore,
+      emailCompleted,
       isMastered
     });
   } catch (error) {
@@ -476,10 +526,90 @@ app.get('/api/theme/check-mastery', (req, res) => {
 });
 
 app.post('/api/theme/focus', (req, res) => res.json({ success: true, theme: req.body.theme || 'default' }));
+
+// 标记某主题邮件通关
+app.post('/api/theme/mark-email-complete', (req, res) => {
+  try {
+    const { theme, userId = 'default-user' } = req.body;
+    if (!theme) return res.status(400).json({ error: 'Missing theme' });
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO theme_progress (id, user_id, theme, has_perfect_email, updated_at)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(user_id, theme) DO UPDATE SET has_perfect_email = 1, updated_at = ?
+    `).run(crypto.randomBytes(8).toString('hex'), userId, theme, now, now);
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error on mark-email-complete' });
+  }
+});
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-app.post('/api/dify/dict-query', (req, res) => res.status(200).json({ mocked: true }));
+// 处理字典查询请求（对接真实的 Dify 字典工作流）
+app.post('/api/dify/dict-query', async (req, res) => {
+  const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', userId = 'frontend-panel' } = req.body;
+
+  if (!word) {
+    return res.status(400).json({ ok: false, message: '请输入待解构的词条' });
+  }
+
+  const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
+  const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+  try {
+    console.log(`[Dict Query] 开始查询词条: "${word}", 字典类型: "${dictType}"`);
+
+    const response = await fetch(`${BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: {
+          word: word.trim(),
+          dict_type: dictType || 'en_zh_bidirectional',
+          direction: direction || 'auto',
+          user_context: userContext || '',
+          locale: locale || 'zh-CN'
+        },
+        response_mode: 'blocking',
+        user: userId || 'frontend-panel'
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[Dict Query] Dify 服务器返回错误 (${response.status}):`, errText);
+      return res.status(response.status).json({ ok: false, message: `Dify 服务器异常: ${response.status}` });
+    }
+
+    const data = await response.json();
+    const resultStr = data?.data?.outputs?.result;
+
+    if (!resultStr) {
+      console.warn('[Dict Query] 工作流未返回 result 字段:', data);
+      return res.status(500).json({ ok: false, message: 'Dify 工作流未返回正确的 result 字段' });
+    }
+
+    // 解析工作流输出结果
+    let parsedResult;
+    try {
+      parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
+    } catch (e) {
+      console.error('[Dict Query] 解析 result JSON 失败:', e, resultStr);
+      return res.status(500).json({ ok: false, message: '工作流结果解析异常，返回数据非合法 JSON' });
+    }
+
+    console.log(`[Dict Query] 查询 "${word}" 成功，返回结构:`, Object.keys(parsedResult?.payload || {}));
+    return res.json(parsedResult);
+  } catch (error) {
+    console.error('[Dict Query] 服务端请求异常:', error);
+    return res.status(500).json({ ok: false, message: `词典服务器异常: ${error.message}` });
+  }
+});
 
 // 处理物料提纯解析请求（真实 Dify 联动：找库 -> 清空 -> 上传 -> 工作流抽提）
 app.post('/api/material/process-and-extract', async (req, res) => {
@@ -693,7 +823,296 @@ app.post('/api/material/process-and-extract', async (req, res) => {
   }
 });
 
-// 处理自动发起英文练习局的请求
+// ==========================================
+// 英语引擎每日词汇+短语提纯（带每日配额控制）
+// 硬指标：每日最多 50 词汇 + 30 短语
+// ==========================================
+const WORD_DAILY_LIMIT = 50;
+const PHRASE_DAILY_LIMIT = 30;
+
+app.post('/api/english/daily-extract', async (req, res) => {
+  const { topic, materialText, userId = 'default-user' } = req.body;
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+  try {
+    // Step 1: 获取或创建今日配额记录
+    let quotaRow = db.prepare(
+      'SELECT * FROM daily_vocab_quota WHERE user_id = ? AND quota_date = ?'
+    ).get(userId, today);
+
+    if (!quotaRow) {
+      const id = crypto.randomUUID();
+      const now = Date.now();
+      db.prepare(`
+        INSERT INTO daily_vocab_quota (id, user_id, quota_date, words_added, phrases_added, created_at, updated_at)
+        VALUES (?, ?, ?, 0, 0, ?, ?)
+      `).run(id, userId, today, now, now);
+      quotaRow = db.prepare(
+        'SELECT * FROM daily_vocab_quota WHERE user_id = ? AND quota_date = ?'
+      ).get(userId, today);
+    }
+
+    const wordsLeft = WORD_DAILY_LIMIT - (quotaRow.words_added || 0);
+    const phrasesLeft = PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0);
+
+    // Step 2: 检查配额
+    if (wordsLeft <= 0 && phrasesLeft <= 0) {
+      return res.json({
+        success: false,
+        quotaExceeded: true,
+        message: `今日配额已用尽（词汇 ${WORD_DAILY_LIMIT}/${WORD_DAILY_LIMIT}，短语 ${PHRASE_DAILY_LIMIT}/${PHRASE_DAILY_LIMIT}）。明日再来领取弹药。`,
+        quota: {
+          wordsLimit: WORD_DAILY_LIMIT,
+          wordsUsed: quotaRow.words_added || 0,
+          wordsLeft: 0,
+          phrasesLimit: PHRASE_DAILY_LIMIT,
+          phrasesUsed: quotaRow.phrases_added || 0,
+          phrasesLeft: 0,
+        }
+      });
+    }
+
+    // Step 3: 调用 Dify 工作流提纯词汇
+    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    // 构造输入语料：优先用 materialText，否则用 topic 自身生成提示语
+    const inputText = materialText?.trim() || topic || '';
+
+    let vocabList = [];
+    let phraseList = [];
+
+    if (inputText) {
+      const wfResponse = await fetch(`${baseUrl}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${difyApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: { topic: topic || 'General Business', material_text: inputText },
+          response_mode: 'blocking',
+          user: userId,
+        }),
+      });
+
+      if (!wfResponse.ok) {
+        const errText = await wfResponse.text();
+        console.error('[Daily Extract] Dify 工作流失败:', errText);
+        throw new Error(`Dify 工作流异常: ${wfResponse.status}`);
+      }
+
+      const wfData = await wfResponse.json();
+      const outputs = wfData?.data?.outputs || {};
+
+      // 尝试从多个可能的字段名解析词汇列表
+      const rawVocab = outputs.extracted_words || outputs.vocab || outputs.words || outputs.result || outputs.text || [];
+      let parsedVocab = [];
+      if (typeof rawVocab === 'string') {
+        const trimmed = rawVocab.trim();
+        if (trimmed.startsWith('[')) {
+          try {
+            parsedVocab = JSON.parse(trimmed);
+          } catch (e) {
+            console.error('[Daily Extract] Failed to parse rawVocab JSON:', e);
+            parsedVocab = rawVocab.split(/[,，\n]+/).map(s => ({ word: s.trim() })).filter(x => x.word);
+          }
+        } else {
+          parsedVocab = rawVocab.split(/[,，\n]+/).map(s => ({ word: s.trim() })).filter(x => x.word);
+        }
+      } else if (Array.isArray(rawVocab)) {
+        parsedVocab = rawVocab;
+      }
+
+      vocabList = parsedVocab.map(item => {
+        if (typeof item === 'string') return { word: item };
+        if (typeof item === 'object' && item !== null) {
+          const payload = item.payload || {};
+          return {
+            word: item.word || item.词汇 || item.name || '',
+            phonetic: payload.phonetic || item.phonetic || '',
+            partOfSpeech: payload.partOfSpeech || payload.part_of_speech || item.partOfSpeech || item.part_of_speech || '',
+            meaning: payload.meaning || payload.zh_meaning || item.meaning || item.zh_meaning || '',
+            definition_en: payload.definition_en || payload.definitionEn || item.definition_en || item.definitionEn || '',
+            business_note: payload.business_note || payload.businessNote || item.business_note || item.businessNote || '',
+            examples: payload.examples || item.examples || []
+          };
+        }
+        return { word: String(item) };
+      }).filter(x => x.word);
+
+      // 从每个词汇的 examples 列表中提炼短语
+      const allExamples = [];
+      for (const item of vocabList) {
+        if (item && Array.isArray(item.examples)) {
+          allExamples.push(...item.examples);
+        }
+      }
+
+      // 同时融合 outputs 里可能存在的其他短语字段
+      const rawPhrases = outputs.phrases || outputs.短语 || outputs.sentences || outputs.examples || [];
+      if (Array.isArray(rawPhrases)) {
+        for (const p of rawPhrases) {
+          if (typeof p === 'string') {
+            allExamples.push(p);
+          } else if (typeof p === 'object' && p !== null) {
+            allExamples.push(p.phrase || p.phrase_text || p.sentence || p.text || JSON.stringify(p));
+          }
+        }
+      }
+      phraseList = [...new Set(allExamples)].map(s => s.trim()).filter(s => s && s.length < 500);
+    } else {
+      // 无输入语料时，仅返回当前配额状态
+      return res.json({
+        success: true,
+        message: '未提供提取语料，已返回当前配额状态',
+        quota: {
+          wordsLimit: WORD_DAILY_LIMIT,
+          wordsUsed: quotaRow.words_added || 0,
+          wordsLeft,
+          phrasesLimit: PHRASE_DAILY_LIMIT,
+          phrasesUsed: quotaRow.phrases_added || 0,
+          phrasesLeft,
+        },
+        words: [],
+        phrases: [],
+      });
+    }
+
+    // Step 4: 严格配额截取——只取剩余配额量
+    const wordsToStore = vocabList.slice(0, wordsLeft);
+    const phrasesToStore = phraseList.slice(0, phrasesLeft);
+
+    // Step 5: 批量写入词汇（带查重与丰富 Payload）
+    let wordsAddedCount = 0;
+    const now = Date.now();
+    const insertWord = db.transaction((words) => {
+      for (const item of words) {
+        const w = item.word.trim();
+        if (!w || w.length > 100) continue;
+        const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(w);
+        if (!existing) {
+          const id = crypto.randomUUID();
+          const payload = {
+            phonetic: item.phonetic || '',
+            partOfSpeech: item.partOfSpeech || '',
+            meaning: item.meaning || '',
+            definition_en: item.definition_en || '',
+            business_note: item.business_note || '',
+            examples: item.examples || [],
+            source: 'Daily Extract',
+            topic
+          };
+          db.prepare(`
+            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, w, 'ai_extracted', topic || 'daily_extraction', JSON.stringify(payload), now, now, '[]');
+          wordsAddedCount++;
+        }
+      }
+    });
+    insertWord(wordsToStore);
+
+    // Step 6: 批量写入短语（存储在 extra_json 中，或独立表）
+    let phrasesAddedCount = 0;
+    const insertPhrase = db.transaction((phrases) => {
+      for (const phraseStr of phrases) {
+        const p = typeof phraseStr === 'string' ? phraseStr.trim() : String(phraseStr);
+        if (!p || p.length > 500) continue;
+        // 短语用查重逻辑
+        const existingPhrase = db.prepare(
+          "SELECT id FROM vocabulary WHERE dict_type = 'ai_phrase' AND payload LIKE ? COLLATE NOCASE"
+        ).get(`%${p.substring(0, 50)}%`);
+        if (!existingPhrase) {
+          const id = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, p, 'ai_phrase', topic || 'daily_extraction', JSON.stringify({ source: 'Daily Extract', topic, type: 'phrase' }), now, now, '[]');
+          phrasesAddedCount++;
+        }
+      }
+    });
+    insertPhrase(phrasesToStore);
+
+    // Step 7: 更新配额记录
+    db.prepare(`
+      UPDATE daily_vocab_quota
+      SET words_added = words_added + ?, phrases_added = phrases_added + ?, last_extraction_at = ?, updated_at = ?
+      WHERE user_id = ? AND quota_date = ?
+    `).run(wordsAddedCount, phrasesAddedCount, now, now, userId, today);
+
+    const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
+    const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
+
+    console.log(`[Daily Extract] 用户 ${userId} ${today} 入库词汇${wordsAddedCount}个(累计${updatedWordsUsed}/${WORD_DAILY_LIMIT}) 短语${phrasesAddedCount}个(累计${updatedPhrasesUsed}/${PHRASE_DAILY_LIMIT})`);
+
+    res.json({
+      success: true,
+      message: `提纯完成！入库词汇 ${wordsAddedCount} 个，短语 ${phrasesAddedCount} 个`,
+      quota: {
+        wordsLimit: WORD_DAILY_LIMIT,
+        wordsUsed: updatedWordsUsed,
+        wordsLeft: Math.max(0, WORD_DAILY_LIMIT - updatedWordsUsed),
+        phrasesLimit: PHRASE_DAILY_LIMIT,
+        phrasesUsed: updatedPhrasesUsed,
+        phrasesLeft: Math.max(0, PHRASE_DAILY_LIMIT - updatedPhrasesUsed),
+      },
+      words: wordsToStore.map(w => w.word),
+      phrases: phrasesToStore,
+      wordCount: wordsToStore.length,
+      phraseCount: phrasesToStore.length,
+      wordsAddedCount,
+      phrasesAddedCount,
+    });
+  } catch (error) {
+    console.error('[Daily Extract] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 查询每日配额状态
+app.get('/api/daily-quota/status', (req, res) => {
+  try {
+    const { userId = 'default-user' } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+
+    const quotaRow = db.prepare(
+      'SELECT * FROM daily_vocab_quota WHERE user_id = ? AND quota_date = ?'
+    ).get(userId, today);
+
+    if (!quotaRow) {
+      return res.json({
+        success: true,
+        quota: {
+          wordsLimit: WORD_DAILY_LIMIT,
+          wordsUsed: 0,
+          wordsLeft: WORD_DAILY_LIMIT,
+          phrasesLimit: PHRASE_DAILY_LIMIT,
+          phrasesUsed: 0,
+          phrasesLeft: PHRASE_DAILY_LIMIT,
+        }
+      });
+    }
+
+    res.json({
+      success: true,
+      quota: {
+        wordsLimit: WORD_DAILY_LIMIT,
+        wordsUsed: quotaRow.words_added || 0,
+        wordsLeft: Math.max(0, WORD_DAILY_LIMIT - (quotaRow.words_added || 0)),
+        phrasesLimit: PHRASE_DAILY_LIMIT,
+        phrasesUsed: quotaRow.phrases_added || 0,
+        phrasesLeft: Math.max(0, PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0)),
+      }
+    });
+  } catch (error) {
+    console.error('[Daily Quota Status] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 处理自动发起英文练习局的请求（保持向后兼容，仍为 Mock）
 app.post('/api/dify/run-english-mastery', (req, res) => {
   const { topic, materialText } = req.body;
   res.json({
