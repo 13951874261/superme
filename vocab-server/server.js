@@ -831,7 +831,7 @@ const WORD_DAILY_LIMIT = 50;
 const PHRASE_DAILY_LIMIT = 30;
 
 app.post('/api/english/daily-extract', async (req, res) => {
-  const { topic, materialText, userId = 'default-user' } = req.body;
+  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting' } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
@@ -883,14 +883,14 @@ app.post('/api/english/daily-extract', async (req, res) => {
     let phraseList = [];
 
     if (inputText) {
-      const wfResponse = await fetch(`${baseUrl}/workflows/run`, {
+      const wfResponse = await fetch(`${baseUrl}/chat-messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${difyApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          inputs: { topic: topic || 'General Business', material_text: inputText },
+          inputs: { theme: topic || 'General Business', cefr_level: cefrLevel, genre: genre },
           response_mode: 'blocking',
           user: userId,
         }),
@@ -903,27 +903,40 @@ app.post('/api/english/daily-extract', async (req, res) => {
       }
 
       const wfData = await wfResponse.json();
-      const outputs = wfData?.data?.outputs || {};
-
-      // 尝试从多个可能的字段名解析词汇列表
-      const rawVocab = outputs.extracted_words || outputs.vocab || outputs.words || outputs.result || outputs.text || [];
-      let parsedVocab = [];
-      if (typeof rawVocab === 'string') {
-        const trimmed = rawVocab.trim();
-        if (trimmed.startsWith('[')) {
-          try {
-            parsedVocab = JSON.parse(trimmed);
-          } catch (e) {
-            console.error('[Daily Extract] Failed to parse rawVocab JSON:', e);
-            parsedVocab = rawVocab.split(/[,，\n]+/).map(s => ({ word: s.trim() })).filter(x => x.word);
-          }
-        } else {
-          parsedVocab = rawVocab.split(/[,，\n]+/).map(s => ({ word: s.trim() })).filter(x => x.word);
-        }
-      } else if (Array.isArray(rawVocab)) {
-        parsedVocab = rawVocab;
+      const answer = wfData.answer || '';
+      
+      let articleText = '';
+      let rawVocabText = '';
+      
+      if (answer.includes('---VOCAB_JSON_START---')) {
+        const parts = answer.split('---VOCAB_JSON_START---');
+        articleText = parts[0].trim();
+        rawVocabText = parts[1].trim();
+      } else {
+        articleText = answer;
+        rawVocabText = '';
       }
-
+      
+      // 解析 JSON 格式的词汇
+      let parsedVocab = [];
+      let parsedPhrases = [];
+      if (rawVocabText) {
+        try {
+          let cleanJson = rawVocabText.replace(/^\s*```json/i, '').replace(/```\s*$/i, '').trim();
+          const parsed = JSON.parse(cleanJson);
+          if (parsed.words && Array.isArray(parsed.words)) {
+            parsedVocab = parsed.words;
+          } else if (Array.isArray(parsed)) {
+            parsedVocab = parsed;
+          }
+          if (parsed.phrases && Array.isArray(parsed.phrases)) {
+            parsedPhrases = parsed.phrases;
+          }
+        } catch(e) {
+          console.error('[Daily Extract] Failed to parse vocab JSON:', e);
+        }
+      }
+      
       vocabList = parsedVocab.map(item => {
         if (typeof item === 'string') return { word: item };
         if (typeof item === 'object' && item !== null) {
@@ -950,7 +963,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
       }
 
       // 同时融合 outputs 里可能存在的其他短语字段
-      const rawPhrases = outputs.phrases || outputs.短语 || outputs.sentences || outputs.examples || [];
+      const rawPhrases = parsedPhrases || [];
       if (Array.isArray(rawPhrases)) {
         for (const p of rawPhrases) {
           if (typeof p === 'string') {
@@ -1208,7 +1221,7 @@ app.post('/api/grammar-polish', async (req, res) => {
     const difyApiKey = process.env.DIFY_GRAMMAR_API_KEY || 'app-547Sa5oIC3Qb9RUZdasJs1Ef';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    const response = await fetch(`${baseUrl}/workflows/run`, {
+    const response = await fetch(`${baseUrl}/chat-messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${difyApiKey}`,
@@ -1261,7 +1274,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
     const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    const response = await fetch(`${baseUrl}/workflows/run`, {
+    const response = await fetch(`${baseUrl}/chat-messages`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${difyApiKey}`,
@@ -1391,6 +1404,41 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 });
 
 // 兜底 404
+// TTS 语音合成接口
+app.post('/api/tts/speech', async (req, res) => {
+  try {
+    const { input, model = 'edge-tts/en-NZ-MollyNeural' } = req.body;
+    if (!input) {
+      return res.status(400).json({ error: 'Missing input text' });
+    }
+
+    const ttsResponse = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313'
+      },
+      body: JSON.stringify({
+        model: model,
+        input: input
+      })
+    });
+
+    if (!ttsResponse.ok) {
+      const errText = await ttsResponse.text();
+      console.error('[TTS] Synthesis failed:', errText);
+      return res.status(ttsResponse.status).json({ error: 'TTS failed' });
+    }
+
+    res.setHeader('Content-Type', 'audio/mpeg');
+    const arrayBuffer = await ttsResponse.arrayBuffer();
+    res.send(Buffer.from(arrayBuffer));
+  } catch (error) {
+    console.error('[TTS] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.use((req, res) => res.status(404).json({ error: "Endpoint not found" }));
 
 app.listen(PORT, () => {
