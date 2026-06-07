@@ -49,6 +49,11 @@ function dispatchTtsState(content: string, state: 'loading' | 'playing' | 'stopp
   window.dispatchEvent(new CustomEvent('tts-state', { detail: { content, state } }));
 }
 
+// 分发 TTS 播放错误自定义事件，以提供红色的即时视觉报错反馈
+function dispatchTtsError(content: string) {
+  window.dispatchEvent(new CustomEvent('tts-error', { detail: { content } }));
+}
+
 // 流式句子队列播放器：实现“边听边预加载”极速体验
 async function playSentenceQueue(sentences: string[], rate: number, content: string) {
   const model = 'edge-tts/en-US-EmmaNeural';
@@ -148,6 +153,7 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
 
     } catch (err) {
       console.error(`Queue playback failed at sentence ${i}:`, err);
+      dispatchTtsError(content);
       // 降级：剩余未读部分使用浏览器原生合成器一次性播放
       if ('speechSynthesis' in window) {
         const remainingText = sentences.slice(i).join(' ');
@@ -247,6 +253,7 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
       });
     } catch (error) {
       console.error('Single TTS playback failed:', error);
+      dispatchTtsError(content);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(content);
@@ -275,17 +282,22 @@ export default function SpeakButton({
   const content = normalizeSpeakText(text);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    let timer: NodeJS.Timeout;
+    
     const handleTtsState = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail.content === content) {
         if (customEvent.detail.state === 'loading') {
           setIsLoading(true);
           setIsPlaying(false);
+          setHasError(false);
         } else if (customEvent.detail.state === 'playing') {
           setIsLoading(false);
           setIsPlaying(true);
+          setHasError(false);
         } else {
           setIsLoading(false);
           setIsPlaying(false);
@@ -295,9 +307,26 @@ export default function SpeakButton({
         setIsPlaying(false);
       }
     };
+
+    const handleTtsError = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail.content === content) {
+        setIsLoading(false);
+        setIsPlaying(false);
+        setHasError(true);
+        
+        timer = setTimeout(() => {
+          setHasError(false);
+        }, 2000);
+      }
+    };
+
     window.addEventListener('tts-state', handleTtsState);
+    window.addEventListener('tts-error', handleTtsError);
     return () => {
       window.removeEventListener('tts-state', handleTtsState);
+      window.removeEventListener('tts-error', handleTtsError);
+      if (timer) clearTimeout(timer);
     };
   }, [content]);
 
@@ -311,20 +340,28 @@ export default function SpeakButton({
         event.stopPropagation();
         speakEnglish(content, rate, roleType);
       }}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722] hover:text-white transition-all duration-300 ${
-        label ? 'px-4 py-2 text-[10px] font-black uppercase tracking-widest' : 'w-9 h-9'
-      } ${isPlaying ? 'bg-[#FF5722] text-white shadow-md' : ''} ${className}`}
-      title={isPlaying ? '停止播放' : title}
-      aria-label={isPlaying ? '停止播放' : title}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full transition-all duration-300 ${
+        label ? 'px-4 py-2 text-[10px] font-black uppercase tracking-widest' : ''
+      } ${
+        hasError 
+          ? 'bg-red-100 text-red-500 border border-red-300 hover:bg-red-200' 
+          : isPlaying 
+            ? 'bg-[#FF5722] text-white shadow-md' 
+            : 'bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722] hover:text-white'
+      } ${!label && !className.includes('w-') ? 'w-9 h-9' : ''} ${className}`}
+      title={hasError ? '播放失败' : isPlaying ? '停止播放' : title}
+      aria-label={hasError ? '播放失败' : isPlaying ? '停止播放' : title}
     >
       {isLoading ? (
         <Loader2 className={`${iconClassName} animate-spin`} />
+      ) : hasError ? (
+        <Volume2 className={`${iconClassName} text-red-500 animate-bounce`} />
       ) : isPlaying ? (
         <Pause className={iconClassName} />
       ) : (
         <Volume2 className={iconClassName} />
       )}
-      {label ? <span>{isPlaying ? '停止播放' : label}</span> : null}
+      {label ? <span>{hasError ? '播放失败' : isPlaying ? '停止播放' : label}</span> : null}
     </button>
   );
 }

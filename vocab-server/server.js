@@ -1601,22 +1601,44 @@ app.post('/api/tts/speech', async (req, res) => {
     // 强制使用 EmmaNeural 模型（忽略客户端传入的模型参数）
     const finalModel = 'edge-tts/en-US-EmmaNeural';
 
-    const ttsResponse = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313'
-      },
-      body: JSON.stringify({
-        model: finalModel,
-        input: input
-      })
-    });
+    let ttsResponse;
+    let retries = 3;
+    let lastError;
 
-    if (!ttsResponse.ok) {
-      const errText = await ttsResponse.text();
-      console.error('[TTS] Synthesis failed:', errText);
-      return res.status(ttsResponse.status).json({ error: 'TTS failed' });
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        ttsResponse = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313'
+          },
+          body: JSON.stringify({
+            model: finalModel,
+            input: input
+          })
+        });
+
+        if (ttsResponse.ok) {
+          break; // 成功获取响应，跳出重试循环
+        } else {
+          const errText = await ttsResponse.text().catch(() => '');
+          lastError = new Error(`TTS status ${ttsResponse.status} - ${errText}`);
+        }
+      } catch (err) {
+        lastError = err;
+      }
+      
+      if (attempt < retries) {
+        console.warn(`[TTS] Attempt ${attempt} failed: ${lastError.message}. Retrying in 500ms...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+
+    if (!ttsResponse || !ttsResponse.ok) {
+      const errMsg = lastError ? lastError.message : 'Unknown error';
+      console.error('[TTS] All attempts failed:', errMsg);
+      return res.status(500).json({ error: `TTS synthesis failed: ${errMsg}` });
     }
 
     // 生成临时文件名并保存音频
