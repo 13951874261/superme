@@ -883,46 +883,101 @@ app.post('/api/english/daily-extract', async (req, res) => {
     let phraseList = [];
 
     if (inputText) {
+      // 流式获取 Chatflow 响应并直通给前端
       const wfResponse = await fetch(`${baseUrl}/chat-messages`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${difyApiKey}`,
-          'Content-Type': 'application/json',
+          "Authorization": `Bearer ${difyApiKey}`,
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          inputs: { theme: topic || 'General Business', cefr_level: cefrLevel, genre: genre },
-          response_mode: 'blocking',
+          inputs: { theme: topic || "General Business", cefr_level: cefrLevel, genre: genre },
+          query: "generate",
+          response_mode: "streaming",
           user: userId,
         }),
       });
 
       if (!wfResponse.ok) {
         const errText = await wfResponse.text();
-        console.error('[Daily Extract] Dify 工作流失败:', errText);
+        console.error("[Daily Extract] Dify 工作流失败:", errText);
         throw new Error(`Dify 工作流异常: ${wfResponse.status}`);
       }
 
-      const wfData = await wfResponse.json();
-      const answer = wfData.answer || '';
+      // 设置响应头为 SSE，告诉 Cloudflare 立即开始传输，避免 524 超时
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲
+
+      let answer = "";
+      const decoder = new TextDecoder();
+
+      if (wfResponse.body) {
+        if (typeof wfResponse.body.getReader === 'function') {
+          const reader = wfResponse.body.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            
+            // 实时将 Dify 原始数据块转发给前端浏览器
+            res.write(chunk);
+
+            // 同时在后端累计完整的文本以提取生词和短语
+            const lines = chunk.split("\n");
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data === "[DONE]") break;
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.answer) {
+                    answer += parsed.answer;
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+        } else {
+          for await (const chunk of wfResponse.body) {
+            res.write(chunk);
+            const chunkText = decoder.decode(chunk, { stream: true });
+            const lines = chunkText.split("\n");
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                const data = line.slice(6).trim();
+                if (data === "[DONE]") break;
+                try {
+                  const parsed = JSON.parse(data);
+                  if (parsed.answer) {
+                    answer += parsed.answer;
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+        }
+      }
+
+      // 接收完毕后，在后台进行词汇和短语提取与 SQLite 入库
+      let articleText = "";
+      let rawVocabText = "";
       
-      let articleText = '';
-      let rawVocabText = '';
-      
-      if (answer.includes('---VOCAB_JSON_START---')) {
-        const parts = answer.split('---VOCAB_JSON_START---');
+      if (answer.includes("---VOCAB_JSON_START---")) {
+        const parts = answer.split("---VOCAB_JSON_START---");
         articleText = parts[0].trim();
         rawVocabText = parts[1].trim();
       } else {
         articleText = answer;
-        rawVocabText = '';
+        rawVocabText = "";
       }
       
-      // 解析 JSON 格式的词汇
       let parsedVocab = [];
       let parsedPhrases = [];
       if (rawVocabText) {
         try {
-          let cleanJson = rawVocabText.replace(/^\s*```json/i, '').replace(/```\s*$/i, '').trim();
+          let cleanJson = rawVocabText.replace(/^\s*\`\`\`json/i, "").replace(/\`\`\`\s*$/i, "").trim();
           const parsed = JSON.parse(cleanJson);
           if (parsed.words && Array.isArray(parsed.words)) {
             parsedVocab = parsed.words;
@@ -933,16 +988,17 @@ app.post('/api/english/daily-extract', async (req, res) => {
             parsedPhrases = parsed.phrases;
           }
         } catch(e) {
-          console.error('[Daily Extract] Failed to parse vocab JSON:', e);
+          console.error("[Daily Extract] Failed to parse vocab JSON:", e);
         }
       }
-      
+
+      // 重映射数据格式为标准库结构
       vocabList = parsedVocab.map(item => {
         if (typeof item === 'string') return { word: item };
         if (typeof item === 'object' && item !== null) {
           const payload = item.payload || {};
           return {
-            word: item.word || item.词汇 || item.name || '',
+            word: item.word || item.璇嶆眹 || item.name || '',
             phonetic: payload.phonetic || item.phonetic || '',
             partOfSpeech: payload.partOfSpeech || payload.part_of_speech || item.partOfSpeech || item.part_of_speech || '',
             meaning: payload.meaning || payload.zh_meaning || item.meaning || item.zh_meaning || '',
@@ -954,7 +1010,6 @@ app.post('/api/english/daily-extract', async (req, res) => {
         return { word: String(item) };
       }).filter(x => x.word);
 
-      // 从每个词汇的 examples 列表中提炼短语
       const allExamples = [];
       for (const item of vocabList) {
         if (item && Array.isArray(item.examples)) {
@@ -962,7 +1017,6 @@ app.post('/api/english/daily-extract', async (req, res) => {
         }
       }
 
-      // 同时融合 outputs 里可能存在的其他短语字段
       const rawPhrases = parsedPhrases || [];
       if (Array.isArray(rawPhrases)) {
         for (const p of rawPhrases) {
@@ -974,6 +1028,95 @@ app.post('/api/english/daily-extract', async (req, res) => {
         }
       }
       phraseList = [...new Set(allExamples)].map(s => s.trim()).filter(s => s && s.length < 500);
+
+      // 后期配额存库逻辑
+      const wordsToStore = vocabList.slice(0, wordsLeft);
+      const phrasesToStore = phraseList.slice(0, phrasesLeft);
+
+      let wordsAddedCount = 0;
+      const now = Date.now();
+      const insertWord = db.transaction((words) => {
+        for (const item of words) {
+          const w = item.word.trim();
+          if (!w || w.length > 100) continue;
+          const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(w);
+          if (!existing) {
+            const id = crypto.randomUUID();
+            const payload = {
+              phonetic: item.phonetic || '',
+              partOfSpeech: item.partOfSpeech || '',
+              meaning: item.meaning || '',
+              definition_en: item.definition_en || '',
+              business_note: item.business_note || '',
+              examples: item.examples || [],
+              source: 'Daily Extract',
+              topic
+            };
+            db.prepare(`
+              INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(id, w, 'ai_extracted', topic || 'daily_extraction', JSON.stringify(payload), now, now, '[]');
+            wordsAddedCount++;
+          }
+        }
+      });
+      insertWord(wordsToStore);
+
+      let phrasesAddedCount = 0;
+      const insertPhrase = db.transaction((phrases) => {
+        for (const phraseStr of phrases) {
+          const p = typeof phraseStr === 'string' ? phraseStr.trim() : String(phraseStr);
+          if (!p || p.length > 500) continue;
+          const existingPhrase = db.prepare(
+            "SELECT id FROM vocabulary WHERE dict_type = 'ai_phrase' AND payload LIKE ? COLLATE NOCASE"
+          ).get(`%${p.substring(0, 50)}%`);
+          if (!existingPhrase) {
+            const id = crypto.randomUUID();
+            db.prepare(`
+              INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(id, p, 'ai_phrase', topic || 'daily_extraction', JSON.stringify({ source: 'Daily Extract', topic, type: 'phrase' }), now, now, '[]');
+            phrasesAddedCount++;
+          }
+        }
+      });
+      insertPhrase(phrasesToStore);
+
+      db.prepare(`
+        UPDATE daily_vocab_quota
+        SET words_added = words_added + ?, phrases_added = phrases_added + ?, last_extraction_at = ?, updated_at = ?
+        WHERE user_id = ? AND quota_date = ?
+      `).run(wordsAddedCount, phrasesAddedCount, now, now, userId, today);
+
+      const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
+      const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
+
+      console.log(`[Daily Extract] 提纯存库完成。用户 ${userId} ${today} 入库词汇 ${wordsAddedCount} 个，短语 ${phrasesAddedCount} 个`);
+
+      // 发送流结束标记，并附带最终的入库和统计 JSON 数据作为最后一部分事件
+      const finalPayload = {
+        success: true,
+        message: `提纯完成！入库词汇 ${wordsAddedCount} 个，短语 ${phrasesAddedCount} 个`,
+        quota: {
+          wordsLimit: WORD_DAILY_LIMIT,
+          wordsUsed: updatedWordsUsed,
+          wordsLeft: Math.max(0, WORD_DAILY_LIMIT - updatedWordsUsed),
+          phrasesLimit: PHRASE_DAILY_LIMIT,
+          phrasesUsed: updatedPhrasesUsed,
+          phrasesLeft: Math.max(0, PHRASE_DAILY_LIMIT - updatedPhrasesUsed),
+        },
+        words: wordsToStore.map(w => w.word),
+        phrases: phrasesToStore,
+        article: articleText,
+        wordCount: wordsToStore.length,
+        phraseCount: phrasesToStore.length,
+        wordsAddedCount,
+        phrasesAddedCount,
+      };
+
+      res.write(`\ndata: ${JSON.stringify(finalPayload)}\n\n`);
+      res.end();
+      return;
     } else {
       // 无输入语料时，仅返回当前配额状态
       return res.json({
