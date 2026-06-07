@@ -246,6 +246,8 @@ export default function DashboardTab() {
   const [selectedWord, setSelectedWord] = useState('');
   const [isAddingSelected, setIsAddingSelected] = useState(false);
   const [customText, setCustomText] = useState('');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // 加载每日配额状态
   const loadQuotaStatus = async () => {
@@ -333,10 +335,6 @@ export default function DashboardTab() {
   };
 
   const handleClearTodayAndReGenerate = async () => {
-    if (!window.confirm('确定要清空今日已生成的单词与短语，并重新生成吗？这会清除您今天已添加的生词，并重置今日配额记录。')) {
-      return;
-    }
-    
     setIsClearingAndReGenerating(true);
     playScan();
     showNotice('dashboard', '正在清理今日配额与生词数据...', 'info');
@@ -553,18 +551,53 @@ export default function DashboardTab() {
               )}
             </button>
 
-            <button
-              onClick={handleClearTodayAndReGenerate}
-              disabled={isAutoGenerating || isClearingAndReGenerating}
-              className="flex items-center bg-gray-100 text-gray-750 hover:bg-red-50 hover:text-red-600 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border border-gray-200 disabled:opacity-50 cursor-pointer shadow-sm"
-              title="清空今日提纯数据与生词，重置配额并重新运行AI生成"
-            >
-              {isClearingAndReGenerating ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在清理并生成...</>
-              ) : (
-                <><Trash2 className="w-4 h-4 mr-2 text-red-500"/> 清空今日数据并重新生成</>
+            <div className="relative inline-block">
+              <button
+                onClick={() => setShowClearConfirm(!showClearConfirm)}
+                disabled={isAutoGenerating || isClearingAndReGenerating}
+                className="flex items-center bg-gray-100 text-gray-750 hover:bg-red-50 hover:text-red-600 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border border-gray-200 disabled:opacity-50 cursor-pointer shadow-sm"
+                title="清空今日提纯数据与生词，重置配额并重新运行AI生成"
+              >
+                {isClearingAndReGenerating ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在清理并生成...</>
+                ) : (
+                  <><Trash2 className="w-4 h-4 mr-2 text-red-500"/> 清空今日数据并重新生成</>
+                )}
+              </button>
+
+              {showClearConfirm && (
+                <div className="absolute right-0 top-full mt-2.5 z-50 w-80 bg-white border border-red-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-5 text-left border-t-4 border-t-red-500 animate-[fadeIn_0.15s_ease-out]">
+                  <div className="flex items-start gap-3">
+                    <div className="bg-red-50 p-2 rounded-xl text-red-500 shrink-0">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">确认清空今日数据与配额吗？</h5>
+                      <p className="text-[11px] text-gray-400 font-medium leading-relaxed mt-1">
+                        此操作将彻底删除您今天在此主题下生成的全部生词和短语（删除本地与数据库记录），并重置今日配额，随后自动为您重新运行 AI 长文生成与提纯。
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2.5 mt-5 pt-3 border-t border-gray-50">
+                    <button
+                      onClick={() => setShowClearConfirm(false)}
+                      className="px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                    >
+                      取消
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowClearConfirm(false);
+                        handleClearTodayAndReGenerate();
+                      }}
+                      className="px-3.5 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-sm flex items-center gap-1"
+                    >
+                      <Trash2 className="w-3 h-3" /> 确认清空并重构
+                    </button>
+                  </div>
+                </div>
               )}
-            </button>
+            </div>
           </div>
         </div>
 
@@ -621,22 +654,55 @@ export default function DashboardTab() {
             </div>
             {generatedArticle && (
               <div className="flex items-center gap-3 shrink-0">
-                <button
-                  onClick={() => {
-                    setGeneratedArticle('');
-                    setExtractedWords([]);
-                    setExtractedPhrases([]);
-                    localStorage.removeItem('super_agent_last_generated_article');
-                    localStorage.removeItem('super_agent_last_generated_words');
-                    localStorage.removeItem('super_agent_last_generated_phrases');
-                    showNotice('dashboard', '已成功初始化生成器，可以重新配置生成。', 'success');
-                    playSuccess();
-                  }}
-                  className="flex items-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-750 transition-colors shadow-sm font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
-                  title="清空已生成内容，重新配置生成"
-                >
-                  <RefreshCw className="w-4 h-4" /> 重新初始化
-                </button>
+                <div className="relative inline-block">
+                  <button
+                    onClick={() => setShowResetConfirm(!showResetConfirm)}
+                    className="flex items-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-750 transition-colors shadow-sm font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
+                    title="清空已生成内容，重新配置生成"
+                  >
+                    <RefreshCw className="w-4 h-4" /> 重新初始化
+                  </button>
+
+                  {showResetConfirm && (
+                    <div className="absolute right-0 top-full mt-2.5 z-50 w-72 bg-white border border-indigo-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-5 text-left border-t-4 border-t-indigo-500 animate-[fadeIn_0.15s_ease-out]">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-indigo-50 p-2 rounded-xl text-indigo-500 shrink-0">
+                          <RefreshCw className="w-5 h-5 animate-spin-slow" />
+                        </div>
+                        <div>
+                          <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">确认重新初始化吗？</h5>
+                          <p className="text-[11px] text-gray-400 font-medium leading-relaxed mt-1">
+                            这只会清除当前页面展示的今日长文和本地缓存，以便您可以重新配置生成。它**不会**删除生词库里已入库的单词。
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2.5 mt-5 pt-3 border-t border-gray-50">
+                        <button
+                          onClick={() => setShowResetConfirm(false)}
+                          className="px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                        >
+                          取消
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowResetConfirm(false);
+                            setGeneratedArticle('');
+                            setExtractedWords([]);
+                            setExtractedPhrases([]);
+                            localStorage.removeItem('super_agent_last_generated_article');
+                            localStorage.removeItem('super_agent_last_generated_words');
+                            localStorage.removeItem('super_agent_last_generated_phrases');
+                            showNotice('dashboard', '已成功初始化生成器，可以重新配置生成。', 'success');
+                            playSuccess();
+                          }}
+                          className="px-3.5 py-2 bg-indigo-650 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-sm"
+                        >
+                          确认初始化
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => setIsImmersiveOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-md font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
