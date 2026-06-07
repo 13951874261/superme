@@ -62,10 +62,15 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
                   {recentDates.slice(0, 3).map((date, idx) => (
                     <React.Fragment key={date}>
                       <span
-                        className={`cursor-pointer transition-all duration-300 px-1 py-0.5 rounded ${selectedDate === date ? 'bg-[#FF5722]/10 text-[#FF5722] scale-105' : 'text-gray-400 hover:text-gray-700'}`}
+                        className={`cursor-pointer transition-all duration-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${selectedDate === date ? 'bg-[#FF5722]/10 text-[#FF5722] scale-105' : 'text-gray-400 hover:text-gray-700'}`}
                         onClick={() => onDateSelect(date)}
                       >
-                        {formatDateShort(new Date(date.replace(/\./g, '-')))} {date === today ? '🔄' : '✅'}
+                        <span>{formatDateShort(new Date(date.replace(/\./g, '-')))}</span>
+                        {date === today ? (
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722]" title="今日" />
+                        ) : (
+                          <CheckCircle2 className="w-3 h-3 text-[#FF5722]/60" strokeWidth={2.5} />
+                        )}
                       </span>
                       {idx < 2 && <span className="text-gray-200 font-light mx-2">|</span>}
                     </React.Fragment>
@@ -89,12 +94,13 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
                  <div className="text-xs font-black tracking-widest text-[#202124] flex items-center py-1 flex-wrap">
                    {recentDates.slice(3, 5).map((date, idx) => (
                      <React.Fragment key={date}>
-                       <span
-                         className={`cursor-pointer transition-all duration-300 px-1 py-0.5 rounded ${selectedDate === date ? 'bg-[#FF5722]/10 text-[#FF5722] scale-105' : 'text-gray-400 hover:text-gray-700'}`}
-                         onClick={() => onDateSelect(date)}
-                       >
-                         {formatDateShort(new Date(date.replace(/\./g, '-')))} ✅
-                       </span>
+                        <span
+                          className={`cursor-pointer transition-all duration-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${selectedDate === date ? 'bg-[#FF5722]/10 text-[#FF5722] scale-105' : 'text-gray-400 hover:text-gray-700'}`}
+                          onClick={() => onDateSelect(date)}
+                        >
+                          <span>{formatDateShort(new Date(date.replace(/\./g, '-')))}</span>
+                          <CheckCircle2 className="w-3 h-3 text-gray-300" strokeWidth={2.5} />
+                        </span>
                        {idx < 1 && <span className="text-gray-200 font-light mx-2">|</span>}
                      </React.Fragment>
                    ))}
@@ -124,13 +130,11 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
         </div>
 
         {/* 2. 即时答疑模块 (多模型舱) — 固定最大高度，避免撑满侧边栏 */}
-        <div className="px-5 xl:px-6 py-6 flex flex-col" style={{ maxHeight: '320px' }}>
+        <div className="px-5 xl:px-6 py-6 flex flex-col shrink-0">
           <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mb-2 flex items-center">
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> E2E Encrypted
           </div>
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
-            <ChatModule />
-          </div>
+          <ChatModule />
         </div>
 
         {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}

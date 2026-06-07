@@ -188,7 +188,7 @@ export default function VocabularyBook() {
             </div>
 
             {/* 词条列表 */}
-            <div className="max-h-[300px] overflow-y-auto scrollbar-thin">
+            <div className="divide-y divide-gray-50 border-t border-gray-100">
               {isLoading ? (
                 <div className="text-center text-gray-400 text-xs py-6">加载中...</div>
               ) : words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).length === 0 ? (
@@ -212,8 +212,15 @@ export default function VocabularyBook() {
                         </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <Clock className="w-3 h-3 text-gray-300" />
-                          <span className={`text-[10px] ${word.next_review_date <= Date.now() && word.repetitions < 999 ? 'text-[#FF5722] font-bold' : 'text-gray-400'}`}>
-                            {word.repetitions === 999 ? '✅ 已归档，彻底掌握' : formatNextReview(word.next_review_date)}
+                          <span className={`text-[10px] inline-flex items-center gap-1 ${word.next_review_date <= Date.now() && word.repetitions < 999 ? 'text-[#FF5722] font-bold' : 'text-gray-400'}`}>
+                            {word.repetitions === 999 ? (
+                              <>
+                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                <span>已归档，彻底掌握</span>
+                              </>
+                            ) : (
+                              formatNextReview(word.next_review_date)
+                            )}
                           </span>
                           {word.repetitions > 0 && word.repetitions !== 999 && (
                             <span className="text-[10px] text-gray-300">
@@ -277,8 +284,9 @@ export default function VocabularyBook() {
 
             {/* 底部：今日无任务提示 */}
             {!isLoading && stats.dueToday === 0 && stats.total > 0 && (
-              <div className="px-4 py-2.5 border-t border-gray-50 text-center text-[11px] text-emerald-500">
-                ✅ 今日复习任务已完成
+              <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-center gap-1.5 text-[11px] text-emerald-500 font-bold bg-emerald-50/30">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>今日复习任务已完成</span>
               </div>
             )}
           </div>
