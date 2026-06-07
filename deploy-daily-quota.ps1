@@ -80,16 +80,20 @@ try {
 
     Write-Host ''
     Write-Host '==========  Step 5: Server Operations ==========' -ForegroundColor Cyan
-    Write-Host '  [5.1] Checking Nginx configuration...' -ForegroundColor DarkCyan
+    Write-Host '  [5.1] Uploading and applying Nginx configuration...' -ForegroundColor DarkCyan
+    Send-File "$ProjectRoot\app.liujingzhuwo.site" "${ServerHost}:/tmp/app.liujingzhuwo.site"
+    Invoke-RemoteCommand "sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-available/app.liujingzhuwo.site && sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site"
+
+    Write-Host '  [5.2] Checking Nginx configuration...' -ForegroundColor DarkCyan
     Invoke-RemoteCommand 'sudo nginx -t'
 
-    Write-Host '  [5.2] Reloading Nginx...' -ForegroundColor DarkCyan
+    Write-Host '  [5.3] Reloading Nginx...' -ForegroundColor DarkCyan
     Invoke-RemoteCommand 'sudo systemctl reload nginx'
 
-    Write-Host '  [5.3] Installing backend dependencies...' -ForegroundColor DarkCyan
+    Write-Host '  [5.4] Installing backend dependencies...' -ForegroundColor DarkCyan
     Invoke-RemoteCommand "cd $RemoteApiRoot; npm install"
 
-    Write-Host '  [5.4] Updating and restarting backend service...' -ForegroundColor DarkCyan
+    Write-Host '  [5.5] Updating and restarting backend service...' -ForegroundColor DarkCyan
     Invoke-RemoteCommand 'sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/'
     Invoke-RemoteCommand 'sudo systemctl daemon-reload'
     Invoke-RemoteCommand 'sudo systemctl restart super-agent-vocab.service'
