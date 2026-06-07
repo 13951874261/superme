@@ -11,7 +11,7 @@ RestartSec=3
 User=ubuntu
 Environment=NODE_ENV=production
 Environment=VITE_DIFY_API_BASE_URL=https://dify.234124123.xyz/v1
-Environment=VITE_DIFY_ENGLISH_MASTERY_KEY=app-Eygg39qoniWss17wjWvLUvDb
+Environment=VITE_DIFY_ENGLISH_MASTERY_KEY=app-OShKY1EcVuLFkuxrpO28ZB0A
 Environment=VITE_DIFY_PRONUNCIATION_API_KEY=app-gfR3SBAHyXp3iKnIWyyRpmlI
 Environment=DIFY_BASE_URL=https://dify.234124123.xyz
 Environment=DIFY_KB_DATASET_ID=99abd904-f0e0-45f3-95a8-660b44b17cc5

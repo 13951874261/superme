@@ -873,7 +873,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
     }
 
     // Step 3: 璋冪敤 Dify 宸ヤ綔娴佹彁绾瘝姹?
-    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-Eygg39qoniWss17wjWvLUvDb';
+    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText锛屽惁鍒欑敤 topic 鑷韩鐢熸垚鎻愮ず璇?
