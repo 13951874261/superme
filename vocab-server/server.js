@@ -885,13 +885,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
     if (inputText) {
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
-      if (req.httpVersionMajor < 2) {
-        res.setHeader('Connection', 'keep-alive');
-      }
       res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲区
       if (typeof res.flushHeaders === 'function') {
         res.flushHeaders();
       }
+      // 写入 SSE 注释行，强制 Nginx/Cloudflare 立即冲刷 Response Header 给客户端，防止超时
+      res.write(":\n\n");
 
       // 流式获取 Chatflow 响应并直通给前端
       let wfResponse;
@@ -1151,7 +1150,9 @@ app.post('/api/english/daily-extract', async (req, res) => {
       };
 
       res.write(`\ndata: ${JSON.stringify(finalPayload)}\n\n`);
-      res.end();
+      setTimeout(() => {
+        res.end();
+      }, 100);
       return;
     } else {
       // 鏃犺緭鍏ヨ鏂欐椂锛屼粎杩斿洖褰撳墠閰嶉鐘舵€?

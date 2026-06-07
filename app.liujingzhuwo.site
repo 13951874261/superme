@@ -24,6 +24,10 @@ server {
         proxy_buffering off;
         proxy_cache off;
         chunked_transfer_encoding off;
+
+        # 隐藏 Connection 相关的 HTTP/1.1 头，防止 HTTP/2 协议冲突
+        proxy_hide_header Connection;
+        proxy_hide_header Keep-Alive;
     }
 
     location = /api/material/ {
