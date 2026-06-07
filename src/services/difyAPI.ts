@@ -441,19 +441,73 @@ export async function getDailyQuotaStatus(userId = 'default-user'): Promise<Dail
 }
 
 export async function triggerEnglishMasteryExtraction(topic: string, materialText = '', userId = 'default-user'): Promise<DailyExtractResult> {
-  const response = await fetch('/api/english/daily-extract', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  const response = await fetch("/api/english/daily-extract", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ topic, materialText, userId }),
   });
 
+  // 处理流式响应 (SSE)
+  if (response.headers.get("content-type")?.includes("text/event-stream")) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finalPayload: any = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      
+      const chunk = decoder.decode(value, { stream: true });
+      buffer += chunk;
+
+      // 按行处理 SSE 数据
+      let lineEnd = buffer.indexOf("\n");
+      while (lineEnd !== -1) {
+        const line = buffer.substring(0, lineEnd).trim();
+        buffer = buffer.substring(lineEnd + 1);
+
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === "[DONE]") break;
+          
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.success !== undefined) {
+              finalPayload = parsed;
+            }
+          } catch (e) {
+            // 忽略临时解析错误（数据块被截断）
+          }
+        }
+        lineEnd = buffer.indexOf("\n");
+      }
+    }
+
+    // 处理残余缓冲数据
+    if (buffer.trim().startsWith("data: ")) {
+      const dataStr = buffer.trim().slice(6).trim();
+      try {
+        const parsed = JSON.parse(dataStr);
+        if (parsed.success !== undefined) {
+          finalPayload = parsed;
+        }
+      } catch (e) {}
+    }
+
+    if (!finalPayload) {
+      throw new Error("Failed to receive completion payload from stream");
+    }
+    return finalPayload;
+  }
+
+  // 传统 JSON 响应处理
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data?.success) {
     if (data?.quotaExceeded) {
-      // 配额耗尽也是一种"成功返回"，前端根据 quotaExceeded 字段展示提示
       return data as DailyExtractResult;
     }
-    throw new Error(data?.error || data?.message || '提纯流水线执行失败，请检查后端状态');
+    throw new Error(data?.error || data?.message || "提取词汇操作失败，请检查后端状态");
   }
   return data as DailyExtractResult;
 }

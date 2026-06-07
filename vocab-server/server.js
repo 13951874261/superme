@@ -912,6 +912,29 @@ app.post('/api/english/daily-extract', async (req, res) => {
 
       let answer = "";
       const decoder = new TextDecoder();
+      let sseBuffer = "";
+
+      const parseSSELines = (text) => {
+        sseBuffer += text;
+        let lineEnd = sseBuffer.indexOf('\n');
+        while (lineEnd !== -1) {
+          const line = sseBuffer.substring(0, lineEnd).trim();
+          sseBuffer = sseBuffer.substring(lineEnd + 1);
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.answer) {
+                answer += parsed.answer;
+              }
+            } catch (e) {
+              // 容错：忽略数据块被截断产生的临时解析失败
+            }
+          }
+          lineEnd = sseBuffer.indexOf('\n');
+        }
+      };
 
       if (wfResponse.body) {
         if (typeof wfResponse.body.getReader === 'function') {
@@ -923,41 +946,31 @@ app.post('/api/english/daily-extract', async (req, res) => {
             
             // 实时将 Dify 原始数据块转发给前端浏览器
             res.write(chunk);
-
-            // 同时在后端累计完整的文本以提取生词和短语
-            const lines = chunk.split("\n");
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim();
-                if (data === "[DONE]") break;
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.answer) {
-                    answer += parsed.answer;
-                  }
-                } catch (e) {}
-              }
-            }
+            parseSSELines(chunk);
           }
         } else {
           for await (const chunk of wfResponse.body) {
             res.write(chunk);
             const chunkText = decoder.decode(chunk, { stream: true });
-            const lines = chunkText.split("\n");
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                const data = line.slice(6).trim();
-                if (data === "[DONE]") break;
-                try {
-                  const parsed = JSON.parse(data);
-                  if (parsed.answer) {
-                    answer += parsed.answer;
-                  }
-                } catch (e) {}
-              }
-            }
+            parseSSELines(chunkText);
           }
         }
+        
+        // 扫尾工作：解析最后残存的缓冲区数据
+        if (sseBuffer.trim().startsWith("data: ")) {
+          const line = sseBuffer.trim();
+          const dataStr = line.slice(6).trim();
+          if (dataStr !== "[DONE]") {
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.answer) {
+                answer += parsed.answer;
+              }
+            } catch (e) {}
+          }
+        }
+      } else {
+        throw new Error("Streaming not supported, please use blocking mode");
       }
 
       // 接收完毕后，在后台进行词汇和短语提取与 SQLite 入库
