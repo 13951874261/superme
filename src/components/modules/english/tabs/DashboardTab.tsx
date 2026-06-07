@@ -306,16 +306,19 @@ export default function DashboardTab() {
 
       // 根据配额状态给出差异化提示
       const { wordsLeft = 0, phrasesLeft = 0, wordsAddedCount = 0, phrasesAddedCount = 0 } = result as any;
+      
+      // 只要生成成功，始终播放提示音和五彩纸屑
+      playSuccess();
+      setShowConfetti(true);
+
       if (wordsAddedCount > 0 && wordsLeft === 0) {
         showNotice('dashboard', `今日词汇配额已满(${result.quota?.wordsLimit}/${result.quota?.wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
       } else if (phrasesAddedCount > 0 && phrasesLeft === 0) {
         showNotice('dashboard', `今日短语配额已满(${result.quota?.phrasesLimit}/${result.quota?.phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
       } else if (wordsAddedCount > 0 || phrasesAddedCount > 0) {
         showNotice('dashboard', `入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语 | 剩余配额：${wordsLeft} 词 ${phrasesLeft} 短语`, 'success');
-        playSuccess();
-        setShowConfetti(true);
       } else {
-        showNotice('dashboard', '本次未提取到新内容（可能有重复）', 'info');
+        showNotice('dashboard', '本次生成长文成功，未提取到新词汇（可能有重复/配额满）', 'success');
       }
 
       window.dispatchEvent(new Event('vocab-updated'));
@@ -563,6 +566,22 @@ export default function DashboardTab() {
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <button
+                  onClick={() => {
+                    setGeneratedArticle('');
+                    setExtractedWords([]);
+                    setExtractedPhrases([]);
+                    localStorage.removeItem('super_agent_last_generated_article');
+                    localStorage.removeItem('super_agent_last_generated_words');
+                    localStorage.removeItem('super_agent_last_generated_phrases');
+                    showNotice('dashboard', '已成功初始化生成器，可以重新配置生成。', 'success');
+                    playSuccess();
+                  }}
+                  className="flex items-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-750 transition-colors shadow-sm font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
+                  title="清空已生成内容，重新配置生成"
+                >
+                  <RefreshCw className="w-4 h-4" /> 重新初始化
+                </button>
+                <button
                   onClick={() => setIsImmersiveOpen(true)}
                   className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-md font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
                 >
@@ -740,9 +759,19 @@ export default function DashboardTab() {
               }}
             >
               {generatedArticle.split('\n\n').map((paragraph, index) => (
-                <p key={index} className="mb-8 indent-8 leading-relaxed hover:opacity-100 transition-opacity">
-                  {paragraph}
-                </p>
+                <div key={index} className="group relative flex items-start gap-4 mb-8">
+                  <div className="absolute -left-12 top-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+                    <SpeakButton
+                      text={paragraph}
+                      className="w-8 h-8 bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white rounded-full shadow-sm cursor-pointer"
+                      iconClassName="w-3.5 h-3.5"
+                      title="朗读本段"
+                    />
+                  </div>
+                  <p className="indent-8 leading-relaxed hover:opacity-100 transition-opacity flex-1">
+                    {paragraph}
+                  </p>
+                </div>
               ))}
             </div>
           </div>
