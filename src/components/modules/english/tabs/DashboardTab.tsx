@@ -234,6 +234,17 @@ export default function DashboardTab() {
     }
   });
 
+  // 题材与难度等级控制
+  const [cefrLevel, setCefrLevel] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
+  const [genre, setGenre] = useState<'news' | 'meeting' | 'podcast' | 'reading'>('meeting');
+
+  // 沉浸式阅读空间状态
+  const [isImmersiveOpen, setIsImmersiveOpen] = useState(false);
+  const [immersiveTheme, setImmersiveTheme] = useState<'paper' | 'parchment' | 'dark'>('parchment');
+  const [immersiveFontSize, setImmersiveFontSize] = useState<'base' | 'lg' | 'xl'>('lg');
+  const [selectedWord, setSelectedWord] = useState('');
+  const [isAddingSelected, setIsAddingSelected] = useState(false);
+
   // 加载每日配额状态
   const loadQuotaStatus = async () => {
     try {
@@ -259,12 +270,13 @@ export default function DashboardTab() {
 
       // 尝试生成一段引导语料（若工作流可用），否则跳过
       try {
-        script = await runListenMaterialGenerator(theme, 'meeting', 'B1');
+        const listenGenre = genre === 'reading' ? 'meeting' : genre;
+        script = await runListenMaterialGenerator(theme, listenGenre, cefrLevel);
       } catch {
         script = '';
       }
 
-      const result = await triggerEnglishMasteryExtraction(theme, script, 'default-user');
+      const result = await triggerEnglishMasteryExtraction(theme, script, 'default-user', cefrLevel, genre);
 
       // 更新配额状态
       if (result.quota) {
@@ -450,17 +462,51 @@ export default function DashboardTab() {
       </div>
 
       <div className="relative">
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
           <h4 className="text-sm font-black uppercase tracking-widest text-[#202124] flex items-center">
             <Target className="w-5 h-5 mr-3 text-[#FF5722]" /> 弹药补给库 (Arsenal)
           </h4>
-          <button
-            onClick={handleAutoGenerate}
-            disabled={isAutoGenerating}
-            className="flex items-center bg-[#202124] text-white px-5 py-3 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-lg"
-          >
-            {isAutoGenerating ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> AI 执行中...</> : <><Zap className="w-4 h-4 mr-2 text-amber-400"/> AI 自动生成今日长文并提纯</>}
-          </button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">题材 (Genre):</span>
+              <select
+                value={genre}
+                onChange={(e) => setGenre(e.target.value as any)}
+                className="bg-white border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-3 py-2 outline-none focus:border-[#FF5722] cursor-pointer shadow-sm"
+              >
+                <option value="meeting">高管会议 (Meeting)</option>
+                <option value="news">财经新闻 (News)</option>
+                <option value="podcast">深度播客 (Podcast)</option>
+                <option value="reading">沉浸阅读 (Reading)</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">难度 (Level):</span>
+              <select
+                value={cefrLevel}
+                onChange={(e) => setCefrLevel(e.target.value as any)}
+                className="bg-white border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-3 py-2 outline-none focus:border-[#FF5722] cursor-pointer shadow-sm"
+              >
+                <option value="A2">A2 初阶</option>
+                <option value="B1">B1 进阶</option>
+                <option value="B2">B2 高阶</option>
+                <option value="C1">C1 母语级</option>
+              </select>
+            </div>
+
+            <button
+              onClick={handleAutoGenerate}
+              disabled={isAutoGenerating}
+              className="flex items-center bg-[#202124] text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-lg"
+            >
+              {isAutoGenerating ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> AI 执行中...</>
+              ) : (
+                <><Zap className="w-4 h-4 mr-2 text-amber-400"/> AI 自动生成今日长文并提纯</>
+              )}
+            </button>
+          </div>
         </div>
 
         {/* 每日配额指示器 */}
@@ -473,7 +519,7 @@ export default function DashboardTab() {
               </div>
               <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : quotaStatus.wordsUsed === 0 ? 'bg-indigo-500' : 'bg-indigo-500'}`}
+                  className={`h-full rounded-full transition-all duration-500 ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : quotaStatus.wordsUsed === 0 ? 'bg-indigo-505' : 'bg-indigo-500'}`}
                   style={{ width: `${(quotaStatus.wordsUsed / quotaStatus.wordsLimit) * 100}%` }}
                 />
               </div>
@@ -515,7 +561,13 @@ export default function DashboardTab() {
                   基于主阵地主题【{theme}】生成的高阶商业实战材料，支持 EmmaNeural 语音收听与沉浸式阅读。
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  onClick={() => setIsImmersiveOpen(true)}
+                  className="flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-md font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
+                >
+                  <BookOpen className="w-4 h-4" /> 沉浸式阅读
+                </button>
                 <SpeakButton 
                   text={generatedArticle} 
                   label="收听全文 (Emma)" 
@@ -567,6 +619,175 @@ export default function DashboardTab() {
 
         <MaterialUploader topicHint={theme} onExtractionSuccess={() => setActiveTab('vocab')} />
       </div>
+
+      {/* 沉浸式阅读空间 Fullscreen Modal */}
+      {isImmersiveOpen && generatedArticle && (
+        <div className={`fixed inset-0 z-50 flex flex-col transition-all duration-300 ${
+          immersiveTheme === 'dark' ? 'bg-[#0f172a] text-slate-205' :
+          immersiveTheme === 'parchment' ? 'bg-[#fcf8f2] text-slate-800' : 'bg-white text-slate-900'
+        }`}>
+          {/* Header */}
+          <div className={`flex items-center justify-between px-8 py-5 border-b shrink-0 ${
+            immersiveTheme === 'dark' ? 'border-slate-800 bg-slate-900' : 'border-slate-200/60 bg-gray-50'
+          }`}>
+            <div className="flex items-center gap-3">
+              <BookOpen className="w-5 h-5 text-[#FF5722]" />
+              <div>
+                <h3 className="text-sm font-black uppercase tracking-widest text-[#FF5722]">
+                  沉浸式阅读空间 // Immersive Reading Room
+                </h3>
+                <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-0.5">
+                  Theme: {theme} | cefr: {cefrLevel} | genre: {genre}
+                </p>
+              </div>
+            </div>
+
+            {/* Typography Controls */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-lg">
+                <button
+                  onClick={() => setImmersiveTheme('paper')}
+                  className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+                    immersiveTheme === 'paper' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  纸张
+                </button>
+                <button
+                  onClick={() => setImmersiveTheme('parchment')}
+                  className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+                    immersiveTheme === 'parchment' ? 'bg-[#f5e6d3] shadow-sm text-[#5c3e21]' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  雅致
+                </button>
+                <button
+                  onClick={() => setImmersiveTheme('dark')}
+                  className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+                    immersiveTheme === 'dark' ? 'bg-slate-800 shadow-sm text-slate-200' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  深邃
+                </button>
+              </div>
+
+              <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-lg">
+                <button
+                  onClick={() => setImmersiveFontSize('base')}
+                  className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded ${
+                    immersiveFontSize === 'base' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                  title="较小字号"
+                >
+                  A-
+                </button>
+                <button
+                  onClick={() => setImmersiveFontSize('lg')}
+                  className={`w-7 h-7 flex items-center justify-center text-sm font-bold rounded ${
+                    immersiveFontSize === 'lg' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                  title="中等字号"
+                >
+                  A
+                </button>
+                <button
+                  onClick={() => setImmersiveFontSize('xl')}
+                  className={`w-7 h-7 flex items-center justify-center text-base font-bold rounded ${
+                    immersiveFontSize === 'xl' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                  title="较大字号"
+                >
+                  A+
+                </button>
+              </div>
+
+              <div className="h-5 w-px bg-gray-300" />
+
+              <SpeakButton
+                text={generatedArticle}
+                label="收听全文 (Emma)"
+                className="px-4 py-2 bg-[#FF5722] text-white hover:bg-[#e64a19] shadow-sm text-[10px] font-black"
+              />
+
+              <button
+                onClick={() => {
+                  setIsImmersiveOpen(false);
+                  setSelectedWord('');
+                }}
+                className="w-9 h-9 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full transition-colors cursor-pointer text-gray-500 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+
+          {/* Reading body */}
+          <div 
+            className="flex-1 overflow-y-auto px-8 py-12 flex justify-center"
+            style={{ scrollbarWidth: 'thin' }}
+          >
+            <div 
+              className={`max-w-3xl w-full font-serif leading-loose select-text cursor-text ${
+                immersiveFontSize === 'base' ? 'text-base' :
+                immersiveFontSize === 'lg' ? 'text-lg md:text-xl' : 'text-xl md:text-2xl'
+              }`}
+              onMouseUp={() => {
+                const sel = window.getSelection()?.toString().trim();
+                // 仅当选择字数在 1-5 个单词之间时触发
+                if (sel && sel.split(/\s+/).length <= 5) {
+                  setSelectedWord(sel);
+                }
+              }}
+            >
+              {generatedArticle.split('\n\n').map((paragraph, index) => (
+                <p key={index} className="mb-8 indent-8 leading-relaxed hover:opacity-100 transition-opacity">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          {/* Floating Selection Tooltip */}
+          {selectedWord && (
+            <div className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-55 flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl border animate-[fadeIn_0.2s_ease-out] ${
+              immersiveTheme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'
+            }`}>
+              <span className="text-xs font-black text-[#FF5722]">“{selectedWord}”</span>
+              <button
+                disabled={isAddingSelected}
+                onClick={async () => {
+                  setIsAddingSelected(true);
+                  try {
+                    await addWord({
+                      word: selectedWord,
+                      dictType: 'immersive-highlight',
+                      category: 'business',
+                      payload: { source: 'immersive_reading', theme }
+                    });
+                    showNotice('dashboard', `“${selectedWord}” 已成功加入生词本`, 'success');
+                    window.dispatchEvent(new Event('vocab-updated'));
+                    playSuccess();
+                  } catch (e) {
+                    playError();
+                  } finally {
+                    setIsAddingSelected(false);
+                    setSelectedWord('');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isAddingSelected ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '加入词库'}
+              </button>
+              <button
+                onClick={() => setSelectedWord('')}
+                className="text-gray-400 hover:text-gray-600 text-sm font-bold ml-1"
+              >
+                取消
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

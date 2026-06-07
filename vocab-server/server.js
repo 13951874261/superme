@@ -873,7 +873,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
     }
 
     // Step 3: 璋冪敤 Dify 宸ヤ綔娴佹彁绾瘝姹?
-    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
+    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-Eygg39qoniWss17wjWvLUvDb';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText锛屽惁鍒欑敤 topic 鑷韩鐢熸垚鎻愮ず璇?
@@ -1601,6 +1601,21 @@ app.post('/api/tts/speech', async (req, res) => {
     // 强制使用 EmmaNeural 模型（忽略客户端传入的模型参数）
     const finalModel = 'edge-tts/en-US-EmmaNeural';
 
+    // MD5 缓存逻辑
+    const md5 = crypto.createHash('md5').update(input + '_' + finalModel).digest('hex');
+    const cacheFilename = `${md5}.mp3`;
+    const audioPath = path.join(__dirname, 'public', 'temp_audio', cacheFilename);
+    const audioUrl = '/api/temp_audio/' + cacheFilename;
+
+    if (fs.existsSync(audioPath)) {
+      return res.json({
+        success: true,
+        audioId: md5,
+        audioUrl: audioUrl,
+        duration: 0
+      });
+    }
+
     let ttsResponse;
     let retries = 3;
     let lastError;
@@ -1641,18 +1656,16 @@ app.post('/api/tts/speech', async (req, res) => {
       return res.status(500).json({ error: `TTS synthesis failed: ${errMsg}` });
     }
 
-    // 生成临时文件名并保存音频
-    const audioId = crypto.randomUUID();
-    const audioPath = path.join(__dirname, 'public', 'temp_audio', audioId + '.mp3');
+    // 保存到 MD5 缓存路径
     const arrayBuffer = await ttsResponse.arrayBuffer();
     fs.writeFileSync(audioPath, Buffer.from(arrayBuffer));
 
     // 返回音频文件的访问 URL
     res.json({
       success: true,
-      audioId: audioId,
-      audioUrl: '/api/temp_audio/' + audioId + '.mp3',
-      duration: 0 // 可选：如果需要，可以计算音频时长
+      audioId: md5,
+      audioUrl: audioUrl,
+      duration: 0
     });
   } catch (error) {
     console.error('[TTS] Error:', error);

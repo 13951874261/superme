@@ -441,11 +441,17 @@ export async function getDailyQuotaStatus(userId = 'default-user'): Promise<Dail
   return data as DailyQuotaStatus;
 }
 
-export async function triggerEnglishMasteryExtraction(topic: string, materialText = '', userId = 'default-user'): Promise<DailyExtractResult> {
+export async function triggerEnglishMasteryExtraction(
+  topic: string,
+  materialText = '',
+  userId = 'default-user',
+  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
+  genre: 'news' | 'meeting' | 'podcast' | 'reading' = 'meeting'
+): Promise<DailyExtractResult> {
   const response = await fetch("/api/english/daily-extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, materialText, userId }),
+    body: JSON.stringify({ topic, materialText, userId, cefrLevel, genre }),
   });
 
   // 澶勭悊娴佸紡鍝嶅簲 (SSE)
