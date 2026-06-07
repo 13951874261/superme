@@ -883,10 +883,11 @@ app.post('/api/english/daily-extract', async (req, res) => {
     let phraseList = [];
 
     if (inputText) {
-      // 立即设置响应头并发送，告知 Cloudflare/Nginx 数据开始传输，避免 524 动作超时
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Connection', 'keep-alive');
+      if (req.httpVersionMajor < 2) {
+        res.setHeader('Connection', 'keep-alive');
+      }
       res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲区
       if (typeof res.flushHeaders === 'function') {
         res.flushHeaders();
