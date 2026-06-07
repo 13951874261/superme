@@ -9,7 +9,7 @@ $ProjectRoot = 'D:\cursor\work\super-agent'
 $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
-$HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfF'
+$HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfE'
 $HostKeyOptions = @('-hostkey', $HostKey)
 
 Set-Location $ProjectRoot
@@ -55,7 +55,7 @@ Write-Host ""
 # 2. 准备 SSH/SCP 工具
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
-$UsePuTTY = ($Pscp -and $Plink)
+$UsePuTTY = $false
 
 if ($UsePuTTY) {
     Write-Host "检测到 PuTTY 工具链，启用免密极速模式。" -ForegroundColor Green
@@ -79,7 +79,7 @@ function Invoke-RemoteCommand {
 function Send-File {
     param([string]$Source, [string]$Destination)
     if ($UsePuTTY) {
-        & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source $Destination
+        & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source "${ServerHost}:$Destination"
     } else {
         scp -r $Source "${ServerHost}:$Destination"
     }

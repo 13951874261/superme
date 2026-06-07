@@ -14,7 +14,11 @@ app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 
 // 静态文件服务：临时音频文件
-app.use('/temp_audio', express.static(path.join(__dirname, 'public', 'temp_audio')));
+const tempAudioDir = path.join(__dirname, 'public', 'temp_audio');
+if (!fs.existsSync(tempAudioDir)) {
+  fs.mkdirSync(tempAudioDir, { recursive: true });
+}
+app.use('/temp_audio', express.static(tempAudioDir));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
