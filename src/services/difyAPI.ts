@@ -499,6 +499,9 @@ export async function triggerEnglishMasteryExtraction(topic: string, materialTex
     if (!finalPayload) {
       throw new Error("Failed to receive completion payload from stream");
     }
+    if (finalPayload.success === false) {
+      throw new Error(finalPayload.error || finalPayload.message || "流式提取失败");
+    }
     return finalPayload;
   }
 

@@ -883,32 +883,45 @@ app.post('/api/english/daily-extract', async (req, res) => {
     let phraseList = [];
 
     if (inputText) {
-      // 娴佸紡鑾峰彇 Chatflow 鍝嶅簲骞剁洿閫氱粰鍓嶇
-      const wfResponse = await fetch(`${baseUrl}/chat-messages`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${difyApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          inputs: { theme: topic || "General Business", cefr_level: cefrLevel, genre: genre },
-          query: "generate",
-          response_mode: "streaming",
-          user: userId,
-        }),
-      });
-
-      if (!wfResponse.ok) {
-        const errText = await wfResponse.text();
-        console.error("[Daily Extract] Dify 宸ヤ綔娴佸け璐?", errText);
-        throw new Error(`Dify 宸ヤ綔娴佸紓甯? ${wfResponse.status}`);
-      }
-
-      // 璁剧疆鍝嶅簲澶翠负 SSE锛屽憡璇?Cloudflare 绔嬪嵆寮€濮嬩紶杈擄紝閬垮厤 524 瓒呮椂
+      // 立即设置响应头并发送，告知 Cloudflare/Nginx 数据开始传输，避免 524 动作超时
       res.setHeader('Content-Type', 'text/event-stream');
       res.setHeader('Cache-Control', 'no-cache');
       res.setHeader('Connection', 'keep-alive');
-      res.setHeader('X-Accel-Buffering', 'no'); // 绂佺敤 Nginx 缂撳啿
+      res.setHeader('X-Accel-Buffering', 'no'); // 禁用 Nginx 缓冲区
+      if (typeof res.flushHeaders === 'function') {
+        res.flushHeaders();
+      }
+
+      // 流式获取 Chatflow 响应并直通给前端
+      let wfResponse;
+      try {
+        wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${difyApiKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            inputs: { theme: topic || "General Business", cefr_level: cefrLevel, genre: genre },
+            query: "generate",
+            response_mode: "streaming",
+            user: userId,
+          }),
+        });
+      } catch (fetchErr) {
+        console.error("[Daily Extract] Dify fetch 请求发起失败:", fetchErr);
+        res.write(`data: ${JSON.stringify({ success: false, error: `Dify 服务请求发起失败: ${fetchErr.message}` })}\n\n`);
+        res.end();
+        return;
+      }
+
+      if (!wfResponse.ok) {
+        const errText = await wfResponse.text();
+        console.error("[Daily Extract] Dify 工作流失败", errText);
+        res.write(`data: ${JSON.stringify({ success: false, error: `Dify 工作流异常: ${wfResponse.status} - ${errText}` })}\n\n`);
+        res.end();
+        return;
+      }
 
       let answer = "";
       const decoder = new TextDecoder();
@@ -1246,7 +1259,16 @@ app.post('/api/english/daily-extract', async (req, res) => {
     });
   } catch (error) {
     console.error('[Daily Extract] Error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message });
+    } else {
+      try {
+        res.write(`data: ${JSON.stringify({ success: false, error: error.message })}\n\n`);
+        res.end();
+      } catch (writeErr) {
+        console.error('[Daily Extract] Failed to write error to stream:', writeErr);
+      }
+    }
   }
 });
 
