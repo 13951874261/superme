@@ -75,6 +75,8 @@ try {
     Write-Host 'server.js uploaded'
 
     Send-File "$ProjectRoot\vocab-server\package.json" "${ServerHost}:$RemoteApiRoot/package.json"
+    Send-File "$ProjectRoot\vocab-server\.env" "${ServerHost}:$RemoteApiRoot/.env"
+    Send-File "$ProjectRoot\vocab-server\clear-today-vocab.js" "${ServerHost}:$RemoteApiRoot/clear-today-vocab.js"
 
     Send-File "$ProjectRoot\scratch\super-agent-vocab.service" "${ServerHost}:/tmp/super-agent-vocab.service"
 
