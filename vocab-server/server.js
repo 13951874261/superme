@@ -874,7 +874,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
 
     // Step 3: 璋冪敤 Dify 宸ヤ綔娴佹彁绾瘝姹?
     const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-Eygg39qoniWss17wjWvLUvDb';
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'http://dify.234124123.xyz/v1';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText锛屽惁鍒欑敤 topic 鑷韩鐢熸垚鎻愮ず璇?
     const inputText = materialText?.trim() || topic || '';
@@ -1354,7 +1354,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
       return res.status(500).json({ success: false, error: '鏈嶅姟绔湭閰嶇疆鍙戦煶绾犳 API Key' });
     }
 
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'http://dify.234124123.xyz/v1';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
     const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
       headers: {
@@ -1420,7 +1420,7 @@ app.post('/api/grammar-polish', async (req, res) => {
   try {
     // 浼樺厛璇诲彇鐜鍙橀噺锛屼弗鏍艰惤瀹炴棤鐘舵€佸鐏炬満鍒?(纭紪鐮佺湡瀹?Key 鍏滃簳)
     const difyApiKey = process.env.DIFY_GRAMMAR_API_KEY || 'app-547Sa5oIC3Qb9RUZdasJs1Ef';
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'http://dify.234124123.xyz/v1';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const response = await fetch(`${baseUrl}/chat-messages`, {
       method: 'POST',
@@ -1473,7 +1473,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
 
   try {
     const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'http://dify.234124123.xyz/v1';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const response = await fetch(`${baseUrl}/chat-messages`, {
       method: 'POST',
