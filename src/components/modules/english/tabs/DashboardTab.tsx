@@ -773,7 +773,7 @@ export default function DashboardTab() {
 
           {generatedArticle ? (
             <>
-              <div className="text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa] rounded-2xl border border-gray-100 max-h-[300px] overflow-y-auto whitespace-pre-line select-text" style={{ scrollbarWidth: 'thin' }}>
+              <div className="text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa]/60 rounded-2xl border border-gray-100 whitespace-pre-line select-text shadow-sm">
                 {generatedArticle}
               </div>
 

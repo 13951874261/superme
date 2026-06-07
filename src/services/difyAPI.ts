@@ -1434,7 +1434,7 @@ export async function deletePersonalPrototype(id: string): Promise<{ success: bo
   return data;
 }
 
-// 姣忔棩涓撳睘鐮寸唤璇嶆眹鍔ㄦ€佺敓鎴愶紙璋冪敤 Dify 鍞ら啋宸ヤ綔娴侊級
+// 每日专属破绽词汇动态生成（调用 Dify 唤醒工作流）
 export async function generateDailyFlawVocabulary(userId = 'default-user'): Promise<Array<{
   word: string;
   ipa: string;
@@ -1443,33 +1443,92 @@ export async function generateDailyFlawVocabulary(userId = 'default-user'): Prom
   example: string;
 }>> {
   const apiKey = import.meta.env.VITE_DIFY_WAKEUP_API_KEY || import.meta.env.VITE_DIFY_WAKUP_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_WAKEUP_API_KEY');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: { theme: 'identifying logical flaws and business counterattack' },
-      response_mode: 'blocking',
-      user: userId,
-    }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || 'Wakeup Engine Error');
+  if (!apiKey) {
+    console.warn('VITE_DIFY_WAKEUP_API_KEY not configured, using local fallback vocab.');
+    return getFallbackFlawVocab();
+  }
 
   try {
+    const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: { theme: 'identifying logical flaws and business counterattack' },
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.warn('Dify API response not ok, using local fallback vocab. Error:', data?.message || data?.error);
+      return getFallbackFlawVocab();
+    }
+
     const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
     const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(clean);
-    return parsed.vocab || [];
+    return parsed.vocab || getFallbackFlawVocab();
   } catch (e) {
-    console.error('瑙ｆ瀽鐮寸唤璇嶆眹澶辫触:', e, data);
-    throw new Error('Dify 鎺ュ彛杩斿洖鏁版嵁鏍煎紡瑙ｆ瀽澶辫触');
+    console.warn('Failed to fetch/parse Dify flaw vocab, using local fallback vocab. Error:', e);
+    return getFallbackFlawVocab();
   }
+}
+
+function getFallbackFlawVocab(): Array<{
+  word: string;
+  ipa: string;
+  pronunciation_note: string;
+  meaning_zh: string;
+  example: string;
+}> {
+  return [
+    {
+      word: "fallacy",
+      ipa: "/ˈfæləsi/",
+      pronunciation_note: "商务谈判中用于指出对方的逻辑漏洞。重音在第一音节。",
+      meaning_zh: "谬误；谬论；虚妄的信念",
+      example: "We must identify the logical fallacy in their pricing argument before making a counter-offer."
+    },
+    {
+      word: "counterproductive",
+      ipa: "/ˌkaʊntəprəˈdʌktɪv/",
+      pronunciation_note: "常用于指出对方提案的潜在弊端。重音在第三音节。",
+      meaning_zh: "适得其反的；不起作用的",
+      example: "Hasty price cuts might prove counterproductive to our long-term brand equity."
+    },
+    {
+      word: "plausible",
+      ipa: "/ˈplɔːzəbl/",
+      pronunciation_note: "用于形容对方听起来合理但经不起推敲的辩解。",
+      meaning_zh: "貌似可信的；花言巧语的；貌似合理的",
+      example: "Their excuse for the delivery delay sounds plausible, but we need concrete evidence."
+    },
+    {
+      word: "bait-and-switch",
+      ipa: "/ˌbeɪt ən ˈswɪtʃ/",
+      pronunciation_note: "商业谈判中常见的低端套路陷阱名词。",
+      meaning_zh: "诱客买贵货的把戏；挂羊头卖肉；套路行为",
+      example: "The supplier's sudden price increase after the initial low quote felt like a bait-and-switch."
+    },
+    {
+      word: "red herring",
+      ipa: "/ˌred ˈherɪŋ/",
+      pronunciation_note: "用于指出对方试图转移讨论焦点的逻辑花招。",
+      meaning_zh: "转移注意力的话题；障眼法；红鲱鱼",
+      example: "Bringing up minor administrative delays is just a red herring to distract us from the core issue."
+    },
+    {
+      word: "preemptive",
+      ipa: "/priˈemptɪv/",
+      pronunciation_note: "商务防御或反击策略中的常用形容词。",
+      meaning_zh: "先发制人的；有先买权的；防患于未然的",
+      example: "We launched a preemptive marketing campaign to neutralize the competitor's upcoming product release."
+    }
+  ];
 }
 
 export async function clearTodayQuotaAndData(userId = 'default-user'): Promise<{ success: boolean; message: string }> {
