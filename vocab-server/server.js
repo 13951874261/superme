@@ -1636,7 +1636,7 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 });
 
 // 鍏滃簳 404
-// TTS 语音合成接口（全局统一使用 edge-tts/en-US-EmmaNeural）
+// TTS 语音合成接口
 app.post('/api/tts/speech', async (req, res) => {
   try {
     const { input, model = 'edge-tts/en-US-EmmaNeural' } = req.body;
@@ -1644,8 +1644,8 @@ app.post('/api/tts/speech', async (req, res) => {
       return res.status(400).json({ error: 'Missing input text' });
     }
 
-    // 强制使用 EmmaNeural 模型（忽略客户端传入的模型参数）
-    const finalModel = 'edge-tts/en-US-EmmaNeural';
+    // 动态使用客户端传入的模型参数
+    const finalModel = model || 'edge-tts/en-US-EmmaNeural';
 
     // MD5 缓存逻辑
     const md5 = crypto.createHash('md5').update(input + '_' + finalModel).digest('hex');

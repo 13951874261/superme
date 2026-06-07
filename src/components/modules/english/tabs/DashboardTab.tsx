@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2 } from 'lucide-react';
+import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Globe, User } from 'lucide-react';
 import { useEnglishContext, getThemeOptions } from '../context/EnglishContext';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
@@ -8,8 +8,8 @@ import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
 import { generateDailyFlawVocabulary, triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
-import { addWord } from '../../../../services/vocabAPI';
-import SpeakButton from '../../../SpeakButton';
+import { addWord, getAllWords } from '../../../../services/vocabAPI';
+import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
 interface FlawVocabWord {
   word: string;
@@ -163,6 +163,9 @@ function DailyFlawVocabCard() {
   );
 }
 
+import { VOICE_OPTIONS } from '../../../../config/voices';
+
+
 export default function DashboardTab() {
   const {
     stage, setStage,
@@ -248,6 +251,56 @@ export default function DashboardTab() {
   const [customText, setCustomText] = useState('');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+
+  // 全局发音角色状态同步
+  const [selectedVoice, setSelectedVoice] = useState<string>(() => {
+    return localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
+  });
+
+  useEffect(() => {
+    const handleVoiceChange = () => {
+      setSelectedVoice(localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural');
+    };
+    window.addEventListener('global-voice-changed', handleVoiceChange);
+    return () => window.removeEventListener('global-voice-changed', handleVoiceChange);
+  }, []);
+
+  // 缓存今日提纯词汇的音标和释义详情
+  const [vocabDetailsMap, setVocabDetailsMap] = useState<Record<string, any>>({});
+
+  const loadVocabDetails = async () => {
+    try {
+      const allWords = await getAllWords();
+      const detailsMap: Record<string, any> = {};
+      allWords.forEach((item) => {
+        if (item.word) {
+          let payload = item.payload;
+          if (typeof payload === 'string') {
+            try {
+              payload = JSON.parse(payload);
+            } catch {
+              payload = {};
+            }
+          }
+          detailsMap[item.word.toLowerCase().trim()] = {
+            phonetic: payload?.phonetic || '',
+            meaning: payload?.meaning || '',
+            definition_en: payload?.definition_en || '',
+            business_note: payload?.business_note || '',
+          };
+        }
+      });
+      setVocabDetailsMap(detailsMap);
+    } catch (err) {
+      console.error('Failed to load vocab details:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (extractedWords.length > 0) {
+      loadVocabDetails();
+    }
+  }, [extractedWords]);
 
   // 加载每日配额状态
   const loadQuotaStatus = async () => {
@@ -530,7 +583,7 @@ export default function DashboardTab() {
               <select
                 value={cefrLevel}
                 onChange={(e) => setCefrLevel(e.target.value as any)}
-                className="bg-white border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-3 py-2 outline-none focus:border-[#FF5722] cursor-pointer shadow-sm"
+                className="bg-white border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-3 py-2 outline-none focus:border-[#FF5722] cursor-pointer shadow-sm animate-none"
               >
                 <option value="A2">A2 初阶</option>
                 <option value="B1">B1 进阶</option>
@@ -725,32 +778,94 @@ export default function DashboardTab() {
               </div>
 
               {(extractedWords.length > 0 || extractedPhrases.length > 0) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
                   {extractedWords.length > 0 && (
-                    <div className="space-y-3">
-                      <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                        成功提纯生词 ({extractedWords.length})
+                    <div className="space-y-4">
+                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5">
+                        <span className="w-1.5 h-3 bg-indigo-550 rounded-full"></span>
+                        成功提纯商战生词 ({extractedWords.length})
                       </h5>
-                      <div className="flex flex-wrap gap-2">
-                        {extractedWords.map((word) => (
-                          <div key={word} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-xs font-bold shadow-sm">
-                            <span>{word}</span>
-                            <SpeakButton text={word} iconClassName="w-3.5 h-3.5" className="w-5 h-5 bg-transparent text-indigo-500 hover:text-indigo-700" />
-                          </div>
-                        ))}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        {extractedWords.map((word) => {
+                          const details = vocabDetailsMap[word.toLowerCase().trim()];
+                          const phonetic = details?.phonetic || '';
+                          const meaning = details?.meaning || '中文释义加载中...';
+                          return (
+                            <div
+                              key={word}
+                              className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-indigo-150 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
+                            >
+                              {/* Top Row: Word & Pronunciation Button */}
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex flex-col">
+                                  <span className="font-serif font-black text-slate-800 text-sm tracking-wide break-all">
+                                    {word}
+                                  </span>
+                                  {phonetic && (
+                                    <span className="text-[10px] text-slate-400 font-sans mt-0.5 font-medium">
+                                      {phonetic}
+                                    </span>
+                                  )}
+                                </div>
+                                <SpeakButton
+                                  text={word}
+                                  iconClassName="w-3.5 h-3.5"
+                                  className="w-7 h-7 bg-indigo-50/50 text-indigo-500 hover:bg-indigo-650 hover:text-white border-none shrink-0"
+                                />
+                              </div>
+
+                              {/* Bottom Row: Hover Translation */}
+                              <div className="mt-3 pt-2.5 border-t border-dashed border-slate-100/80">
+                                <div className="relative h-4 overflow-hidden">
+                                  <span className="absolute inset-0 text-[10px] text-slate-350 font-black tracking-widest transition-all duration-300 group-hover:opacity-0 group-hover:translate-y-[-10px] uppercase">
+                                    Hover to reveal
+                                  </span>
+                                  <span className="absolute inset-0 text-[11px] text-indigo-600 font-bold tracking-wide transition-all duration-300 opacity-0 translate-y-[10px] group-hover:opacity-100 group-hover:translate-y-0 truncate">
+                                    {meaning}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
+
                   {extractedPhrases.length > 0 && (
-                    <div className="space-y-3">
-                      <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
-                        成功提纯例句/短语 ({extractedPhrases.length})
+                    <div className="space-y-4">
+                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5">
+                        <span className="w-1.5 h-3 bg-amber-500 rounded-full"></span>
+                        成功提纯高频句型 ({extractedPhrases.length})
                       </h5>
-                      <div className="space-y-2">
+                      <div className="space-y-3">
                         {extractedPhrases.map((phrase, idx) => (
-                          <div key={idx} className="flex items-center justify-between gap-4 p-3 bg-emerald-50/50 border border-emerald-100/80 rounded-xl text-xs text-emerald-800 font-medium">
-                            <span className="leading-relaxed flex-1 select-text">{phrase}</span>
-                            <SpeakButton text={phrase} iconClassName="w-3.5 h-3.5" className="w-6 h-6 shrink-0 bg-transparent text-emerald-600 hover:text-emerald-800" />
+                          <div
+                            key={idx}
+                            className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
+                          >
+                            {/* Gold Left Border Highlight Line */}
+                            <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FF5722] rounded-r-lg group-hover:bg-[#FF5722]/80 transition-colors"></div>
+
+                            {/* Phrase Content */}
+                            <div className="flex-1 select-text text-left">
+                              <p className="text-xs text-slate-700 font-serif leading-relaxed italic">
+                                "{phrase}"
+                              </p>
+                              <div className="flex items-center gap-1.5 mt-2">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                                  艾宾浩斯已入库 · 复习阶段: 1
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Speak Button */}
+                            <SpeakButton
+                              text={phrase}
+                              iconClassName="w-3.5 h-3.5"
+                              className="w-8 h-8 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-600 hover:text-white border-none shrink-0"
+                            />
                           </div>
                         ))}
                       </div>
@@ -760,24 +875,127 @@ export default function DashboardTab() {
               )}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50 space-y-4">
-              <BookOpen className="w-12 h-12 text-gray-300 animate-pulse" />
-              <div className="text-center space-y-1">
-                <p className="text-xs font-black text-gray-500 uppercase tracking-wider">暂无今日情报长文</p>
-                <p className="text-[11px] text-gray-400 max-w-md leading-relaxed">
-                  您可以点击上方的【AI自动生成今日长文并提纯】按钮自动获取，或者在下方直接粘贴您想阅读的英文材料进行沉浸式收听和阅读。
-                </p>
+            <div className="w-full grid grid-cols-1 lg:grid-cols-10 gap-8 items-stretch">
+              
+              {/* Left Column: Guidelines & Daily Quote (4 cols) */}
+              <div className="lg:col-span-4 flex flex-col gap-5 text-left">
+                {/* 1. Guideline Card */}
+                <div className="flex-1 bg-white/70 backdrop-blur-[4px] rounded-[1.5rem] border border-slate-100 p-6 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                  <div className="absolute right-[-20px] top-[-20px] w-24 h-24 rounded-full bg-indigo-50/35 blur-xl pointer-events-none"></div>
+                  
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className="bg-indigo-50 p-3 rounded-2xl text-indigo-500 shadow-inner">
+                        <BookOpen className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h5 className="text-xs font-black text-slate-800 uppercase tracking-widest">
+                          AI 智能提纯引擎
+                        </h5>
+                        <span className="text-[9px] bg-indigo-100 text-indigo-700 font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-0.5 inline-block">
+                          Active Intel Engine
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
+                      本模块是您的高能英文训练场。通过在右侧输入框粘贴英文商业段落、会议纪要或财经新闻，AI 引擎将自动提供以下强力补给：
+                    </p>
+                    
+                    <ul className="space-y-2.5 pt-1.5">
+                      <li className="flex items-start gap-2 text-[11px] text-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0"></span>
+                        <span><strong>句子级高保真点读</strong>：采用先进的语音发音人进行极速流式朗读。</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-[11px] text-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0"></span>
+                        <span><strong>商战词汇与短语提取</strong>：自动匹配并标记难词与高频词伙。</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-[11px] text-slate-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0"></span>
+                        <span><strong>艾宾浩斯智能复习</strong>：成功提取的生词将一键加入您的长期记忆复习曲线。</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="pt-4 border-t border-dashed border-slate-100 mt-4">
+                    <button
+                      onClick={() => {
+                        const samples = [
+                          "Apple Inc. plans to adjust its supply chain pricing strategy to mitigate macroeconomic tariffs and currency fluctuations.",
+                          "The board of directors raised concerns about the company's Q3 revenue margins, emphasizing the need for stricter operational cost-cutting measures.",
+                          "Our priority in this bilateral negotiation is to secure a long-term licensing agreement while maintaining absolute control over our intellectual property rights."
+                        ];
+                        const randomSample = samples[Math.floor(Math.random() * samples.length)];
+                        setCustomText(randomSample);
+                        showNotice('dashboard', '已成功加载商业研读示例文本', 'success');
+                        playSuccess();
+                      }}
+                      className="w-full py-2 bg-indigo-50/60 hover:bg-indigo-100/80 text-indigo-650 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all border border-indigo-100/40 cursor-pointer"
+                    >
+                      💡 随机加载商业研读示例
+                    </button>
+                  </div>
+                </div>
+
+                {/* 2. Daily Quote Card */}
+                <div className="bg-[#FAF6F0]/70 rounded-[1.5rem] border border-[#F0E5D8]/80 p-5 flex flex-col justify-between shadow-sm relative overflow-hidden">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-[#B8860B]">
+                        Daily Quote // 今日商战箴言
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-705 font-serif italic leading-relaxed">
+                      "In business, you don't get what you deserve, you get what you negotiate."
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-semibold text-right">
+                      — Chester L. Karrass
+                    </p>
+                  </div>
+                  <div className="flex justify-end mt-2">
+                    <SpeakButton
+                      text="In business, you don't get what you deserve, you get what you negotiate."
+                      iconClassName="w-3 h-3"
+                      className="w-6 h-6 bg-amber-50/80 text-amber-700 hover:bg-amber-600 hover:text-white border-none rounded-full cursor-pointer"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="w-full max-w-xl space-y-3">
-                <textarea
-                  placeholder="在此处输入或粘贴您要阅读的英文文本..."
-                  className="w-full h-28 p-4 text-xs bg-white border border-gray-200 rounded-xl outline-none focus:border-indigo-500 font-sans resize-none shadow-sm"
-                  onChange={(e) => setCustomText(e.target.value)}
-                  value={customText}
-                />
-                <div className="flex justify-end gap-3">
+
+              {/* Right Column: Custom Text Input Area (6 cols) */}
+              <div className="lg:col-span-6 bg-white/50 backdrop-blur-[2px] rounded-[1.5rem] border border-slate-100 p-6 flex flex-col justify-between shadow-sm">
+                <div className="space-y-3 flex-1 flex flex-col text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      研读段落情报输入 (Input Material)
+                    </span>
+                    {customText.length > 0 && (
+                      <span className="text-[9px] text-gray-405 font-bold">
+                        已输入 {customText.length} 字符
+                      </span>
+                    )}
+                  </div>
+                  <textarea
+                    placeholder="在此处输入或粘贴您要研读的英文段落材料..."
+                    className="w-full flex-1 min-h-[280px] p-5 text-sm bg-white border border-gray-150 rounded-2xl outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100 font-sans resize-none shadow-[0_2px_12px_rgba(0,0,0,0.01)] transition-all text-slate-800 leading-relaxed placeholder:text-gray-350"
+                    onChange={(e) => setCustomText(e.target.value)}
+                    value={customText}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between gap-3 mt-4 pt-4 border-t border-slate-100">
+                  <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                    {customText.trim() ? "👉 准备就绪，请选择操作" : "✍️ 请在上方输入段落开始研读"}
+                  </div>
+                  
                   {customText.trim() && (
-                    <>
+                    <div className="flex gap-2.5 animate-[fadeIn_0.2s_ease-out]">
+                      <SpeakButton 
+                        text={customText} 
+                        label="立即收听" 
+                        className="px-4.5 py-2.5 bg-[#202124] text-white hover:bg-[#FF5722] shadow-sm font-black rounded-xl text-[10px] uppercase tracking-widest cursor-pointer" 
+                      />
                       <button
                         onClick={() => {
                           setGeneratedArticle(customText);
@@ -786,19 +1004,15 @@ export default function DashboardTab() {
                           showNotice('dashboard', '已加载自定义文本进入沉浸式阅读空间', 'success');
                           playSuccess();
                         }}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer"
+                        className="flex items-center gap-2 px-4.5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white transition-colors shadow-sm font-black rounded-xl text-[10px] uppercase tracking-widest cursor-pointer"
                       >
-                        <BookOpen className="w-3.5 h-3.5" /> 沉浸式阅读
+                        <BookOpen className="w-3.5 h-3.5" /> 进入沉浸式阅读
                       </button>
-                      <SpeakButton 
-                        text={customText} 
-                        label="立即收听" 
-                        className="px-4 py-2 bg-[#202124] text-white hover:bg-[#FF5722] shadow-sm font-black rounded-xl text-xs" 
-                      />
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
+              
             </div>
           )}
         </div>

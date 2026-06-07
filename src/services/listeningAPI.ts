@@ -132,7 +132,7 @@ export async function fetchDifyTTS(text: string, userId = 'default-user'): Promi
     },
     body: JSON.stringify({
       input: text,
-      model: 'edge-tts/en-US-EmmaNeural'
+      model: 'edge-tts/' + (localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural')
     }),
   });
 

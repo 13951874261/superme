@@ -56,7 +56,8 @@ function dispatchTtsError(content: string) {
 
 // 流式句子队列播放器：实现“边听边预加载”极速体验
 async function playSentenceQueue(sentences: string[], rate: number, content: string) {
-  const model = 'edge-tts/en-US-EmmaNeural';
+  const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
+  const model = `edge-tts/${voiceCode}`;
   const myQueue = {
     sentences,
     index: 0,
@@ -177,7 +178,8 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
   const content = normalizeSpeakText(text);
   if (!content) return false;
 
-  const model = 'edge-tts/en-US-EmmaNeural';
+  const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-US-EmmaNeural';
+  const model = `edge-tts/${voiceCode}`;
 
   // Toggle 功能：如果是相同内容正在播放，再次点击则停止播放
   if (currentPlayingContent === content) {
