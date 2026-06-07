@@ -1,4 +1,4 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
@@ -27,14 +27,16 @@ const PORT = process.env.PORT || 3001;
 const isProd = process.env.NODE_ENV === 'production' || __dirname.includes('/opt/vocab-server');
 const dbPath = isProd ? '/var/www/super-agent/vocab.db' : path.join(__dirname, 'vocab.db');
 
-// 纭繚绾夸笂鐩綍瀛樺湪锛堝鏋滄槸鐢熶骇鐜锛?if (isProd && !fs.existsSync('/var/www/super-agent')) {
+// 纭繚绾夸笂鐩綍瀛樺湪锛堝鏋滄槸鐢熶骇鐜锛?
+if (isProd && !fs.existsSync('/var/www/super-agent')) {
   fs.mkdirSync('/var/www/super-agent', { recursive: true });
 }
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
 
-// 鍒濆鍖?vocabulary 琛?db.prepare(`
+// 鍒濆鍖?vocabulary 琛?
+db.prepare(`
   CREATE TABLE IF NOT EXISTS vocabulary (
     id TEXT PRIMARY KEY,
     word TEXT NOT NULL,
@@ -51,7 +53,8 @@ db.pragma('journal_mode = WAL');
   )
 `).run();
 
-// 鑷姩杩佺Щ锛氬鏋滄棫琛ㄦ病鏈?category 瀛楁锛屽垯娣诲姞涔?try {
+// 鑷姩杩佺Щ锛氬鏋滄棫琛ㄦ病鏈?category 瀛楁锛屽垯娣诲姞涔?
+try {
   db.prepare("ALTER TABLE vocabulary ADD COLUMN category TEXT DEFAULT 'business'").run();
   console.log('Migration: Added category column to vocabulary table.');
 } catch (err) {
@@ -61,7 +64,8 @@ db.pragma('journal_mode = WAL');
 // 鍒濆鍖栬緟鍔╄〃 (涓轰簡涓嶈鍓嶇椤甸潰鎶ラ敊锛屾彁渚涘熀纭€缁撴瀯)
 db.prepare(`CREATE TABLE IF NOT EXISTS materials (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER)`).run();
 
-// 鍒濆鍖?training_sessions 鍜?training_attempts 琛?db.prepare(`
+// 鍒濆鍖?training_sessions 鍜?training_attempts 琛?
+db.prepare(`
   CREATE TABLE IF NOT EXISTS training_sessions (
     id TEXT PRIMARY KEY,
     user_id TEXT,
@@ -122,7 +126,8 @@ db.prepare(`
   )
 `).run();
 
-// 鍒濆鍖?personal_prototypes 琛?db.prepare(`
+// 鍒濆鍖?personal_prototypes 琛?
+db.prepare(`
   CREATE TABLE IF NOT EXISTS personal_prototypes (
     id TEXT PRIMARY KEY,
     user_id TEXT,
@@ -211,7 +216,7 @@ app.post('/api/vocab/add', (req, res) => {
     // 鏌ラ噸
     const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
     if (existing) {
-      return res.json({ success: false, message: '璇嶆潯宸插瓨鍦?, id: existing.id });
+      return res.json({ success: false, message: '词条已存在', id: existing.id });
     }
 
     const id = crypto.randomUUID();
@@ -240,7 +245,8 @@ app.post('/api/vocab/batch-add', (req, res) => {
     let addedCount = 0;
     const now = Date.now();
 
-    // 寮€鍚?SQLite 浜嬪姟锛岀‘淇濆師瀛愭€у拰鏋侀€熸壒閲忓啓鍏?    const insertMany = db.transaction((words) => {
+    // 寮€鍚?SQLite 浜嬪姟锛岀‘淇濆師瀛愭€у拰鏋侀€熸壒閲忓啓鍏?
+    const insertMany = db.transaction((words) => {
       for (const item of words) {
         const word = item.word;
         if (!word) continue;
@@ -263,8 +269,8 @@ app.post('/api/vocab/batch-add', (req, res) => {
 
     insertMany(items);
 
-    console.log(`[Batch Add] 鎴愬姛鎴幏 Dify 鍥炶皟锛屾毚鍔涘叆搴?${addedCount} 涓‖鏍歌瘝姹嘸);
-    res.json({ success: true, addedCount, message: `鎴愬姛鎵归噺鍏ュ簱 ${addedCount} 涓敓璇峘 });
+    console.log(`[Batch Add] Success: callback batch added ${addedCount} words.`);
+    res.json({ success: true, addedCount, message: `Successfully batch added ${addedCount} words.` });
   } catch (error) {
     console.error('Batch Add Error:', error);
     res.status(500).json({ success: false, error: 'Database error on batch add' });
@@ -281,7 +287,8 @@ app.patch('/api/vocab/update_payload/:id', (req, res) => {
   }
 });
 
-// 鍏ㄩ潰鏇存柊璇嶆潯锛堟敮鎸佷慨鏀瑰崟璇嶃€佸垎鍖哄強 payload锛?app.put('/api/vocab/update/:id', (req, res) => {
+// 鍏ㄩ潰鏇存柊璇嶆潯锛堟敮鎸佷慨鏀瑰崟璇嶃€佸垎鍖哄及 payload锛?
+app.put('/api/vocab/update/:id', (req, res) => {
   try {
     const id = req.params.id;
     const { word, category, payload } = req.body;
@@ -546,7 +553,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', userId = 'frontend-panel' } = req.body;
 
   if (!word) {
-    return res.status(400).json({ ok: false, message: '璇疯緭鍏ュ緟瑙ｆ瀯鐨勮瘝鏉? });
+    return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
   }
 
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
@@ -712,7 +719,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     // 鍔ㄤ綔涓夌偣浜旓細楂橀杞鏌ヨ鏂囨。宓屽叆鐘舵€?(鑾峰彇娴佹按绾胯繘搴?
     // ---------------------------------------------------------
     let isIndexed = false;
-    // 璁惧畾 40 娆¤疆璇紝姣忔 3 绉掞紝鎬昏瀹瑰繊绛夊緟 120 绉掞紝缁濅笉楗挎澶фā鍨?    for (let i = 0; i < 40; i++) {
+    // 璁惧畾 40 娆¤疆璇紝姣忔 3 绉掞紝鎬昏瀹瑰繊绛夊緟 120 绉掞紝缁濅笉楗挎澶фā鍨?
+    for (let i = 0; i < 40; i++) {
       await new Promise(resolve => setTimeout(resolve, 3000));
       
       const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
@@ -737,7 +745,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     }
 
     if (!isIndexed) {
-      throw new Error('Dify 鍚戦噺鍖栫储寮曡秴鏃?(>120s)锛屼负淇濇姢缃戝叧宸蹭富鍔ㄧ啍鏂姹?);
+      throw new Error('Dify indexing timeout (>120s).');
     }
 
     console.log(`[Material] 鍚戦噺瑁呭脊瀹屾瘯锛佸噯璁告斁琛屽敜閱掑ぇ妯″瀷...`);
@@ -796,13 +804,13 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       results: [
         {
           fileName: fileObj.fileName || "Document",
-          summary: `鍏ㄩ摼璺棴鐜畬鎴愶紒宸叉竻绌?${docIds.length} 浠芥棫妗ｏ紝鏂版枃浠跺叆搴撴垚鍔熴€傚ぇ妯″瀷鎻愮偧鍑?${extractedWords.length} 涓湳璇紝瀹為檯鍏ュ簱 ${addedCount} 涓敓璇嶃€俙,
+          summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${extractedWords.length} terms, actual added ${addedCount} words.`,
           key_points: extractedWords.slice(0, 5) // 鍚戝墠绔睍绀哄墠5涓牳蹇冭瘝
         }
       ],
       logs: [
         "1. Dify 鐭ヨ瘑搴撳畾浣嶅苟娓呯┖瀹屾垚",
-        "2. 鍐呭瓨绾?Base64 杞崲涓庣墿鐞嗗叆搴撴垚鍔?,
+        "2. Memory Base64 conversion and physical storage success.",
         `3. AI 钀冨彇涓?SQLite 鍥哄寲瀹屾瘯 (鏂板: ${addedCount})`
       ]
     });
@@ -823,7 +831,8 @@ app.post('/api/english/daily-extract', async (req, res) => {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
-    // Step 1: 鑾峰彇鎴栧垱寤轰粖鏃ラ厤棰濊褰?    let quotaRow = db.prepare(
+    // Step 1: 鑾峰彇鎴栧垱寤轰粖鏃ラ厤棰濊褰?
+    let quotaRow = db.prepare(
       'SELECT * FROM daily_vocab_quota WHERE user_id = ? AND quota_date = ?'
     ).get(userId, today);
 
@@ -842,11 +851,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const wordsLeft = WORD_DAILY_LIMIT - (quotaRow.words_added || 0);
     const phrasesLeft = PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0);
 
-    // Step 2: 妫€鏌ラ厤棰?    if (wordsLeft <= 0 && phrasesLeft <= 0) {
+    // Step 2: 妫€鏌ラ厤棰?
+    if (wordsLeft <= 0 && phrasesLeft <= 0) {
       return res.json({
         success: false,
         quotaExceeded: true,
-        message: `浠婃棩閰嶉宸茬敤灏斤紙璇嶆眹 ${WORD_DAILY_LIMIT}/${WORD_DAILY_LIMIT}锛岀煭璇?${PHRASE_DAILY_LIMIT}/${PHRASE_DAILY_LIMIT}锛夈€傛槑鏃ュ啀鏉ラ鍙栧脊鑽€俙,
+        message: 'Today\'s quota has been exhausted. Please try again tomorrow.',
         quota: {
           wordsLimit: WORD_DAILY_LIMIT,
           wordsUsed: quotaRow.words_added || 0,
@@ -858,10 +868,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
       });
     }
 
-    // Step 3: 璋冪敤 Dify 宸ヤ綔娴佹彁绾瘝姹?    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
+    // Step 3: 璋冪敤 Dify 宸ヤ綔娴佹彁绾瘝姹?
+    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText锛屽惁鍒欑敤 topic 鑷韩鐢熸垚鎻愮ず璇?    const inputText = materialText?.trim() || topic || '';
+    // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText锛屽惁鍒欑敤 topic 鑷韩鐢熸垚鎻愮ず璇?
+    const inputText = materialText?.trim() || topic || '';
 
     let vocabList = [];
     let phraseList = [];
@@ -939,7 +951,8 @@ app.post('/api/english/daily-extract', async (req, res) => {
           }
         }
         
-        // 鎵熬宸ヤ綔锛氳В鏋愭渶鍚庢畫瀛樼殑缂撳啿鍖烘暟鎹?        if (sseBuffer.trim().startsWith("data: ")) {
+        // 鎵熬宸ヤ綔锛氳В鏋愭渶鍚庢畫瀛樼殑缂撳啿鍖烘暟鎹?
+        if (sseBuffer.trim().startsWith("data: ")) {
           const line = sseBuffer.trim();
           const dataStr = line.slice(6).trim();
           if (dataStr !== "[DONE]") {
@@ -972,7 +985,17 @@ app.post('/api/english/daily-extract', async (req, res) => {
       let parsedPhrases = [];
       if (rawVocabText) {
         try {
-          let cleanJson = rawVocabText.replace(/^\s*\`\`\`json/i, "").replace(/\`\`\`\s*$/i, "").trim();
+          let cleanJson = rawVocabText.trim();
+          if (cleanJson.toLowerCase().startsWith("```json")) {
+            cleanJson = cleanJson.substring(7);
+          } else if (cleanJson.startsWith("```")) {
+            cleanJson = cleanJson.substring(3);
+          }
+          if (cleanJson.endsWith("```")) {
+            cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+          }
+          cleanJson = cleanJson.trim();
+          
           const parsed = JSON.parse(cleanJson);
           if (parsed.words && Array.isArray(parsed.words)) {
             parsedVocab = parsed.words;
@@ -987,12 +1010,13 @@ app.post('/api/english/daily-extract', async (req, res) => {
         }
       }
 
-      // 閲嶆槧灏勬暟鎹牸寮忎负鏍囧噯搴撶粨鏋?      vocabList = parsedVocab.map(item => {
+      // 閲嶆槧灏勬暟鎹牸寮忎负鏍囧噯搴撶粨鏋?
+      vocabList = parsedVocab.map(item => {
         if (typeof item === 'string') return { word: item };
         if (typeof item === 'object' && item !== null) {
           const payload = item.payload || {};
           return {
-            word: item.word || item.鐠囧秵鐪?|| item.name || '',
+            word: item.word || item.name || '',
             phonetic: payload.phonetic || item.phonetic || '',
             partOfSpeech: payload.partOfSpeech || payload.part_of_speech || item.partOfSpeech || item.part_of_speech || '',
             meaning: payload.meaning || payload.zh_meaning || item.meaning || item.zh_meaning || '',
@@ -1085,12 +1109,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
       const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
       const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
 
-      console.log(`[Daily Extract] 鎻愮函瀛樺簱瀹屾垚銆傜敤鎴?${userId} ${today} 鍏ュ簱璇嶆眹 ${wordsAddedCount} 涓紝鐭 ${phrasesAddedCount} 涓猔);
+      console.log(`[Daily Extract] Completed. User ${userId} ${today} added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`);
 
       // 鍙戦€佹祦缁撴潫鏍囪锛屽苟闄勫甫鏈€缁堢殑鍏ュ簱鍜岀粺璁?JSON 鏁版嵁浣滀负鏈€鍚庝竴閮ㄥ垎浜嬩欢
       const finalPayload = {
         success: true,
-        message: `鎻愮函瀹屾垚锛佸叆搴撹瘝姹?${wordsAddedCount} 涓紝鐭 ${phrasesAddedCount} 涓猔,
+        message: `Extraction complete: added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`,
         quota: {
           wordsLimit: WORD_DAILY_LIMIT,
           wordsUsed: updatedWordsUsed,
@@ -1112,9 +1136,10 @@ app.post('/api/english/daily-extract', async (req, res) => {
       res.end();
       return;
     } else {
-      // 鏃犺緭鍏ヨ鏂欐椂锛屼粎杩斿洖褰撳墠閰嶉鐘舵€?      return res.json({
+      // 鏃犺緭鍏ヨ鏂欐椂锛屼粎杩斿洖褰撳墠閰嶉鐘舵€?
+      return res.json({
         success: true,
-        message: '鏈彁渚涙彁鍙栬鏂欙紝宸茶繑鍥炲綋鍓嶉厤棰濈姸鎬?,
+        message: 'No input text provided, returned current quota status.',
         quota: {
           wordsLimit: WORD_DAILY_LIMIT,
           wordsUsed: quotaRow.words_added || 0,
@@ -1132,7 +1157,9 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const wordsToStore = vocabList.slice(0, wordsLeft);
     const phrasesToStore = phraseList.slice(0, phrasesLeft);
 
-    // Step 5: 鎵归噺鍐欏叆璇嶆眹锛堝甫鏌ラ噸涓庝赴瀵?Payload锛?    let wordsAddedCount = 0;
+    // Step 5: 鎵归噺鍐欏叆璇嶆眹锛堝甫鏌ラ噸涓庝赴瀵?Payload锛?
+    
+    let wordsAddedCount = 0;
     const now = Date.now();
     const insertWord = db.transaction((words) => {
       for (const item of words) {
@@ -1161,7 +1188,8 @@ app.post('/api/english/daily-extract', async (req, res) => {
     });
     insertWord(wordsToStore);
 
-    // Step 6: 鎵归噺鍐欏叆鐭锛堝瓨鍌ㄥ湪 extra_json 涓紝鎴栫嫭绔嬭〃锛?    let phrasesAddedCount = 0;
+    // Step 6: 鎵归噺鍐欏叆鐭锛堝瓨鍌ㄥ湪 extra_json 涓紝鎴栫嫭绔嬭〃锛?
+    let phrasesAddedCount = 0;
     const insertPhrase = db.transaction((phrases) => {
       for (const phraseStr of phrases) {
         const p = typeof phraseStr === 'string' ? phraseStr.trim() : String(phraseStr);
@@ -1192,11 +1220,11 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
     const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
 
-    console.log(`[Daily Extract] 鐢ㄦ埛 ${userId} ${today} 鍏ュ簱璇嶆眹${wordsAddedCount}涓?绱${updatedWordsUsed}/${WORD_DAILY_LIMIT}) 鐭${phrasesAddedCount}涓?绱${updatedPhrasesUsed}/${PHRASE_DAILY_LIMIT})`);
+    console.log(`[Daily Extract] User ${userId} ${today} added words: ${wordsAddedCount}, phrases: ${phrasesAddedCount}`);
 
     res.json({
       success: true,
-      message: `鎻愮函瀹屾垚锛佸叆搴撹瘝姹?${wordsAddedCount} 涓紝鐭 ${phrasesAddedCount} 涓猔,
+      message: `Extraction complete: added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`,
       quota: {
         wordsLimit: WORD_DAILY_LIMIT,
         wordsUsed: updatedWordsUsed,
@@ -1218,7 +1246,8 @@ app.post('/api/english/daily-extract', async (req, res) => {
   }
 });
 
-// 鏌ヨ姣忔棩閰嶉鐘舵€?app.get('/api/daily-quota/status', (req, res) => {
+// 鏌ヨ姣忔棩閰嶉鐘舵€?
+app.get('/api/daily-quota/status', (req, res) => {
   try {
     const { userId = 'default-user' } = req.query;
     const today = new Date().toISOString().split('T')[0];
@@ -1258,11 +1287,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
   }
 });
 
-// 澶勭悊鑷姩鍙戣捣鑻辨枃缁冧範灞€鐨勮姹傦紙淇濇寔鍚戝悗鍏煎锛屼粛涓?Mock锛?app.post('/api/dify/run-english-mastery', (req, res) => {
+// 澶勭悊鑷姩鍙戣捣鑻辨枃缁冧範灞€鐨勮姹傦紙淇濇寔鍚戝悗鍏煎锛屼粛涓?Mock锛?
+app.post('/api/dify/run-english-mastery', (req, res) => {
   const { topic, materialText } = req.body;
   res.json({
     success: true,
-    message: "鎴愬姛涓嬪彂璁粌灞€锛圡ock锛?,
+    message: "Successfully initiated training session (Mock).",
     topic: topic,
     result: { scene: "妯℃嫙娴嬭瘯灞€", content: "杩欐槸浠跨湡绯荤粺杩斿洖鐨勮缁冩暟鎹?.." }
   });
@@ -1377,7 +1407,7 @@ app.post('/api/grammar-polish', async (req, res) => {
     console.log('Dify 璇硶娑﹁壊鍘熷杩斿洖:', JSON.stringify(data, null, 2));
 
     // 鏍规嵁 Grammar_Polish_Engine.yml 瀹氫箟锛岃緭鍑鸿妭鐐圭殑鍙橀噺鍚嶇О涓?polished_result
-    const polishedText = data?.data?.outputs?.polished_result || '鏈幏鍙栧埌娑﹁壊缁撴灉锛岃妫€鏌ュ伐浣滄祦閰嶇疆銆?;
+    const polishedText = data?.data?.outputs?.polished_result || '鏈幏鍙栧埌娑﹁壊缁撴灉锛岃妫€鏌ュ伐浣滄祦閰嶇疆銆';
 
     res.json({
       success: true,
@@ -1393,11 +1423,12 @@ app.post('/api/grammar-polish', async (req, res) => {
 // 3. 椹績鍗氬紙鐩稿叧 API (Game Theory & Prototypes)
 // ==========================================
 
-// 杩愯椹績鍗氬紙宸ヤ綔娴侊紝骞惰嚜鍔ㄦ寔涔呭寲鎻愬彇鍑烘潵鐨勪汉鎬у師鍨?app.post('/api/game-theory/analyze', async (req, res) => {
+// 杩愯椹績鍗氬紙宸ヤ綔娴侊紝骞惰嚜鍔ㄦ寔涔呭寲鎻愬彇鍑烘潵鐨勪汉鎬у師鍨?
+app.post('/api/game-theory/analyze', async (req, res) => {
   const { scene_type, game_model, case_text, user_answer, applied_tactics, userId = 'default-user' } = req.body;
 
   if (!case_text || !user_answer) {
-    return res.status(400).json({ success: false, error: '缂哄皯鍗辨満鍦烘櫙鎴栧绛栧唴瀹? });
+    return res.status(400).json({ success: false, error: '缂哄皯鍗辨満鍦烘櫙鎴栧绛栧唴瀹?' });
   }
 
   try {
@@ -1442,10 +1473,11 @@ app.post('/api/grammar-polish', async (req, res) => {
       return res.status(500).json({ success: false, error: '鍗氬紙鍒嗘瀽缁撴灉鏍煎紡寮傚父锛屾棤娉曡В鏋?JSON' });
     }
 
-    // 鑷姩鎶撳彇骞跺綊妗ｄ汉鎬у師鍨?    if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
+    // 鑷姩鎶撳彇骞跺綊妗ｄ汉鎬у師鍨?
+    if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
       const proto = parsedResult.prototype_archive;
       const protoName = proto.name.trim();
-      const protoType = proto.type || '鏈垎绫?;
+      const protoType = proto.type || '鏈垎绫';
       const protoDesc = proto.description || '';
 
       const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, protoName);
@@ -1476,7 +1508,8 @@ app.post('/api/grammar-polish', async (req, res) => {
   }
 });
 
-// 鑾峰彇鎵€鏈変汉鎬у師鍨嬫。妗?app.get('/api/game-theory/prototypes', (req, res) => {
+// 鑾峰彇鎵€鏈変汉鎬у師鍨嬫。妗?
+app.get('/api/game-theory/prototypes', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
     const rows = db.prepare('SELECT * FROM personal_prototypes WHERE user_id = ? ORDER BY added_at DESC').all(userId);
@@ -1487,7 +1520,8 @@ app.post('/api/grammar-polish', async (req, res) => {
   }
 });
 
-// 娣诲姞/鎵嬪姩鏇存柊浜烘€у師鍨嬫。妗?app.post('/api/game-theory/prototypes', (req, res) => {
+// 娣诲姞/鎵嬪姩鏇存柊浜烘€у師鍨嬫。妗?
+app.post('/api/game-theory/prototypes', (req, res) => {
   try {
     const { userId = 'default-user', name, type, description } = req.body;
     if (!name) {
@@ -1518,7 +1552,8 @@ app.post('/api/grammar-polish', async (req, res) => {
   }
 });
 
-// 鍒犻櫎浜烘€у師鍨嬫。妗?app.delete('/api/game-theory/prototypes/:id', (req, res) => {
+// 鍒犻櫎浜烘€у師鍨嬫。妗?
+app.delete('/api/game-theory/prototypes/:id', (req, res) => {
   try {
     db.prepare('DELETE FROM personal_prototypes WHERE id = ?').run(req.params.id);
     res.json({ success: true });
@@ -1529,8 +1564,6 @@ app.post('/api/grammar-polish', async (req, res) => {
 });
 
 // 鍏滃簳 404
-// TTS 璇煶鍚堟垚鎺ュ彛
-app.post('/api/tts/speech', async (req, res) => {
 // TTS 语音合成接口（全局统一使用 edge-tts/en-US-EmmaNeural）
 app.post('/api/tts/speech', async (req, res) => {
   try {

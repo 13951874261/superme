@@ -123,7 +123,7 @@ export default function VocabularyBook() {
               <div className="font-bold text-[#202124] text-sm flex items-center gap-2">
                 艾宾浩斯生词本
                 {error && (
-                  <AlertCircle className="w-3.5 h-3.5 text-red-400" title={error} />
+                  <span title={error}><AlertCircle className="w-3.5 h-3.5 text-red-400" /></span>
                 )}
               </div>
               <div className="text-[11px] text-gray-400 mt-0.5">

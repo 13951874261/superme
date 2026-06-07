@@ -31,15 +31,8 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
   const content = normalizeSpeakText(text);
   if (!content) return false;
 
-  // 映射角色到高质量音色模型
-  let model = 'edge-tts/en-US-AvaNeural';
-  if (roleType === 'blocker') {
-    model = 'edge-tts/en-US-GuyNeural'; // 较低沉的男声
-  } else if (roleType === 'ally') {
-    model = 'edge-tts/en-NZ-MollyNeural'; // 较轻快的女声
-  } else if (roleType === 'neutral') {
-    model = 'edge-tts/en-GB-SoniaNeural'; // 英音
-  }
+  // 统一强制使用 edge-tts/en-US-EmmaNeural 发音模型
+  const model = 'edge-tts/en-US-EmmaNeural';
 
   // 构建缓存 key
   const cacheKey = `${model}_${content}`;
@@ -54,7 +47,7 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
     let audio = audioCache.get(cacheKey);
 
     if (!audio) {
-      // 触发后端 TTS 接口（内部调用 9router）
+      // 触发后端 TTS 接口
       const response = await fetch('/api/tts/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -65,10 +58,12 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
         throw new Error('TTS 请求失败: ' + response.statusText);
       }
 
-      // 接收音频流并转换为 Blob URL
-      const blob = await response.blob();
-      const audioUrl = URL.createObjectURL(blob);
-      audio = new Audio(audioUrl);
+      // 接收 JSON 并提取临时音频文件的 URL
+      const resJson = await response.json();
+      if (!resJson.success || !resJson.audioUrl) {
+        throw new Error('TTS 未返回有效音频 URL');
+      }
+      audio = new Audio(resJson.audioUrl);
       
       // 存入缓存
       audioCache.set(cacheKey, audio);
@@ -100,7 +95,7 @@ export default function SpeakButton({
   label,
   className = '',
   iconClassName = 'w-4 h-4',
-  title = '播放英文发音',
+  title = '鎾斁鑻辨枃鍙戦煶',
   rate = 0.92,
   roleType,
 }: SpeakButtonProps) {
@@ -124,3 +119,4 @@ export default function SpeakButton({
     </button>
   );
 }
+

@@ -1,6 +1,6 @@
-# Super-Agent 项目发布与回溯 SOP
+﻿# Super-Agent 项目发布与回溯 SOP
 # 外网访问地址：https://app.liujingzhuwo.site/
-# 更新时间：2026-05-21
+# 更新时间：2026-06-07
 
 ================================================================================
 【A. 先说结论：当前服务器的部署形态（根据截图回溯）】
@@ -11,7 +11,7 @@
      /var/www/super-agent/dist/
    - Nginx root 配置：root /var/www/super-agent/dist;
    - 发布动作改为“本地 pnpm build -> 上传 dist/index.html -> nginx reload”
-   - 当前项目使用 `vite-plugin-singlefile`，构建后通常只需覆盖 `index.html`
+   - 当前项目使用 ite-plugin-singlefile，构建后通常只需覆盖 index.html
 
 2) 生词本 API（Node + Express + better-sqlite3）
    - 服务器上的正式目录已确认为：
@@ -61,259 +61,106 @@
    ls -lh /var/www/super-agent/vocab.db
 
 判定规则：
-- 若 `super-agent-vocab.service` active 且 `ExecStart` 指向 /var/www/super-agent/vocab-server/server.js，则线上 API 来自 /var/www/super-agent/vocab-server
+- 若 super-agent-vocab.service active 且 ExecStart 指向 /var/www/super-agent/vocab-server/server.js，则线上 API 来自 /var/www/super-agent/vocab-server
 - 若 DB 文件只在 /var/www/super-agent 下更新，则继续使用该统一数据库路径
 
 ================================================================================
-【C. 标准部署流程（前端 + API，统一执行）】
+【C. 智能增量部署（主推，AI 驱动）
+   无需人工判断前端/后端变动，脚本自动扫描变更文件并执行最优策略】
 ================================================================================
 
 ----------------------------------------
-C1. 本地打包前端（PowerShell / pnpm）
+C1. 万能启动命令（全栈智能识别）
 ----------------------------------------
-1. 进入项目目录：
-   cd d:\cursor\work\super-agent
-2. 安装依赖（项目为 pnpm / workspace 项目，不建议用 npm install）：
-   pnpm install
-3. 构建：
+仅需在 PowerShell 中输入：
+
+  .\deploy-smart.ps1
+
+脚本将自动执行以下流程：
+1. 扫描 git 未提交的变动文件 (git status --porcelain)
+2. 判定变动范围：
+   - 若包含 src/, public/ 等前端源文件 -> 编译并上传前端 (pnpm build, 上传 dist)
+   - 若包含 vocab-server/ 后端文件 -> 仅上传 server.js, 重启 API 服务
+3. 执行部署：
+   - 若安装了 PuTTY (存在 pscp.exe / plink.exe)，全流程仅需输入一次密码
+   - 否则，退避使用系统自带 scp/ssh
+4. 自动备份远程旧版 server.js 并打印服务健康信息
+
+----------------------------------------
+C2. 高级选项（可选覆盖）
+----------------------------------------
+有时您可能需要全量部署，或者强制只部署某一端：
+
+  .\deploy-smart.ps1 -Force        # 忽略变更检测，全量编译与部署
+  .\deploy-smart.ps1 -FrontendOnly # 仅前端
+  .\deploy-smart.ps1 -BackendOnly  # 仅后端
+
+----------------------------------------
+C3. 工作流示例
+----------------------------------------
+1. 您在本地修改了 src/components/SpeakButton.tsx 和 vocab-server/server.js。
+2. 输入命令：.\deploy-smart.ps1
+3. 脚本提示您输入服务器密码。
+4. 自动执行：
+   pnpm build -> 上传 dist/index.html -> 重载 Nginx
+   -> 备份 server.js -> 上传 server.js -> 重启 super-agent-vocab.service
+5. 在浏览器端 Ctrl+Shift+R 强刷，所有改变即时生效，全程未浪费多余的网络流量。
+
+================================================================================
+【D. 常规分步部署（备用，当智能脚本不可用时的退避方案）】
+================================================================================
+
+----------------------------------------
+D1. 仅更新前端
+----------------------------------------
+1. 在本地 PowerShell 中执行：
+   cd D:\cursor\work\super-agent
    pnpm build
-4. 产物：
-   d:\cursor\work\super-agent\dist\index.html
-   （当前为 vite-plugin-singlefile，通常只需覆盖 index.html）
+   scp .\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
+   ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx"
+
+2. 前端生效后强刷浏览器
 
 ----------------------------------------
-C2. 用 PowerShell 上传前端到服务器（成功方案）
+D2. 仅更新后端
 ----------------------------------------
-1. 在 Windows PowerShell 中执行（不要在 SSH 进入服务器后执行）：
-   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
-2. 若需要批量覆盖单文件产物，也可执行：
-   scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/
-3. 登录服务器确认：
-   ls -lh /var/www/super-agent/dist/index.html
-4. 服务器重载 Nginx：
-   sudo nginx -t
-   sudo systemctl reload nginx
+1. 在本地 PowerShell 中执行：
+   cd D:\cursor\work\super-agent
+   scp .\vocab-server\server.js ubuntu@150.158.34.217:/var/www/super-agent/vocab-server/server.js
+   ssh ubuntu@150.158.34.217 "sudo systemctl restart super-agent-vocab.service"
 
-----------------------------------------
-C3. 用 PowerShell 上传 API 到服务器（正确方案 - 2026-05-21 更新）
-----------------------------------------
-1. 上传整个 vocab-server 目录到服务器：
-   scp -r d:\cursor\work\super-agent\vocab-server ubuntu@150.158.34.217:/var/www/super-agent/
-
-2. 上传 systemd service 文件（需要更新目录路径）：
-   scp d:\cursor\work\super-agent\scratch\super-agent-vocab.service ubuntu@150.158.34.217:/tmp/
-
-3. 登录服务器后执行：
-   # 安装依赖
-   cd /var/www/super-agent/vocab-server
-   npm install
-
-   # 更新 systemd service 文件
-   sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/
-   sudo systemctl daemon-reload
-   sudo systemctl restart super-agent-vocab.service
-   sudo systemctl status super-agent-vocab.service
-
-4. 当前 service 配置需确保指向：
-   WorkingDirectory=/var/www/super-agent/vocab-server
-   ExecStart=/usr/bin/node /var/www/super-agent/vocab-server/server.js
-
-5. Dify API 配置（已包含在 service 文件中）：
-   Environment=DIFY_API_BASE_URL=https://dify.234124123.xyz/v1
-   Environment=DIFY_PRONUNCIATION_API_KEY=app-gfR3SBAHyXp3iKnIWyyRpmlI
-
-----------------------------------------
-C4. 线上接口健康检查（已验证命令）
-----------------------------------------
-1. 查看 3001 端口监听：
-   sudo lsof -i :3001
-2. 查看正式服务状态：
-   sudo systemctl status super-agent-vocab.service
-3. 检查资料接口：
-   curl http://127.0.0.1:3001/api/material/list?userId=default-user
-4. 检查训练会话接口（应返回 400 或业务 JSON，不应 404）：
-   curl -X POST http://127.0.0.1:3001/api/training/session/upsert \
-   -H "Content-Type: application/json" \
-   -d '{"userId":"default-user","trainingDate":"2026-04-14"}'
-5. 浏览器验证：
-   https://app.liujingzhuwo.site/
-   Ctrl + Shift + R 强刷
-
-================================================================================
-【D. 当前版本的数据库统一策略】
-================================================================================
-
-统一数据库：SQLite 单库（vocab.db）
-
-当前统一路径：
-- /var/www/super-agent/vocab.db
-
-说明：
-- vocabulary（已有）
-- users / training_sessions / training_attempts / ai_feedback / daily_reviews / dify_call_logs（新增）
-- 所有训练、复盘、资料与知识点数据统一入同一库，避免多源分裂
+2. 如果修改了 package.json 并新增了依赖：
+   scp .\vocab-server\package.json ubuntu@150.158.34.217:/var/www/super-agent/vocab-server/package.json
+   ssh ubuntu@150.158.34.217 "cd /var/www/super-agent/vocab-server && npm install && sudo systemctl restart super-agent-vocab.service"
 
 ================================================================================
 【E. 回滚与故障处理】
 ================================================================================
 
 1) 前端回滚：
-   用 PowerShell / scp 把上一版 index.html 覆盖回 /var/www/super-agent/dist/index.html
-   sudo systemctl reload nginx
+   用 scp 把上一版 index.html 覆盖回 /var/www/super-agent/dist/index.html
+   ssh ubuntu@150.158.34.217 "sudo systemctl reload nginx"
 
 2) API 回滚：
-   cd /var/www/super-agent/vocab-server
-   cp server.js server.js.bak-<date>
-   （部署前先备份，异常时恢复备份并 sudo systemctl restart super-agent-vocab.service）
+   ssh ubuntu@150.158.34.217 "cd /var/www/super-agent/vocab-server && cp server.js.bak-YYYYMMDD-HHmmss server.js && sudo systemctl restart super-agent-vocab.service"
 
 3) 常见故障：
-   - 访问前端正常但词本失败：先看 3001 是否存活（sudo lsof -i :3001 / systemctl status super-agent-vocab.service）
-   - API 启动失败：看日志中 better-sqlite3、Dify 环境变量或路径权限问题
-   - 数据不更新：重点检查 DB_PATH 与实际 db 文件是否一致
-   - Windows PowerShell 上传失败：确认 scp 在本地 PowerShell 执行，不要在 SSH 登录后的 Linux 终端里执行 Windows 路径
+   - 前端正常但词本失败：检查 3001 端口 (sudo lsof -i :3001)
+   - API 启动失败：查看 systemd 日志 (journalctl -u super-agent-vocab.service -f)
+   - 数据不更新：检查 server.js 中的 DB_PATH 是否指向 /var/www/super-agent/vocab.db
+   - 智能脚本上传失败：确保 Windows PowerShell 在当前 git 仓库中运行
 
 ================================================================================
 【F. 下次上线前检查清单】
 ================================================================================
 
+[ ] deploy-smart.ps1 是否能成功启动并正确判定变更
 [ ] /var/www/super-agent/vocab-server/server.js 是否为最新版本
-[ ] systemd 服务 super-agent-vocab.service 是否指向 /var/www/super-agent/vocab-server/server.js
+[ ] systemd 服务 super-agent-vocab.service 是否活跃
 [ ] DIFY_API_BASE_URL=https://dify.234124123.xyz/v1 是否配置
 [ ] DIFY_PRONUNCIATION_API_KEY 是否配置
-[ ] 后端 .env 文件是否同步更新（新增环境变量需同步到 systemd service 的 Environment 或 /var/www/super-agent/vocab-server/.env）
 [ ] DB_PATH 是否和线上预期一致
-[ ] /api/material/list 返回 JSON
-[ ] /api/training/session/upsert 非 404
 [ ] 前端强刷后功能正常
+[ ] 所有 API 接口可用 (curl http://127.0.0.1:3001/api/vocab/stats)
 
 ================================================================================
-【G. 最短上线命令清单（本地构建 + Windows PowerShell 上传 + Nginx reload + systemd restart）】
-================================================================================
-
-1. 本地构建前端
-   cd d:\cursor\work\super-agent
-   pnpm install
-   pnpm build
-
-2. 用 Windows PowerShell 上传前端静态产物到服务器
-   scp d:\cursor\work\super-agent\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
-   （如需批量覆盖：scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/）
-
-3. 服务器侧重载 Nginx
-   ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx"
-
-4. 用 Windows PowerShell 上传后端到服务器
-   scp -r d:\cursor\work\super-agent\vocab-server ubuntu@150.158.34.217:/var/www/super-agent/
-   scp d:\cursor\work\super-agent\scratch\super-agent-vocab.service ubuntu@150.158.34.217:/tmp/
-
-5. 服务器侧重启 systemd 服务并保存
-   ssh ubuntu@150.158.34.217 "sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart super-agent-vocab.service && sudo systemctl status super-agent-vocab.service"
-
-6. 一次性串联版（适合已确认权限与服务配置时使用）
-   pnpm install && pnpm build
-   scp -r d:\cursor\work\super-agent\vocab-server ubuntu@150.158.34.217:/var/www/super-agent/
-   scp d:\cursor\work\super-agent\scratch\super-agent-vocab.service ubuntu@150.158.34.217:/tmp/
-   ssh ubuntu@150.158.34.217 "cd /var/www/super-agent/vocab-server && npm install && sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart super-agent-vocab.service && sudo systemctl status super-agent-vocab.service"
-
-提示：
-- `scp` 必须在 Windows PowerShell 本地执行，不要在已经登录的 Ubuntu 终端里执行 Windows 路径。
-- 前端项目使用 pnpm（存在 pnpm-lock.yaml），不要用 npm install 重新装依赖。
-- 当前生产后端由 systemd 服务 `super-agent-vocab.service` 管理，不再使用 PM2。
-- 后端 vocab-server 使用 npm（存在 package.json 和 package-lock.json），修改依赖后需执行 npm install
-
-================================================================================
-
-一、本地执行
-1. 进入项目目录
-cd D:\cursor\work\super-agent
-2. 安装依赖
-pnpm install
-3. 构建前端
-pnpm build
-4. 上传前端静态文件
-scp .\dist\index.html ubuntu@150.158.34.217:/var/www/super-agent/dist/index.html
-如果你这版需要把 dist 里的其他文件也一起传上去，就用：
-
-scp -r .\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/
-5. 上传后端文件
-scp -r d:\cursor\work\super-agent\vocab-server ubuntu@150.158.34.217:/var/www/super-agent/
-scp d:\cursor\work\super-agent\scratch\super-agent-vocab.service ubuntu@150.158.34.217:/tmp/
-二、服务器上执行
-1. 进入后端目录
-cd /var/www/super-agent/vocab-server
-2. 安装后端依赖
-npm install
-3. 更新 systemd 服务
-sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/
-4. 检查 Nginx
-sudo nginx -t
-5. 重载 Nginx
-sudo systemctl reload nginx
-6. 重启后端服务
-sudo systemctl daemon-reload
-sudo systemctl restart super-agent-vocab.service
-sudo systemctl status super-agent-vocab.service
-
-================================================================================
-【H. 部署进阶：按需更新策略（AIM 推荐）】
-================================================================================
-
-为了避免每次全量部署带来的高频密码输入与时间损耗，建议根据实际修改范围采用以下剥离策略。
-*注意：在本地执行以下命令前，请确保您的 PowerShell 已进入项目根目录：`cd d:\cursor\work\super-agent`*
-
-----------------------------------------
-H1. 策略 A：仅更新前端（修改了 UI / React 组件 / 前端环境配置）
-----------------------------------------
-无需重启 Node 服务，也不必上传 server.js。
-
-1. 极速命令：
-   pnpm build
-   scp -r d:\cursor\work\super-agent\dist\* ubuntu@150.158.34.217:/var/www/super-agent/dist/
-   ssh ubuntu@150.158.34.217 "sudo nginx -t && sudo systemctl reload nginx"
-
-*上传完成后，直接在浏览器按 Ctrl+Shift+R 强制刷新即可生效。*
-
-----------------------------------------
-H2. 策略 B：仅更新后端（修改了 API 接口 / server.js / 后端逻辑）
-----------------------------------------
-无需执行耗时的 pnpm build，也不必上传前端产物。
-
-1. 极速命令：
-   scp -r d:\cursor\work\super-agent\vocab-server ubuntu@150.158.34.217:/var/www/super-agent/
-   scp d:\cursor\work\super-agent\scratch\super-agent-vocab.service ubuntu@150.158.34.217:/tmp/
-   ssh ubuntu@150.158.34.217 "cd /var/www/super-agent/vocab-server && npm install && sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart super-agent-vocab.service"
-
-----------------------------------------
-H3. 策略 C：终极提效（免密全量自动部署）
-----------------------------------------
-若涉及前后端联动的大版本更新（或添加了新依赖），且希望避免多次手动输入服务器密码的困扰，建议直接使用现成的 PowerShell 自动化脚本。该脚本基于 pscp/plink，运行时仅需输入一次密码，即可完成全流程的打包、上传、覆盖及双端服务重启。
-
-1. 执行命令：
-   .\deploy-super-agent.ps1
-   、
-
-
-
-方案二：常规分步部署（当本地未装 PuTTY，使用系统自带 scp/ssh 时）
-如果您想使用系统自带的 scp 和 ssh 命令进行控制，请按照以下步骤分步执行：
-
-1. 本地依赖安装与打包前端
-在本地 PowerShell 中执行：
-
-powershell
-# 进入目录
-cd d:\cursor\work\super-agent
-# 安装依赖
-pnpm install
-# 打包前端（产物在 dist 目录下）
-pnpm build
-2. 将前端与后端文件同步至服务器并生效
-打包成功后，在本地 PowerShell 中继续执行以下命令：
-
-powershell
-# 1. 覆盖前端静态文件到服务器 Nginx 托管目录
-scp -r d:\cursor\work\super-agent\vocab-server ubuntu@150.158.34.217:/var/www/super-agent/
-scp d:\cursor\work\super-agent\scratch\super-agent-vocab.service ubuntu@150.158.34.217:/tmp/
-
-# 2. 登录服务器自动更新 systemd、重载 Nginx 并重启 vocab 后端服务
-ssh ubuntu@150.158.34.217 "sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl restart super-agent-vocab.service && sudo nginx -t && sudo systemctl reload nginx && sudo systemctl status super-agent-vocab.service"

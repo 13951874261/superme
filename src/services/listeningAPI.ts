@@ -14,7 +14,7 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
   const originalBuffer = await tempContext.decodeAudioData(arrayBuffer);
   
   // 核心修复：强制重采样为 16kHz 单声道
-  // 【关键追加】：为了防止单侧单词时间太短（<1秒）被大模型的 VAD (人声检测) 引擎当成噪音过滤掉，我们在前后各追加 0.5 秒静音。
+  // 为了防止单侧单词时间太短被大模型的 VAD (人声检测) 引擎当成噪音过滤掉，我们在前后各追加 0.5 秒静音。
   const targetSampleRate = 16000;
   const paddingSeconds = 0.5;
   const paddingFrames = Math.floor(paddingSeconds * targetSampleRate);
@@ -71,7 +71,7 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
   const apiKey = getApiKey('DIFY_STT_API_KEY');
   
-  // 因为 Dify (部分版本或配置下) 不接受 WebM (415 Unsupported Media Type)，所以必须由前端转为 WAV
+  // 因为 Dify (部分版本 or 配置下) 不接受 WebM (415 Unsupported Media Type)，所以必须由前端转为 WAV
   const wavBlob = await convertToWav(audioBlob);
   
   const formData = new FormData();
@@ -125,22 +125,22 @@ export async function runListeningEngine(userInput: string, standardText: string
  * 调用 Dify 的 /text-to-audio 获取高保真 MP3 音频流
  */
 export async function fetchDifyTTS(text: string, userId = 'default-user'): Promise<string> {
-  const apiKey = getApiKey('DIFY_LISTEN_GEN_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY');
-  
-  const response = await fetch(`${DIFY_BASE_URL}/text-to-audio`, {
+  const response = await fetch('/api/tts/speech', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      text,
-      user: userId
+      input: text,
+      model: 'edge-tts/en-US-EmmaNeural'
     }),
   });
 
   if (!response.ok) throw new Error('生成高保真音频失败');
   
-  const blob = await response.blob();
-  return URL.createObjectURL(blob); // 返回可供 <audio> 播放的本地虚拟 URL
+  const data = await response.json();
+  if (!data.success || !data.audioUrl) {
+    throw new Error('TTS 未返回有效音频 URL');
+  }
+  return data.audioUrl;
 }

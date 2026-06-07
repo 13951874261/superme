@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw } from 'lucide-react';
+import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText } from 'lucide-react';
 import { useEnglishContext, getThemeOptions } from '../context/EnglishContext';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
@@ -172,7 +172,7 @@ export default function DashboardTab() {
     pronunciationNotes, setPronunciationNotes,
     grammarNotes, setGrammarNotes,
     impromptuPassed,
-    inlineNotice, noticeAnchor, setActiveTab
+    inlineNotice, noticeAnchor, setActiveTab, showNotice
   } = useEnglishContext();
 
   const handleStageChange = async (newStage: '0-6' | '6-12') => {
@@ -215,6 +215,24 @@ export default function DashboardTab() {
     wordsLeft: number;
     phrasesLeft: number;
   } | null>(null);
+
+  const [generatedArticle, setGeneratedArticle] = useState<string>(() => {
+    return localStorage.getItem('super_agent_last_generated_article') || '';
+  });
+  const [extractedWords, setExtractedWords] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]');
+    } catch {
+      return [];
+    }
+  });
+  const [extractedPhrases, setExtractedPhrases] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]');
+    } catch {
+      return [];
+    }
+  });
 
   // 加载每日配额状态
   const loadQuotaStatus = async () => {
@@ -260,14 +278,28 @@ export default function DashboardTab() {
         return;
       }
 
+      // 保存生成的文章和提取出来的词汇/短语
+      if (result.article) {
+        setGeneratedArticle(result.article);
+        localStorage.setItem('super_agent_last_generated_article', result.article);
+      }
+      if (result.words) {
+        setExtractedWords(result.words);
+        localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words));
+      }
+      if (result.phrases) {
+        setExtractedPhrases(result.phrases);
+        localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases));
+      }
+
       // 根据配额状态给出差异化提示
       const { wordsLeft = 0, phrasesLeft = 0, wordsAddedCount = 0, phrasesAddedCount = 0 } = result as any;
       if (wordsAddedCount > 0 && wordsLeft === 0) {
-        showNotice('dashboard', `今日词汇配额已满(${result.quota?.wordsLimit}/${result.quota?.wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短`, 'info');
+        showNotice('dashboard', `今日词汇配额已满(${result.quota?.wordsLimit}/${result.quota?.wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
       } else if (phrasesAddedCount > 0 && phrasesLeft === 0) {
-        showNotice('dashboard', `今日短语配额已满(${result.quota?.phrasesLimit}/${result.quota?.phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短`, 'info');
+        showNotice('dashboard', `今日短语配额已满(${result.quota?.phrasesLimit}/${result.quota?.phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
       } else if (wordsAddedCount > 0 || phrasesAddedCount > 0) {
-        showNotice('dashboard', `入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短 | 剩余配额：${wordsLeft} 词 ${phrasesLeft} 短`, 'success');
+        showNotice('dashboard', `入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语 | 剩余配额：${wordsLeft} 词 ${phrasesLeft} 短语`, 'success');
         playSuccess();
         setShowConfetti(true);
       } else {
@@ -275,18 +307,12 @@ export default function DashboardTab() {
       }
 
       window.dispatchEvent(new Event('vocab-updated'));
-      setTimeout(() => setActiveTab('vocab'), 1500);
     } catch (e: any) {
       playError();
       showNotice('dashboard', `提取失败: ${e.message}`, 'error');
     } finally {
       setIsAutoGenerating(false);
     }
-  };
-
-  const showNotice = (anchor: string, text: string, tone: 'success' | 'error' | 'info') => {
-    // 兼容可能缺少的 showNotice，从 context 获取或自行兜底，防止调用崩溃
-    console.log(`[Dashboard Notice] ${anchor}: ${text} (${tone})`);
   };
 
   return (
@@ -473,6 +499,69 @@ export default function DashboardTab() {
         {inlineNotice && noticeAnchor === 'dashboard' && (
           <div className={`absolute right-0 top-16 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}>
             {inlineNotice.text}
+          </div>
+        )}
+
+        {/* 沉浸式阅读与收听 */}
+        {generatedArticle && (
+          <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-[0_4px_20px_rgba(0,0,0,0.02)] mb-8 space-y-6 animate-[fadeIn_0.3s_ease-out]">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-1 flex items-center">
+                  <FileText className="w-5 h-5 mr-2" />
+                  今日情报截获 // Immersive Intel Briefing
+                </h4>
+                <p className="text-xs text-gray-400 font-medium">
+                  基于主阵地主题【{theme}】生成的高阶商业实战材料，支持 EmmaNeural 语音收听与沉浸式阅读。
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <SpeakButton 
+                  text={generatedArticle} 
+                  label="收听全文 (Emma)" 
+                  className="px-5 py-3 bg-[#202124] text-white hover:bg-[#FF5722] shadow-md font-black rounded-xl" 
+                />
+              </div>
+            </div>
+
+            <div className="text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa] rounded-2xl border border-gray-100 max-h-[300px] overflow-y-auto whitespace-pre-line select-text" style={{ scrollbarWidth: 'thin' }}>
+              {generatedArticle}
+            </div>
+
+            {(extractedWords.length > 0 || extractedPhrases.length > 0) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+                {extractedWords.length > 0 && (
+                  <div className="space-y-3">
+                    <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                      成功提纯生词 ({extractedWords.length})
+                    </h5>
+                    <div className="flex flex-wrap gap-2">
+                      {extractedWords.map((word) => (
+                        <div key={word} className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 rounded-xl text-xs font-bold shadow-sm">
+                          <span>{word}</span>
+                          <SpeakButton text={word} iconClassName="w-3.5 h-3.5" className="w-5 h-5 bg-transparent text-indigo-500 hover:text-indigo-700" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {extractedPhrases.length > 0 && (
+                  <div className="space-y-3">
+                    <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                      成功提纯例句/短语 ({extractedPhrases.length})
+                    </h5>
+                    <div className="space-y-2">
+                      {extractedPhrases.map((phrase, idx) => (
+                        <div key={idx} className="flex items-center justify-between gap-4 p-3 bg-emerald-50/50 border border-emerald-100/80 rounded-xl text-xs text-emerald-800 font-medium">
+                          <span className="leading-relaxed flex-1 select-text">{phrase}</span>
+                          <SpeakButton text={phrase} iconClassName="w-3.5 h-3.5" className="w-6 h-6 shrink-0 bg-transparent text-emerald-600 hover:text-emerald-800" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

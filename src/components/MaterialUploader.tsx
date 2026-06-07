@@ -32,7 +32,7 @@ export default function MaterialUploader({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
+    const files = Array.from(e.target.files || []) as File[];
     setSelectedFiles(files);
     setStatus('idle');
     setCurrentFileName(files[0]?.name || '');

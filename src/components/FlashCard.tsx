@@ -4,6 +4,7 @@ import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen,
 import SpeakButton from './SpeakButton';
 import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
+import { useEnglishContext } from './modules/english/context/EnglishContext';
 
 interface FlashCardProps {
   onClose: () => void;
@@ -23,6 +24,7 @@ const QUALITY_OPTIONS = [
 ];
 
 export default function FlashCard({ onClose }: FlashCardProps) {
+  const { theme } = useEnglishContext();
   const [words, setWords] = useState<VocabEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -119,7 +121,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
 
     setIsEnriching(true);
     try {
-      const enriched = await runWordEnrichment(current.word);
+      const enriched = await runWordEnrichment(current.word, theme);
       const normalized = {
         ...toVocabEnrichmentPayload(enriched),
         source: '闪卡自动补全',
@@ -146,7 +148,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     setIsEvalLoading(true);
     setEvalResult(null);
     try {
-      const result = await runEnglishSentenceEvaluation(targetWord, sentenceInput);
+      const result = await runEnglishSentenceEvaluation(targetWord, sentenceInput, theme);
       setEvalResult(result);
       if (result.isPass) {
         await addWord({
