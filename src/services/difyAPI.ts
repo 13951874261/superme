@@ -1472,4 +1472,19 @@ export async function generateDailyFlawVocabulary(userId = 'default-user'): Prom
   }
 }
 
+export async function clearTodayQuotaAndData(userId = 'default-user'): Promise<{ success: boolean; message: string }> {
+  const res = await fetch('/api/english/clear-today', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ userId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || data?.message || '清空今日配额与生词数据失败，请检查后端');
+  }
+  return data;
+}
+
 

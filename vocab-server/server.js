@@ -774,7 +774,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     
     // 瑙ｆ瀽宸ヤ綔娴佽緭鍑猴紙鐢变簬鍏蜂綋宸ヤ綔娴佺殑杈撳嚭鍙橀噺鍚嶄笉鏄庣‘锛屽吋瀹瑰父瑙佸瓧娈电粨鏋勶級
     const outputs = wfData?.data?.outputs || {};
-    // 鍋囪澶фā鍨嬭繑鍥炰簡涓€涓互閫楀彿鍒嗛殧鐨勫瓧绗︿覆锛屾垨鑰?JSON 鏁扮粍
+    // 鍋囪澶фā鍨嬭繑鍥炰簡涓€涓互閫楀彿鍒嗛殧鐨勫瓧绗︿覆锛屾屾垨鑰?JSON 鏁扮粍
     const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
     
     let extractedWords = [];
@@ -827,6 +827,38 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 // ==========================================
 // 鑻辫寮曟搸姣忔棩璇嶆眹+鐭鎻愮函锛堝甫姣忔棩閰嶉鎺у埗锛?// 纭寚鏍囷細姣忔棩鏈€澶?50 璇嶆眹 + 30 鐭
 // ==========================================
+app.post('/api/english/clear-today', (req, res) => {
+  const { userId = 'default-user' } = req.body;
+  const today = new Date().toISOString().split('T')[0];
+  
+  // 计算今日当地时间的 00:00:00 毫秒数
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayStartMs = todayStart.getTime();
+
+  try {
+    // 1. 删除今日生成的单词与短语
+    const deleteWords = db.prepare("DELETE FROM vocabulary WHERE added_at >= ? AND (dict_type = 'ai_extracted' OR dict_type = 'ai_phrase')");
+    const wordsResult = deleteWords.run(todayStartMs);
+
+    // 2. 重置今日配额记录
+    const resetQuota = db.prepare("UPDATE daily_vocab_quota SET words_added = 0, phrases_added = 0 WHERE user_id = ? AND quota_date = ?");
+    const quotaResult = resetQuota.run(userId, today);
+
+    console.log(`[Clear Today] User ${userId}: deleted ${wordsResult.changes} words/phrases, reset quota for ${today}`);
+
+    return res.json({
+      success: true,
+      message: 'Successfully cleared today\'s vocabulary entries and reset daily quota.',
+      deletedCount: wordsResult.changes,
+      quotaReset: quotaResult.changes > 0
+    });
+  } catch (error) {
+    console.error('Failed to clear today\'s data:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 const WORD_DAILY_LIMIT = 50;
 const PHRASE_DAILY_LIMIT = 30;
 

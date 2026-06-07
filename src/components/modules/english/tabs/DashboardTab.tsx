@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText } from 'lucide-react';
+import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2 } from 'lucide-react';
 import { useEnglishContext, getThemeOptions } from '../context/EnglishContext';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
@@ -206,6 +206,7 @@ export default function DashboardTab() {
   };
 
   const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+  const [isClearingAndReGenerating, setIsClearingAndReGenerating] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [quotaStatus, setQuotaStatus] = useState<{
     wordsUsed: number;
@@ -327,6 +328,47 @@ export default function DashboardTab() {
       showNotice('dashboard', `提取失败: ${e.message}`, 'error');
     } finally {
       setIsAutoGenerating(false);
+    }
+  };
+
+  const handleClearTodayAndReGenerate = async () => {
+    if (!window.confirm('确定要清空今日已生成的单词与短语，并重新生成吗？这会清除您今天已添加的生词，并重置今日配额记录。')) {
+      return;
+    }
+    
+    setIsClearingAndReGenerating(true);
+    playScan();
+    showNotice('dashboard', '正在清理今日配额与生词数据...', 'info');
+
+    try {
+      const { clearTodayQuotaAndData } = await import('../../../../services/difyAPI');
+      
+      // 调用后端 API 清除今日配额与数据
+      await clearTodayQuotaAndData();
+      
+      // 清空本地状态与 localStorage
+      setGeneratedArticle('');
+      setExtractedWords([]);
+      setExtractedPhrases([]);
+      localStorage.removeItem('super_agent_last_generated_article');
+      localStorage.removeItem('super_agent_last_generated_words');
+      localStorage.removeItem('super_agent_last_generated_phrases');
+      
+      // 重新拉取最新的配额状态
+      await loadQuotaStatus();
+      
+      showNotice('dashboard', '今日配额和数据已清空，正在重新呼叫 AI 生成...', 'info');
+      
+      // 触发重新生成 (由于 handleAutoGenerate 内部调用了 setIsAutoGenerating，这里我们可以直接执行)
+      // 为了确保 setIsClearingAndReGenerating 已经为 false, 我们在 handleAutoGenerate 之前或之后设为 false
+      setIsClearingAndReGenerating(false);
+      
+      // 直接调用 handleAutoGenerate
+      await handleAutoGenerate();
+    } catch (e: any) {
+      playError();
+      showNotice('dashboard', `重置并生成失败: ${e.message}`, 'error');
+      setIsClearingAndReGenerating(false);
     }
   };
 
@@ -500,13 +542,26 @@ export default function DashboardTab() {
 
             <button
               onClick={handleAutoGenerate}
-              disabled={isAutoGenerating}
+              disabled={isAutoGenerating || isClearingAndReGenerating}
               className="flex items-center bg-[#202124] text-white px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-lg"
             >
               {isAutoGenerating ? (
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> AI 执行中...</>
               ) : (
                 <><Zap className="w-4 h-4 mr-2 text-amber-400"/> AI 自动生成今日长文并提纯</>
+              )}
+            </button>
+
+            <button
+              onClick={handleClearTodayAndReGenerate}
+              disabled={isAutoGenerating || isClearingAndReGenerating}
+              className="flex items-center bg-gray-100 text-gray-750 hover:bg-red-50 hover:text-red-600 px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors border border-gray-200 disabled:opacity-50 cursor-pointer shadow-sm"
+              title="清空今日提纯数据与生词，重置配额并重新运行AI生成"
+            >
+              {isClearingAndReGenerating ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在清理并生成...</>
+              ) : (
+                <><Trash2 className="w-4 h-4 mr-2 text-red-500"/> 清空今日数据并重新生成</>
               )}
             </button>
           </div>
