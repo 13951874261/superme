@@ -18,7 +18,7 @@ const tempAudioDir = path.join(__dirname, 'public', 'temp_audio');
 if (!fs.existsSync(tempAudioDir)) {
   fs.mkdirSync(tempAudioDir, { recursive: true });
 }
-app.use('/temp_audio', express.static(tempAudioDir));
+app.use('/api/temp_audio', express.static(tempAudioDir));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
@@ -1607,7 +1607,7 @@ app.post('/api/tts/speech', async (req, res) => {
     res.json({
       success: true,
       audioId: audioId,
-      audioUrl: '/temp_audio/' + audioId + '.mp3',
+      audioUrl: '/api/temp_audio/' + audioId + '.mp3',
       duration: 0 // 可选：如果需要，可以计算音频时长
     });
   } catch (error) {
