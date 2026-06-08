@@ -1,4 +1,4 @@
-// 鈹€鈹€ 鍘熸湁鎺ュ彛淇濈暀 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 原有接口保留 ────────────────────────────────────────────
 export interface ListenWorkflowInput {
   scene_type: string;
   case_text: string;
@@ -23,17 +23,17 @@ export interface DifyWorkflowResponse {
   error?: string;
 }
 
-// 鈹€鈹€ 鑻辫鏉垮潡鏂板鎺ュ彛绫诲瀷 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 英语板块新增接口类型 ─────────────────────────────────────
 
-/** 澶氳鑹茶法鏂囧寲璋堝垽娌欑洏 - 杈撳叆 */
+/** 多角色跨文化谈判沙盘 - 输入 */
 export interface OralSandboxInput {
-  scene_type: string;       // 渚嬶細"鍥介檯閾跺洟璐锋璋堝垽"
-  roles: string;            // 渚嬶細"鐗靛ご琛屼唬琛?鎴?, 鍙傚洟琛孉, 鍊熸浼佷笟CFO"
-  cultural_context: string; // 渚嬶細"缇庡紡鐩存帴 vs 鏃ュ紡濮斿"
-  user_reply?: string;      // 鐢ㄦ埛鏈疆鍥炲锛堥娆′负绌猴級
+  scene_type: string;       // 例："国际银团贷款谈判"
+  roles: string;            // 例："鐗靛ご琛屼唬琛?鎴?, 参团行A, 借款企业CFO"
+  cultural_context: string; // 例："美式直接 vs 鏃ュ紡濮斿"
+  user_reply?: string;      // 用户本轮回复（首次为空）
 }
 
-/** 澶氳鑹茶皥鍒ゆ矙鐩?- Dify 杩斿洖缁撴瀯 */
+/** 澶氳鑹茶皥鍒ゆ矙鐩?- Dify 返回结构 */
 export interface OralSandboxReply {
   current_speaker: string;
   dialogue: string;
@@ -43,28 +43,28 @@ export interface OralSandboxReply {
   evaluation: string;
 }
 
-/** 璇嶆眹鎻愮函寮曟搸 - 杈撳叆 */
+/** 词汇提纯引擎 - 输入 */
 export interface VocabPurifyInput {
   article_text: string;
 }
 
-/** 璇嶆眹鎻愮函寮曟搸 - 杩斿洖缁撴瀯 */
+/** 词汇提纯引擎 - 返回结构 */
 export interface VocabPurifyResult {
   words?: Array<{ word: string; phonetic?: string; pos?: string; zh_meaning?: string }>;
   phrases?: string[];
   sentences?: string[];
 }
 
-/** 璇嶆眹鎻愮函寮曟搸 - 鐩存帴璋冪敤 Dify Workflow 鐨?API Key */
+/** 词汇提纯引擎 - 直接调用 Dify Workflow 鐨?API Key */
 const VOCAB_PURIFY_DIRECT_API_KEY = import.meta.env.VITE_DIFY_VOCAB_API_KEY || '';
 
-/** 涓夋寮忓叕鏂囨壒闃?- 杈撳叆 */
+/** 涓夋寮忓叕鏂囨壒闃?- 输入 */
 export interface WritingReviewInput {
   user_text: string;
   mail_intent: string;
 }
 
-/** 涓夋寮忓叕鏂囨壒闃?- 杩斿洖缁撴瀯 */
+/** 涓夋寮忓叕鏂囨壒闃?- 返回结构 */
 export interface WritingReviewResult {
   L1_Grammar: string;
   L2_Business_Tone: string;
@@ -156,7 +156,7 @@ function normalizeListenJargons(raw: unknown): ListenJargonItem[] {
 
 function mapListenEngineResult(raw: unknown): ListenEngineResult {
   if (!raw || typeof raw !== 'object') {
-    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父');
+    throw new Error('AI 返回数据格式异常');
   }
 
   const result = raw as RawListenEngineResult;
@@ -176,7 +176,7 @@ function normalizeScore(value: unknown): number {
 
 function mapSentenceEvaluationResult(raw: unknown): SentenceEvaluationResult {
   if (!raw || typeof raw !== 'object') {
-    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父');
+    throw new Error('AI 返回数据格式异常');
   }
 
   const result = raw as RawSentenceEvaluationResult;
@@ -190,7 +190,7 @@ function mapSentenceEvaluationResult(raw: unknown): SentenceEvaluationResult {
 
 function mapWordEnrichmentResult(raw: unknown): WordEnrichmentResult {
   if (!raw || typeof raw !== 'object') {
-    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父');
+    throw new Error('AI 返回数据格式异常');
   }
 
   const result = raw as RawWordEnrichmentResult;
@@ -239,11 +239,11 @@ export function toVocabEnrichmentPayload(result: WordEnrichmentResult): VocabEnr
     definition_en: result.definitionEn,
     business_note: result.businessNote,
     examples: result.examples,
-    source: '鍏ㄥ眬鍒掔嚎鎴幏',
+    source: '全局划线截获',
   };
 }
 
-// 鈹€鈹€ 鍩虹璇锋眰灏佽 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 基础请求封装 ─────────────────────────────────────────────
 const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const DIFY_APP_ID = import.meta.env.VITE_DIFY_APP_ID || '56a4d2c1-006c-4c46-95cc-7b6bedafbcff';
 
@@ -279,7 +279,7 @@ async function request<T>(path: string, apiKey: string, options?: RequestInit): 
   return data as T;
 }
 
-// 鈹€鈹€ 鍘熸湁鍚姏宸ヤ綔娴侊紙淇濇寔涓嶅彉锛夆攢鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 原有听力工作流（保持不变）────────────────────────────────
 export async function runListenWorkflow(inputs: ListenWorkflowInput, userId = 'default-user') {
   return request<DifyWorkflowResponse>(`/workflows/run`, getDifyApiKey(), {
     method: 'POST',
@@ -289,7 +289,7 @@ export async function runListenWorkflow(inputs: ListenWorkflowInput, userId = 'd
 
 export function getDifyAppId() { return DIFY_APP_ID; }
 
-// 鈹€鈹€ 鑻辫鏉垮潡鏂板璋冪敤 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 英语板块新增调用 ─────────────────────────────────────────
 
 /**
  * 鏅鸿兘浣?锛氬瑙掕壊璺ㄦ枃鍖栬皥鍒ゆ矙鐩?(Chatflow)
@@ -310,8 +310,8 @@ export async function callOralSandbox(
 }
 
 /**
- * 鏅鸿兘浣?锛氭斂鍟嗗姟闀挎枃璇嶆眹鎻愮函寮曟搸 (Workflow)
- * 閫氳繃鍓嶇鐩存帴璋冪敤 Dify Workflow锛岄伩鍏嶉澶栧悗绔敼閫?
+ * 鏅鸿兘浣?：政商务长文词汇提纯引擎 (Workflow)
+ * 通过前端直接调用 Dify Workflow锛岄伩鍏嶉澶栧悗绔敼閫?
  */
 export async function uploadMaterialToKB(file: File, topic: string): Promise<any> {
   const base64Content = await new Promise<string>((resolve, reject) => {
@@ -320,12 +320,12 @@ export async function uploadMaterialToKB(file: File, topic: string): Promise<any
       const result = typeof reader.result === 'string' ? reader.result : '';
       const base64String = result.includes(',') ? result.split(',')[1] : result;
       if (!base64String) {
-        reject(new Error('鏂囦欢璇诲彇澶辫触锛屾湭鑾峰緱 Base64 鍐呭'));
+        reject(new Error('文件读取失败，未获得 Base64 内容'));
         return;
       }
       resolve(base64String);
     };
-    reader.onerror = () => reject(new Error('鏂囦欢璇诲彇澶辫触'));
+    reader.onerror = () => reject(new Error('文件读取失败'));
     reader.readAsDataURL(file);
   });
 
@@ -344,7 +344,7 @@ export async function uploadMaterialToKB(file: File, topic: string): Promise<any
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data?.error || data?.message || '涓婁紶鑷崇煡璇嗗簱澶辫触');
+    throw new Error(data?.error || data?.message || '上传至知识库失败');
   }
   return data;
 }
@@ -356,24 +356,24 @@ async function fileToBase64Content(file: File): Promise<string> {
       const result = typeof reader.result === 'string' ? reader.result : '';
       const base64String = result.includes(',') ? result.split(',')[1] : result;
       if (!base64String) {
-        reject(new Error('鏂囦欢璇诲彇澶辫触锛屾湭鑾峰緱 Base64 鍐呭'));
+        reject(new Error('文件读取失败，未获得 Base64 内容'));
         return;
       }
       resolve(base64String);
     };
-    reader.onerror = () => reject(new Error('鏂囦欢璇诲彇澶辫触'));
+    reader.onerror = () => reject(new Error('文件读取失败'));
     reader.readAsDataURL(file);
   });
 }
 
 export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user') {
-  // 灏嗗墠绔?File 瀵硅薄杞负 Base64 浼犻€掔粰鍚庣鐨勭粺涓€鎻愮函璺敱
+  // 灏嗗墠绔?File 对象转为 Base64 传递给后端的统一提纯路由
   const filePayloads = await Promise.all(
     files.map(async (f) => {
       const base64Content = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
-        reader.onerror = () => reject(new Error('鍓嶇鏂囦欢璇诲彇澶辫触'));
+        reader.onerror = () => reject(new Error('前端文件读取失败'));
         reader.readAsDataURL(f);
       });
       return {
@@ -434,11 +434,23 @@ export interface DailyQuotaStatus {
   };
 }
 
+let activeQuotaPromise: Promise<DailyQuotaStatus> | null = null;
+
 export async function getDailyQuotaStatus(userId = 'default-user'): Promise<DailyQuotaStatus> {
-  const response = await fetch(`/api/daily-quota/status?userId=${encodeURIComponent(userId)}`);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data?.error || '鑾峰彇姣忔棩閰嶉澶辫触');
-  return data as DailyQuotaStatus;
+  if (activeQuotaPromise) return activeQuotaPromise;
+
+  activeQuotaPromise = (async () => {
+    try {
+      const response = await fetch(`/api/daily-quota/status?userId=${encodeURIComponent(userId)}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data?.error || '获取每日配额失败');
+      return data as DailyQuotaStatus;
+    } finally {
+      activeQuotaPromise = null;
+    }
+  })();
+
+  return activeQuotaPromise;
 }
 
 export async function triggerEnglishMasteryExtraction(
@@ -454,7 +466,7 @@ export async function triggerEnglishMasteryExtraction(
     body: JSON.stringify({ topic, materialText, userId, cefrLevel, genre }),
   });
 
-  // 澶勭悊娴佸紡鍝嶅簲 (SSE)
+  // 处理流式响应 (SSE)
   if (response.headers.get("content-type")?.includes("text/event-stream")) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -468,7 +480,7 @@ export async function triggerEnglishMasteryExtraction(
       const chunk = decoder.decode(value, { stream: true });
       buffer += chunk;
 
-      // 鎸夎澶勭悊 SSE 鏁版嵁
+      // 按行处理 SSE 数据
       let lineEnd = buffer.indexOf("\n");
       while (lineEnd !== -1) {
         const line = buffer.substring(0, lineEnd).trim();
@@ -484,14 +496,14 @@ export async function triggerEnglishMasteryExtraction(
               finalPayload = parsed;
             }
           } catch (e) {
-            // 蹇界暐涓存椂瑙ｆ瀽閿欒锛堟暟鎹潡琚埅鏂級
+            // 忽略临时解析错误（数据块被截断）
           }
         }
         lineEnd = buffer.indexOf("\n");
       }
     }
 
-    // 澶勭悊娈嬩綑缂撳啿鏁版嵁
+    // 处理残余缓冲数据
     if (buffer.trim().startsWith("data: ")) {
       const dataStr = buffer.trim().slice(6).trim();
       try {
@@ -511,7 +523,7 @@ export async function triggerEnglishMasteryExtraction(
     return finalPayload;
   }
 
-  // 浼犵粺 JSON 鍝嶅簲澶勭悊
+  // 传统 JSON 响应处理
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data?.success) {
     if (data?.quotaExceeded) {
@@ -553,10 +565,10 @@ export async function callVocabPurify(
 }
 
 /**
- * 鑻辫鍏枃绾垫繁鎵归槄鎺ュ彛 (鍓嶇鐩存帴璋冪敤 Dify)
+ * 英语公文纵深批阅接口 (前端直接调用 Dify)
  * @param userText 鐢ㄦ埛鍐欑殑鍘熷鑻辨枃鑽夌
- * @param mailIntent 琛屾枃鎰忓浘
- * @param theme 鍏ㄥ眬闃靛湴涓婚
+ * @param mailIntent 行文意图
+ * @param theme 全局阵地主题
  */
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
   const apiKey = import.meta.env.VITE_DIFY_WRITE_API_KEY;
@@ -582,13 +594,13 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Dify Workflow Error');
 
-  // 瑙ｆ瀽 Dify 杩斿洖鐨?JSON 瀛楃涓茬粨鏋?
+  // 解析 Dify 杩斿洖鐨?JSON 瀛楃涓茬粨鏋?
   try {
     const rawResult = data.data.outputs.result;
-    return parseMaybeJson<WritingReviewResult>(rawResult, 'AI 杩斿洖鏍煎紡寮傚父');
+    return parseMaybeJson<WritingReviewResult>(rawResult, 'AI 返回格式异常');
   } catch (e) {
-    console.error('瑙ｆ瀽鎵归槄缁撴灉澶辫触:', e, data);
-    throw new Error('AI 杩斿洖鏍煎紡寮傚父');
+    console.error('解析批阅结果失败:', e, data);
+    throw new Error('AI 返回格式异常');
   }
 }
 
@@ -614,7 +626,7 @@ export async function sendOralChatMessage(query: string, conversationId: string 
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'Dify Chat API 璇锋眰澶辫触');
+  if (!res.ok) throw new Error(data.message || data.error || 'Dify Chat API 请求失败');
   return data;
 }
 
@@ -643,8 +655,8 @@ export async function runEnglishListenEngine(text: string, theme: string, userId
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return mapListenEngineResult(JSON.parse(cleanJson));
   } catch (e) {
-    console.error('瑙ｆ瀽鍚鲸缁撴灉澶辫触:', e);
-    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父');
+    console.error('解析听辨结果失败:', e);
+    throw new Error('AI 返回数据格式异常');
   }
 }
 
@@ -671,7 +683,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
   const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
   if (typeof rawResult !== 'string') {
     console.error('璇嶆眹琛ュ叏鍘熷杩斿洖涓嶆槸瀛楃涓?', data);
-    throw new Error('AI 鏍煎紡寮傚父');
+    throw new Error('AI 格式异常');
   }
 
   try {
@@ -705,8 +717,8 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
         : [],
     };
   } catch (e) {
-    console.error('瑙ｆ瀽璇嶆眹琛ュ叏澶辫触:', e, data);
-    throw new Error('AI 鏍煎紡寮傚父');
+    console.error('解析词汇补全失败:', e, data);
+    throw new Error('AI 格式异常');
   }
 }
 
@@ -758,7 +770,7 @@ export async function runEnglishSentenceEvaluation(
   const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
 
   if (!apiKey) {
-    throw new Error('鏈厤缃€犲彞 API 瀵嗛挜锛岃妫€鏌?.env.local 骞堕噸鏂拌繍琛?build/dev');
+    throw new Error('未配置造句 API 瀵嗛挜锛岃妫€鏌?.env.local 骞堕噸鏂拌繍琛?build/dev');
   }
 
   let res: Response;
@@ -776,14 +788,14 @@ export async function runEnglishSentenceEvaluation(
       }),
     });
   } catch (err) {
-    console.error('Fetch 閫氳寮傚父:', err);
-    throw new Error('涓?Dify 鎬婚儴澶卞幓杩炴帴锛岃妫€鏌?HTTPS 鎺ュ彛鏄惁鍙揪');
+    console.error('Fetch 通讯异常:', err);
+    throw new Error('涓?Dify 鎬婚儴澶卞幓杩炴帴锛岃妫€鏌?HTTPS 接口是否可达');
   }
 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    console.error('Dify 鎷掔粷璇锋眰:', data);
+    console.error('Dify 拒绝请求:', data);
     throw new Error(data?.message || data?.error || 'Dify 响应成功但状态非 200');
   }
 
@@ -793,13 +805,13 @@ export async function runEnglishSentenceEvaluation(
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-      throw new Error('AI 鏈繑鍥炴湁鏁堢殑澶ф嫭鍙?JSON 缁撴瀯');
+      throw new Error('AI 鏈繑鍥炴湁鏁堢殑澶ф嫭鍙?JSON 结构');
     }
 
     return mapSentenceEvaluationResult(JSON.parse(jsonMatch[0]));
   } catch (e) {
-    console.error('鑴辨按瑙ｆ瀽澶辫触. 鍘熷鏁版嵁:', data?.data?.outputs?.result ?? data);
-    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父锛岃В鏋?JSON 宕╂簝');
+    console.error('脱水解析失败. 原始数据:', data?.data?.outputs?.result ?? data);
+    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父锛岃В鏋?JSON 崩溃');
   }
 }
 
@@ -819,7 +831,7 @@ export async function runListenMaterialGenerator(
   const apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成拦截剧本。');
 
-  // 璇ュ簲鐢ㄤ负 Text Generator (Completion) 妯″紡锛屼娇鐢?/completion-messages 鎺ュ彛
+  // 该应用为 Text Generator (Completion) 妯″紡锛屼娇鐢?/completion-messages 接口
   const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
     method: 'POST',
     headers: {
@@ -835,7 +847,7 @@ export async function runListenMaterialGenerator(
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '鐢熸垚鎴幏鍓ф湰澶辫触');
+  if (!res.ok) throw new Error(data?.message || data?.error || '生成截获剧本失败');
 
   // Completion 缁撴灉鍦?data.answer
   return String(data?.answer || '').trim();
@@ -877,31 +889,31 @@ export async function runImpromptuSpeechEvaluation(
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '璇勬祴澶辫触');
+  if (!res.ok) throw new Error(data?.message || data?.error || '评测失败');
 
   try {
     const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as ImpromptuSpeechEvaluationResult;
   } catch (e) {
-    console.error('瑙ｆ瀽鍗冲叴婕旇璇勬祴缁撴灉澶辫触:', e, data);
+    console.error('解析即兴演讲评测结果失败:', e, data);
     throw new Error('AI 返回口语评估数据格式异常');
   }
 }
 
-// 鈹€鈹€ 鍙戦煶绾犳鐩稿叧鎺ュ彛 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 发音纠正相关接口 ─────────────────────────────────────────
 
-/** Dify audio-to-text 鎺ュ彛杩斿洖缁撴灉 */
+/** Dify audio-to-text 接口返回结果 */
 export interface AudioToTextResult {
   text: string;
   task_id?: string;
 }
 
 /**
- * 姝ラ1: 璋冪敤 Dify audio-to-text 鎺ュ彛灏嗛煶棰戣浆涓鸿嫳鏂囨枃鏈?
- * @param audioFile 褰曢煶鏂囦欢 (Blob/File)
- * @param userId 鐢ㄦ埛ID
- * @returns 璇嗗埆鍑虹殑鑻辨枃鏂囨湰
+ * 步骤1: 调用 Dify audio-to-text 鎺ュ彛灏嗛煶棰戣浆涓鸿嫳鏂囨枃鏈?
+ * @param audioFile 录音文件 (Blob/File)
+ * @param userId 用户ID
+ * @returns 识别出的英文文本
  */
 export async function audioToText(audioFile: Blob, userId = 'default-user'): Promise<AudioToTextResult> {
   const apiKey = import.meta.env.VITE_DIFY_STT_API_KEY;
@@ -921,7 +933,7 @@ export async function audioToText(audioFile: Blob, userId = 'default-user'): Pro
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`璇煶璇嗗埆澶辫触 (${res.status}): ${errText}`);
+    throw new Error(`语音识别失败 (${res.status}): ${errText}`);
   }
 
   const data = await res.json().catch(() => ({}));
@@ -931,7 +943,7 @@ export async function audioToText(audioFile: Blob, userId = 'default-user'): Pro
   };
 }
 
-/** 鍙戦煶绾犳缁撴灉 - 缁撴瀯鍖栨牸寮?*/
+/** 发音纠正结果 - 缁撴瀯鍖栨牸寮?*/
 export interface PronunciationAssessmentResult {
   score: number;
   phonetic?: string;
@@ -945,18 +957,18 @@ export interface PronunciationAssessmentResult {
 }
 
 /**
- * 姝ラ2: 璋冪敤鍙戦煶绾犳宸ヤ綔娴?
- * @param targetText 鐢ㄦ埛杈撳叆鐨勭洰鏍囧崟璇?鍙ュ瓙
+ * 步骤2: 璋冪敤鍙戦煶绾犳宸ヤ綔娴?
+ * @param targetText 鐢ㄦ埛杈撳叆鐨勭洰鏍囧崟璇?句子
  * @param recognizedText 璇煶璇嗗埆杩斿洖鐨勬枃鏈?
- * @param userId 鐢ㄦ埛ID
- * @returns 鍙戦煶绾犳缁撴灉
+ * @param userId 用户ID
+ * @returns 发音纠正结果
  */
 export async function runPronunciationAssessment(
   targetText: string,
   recognizedText: string,
   userId = 'default-user'
 ): Promise<PronunciationAssessmentResult> {
-  // 閫氳繃鍚庣浠ｇ悊璋冪敤 Dify 鍙戦煶绾犳宸ヤ綔娴?
+  // 通过后端代理调用 Dify 鍙戦煶绾犳宸ヤ綔娴?
   const res = await fetch(`/api/pronunciation-assessment`, {
     method: 'POST',
     headers: {
@@ -971,7 +983,7 @@ export async function runPronunciationAssessment(
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`鍙戦煶绾犳璇锋眰澶辫触 (${res.status}): ${errText}`);
+    throw new Error(`发音纠正请求失败 (${res.status}): ${errText}`);
   }
 
   const data = await res.json().catch(() => ({}));
@@ -983,7 +995,7 @@ export async function runPronunciationAssessment(
       ?? data?.message 
       ?? data;
     
-    // 灏濊瘯鎻愬彇 JSON
+    // 尝试提取 JSON
     const rawText = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     
@@ -999,21 +1011,21 @@ export async function runPronunciationAssessment(
       };
     }
     
-    // 濡傛灉娌℃湁 JSON 缁撴瀯锛岃繑鍥炲師濮嬬粨鏋?
+    // 如果没有 JSON 缁撴瀯锛岃繑鍥炲師濮嬬粨鏋?
     return {
       score: 0,
-      analysis: rawText || '鏃犳硶瑙ｆ瀽璇勬祴缁撴灉',
+      analysis: rawText || '无法解析评测结果',
       corrections: [],
       target_text: targetText,
       recognized_text: recognizedText,
     };
   } catch (e) {
-    console.error('瑙ｆ瀽鍙戦煶绾犳缁撴灉澶辫触:', e, data);
-    throw new Error('鍙戦煶绾犳缁撴灉瑙ｆ瀽澶辫触');
+    console.error('解析发音纠正结果失败:', e, data);
+    throw new Error('发音纠正结果解析失败');
   }
 }
 
-// 鈹€鈹€ 鍗冲叴婕旇澧炲己鍔熻兘 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 即兴演讲增强功能 ─────────────────────────────────────────
 
 /** 鍗冲叴婕旇鎻愮ず璇嶇敓鎴愮粨鏋?*/
 export interface SpeechPrompterResult {
@@ -1042,7 +1054,7 @@ export interface SpeechPrompterResult {
 
 /**
  * 鑾峰彇鍗冲叴婕旇涓婚鎻愮ず璇?
- * @param theme 婕旇涓婚
+ * @param theme 演讲主题
  * @param difficulty 难度级别：基础/中等/进阶
  */
 export async function runSpeechPrompter(
@@ -1072,12 +1084,12 @@ export async function runSpeechPrompter(
   try {
     const outputs = data?.data?.outputs;
 
-    // 榛勯噾璺緞锛欴ify 鐩存帴杩斿洖浜嗙粨鏋勫寲鐨?JSON 瀵硅薄锛堟棤闇€鍐嶈В鏋愬瓧绗︿覆锛?
+    // 黄金路径：Dify 鐩存帴杩斿洖浜嗙粨鏋勫寲鐨?JSON 瀵硅薄锛堟棤闇€鍐嶈В鏋愬瓧绗︿覆锛?
     if (outputs && typeof outputs === 'object' && outputs.outline && outputs.tips) {
       return outputs as SpeechPrompterResult;
     }
 
-    // 鍏滃簳璺緞锛氬鏋?Dify 鎶婂唴瀹瑰寘鍦ㄤ簡鏌愪釜鍙橀噺閲岀殑瀛楃涓蹭腑
+    // 鍏滃簳璺緞锛氬鏋?Dify 把内容包在了某个变量里的字符串中
     const rawResult = outputs?.result ?? outputs?.text ?? data?.answer ?? '';
     const rawText = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
     
@@ -1094,7 +1106,7 @@ export async function runSpeechPrompter(
   }
 }
 
-/** 鍗冲叴婕旇澧炲己璇勬祴缁撴灉 */
+/** 即兴演讲增强评测结果 */
 export interface EnhancedSpeechEvalResult {
   total_score: number;
   logic: number;
@@ -1112,10 +1124,10 @@ export interface EnhancedSpeechEvalResult {
 }
 
 /**
- * 鍗冲叴婕旇澧炲己璇勬祴锛堟敮鎸侀煶棰戜笂浼狅級
- * @param theme 婕旇涓婚
- * @param durationMinutes 鏃堕暱锛堝垎閽燂級
- * @param audioFile 闊抽鏂囦欢
+ * 即兴演讲增强评测（支持音频上传）
+ * @param theme 演讲主题
+ * @param durationMinutes 时长（分钟）
+ * @param audioFile 音频文件
  */
 export async function runEnhancedSpeechEvaluation(
   theme: string,
@@ -1141,7 +1153,7 @@ export async function runEnhancedSpeechEvaluation(
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '澧炲己璇勬祴澶辫触');
+  if (!res.ok) throw new Error(data?.message || data?.error || '增强评测失败');
 
   try {
     const outputs = data?.data?.outputs ?? {};
@@ -1161,12 +1173,12 @@ export async function runEnhancedSpeechEvaluation(
       },
     };
   } catch (e) {
-    console.error('瑙ｆ瀽澧炲己璇勬祴缁撴灉澶辫触:', e, data);
-    throw new Error('澧炲己璇勬祴缁撴灉瑙ｆ瀽澶辫触');
+    console.error('解析增强评测结果失败:', e, data);
+    throw new Error('增强评测结果解析失败');
   }
 }
 
-// 鈹€鈹€ 娲炲療(鍚? 浜烘€цВ鐮佷笌鐮寸唤璇嗗埆 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 洞察(鍚? 人性解码与破绽识别 ─────────────────────────────────────────
 
 export interface InsightListenInputs {
   scenario_text: string;
@@ -1193,13 +1205,13 @@ export async function fetchInsightFeedback(inputs: InsightListenInputs, userId =
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
 
-  const rawResult = data?.data?.outputs?.ai_feedback ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? "鏈幏鍙栧埌鏈夋晥鍙嶉";
+  const rawResult = data?.data?.outputs?.ai_feedback ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? "未获取到有效反馈";
   return String(rawResult);
 }
 
 /**
- * 鍔ㄦ€佽幏鍙栨礊瀵熻€冮 (鏂囨湰鐢熸垚搴旂敤)
- * 渚濊禆鐜鍙橀噺: VITE_DIFY_INSIGHT_GEN_KEY
+ * 动态获取洞察考题 (文本生成应用)
+ * 依赖环境变量: VITE_DIFY_INSIGHT_GEN_KEY
  */
 export async function fetchDynamicInsightScenario(category: string, userId = 'default-user'): Promise<string> {
   const apiKey = import.meta.env.VITE_DIFY_INSIGHT_GEN_KEY;
@@ -1215,19 +1227,19 @@ export async function fetchDynamicInsightScenario(category: string, userId = 'de
     },
     body: JSON.stringify({
       inputs: { category },
-      query: "", // 瑙﹀彂鏂囨湰鐢熸垚
+      query: "", // 触发文本生成
       response_mode: 'blocking',
       user: userId
     })
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || `鑾峰彇鍔ㄦ€佽€冮澶辫触 HTTP ${res.status}`);
+  if (!res.ok) throw new Error(data?.message || data?.error || `获取动态考题失败 HTTP ${res.status}`);
 
   return String(data?.answer || "").trim();
 }
 
-// 鈹€鈹€ 鐮村眬绯荤粺锛堣锛夌浉鍏虫帴鍙?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 鐮村眬绯荤粺锛堣锛夌浉鍏虫帴鍙?─────────────────────────────────────────
 
 export interface SpeakInfluenceInput {
   training_mode: string;
@@ -1262,19 +1274,19 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || 'Speak Influence Engine 璇锋眰澶辫触');
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Speak Influence Engine 请求失败');
 
   const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
   try {
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as SpeakInfluenceResult;
   } catch (e) {
-    console.error('瑙ｆ瀽鏁欑粌杩斿洖鐨?JSON 鏍煎紡澶辫触:', e, rawResult);
+    console.error('瑙ｆ瀽鏁欑粌杩斿洖鐨?JSON 格式失败:', e, rawResult);
     throw new Error('AI 主题判定失败，返回的不是有效 JSON');
   }
 }
 
-// 鈹€鈹€ 绌块€忕郴缁燂紙璇伙級鐩稿叧鎺ュ彛 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 穿透系统（读）相关接口 ─────────────────────────────────────────
 
 export interface CognitivePenetrationInput {
   scene_type: 'policy' | 'report' | 'email' | 'book';
@@ -1323,19 +1335,19 @@ export async function runCognitivePenetrationEngine(inputs: CognitivePenetration
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || 'Cognitive Penetration Engine 璇锋眰澶辫触');
+  if (!res.ok) throw new Error(data?.message || data?.error || 'Cognitive Penetration Engine 请求失败');
 
   const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
   try {
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as CognitivePenetrationResult;
   } catch (e) {
-    console.error('瑙ｆ瀽璁ょ煡绌块€忕粨鏋滅殑 JSON 鏍煎紡澶辫触:', e, rawResult);
+    console.error('解析认知穿透结果的 JSON 格式失败:', e, rawResult);
     throw new Error('AI 错题集生成失败，返回的不是有效 JSON');
   }
 }
 
-// 鈹€鈹€ 椹績鍗氬紙绯荤粺锛圙ame Theory锛夌浉鍏虫帴鍙?鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+// ── 驭心博弈系统（Game Theory锛夌浉鍏虫帴鍙?─────────────────────────────────────────
 
 export interface GameTheoryAnalyzeInput {
   scene_type: 'gov_struggle' | 'corp_clash' | 'upward_takeover';
@@ -1371,7 +1383,7 @@ export interface PersonalPrototype {
   added_at: number;
 }
 
-// 杩愯鍗氬紙寮曟搸鍒嗘瀽锛堣皟鐢ㄥ悗绔唬鐞嗭級
+// 运行博弈引擎分析（调用后端代理）
 export async function runGameTheoryAnalysis(
   inputs: GameTheoryAnalyzeInput,
   userId = 'default-user'
@@ -1389,7 +1401,7 @@ export async function runGameTheoryAnalysis(
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data?.error || data?.message || '鍗氬紙鍒嗘瀽寮曟搸璇锋眰澶辫触');
+    throw new Error(data?.error || data?.message || '博弈分析引擎请求失败');
   }
   return data.result as GameTheoryAnalyzeResult;
 }
@@ -1488,42 +1500,42 @@ function getFallbackFlawVocab(): Array<{
   return [
     {
       word: "fallacy",
-      ipa: "/ˈfæləsi/",
+      ipa: "/?f?l?si/",
       pronunciation_note: "商务谈判中用于指出对方的逻辑漏洞。重音在第一音节。",
       meaning_zh: "谬误；谬论；虚妄的信念",
       example: "We must identify the logical fallacy in their pricing argument before making a counter-offer."
     },
     {
       word: "counterproductive",
-      ipa: "/ˌkaʊntəprəˈdʌktɪv/",
+      ipa: "/?ka?nt?pr??d?kt?v/",
       pronunciation_note: "常用于指出对方提案的潜在弊端。重音在第三音节。",
       meaning_zh: "适得其反的；不起作用的",
       example: "Hasty price cuts might prove counterproductive to our long-term brand equity."
     },
     {
       word: "plausible",
-      ipa: "/ˈplɔːzəbl/",
+      ipa: "/?pl??z?bl/",
       pronunciation_note: "用于形容对方听起来合理但经不起推敲的辩解。",
       meaning_zh: "貌似可信的；花言巧语的；貌似合理的",
       example: "Their excuse for the delivery delay sounds plausible, but we need concrete evidence."
     },
     {
       word: "bait-and-switch",
-      ipa: "/ˌbeɪt ən ˈswɪtʃ/",
+      ipa: "/?be?t ?n ?sw?t?/",
       pronunciation_note: "商业谈判中常见的低端套路陷阱名词。",
       meaning_zh: "诱客买贵货的把戏；挂羊头卖肉；套路行为",
       example: "The supplier's sudden price increase after the initial low quote felt like a bait-and-switch."
     },
     {
       word: "red herring",
-      ipa: "/ˌred ˈherɪŋ/",
+      ipa: "/?red ?her??/",
       pronunciation_note: "用于指出对方试图转移讨论焦点的逻辑花招。",
       meaning_zh: "转移注意力的话题；障眼法；红鲱鱼",
       example: "Bringing up minor administrative delays is just a red herring to distract us from the core issue."
     },
     {
       word: "preemptive",
-      ipa: "/priˈemptɪv/",
+      ipa: "/pri?empt?v/",
       pronunciation_note: "商务防御或反击策略中的常用形容词。",
       meaning_zh: "先发制人的；有先买权的；防患于未然的",
       example: "We launched a preemptive marketing campaign to neutralize the competitor's upcoming product release."

@@ -6,7 +6,7 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 
-// 鍔犺浇鐜鍙橀噺
+// 加载环境变量
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const app = express();
@@ -24,8 +24,8 @@ app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 const PORT = process.env.PORT || 3001;
 
 // ==========================================
-// 鏁版嵁搴撳垵濮嬪寲
-// 鏍规嵁 SOP锛岀嚎涓婄粺涓€璺緞涓?/var/www/super-agent/vocab.db
+// 数据库初始化
+// 根据 SOP锛岀嚎涓婄粺涓€璺緞涓?/var/www/super-agent/vocab.db
 // 鏈湴寮€鍙戝垯鍥炶惤鍒?./vocab.db
 // ==========================================
 const isProd = process.env.NODE_ENV === 'production' || __dirname.includes('/opt/vocab-server');
@@ -62,10 +62,10 @@ try {
   db.prepare("ALTER TABLE vocabulary ADD COLUMN category TEXT DEFAULT 'business'").run();
   console.log('Migration: Added category column to vocabulary table.');
 } catch (err) {
-  // 瀛楁宸插瓨鍦紝蹇界暐
+  // 字段已存在，忽略
 }
 
-// 鍒濆鍖栬緟鍔╄〃 (涓轰簡涓嶈鍓嶇椤甸潰鎶ラ敊锛屾彁渚涘熀纭€缁撴瀯)
+// 初始化辅助表 (为了不让前端页面报错，提供基础结构)
 db.prepare(`CREATE TABLE IF NOT EXISTS materials (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER)`).run();
 
 // 鍒濆鍖?training_sessions 鍜?training_attempts 琛?
@@ -118,7 +118,7 @@ try {
   db.prepare("ALTER TABLE training_attempts ADD COLUMN user_answer TEXT").run();
 } catch (e) {}
 
-// 鍒濆鍖?theme_progress 琛紙閭欢閫氬叧鎸囨爣鎸佷箙鍖栵級
+// 鍒濆鍖?theme_progress 表（邮件通关指标持久化）
 db.prepare(`
   CREATE TABLE IF NOT EXISTS theme_progress (
     id TEXT PRIMARY KEY,
@@ -143,7 +143,7 @@ db.prepare(`
 `).run();
 
 // ==========================================
-// SM-2 闂撮殧閲嶅绠楁硶
+// SM-2 间隔重复算法
 // ==========================================
 function calculateNextReview(quality, repetitions, easeFactor, interval) {
   let newRepetitions = repetitions;
@@ -171,10 +171,10 @@ function calculateNextReview(quality, repetitions, easeFactor, interval) {
 }
 
 // ==========================================
-// 1. 鏍稿績涓氬姟 API (Vocab)
+// 1. 核心业务 API (Vocab)
 // ==========================================
 
-// 鑾峰彇缁熻淇℃伅
+// 获取统计信息
 app.get('/api/vocab/stats', (req, res) => {
   try {
     const total = db.prepare('SELECT COUNT(*) as count FROM vocabulary').get().count;
@@ -186,7 +186,7 @@ app.get('/api/vocab/stats', (req, res) => {
   }
 });
 
-// 鑾峰彇鍏ㄩ噺鍒楄〃
+// 获取全量列表
 app.get('/api/vocab/list', (req, res) => {
   try {
     const rows = db.prepare('SELECT * FROM vocabulary ORDER BY added_at DESC').all();
@@ -201,7 +201,7 @@ app.get('/api/vocab/list', (req, res) => {
   }
 });
 
-// 鑾峰彇浠婃棩澶嶄範
+// 获取今日复习
 app.get('/api/vocab/review', (req, res) => {
   try {
     const now = Date.now();
@@ -212,12 +212,12 @@ app.get('/api/vocab/review', (req, res) => {
   }
 });
 
-// 娣诲姞璇嶆眹
+// 添加词汇
 app.post('/api/vocab/add', (req, res) => {
   try {
     const { word, dictType, category = 'business', payload } = req.body;
     
-    // 鏌ラ噸
+    // 查重
     const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
     if (existing) {
       return res.json({ success: false, message: '词条已存在', id: existing.id });
@@ -231,14 +231,14 @@ app.post('/api/vocab/add', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, word, dictType, category, JSON.stringify(payload || {}), now, now, '[]');
     
-    res.json({ success: true, id, message: '瀛樺叆鎴愬姛' });
+    res.json({ success: true, id, message: '存入成功' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Database error' });
   }
 });
 
-// 鎵归噺娣诲姞璇嶆眹 (涓撲緵 Dify 宸ヤ綔娴?HTTP 鍥炶皟鑺傜偣鎺ㄩ€佹暟鎹?
+// 批量添加词汇 (专供 Dify 宸ヤ綔娴?HTTP 鍥炶皟鑺傜偣鎺ㄩ€佹暟鎹?
 app.post('/api/vocab/batch-add', (req, res) => {
   try {
     const items = req.body;
@@ -281,7 +281,7 @@ app.post('/api/vocab/batch-add', (req, res) => {
   }
 });
 
-// 鏇存柊璇嶆潯
+// 更新词条
 app.patch('/api/vocab/update_payload/:id', (req, res) => {
   try {
     db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(req.body.payload), req.params.id);
@@ -291,21 +291,21 @@ app.patch('/api/vocab/update_payload/:id', (req, res) => {
   }
 });
 
-// 鍏ㄩ潰鏇存柊璇嶆潯锛堟敮鎸佷慨鏀瑰崟璇嶃€佸垎鍖哄及 payload锛?
+// 全面更新词条（支持修改单词、分区弰 payload锛?
 app.put('/api/vocab/update/:id', (req, res) => {
   try {
     const id = req.params.id;
     const { word, category, payload } = req.body;
     db.prepare('UPDATE vocabulary SET word = ?, category = ?, payload = ? WHERE id = ?')
       .run(word, category, JSON.stringify(payload || {}), id);
-    res.json({ success: true, message: '鏇存柊鎴愬姛' });
+    res.json({ success: true, message: '更新成功' });
   } catch (error) {
     console.error('Update vocab error:', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
-// 鎻愪氦澶嶄範缁撴灉
+// 提交复习结果
 app.put('/api/vocab/review/:id', (req, res) => {
   try {
     const id = req.params.id;
@@ -333,7 +333,7 @@ app.put('/api/vocab/review/:id', (req, res) => {
   }
 });
 
-// 浜哄伐骞查
+// 人工干预
 app.put('/api/vocab/manual-intervention/:id', (req, res) => {
   try {
     const id = req.params.id;
@@ -362,7 +362,7 @@ app.put('/api/vocab/manual-intervention/:id', (req, res) => {
   }
 });
 
-// 鍒犻櫎璇嶆潯
+// 删除词条
 app.delete('/api/vocab/:id', (req, res) => {
   try {
     db.prepare('DELETE FROM vocabulary WHERE id = ?').run(req.params.id);
@@ -392,7 +392,7 @@ db.prepare(`
 // 2. 鍗犱綅涓庡吋瀹瑰瓨鏍?(鍙婃牳蹇冭缁冧笟鍔?API)
 // ==========================================
 
-// Upsert 璁粌 Session
+// Upsert 训练 Session
 app.post('/api/training/session/upsert', (req, res) => {
   try {
     const { userId = 'default-user', trainingDate, totalMinutes = 0, listenMinutes = 0, logicMinutes = 0, extraJson } = req.body;
@@ -431,7 +431,7 @@ app.post('/api/training/session/upsert', (req, res) => {
   }
 });
 
-// 鑾峰彇鏌愬ぉ鐨?Session 璇︽儏
+// 鑾峰彇鏌愬ぉ鐨?Session 详情
 app.get('/api/training/session-by-date', (req, res) => {
   try {
     const { trainingDate, userId = 'default-user' } = req.query;
@@ -461,7 +461,7 @@ app.get('/api/training/session-by-date', (req, res) => {
   }
 });
 
-// 鍒涘缓璁粌 Attempt
+// 创建训练 Attempt
 app.post('/api/training/attempt', (req, res) => {
   try {
     const { sessionId, userId = 'default-user', moduleType, sceneType, caseText, userAnswer, durationSeconds = 0, score = null } = req.body;
@@ -480,12 +480,12 @@ app.post('/api/training/attempt', (req, res) => {
   }
 });
 
-// 鎻愪氦 Feedback
+// 提交 Feedback
 app.post('/api/training/feedback', (req, res) => {
   res.json({ success: true, feedbackId: crypto.randomBytes(16).toString('hex'), status: 'archived' });
 });
 
-// 妫€鏌ヤ富棰樻槸鍚﹁揪鏍?(鍙ｈ + 鍐欎綔 + 閭欢)
+// 妫€鏌ヤ富棰樻槸鍚﹁揪鏍?(口语 + 写作 + 邮件)
 app.get('/api/theme/check-mastery', (req, res) => {
   try {
     const { theme, userId = 'default-user' } = req.query;
@@ -532,7 +532,7 @@ app.get('/api/theme/check-mastery', (req, res) => {
 
 app.post('/api/theme/focus', (req, res) => res.json({ success: true, theme: req.body.theme || 'default' }));
 
-// 鏍囪鏌愪富棰橀偖浠堕€氬叧
+// 标记某主题邮件通关
 app.post('/api/theme/mark-email-complete', (req, res) => {
   try {
     const { theme, userId = 'default-user' } = req.body;
@@ -552,7 +552,7 @@ app.post('/api/theme/mark-email-complete', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-// 澶勭悊瀛楀吀鏌ヨ璇锋眰锛堝鎺ョ湡瀹炵殑 Dify 瀛楀吀宸ヤ綔娴侊級
+// 处理字典查询请求（对接真实的 Dify 字典工作流）
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', userId = 'frontend-panel' } = req.body;
 
@@ -564,7 +564,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
-    console.log(`[Dict Query] 寮€濮嬫煡璇㈣瘝鏉? "${word}", 瀛楀吀绫诲瀷: "${dictType}"`);
+    console.log(`[Dict Query] 寮€濮嬫煡璇㈣瘝鏉? "${word}", 字典类型: "${dictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -595,19 +595,19 @@ app.post('/api/dify/dict-query', async (req, res) => {
     const resultStr = data?.data?.outputs?.result;
 
     if (!resultStr) {
-      console.warn('[Dict Query] 宸ヤ綔娴佹湭杩斿洖 result 瀛楁:', data);
-      return res.status(500).json({ ok: false, message: 'Dify 宸ヤ綔娴佹湭杩斿洖姝ｇ‘鐨?result 瀛楁' });
+      console.warn('[Dict Query] 工作流未返回 result 字段:', data);
+      return res.status(500).json({ ok: false, message: 'Dify 宸ヤ綔娴佹湭杩斿洖姝ｇ‘鐨?result 字段' });
     }
 
     // 瑙ｆ瀽宸ヤ綔娴佽緭鍑虹粨鏋?    let parsedResult;
     try {
       parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
     } catch (e) {
-      console.error('[Dict Query] 瑙ｆ瀽 result JSON 澶辫触:', e, resultStr);
+      console.error('[Dict Query] 解析 result JSON 失败:', e, resultStr);
       return res.status(500).json({ ok: false, message: '宸ヤ綔娴佺粨鏋滆В鏋愬紓甯革紝杩斿洖鏁版嵁闈炲悎娉?JSON' });
     }
 
-    console.log(`[Dict Query] 鏌ヨ "${word}" 鎴愬姛锛岃繑鍥炵粨鏋?`, Object.keys(parsedResult?.payload || {}));
+    console.log(`[Dict Query] 查询 "${word}" 鎴愬姛锛岃繑鍥炵粨鏋?`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
     console.error('[Dict Query] 鏈嶅姟绔姹傚紓甯?', error);
@@ -615,12 +615,12 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 });
 
-// 澶勭悊鐗╂枡鎻愮函瑙ｆ瀽璇锋眰锛堢湡瀹?Dify 鑱斿姩锛氭壘搴?-> 娓呯┖ -> 涓婁紶 -> 宸ヤ綔娴佹娊鎻愶級
+// 澶勭悊鐗╂枡鎻愮函瑙ｆ瀽璇锋眰锛堢湡瀹?Dify 鑱斿姩锛氭壘搴?-> 清空 -> 上传 -> 工作流抽提）
 app.post('/api/material/process-and-extract', async (req, res) => {
   const { topic, userId, files } = req.body;
   
   if (!files || files.length === 0) {
-    return res.status(400).json({ success: false, error: '鏈帴鏀跺埌鏈夋晥鏂囦欢鏁版嵁' });
+    return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
   }
 
   // 涓ユ牸瀹炴柦鍙屽瘑閽ラ殧绂绘満鍒?  const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
@@ -638,12 +638,12 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
     
     if (!dataset) {
-      throw new Error('鍦?Dify 骞冲彴鏈壘鍒板悕涓?English_Pro_Scenarios 鐨勭煡璇嗗簱');
+      throw new Error('鍦?Dify 骞冲彴鏈壘鍒板悕涓?English_Pro_Scenarios 的知识库');
     }
     const datasetId = dataset.id;
 
     // ---------------------------------------------------------
-    // 鍔ㄤ綔浜岋細鏆村姏娓呭満锛屾棤鎯呭垹闄ゆ棫鏂囦欢
+    // 动作二：暴力清场，无情删除旧文件
     // ---------------------------------------------------------
     const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
@@ -651,7 +651,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     const docsData = await docsResponse.json();
     const docIds = docsData.data?.map(d => d.id) || [];
     
-    // 寮€鍚苟鍙戝睜鏉€锛屾竻绌虹煡璇嗗簱
+    // 开启并发屠杀，清空知识库
     if (docIds.length > 0) {
       await Promise.all(docIds.map(docId => 
         fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
@@ -662,19 +662,19 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     }
 
     // ---------------------------------------------------------
-    // 鍔ㄤ綔涓夛細鐗╃悊閲嶉摳锛岀粍瑁呬笂浼犳柊寮硅嵂
+    // 动作三：物理重铸，组装上传新弹药
     // ---------------------------------------------------------
     const fileObj = files[0];
     const base64Data = fileObj.content || fileObj.base64 || '';
     const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
     const buffer = Buffer.from(base64Content, 'base64');
     
-    // 浣跨敤 Node 18+ 鐨勫叏灞€ Blob 涓?FormData 瑁呴厤浜岃繘鍒跺ぇ鏂囦欢
+    // 使用 Node 18+ 的全局 Blob 涓?FormData 装配二进制大文件
     const blob = new Blob([buffer], { type: 'application/octet-stream' });
     const formData = new FormData();
     formData.append('file', blob, fileObj.fileName || 'upload_material.pdf');
     // 鍏抽敭淇锛氱煡璇嗗簱浣跨敤浜嗏€滅埗瀛愭枃鏈垎鍧椻€?Hierarchical)
-    // 蹇呴』鎻愪緵瀹屾暣鐨?rules (鍖呮嫭 pre_processing_rules 鍜?subchunk_segmentation)
+    // 蹇呴』鎻愪緵瀹屾暣鐨?rules (包括 pre_processing_rules 鍜?subchunk_segmentation)
     formData.append('data', JSON.stringify({ 
       indexing_technique: 'high_quality', 
       doc_form: 'hierarchical_model',
@@ -706,7 +706,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     
     if (!uploadResponse.ok) {
       const errText = await uploadResponse.text();
-      throw new Error(`Dify 鏂囦欢鍏ュ簱閬嫆: ${errText}`);
+      throw new Error(`Dify 文件入库遭拒: ${errText}`);
     }
 
     const uploadData = await uploadResponse.json();
@@ -714,16 +714,16 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     const batchId = uploadData.batch; 
 
     if (!documentId || !batchId) {
-      throw new Error('鏂囦欢宸插彂閫侊紝浣嗘湭浠?Dify 鎷垮埌 batch ID 瀵艰嚧鏃犳硶璺熻釜');
+      throw new Error('鏂囦欢宸插彂閫侊紝浣嗘湭浠?Dify 拿到 batch ID 导致无法跟踪');
     }
 
-    console.log(`[Material] 鏂囨。涓婁紶鎴愬姛 (ID: ${documentId}, Batch: ${batchId})锛屾鍦ㄩ攣瀹氱瓑寰呭悜閲忚寮?..`);
+    console.log(`[Material] 文档上传成功 (ID: ${documentId}, Batch: ${batchId})锛屾鍦ㄩ攣瀹氱瓑寰呭悜閲忚寮?..`);
 
     // ---------------------------------------------------------
     // 鍔ㄤ綔涓夌偣浜旓細楂橀杞鏌ヨ鏂囨。宓屽叆鐘舵€?(鑾峰彇娴佹按绾胯繘搴?
     // ---------------------------------------------------------
     let isIndexed = false;
-    // 璁惧畾 40 娆¤疆璇紝姣忔 3 绉掞紝鎬昏瀹瑰繊绛夊緟 120 绉掞紝缁濅笉楗挎澶фā鍨?
+    // 设定 40 次轮询，每次 3 秒，总计容忍等待 120 绉掞紝缁濅笉楗挎澶фā鍨?
     for (let i = 0; i < 40; i++) {
       await new Promise(resolve => setTimeout(resolve, 3000));
       
@@ -734,7 +734,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       
       if (!statusRes.ok) continue; // 鍋跺彂缃戠粶鎶栧姩鐩存帴蹇界暐锛岃繘鍏ヤ笅涓€杞?      
       const statusData = await statusRes.json();
-      // 鑾峰彇娴佹按绾垮祵鍏ョ姸鎬?(杩斿洖鍊间负鏁扮粍鏍煎紡)
+      // 鑾峰彇娴佹按绾垮祵鍏ョ姸鎬?(返回值为数组格式)
       const docInfo = statusData.data?.[0];
       
       if (docInfo) {
@@ -743,7 +743,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           isIndexed = true;
           break;
         } else if (docInfo.indexing_status === 'error') {
-          throw new Error('Dify 娴佹按绾垮垏鍒嗘姤閿欙紝璇峰墠寰€鍚庡彴鏌ョ湅鍘熷洜');
+          throw new Error('Dify 流水线切分报错，请前往后台查看原因');
         }
       }
     }
@@ -752,7 +752,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       throw new Error('Dify indexing timeout (>120s).');
     }
 
-    console.log(`[Material] 鍚戦噺瑁呭脊瀹屾瘯锛佸噯璁告斁琛屽敜閱掑ぇ妯″瀷...`);
+    console.log(`[Material] 向量装弹完毕！准许放行唤醒大模型...`);
 
     // ---------------------------------------------------------
     // 鍔ㄤ綔鍥涳細缁堟瀬鎶芥彁锛屽敜閱掑ぇ妯″瀷姒ㄥ彇鏍稿績璇嶆眹骞跺叆搴?    // ---------------------------------------------------------
@@ -772,20 +772,20 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     const wfData = await wfResponse.json();
     if (!wfResponse.ok) throw new Error(`宸ヤ綔娴佹墽琛屽け璐? ${JSON.stringify(wfData)}`);
     
-    // 瑙ｆ瀽宸ヤ綔娴佽緭鍑猴紙鐢变簬鍏蜂綋宸ヤ綔娴佺殑杈撳嚭鍙橀噺鍚嶄笉鏄庣‘锛屽吋瀹瑰父瑙佸瓧娈电粨鏋勶級
+    // 解析工作流输出（由于具体工作流的输出变量名不明确，兼容常见字段结构）
     const outputs = wfData?.data?.outputs || {};
-    // 鍋囪澶фā鍨嬭繑鍥炰簡涓€涓互閫楀彿鍒嗛殧鐨勫瓧绗︿覆锛屾屾垨鑰?JSON 鏁扮粍
+    // 鍋囪澶фā鍨嬭繑鍥炰簡涓€涓互閫楀彿鍒嗛殧鐨勫瓧绗︿覆锛屾屾垨鑰?JSON 数组
     const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
     
     let extractedWords = [];
     if (Array.isArray(rawExtracted)) {
       extractedWords = rawExtracted;
     } else if (typeof rawExtracted === 'string') {
-      // 鏆村姏姝ｅ垯锛氬垏鍒嗗苟娓呯悊
-      extractedWords = rawExtracted.split(/[,锛孿n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
+      // 暴力正则：切分并清理
+      extractedWords = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
     }
     
-    // 闈欓粯鍐欏叆 SQLite 鐢熻瘝鏈?(瑙勯伩閲嶅椤?
+    // 静默写入 SQLite 鐢熻瘝鏈?(瑙勯伩閲嶅椤?
     let addedCount = 0;
     const now = Date.now();
     for (const item of extractedWords) {
@@ -809,13 +809,13 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         {
           fileName: fileObj.fileName || "Document",
           summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${extractedWords.length} terms, actual added ${addedCount} words.`,
-          key_points: extractedWords.slice(0, 5) // 鍚戝墠绔睍绀哄墠5涓牳蹇冭瘝
+          key_points: extractedWords.slice(0, 5) // 向前端展示前5个核心词
         }
       ],
       logs: [
-        "1. Dify 鐭ヨ瘑搴撳畾浣嶅苟娓呯┖瀹屾垚",
+        "1. Dify 知识库定位并清空完成",
         "2. Memory Base64 conversion and physical storage success.",
-        `3. AI 钀冨彇涓?SQLite 鍥哄寲瀹屾瘯 (鏂板: ${addedCount})`
+        `3. AI 钀冨彇涓?SQLite 固化完毕 (新增: ${addedCount})`
       ]
     });
   } catch (error) {
@@ -825,7 +825,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 });
 
 // ==========================================
-// 鑻辫寮曟搸姣忔棩璇嶆眹+鐭鎻愮函锛堝甫姣忔棩閰嶉鎺у埗锛?// 纭寚鏍囷細姣忔棩鏈€澶?50 璇嶆眹 + 30 鐭
+// 英语引擎每日词汇+鐭鎻愮函锛堝甫姣忔棩閰嶉鎺у埗锛?// 纭寚鏍囷細姣忔棩鏈€澶?50 词汇 + 30 短语
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
   const { userId = 'default-user' } = req.body;
@@ -904,11 +904,11 @@ app.post('/api/english/daily-extract', async (req, res) => {
       });
     }
 
-    // Step 3: 璋冪敤 Dify 宸ヤ綔娴佹彁绾瘝姹?
+    // Step 3: 调用 Dify 宸ヤ綔娴佹彁绾瘝姹?
     const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText锛屽惁鍒欑敤 topic 鑷韩鐢熸垚鎻愮ず璇?
+    // 鏋勯€犺緭鍏ヨ鏂欙細浼樺厛鐢?materialText，否则用 topic 鑷韩鐢熸垚鎻愮ず璇?
     const inputText = materialText?.trim() || topic || '';
 
     let vocabList = [];
@@ -985,7 +985,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
                 answer += parsed.answer;
               }
             } catch (e) {
-              // 瀹归敊锛氬拷鐣ユ暟鎹潡琚埅鏂骇鐢熺殑涓存椂瑙ｆ瀽澶辫触
+              // 容错：忽略数据块被截断产生的临时解析失败
             }
           }
           lineEnd = sseBuffer.indexOf('\n');
@@ -1028,7 +1028,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
         throw new Error("Streaming not supported, please use blocking mode");
       }
 
-      // 鎺ユ敹瀹屾瘯鍚庯紝鍦ㄥ悗鍙拌繘琛岃瘝姹囧拰鐭鎻愬彇涓?SQLite 鍏ュ簱
+      // 鎺ユ敹瀹屾瘯鍚庯紝鍦ㄥ悗鍙拌繘琛岃瘝姹囧拰鐭鎻愬彇涓?SQLite 入库
       let articleText = "";
       let rawVocabText = "";
       
@@ -1107,7 +1107,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
       }
       phraseList = [...new Set(allExamples)].map(s => s.trim()).filter(s => s && s.length < 500);
 
-      // 鍚庢湡閰嶉瀛樺簱閫昏緫
+      // 后期配额存库逻辑
       const wordsToStore = vocabList.slice(0, wordsLeft);
       const phrasesToStore = phraseList.slice(0, phrasesLeft);
 
@@ -1171,7 +1171,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
 
       console.log(`[Daily Extract] Completed. User ${userId} ${today} added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`);
 
-      // 鍙戦€佹祦缁撴潫鏍囪锛屽苟闄勫甫鏈€缁堢殑鍏ュ簱鍜岀粺璁?JSON 鏁版嵁浣滀负鏈€鍚庝竴閮ㄥ垎浜嬩欢
+      // 鍙戦€佹祦缁撴潫鏍囪锛屽苟闄勫甫鏈€缁堢殑鍏ュ簱鍜岀粺璁?JSON 数据作为最后一部分事件
       const finalPayload = {
         success: true,
         message: `Extraction complete: added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`,
@@ -1215,7 +1215,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
       });
     }
 
-    // Step 4: 涓ユ牸閰嶉鎴彇鈥斺€斿彧鍙栧墿浣欓厤棰濋噺
+    // Step 4: 严格配额截取——只取剩余配额量
     const wordsToStore = vocabList.slice(0, wordsLeft);
     const phrasesToStore = phraseList.slice(0, phrasesLeft);
 
@@ -1250,13 +1250,13 @@ app.post('/api/english/daily-extract', async (req, res) => {
     });
     insertWord(wordsToStore);
 
-    // Step 6: 鎵归噺鍐欏叆鐭锛堝瓨鍌ㄥ湪 extra_json 涓紝鎴栫嫭绔嬭〃锛?
+    // Step 6: 批量写入短语（存储在 extra_json 涓紝鎴栫嫭绔嬭〃锛?
     let phrasesAddedCount = 0;
     const insertPhrase = db.transaction((phrases) => {
       for (const phraseStr of phrases) {
         const p = typeof phraseStr === 'string' ? phraseStr.trim() : String(phraseStr);
         if (!p || p.length > 500) continue;
-        // 鐭鐢ㄦ煡閲嶉€昏緫
+        // 短语用查重逻辑
         const existingPhrase = db.prepare(
           "SELECT id FROM vocabulary WHERE dict_type = 'ai_phrase' AND payload LIKE ? COLLATE NOCASE"
         ).get(`%${p.substring(0, 50)}%`);
@@ -1272,7 +1272,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
     });
     insertPhrase(phrasesToStore);
 
-    // Step 7: 鏇存柊閰嶉璁板綍
+    // Step 7: 更新配额记录
     db.prepare(`
       UPDATE daily_vocab_quota
       SET words_added = words_added + ?, phrases_added = phrases_added + ?, last_extraction_at = ?, updated_at = ?
@@ -1365,25 +1365,25 @@ app.post('/api/dify/run-english-mastery', (req, res) => {
     success: true,
     message: "Successfully initiated training session (Mock).",
     topic: topic,
-    result: { scene: "妯℃嫙娴嬭瘯灞€", content: "杩欐槸浠跨湡绯荤粺杩斿洖鐨勮缁冩暟鎹?.." }
+    result: { scene: "模拟测试局", content: "杩欐槸浠跨湡绯荤粺杩斿洖鐨勮缁冩暟鎹?.." }
   });
 });
 
 // ==========================================
-// 鍙戦煶绾犳 API (Pronunciation Assessment)
-// 璋冪敤 Dify 宸ヤ綔娴佽繘琛屽彂闊宠瘎浼?// ==========================================
+// 发音纠正 API (Pronunciation Assessment)
+// 调用 Dify 宸ヤ綔娴佽繘琛屽彂闊宠瘎浼?// ==========================================
 app.post('/api/pronunciation-assessment', async (req, res) => {
   const { targetText, recognizedText, userId = 'default-user' } = req.body;
 
   if (!targetText) {
-    return res.status(400).json({ success: false, error: '缂哄皯鐩爣鏂囨湰 (targetText)' });
+    return res.status(400).json({ success: false, error: '缺少目标文本 (targetText)' });
   }
 
   try {
     const difyApiKey = process.env.DIFY_PRONUNCIATION_API_KEY;
     if (!difyApiKey) {
-      console.error('缂哄皯 DIFY_PRONUNCIATION_API_KEY 鐜鍙橀噺');
-      return res.status(500).json({ success: false, error: '鏈嶅姟绔湭閰嶇疆鍙戦煶绾犳 API Key' });
+      console.error('缺少 DIFY_PRONUNCIATION_API_KEY 环境变量');
+      return res.status(500).json({ success: false, error: '服务端未配置发音纠正 API Key' });
     }
 
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
@@ -1405,20 +1405,20 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Dify 鍙戦煶绾犳璇锋眰澶辫触:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 璇锋眰澶辫触: ${response.status}` });
+      console.error('Dify 发音纠正请求失败:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
     }
 
     const data = await response.json();
-    console.log('Dify 鍘熷杩斿洖:', JSON.stringify(data, null, 2));
+    console.log('Dify 原始返回:', JSON.stringify(data, null, 2));
 
-    // 鎻愬彇璇勬祴缁撴灉 - 宸ヤ綔娴佺幇鍦ㄨ繑鍥炵粨鏋勫寲 JSON
+    // 提取评测结果 - 工作流现在返回结构化 JSON
     const outputs = data?.data?.outputs ?? {};
 
     const score = typeof outputs.score === 'number' ? outputs.score : 0;
     const phonetic = typeof outputs.phonetic === 'string' ? outputs.phonetic : '';
     const issueType = typeof outputs.issue_type === 'string' ? outputs.issue_type : 'other';
-    const analysis = typeof outputs.analysis === 'string' ? outputs.analysis : '璇勬祴瀹屾垚';
+    const analysis = typeof outputs.analysis === 'string' ? outputs.analysis : '评测完成';
     const suggestion = typeof outputs.suggestion === 'string' ? outputs.suggestion : '';
 
     res.json({
@@ -1433,24 +1433,24 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
       recognized_text: recognizedText || '',
     });
   } catch (err) {
-    console.error('鍙戦煶绾犳 API 寮傚父:', err);
-    res.status(500).json({ success: false, error: '鍙戦煶绾犳鏈嶅姟寮傚父' });
+    console.error('发音纠正 API 异常:', err);
+    res.status(500).json({ success: false, error: '发音纠正服务异常' });
   }
 });
 
 // ==========================================
-// 鍟嗗姟璇硶娑﹁壊 API (Grammar Polish)
-// 璋冪敤 Dify 宸ヤ綔娴佽繘琛岄珮绠＄骇璇硶閲嶆瀯
+// 商务语法润色 API (Grammar Polish)
+// 调用 Dify 工作流进行高管级语法重构
 // ==========================================
 app.post('/api/grammar-polish', async (req, res) => {
   const { originalText, userId = 'default-user' } = req.body;
 
   if (!originalText) {
-    return res.status(400).json({ success: false, error: '缂哄皯鍘熷鏂囨湰 (originalText)' });
+    return res.status(400).json({ success: false, error: '缺少原始文本 (originalText)' });
   }
 
   try {
-    // 浼樺厛璇诲彇鐜鍙橀噺锛屼弗鏍艰惤瀹炴棤鐘舵€佸鐏炬満鍒?(纭紪鐮佺湡瀹?Key 鍏滃簳)
+    // 浼樺厛璇诲彇鐜鍙橀噺锛屼弗鏍艰惤瀹炴棤鐘舵€佸鐏炬満鍒?(纭紪鐮佺湡瀹?Key 兜底)
     const difyApiKey = process.env.DIFY_GRAMMAR_API_KEY || 'app-547Sa5oIC3Qb9RUZdasJs1Ef';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
@@ -1462,7 +1462,7 @@ app.post('/api/grammar-polish', async (req, res) => {
       },
       body: JSON.stringify({
         inputs: {
-          original_text: originalText, // 瀵瑰簲 yml 閲岀殑 start 鑺傜偣鍙橀噺
+          original_text: originalText, // 对应 yml 里的 start 节点变量
         },
         response_mode: 'blocking',
         user: userId,
@@ -1471,14 +1471,14 @@ app.post('/api/grammar-polish', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Dify 璇硶娑﹁壊璇锋眰澶辫触:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 璇锋眰澶辫触: ${response.status}` });
+      console.error('Dify 语法润色请求失败:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
     }
 
     const data = await response.json();
-    console.log('Dify 璇硶娑﹁壊鍘熷杩斿洖:', JSON.stringify(data, null, 2));
+    console.log('Dify 语法润色原始返回:', JSON.stringify(data, null, 2));
 
-    // 鏍规嵁 Grammar_Polish_Engine.yml 瀹氫箟锛岃緭鍑鸿妭鐐圭殑鍙橀噺鍚嶇О涓?polished_result
+    // 根据 Grammar_Polish_Engine.yml 瀹氫箟锛岃緭鍑鸿妭鐐圭殑鍙橀噺鍚嶇О涓?polished_result
     const polishedText = data?.data?.outputs?.polished_result || '鏈幏鍙栧埌娑﹁壊缁撴灉锛岃妫€鏌ュ伐浣滄祦閰嶇疆銆';
 
     res.json({
@@ -1486,13 +1486,13 @@ app.post('/api/grammar-polish', async (req, res) => {
       polishedText
     });
   } catch (err) {
-    console.error('璇硶娑﹁壊 API 寮傚父:', err);
-    res.status(500).json({ success: false, error: '璇硶娑﹁壊鏈嶅姟寮傚父' });
+    console.error('语法润色 API 异常:', err);
+    res.status(500).json({ success: false, error: '语法润色服务异常' });
   }
 });
 
 // ==========================================
-// 3. 椹績鍗氬紙鐩稿叧 API (Game Theory & Prototypes)
+// 3. 驭心博弈相关 API (Game Theory & Prototypes)
 // ==========================================
 
 // 杩愯椹績鍗氬紙宸ヤ綔娴侊紝骞惰嚜鍔ㄦ寔涔呭寲鎻愬彇鍑烘潵鐨勪汉鎬у師鍨?
@@ -1528,8 +1528,8 @@ app.post('/api/game-theory/analyze', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Dify 鍗氬紙寮曟搸璇锋眰澶辫触:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 璇锋眰澶辫触: ${response.status}` });
+      console.error('Dify 博弈引擎请求失败:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
     }
 
     const data = await response.json();
@@ -1541,7 +1541,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
     try {
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
-      console.error('瑙ｆ瀽 Dify 杩斿洖鐨?JSON 澶辫触:', e, rawResult);
+      console.error('解析 Dify 杩斿洖鐨?JSON 失败:', e, rawResult);
       return res.status(500).json({ success: false, error: '鍗氬紙鍒嗘瀽缁撴灉鏍煎紡寮傚父锛屾棤娉曡В鏋?JSON' });
     }
 
@@ -1575,8 +1575,8 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       result: parsedResult
     });
   } catch (err) {
-    console.error('鍗氬紙寮曟搸鍒嗘瀽寮傚父:', err);
-    res.status(500).json({ success: false, error: '鍗氬紙鍒嗘瀽寮曟搸寮傚父' });
+    console.error('博弈引擎分析异常:', err);
+    res.status(500).json({ success: false, error: '博弈分析引擎异常' });
   }
 });
 
@@ -1592,7 +1592,7 @@ app.get('/api/game-theory/prototypes', (req, res) => {
   }
 });
 
-// 娣诲姞/鎵嬪姩鏇存柊浜烘€у師鍨嬫。妗?
+// 添加/鎵嬪姩鏇存柊浜烘€у師鍨嬫。妗?
 app.post('/api/game-theory/prototypes', (req, res) => {
   try {
     const { userId = 'default-user', name, type, description } = req.body;
@@ -1635,7 +1635,7 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
   }
 });
 
-// 鍏滃簳 404
+// 兜底 404
 // TTS 语音合成接口
 app.post('/api/tts/speech', async (req, res) => {
   try {
