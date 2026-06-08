@@ -173,7 +173,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
     <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left select-text relative">
       {isLoading && (
         <div className="absolute inset-0 bg-white/80 backdrop-blur-[1px] rounded-2xl flex flex-col items-center justify-center z-10">
-          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mb-2" />
+          <Loader2 className="w-8 h-8 text-[#FF5722] animate-spin mb-2" />
           <span className="text-xs font-bold text-slate-500">AI 正在精心梳理记忆法...</span>
         </div>
       )}
@@ -187,14 +187,14 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
 
       {!memoryAids ? (
         <div className="flex flex-col items-center justify-center py-8 text-center">
-          <Sparkles className="w-8 h-8 text-indigo-400 animate-pulse mb-2.5" />
+          <Sparkles className="w-8 h-8 text-amber-500 animate-pulse mb-2.5" />
           <div className="text-xs font-bold text-slate-700">暂无 AI 记忆辅助内容</div>
           <div className="text-[10px] text-slate-400 mt-1 max-w-[240px]">
             点击下方按钮，我们将为您深度提取此单词的词根词缀、趣味联想与助记画面。
           </div>
           <button
             onClick={handleEnrich}
-            className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-indigo-600 to-violet-600 hover:opacity-95 shadow-md transition-all active:scale-95 select-none"
+            className="mt-4 flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-[#FF5722] hover:opacity-95 shadow-md transition-all active:scale-95 select-none"
           >
             <Sparkles className="w-3.5 h-3.5" />
             生成 AI 记忆脑图
@@ -206,25 +206,25 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
           <div className="flex border-b border-slate-100 pb-1">
             <button
               onClick={() => setActiveTab('root')}
-              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'root' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'root' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
             >
               词根词缀
             </button>
             <button
               onClick={() => setActiveTab('assoc')}
-              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'assoc' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'assoc' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
             >
               联想记忆
             </button>
             <button
               onClick={() => setActiveTab('phrase')}
-              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'phrase' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'phrase' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
             >
               助记短语
             </button>
             <button
               onClick={() => setActiveTab('image')}
-              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'image' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              className={`flex-1 text-[11px] font-black pb-1.5 border-b-2 text-center transition-all ${activeTab === 'image' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
             >
               图片记忆
             </button>
@@ -234,7 +234,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
           <div className="min-h-[120px] pt-1">
             {activeTab === 'root' && (
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
-                <div className="text-[10px] font-bold text-indigo-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
+                <div className="text-[10px] font-bold text-orange-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
                   <Compass className="w-3.5 h-3.5" />
                   词根词缀剖析
                 </div>
@@ -246,7 +246,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
 
             {activeTab === 'assoc' && (
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
-                <div className="text-[10px] font-bold text-indigo-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
+                <div className="text-[10px] font-bold text-orange-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
                   <Sparkles className="w-3.5 h-3.5" />
                   联想记忆网络
                 </div>
@@ -258,7 +258,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
 
             {activeTab === 'phrase' && (
               <div className="bg-slate-50 border border-slate-100 rounded-xl p-3.5">
-                <div className="text-[10px] font-bold text-indigo-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
+                <div className="text-[10px] font-bold text-orange-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5" />
                   助记实用短语
                 </div>
@@ -278,7 +278,8 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
             </span>
             <button
               onClick={handleEnrich}
-              className="flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100/80 px-2.5 py-1.5 rounded-lg transition"
+              disabled={isGeneratingImage}
+              className="flex items-center gap-1 text-[10px] font-bold text-[#FF5722] hover:text-orange-700 bg-orange-50 hover:bg-orange-100/80 disabled:opacity-50 disabled:cursor-not-allowed px-2.5 py-1.5 rounded-lg transition"
             >
               <RefreshCw className="w-3 h-3" />
               重新生成 AI 记忆

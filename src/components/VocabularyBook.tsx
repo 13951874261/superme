@@ -71,11 +71,6 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
       <div className="text-left">
         {activeTab === 'definition' && (
           <div className="bg-white border border-slate-100 rounded-xl p-3.5 space-y-2.5 max-h-[220px] overflow-y-auto shadow-sm">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-slate-800">{word.word}</span>
-              {phonetic && <span className="text-xs font-mono text-slate-400">[{phonetic}]</span>}
-              {pos && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold">{pos}</span>}
-            </div>
             <div className="text-xs text-slate-700 leading-relaxed font-medium">
               {translation || <span className="text-slate-400 italic">暂无中文释义</span>}
             </div>
@@ -328,6 +323,7 @@ export default function VocabularyBook() {
               ) : (
                 words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).map(word => {
                   const payload = word.payload || {};
+                  const pos = payload.pos || '';
                   const phonetic = payload.phonetic || '';
                   const translation = payload.definition || payload.translation_main || (Array.isArray(payload.definitions_en) ? payload.definitions_en[0] : '');
                   const isOpened = expandedWordId === word.id;
@@ -340,43 +336,54 @@ export default function VocabularyBook() {
                         className={`flex items-center justify-between px-4 py-3 cursor-pointer group transition-colors ${isOpened ? 'bg-indigo-50/20' : ''}`}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <div className="font-bold text-[#202124] text-sm truncate">
-                              {word.word}
-                            </div>
-                            {phonetic && (
-                              <span className="text-[11px] font-mono text-slate-400 font-medium select-none">
-                                [{phonetic}]
-                              </span>
-                            )}
-                            <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
-                          </div>
-                          
-                          {/* 核心释义预览 */}
-                          {translation && (
-                            <div className="text-[11px] text-gray-500 truncate mt-0.5 max-w-[85%] font-medium">
-                              {translation}
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <Clock className="w-3 h-3 text-gray-300 shrink-0" />
-                            <span className={`text-[10px] inline-flex items-center gap-1 shrink-0 ${word.next_review_date <= Date.now() && word.repetitions < 999 ? 'text-[#FF5722] font-bold' : 'text-gray-400'}`}>
-                              {word.repetitions === 999 ? (
-                                <>
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                  <span>已归档，彻底掌握</span>
-                                </>
-                              ) : (
-                                formatNextReview(word.next_review_date)
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="font-bold text-[#202124] text-sm min-w-0 truncate">
+                                {word.word}
+                              </div>
+                              {pos && (
+                                <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold shrink-0 select-none">
+                                  {pos}
+                                </span>
                               )}
-                            </span>
-                            {word.repetitions > 0 && word.repetitions !== 999 && (
-                              <span className="text-[10px] text-gray-300 shrink-0">
-                                · 第 {word.repetitions} 级复习
-                              </span>
+                              {phonetic && (
+                                <span className="text-[10px] font-mono text-slate-400 font-medium select-none truncate max-w-[90px] shrink-1">
+                                  [{phonetic}]
+                                </span>
+                              )}
+                              <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
+                            </div>
+                            
+                            {/* 核心释义预览 (已展开时则隐藏，避免与详情重合) */}
+                            {translation && !isOpened && (
+                              <div className="text-[11px] text-gray-500 truncate mt-0.5 max-w-[85%] font-medium">
+                                {translation}
+                              </div>
                             )}
-                          </div>
+
+                            {/* 艾宾浩斯复习状态高颜值 Pill Badge */}
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              {word.repetitions === 999 ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100/50 select-none shrink-0">
+                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
+                                  <span>已归档，已掌握</span>
+                                </span>
+                              ) : word.next_review_date <= Date.now() ? (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-50/70 text-amber-600 border border-amber-100/50 select-none shrink-0">
+                                  <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                                  <span>今日待复习</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-50 text-gray-500 border border-gray-100/60 select-none shrink-0">
+                                  <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                                  <span>{formatNextReview(word.next_review_date)}</span>
+                                </span>
+                              )}
+                              {word.repetitions > 0 && word.repetitions !== 999 && (
+                                <span className="text-[9px] text-gray-400 shrink-0 bg-slate-50 border border-slate-100/50 px-1.5 py-0.5 rounded-full font-medium">
+                                  第 {word.repetitions} 级复习
+                                </span>
+                              )}
+                            </div>
                         </div>
                         
                         {/* 操作图标（悬浮显示） */}
