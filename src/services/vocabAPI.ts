@@ -34,6 +34,97 @@ export interface DictQueryParams {
   userId?: string;
 }
 
+// --- 现代汉语词典结构 ---
+export interface OtherMeaningZh {
+  meaning: string;
+  context: string;
+}
+
+export interface ConfusablePairZh {
+  term: string;
+  note: string;
+}
+
+export interface ZhModernPayload {
+  pos: string;
+  definition: string;
+  phonetic: string;
+  usage_notes: string;
+  other_meanings: OtherMeaningZh[];
+  example_sentences: string[];
+  collocations: string[];
+  synonyms: string[];
+  antonyms: string[];
+  confusable_pairs: ConfusablePairZh[];
+}
+
+// --- 商务英英词典结构 ---
+export interface ScenarioEn {
+  scene: string;
+  example_en: string;
+}
+
+export interface OtherMeaningEn {
+  meaning_en: string;
+  context_en: string;
+}
+
+export interface EnEnBusinessPayload {
+  headword: string;
+  pos: string;
+  phonetic: string;
+  definitions_en: string[];
+  business_notes: string;
+  scenarios: ScenarioEn[];
+  other_meanings: OtherMeaningEn[];
+  example_sentences: string[];
+  synonyms: string[];
+  antonyms: string[];
+  collocations: string[];
+}
+
+// --- 英汉双向商务词典结构 ---
+export interface OtherMeaningEnZh {
+  meaning: string;
+  context: string;
+}
+
+export interface BusinessExampleEnZh {
+  zh: string;
+  en: string;
+  scene: string;
+}
+
+export interface ExampleSentenceEnZh {
+  en: string;
+  zh: string;
+}
+
+export interface EnZhBidirectionalPayload {
+  direction_resolved: 'en_to_zh' | 'zh_to_en';
+  phonetic: string;
+  pos: string;
+  translation_main: string;
+  other_meanings: OtherMeaningEnZh[];
+  business_examples: BusinessExampleEnZh[];
+  example_sentences: ExampleSentenceEnZh[];
+  synonyms: string[];
+  antonyms: string[];
+  collocations: string[];
+  etymology?: string;
+}
+
+export type DictPayload = ZhModernPayload | EnEnBusinessPayload | EnZhBidirectionalPayload;
+
+export interface DictResult {
+  ok: boolean;
+  type?: 'zh_modern' | 'en_en_business' | 'en_zh_bidirectional';
+  payload?: DictPayload;
+  error_code?: string;
+  message?: string;
+}
+
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -127,7 +218,7 @@ export async function deleteWord(id: string): Promise<{ success: boolean }> {
 }
 
 /** 词典查询（由后端代理 Dify，避免前端暴露 token） */
-export async function queryDictionary(params: DictQueryParams): Promise<any> {
+export async function queryDictionary(params: DictQueryParams): Promise<DictResult> {
   const res = await fetch('/api/dify/dict-query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

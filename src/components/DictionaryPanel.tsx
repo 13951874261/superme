@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Type, BookA, Languages, ChevronRight, Search, Loader2, BookmarkPlus, AlertCircle, ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { Type, BookA, Languages, ChevronRight, Search, Loader2, BookmarkPlus, AlertCircle, ChevronLeft, CheckCircle2, ChevronDown, Sparkles, BookOpen, AlertOctagon } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import { addWord, queryDictionary } from '../services/vocabAPI';
+import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 
 type DictType = 'zh_modern' | 'en_en_business' | 'en_zh_bidirectional';
 
@@ -83,112 +84,234 @@ export function renderValue(value: any, depth = 0, keyName?: string, queryWord?:
   return <span>{String(value)}</span>;
 }
 
-// 现代汉语词典一体化排版
-function renderZhModern(payload: any, query: string) {
-  const { definition, usage_notes, collocations, confusable_pairs, example_sentences } = payload;
+// ==========================================
+// 1. 现代汉语词典卡片展示组件
+// ==========================================
+interface ZhModernViewProps {
+  payload: ZhModernPayload;
+  query: string;
+}
+
+export function ZhModernView({ payload, query }: ZhModernViewProps) {
+  const { pos, definition, phonetic, usage_notes, other_meanings = [], example_sentences = [], collocations = [], synonyms = [], antonyms = [], confusable_pairs = [] } = payload;
+  
+  const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
+  const [showCollocations, setShowCollocations] = useState(false);
+  const [showConfusable, setShowConfusable] = useState(false);
 
   return (
-    <div className="space-y-4 text-left">
-      {/* 头部 */}
-      <div className="flex items-baseline justify-between pb-2 border-b border-gray-100">
-        <div className="flex items-baseline gap-2">
-          <span className="text-xl font-bold text-gray-900 select-all">{query}</span>
-          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">现代汉语</span>
+    <div className="space-y-4 text-left select-text selection:bg-indigo-100">
+      {/* 词条头部 */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div className="flex flex-wrap items-baseline gap-2.5">
+          <span className="text-2xl font-black tracking-tight select-all text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-100">{query}</span>
+          {phonetic && (
+            <span className="text-sm font-mono text-indigo-300/90 font-medium">[{phonetic}]</span>
+          )}
+          {pos && (
+            <span className="text-xs bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 px-2 py-0.5 rounded-md font-semibold select-none">
+              {pos}
+            </span>
+          )}
+          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">现代汉语</span>
         </div>
       </div>
 
-      {/* 释义 */}
-      <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-3.5 shadow-sm">
-        <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">词典释义</div>
+      {/* 核心释义 */}
+      <div className="relative border border-indigo-100/80 bg-gradient-to-r from-indigo-50/50 to-indigo-100/10 rounded-2xl p-4 shadow-sm overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+        <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5 select-none flex items-center gap-1">
+          <BookOpen className="w-3.5 h-3.5" />
+          核心释义
+        </div>
         <div className="text-sm font-semibold text-gray-800 leading-relaxed">{definition}</div>
       </div>
 
       {/* 用法说明 */}
       {usage_notes && (
-        <div className="border-l-4 border-indigo-500 bg-indigo-50/10 p-3 rounded-r-xl border border-y-gray-100 border-r-gray-100">
-          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">用法/语境规范</div>
-          <div className="text-xs text-gray-600 leading-relaxed">{usage_notes}</div>
+        <div className="border border-gray-100 bg-gray-50/30 rounded-2xl p-3.5 shadow-inner">
+          <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1 flex items-center gap-1 select-none">
+            <Sparkles className="w-3.5 h-3.5" />
+            用法语境规范
+          </div>
+          <div className="text-xs text-gray-600 leading-relaxed font-medium">{usage_notes}</div>
         </div>
       )}
 
-      {/* 搭配 */}
-      {Array.isArray(collocations) && collocations.length > 0 && (
+      {/* 其他释义 (手风琴) */}
+      {other_meanings.length > 0 && (
         <div className="space-y-1.5">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">常用搭配</div>
-          <div className="flex flex-wrap gap-1.5">
-            {collocations.map((coll: string, idx: number) => (
-              <span key={idx} className="text-xs font-semibold text-gray-600 bg-gray-50 border border-gray-200/50 px-2.5 py-1 rounded-full">
-                {coll}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 易混辨析 */}
-      {Array.isArray(confusable_pairs) && confusable_pairs.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">易混近义辨析</div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">其他释义 (点击展开语境)</div>
           <div className="space-y-2">
-            {confusable_pairs.map((pair: any, idx: number) => (
-              <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:shadow transition">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
-                  <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">{pair.term}</span>
+            {other_meanings.map((item, idx) => {
+              const isOpen = openMeaningIdx === idx;
+              return (
+                <div key={idx} className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm hover:border-gray-200 transition-all">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenMeaningIdx(isOpen ? null : idx); }}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition"
+                  >
+                    <span className="text-xs font-bold text-gray-750">{item.meaning}</span>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-205 ${isOpen ? 'rotate-90 text-indigo-500' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="px-3 pb-3 pt-1 border-t border-gray-50 text-[11px] text-gray-500 bg-gray-50/30 leading-relaxed">
+                      <span className="font-bold text-gray-400">语境例证：</span>{item.context}
+                    </div>
+                  )}
                 </div>
-                <div className="text-xs text-gray-500 leading-relaxed mt-1 pl-3">{pair.note}</div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 例句区 */}
+      {example_sentences.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">例句支撑</div>
+          <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
+            {example_sentences.map((sent, idx) => (
+              <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs text-gray-700 leading-relaxed flex gap-2">
+                <span className="text-indigo-400 font-bold shrink-0">{idx + 1}.</span>
+                <span className="select-text">{sent}</span>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* 例句 */}
-      {Array.isArray(example_sentences) && example_sentences.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">例句支撑</div>
-          <div className="space-y-2 bg-gray-50/50 border border-gray-100 rounded-xl p-3">
-            {example_sentences.map((sent: string, idx: number) => (
-              <div key={idx} className="text-xs text-gray-700 leading-relaxed flex gap-2">
-                <span className="text-indigo-400 font-bold shrink-0">{idx + 1}.</span>
-                <span>{sent}</span>
+      {/* 同义词/反义词 (并排胶囊标签云) */}
+      {(synonyms.length > 0 || antonyms.length > 0) && (
+        <div className="grid grid-cols-2 gap-4">
+          {synonyms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">近义词</div>
+              <div className="flex flex-wrap gap-1.5">
+                {synonyms.map((s, idx) => (
+                  <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100/80 px-2.5 py-1 rounded-full shadow-sm">
+                    {s}
+                  </span>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+          {antonyms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">反义词</div>
+              <div className="flex flex-wrap gap-1.5">
+                {antonyms.map((a, idx) => (
+                  <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100/80 px-2.5 py-1 rounded-full shadow-sm">
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+      {/* 搭配与易混辨析 (折叠面板) */}
+      <div className="space-y-2 pt-2">
+        {collocations.length > 0 && (
+          <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowCollocations(!showCollocations); }}
+              className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition font-bold text-xs text-gray-650 select-none"
+            >
+              <span>常用搭配 ({collocations.length})</span>
+              <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showCollocations ? 'rotate-90' : ''}`} />
+            </button>
+            {showCollocations && (
+              <div className="p-3 border-t border-gray-50 bg-gray-50/30 flex flex-wrap gap-1.5">
+                {collocations.map((coll, idx) => (
+                  <span key={idx} className="text-xs font-medium text-gray-600 bg-white border border-gray-200/80 px-2.5 py-1 rounded-lg">
+                    {coll}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {confusable_pairs.length > 0 && (
+          <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowConfusable(!showConfusable); }}
+              className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition font-bold text-xs text-gray-650 select-none"
+            >
+              <span>易混近义辨析 ({confusable_pairs.length})</span>
+              <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showConfusable ? 'rotate-90' : ''}`} />
+            </button>
+            {showConfusable && (
+              <div className="p-3 border-t border-gray-50 bg-gray-50/30 space-y-2.5">
+                {confusable_pairs.map((pair, idx) => (
+                  <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
+                    <div className="flex items-center gap-1.5 mb-1.5 select-none">
+                      <AlertOctagon className="w-3.5 h-3.5 text-indigo-500" />
+                      <span className="text-xs font-bold text-indigo-750 bg-indigo-55 px-2 py-0.5 rounded-md">{pair.term}</span>
+                    </div>
+                    <div className="text-xs text-gray-500 leading-relaxed pl-5">{pair.note}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-// 商务英英词典一体化排版
-function renderEnEnBusiness(payload: any, query: string) {
-  const { headword, pos, definitions_en, business_notes, scenarios } = payload;
+// ==========================================
+// 2. 商务英英词典卡片展示组件
+// ==========================================
+interface EnEnBusinessViewProps {
+  payload: EnEnBusinessPayload;
+  query: string;
+}
+
+export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
+  const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [] } = payload;
+  
+  const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
+  const [showCollocations, setShowCollocations] = useState(false);
   const wordDisplay = headword || query;
 
   return (
-    <div className="space-y-4 text-left">
-      {/* 头部 */}
-      <div className="flex items-baseline justify-between pb-2 border-b border-gray-100">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-xl font-bold text-gray-900 select-all">{wordDisplay}</span>
-          {pos && (
-            <span className="text-xs italic text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded font-medium">{pos}</span>
+    <div className="space-y-4 text-left select-text selection:bg-indigo-100">
+      {/* 词条头部 */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-2xl font-black tracking-tight select-all text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-100">{wordDisplay}</span>
+          {phonetic && (
+            <span className="text-sm font-mono text-indigo-300/90 font-medium">{phonetic}</span>
           )}
-          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">商务英英</span>
+          {pos && (
+            <span className="text-xs italic bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 px-2 py-0.5 rounded-md font-semibold select-none">
+              {pos}
+            </span>
+          )}
+          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">商务英英</span>
+          {hasEnglishText(wordDisplay) && (
+            <SpeakButton text={wordDisplay} title="播放词条发音" className="w-7 h-7 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center justify-center shrink-0 border border-white/10" iconClassName="w-3.5 h-3.5" />
+          )}
         </div>
-        {hasEnglishText(wordDisplay) && (
-          <SpeakButton text={wordDisplay} title="播放词条发音" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
-        )}
       </div>
 
       {/* 定义列表 */}
-      {Array.isArray(definitions_en) && definitions_en.length > 0 && (
-        <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-3.5 shadow-sm">
-          <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1.5">Definitions</div>
+      {definitions_en.length > 0 && (
+        <div className="relative border border-amber-100/80 bg-gradient-to-r from-amber-50/50 to-amber-100/10 rounded-2xl p-4 shadow-sm overflow-hidden">
+          <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500"></div>
+          <div className="text-[10px] font-bold text-amber-700 uppercase tracking-widest mb-1.5 select-none flex items-center gap-1">
+            <BookOpen className="w-3.5 h-3.5" />
+            Definitions
+          </div>
           <ol className="list-decimal pl-4 space-y-2">
-            {definitions_en.map((def: string, idx: number) => (
-              <li key={idx} className="text-sm text-gray-800 leading-relaxed font-medium pl-0.5">
+            {definitions_en.map((def, idx) => (
+              <li key={idx} className="text-sm font-semibold text-gray-800 leading-relaxed pl-0.5">
                 {def}
               </li>
             ))}
@@ -198,85 +321,320 @@ function renderEnEnBusiness(payload: any, query: string) {
 
       {/* 商务注解 */}
       {business_notes && (
-        <div className="border-l-4 border-indigo-500 bg-indigo-50/10 p-3 rounded-r-xl border border-y-gray-100 border-r-gray-100">
-          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-1">商务用法注解</div>
+        <div className="border border-indigo-100/60 bg-indigo-50/10 p-4 rounded-2xl shadow-sm">
+          <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1 flex items-center gap-1 select-none">
+            <Sparkles className="w-3.5 h-3.5" />
+            Business Usage Notes
+          </div>
           <div className="text-xs text-gray-600 leading-relaxed font-medium">{business_notes}</div>
         </div>
       )}
 
-      {/* 应用场景 */}
-      {Array.isArray(scenarios) && scenarios.length > 0 && (
-        <div className="space-y-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">Workplace Scenarios</div>
-          <div className="space-y-2.5">
-            {scenarios.map((sc: any, idx: number) => (
-              <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:border-indigo-100 transition">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
-                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{sc.scene || '场景'}</span>
-                  {hasEnglishText(sc.example_en) && (
-                    <SpeakButton text={sc.example_en} title="播放例句发音" className="ml-auto w-6 h-6 shrink-0" iconClassName="w-3 h-3" />
+      {/* 其他释义 (手风琴) */}
+      {other_meanings.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Other Meanings (Click to expand context)</div>
+          <div className="space-y-2">
+            {other_meanings.map((item, idx) => {
+              const isOpen = openMeaningIdx === idx;
+              return (
+                <div key={idx} className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm hover:border-gray-200 transition-all">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenMeaningIdx(isOpen ? null : idx); }}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition"
+                  >
+                    <span className="text-xs font-bold text-gray-700">{item.meaning_en}</span>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-indigo-500' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="px-3 pb-3 pt-1 border-t border-gray-50 text-[11px] text-gray-500 bg-gray-50/30 leading-relaxed select-text">
+                      <span className="font-bold text-gray-400">Context: </span>{item.context_en}
+                    </div>
                   )}
                 </div>
-                <div className="text-sm font-medium text-gray-800 leading-relaxed pl-3">{sc.example_en}</div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 商务场景用例 (Scenarios) */}
+      {scenarios.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Workplace Scenarios</div>
+          <div className="space-y-2.5">
+            {scenarios.map((sc, idx) => (
+              <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:border-indigo-100 hover:shadow transition">
+                <div className="flex items-center gap-1.5 mb-1.5 select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
+                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-55 px-1.5 py-0.5 rounded">{sc.scene || 'Scenario'}</span>
+                  {hasEnglishText(sc.example_en) && (
+                    <SpeakButton text={sc.example_en} title="Play example audio" className="ml-auto w-6 h-6 hover:bg-gray-100 rounded-lg flex items-center justify-center shrink-0 border border-gray-100" iconClassName="w-3 h-3" />
+                  )}
+                </div>
+                <div className="text-sm font-semibold text-gray-800 leading-relaxed pl-3 select-text">{sc.example_en}</div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* 真实例句支撑 */}
+      {example_sentences.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Example Sentences</div>
+          <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
+            {example_sentences.map((sent, idx) => (
+              <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs text-gray-700 leading-relaxed flex items-start gap-2">
+                <span className="text-indigo-400 font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
+                <span className="flex-1 select-text">{sent}</span>
+                {hasEnglishText(sent) && (
+                  <SpeakButton text={sent} title="Play audio" className="w-6 h-6 hover:bg-gray-50 rounded-md flex items-center justify-center shrink-0" iconClassName="w-3 h-3" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 同义词/反义词 (并排胶囊标签云) */}
+      {(synonyms.length > 0 || antonyms.length > 0) && (
+        <div className="grid grid-cols-2 gap-4">
+          {synonyms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Synonyms</div>
+              <div className="flex flex-wrap gap-1.5">
+                {synonyms.map((s, idx) => (
+                  <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100/80 px-2.5 py-1 rounded-full shadow-sm">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {antonyms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Antonyms</div>
+              <div className="flex flex-wrap gap-1.5">
+                {antonyms.map((a, idx) => (
+                  <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100/80 px-2.5 py-1 rounded-full shadow-sm">
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 搭配 (折叠面板) */}
+      {collocations.length > 0 && (
+        <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowCollocations(!showCollocations); }}
+            className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition font-bold text-xs text-gray-600 select-none"
+          >
+            <span>Collocations ({collocations.length})</span>
+            <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showCollocations ? 'rotate-90' : ''}`} />
+          </button>
+          {showCollocations && (
+            <div className="p-3 border-t border-gray-50 bg-gray-50/30 flex flex-wrap gap-1.5">
+              {collocations.map((coll, idx) => (
+                <span key={idx} className="text-xs font-medium text-gray-600 bg-white border border-gray-200/80 px-2.5 py-1 rounded-lg">
+                  {coll}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// 英汉双向商务词典一体化排版
-function renderEnZhBidirectional(payload: any, query: string) {
-  const { direction_resolved, phonetic, translation_main, business_examples } = payload;
+// ==========================================
+// 3. 英汉双向商务词典卡片展示组件
+// ==========================================
+interface EnZhBidirectionalViewProps {
+  payload: EnZhBidirectionalPayload;
+  query: string;
+}
+
+export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
+  const { direction_resolved, phonetic, pos, translation_main, other_meanings = [], business_examples = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [], etymology } = payload;
+  
+  const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
+  const [showCollocations, setShowCollocations] = useState(false);
   const isEnToZh = direction_resolved === 'en_to_zh';
   const speakText = query;
 
   return (
-    <div className="space-y-4 text-left">
-      {/* 头部 */}
-      <div className="flex items-baseline justify-between pb-2 border-b border-gray-100">
-        <div className="flex items-baseline gap-2 flex-wrap">
-          <span className="text-xl font-bold text-gray-900 select-all">{query}</span>
+    <div className="space-y-4 text-left select-text selection:bg-indigo-100">
+      {/* 词条头部 */}
+      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
+        <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-2xl font-black tracking-tight select-all text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-100">{query}</span>
           {phonetic && (
-            <span className="text-xs font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">{phonetic}</span>
+            <span className="text-sm font-mono text-indigo-300/90 font-medium">[{phonetic}]</span>
           )}
-          <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">
+          {pos && (
+            <span className="text-xs italic bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 px-2 py-0.5 rounded-md font-semibold select-none">
+              {pos}
+            </span>
+          )}
+          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">
             {isEnToZh ? '英 ➜ 汉' : '汉 ➜ 英'}
           </span>
+          {hasEnglishText(speakText) && (
+            <SpeakButton text={speakText} title="播放词条发音" className="w-7 h-7 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center justify-center shrink-0 border border-white/10" iconClassName="w-3.5 h-3.5" />
+          )}
         </div>
-        {hasEnglishText(speakText) && (
-          <SpeakButton text={speakText} title="播放词条发音" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
-        )}
       </div>
 
-      {/* 核心翻译 */}
-      <div className="bg-indigo-50/20 border border-indigo-100/50 rounded-xl p-3.5 shadow-sm">
-        <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1">核心译义</div>
-        <div className="text-base font-bold text-gray-800 leading-relaxed">{translation_main}</div>
+      {/* 核心释义 */}
+      <div className="relative border border-indigo-100/80 bg-gradient-to-r from-indigo-50/50 to-indigo-100/10 rounded-2xl p-4 shadow-sm overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+        <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1 select-none flex items-center gap-1">
+          <BookOpen className="w-3.5 h-3.5" />
+          核心释义
+        </div>
+        <div className="text-base font-bold text-gray-800 leading-relaxed mt-1">{translation_main}</div>
       </div>
 
-      {/* 商务例句 */}
-      {Array.isArray(business_examples) && business_examples.length > 0 && (
+      {/* 其他释义 (手风琴) */}
+      {other_meanings.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">其他释义 (点击展开语境)</div>
+          <div className="space-y-2">
+            {other_meanings.map((item, idx) => {
+              const isOpen = openMeaningIdx === idx;
+              return (
+                <div key={idx} className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm hover:border-gray-200 transition-all">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setOpenMeaningIdx(isOpen ? null : idx); }}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition"
+                  >
+                    <span className="text-xs font-bold text-gray-700">{item.meaning}</span>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-indigo-500' : ''}`} />
+                  </button>
+                  {isOpen && (
+                    <div className="px-3 pb-3 pt-1 border-t border-gray-50 text-[11px] text-gray-500 bg-gray-50/30 leading-relaxed select-text">
+                      <span className="font-bold text-gray-400">{isEnToZh ? 'Context: ' : '使用说明：'}</span>{item.context}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* 商务场景例句 (Business Examples) */}
+      {business_examples.length > 0 && (
         <div className="space-y-2">
-          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider pl-1">商务语境例句</div>
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">商务语境场景</div>
           <div className="space-y-2.5">
-            {business_examples.map((ex: any, idx: number) => (
-              <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm hover:border-indigo-100 transition">
-                <div className="flex items-center gap-1.5 mb-1">
+            {business_examples.map((ex, idx) => (
+              <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:border-indigo-100 hover:shadow transition">
+                <div className="flex items-center gap-1.5 mb-1 select-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
                   <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{ex.scene || '商务场景'}</span>
                   {hasEnglishText(ex.en) && (
-                    <SpeakButton text={ex.en} title="播放例句发音" className="ml-auto w-6 h-6 shrink-0" iconClassName="w-3 h-3" />
+                    <SpeakButton text={ex.en} title="播放例句发音" className="ml-auto w-6 h-6 hover:bg-gray-100 rounded-lg flex items-center justify-center shrink-0 border border-gray-100" iconClassName="w-3 h-3" />
                   )}
                 </div>
-                <div className="text-sm font-medium text-gray-800 leading-relaxed pl-3">{ex.en}</div>
-                <div className="text-xs text-gray-500 mt-1 leading-relaxed pl-3">{ex.zh}</div>
+                <div className="text-sm font-semibold text-gray-800 leading-relaxed pl-3 select-text">{ex.en}</div>
+                <div className="text-xs text-gray-500 mt-1 leading-relaxed pl-3 select-text">{ex.zh}</div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* 真实中英双语例句 */}
+      {example_sentences.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">中英对照例句</div>
+          <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
+            {example_sentences.map((sent, idx) => (
+              <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs leading-relaxed flex items-start gap-2">
+                <span className="text-indigo-400 font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
+                <div className="flex-1 space-y-1">
+                  <div className="text-gray-800 font-medium select-text">{sent.en}</div>
+                  <div className="text-gray-500 select-text">{sent.zh}</div>
+                </div>
+                {hasEnglishText(sent.en) && (
+                  <SpeakButton text={sent.en} title="播放音轨" className="w-6 h-6 hover:bg-gray-50 rounded-md flex items-center justify-center shrink-0 mt-0.5" iconClassName="w-3 h-3" />
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 同义词/反义词 (并排胶囊标签云) */}
+      {(synonyms.length > 0 || antonyms.length > 0) && (
+        <div className="grid grid-cols-2 gap-4">
+          {synonyms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">近义词</div>
+              <div className="flex flex-wrap gap-1.5">
+                {synonyms.map((s, idx) => (
+                  <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100/80 px-2.5 py-1 rounded-full shadow-sm">
+                    {s}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {antonyms.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">反义词</div>
+              <div className="flex flex-wrap gap-1.5">
+                {antonyms.map((a, idx) => (
+                  <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100/80 px-2.5 py-1 rounded-full shadow-sm">
+                    {a}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 搭配与词源 (折叠面板) */}
+      {(collocations.length > 0 || etymology) && (
+        <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowCollocations(!showCollocations); }}
+            className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition font-bold text-xs text-gray-600 select-none"
+          >
+            <span>高频搭配与词源 ({collocations.length + (etymology ? 1 : 0)})</span>
+            <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showCollocations ? 'rotate-90' : ''}`} />
+          </button>
+          {showCollocations && (
+            <div className="p-3 border-t border-gray-50 bg-gray-50/30 space-y-3">
+              {collocations.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-0.5 select-none">常用词组/搭配</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {collocations.map((coll, idx) => (
+                      <span key={idx} className="text-xs font-medium text-gray-605 bg-white border border-gray-200/80 px-2.5 py-1 rounded-lg">
+                        {coll}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {etymology && (
+                <div className="space-y-1 pt-1.5 border-t border-gray-100/60">
+                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-0.5 select-none">词汇探源 (Etymology)</div>
+                  <div className="text-xs text-gray-500 leading-relaxed pl-0.5 select-text font-medium">{etymology}</div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -416,12 +774,12 @@ export default function DictionaryPanel() {
                   {result?.ok && result.payload && (
                     <div className="bg-white rounded-xl border border-gray-100 p-3.5 shadow-sm space-y-4">
                       {/* 一体化排版展示 */}
-                      {result.type === 'zh_modern' ? renderZhModern(result.payload, query) :
-                       result.type === 'en_en_business' ? renderEnEnBusiness(result.payload, query) :
-                       result.type === 'en_zh_bidirectional' ? renderEnZhBidirectional(result.payload, query) :
+                      {result.type === 'zh_modern' ? <ZhModernView payload={result.payload} query={query} /> :
+                       result.type === 'en_en_business' ? <EnEnBusinessView payload={result.payload} query={query} /> :
+                       result.type === 'en_zh_bidirectional' ? <EnZhBidirectionalView payload={result.payload} query={query} /> :
                        /* Fallback 旧式渲染 */
                        <div className="space-y-4">
-                         <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                         <div className="flex items-center justify-between pb-2 border-b border-gray-105">
                            <span className="text-sm font-bold text-gray-800">{query}</span>
                            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">未格式化数据</span>
                          </div>
