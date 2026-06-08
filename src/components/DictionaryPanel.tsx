@@ -84,6 +84,35 @@ export function renderValue(value: any, depth = 0, keyName?: string, queryWord?:
   return <span>{String(value)}</span>;
 }
 
+function renderLevelBadge(level?: string) {
+  if (!level) return null;
+  const cleanLevel = level.trim().toUpperCase();
+  
+  let bgStyles = 'bg-gray-500/10 text-gray-400 border-gray-500/20';
+  if (cleanLevel.includes('CET-4') || cleanLevel.includes('CET4')) {
+    bgStyles = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+  } else if (cleanLevel.includes('CET-6') || cleanLevel.includes('CET6')) {
+    bgStyles = 'bg-teal-500/10 text-teal-400 border-teal-500/20';
+  } else if (cleanLevel.includes('考研') || cleanLevel.includes('KY')) {
+    bgStyles = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20';
+  } else if (cleanLevel.includes('TOEFL') || cleanLevel.includes('托福')) {
+    bgStyles = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+  } else if (cleanLevel.includes('GRE')) {
+    bgStyles = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+  } else if (cleanLevel.includes('BUSINESS') || cleanLevel.includes('商务')) {
+    bgStyles = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
+  } else if (cleanLevel.includes('IELTS') || cleanLevel.includes('雅思')) {
+    bgStyles = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+  }
+
+  return (
+    <span className={`text-[10px] font-bold border px-1.5 py-0.5 rounded select-none ${bgStyles}`}>
+      {level}
+    </span>
+  );
+}
+
+
 // ==========================================
 // 1. 现代汉语词典卡片展示组件
 // ==========================================
@@ -114,6 +143,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
               {pos}
             </span>
           )}
+          {payload.level && renderLevelBadge(payload.level)}
           <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">现代汉语</span>
         </div>
       </div>
@@ -294,6 +324,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
               {pos}
             </span>
           )}
+          {payload.level && renderLevelBadge(payload.level)}
           <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">商务英英</span>
           {hasEnglishText(wordDisplay) && (
             <SpeakButton text={wordDisplay} title="播放词条发音" className="w-7 h-7 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center justify-center shrink-0 border border-white/10" iconClassName="w-3.5 h-3.5" />
@@ -483,6 +514,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
               {pos}
             </span>
           )}
+          {payload.level && renderLevelBadge(payload.level)}
           <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">
             {isEnToZh ? '英 ➜ 汉' : '汉 ➜ 英'}
           </span>

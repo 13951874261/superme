@@ -65,6 +65,29 @@ try {
   // 字段已存在，忽略
 }
 
+// 自动迁移：新增 memory_aids 字段
+try {
+  db.prepare("ALTER TABLE vocabulary ADD COLUMN memory_aids TEXT").run();
+  console.log('Migration: Added memory_aids column to vocabulary table.');
+} catch (err) {
+  // 字段已存在，忽略
+}
+
+// 初始化字典查询日志表，支持覆盖率统计
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS dict_query_log (
+    id TEXT PRIMARY KEY,
+    word TEXT NOT NULL,
+    dict_type TEXT NOT NULL,
+    direction TEXT,
+    user_context TEXT,
+    locale TEXT,
+    is_success INTEGER,
+    response_payload TEXT,
+    created_at INTEGER
+  )
+`).run();
+
 // 初始化辅助表 (为了不让前端页面报错，提供基础结构)
 db.prepare(`CREATE TABLE IF NOT EXISTS materials (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER)`).run();
 
@@ -564,7 +587,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
-    console.log(`[Dict Query] 寮€濮嬫煡璇㈣瘝鏉? "${word}", 字典类型: "${dictType}"`);
+    console.log(`[Dict Query] 开始查询词条: "${word}", 字典类型: "${dictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -587,8 +610,17 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Dict Query] Dify 鏈嶅姟鍣ㄨ繑鍥為敊璇?(${response.status}):`, errText);
-      return res.status(response.status).json({ ok: false, message: `Dify 鏈嶅姟鍣ㄥ紓甯? ${response.status}` });
+      console.error(`[Dict Query] Dify 服务器返回错误(${response.status}):`, errText);
+      
+      // 记录失败日志
+      try {
+        db.prepare(`
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
+      } catch (logErr) {}
+
+      return res.status(response.status).json({ ok: false, message: `Dify 服务器异常: ${response.status}` });
     }
 
     const data = await response.json();
@@ -596,22 +628,369 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
     if (!resultStr) {
       console.warn('[Dict Query] 工作流未返回 result 字段:', data);
-      return res.status(500).json({ ok: false, message: 'Dify 宸ヤ綔娴佹湭杩斿洖姝ｇ‘鐨?result 字段' });
+      
+      // 记录失败日志
+      try {
+        db.prepare(`
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
+      } catch (logErr) {}
+
+      return res.status(500).json({ ok: false, message: 'Dify 工作流未返回正确的 result 字段' });
     }
 
-    // 瑙ｆ瀽宸ヤ綔娴佽緭鍑虹粨鏋?    let parsedResult;
+    // 解析工作流输出结果
+    let parsedResult;
     try {
       parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
     } catch (e) {
       console.error('[Dict Query] 解析 result JSON 失败:', e, resultStr);
-      return res.status(500).json({ ok: false, message: '宸ヤ綔娴佺粨鏋滆В鏋愬紓甯革紝杩斿洖鏁版嵁闈炲悎娉?JSON' });
+      
+      // 记录解析错误日志
+      try {
+        db.prepare(`
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+        `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
+      } catch (logErr) {}
+
+      return res.status(500).json({ ok: false, message: '工作流结果解析异常，返回数据非合法 JSON' });
     }
 
-    console.log(`[Dict Query] 查询 "${word}" 鎴愬姛锛岃繑鍥炵粨鏋?`, Object.keys(parsedResult?.payload || {}));
+    // 记录成功日志
+    try {
+      db.prepare(`
+        INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), Date.now());
+    } catch (logErr) {}
+
+    console.log(`[Dict Query] 查询 "${word}" 成功，返回结果`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
-    console.error('[Dict Query] 鏈嶅姟绔姹傚紓甯?', error);
-    return res.status(500).json({ ok: false, message: `璇嶅吀鏈嶅姟鍣ㄥ紓甯? ${error.message}` });
+    console.error('[Dict Query] 服务端请求异常', error);
+    return res.status(500).json({ ok: false, message: `词典服务器异常: ${error.message}` });
+  }
+});
+
+// 获取词典查询覆盖率统计
+app.get('/api/dify/dict-coverage', (req, res) => {
+  try {
+    const total = db.prepare('SELECT COUNT(*) as count FROM dict_query_log').get().count;
+    const success = db.prepare('SELECT COUNT(*) as count FROM dict_query_log WHERE is_success = 1').get().count;
+    const successRate = total > 0 ? (success / total * 100).toFixed(2) : 0;
+
+    const rows = db.prepare('SELECT response_payload FROM dict_query_log WHERE is_success = 1').all();
+    const levelCounts = {
+      'CET-4': 0,
+      'CET-6': 0,
+      '考研': 0,
+      'TOEFL': 0,
+      'GRE': 0,
+      'BUSINESS': 0,
+      '其他': 0,
+      '未分类': 0
+    };
+    
+    rows.forEach(r => {
+      try {
+        const parsed = JSON.parse(r.response_payload);
+        const level = parsed?.payload?.level || parsed?.level;
+        if (level && levelCounts[level] !== undefined) {
+          levelCounts[level]++;
+        } else if (level) {
+          levelCounts['其他']++;
+        } else {
+          levelCounts['未分类']++;
+        }
+      } catch (e) {}
+    });
+
+    res.json({
+      success: true,
+      total_queries: total,
+      success_queries: success,
+      success_rate: parseFloat(successRate),
+      level_distribution: levelCounts
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error on dict-coverage' });
+  }
+});
+
+// ==========================================
+// 记忆辅助与艾宾浩斯曲线相关 API
+// ==========================================
+
+// 获取生词本已缓存的记忆辅助
+app.get('/api/vocab/memory/:id', (req, res) => {
+  try {
+    const row = db.prepare('SELECT memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+    const memoryAids = row.memory_aids ? JSON.parse(row.memory_aids) : {};
+    res.json(memoryAids);
+  } catch (error) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 调用 Dify 记忆辅助生成引擎生成联想记忆
+app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+
+    const payload = row.payload ? JSON.parse(row.payload) : {};
+    const word = row.word;
+    
+    let phonetic = payload.phonetic || '';
+    let pos = payload.pos || '';
+    let definition = payload.definition || payload.translation_main || '';
+    if (Array.isArray(payload.definitions_en)) {
+      definition += (definition ? '; ' : '') + payload.definitions_en.join('; ');
+    }
+    let examples = '';
+    if (Array.isArray(payload.example_sentences)) {
+      examples = payload.example_sentences.map(s => typeof s === 'object' ? `${s.en || ''} ${s.zh || ''}` : s).join('\n');
+    } else if (Array.isArray(payload.business_examples)) {
+      examples = payload.business_examples.map(s => `${s.en || ''} ${s.zh || ''}`).join('\n');
+    }
+
+    const memoryApiKey = process.env.DIFY_MEMORY_AID_API_KEY || 'app-aElSukJkmKmojPkVSk6H1mmN';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    console.log(`[Memory Aid] Generating memory aid for "${word}" (ID: ${row.id})`);
+
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${memoryApiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: {
+          word: word.trim(),
+          phonetic: phonetic || '',
+          pos: pos || '',
+          definition: definition || '',
+          examples: examples || ''
+        },
+        response_mode: 'blocking',
+        user: 'system-agent'
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[Memory Aid] Dify response error (${response.status}):`, errText);
+      return res.status(response.status).json({ error: `Dify workflow error: ${response.status}` });
+    }
+
+    const data = await response.json();
+    const resultStr = data?.data?.outputs?.result;
+
+    if (!resultStr) {
+      console.warn('[Memory Aid] Workflow did not return result:', data);
+      return res.status(500).json({ error: 'Dify workflow failed to return memory aids.' });
+    }
+
+    let parsedResult;
+    try {
+      parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr.trim()) : resultStr;
+    } catch (e) {
+      let cleanStr = resultStr.trim();
+      if (cleanStr.startsWith('```')) {
+        const lines = cleanStr.split('\n');
+        if (lines[0].startsWith('```')) {
+          lines.shift();
+        }
+        if (lines[lines.length - 1].startsWith('```')) {
+          lines.pop();
+        }
+        cleanStr = lines.join('\n').trim();
+      }
+      try {
+        parsedResult = JSON.parse(cleanStr);
+      } catch (innerErr) {
+        console.error('[Memory Aid] Parsing Dify result failed:', innerErr, resultStr);
+        return res.status(500).json({ error: 'Memory Aid result is not valid JSON.' });
+      }
+    }
+
+    let existingMemoryAids = {};
+    if (row.memory_aids) {
+      try { existingMemoryAids = JSON.parse(row.memory_aids); } catch (e) {}
+    }
+
+    const mergedMemoryAids = {
+      root_memory: parsedResult.root_memory || '',
+      association_memory: parsedResult.association_memory || '',
+      mnemonic_phrase: parsedResult.mnemonic_phrase || '',
+      image_prompt: parsedResult.image_prompt || '',
+      image_url: existingMemoryAids.image_url || '',
+      download_url: existingMemoryAids.download_url || '',
+      generated_at: Date.now()
+    };
+
+    db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?').run(JSON.stringify(mergedMemoryAids), row.id);
+
+    res.json(mergedMemoryAids);
+  } catch (error) {
+    console.error('[Memory Aid Error]', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取艾宾浩斯复习历史及理论曲线数据
+app.get('/api/vocab/ebbinghaus/:id', (req, res) => {
+  try {
+    const row = db.prepare('SELECT id, word, repetitions, interval_days, next_review_date, added_at, review_history FROM vocabulary WHERE id = ?').get(req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+
+    const history = row.review_history ? JSON.parse(row.review_history) : [];
+    const addedAt = row.added_at;
+
+    // 生成标准的艾宾浩斯理论遗忘曲线点(Day 0 到 Day 30)
+    const theoreticalIntervals = [0, 0.1, 0.5, 1, 2, 4, 7, 15, 30];
+    const points = theoreticalIntervals.map(t => {
+      let retention = 100;
+      if (t > 0) {
+        retention = Math.round(100 * (0.85 / (Math.pow(t, 0.18) + 0.05)));
+        if (retention > 100) retention = 100;
+        if (retention < 20) retention = 20;
+      }
+      return {
+        day: t,
+        retention_estimated: retention,
+        is_theoretical: true
+      };
+    });
+
+    // 映射真实的复习历史点（初次收录为 Day 0）
+    points.push({
+      day: 0,
+      quality: 5,
+      is_review: true,
+      review_index: 0,
+      is_theoretical: false
+    });
+
+    history.forEach((rev, idx) => {
+      const diffDays = Math.max(0, (rev.date - addedAt) / 86400000);
+      points.push({
+        day: parseFloat(diffDays.toFixed(2)),
+        quality: rev.quality,
+        is_review: true,
+        review_index: idx + 1,
+        is_theoretical: false
+      });
+    });
+
+    points.sort((a, b) => a.day - b.day);
+
+    res.json({
+      id: row.id,
+      word: row.word,
+      repetitions: row.repetitions,
+      interval_days: row.interval_days,
+      next_review_date: row.next_review_date,
+      points
+    });
+  } catch (error) {
+    console.error('[Ebbinghaus API Error]', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 生成记忆图片（调用 text2image 工作流）
+app.post('/api/vocab/generate-image/:id', async (req, res) => {
+  try {
+    const row = db.prepare('SELECT id, word, memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
+    if (!row) {
+      return res.status(404).json({ error: 'Word not found' });
+    }
+
+    let memoryAids = {};
+    try { memoryAids = JSON.parse(row.memory_aids || '{}'); } catch {}
+
+    if (!memoryAids.image_prompt) {
+      return res.status(400).json({ error: 'No image_prompt found, please generate memory aids first' });
+    }
+
+    const text2imageApiKey = process.env.DIFY_TEXT2IMAGE_API_KEY || 'app-P3RxMjvtrhr2rFAXqKcfGSFA';
+    const difyBaseUrl = process.env.DIFY_TEXT2IMAGE_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    console.log(`[generate-image] Calling text2image workflow for prompt: "${memoryAids.image_prompt}"`);
+
+    const chatResp = await fetch(`${difyBaseUrl}/chat-messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${text2imageApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: {},
+        query: memoryAids.image_prompt,
+        response_mode: 'blocking',
+        user: 'default-user',
+      }),
+    });
+
+    const chatData = await chatResp.json().catch(() => ({}));
+    if (!chatResp.ok) {
+      console.error('[generate-image] Dify error:', chatData);
+      return res.status(502).json({ error: 'Image generation failed', detail: chatData.message });
+    }
+
+    // 解析返回的图片 URL
+    let imageUrl = '';
+    let downloadUrl = '';
+
+    if (chatData.preview) {
+      imageUrl = chatData.preview;
+    } else if (chatData.previews && chatData.previews.length > 0) {
+      imageUrl = chatData.previews[0].url;
+    }
+
+    // 尝试从 answer 中提取 URL
+    if (!imageUrl && chatData.answer) {
+      const urlMatch = chatData.answer.match(/(https?:\/\/[^\s]+\.(jpg|jpeg|png|webp))/i);
+      if (urlMatch) {
+        imageUrl = urlMatch[1];
+      }
+    }
+
+    if (!imageUrl) {
+      return res.status(502).json({ error: 'No image URL in response', raw: JSON.stringify(chatData).substring(0, 500) });
+    }
+
+    downloadUrl = imageUrl;
+
+    // 更新数据库
+    memoryAids.image_url = imageUrl;
+    memoryAids.download_url = downloadUrl;
+    memoryAids.image_generated_at = Date.now();
+
+    db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?')
+      .run(JSON.stringify(memoryAids), row.id);
+
+    res.json({
+      success: true,
+      id: row.id,
+      image_url: imageUrl,
+      download_url: downloadUrl,
+    });
+  } catch (error) {
+    console.error('[generate-image] Error:', error);
+    res.status(500).json({ error: error.message });
   }
 });
 

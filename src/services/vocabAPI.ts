@@ -56,6 +56,7 @@ export interface ZhModernPayload {
   synonyms: string[];
   antonyms: string[];
   confusable_pairs: ConfusablePairZh[];
+  level?: string;
 }
 
 // --- 商务英英词典结构 ---
@@ -81,6 +82,7 @@ export interface EnEnBusinessPayload {
   synonyms: string[];
   antonyms: string[];
   collocations: string[];
+  level?: string;
 }
 
 // --- 英汉双向商务词典结构 ---
@@ -112,6 +114,7 @@ export interface EnZhBidirectionalPayload {
   antonyms: string[];
   collocations: string[];
   etymology?: string;
+  level?: string;
 }
 
 export type DictPayload = ZhModernPayload | EnEnBusinessPayload | EnZhBidirectionalPayload;
@@ -233,6 +236,77 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data?.message || `HTTP ${res.status}`);
+  }
+  return data;
+}
+
+// --- 新增记忆辅助与遗忘曲线相关类型 ---
+export interface MemoryAids {
+  root_memory?: string;
+  association_memory?: string;
+  mnemonic_phrase?: string;
+  image_prompt?: string;
+  image_url?: string;
+  download_url?: string;
+  generated_at?: number;
+}
+
+export interface EbbinghausPoint {
+  day: number;
+  retention_estimated?: number;
+  quality?: number;
+  is_theoretical: boolean;
+  is_review?: boolean;
+  review_index?: number;
+}
+
+export interface EbbinghausData {
+  id: string;
+  word: string;
+  repetitions: number;
+  interval_days: number;
+  next_review_date: number;
+  points: EbbinghausPoint[];
+}
+
+export interface DictCoverageData {
+  success: boolean;
+  total_queries: number;
+  success_queries: number;
+  success_rate: number;
+  level_distribution: Record<string, number>;
+}
+
+/** 获取缓存的记忆辅助 */
+export async function getMemoryAids(id: string): Promise<MemoryAids> {
+  return request<MemoryAids>(`/memory/${id}`);
+}
+
+/** 生成/更新记忆辅助 */
+export async function enrichMemory(id: string): Promise<MemoryAids> {
+  return request<MemoryAids>(`/enrich-memory/${id}`, {
+    method: 'POST',
+  });
+}
+
+/** 获取艾宾浩斯曲线数据 */
+export async function getEbbinghausData(id: string): Promise<EbbinghausData> {
+  return request<EbbinghausData>(`/ebbinghaus/${id}`);
+}
+
+/** 生成记忆配图 */
+export async function generateMemoryImage(id: string): Promise<{ success: boolean; id: string; image_url: string; download_url: string }> {
+  return request<{ success: boolean; id: string; image_url: string; download_url: string }>(`/generate-image/${id}`, {
+    method: 'POST',
+  });
+}
+
+/** 获取词典查询统计/覆盖率 */
+export async function getDictCoverage(): Promise<DictCoverageData> {
+  const res = await fetch('/api/dify/dict-coverage');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data?.error || `HTTP ${res.status}`);
   }
   return data;
 }

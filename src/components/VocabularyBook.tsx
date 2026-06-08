@@ -1,10 +1,135 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, Clock, AlertCircle, Settings2, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
+import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, Clock, AlertCircle, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
 import SpeakButton from './SpeakButton';
-import { getStats, getAllWords, deleteWord, manualIntervention, VocabEntry, VocabStats } from '../services/vocabAPI';
+import { getStats, getAllWords, deleteWord, manualIntervention, getEbbinghausData, VocabEntry, VocabStats, EbbinghausData } from '../services/vocabAPI';
 import FlashCard from './FlashCard';
 import CustomCardModal from './CustomCardModal';
+import MemoryAidPanel from './MemoryAidPanel';
+import EbbinghausChart from './EbbinghausChart';
 
+// ==========================================
+// 生词本内联详情展示组件 (手风琴展开内容)
+// ==========================================
+interface InlineWordDetailProps {
+  word: VocabEntry;
+}
+
+function InlineWordDetail({ word }: InlineWordDetailProps) {
+  const [activeTab, setActiveTab] = useState<'definition' | 'memory' | 'ebbinghaus'>('definition');
+  const [ebbinghausData, setEbbinghausData] = useState<EbbinghausData | null>(null);
+  const [ebbLoading, setEbbLoading] = useState(false);
+  const [ebbError, setEbbError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'ebbinghaus' && !ebbinghausData) {
+      setEbbLoading(true);
+      setEbbError(null);
+      getEbbinghausData(word.id)
+        .then(data => {
+          setEbbinghausData(data);
+        })
+        .catch(err => {
+          console.error(err);
+          setEbbError('获取曲线数据失败，请重试');
+        })
+        .finally(() => {
+          setEbbLoading(false);
+        });
+    }
+  }, [activeTab, word.id, ebbinghausData]);
+
+  const payload = word.payload || {};
+  const phonetic = payload.phonetic || '';
+  const translation = payload.definition || payload.translation_main || (Array.isArray(payload.definitions_en) ? payload.definitions_en[0] : '');
+  const pos = payload.pos || '';
+
+  return (
+    <div className="bg-slate-50/70 border-t border-slate-100 p-4 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
+      {/* 选项卡导航 */}
+      <div className="flex border-b border-slate-200 pb-1">
+        <button
+          onClick={() => setActiveTab('definition')}
+          className={`flex-1 text-[11px] font-black pb-1 border-b-2 text-center transition-all ${activeTab === 'definition' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+        >
+          完整释义
+        </button>
+        <button
+          onClick={() => setActiveTab('memory')}
+          className={`flex-1 text-[11px] font-black pb-1 border-b-2 text-center transition-all ${activeTab === 'memory' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+        >
+          记忆辅助
+        </button>
+        <button
+          onClick={() => setActiveTab('ebbinghaus')}
+          className={`flex-1 text-[11px] font-black pb-1 border-b-2 text-center transition-all ${activeTab === 'ebbinghaus' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+        >
+          遗忘曲线
+        </button>
+      </div>
+
+      {/* 选项卡内容 */}
+      <div className="text-left">
+        {activeTab === 'definition' && (
+          <div className="bg-white border border-slate-100 rounded-xl p-3.5 space-y-2.5 max-h-[220px] overflow-y-auto shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-slate-800">{word.word}</span>
+              {phonetic && <span className="text-xs font-mono text-slate-400">[{phonetic}]</span>}
+              {pos && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-bold">{pos}</span>}
+            </div>
+            <div className="text-xs text-slate-700 leading-relaxed font-medium">
+              {translation || <span className="text-slate-400 italic">暂无中文释义</span>}
+            </div>
+            
+            {/* 商务/通用例句渲染 */}
+            {payload.example_sentences && payload.example_sentences.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-slate-50 space-y-1">
+                <div className="text-[9px] font-black uppercase text-slate-400 tracking-wider">精选例句</div>
+                {payload.example_sentences.slice(0, 2).map((s: any, idx: number) => (
+                  <div key={idx} className="text-[11px] text-slate-600 leading-relaxed">
+                    {typeof s === 'object' ? (
+                      <>
+                        <div className="font-semibold text-slate-700">{s.en}</div>
+                        <div className="text-slate-500">{s.zh}</div>
+                      </>
+                    ) : (
+                      <div>{s}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'memory' && (
+          <MemoryAidPanel wordId={word.id} wordText={word.word} />
+        )}
+
+        {activeTab === 'ebbinghaus' && (
+          <div>
+            {ebbLoading && (
+              <div className="flex items-center justify-center py-8 text-xs text-slate-400">
+                加载曲线数据中...
+              </div>
+            )}
+            {ebbError && (
+              <div className="text-center py-8 text-xs text-red-500 font-bold">
+                {ebbError}
+              </div>
+            )}
+            {ebbinghausData && (
+              <EbbinghausChart data={ebbinghausData} />
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// 主生词本组件
+// ==========================================
 export default function VocabularyBook() {
   const [vocabTab, setVocabTab] = useState<'business' | 'general'>('business');
   const [stats, setStats] = useState<VocabStats>({ total: 0, dueToday: 0 });
@@ -15,6 +140,9 @@ export default function VocabularyBook() {
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
   const [editingWord, setEditingWord] = useState<VocabEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // 新增：展开的单词 ID 状态 (手风琴效果)
+  const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -82,6 +210,8 @@ export default function VocabularyBook() {
   };
 
   const handleWordClick = (word: VocabEntry) => {
+    // 切换当前行的折叠面板
+    setExpandedWordId(prev => prev === word.id ? null : word.id);
     // 派发事件让 DictionaryPanel 截获并展示
     const event = new CustomEvent('vocab-view', { detail: word });
     window.dispatchEvent(event);
@@ -188,7 +318,7 @@ export default function VocabularyBook() {
             </div>
 
             {/* 词条列表 */}
-            <div className="divide-y divide-gray-50 border-t border-gray-100">
+            <div className="divide-y divide-gray-50 border-t border-gray-100 max-h-[550px] overflow-y-auto scrollbar-thin">
               {isLoading ? (
                 <div className="text-center text-gray-400 text-xs py-6">加载中...</div>
               ) : words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).length === 0 ? (
@@ -196,43 +326,62 @@ export default function VocabularyBook() {
                   暂无词条，从词典查询后点击「收录」添加
                 </div>
               ) : (
-                words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).map(word => (
-                  <div
-                    key={word.id}
-                    onClick={() => handleWordClick(word)}
-                    className="flex flex-col px-4 py-2.5 border-b border-gray-50 last:border-0 hover:bg-gray-50 group cursor-pointer"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <div className="font-bold text-[#202124] text-sm truncate">
-                            {word.word}
-                          </div>
-                          <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
-                        </div>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <Clock className="w-3 h-3 text-gray-300" />
-                          <span className={`text-[10px] inline-flex items-center gap-1 ${word.next_review_date <= Date.now() && word.repetitions < 999 ? 'text-[#FF5722] font-bold' : 'text-gray-400'}`}>
-                            {word.repetitions === 999 ? (
-                              <>
-                                <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                                <span>已归档，彻底掌握</span>
-                              </>
-                            ) : (
-                              formatNextReview(word.next_review_date)
+                words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).map(word => {
+                  const payload = word.payload || {};
+                  const phonetic = payload.phonetic || '';
+                  const translation = payload.definition || payload.translation_main || (Array.isArray(payload.definitions_en) ? payload.definitions_en[0] : '');
+                  const isOpened = expandedWordId === word.id;
+
+                  return (
+                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition">
+                      {/* 主行 */}
+                      <div
+                        onClick={() => handleWordClick(word)}
+                        className={`flex items-center justify-between px-4 py-3 cursor-pointer group transition-colors ${isOpened ? 'bg-indigo-50/20' : ''}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="font-bold text-[#202124] text-sm truncate">
+                              {word.word}
+                            </div>
+                            {phonetic && (
+                              <span className="text-[11px] font-mono text-slate-400 font-medium select-none">
+                                [{phonetic}]
+                              </span>
                             )}
-                          </span>
-                          {word.repetitions > 0 && word.repetitions !== 999 && (
-                            <span className="text-[10px] text-gray-300">
-                              · 第 {word.repetitions} 级复习
-                            </span>
+                            <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
+                          </div>
+                          
+                          {/* 核心释义预览 */}
+                          {translation && (
+                            <div className="text-[11px] text-gray-500 truncate mt-0.5 max-w-[85%] font-medium">
+                              {translation}
+                            </div>
                           )}
+
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <Clock className="w-3 h-3 text-gray-300 shrink-0" />
+                            <span className={`text-[10px] inline-flex items-center gap-1 shrink-0 ${word.next_review_date <= Date.now() && word.repetitions < 999 ? 'text-[#FF5722] font-bold' : 'text-gray-400'}`}>
+                              {word.repetitions === 999 ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                  <span>已归档，彻底掌握</span>
+                                </>
+                              ) : (
+                                formatNextReview(word.next_review_date)
+                              )}
+                            </span>
+                            {word.repetitions > 0 && word.repetitions !== 999 && (
+                              <span className="text-[10px] text-gray-300 shrink-0">
+                                · 第 {word.repetitions} 级复习
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* 操作图标（悬浮显示） */}
-                      <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity ml-2" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex bg-white shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-2">
+                        
+                        {/* 操作图标（悬浮显示） */}
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex bg-white shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-2">
                             <button
                               title="编辑卡片内容"
                               onClick={(e) => { e.stopPropagation(); setEditingWord(word); }}
@@ -268,17 +417,23 @@ export default function VocabularyBook() {
                             >
                               <CheckCircle2 className="w-3 h-3" />
                             </button>
+                          </div>
+                          <button
+                            onClick={(e) => handleDelete(word.id, e)}
+                            className="text-gray-300 hover:text-red-400 p-1 transition"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <button
-                          onClick={(e) => handleDelete(word.id, e)}
-                          className="text-gray-300 hover:text-red-400 p-1 transition"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
                       </div>
+
+                      {/* 内联折叠手风琴面板 */}
+                      {isOpened && (
+                        <InlineWordDetail word={word} />
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
