@@ -962,9 +962,31 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
 
     // 尝试从 answer 中提取 URL
     if (!imageUrl && chatData.answer) {
-      const urlMatch = chatData.answer.match(/(https?:\/\/[^\s]+\.(jpg|jpeg|png|webp))/i);
-      if (urlMatch) {
-        imageUrl = urlMatch[1];
+      let parsed = null;
+      let cleanAnswer = chatData.answer.trim();
+      if (cleanAnswer.startsWith('```')) {
+        cleanAnswer = cleanAnswer.replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim();
+      }
+      try {
+        parsed = JSON.parse(cleanAnswer);
+      } catch (e) {
+        const jsonMatch = cleanAnswer.match(/\{[\s\S]*?\}/);
+        if (jsonMatch) {
+          try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) {}
+        }
+      }
+
+      if (parsed) {
+        imageUrl = parsed.url || parsed.image_url || parsed.imageUrl || '';
+        downloadUrl = parsed.download_url || parsed.downloadUrl || imageUrl || '';
+      }
+
+      if (!imageUrl) {
+        const urlMatches = [...chatData.answer.matchAll(/(https?:\/\/[^\s"'`<>\{\}\[\]]+\.(jpg|jpeg|png|webp))/gi)];
+        if (urlMatches.length > 0) {
+          imageUrl = urlMatches[0][1];
+          downloadUrl = urlMatches.length > 1 ? urlMatches[1][1] : imageUrl;
+        }
       }
     }
 
@@ -972,7 +994,9 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
       return res.status(502).json({ error: 'No image URL in response', raw: JSON.stringify(chatData).substring(0, 500) });
     }
 
-    downloadUrl = imageUrl;
+    if (!downloadUrl) {
+      downloadUrl = imageUrl;
+    }
 
     // 更新数据库
     memoryAids.image_url = imageUrl;
