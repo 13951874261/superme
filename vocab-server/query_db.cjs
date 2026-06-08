@@ -1,0 +1,1 @@
+const Database = require("./node_modules/better-sqlite3"); const db = new Database("./vocab.db"); const rows = db.prepare("SELECT id, word, memory_aids FROM vocabulary WHERE memory_aids LIKE ?").all("%pro.filesystem.site%"); console.log(JSON.stringify(rows, null, 2));
