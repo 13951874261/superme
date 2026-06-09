@@ -281,7 +281,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     void setThemeFocus({ theme }).catch(() => {});
-  }, []);
+  }, [theme]);
 
   const handleMarkEmailComplete = async (t: string) => {
     await markEmailComplete({ theme: t }).catch(() => {});

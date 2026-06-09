@@ -1,5 +1,5 @@
-﻿app:
-  description: 跨国高管级别英文书面表达的三段式残酷批阅引擎（改造版，输出包含 optimized_version 并拉通 theme）。
+app:
+  description: 跨国高管级别英文书面表达的三段式残酷批阅引擎。
   icon: ✒️
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -13,27 +13,25 @@ dependencies:
     marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
     version: null
 kind: app
-version: 0.6.1
+version: 0.6.0
 workflow:
   conversation_variables: []
   environment_variables: []
   features:
     file_upload:
-      allowed_file_extensions: []
-      allowed_file_types: []
-      allowed_file_upload_methods: []
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
       enabled: false
-      fileUploadConfig:
-        attachment_image_file_size_limit: 2
-        audio_file_size_limit: 1024
-        batch_count_limit: 5
-        file_size_limit: 1024
-        file_upload_limit: 20
-        image_file_batch_limit: 10
-        image_file_size_limit: 10
-        single_chunk_attachment_limit: 10
-        video_file_size_limit: 1024
-        workflow_file_upload_limit: 10
       image:
         enabled: false
         number_limits: 3
@@ -129,44 +127,22 @@ workflow:
           completion_params:
             temperature: 0.2
           mode: chat
-          name: 'gemini-1.5-pro-latest'
-          provider: google
+          name: '112'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
         - id: system_prompt
           role: system
-          text: |
-            你是一个顶级的企业沟通教练、体制内公文专家和商业战略顾问。你的任务是根据用户输入的材料类型、全局当日学习主题（theme）以及具体内容，进行三段式纵深批改并自动生成一篇针对该主题的高水准改写示例（optimized_version）。
-
-            输入参数说明：
-            - user_text: 待批阅的原文
-            - mail_intent: 用户意图（如施压、让步、寻求共识）
-            - theme: 当前学习主题（将影响 L3 的战略站位判断与改写范文的语境）
-            - 请遵守任何 additional constraints 来调整输出风格或字数
-
-            输出要求（严格 JSON）：
-            对于企业公文类（三段式批阅）请输出如下 JSON：
-            {
-              "L1": "表层语法与措辞纠错与建议",
-              "L2": "商务分寸与逻辑结构建议",
-              "L3": "战略站位与政治/合规层面点评",
-              "optimized_version": "一段针对 theme 的高质量英文改写示例（供用户学习/采纳），请以正式商务邮件/公文风格输出"
-            }
-
-            说明：
-            - 返回必须为纯 JSON 字符串，不得包含 markdown 代码块（如 ```json）或额外注释。
-            - optimized_version 请与 theme 保持语义一致，并体现 mail_intent 的写作目的与分寸把控。
-            - 对于其他 task_type（如 business_writing/value_proposal），请保持类似结构并包含 optimized_version 字段。
-
-        - id: user_prompt
-          role: user
-          text: 'mail_intent: {{#start_node.mail_intent#}}\n\nuser_text: {{#start_node.user_text#}}\n\ntheme: {{#start_node.theme#}}'
+          text: '你是一位外企合规总监与法务专家。用户意图是：{{#start_node.mail_intent#}}。\n请对用户的英文行文进行三段式残酷批阅。遵循主题{{#start_node.theme#}}\n\n【待批阅的原文】：\n{{#start_node.user_text#}}\n\n【强制要求】：必须返回合法的
+            JSON 格式，不要包含 ```json 等 Markdown 标记，直接输出大括号包裹的内容。\n返回格式必须严格如下：\n{\n  "L1":
+            "表层语法与中式英语纠错分析",\n  "L2": "中层问题：是否符合西方商业直接/委婉的分寸感及语气评估",\n  "L3": "深层问题：政治站位、利益切割、合规风险、是否把责任揽到了自己身上",\n  "optimized_version":
+            "你重写的高管级完美示范文本"\n}\n\n\n【系统隐性约束】：当前用户的谈判阵地是【{{#start_node.theme#}}】。请在批阅其战略站位（L3_Strategic_Position）时，严格根据该阵地的特有文化与核心冲突来评判其权力分寸是否得当。'
         selected: false
         title: 三段式残酷批阅
         type: llm
         variables: []
         vision:
           enabled: false
-      height: 220
+      height: 88
       id: llm_node
       position:
         x: 380
@@ -203,7 +179,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: 112.35903299763714
-      y: 24.05160609277823
+      x: 79.35903299763709
+      y: 25.05160609277823
       zoom: 0.8705505632961241
   rag_pipeline_variables: []

@@ -5,6 +5,7 @@ import Confetti from '../../../Confetti';
 import { runEnglishWriteReview } from '../../../../services/difyAPI';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
+import { Copy, Check } from 'lucide-react';
 
 function isL1Perfect(l1Text: string): boolean {
   if (!l1Text) return false;
@@ -14,7 +15,7 @@ function isL1Perfect(l1Text: string): boolean {
     !l1Text.includes('incorrect') && !l1Text.includes('grammar error');
 }
 
-const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark = false, optimized = '' }: any) => (
+const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark = false, optimized = '', onAdopt, onCopy }: any) => (
   <div className={`rounded-2xl p-6 border flex-1 ${isDark ? 'bg-[#202124] text-white border-gray-800' : 'bg-white border-gray-100'}`}>
     <h5 className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-[#FF5722]' : color}`}>
       {title}
@@ -34,7 +35,23 @@ const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark
           </h5>
           <SpeakButton text={optimized} title="播放 AI 高管级示范文本" />
         </div>
-        <p className="text-sm text-gray-300 leading-relaxed italic">{optimized}</p>
+        <p className="text-sm text-gray-300 leading-relaxed italic mb-4">{optimized}</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onCopy}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white transition-all cursor-pointer shadow-sm"
+          >
+            <Copy className="w-3 h-3" />
+            复制范文
+          </button>
+          <button
+            onClick={onAdopt}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#FF5722] text-white hover:bg-[#E64A19] transition-all cursor-pointer shadow-sm"
+          >
+            <Check className="w-3 h-3" />
+            一键采纳到草稿
+          </button>
+        </div>
       </div>
     )}
   </div>
@@ -278,7 +295,32 @@ export default function WriteTab() {
       <div className="lg:col-span-4 flex flex-col gap-4 h-[75vh] overflow-y-auto pr-1">
         <ReviewCard title="L1 语法与措辞" content={reviewResult?.L1} isLoading={isReviewing} />
         <ReviewCard title="L2 商务分寸" content={reviewResult?.L2} isLoading={isReviewing} color="text-[#d84315]" />
-        <ReviewCard title="L3 战略站位" content={reviewResult?.L3} isLoading={isReviewing} isDark optimized={reviewResult?.optimized_version} />
+        <ReviewCard
+          title="L3 战略站位"
+          content={reviewResult?.L3}
+          isLoading={isReviewing}
+          isDark
+          optimized={reviewResult?.optimized_version}
+          onAdopt={() => {
+            if (reviewResult?.optimized_version) {
+              setWritingText(reviewResult.optimized_version);
+              showNotice('review', '已采纳改写示范文至起草区', 'success');
+              playSuccess();
+            }
+          }}
+          onCopy={async () => {
+            if (reviewResult?.optimized_version) {
+              try {
+                await navigator.clipboard.writeText(reviewResult.optimized_version);
+                showNotice('review', '改写示范文已复制到剪贴板', 'success');
+                playSuccess();
+              } catch (err) {
+                playError();
+                showNotice('review', '复制失败', 'error');
+              }
+            }
+          }}
+        />
       </div>
       </div>
     </div>

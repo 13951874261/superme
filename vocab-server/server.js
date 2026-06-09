@@ -674,6 +674,78 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 });
 
+// 英语公文纵深批阅代理接口 (对接 Dify 写作批阅工作流)
+app.post('/api/dify/write-review', async (req, res) => {
+  const { user_text, mail_intent, theme } = req.body;
+  if (!user_text || !mail_intent || !theme) {
+    return res.status(400).json({ success: false, error: 'Missing required parameters: user_text, mail_intent, or theme.' });
+  }
+
+  const apiKey = process.env.DIFY_WRITE_GOVERNANCE_KEY || 'app-l4RcdCyDTzUPnY0GHlsgrUcs';
+  const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+  try {
+    console.log(`[Write Review] 开始进行书面批阅评估，主题: "${theme}"`);
+
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: {
+          user_text: user_text.trim(),
+          mail_intent: mail_intent.trim(),
+          theme: theme.trim()
+        },
+        response_mode: 'blocking',
+        user: 'system-agent'
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`[Write Review] Dify 服务器返回错误(${response.status}):`, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 接口异常: ${response.status}`, details: errText });
+    }
+
+    const data = await response.json();
+    const resultStr = data?.data?.outputs?.result;
+
+    if (!resultStr) {
+      console.warn('[Write Review] 工作流未返回 result 字段:', data);
+      return res.status(500).json({ success: false, error: 'Dify 工作流未返回正确的 result 字段' });
+    }
+
+    let parsedResult;
+    try {
+      const cleanJson = String(resultStr).replace(/```json/g, '').replace(/```/g, '').trim();
+      parsedResult = JSON.parse(cleanJson);
+    } catch (e) {
+      console.error('[Write Review] 解析 result JSON 失败:', e, resultStr);
+      return res.status(500).json({ success: false, error: '工作流结果解析异常，返回数据非合法 JSON' });
+    }
+
+    const responseData = {
+      L1: parsedResult.L1 || parsedResult.L1_Grammar || '',
+      L2: parsedResult.L2 || parsedResult.L2_Business_Tone || '',
+      L3: parsedResult.L3 || parsedResult.L3_Strategic_Position || '',
+      optimized_version: parsedResult.optimized_version || ''
+    };
+
+    console.log(`[Write Review] 批阅成功，已清理并返回纯 JSON 数据`);
+    return res.json({
+      success: true,
+      data: responseData
+    });
+  } catch (error) {
+    console.error('[Write Review] 服务端请求异常', error);
+    return res.status(500).json({ success: false, error: `服务器内部异常: ${error.message}` });
+  }
+});
+
+
 // 获取词典查询覆盖率统计
 app.get('/api/dify/dict-coverage', (req, res) => {
   try {

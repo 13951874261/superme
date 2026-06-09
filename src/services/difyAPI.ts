@@ -571,37 +571,30 @@ export async function callVocabPurify(
  * @param theme 全局阵地主题
  */
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
-  const apiKey = import.meta.env.VITE_DIFY_WRITE_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_WRITE_API_KEY');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/dify/write-review', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: {
-        user_text: userText,
-        mail_intent: mailIntent,
-        theme: theme
-      },
-      response_mode: 'blocking',
-      user: 'default-user',
+      user_text: userText,
+      mail_intent: mailIntent,
+      theme: theme
     }),
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Dify Workflow Error');
-
-  // 解析 Dify 杩斿洖鐨?JSON 瀛楃涓茬粨鏋?
-  try {
-    const rawResult = data.data.outputs.result;
-    return parseMaybeJson<WritingReviewResult>(rawResult, 'AI 返回格式异常');
-  } catch (e) {
-    console.error('解析批阅结果失败:', e, data);
-    throw new Error('AI 返回格式异常');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || data.message || '后端批阅代理接口异常');
   }
+
+  const reviewData = data.data;
+  return {
+    L1_Grammar: reviewData.L1 || reviewData.L1_Grammar || '',
+    L2_Business_Tone: reviewData.L2 || reviewData.L2_Business_Tone || '',
+    L3_Strategic_Position: reviewData.L3 || reviewData.L3_Strategic_Position || '',
+    optimized_version: reviewData.optimized_version || ''
+  };
 }
 
 export async function sendOralChatMessage(query: string, conversationId: string | null = null, userId = 'default-user') {
