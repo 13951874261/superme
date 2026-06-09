@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -6,7 +7,7 @@
   --color-brand-hover: #E64A19;
   --color-brand-light: #FFCCBC;
   
-  --font-sans: 'Google Sans', 'Product Sans', Roboto, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Outfit', 'Google Sans', 'Product Sans', Roboto, ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 

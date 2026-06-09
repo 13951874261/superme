@@ -178,16 +178,27 @@ export default function WriteTab() {
   return (
     <div className="flex flex-col gap-6 relative">
       {/* 战术使用指南 SOP */}
-      <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
-        <div className="bg-emerald-500 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-sm">
+      <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
+        <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-emerald-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
-          <div className="text-[13px] text-emerald-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
-            <div><span className="font-black text-emerald-600 mr-2">操作说明：</span>获取刁难任务，并在中栏起草商务邮件。左侧战术锦囊可作参考。完成后提交三维批阅。</div>
-            <div><span className="font-black text-emerald-600 mr-2">功能亮点：</span>AI 三阶纵深批阅 (L1 基础语法 / L2 商务分寸 / L3 战略站位)。不仅仅是改错，更是教您在文字中构建权力结构。</div>
-            <div><span className="font-black text-emerald-600 mr-2">生态定位：</span>【最终审判】调用全盘积累的词汇弹药。必须在 L3 战略站位上取得 8 分以上的高阶评价，方可真正通关当前主题。</div>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 mb-1">战术使用指南 // Tactical SOP</h5>
+          <p className="text-xs text-indigo-800/80 font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>获取刁难任务，并在中栏起草商务邮件。左侧战术锦囊可作参考。完成后提交三维批阅。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 三阶纵深批阅 (L1 基础语法 / L2 商务分寸 / L3 战略站位)。不仅仅是改错，更是教您在文字中构建权力结构。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【最终审判】调用全盘积累的词汇弹药。必须在 L3 战略站位上取得 8 分以上的高阶评价，方可真正通关当前主题。</p>
+            </div>
           </div>
         </div>
       </div>

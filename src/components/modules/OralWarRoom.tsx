@@ -421,16 +421,27 @@ export default function OralWarRoom({
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP */}
-      <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm mb-4">
-        <div className="bg-rose-500 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-sm">
+      <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm mb-4">
+        <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-rose-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
-          <div className="text-[13px] text-rose-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
-            <div><span className="font-black text-rose-600 mr-2">操作说明：</span>长按下方麦克风语音反击，或打字回复。沙盘会根据当前 Theme 自动锁定剧本。倒计时 10 秒内必须给出回应。</div>
-            <div><span className="font-black text-rose-600 mr-2">功能亮点：</span>多方势力动态对抗。AI 同步扮演发难者与盟友，配以不同音调的声纹特征，对您进行跨文化和权力的双重极限施压。</div>
-            <div><span className="font-black text-rose-600 mr-2">生态定位：</span>【肌肉记忆】消化所有前置弹药。强迫您在毫秒级的高压对抗中，建立直觉性的、不打草稿的商务谈判反击能力。</div>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 mb-1">战术使用指南 // Tactical SOP</h5>
+          <p className="text-xs text-indigo-800/80 font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>长按下方麦克风语音反击，或打字回复。沙盘会根据当前 Theme 自动锁定剧本。倒计时 10 秒内必须给出回应。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>多方势力动态对抗。AI 同步扮演发难者与盟友，对您进行跨文化和权力的双重极限施压。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【肌肉记忆】消化所有前置弹药。强迫您在毫秒级的高压对抗中，建立直觉性的、不打草稿的商务谈判反击能力。</p>
+            </div>
           </div>
         </div>
       </div>

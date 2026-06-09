@@ -109,69 +109,77 @@ export default function DailyWakeupModule() {
       description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
     >
       <div className="space-y-6">
-        <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex flex-col gap-4">
-          <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
+        <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          {/* 左侧 8 栏：主标题、输入框及控制台、状态提示 */}
+          <div className="md:col-span-8 space-y-6">
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-2">Daily Wakeup // 基础唤醒</div>
               <h3 className="text-2xl font-black text-[#202124]">发音与语法唤醒机制</h3>
               <p className="text-sm text-gray-500 mt-2">主题驱动生成 10 个高频词 + 1 个关联语法点，并记录练习时长。</p>
             </div>
-            <div className="flex items-center gap-4">
-              {/* 右上角：简短功能说明区 */}
-              <div className="hidden md:flex flex-col items-start justify-center gap-1.5 text-xs text-gray-500 font-medium mr-4 border-l-2 border-gray-100 pl-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
-                  <span>场景高频词汇实时生成</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
-                  <span>标准发音示范与影子跟读</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
-                  <span>商业语法提取与正误对比</span>
-                </div>
-              </div>
 
-              {/* 计时器组件 */}
-              <div className="flex items-center gap-3 rounded-2xl bg-[#f8f9fa] border border-gray-100 px-4 py-3">
-                <Clock3 className="w-5 h-5 text-[#FF5722]" />
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-black">专注时长</div>
-                  <div className="text-lg font-black text-[#202124]">{formatSeconds(seconds)}</div>
-                </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+                className="flex-1 bg-gray-50 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#FF5722] focus:ring-4 focus:ring-[#FF5722]/10 transition-all duration-300"
+                placeholder="输入主题，例如：银团贷款"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleStart}
+                  disabled={loading}
+                  className="px-6 py-3 rounded-2xl bg-[#202124] text-white font-black text-xs tracking-widest uppercase hover:bg-[#FF5722] transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm hover:shadow-md cursor-pointer"
+                >
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+                  {loading ? '唤醒生成中' : '开始今日唤醒'}
+                </button>
+                <button
+                  onClick={handleCheckIn}
+                  disabled={checkInLoading || !result}
+                  className="px-6 py-3 rounded-2xl border border-emerald-500/30 bg-emerald-50/50 text-emerald-700 font-black text-xs tracking-widest uppercase hover:bg-emerald-50 transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {checkInLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                  完成打卡
+                </button>
               </div>
+            </div>
+
+            <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 text-sm text-gray-600 flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${running ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400'}`}></span>
+                {notice}
+              </span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">已生成 {completedCount} 个词</span>
             </div>
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-3">
-            <input
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              className="flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#FF5722]"
-              placeholder="输入主题，例如：银团贷款"
-            />
-            <button
-              onClick={handleStart}
-              disabled={loading}
-              className="px-6 py-3 rounded-2xl bg-[#202124] text-white font-black text-xs tracking-widest uppercase hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {loading ? '唤醒生成中' : '开始今日唤醒'}
-            </button>
-            <button
-              onClick={handleCheckIn}
-              disabled={checkInLoading || !result}
-              className="px-6 py-3 rounded-2xl bg-emerald-500 text-white font-black text-xs tracking-widest uppercase hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {checkInLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              完成打卡
-            </button>
-          </div>
-
-          <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 text-sm text-gray-600 flex items-center justify-between gap-4">
-            <span>{notice}</span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">已生成 {completedCount} 个词</span>
+          {/* 右侧 4 栏：专注时长环形进度 */}
+          <div className="md:col-span-4 flex flex-col items-center justify-center border-t md:border-t-0 md:border-l border-gray-100 pt-6 md:pt-0 md:pl-8">
+            <div className="relative flex flex-col items-center justify-center w-28 h-28 rounded-full bg-gray-50 border border-gray-100 shadow-inner group">
+              <svg className="absolute w-full h-full transform -rotate-90">
+                <circle cx="56" cy="56" r="46" stroke="#f3f4f6" strokeWidth="6" fill="transparent" />
+                <circle cx="56" cy="56" r="46" stroke="#FF5722" strokeWidth="6" fill="transparent" 
+                        strokeDasharray={289} strokeDashoffset={289 - (seconds % 60) * 4.81}
+                        className="transition-all duration-1000 ease-linear shadow-[0_0_15px_rgba(255,87,34,0.15)]" />
+              </svg>
+              <span className="text-xl font-bold font-mono tabular-nums text-[#202124] z-10">
+                {formatSeconds(seconds)}
+              </span>
+              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider z-10 mt-1">Focus Time</span>
+            </div>
+            
+            {/* 简短说明区 */}
+            <div className="flex flex-col items-start gap-1 text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-4">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1 h-1 rounded-full bg-[#FF5722]"></div>
+                <span>场景高频词汇实时生成</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <div className="w-1 h-1 rounded-full bg-[#FF5722]"></div>
+                <span>标准发音示范与影子跟读</span>
+              </div>
+            </div>
           </div>
         </div>
 
