@@ -1,0 +1,639 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-OShKY1EcVuLFkuxrpO28ZB0A
+# 用途: Enhanced Daily Extract (增强版每日生成)
+# 基于: materail_generate_url (4) copy.yml
+# 改造: +history_exclude, +user_flaws 输入；Prompt 避重+强化
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: materail_generate_url_enhanced
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: 产生的历史记录
+    id: 6c1a096b-aeec-47d1-97e0-28038d21066f
+    name: generated_history
+    selector:
+    - conversation
+    - generated_history
+    value: []
+    value_type: array[string]
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: assigner
+      id: 1780382595776-source-1780385608087-target
+      source: '1780382595776'
+      sourceHandle: source
+      target: '1780385608087'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: llm
+      id: 1780385608087-source-1780389832514-target
+      source: '1780385608087'
+      sourceHandle: source
+      target: '1780389832514'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: parameter-extractor
+      id: 1780389832514-source-1780387351165-target
+      source: '1780389832514'
+      sourceHandle: source
+      target: '1780387351165'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: parameter-extractor
+        targetType: iteration
+      id: 1780387351165-source-1780396184720-target
+      source: '1780387351165'
+      sourceHandle: source
+      target: '1780396184720'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1780396184720'
+        sourceType: iteration-start
+        targetType: llm
+      id: 1780396184720start-source-1780396257514-target
+      source: 1780396184720start
+      sourceHandle: source
+      target: '1780396257514'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: iteration
+        targetType: template-transform
+      id: 1780396184720-source-1780396408329-target
+      source: '1780396184720'
+      sourceHandle: source
+      target: '1780396408329'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: template-transform
+        targetType: llm
+      id: 1780396408329-source-1780396475903-target
+      source: '1780396408329'
+      sourceHandle: source
+      target: '1780396475903'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: 1780396475903-source-answer-target
+      source: '1780396475903'
+      sourceHandle: source
+      target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables:
+        - default: 主题
+          hint: ''
+          label: 主题
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: theme
+        - hint: ''
+          label: 难度等级
+          options:
+          - A2
+          - B1
+          - B2
+          - C1
+          placeholder: ''
+          required: true
+          type: select
+          variable: cefr_level
+        - hint: ''
+          label: 题材
+          options:
+          - news
+          - podcast
+          - meeting
+          - reading
+          placeholder: ''
+          required: true
+          type: select
+          variable: genre
+      height: 161
+      id: '1780382595776'
+      position:
+        x: 0
+        y: 0
+      positionAbsolute:
+        x: 0
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '📝 沉浸式听力/阅读长篇材料 (生成完毕)
+
+
+          {{#1780396408329.output#}}
+
+
+          ---VOCAB_JSON_START---
+
+          {{#1780396475903.text#}}
+
+          '
+        selected: false
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 153
+      id: answer
+      position:
+        x: 2638
+        y: 140.16666666666669
+      positionAbsolute:
+        x: 2638
+        y: 140.16666666666669
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: append
+          value:
+          - '1780382595776'
+          - theme
+          variable_selector:
+          - conversation
+          - generated_history
+        selected: false
+        title: 变量赋值
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1780385608087'
+      position:
+        x: 342
+        y: 65.33333333333331
+      positionAbsolute:
+        x: 342
+        y: 65.33333333333331
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        instruction: 从上文提取章节列表{{#1780389832514.text#}}，生成纯净的字符串数组
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        parameters:
+        - description: 提取大纲中的所有章节或环节
+          name: chapters_array
+          required: false
+          type: array[string]
+        query:
+        - '1780389832514'
+        - text
+        reasoning_mode: prompt
+        selected: false
+        title: 参数提取器
+        type: parameter-extractor
+        vision:
+          enabled: false
+      height: 88
+      id: '1780387351165'
+      position:
+        x: 1026
+        y: 92
+      positionAbsolute:
+        x: 1026
+        y: 92
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.9
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 3463f8ff-ff06-41e8-8c37-2f330a0ce225
+          role: system
+          text: 'You are a top-tier Business English curriculum architect. Your task
+            is to design an outline for a long-form business English project based
+            on the user''s chosen theme, genre, and level.
+
+
+            【CRITICAL RULE 1: STRICT NON-REPETITION】
+
+            You MUST NOT use any historical themes, storylines, or character settings
+            from the generated history below. Design a scenario with high information
+            entropy and a fresh perspective.
+
+            <generated_history>
+
+            {{#conversation.generated_history#}}
+
+            </generated_history>
+
+
+            【CRITICAL RULE 2: CAPACITY CONSTRAINTS】
+
+            - If genre is ''news'' / ''podcast'' / ''meeting'': Plan 6-8 independent
+            segments to support 30+ minutes (4000-4500 words) of content.
+
+            - If genre is ''reading'': Plan 5-7 deep chapters to naturally integrate
+            50 advanced business vocabulary words and 30 business phrases.
+
+
+            【OUTPUT FORMAT】
+
+            - Output ONLY a pure JSON array (Array[String]).
+
+            - Each element represents a specific segment/chapter''s plot or content
+            focus.
+
+            - STRICTLY in English.
+
+            - Example: ["Segment 1: Host introduction to the current macro-economic
+            context and core controversy.", "Segment 2: Intense debate between Guest
+            A and Guest B regarding Q1 financial data."]
+
+            - Do NOT wrap in Markdown code blocks (e.g., no ```json). Do NOT output
+            any explanatory text.'
+        - id: 64ff8548-e432-4b92-ae12-aa6444a36b16
+          role: user
+          text: 'Theme: {{#1780382595776.theme#}}
+
+            Genre: {{#1780382595776.genre#}}
+
+            CEFR Level: {{#1780382595776.cefr_level#}}
+
+
+            请直接输出大纲 JSON 数组。'
+        selected: false
+        structured_output_enabled: false
+        title: LLM 1 (大纲设计器)
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780389832514'
+      position:
+        x: 684
+        y: 77.33333333333331
+      positionAbsolute:
+        x: 684
+        y: 77.33333333333331
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        error_handle_mode: terminated
+        flatten_output: true
+        height: 208
+        is_parallel: false
+        iterator_input_type: array[string]
+        iterator_selector:
+        - '1780387351165'
+        - chapters_array
+        output_selector:
+        - '1780396257514'
+        - text
+        output_type: array[string]
+        parallel_nums: 10
+        selected: false
+        start_node_id: 1780396184720start
+        title: 迭代
+        type: iteration
+        width: 486
+      height: 208
+      id: '1780396184720'
+      position:
+        x: 1368
+        y: 46.666666666666664
+      positionAbsolute:
+        x: 1368
+        y: 46.666666666666664
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 486
+      zIndex: 1
+    - data:
+        desc: ''
+        isInIteration: true
+        selected: false
+        title: ''
+        type: iteration-start
+      draggable: false
+      height: 48
+      id: 1780396184720start
+      parentId: '1780396184720'
+      position:
+        x: 60
+        y: 72
+      positionAbsolute:
+        x: 1428
+        y: 118.66666666666666
+      selectable: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom-iteration-start
+      width: 44
+      zIndex: 1002
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1780396184720'
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 5c6e984d-68be-48a4-b029-9d3f68e08ec5
+          role: system
+          text: 'You are a lead writer specializing in cross-cultural business English
+            scripts and long-form articles. You are writing ONE specific segment of
+            a grand business material.
+
+
+            【CONTEXT PARAMETERS】
+
+            - Target CEFR Level: {{#1780382595776.cefr_level#}}
+
+            - Genre: {{#1780382595776.genre#}}
+
+
+            【WRITING SPECIFICATIONS (STRICTLY IN ENGLISH)】
+
+            - news: Deep business reporting (BBC/Bloomberg style), 3rd person objective
+            narrative.
+
+            - meeting: International board meeting transcript style (multi-role dialogue,
+            interruptions, nuanced corporate negotiation).
+
+            - podcast: High-density business debate (semi-formal, natural topic transitions,
+            host-guest interaction).
+
+            - reading: Detailed industry analysis report.
+
+
+            【CRITICAL RULES】
+
+            1. LENGTH: Minimum 600 words for audio genres; minimum 500 words for reading
+            genres. Write the full text! No summaries.
+
+            2. VOCABULARY DENSITY: Naturally integrate at least 10 advanced business
+            vocabulary words and 5 authentic business idioms (matching CEFR Level)
+            within this segment.
+
+            3. LANGUAGE: Output content in PURE ENGLISH only. Do not translate any
+            terms into Chinese. Do not include any meta-talk or introductory greetings.
+
+            4. NO MARKDOWN: Output in pure plain text ONLY. Absolutely DO NOT use
+            any Markdown formatting symbols such as asterisks (*) for bold/italics
+            or hash signs (#) for headers.'
+        - id: 732f7c1e-b8a6-4a5d-b203-cc5ae57edc54
+          role: user
+          text: '当前需要你扩写的具体章节/环节大纲为：
+
+            {{#1780396184720.item#}}
+
+
+            请开始扩写：'
+        selected: false
+        title: LLM 2 - 逐章扩写器
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780396257514'
+      parentId: '1780396184720'
+      position:
+        x: 184
+        y: 60
+      positionAbsolute:
+        x: 1552
+        y: 106.66666666666666
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        selected: false
+        template: "{% for chapter in arg1 %}\r\n{{ chapter }}\r\n\r\n{% endfor %}"
+        title: LLM 3 (全局提纯)模版转换
+        type: template-transform
+        variables:
+        - value_selector:
+          - '1780396184720'
+          - output
+          value_type: array[string]
+          variable: arg1
+      height: 52
+      id: '1780396408329'
+      position:
+        x: 1954
+        y: 159.33333333333337
+      positionAbsolute:
+        x: 1954
+        y: 159.33333333333337
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: '112'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 2d3e6cd0-ee35-4422-b9e9-da9721ddb648
+          role: system
+          text: "You are a senior business English pedagogy expert. Read the full\
+            \ long-form material provided below and extract exactly 50 core advanced\
+            \ business vocabulary words and 30 business phrases.\nABSOLUTE CONSTRAINT:\
+            \ You MUST output EXACTLY 50 items in \"words\" array and EXACTLY 30 items\
+            \ in \"phrases\" array. Count before outputting. If you have fewer, add\
+            \ more from the text until reaching the exact count.\n<Full_Material>\n\
+            {{#1780396408329.output#}}\n</Full_Material>\n\n【REQUIRED OUTPUT FORMAT】\n\
+            Output ONLY a single valid JSON object. No markdown, no ```json``` code\
+            \ blocks, no explanatory text before or after.\n\nThe JSON schema must\
+            \ be exactly:\n\n{\n  \"words\": [\n    {\n      \"word\": \"the exact\
+            \ word as used in text\",\n      \"phonetic\": \"IPA notation without\
+            \ slashes, e.g. kəmˈpetɪtɪv\",\n      \"partOfSpeech\": \"e.g. adj. /\
+            \ n. / v. / adv.\",\n      \"meaning\": \"中文释义，简洁，例：有竞争力的\",\n      \"\
+            definition_en\": \"one-sentence English definition\",\n      \"examples\"\
+            : [\"EXACT original sentence from the text containing this word\"]\n \
+            \   }\n  ],\n  \"phrases\": [\n    {\n      \"phrase\": \"the exact phrase\
+            \ as used in text\",\n      \"meaning\": \"中文含义及商务语境解读\",\n      \"definition_en\"\
+            : \"English explanation of this phrase\",\n      \"examples\": [\"EXACT\
+            \ original sentence from the text containing this phrase\"]\n    }\n \
+            \ ]\n}\n\nSTRICT RULES:\n1. words array MUST contain exactly 50 items.\n\
+            2. phrases array MUST contain exactly 30 items.\n3. examples[] must be\
+            \ the EXACT original sentence from Full_Material, not paraphrased.\n4.\
+            \ All words and phrases must be sourced directly from the Full_Material.\n\
+            5. Output ONLY the JSON object. Nothing else.\n\nABSOLUTE ENFORCEMENT\
+            \ - COUNTING PROTOCOL:\nBefore writing the JSON, you MUST:\n1. Scan the\
+            \ Full_Material and collect ALL candidate words → pick the best 50\n2.\
+            \ Scan the Full_Material and collect ALL candidate phrases → pick the\
+            \ best 30\n3. Count your arrays: if words < 50, ADD more from the text;\
+            \ if phrases < 30, ADD more\n4. Do NOT stop at any number other than words=50\
+            \ and phrases=30\n5. If truly insufficient unique words exist, include\
+            \ lower-frequency words from the text\n\nPENALTY RULE: Outputting fewer\
+            \ than 50 words or 30 phrases is a CRITICAL FAILURE.\nThe article is 4000+\
+            \ words. There are ALWAYS at least 50 advanced vocabulary words available.\n"
+        - id: 8be2b51c-02f3-48b1-ad63-a21667e411df
+          role: user
+          text: 请开始执行。务必确保词汇和短语是从原文中提取，并提供原文原句。不要包含“好的，这是您的内容”等废话。
+        selected: false
+        title: ' LLM 3 (词汇提纯与最终排版)'
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780396475903'
+      position:
+        x: 2288.8571428571427
+        y: 148.57142857142856
+      positionAbsolute:
+        x: 2288.8571428571427
+        y: 148.57142857142856
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -74.3000000000003
+      y: 239.33333333333331
+      zoom: 0.7
+  rag_pipeline_variables: []

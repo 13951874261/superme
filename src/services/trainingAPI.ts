@@ -252,3 +252,51 @@ export async function listKnowledgeNodes(userId = 'default-user', sourceMaterial
   if (sourceMaterialId) query.set('sourceMaterialId', sourceMaterialId);
   return request<KnowledgeNode[]>(`/api/knowledge-node/list?${query.toString()}`);
 }
+
+export interface CustomTheme {
+  id: string;
+  themeName: string;
+  displayName: string;
+  associatedFile: string;
+  difyDocumentId: string;
+  difyDatasetId: string;
+  extractedKeywords: any[];
+  source: 'custom';
+  createdAt: number;
+}
+
+export interface ThemeStayStats {
+  success: boolean;
+  stayDays: number;
+  articleCount: number;
+  wordCount: number;
+  phraseCount: number;
+  weakPoints: { pronunciation: string; grammar: string };
+  todaySuggestion: string;
+}
+
+export async function listCustomThemes(userId = 'default-user'): Promise<{ success: boolean; themes: CustomTheme[] }> {
+  return request<{ success: boolean; themes: CustomTheme[] }>(`/api/theme/list?userId=${encodeURIComponent(userId)}`);
+}
+
+export async function addCustomTheme(params: {
+  themeName: string;
+  file: { fileName: string; content: string };
+  userId?: string;
+}): Promise<{ success: boolean; theme: CustomTheme; addedWordsCount: number; addedPhrasesCount: number }> {
+  return request('/api/theme/custom-add', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+export async function deleteCustomTheme(id: string): Promise<{ success: boolean }> {
+  return request(`/api/theme/custom/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getThemeStayStats(theme: string, userId = 'default-user'): Promise<ThemeStayStats> {
+  const query = new URLSearchParams({ theme, userId });
+  return request<ThemeStayStats>(`/api/theme/stay-stats?${query.toString()}`);
+}

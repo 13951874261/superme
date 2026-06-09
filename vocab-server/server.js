@@ -165,6 +165,42 @@ db.prepare(`
   )
 `).run();
 
+// 初始化 custom_themes 表 (自定义主题)
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS custom_themes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    theme_name TEXT NOT NULL,
+    display_name TEXT,
+    associated_file TEXT,
+    dify_document_id TEXT,
+    dify_dataset_id TEXT,
+    extracted_keywords TEXT,
+    created_at INTEGER,
+    updated_at INTEGER,
+    UNIQUE(user_id, theme_name)
+  )
+`).run();
+
+// 初始化 generation_history 表 (每日生成历史)
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS generation_history (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    theme TEXT NOT NULL,
+    generated_at INTEGER,
+    article_summary TEXT,
+    keywords TEXT,
+    ttl_days INTEGER DEFAULT 3
+  )
+`).run();
+
+// 创建生成历史索引
+db.prepare(`
+  CREATE INDEX IF NOT EXISTS idx_gen_history_theme 
+  ON generation_history(user_id, theme, generated_at)
+`).run();
+
 // ==========================================
 // SM-2 间隔重复算法
 // ==========================================
@@ -570,6 +606,389 @@ app.post('/api/theme/mark-email-complete', (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Database error on mark-email-complete' });
+  }
+});
+
+// ==========================================
+// 自定义场景与主题管理 API
+// ==========================================
+
+// 创建自定义主题
+app.post('/api/theme/custom-add', async (req, res) => {
+  const { themeName, file, userId = 'default-user' } = req.body;
+
+  if (!themeName || !file) {
+    return res.status(400).json({ success: false, error: '缺少必要参数 themeName 或 file' });
+  }
+
+  const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+  const WORKFLOW_KEY = 'app-F6daqhSXH942sBrnGki4kzZq';
+  const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+  try {
+    // 1. 获取知识库列表，定位 English_Pro_Scenarios
+    const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
+      headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+    });
+    const dsData = await dsResponse.json();
+    const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
+    
+    if (!dataset) {
+      throw new Error('在 Dify 平台未找到名为 English_Pro_Scenarios 的知识库');
+    }
+    const datasetId = dataset.id;
+
+    // 2. 上传文件到知识库（注意：不执行清空操作，以保留其他自定义主题文档）
+    const base64Data = file.content || file.base64 || '';
+    const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
+    const buffer = Buffer.from(base64Content, 'base64');
+    
+    const blob = new Blob([buffer], { type: 'application/octet-stream' });
+    const formData = new FormData();
+    formData.append('file', blob, file.fileName || 'custom_material.pdf');
+    formData.append('data', JSON.stringify({ 
+      indexing_technique: 'high_quality', 
+      doc_form: 'hierarchical_model',
+      process_rule: { 
+        mode: 'hierarchical',
+        rules: {
+          pre_processing_rules: [
+            { id: 'remove_extra_spaces', enabled: true },
+            { id: 'remove_urls_emails', enabled: false }
+          ],
+          parent_mode: 'paragraph',
+          segmentation: {
+            separator: '\\n',
+            max_tokens: 1000
+          },
+          subchunk_segmentation: {
+            separator: '\\n',
+            max_tokens: 200
+          }
+        }
+      } 
+    }));
+
+    const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${DATASET_KEY}` },
+      body: formData
+    });
+    
+    if (!uploadResponse.ok) {
+      const errText = await uploadResponse.text();
+      throw new Error(`Dify 文件入库失败: ${errText}`);
+    }
+
+    const uploadData = await uploadResponse.json();
+    const documentId = uploadData.document?.id;
+    const batchId = uploadData.batch; 
+
+    if (!documentId || !batchId) {
+      throw new Error('文件已发送，但未从 Dify 拿到 batch ID 导致无法跟踪');
+    }
+
+    console.log(`[Custom Theme] 文档上传成功 (ID: ${documentId}, Batch: ${batchId})，正在轮询向量化进度...`);
+
+    // 3. 轮询向量化索引状态
+    let isIndexed = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      });
+      
+      if (!statusRes.ok) continue;      
+      const statusData = await statusRes.json();
+      const docInfo = statusData.data?.[0];
+      
+      if (docInfo) {
+        console.log(`[Custom Theme] 第 ${i + 1} 次进度扫描: status = ${docInfo.indexing_status}`);
+        if (docInfo.indexing_status === 'completed') {
+          isIndexed = true;
+          break;
+        } else if (docInfo.indexing_status === 'error') {
+          throw new Error('Dify 向量化切分报错，请前往后台查看原因');
+        }
+      }
+    }
+
+    if (!isIndexed) {
+      throw new Error('Dify 向量化索引超时 (>120s)。');
+    }
+
+    console.log(`[Custom Theme] 向量化装载完毕，调用主题萃取工作流...`);
+
+    // 4. 调用工作流 A 运行主题萃取
+    const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WORKFLOW_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: { 
+          custom_theme_name: themeName,
+          topic: themeName
+        },
+        response_mode: 'blocking',
+        user: userId
+      })
+    });
+    
+    const wfData = await wfResponse.json();
+    if (!wfResponse.ok) throw new Error(`工作流执行失败: ${JSON.stringify(wfData)}`);
+    
+    const outputs = wfData?.data?.outputs || {};
+    const extractedThemeName = outputs.theme_name || themeName;
+    const extractedWordsRaw = outputs.extracted_words || '[]';
+    const keyPhrasesRaw = outputs.key_phrases || '[]';
+
+    let extractedWords = [];
+    try {
+      extractedWords = typeof extractedWordsRaw === 'string' ? JSON.parse(extractedWordsRaw) : extractedWordsRaw;
+    } catch (e) {
+      console.error("解析 extracted_words 失败", e);
+    }
+    
+    let keyPhrases = [];
+    try {
+      keyPhrases = typeof keyPhrasesRaw === 'string' ? JSON.parse(keyPhrasesRaw) : keyPhrasesRaw;
+    } catch (e) {
+      console.error("解析 key_phrases 失败", e);
+    }
+
+    // 5. 写入 custom_themes 表
+    const themeId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO custom_themes (id, user_id, theme_name, display_name, associated_file, dify_document_id, dify_dataset_id, extracted_keywords, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      themeId,
+      userId,
+      themeName,
+      extractedThemeName,
+      file.fileName || 'custom_material.pdf',
+      documentId,
+      datasetId,
+      JSON.stringify(extractedWords),
+      Date.now(),
+      Date.now()
+    );
+
+    // 6. 词汇与短语同步静默入库，以便用户立刻可用
+    let addedWordsCount = 0;
+    const now = Date.now();
+    if (Array.isArray(extractedWords)) {
+      for (const item of extractedWords) {
+        const w = (item.word || '').trim();
+        if (!w || w.length > 100) continue;
+        const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(w);
+        if (!existing) {
+          const id = crypto.randomUUID();
+          const payload = {
+            phonetic: item.ipa || item.phonetic || '',
+            partOfSpeech: item.partOfSpeech || item.part_of_speech || '',
+            meaning: item.meaning || item.meaning_zh || '',
+            definition_en: item.definition_en || '',
+            business_note: item.business_note || '',
+            examples: item.examples || [],
+            source: 'Custom Theme Extract',
+            topic: extractedThemeName
+          };
+          db.prepare(`
+            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, w, 'ai_extracted', 'business', JSON.stringify(payload), now, now, '[]');
+          addedWordsCount++;
+        }
+      }
+    }
+
+    let addedPhrasesCount = 0;
+    if (Array.isArray(keyPhrases)) {
+      for (const phraseObj of keyPhrases) {
+        const phraseStr = typeof phraseObj === 'string' ? phraseObj.trim() : (phraseObj.phrase || phraseObj.word || '').trim();
+        if (!phraseStr || phraseStr.length > 500) continue;
+        const existingPhrase = db.prepare(
+          "SELECT id FROM vocabulary WHERE dict_type = 'ai_phrase' AND payload LIKE ? COLLATE NOCASE"
+        ).get(`%${phraseStr.substring(0, 50)}%`);
+        if (!existingPhrase) {
+          const id = crypto.randomUUID();
+          const payload = {
+            source: 'Custom Theme Extract',
+            topic: extractedThemeName,
+            type: 'phrase',
+            meaning: phraseObj.meaning || phraseObj.meaning_zh || '',
+            definition_en: phraseObj.definition_en || '',
+            examples: phraseObj.examples || []
+          };
+          db.prepare(`
+            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, phraseStr, 'ai_phrase', 'business', JSON.stringify(payload), now, now, '[]');
+          addedPhrasesCount++;
+        }
+      }
+    }
+
+    res.json({
+      success: true,
+      theme: {
+        id: themeId,
+        themeName: themeName,
+        displayName: extractedThemeName,
+        associatedFile: file.fileName,
+        difyDocumentId: documentId,
+        difyDatasetId: datasetId,
+        extractedKeywords: extractedWords,
+        createdAt: now
+      },
+      addedWordsCount,
+      addedPhrasesCount
+    });
+
+  } catch (error) {
+    console.error('Custom Theme Upload and Extraction Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取所有自定义主题
+app.get('/api/theme/list', (req, res) => {
+  const { userId = 'default-user' } = req.query;
+  try {
+    const rows = db.prepare('SELECT * FROM custom_themes WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    const formatted = rows.map(r => ({
+      id: r.id,
+      themeName: r.theme_name,
+      displayName: r.display_name,
+      associatedFile: r.associated_file,
+      difyDocumentId: r.dify_document_id,
+      difyDatasetId: r.dify_dataset_id,
+      extractedKeywords: r.extracted_keywords ? JSON.parse(r.extracted_keywords) : [],
+      source: 'custom',
+      createdAt: r.created_at
+    }));
+    res.json({ success: true, themes: formatted });
+  } catch (error) {
+    console.error('Failed to list custom themes:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 删除自定义主题 (精确删除知识库对应文档)
+app.delete('/api/theme/custom/:id', async (req, res) => {
+  const id = req.params.id;
+  const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+  const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+  try {
+    const row = db.prepare('SELECT * FROM custom_themes WHERE id = ?').get(id);
+    if (!row) {
+      return res.status(404).json({ success: false, error: 'Custom theme not found' });
+    }
+
+    if (row.dify_document_id && row.dify_dataset_id) {
+      console.log(`[Delete Theme] Deleting document ${row.dify_document_id} from dataset ${row.dify_dataset_id}`);
+      const delResponse = await fetch(`${BASE_URL}/datasets/${row.dify_dataset_id}/documents/${row.dify_document_id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      });
+      if (!delResponse.ok) {
+        console.warn(`[Delete Theme] Failed to delete Dify document: ${await delResponse.text()}`);
+      }
+    }
+
+    db.prepare('DELETE FROM custom_themes WHERE id = ?').run(id);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Failed to delete custom theme:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取停留天数和薄弱点分析数据
+app.get('/api/theme/stay-stats', (req, res) => {
+  const { theme, userId = 'default-user' } = req.query;
+  if (!theme) {
+    return res.status(400).json({ success: false, error: 'Missing theme parameter' });
+  }
+
+  try {
+    const earliestGen = db.prepare(`
+      SELECT MIN(generated_at) as earliest FROM generation_history 
+      WHERE user_id = ? AND theme = ?
+    `).get(userId, theme);
+
+    const earliestAttempt = db.prepare(`
+      SELECT MIN(created_at) as earliest FROM training_attempts 
+      WHERE user_id = ? AND scene_type = ?
+    `).get(userId, theme);
+
+    let earliestTime = Date.now();
+    if (earliestGen?.earliest) earliestTime = Math.min(earliestTime, earliestGen.earliest);
+    if (earliestAttempt?.earliest) earliestTime = Math.min(earliestTime, earliestAttempt.earliest);
+
+    const stayDays = earliestTime === Date.now() 
+      ? 1 
+      : Math.max(1, Math.ceil((Date.now() - earliestTime) / (24 * 60 * 60 * 1000)));
+
+    const genCountRow = db.prepare(`
+      SELECT COUNT(*) as count FROM generation_history 
+      WHERE user_id = ? AND theme = ?
+    `).get(userId, theme);
+    const articleCount = genCountRow ? genCountRow.count : 0;
+
+    const escapedTheme = theme.replace(/"/g, '\\"');
+    const wordCountRow = db.prepare(`
+      SELECT COUNT(*) as count FROM vocabulary 
+      WHERE dict_type = 'ai_extracted' AND payload LIKE ?
+    `).get(`%${escapedTheme}%`);
+    const wordCount = wordCountRow ? wordCountRow.count : 0;
+
+    const phraseCountRow = db.prepare(`
+      SELECT COUNT(*) as count FROM vocabulary 
+      WHERE dict_type = 'ai_phrase' AND payload LIKE ?
+    `).get(`%${escapedTheme}%`);
+    const phraseCount = phraseCountRow ? phraseCountRow.count : 0;
+
+    let weakPoints = { pronunciation: '暂无发音问题记录', grammar: '暂无语法问题记录' };
+    let todaySuggestion = '建议：完成今日单词的英汉双向熟练度默写，并进行流式长文听力精听。';
+
+    const latestSession = db.prepare(`
+      SELECT extra_json FROM training_sessions 
+      WHERE user_id = ? 
+      ORDER BY training_date DESC LIMIT 1
+    `).get(userId);
+
+    if (latestSession?.extra_json) {
+      try {
+        const extra = JSON.parse(latestSession.extra_json);
+        const ef = extra.englishFoundation || {};
+        if (ef.pronunciationNotes) weakPoints.pronunciation = ef.pronunciationNotes;
+        if (ef.grammarNotes) weakPoints.grammar = ef.grammarNotes;
+        
+        if (ef.pronunciationNotes || ef.grammarNotes) {
+          todaySuggestion = `今日针对性建议：重点纠正【${ef.pronunciationNotes || '无特殊发音问题'}】的发音习惯；在口语/写作练习中刻意运用【${ef.grammarNotes || '无语法偏差'}】的修正方案。`;
+        }
+      } catch {}
+    }
+
+    res.json({
+      success: true,
+      stayDays,
+      articleCount,
+      wordCount,
+      phraseCount,
+      weakPoints,
+      todaySuggestion
+    });
+  } catch (error) {
+    console.error('Failed to get stay stats:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
@@ -1362,6 +1781,50 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const wordsLeft = WORD_DAILY_LIMIT - (quotaRow.words_added || 0);
     const phrasesLeft = PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0);
 
+    // Step 2.5: 构建去重上下文 (history_exclude) 与薄弱点 (user_flaws)
+    let historyExclude = '';
+    try {
+      const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+      const historyRows = db.prepare(`
+        SELECT keywords FROM generation_history 
+        WHERE user_id = ? AND theme = ? AND generated_at > ?
+        ORDER BY generated_at DESC
+      `).all(userId, topic, cutoff);
+      
+      const allKeywords = [];
+      for (const row of historyRows) {
+        try {
+          const kw = JSON.parse(row.keywords || '[]');
+          if (Array.isArray(kw)) {
+            allKeywords.push(...kw);
+          }
+        } catch {}
+      }
+      historyExclude = [...new Set(allKeywords)].slice(0, 30).join(', ');
+    } catch (e) {
+      console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
+    }
+
+    let userFlaws = '';
+    try {
+      const session = db.prepare(`
+        SELECT extra_json FROM training_sessions 
+        WHERE user_id = ? 
+        ORDER BY training_date DESC LIMIT 1
+      `).get(userId);
+      
+      if (session?.extra_json) {
+        const extra = JSON.parse(session.extra_json);
+        const ef = extra.englishFoundation || {};
+        const flaws = [];
+        if (ef.pronunciationNotes) flaws.push(`发音问题: ${ef.pronunciationNotes}`);
+        if (ef.grammarNotes) flaws.push(`语法问题: ${ef.grammarNotes}`);
+        userFlaws = flaws.join('; ');
+      }
+    } catch (e) {
+      console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
+    }
+
     // Step 2: 妫€鏌ラ厤棰?
     if (wordsLeft <= 0 && phrasesLeft <= 0) {
       return res.json({
@@ -1420,7 +1883,13 @@ app.post('/api/english/daily-extract', async (req, res) => {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            inputs: { theme: topic || "General Business", cefr_level: cefrLevel, genre: genre },
+            inputs: { 
+              theme: topic || "General Business", 
+              cefr_level: cefrLevel, 
+              genre: genre,
+              history_exclude: historyExclude,
+              user_flaws: userFlaws
+            },
             query: "generate",
             response_mode: "streaming",
             user: userId,
@@ -1644,6 +2113,24 @@ app.post('/api/english/daily-extract', async (req, res) => {
       const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
       const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
 
+      // 写入生成历史
+      try {
+        const genId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO generation_history (id, user_id, theme, generated_at, article_summary, keywords)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `).run(
+          genId,
+          userId,
+          topic || 'General Business',
+          Date.now(),
+          (articleText || '').substring(0, 100),
+          JSON.stringify(wordsToStore.map(w => w.word))
+        );
+      } catch (e) {
+        console.warn('[Daily Extract] 流式写入生成历史失败:', e.message);
+      }
+
       console.log(`[Daily Extract] Completed. User ${userId} ${today} added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`);
 
       // 鍙戦€佹祦缁撴潫鏍囪锛屽苟闄勫甫鏈€缁堢殑鍏ュ簱鍜岀粺璁?JSON 数据作为最后一部分事件
@@ -1756,6 +2243,24 @@ app.post('/api/english/daily-extract', async (req, res) => {
 
     const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
     const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
+
+    // 写入生成历史
+    try {
+      const genId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO generation_history (id, user_id, theme, generated_at, article_summary, keywords)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).run(
+        genId,
+        userId,
+        topic || 'General Business',
+        Date.now(),
+        "",
+        JSON.stringify(wordsToStore.map(w => w.word))
+      );
+    } catch (e) {
+      console.warn('[Daily Extract] 非流式写入生成历史失败:', e.message);
+    }
 
     console.log(`[Daily Extract] User ${userId} ${today} added words: ${wordsAddedCount}, phrases: ${phrasesAddedCount}`);
 

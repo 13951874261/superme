@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Globe, User } from 'lucide-react';
+import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Globe, User, Plus } from 'lucide-react';
 import { useEnglishContext, getThemeOptions } from '../context/EnglishContext';
+import CustomThemeModal from './CustomThemeModal';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
 import MaterialUploader from '../../../MaterialUploader';
@@ -175,8 +176,44 @@ export default function DashboardTab() {
     pronunciationNotes, setPronunciationNotes,
     grammarNotes, setGrammarNotes,
     impromptuPassed,
-    inlineNotice, noticeAnchor, setActiveTab, showNotice
+    inlineNotice, noticeAnchor, setActiveTab, showNotice,
+    customThemes, refreshCustomThemes
   } = useEnglishContext();
+
+  const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
+  const currentCustomTheme = customThemes?.find(c => (c.displayName || c.themeName) === theme);
+
+  const [stayStats, setStayStats] = useState<{
+    stayDays: number;
+    articleCount: number;
+    wordCount: number;
+    phraseCount: number;
+    weakPoints: { pronunciation: string; grammar: string };
+    todaySuggestion: string;
+  } | null>(null);
+
+  const loadStayStats = async () => {
+    if (!theme) return;
+    try {
+      const { getThemeStayStats } = await import('../../../../services/trainingAPI');
+      const data = await getThemeStayStats(theme);
+      setStayStats(data);
+    } catch (err) {
+      console.error('Failed to load theme stay stats:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadStayStats();
+    
+    const handleUpdate = () => {
+      loadStayStats();
+    };
+    window.addEventListener('vocab-updated', handleUpdate);
+    return () => {
+      window.removeEventListener('vocab-updated', handleUpdate);
+    };
+  }, [theme]);
 
   const handleStageChange = async (newStage: '0-6' | '6-12') => {
     // 核心修复：切回当前阶段时，不加限制并直接清理可能残留的弹窗
@@ -513,12 +550,54 @@ export default function DashboardTab() {
               }}
               className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
             >
-              {getThemeOptions(stage).map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
+              <optgroup label="系统预置主题">
+                {getThemeOptions(stage).map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+              {customThemes && customThemes.length > 0 && (
+                <optgroup label="自定义场景主题">
+                  {customThemes.map((c) => (
+                    <option key={c.id} value={c.displayName || c.themeName}>
+                      {c.displayName || c.themeName}
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
+
+            {currentCustomTheme && (
+              <button
+                onClick={async () => {
+                  if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步删除在 Dify 知识库关联的文档。`)) return;
+                  try {
+                     const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
+                     const res = await deleteCustomTheme(currentCustomTheme.id);
+                     if (res.success) {
+                       showNotice('dashboard', '成功删除自定义场景', 'success');
+                       const options = getThemeOptions(stage);
+                       setTheme(options[0].value);
+                       await refreshCustomThemes();
+                     }
+                  } catch (e: any) {
+                     showNotice('dashboard', `删除失败: ${e.message}`, 'error');
+                  }
+                }}
+                className="bg-red-50 hover:bg-red-100 text-red-600 p-3 rounded-xl border border-red-200 transition-all cursor-pointer"
+                title="删除当前自定义场景"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+
+            <button
+              onClick={() => setIsCustomThemeModalOpen(true)}
+              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl border border-indigo-200 transition-all font-bold text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" /> 自定义
+            </button>
             <div
               className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap border ${
                 masteryData.isMastered
@@ -535,6 +614,52 @@ export default function DashboardTab() {
           {!masteryData.isMastered && (
             <div className="text-[10px] text-gray-500 font-medium mt-2">
               当前通关进度：口语对抗 {masteryData.oralCount}/10 轮 | L3 书面最高分 {masteryData.maxWriteScore}/8 分 | 即兴演讲 {impromptuPassed ? '✅已达标' : '⚠️未达标'}
+            </div>
+          )}
+
+          {stayStats && (
+            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 mt-4 transition-all hover:shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-3.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">📊</span>
+                  <h5 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                    闭环停留分析 <span className="text-slate-400">// Stay Analysis</span>
+                  </h5>
+                </div>
+                <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider">
+                  {stayStats.stayDays > 1 ? `已停留 ${stayStats.stayDays} 天` : '第 1 天'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-semibold text-slate-600">
+                <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">📅 停留期内练习</p>
+                  <p className="text-slate-700 font-black">
+                    已生成 <span className="text-indigo-600">{stayStats.articleCount}</span> 篇长文
+                  </p>
+                </div>
+                <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">📚 累积摄入词汇</p>
+                  <p className="text-slate-700 font-black">
+                    已学 <span className="text-indigo-600">{stayStats.wordCount}</span> 生词 / <span className="text-indigo-600">{stayStats.phraseCount}</span> 短语
+                  </p>
+                </div>
+                <div className="bg-white/80 border border-slate-100 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.01)]">
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">⚠️ 薄弱点追踪</p>
+                  <div className="space-y-0.5 text-[11px] font-medium leading-relaxed">
+                    <p className="truncate"><span className="font-bold text-red-500">发音:</span> {stayStats.weakPoints.pronunciation}</p>
+                    <p className="truncate"><span className="font-bold text-[#FF5722]">语法:</span> {stayStats.weakPoints.grammar}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3.5 bg-amber-50/50 border border-amber-100/60 rounded-xl p-3.5 flex items-start gap-2.5">
+                <span className="text-amber-500 shrink-0 text-sm">💡</span>
+                <div className="text-[11px] leading-relaxed text-amber-800 font-medium">
+                  <p className="font-bold mb-0.5">今日练习方向建议：</p>
+                  <p className="opacity-90">{stayStats.todaySuggestion}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -1209,6 +1334,15 @@ export default function DashboardTab() {
           )}
         </div>
       )}
+      <CustomThemeModal
+        isOpen={isCustomThemeModalOpen}
+        onClose={() => setIsCustomThemeModalOpen(false)}
+        onSuccess={async (newThemeName) => {
+          await refreshCustomThemes();
+          setTheme(newThemeName);
+          await setThemeFocus({ theme: newThemeName }).catch(() => {});
+        }}
+      />
     </div>
   );
 }

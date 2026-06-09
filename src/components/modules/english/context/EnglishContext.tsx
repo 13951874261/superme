@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete } from '../../../../services/trainingAPI';
+import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, CustomTheme } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
 
@@ -121,6 +121,9 @@ interface EnglishContextType {
   setIsReviewing: React.Dispatch<React.SetStateAction<boolean>>;
   reviewResult: any;
   setReviewResult: React.Dispatch<React.SetStateAction<any>>;
+  customThemes: CustomTheme[];
+  setCustomThemes: React.Dispatch<React.SetStateAction<CustomTheme[]>>;
+  refreshCustomThemes: () => Promise<void>;
 }
 
 const EnglishContext = createContext<EnglishContextType | undefined>(undefined);
@@ -136,6 +139,22 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, emailCompleted: false, _isInitial: true });
   const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+
+  const refreshCustomThemes = async () => {
+    try {
+      const res = await listCustomThemes();
+      if (res.success && Array.isArray(res.themes)) {
+        setCustomThemes(res.themes);
+      }
+    } catch (err) {
+      console.error('Failed to load custom themes:', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshCustomThemes();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('english_stage', stage);
@@ -330,6 +349,8 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         writeIntent, setWriteIntent,
         isReviewing, setIsReviewing,
         reviewResult, setReviewResult,
+        customThemes, setCustomThemes,
+        refreshCustomThemes,
       }}
     >
       {children}
