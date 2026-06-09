@@ -125,7 +125,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
         <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner group">
           <img
             src={memoryAids.image_url}
-            alt={`${wordText} memory aid`}
+            alt={`记忆助手插图: ${wordText}`}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">

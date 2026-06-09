@@ -1,0 +1,80 @@
+[
+  {
+    "id": "ms-build-2026",
+    "title": "Microsoft Build 2026 CEO Q&A Interview",
+    "description": "微软2026年开发者大会CEO问答访谈，探讨AI与云计算未来",
+    "duration": 1800,
+    "audioUrl": "/api/long_audio/ms-build-2026.mp3",
+    "genre": "meeting",
+    "cefrLevel": "C1",
+    "segments": [
+      {
+        "index": 0,
+        "title": "Part 1: The Copilot Evolution",
+        "start": 0,
+        "end": 180,
+        "text": "Host: Welcome back to our tech daily podcast. Today we are joined by the CEO of Microsoft, Satya Nadella, to discuss the future of AI in enterprise software. Satya, thank you for joining us.\n\nSatya: Thank you for having me. It's great to be here.",
+        "jargons": [
+          { "word": "Copilot", "meaning": "微软AI副驾驶工具" },
+          { "word": "Enterprise software", "meaning": "企业级软件" }
+        ]
+      },
+      {
+        "index": 1,
+        "title": "Part 2: Cloud Infrastructure & AI Scaling",
+        "start": 180,
+        "end": 420,
+        "text": "Host: Let's talk about the infrastructure behind these AI capabilities. In 2026, we're seeing unprecedented scale. Can you elaborate on the GPU cluster expansion?\n\nSatya: Absolutely. In 2026, we are looking at scale at an unprecedented level. Our GPU cluster capacity has increased by over 500% compared to 2024. This allows us to serve millions of concurrent requests without latency degradation.",
+        "jargons": [
+          { "word": "GPU cluster", "meaning": "GPU计算集群" },
+          { "word": "Scaling", "meaning": "横向扩展/规模伸缩" },
+          { "word": "Latency degradation", "meaning": "延迟恶化" }
+        ]
+      },
+      {
+        "index": 2,
+        "title": "Part 3: Developer Productivity",
+        "start": 420,
+        "end": 660,
+        "text": "Host: How do you see AI affecting developer productivity in the coming years?\n\nSatya: We've seen a paradigm shift. Developers are now spending less time on boilerplate code and more time on creative problem-solving. Our internal data shows a 40% increase in code deployment frequency.",
+        "jargons": [
+          { "word": "Boilerplate code", "meaning": "样板代码/重复性代码" },
+          { "word": "Code deployment", "meaning": "代码部署" }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "fed-rate-2026",
+    "title": "Federal Reserve Interest Rate Decision 2026",
+    "description": "美联储2026年利率决议新闻发布会",
+    "duration": 1740,
+    "audioUrl": "/api/long_audio/fed-rate-2026.mp3",
+    "genre": "news",
+    "cefrLevel": "C1",
+    "segments": [
+      {
+        "index": 0,
+        "title": "Opening Statement",
+        "start": 0,
+        "end": 240,
+        "text": "Good afternoon. The Federal Open Market Committee has decided to maintain the target range for the federal funds rate at 5.25% to 5.50%. Our restrictive monetary policy has continued to bring inflation down towards our 2% objective.",
+        "jargons": [
+          { "word": "Federal Open Market Committee", "meaning": "美联储公开市场委员会" },
+          { "word": "Federal funds rate", "meaning": "联邦基金利率" }
+        ]
+      },
+      {
+        "index": 1,
+        "title": "Q&A: Inflation and Labor Market",
+        "start": 240,
+        "end": 480,
+        "text": "Journalist: Mr. Chairman, can you comment on the recent rise in unemployment?\n\nChairman: The labor market remains relatively strong, although we have seen a gradual rebalancing. Our goal is to achieve maximum employment and price stability in tandem.",
+        "jargons": [
+          { "word": "Price stability", "meaning": "价格稳定" },
+          { "word": "Rebalancing", "meaning": "重新平衡" }
+        ]
+      }
+    ]
+  }
+]

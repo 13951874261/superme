@@ -514,7 +514,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                       <button
                         type="button"
                         onClick={() => removeExampleField(idx)}
-                        className="p-2 text-gray-300 hover:text-red-500 rounded-lg hover:bg-gray-50 transition"
+                        className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 transition duration-200"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>

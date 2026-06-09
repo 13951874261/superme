@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useEffect } from 'r
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, CustomTheme } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
+import { LongAudio } from '../../../../services/listeningAPI';
 
 export type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write' | 'impromptu';
 
@@ -111,6 +112,18 @@ interface EnglishContextType {
   setListenResult: React.Dispatch<React.SetStateAction<ComparisonResult | null>>;
   listenInput: string;
   setListenInput: React.Dispatch<React.SetStateAction<string>>;
+  longAudios: LongAudio[];
+  setLongAudios: React.Dispatch<React.SetStateAction<LongAudio[]>>;
+  selectedLongAudioId: string | null;
+  setSelectedLongAudioId: React.Dispatch<React.SetStateAction<string | null>>;
+  currentSegmentIndex: number;
+  setCurrentSegmentIndex: React.Dispatch<React.SetStateAction<number>>;
+  loopEnabled: boolean;
+  setLoopEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  longAudioMode: boolean;
+  setLongAudioMode: React.Dispatch<React.SetStateAction<boolean>>;
+  segmentDrafts: Record<number, string>;
+  setSegmentDrafts: React.Dispatch<React.SetStateAction<Record<number, string>>>;
 
   // Write
   writingText: string;
@@ -230,6 +243,12 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [isListenLoading, setIsListenLoading] = useState(false);
   const [listenResult, setListenResult] = useState<ComparisonResult | null>(null);
   const [listenInput, setListenInput] = useState('');
+  const [longAudios, setLongAudios] = useState<LongAudio[]>([]);
+  const [selectedLongAudioId, setSelectedLongAudioId] = useState<string | null>(null);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<number>(0);
+  const [loopEnabled, setLoopEnabled] = useState<boolean>(false);
+  const [longAudioMode, setLongAudioMode] = useState<boolean>(false);
+  const [segmentDrafts, setSegmentDrafts] = useState<Record<number, string>>({});
 
   const [writingText, setWritingText] = useState('');
   const [writeIntent, setWriteIntent] = useState('');
@@ -345,6 +364,12 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         isListenLoading, setIsListenLoading,
         listenResult, setListenResult,
         listenInput, setListenInput,
+        longAudios, setLongAudios,
+        selectedLongAudioId, setSelectedLongAudioId,
+        currentSegmentIndex, setCurrentSegmentIndex,
+        loopEnabled, setLoopEnabled,
+        longAudioMode, setLongAudioMode,
+        segmentDrafts, setSegmentDrafts,
         writingText, setWritingText,
         writeIntent, setWriteIntent,
         isReviewing, setIsReviewing,

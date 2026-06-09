@@ -19,6 +19,13 @@ if (!fs.existsSync(tempAudioDir)) {
   fs.mkdirSync(tempAudioDir, { recursive: true });
 }
 app.use('/api/temp_audio', express.static(tempAudioDir));
+
+// 静态文件服务：长音频文件
+const longAudioDir = path.join(__dirname, 'public', 'long_audio');
+if (!fs.existsSync(longAudioDir)) {
+  fs.mkdirSync(longAudioDir, { recursive: true });
+}
+app.use('/api/long_audio', express.static(longAudioDir));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
@@ -228,6 +235,44 @@ function calculateNextReview(quality, repetitions, easeFactor, interval) {
   
   return { repetitions: newRepetitions, easeFactor: newEaseFactor, interval: newInterval };
 }
+
+// ==========================================
+// 长音频 API
+// ==========================================
+
+const longAudiosConfig = require('./config/longAudios.json');
+
+// 获取长音频列表
+app.get('/api/listen/long-audio/list', (req, res) => {
+  try {
+    const list = longAudiosConfig.map(item => ({
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      duration: item.duration,
+      genre: item.genre,
+      cefrLevel: item.cefrLevel,
+      segmentCount: item.segments.length
+    }));
+    res.json({ success: true, data: list });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取长音频详情（包含分段）
+app.get('/api/listen/long-audio/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const audio = longAudiosConfig.find(item => item.id === id);
+    if (!audio) {
+      return res.status(404).json({ success: false, error: 'Audio not found' });
+    }
+    res.json({ success: true, data: audio });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ==========================================
 // 1. 核心业务 API (Vocab)

@@ -1,0 +1,36 @@
+﻿name: UI/UX 每日建议
+
+on:
+  schedule:
+    - cron: '0 14 * * *'      # 北京时间 22:00 (UTC 14:00)
+  workflow_dispatch:          # 支持手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          
+      - name: 运行 UI/UX 分析
+        run: |
+          mkdir -p docs
+          node scripts/uiux/analyze-uiux.cjs > docs/ui-ux-suggestions.md
+          
+      - name: 提交并推送变更
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/ui-ux-suggestions.md
+          if ! git diff --cached --quiet; then
+            git commit -m "docs: UI/UX 每日建议 $(date +'%Y-%m-%d')"
+            git push
+          else
+            echo "没有 UI/UX 建议的变化，跳过提交"
+          fi

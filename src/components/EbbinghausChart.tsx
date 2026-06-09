@@ -127,7 +127,7 @@ export default function EbbinghausChart({ data }: EbbinghausChartProps) {
       </div>
 
       <div className="relative w-full overflow-x-auto">
-        <svg viewBox={`0 0 ${width} ${height}`} className="w-full min-w-[440px] h-auto overflow-visible">
+        <svg viewBox={`0 0 ${width} ${height}`} className="w-full max-w-full md:min-w-[440px] h-auto overflow-visible">
           {/* Y 轴网格线 */}
           {yGridValues.map(val => (
             <g key={val}>

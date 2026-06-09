@@ -247,6 +247,7 @@ export default function DashboardTab() {
 
   const [isAutoGenerating, setIsAutoGenerating] = useState(false);
   const [isClearingAndReGenerating, setIsClearingAndReGenerating] = useState(false);
+  const [isDeletingTheme, setIsDeletingTheme] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [quotaStatus, setQuotaStatus] = useState<{
     wordsUsed: number;
@@ -570,8 +571,10 @@ export default function DashboardTab() {
 
             {currentCustomTheme && (
               <button
+                disabled={isDeletingTheme}
                 onClick={async () => {
                   if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步删除在 Dify 知识库关联的文档。`)) return;
+                  setIsDeletingTheme(true);
                   try {
                      const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
                      const res = await deleteCustomTheme(currentCustomTheme.id);
@@ -583,12 +586,14 @@ export default function DashboardTab() {
                      }
                   } catch (e: any) {
                      showNotice('dashboard', `删除失败: ${e.message}`, 'error');
+                  } finally {
+                     setIsDeletingTheme(false);
                   }
                 }}
-                className="bg-red-50 hover:bg-red-100 text-red-600 p-3 rounded-xl border border-red-200 transition-all cursor-pointer"
+                className="bg-red-50 hover:bg-red-100 text-red-600 p-3 rounded-xl border border-red-200 transition-all cursor-pointer disabled:opacity-50"
                 title="删除当前自定义场景"
               >
-                <Trash2 className="w-5 h-5" />
+                {isDeletingTheme ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
               </button>
             )}
 

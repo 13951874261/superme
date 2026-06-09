@@ -214,7 +214,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
 
       {/* 同义词/反义词 (并排胶囊标签云) */}
       {(synonyms.length > 0 || antonyms.length > 0) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {synonyms.length > 0 && (
             <div className="space-y-2">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">近义词</div>
@@ -430,7 +430,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
 
       {/* 同义词/反义词 (并排胶囊标签云) */}
       {(synonyms.length > 0 || antonyms.length > 0) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {synonyms.length > 0 && (
             <div className="space-y-2">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Synonyms</div>
@@ -607,7 +607,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
 
       {/* 同义词/反义词 (并排胶囊标签云) */}
       {(synonyms.length > 0 || antonyms.length > 0) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {synonyms.length > 0 && (
             <div className="space-y-2">
               <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">近义词</div>

@@ -30,6 +30,7 @@ export default function ListenTab() {
   const [listenGenre, setListenGenre] = useState<'news' | 'meeting' | 'podcast'>('meeting');
   const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
   const [isFullscreenText, setIsFullscreenText] = useState(false);
+  const [isAddingHighlight, setIsAddingHighlight] = useState(false);
 
 
   const [globalRateMultiplier, setGlobalRateMultiplier] = useState(
@@ -222,7 +223,7 @@ export default function ListenTab() {
                       const nextRate = playbackRate === 1 ? 1.25 : playbackRate === 1.25 ? 1.5 : playbackRate === 1.5 ? 0.75 : 1;
                       setPlaybackRate(nextRate);
                     }}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-black uppercase text-gray-300 hover:text-white hover:bg-white/20 transition-all shrink-0 cursor-pointer"
+                    className="flex items-center gap-1 px-3 py-1.5 bg-white/10 rounded-lg text-[10px] font-black uppercase text-gray-400 hover:text-white hover:bg-white/20 transition-all shrink-0 cursor-pointer"
                     title="调整播放倍速"
                   >
                     <FastForward className="w-3 h-3" /> {(playbackRate * globalRateMultiplier).toFixed(2)}x
@@ -261,7 +262,9 @@ export default function ListenTab() {
                 <div className="mt-2 flex items-center gap-2 bg-white/10 rounded-xl px-4 py-2 animate-[fadeIn_0.2s_ease-out]">
                   <span className="text-xs text-[#FF5722] font-black">"{highlightedWord}"</span>
                   <button
+                    disabled={isAddingHighlight}
                     onClick={async () => {
+                      setIsAddingHighlight(true);
                       try {
                         await addWord({
                           word: highlightedWord,
@@ -272,11 +275,15 @@ export default function ListenTab() {
                         showNotice('listen', `"${highlightedWord}" 已划线入库（全场景区）`, 'success');
                         window.dispatchEvent(new Event('vocab-updated'));
                       } catch { showNotice('listen', '入库失败', 'error'); }
-                      setHighlightedWord('');
+                      finally {
+                        setIsAddingHighlight(false);
+                        setHighlightedWord('');
+                      }
                     }}
-                    className="flex items-center gap-1 px-3 py-1 bg-[#FF5722] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#e64a19] transition-colors cursor-pointer"
+                    className="flex items-center gap-1 px-3 py-1 bg-[#FF5722] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#e64a19] transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    <BookPlus className="w-3 h-3" /> 划线入库
+                    {isAddingHighlight ? <Loader2 className="w-3 h-3 animate-spin" /> : <BookPlus className="w-3 h-3" />}
+                    {isAddingHighlight ? '入库中...' : '划线入库'}
                   </button>
                   <button onClick={() => setHighlightedWord('')} className="text-gray-400 hover:text-white text-sm">×</button>
                 </div>
@@ -418,7 +425,7 @@ export default function ListenTab() {
                               <SpeakButton text={item.word} title={`播放 ${item.word}`} className="w-7 h-7 bg-white/10 text-white hover:bg-[#FF5722]" iconClassName="w-3.5 h-3.5" />
                             </div>
                           </div>
-                          <div className="text-[10px] text-gray-300">{item.meaning}</div>
+                          <div className="text-[10px] text-gray-500">{item.meaning}</div>
                         </div>
                       ))}
                     </div>

@@ -184,7 +184,7 @@ export default function VocabTab() {
               收录由「精听盲听 → 划线入库」、口语沙盘截获黑话等日常场景中手动标记的词汇（社交/应急/文化破冰通用）。数据来源：精听划线 + 口语截获 → 生词本 API（/api/vocab）。
             </span>
           )}
-          <span className="ml-2 text-gray-300">｜ 无分区标记的存量词两区均可见。</span>
+          <span className="ml-2 text-gray-500">｜ 无分区标记的存量词两区均可见。</span>
         </div>
       </div>
 
@@ -231,7 +231,7 @@ export default function VocabTab() {
             </div>
             
             <div className="relative z-10 flex flex-wrap justify-center gap-2">
-              <span className="px-4 py-2 bg-white/5 text-gray-300 text-xs font-black uppercase tracking-widest border border-white/10 rounded-xl backdrop-blur-md shadow-sm">{currentWord.payload?.partOfSpeech || currentWord.dict_type || '词条'}</span>
+              <span className="px-4 py-2 bg-white/5 text-gray-400 text-xs font-black uppercase tracking-widest border border-white/10 rounded-xl backdrop-blur-md shadow-sm">{currentWord.payload?.partOfSpeech || currentWord.dict_type || '词条'}</span>
               <span className="px-4 py-2 bg-blue-500/10 text-blue-400 text-xs font-black uppercase tracking-widest border border-blue-500/20 rounded-xl backdrop-blur-md shadow-sm">商务高频</span>
               <span className="px-4 py-2 bg-[#FF5722]/10 text-[#FF5722] text-xs font-black uppercase tracking-widest border border-[#FF5722]/20 rounded-xl backdrop-blur-md shadow-sm">{theme}</span>
             </div>

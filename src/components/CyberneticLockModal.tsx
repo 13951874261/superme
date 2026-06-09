@@ -48,7 +48,7 @@ export default function CyberneticLockModal({
           <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1.5">当前战役阵地</div>
           <div className="text-sm font-bold text-white mb-4">{theme}</div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Oral Stat Card */}
             <div className={`p-3.5 rounded-xl border transition-all ${isOralDone ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/5 border-red-500/10'}`}>
               <div className="flex justify-between items-center mb-1">

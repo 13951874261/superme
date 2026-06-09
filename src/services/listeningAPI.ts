@@ -144,3 +144,49 @@ export async function fetchDifyTTS(text: string, userId = 'default-user'): Promi
   }
   return data.audioUrl;
 }
+
+/**
+ * 长音频数据结构
+ */
+export interface LongAudioSegment {
+  index: number;
+  title: string;
+  start: number; // 秒
+  end: number;   // 秒
+  text: string;
+  jargons: { word: string; meaning: string }[];
+}
+
+export interface LongAudio {
+  id: string;
+  title: string;
+  description: string;
+  duration: number; // 秒
+  audioUrl: string;
+  genre: 'news' | 'meeting' | 'podcast';
+  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1';
+  segments: LongAudioSegment[];
+}
+
+/**
+ * 获取长音频列表
+ */
+export async function fetchLongAudioList(): Promise<LongAudio[]> {
+  const response = await fetch('/api/listen/long-audio/list');
+  if (!response.ok) throw new Error('获取长音频列表失败');
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || '获取长音频列表失败');
+  return data.data;
+}
+
+/**
+ * 获取长音频详情（含分段）
+ */
+export async function fetchLongAudioDetail(id: string): Promise<LongAudio> {
+  const response = await fetch(`/api/listen/long-audio/${id}`);
+  if (!response.ok) throw new Error('获取长音频详情失败');
+  const data = await response.json();
+  if (!data.success) throw new Error(data.error || '获取长音频详情失败');
+  return data.data;
+}
+
