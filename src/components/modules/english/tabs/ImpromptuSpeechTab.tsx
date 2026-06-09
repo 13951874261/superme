@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy } from 'lucide-react';
+import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy, ArrowRight, Sparkles } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
@@ -535,15 +535,24 @@ export default function ImpromptuSpeechTab() {
 
       {/* 主题提示面板 */}
       {showPrompter && prompterResult && (
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out]">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-black uppercase tracking-widest text-amber-800 flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-amber-500" />
-              演讲准备提示
-            </h4>
+        <div className="bg-gradient-to-br from-orange-50/70 to-amber-50/70 border border-amber-500/20 ring-1 ring-amber-500/5 rounded-[2rem] p-6 shadow-[0_10px_35px_-5px_rgba(245,158,11,0.08)] animate-[fadeIn_0.3s_ease-out]">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-amber-500/10">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-500/10 p-2 rounded-xl text-amber-500">
+                <Lightbulb className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-800 leading-tight">
+                  演讲准备提示
+                </h4>
+                <p className="text-[10px] text-amber-700/60 font-medium mt-0.5">
+                  AI 实时梳理逻辑骨架与实用语料库
+                </p>
+              </div>
+            </div>
             <button
               onClick={() => setShowPrompter(false)}
-              className="text-amber-600 hover:text-amber-800 cursor-pointer"
+              className="text-amber-600 hover:text-amber-800 hover:bg-amber-500/5 p-2 rounded-lg transition-colors cursor-pointer"
             >
               <ChevronUp className="w-5 h-5" />
             </button>
@@ -551,20 +560,33 @@ export default function ImpromptuSpeechTab() {
 
           <div className="space-y-4">
             {/* 思维导图 */}
-            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
-              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">思维导图</h5>
-              <div className="flex flex-wrap gap-2">
-                <span className="bg-amber-500 text-white px-3 py-1.5 rounded-full text-xs font-black">
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-5 border border-amber-100/60 shadow-[0_2px_12px_rgba(245,158,11,0.02)]">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-4 flex items-center gap-1.5">
+                <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                思维导图
+              </h5>
+              <div className="flex flex-col md:flex-row md:items-center gap-4 flex-wrap">
+                <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-full text-xs font-black shadow-[0_3px_10px_rgba(245,158,11,0.2)] select-none shrink-0 self-start md:self-center">
                   {prompterResult.mindmap.center}
                 </span>
                 {prompterResult.mindmap.branches.map((branch, i) => (
-                  <div key={i} className="flex flex-wrap gap-1 items-center">
-                    <span className="text-amber-600">→</span>
-                    <div className="flex flex-col gap-1">
-                      <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-bold">{branch.title}</span>
-                      <div className="flex flex-wrap gap-1">
+                  <div key={i} className="flex flex-col md:flex-row md:items-center gap-3">
+                    <div className="flex items-center justify-center pl-1 md:pl-0">
+                      <span className="text-amber-500/60 md:hidden font-bold text-xs py-1">↓</span>
+                      <ArrowRight className="w-4 h-4 text-amber-500/60 animate-pulse hidden md:inline shrink-0" />
+                    </div>
+                    <div className="bg-amber-50/20 border border-amber-100/60 rounded-2xl p-3.5 flex flex-col gap-1.5 shadow-[0_1px_3px_rgba(245,158,11,0.01)]">
+                      <span className="text-amber-900 font-black text-xs tracking-wider border-b border-amber-200/30 pb-1.5">
+                        {branch.title}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
                         {branch.keywords.map((kw, j) => (
-                          <span key={j} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px]">{kw}</span>
+                          <span
+                            key={j}
+                            className="bg-white text-gray-700 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-amber-200/50 shadow-sm hover:border-amber-400 hover:text-amber-700 transition-colors duration-200"
+                          >
+                            {kw}
+                          </span>
                         ))}
                       </div>
                     </div>
@@ -573,56 +595,171 @@ export default function ImpromptuSpeechTab() {
               </div>
             </div>
 
-            {/* 演讲结构 */}
-            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
-              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">演讲结构</h5>
-              <div className="space-y-2 text-xs">
-                <div><span className="font-black text-amber-600">开场：</span>{prompterResult.outline.opening}</div>
-                <div className="ml-4 space-y-1">
-                  {prompterResult.outline.main_points.map((p, i) => (
-                    <div key={i} className="flex gap-2"><span className="text-amber-400">•</span>{p}</div>
-                  ))}
+            {/* 演讲结构与核心论点 */}
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-5 border border-amber-100/60 shadow-[0_2px_12px_rgba(245,158,11,0.02)]">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-6 flex items-center gap-1.5">
+                <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                演讲结构与核心论点
+              </h5>
+              
+              <div className="relative pl-6 border-l-2 border-dashed border-amber-200/80 space-y-6 ml-3">
+                {/* 节点 1：开场 */}
+                <div className="relative">
+                  <span className="absolute -left-[37px] top-0.5 w-6 h-6 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-md">
+                    1
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="font-black text-amber-800 text-xs tracking-wider">阶段一：引人入胜的开场 // Opening</span>
+                    <div className="bg-amber-50/20 border border-amber-100/40 rounded-xl p-3 text-xs text-gray-700 leading-relaxed shadow-sm">
+                      {prompterResult.outline.opening}
+                    </div>
+                  </div>
                 </div>
-                <div><span className="font-black text-amber-600">结尾：</span>{prompterResult.outline.closing}</div>
+
+                {/* 节点 2：核心论点 */}
+                <div className="relative">
+                  <span className="absolute -left-[37px] top-0.5 w-6 h-6 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-md">
+                    2
+                  </span>
+                  <div className="flex flex-col gap-2">
+                    <span className="font-black text-amber-800 text-xs tracking-wider">阶段二：核心观点与实证 // Main Arguments</span>
+                    
+                    {prompterResult.key_arguments && prompterResult.key_arguments.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {prompterResult.key_arguments.map((arg, i) => (
+                          <div key={i} className="bg-white border border-amber-100/60 shadow-sm hover:border-amber-300 hover:shadow-md transition-all duration-300 p-4 rounded-xl flex flex-col justify-between">
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-wider text-amber-600 mb-1.5">
+                                核心论点 {i + 1}
+                              </div>
+                              <h6 className="text-xs font-black text-gray-800 mb-2 leading-relaxed">
+                                {arg.point}
+                              </h6>
+                              <div className="border-l-2 border-amber-400 pl-2.5 bg-amber-50/15 py-1.5 text-xs text-gray-600 italic leading-relaxed">
+                                {arg.evidence}
+                              </div>
+                            </div>
+                            {arg.transition && (
+                              <div className="text-[10px] text-amber-700/80 bg-amber-50/30 px-2 py-1 rounded-md mt-3 italic font-medium">
+                                过渡衔接：{arg.transition}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* 降级渲染：只显示 outline.main_points */
+                      <div className="bg-amber-50/20 border border-amber-100/40 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+                        {prompterResult.outline.main_points.map((p, i) => (
+                          <div key={i} className="flex gap-2.5 items-start text-xs text-gray-700 leading-relaxed">
+                            <span className="text-amber-500 font-bold shrink-0">•</span>
+                            <span>{p}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 节点 3：结尾 */}
+                <div className="relative">
+                  <span className="absolute -left-[37px] top-0.5 w-6 h-6 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-md">
+                    3
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="font-black text-amber-800 text-xs tracking-wider">阶段三：强力收尾与展望 // Conclusion</span>
+                    <div className="bg-amber-50/20 border border-amber-100/40 rounded-xl p-3 text-xs text-gray-700 leading-relaxed shadow-sm">
+                      {prompterResult.outline.closing}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* 实用短语 */}
-            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
-              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">实用短语</h5>
-              <div className="grid grid-cols-2 gap-4 text-[11px]">
-                <div>
-                  <span className="font-black text-emerald-600 block mb-1">开场</span>
-                  {prompterResult.useful_phrases.openings.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-5 border border-amber-100/60 shadow-[0_2px_12px_rgba(245,158,11,0.02)]">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-4 flex items-center gap-1.5">
+                <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                实用短语
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 开场 */}
+                <div className="bg-emerald-50/25 border border-emerald-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-emerald-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-black text-emerald-700 text-xs uppercase tracking-wider">开场 // Intro</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.openings.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-emerald-500/5 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-black text-blue-600 block mb-1">过渡</span>
-                  {prompterResult.useful_phrases.transitions.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+
+                {/* 过渡 */}
+                <div className="bg-blue-50/25 border border-blue-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-blue-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="font-black text-blue-700 text-xs uppercase tracking-wider">过渡 // Transition</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.transitions.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-blue-500/5 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-black text-purple-600 block mb-1">强调</span>
-                  {prompterResult.useful_phrases.emphasizing.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+
+                {/* 强调 */}
+                <div className="bg-purple-50/25 border border-purple-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-purple-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                    <span className="font-black text-purple-700 text-xs uppercase tracking-wider">强调 // Focus</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.emphasizing.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-purple-500/5 hover:bg-white hover:border-purple-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-black text-orange-600 block mb-1">结尾</span>
-                  {prompterResult.useful_phrases.conclusions.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+
+                {/* 结尾 */}
+                <div className="bg-orange-50/25 border border-orange-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-orange-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                    <span className="font-black text-orange-700 text-xs uppercase tracking-wider">结尾 // Closing</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.conclusions.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-orange-500/5 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* 小贴士 */}
-            <div className="bg-amber-100/50 rounded-xl p-3 border border-amber-200">
-              <div className="flex gap-2 flex-wrap">
+            {/* 实战指南 */}
+            <div className="bg-amber-500/5 rounded-2xl p-5 border border-amber-500/10">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-800 mb-4 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse shrink-0" />
+                演讲实战指南
+              </h5>
+              <div className="flex gap-2.5 flex-wrap">
                 {prompterResult.tips.map((tip, i) => (
-                  <span key={i} className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-full">💡 {tip}</span>
+                  <span
+                    key={i}
+                    className="text-xs text-amber-900 bg-white border border-amber-100/85 rounded-full px-3.5 py-1.5 shadow-[0_1px_2px_rgba(245,158,11,0.02)] font-semibold select-none hover:-translate-y-0.5 hover:shadow-md hover:border-amber-400 hover:text-amber-700 transition-all duration-300 transform cursor-default flex items-center gap-1.5"
+                  >
+                    <span>💡</span>
+                    <span>{tip}</span>
+                  </span>
                 ))}
               </div>
             </div>
