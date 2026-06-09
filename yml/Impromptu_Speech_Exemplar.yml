@@ -1,0 +1,199 @@
+app:
+  description: 即兴演讲完美示范范文生成器 (Impromptu_Speech_Exemplar)
+  icon: 📝
+  icon_background: '#FFE0B2'
+  icon_type: emoji
+  mode: workflow
+  name: Impromptu_Speech_Exemplar
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start_node
+      sourceHandle: source
+      target: llm_node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-end
+      source: llm_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: theme
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: theme
+        - label: user_transcript
+          required: true
+          type: paragraph
+          variable: user_transcript
+      height: 135
+      id: start_node
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: '112'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 78f94dcb-c315-4eb2-a6c7-9e57b34a62e2
+          role: system
+          text: '你是一位顶级政商英语演讲教练，擅长撰写高管级即兴演讲范文。
+
+            你需要根据用户演讲的主题和他们实际说出的粗糙转录文本，重写并升维输出一篇完美的、纯正商务语境的英文演讲示范范文。
+
+
+            范文要求：
+
+            1. 结构完整：必须包含精彩的开场白（Opening）、逻辑递进的主体观点阐述（Body Points）以及简洁有力的收尾（Closing）。
+
+            2. 词汇与句式高阶：使用政商务常用高频词汇与复杂但流畅的句式，展现极高的专业度和说服力。
+
+            3. 长度适中：字数通常在 250 - 400 词之间（适合 3 分钟左右的脱稿演讲长度）。
+
+            4. 纯净输出：仅返回重构后的英文演讲范文，不要夹杂任何额外的 markdown 标签、说明性文字或中文翻译。
+
+            '
+        - id: 497fface-f793-45cf-87d1-9f6b0c683096
+          role: user
+          text: '【即兴演讲示范撰写任务】
+
+            演讲主题：{{#start_node.theme#}}
+
+            用户演讲文本草稿：
+
+            {{#start_node.user_transcript#}}
+
+
+            请严格基于以上内容为我生成一篇高管级完美演讲范文（只需输出纯英文演讲文本）。
+
+            '
+        selected: false
+        title: 生成演讲范文
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm_node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm_node
+          - text
+          variable: exemplar_text
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: end_node
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
+  rag_pipeline_variables: []

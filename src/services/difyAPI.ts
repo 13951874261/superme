@@ -1551,4 +1551,71 @@ export async function clearTodayQuotaAndData(userId = 'default-user'): Promise<{
   return data;
 }
 
+/**
+ * 高精度语音转文字 (Whisper) 接口
+ */
+export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = 'default-user'): Promise<string> {
+  const formData = new FormData();
+  // Whisper-1 接口强制要求传递 file 字段，格式这里转换为 mp3 规范以保障兼容性
+  formData.append('file', audioBlob, 'audio.mp3');
+  formData.append('model', 'openai/whisper-1');
+  formData.append('response_format', 'json');
+
+  const res = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Whisper 语音转文字失败 (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json().catch(() => ({}));
+  return typeof data.text === 'string' ? data.text.trim() : '';
+}
+
+/**
+ * 即兴演讲范文生成接口
+ */
+export async function runSpeechExemplar(
+  theme: string,
+  userTranscript: string,
+  userId = 'default-user'
+): Promise<string> {
+  const apiKey = import.meta.env.VITE_DIFY_SPEECH_EXEMPLAR_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EXEMPLAR_API_KEY');
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: { 
+        theme, 
+        user_transcript: userTranscript
+      },
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '生成范文失败');
+
+  try {
+    const rawResult = data?.data?.outputs?.exemplar_text ?? data?.answer ?? '';
+    return String(rawResult).trim();
+  } catch (e) {
+    console.error('解析即兴演讲范文失败:', e, data);
+    throw new Error('AI 返回演讲范文格式异常');
+  }
+}
+
+
 

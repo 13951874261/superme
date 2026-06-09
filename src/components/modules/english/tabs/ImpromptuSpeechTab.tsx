@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
+import SpeakButton from '../../../SpeakButton';
 
-const MAX_SECONDS = 300; // 5分钟上限
+const MAX_SECONDS = 1800; // 30分钟上限
 
 interface SpeechPrompterResult {
   outline: {
@@ -32,7 +33,10 @@ export default function ImpromptuSpeechTab() {
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState('');
-  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluatingStage, setEvaluatingStage] = useState<'idle' | 'transcribing' | 'evaluating' | 'generating'>('idle');
+  const isEvaluating = evaluatingStage !== 'idle';
+  const [exemplarText, setExemplarText] = useState('');
+
   const [evalResult, setEvalResult] = useState<{
     score: number;
     logic: number;
@@ -234,25 +238,47 @@ export default function ImpromptuSpeechTab() {
   };
 
   const handleEvaluate = async () => {
-    if (!transcript.trim()) {
-      showNotice('oral', '请先完成演讲录音', 'error');
-      return;
-    }
-    if (elapsed < 300) {
-      const remaining = 300 - elapsed;
+    if (elapsed < 180) {
+      const remaining = 180 - elapsed;
       const remMin = Math.floor(remaining / 60);
       const remSec = remaining % 60;
       const remStr = remMin > 0 ? `${remMin} 分 ${remSec} 秒` : `${remSec} 秒`;
-      showNotice('oral', `演讲时长需达到 5 分钟，还差 ${remStr}，请继续录音`, 'error');
+      showNotice('oral', `演讲时长需达到 3 分钟，还差 ${remStr}，请继续录音`, 'error');
       return;
     }
-    setIsEvaluating(true);
-    playScan();
-    try {
-      const { runImpromptuSpeechEvaluation } = await import('../../../../services/difyAPI');
-      const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
 
-      const res = await runImpromptuSpeechEvaluation(theme, durationStr, transcript);
+    let finalTranscript = transcript;
+    playScan();
+
+    try {
+      const { runImpromptuSpeechEvaluation, transcribeAudioWithWhisper, runSpeechExemplar } = await import('../../../../services/difyAPI');
+
+      // 阶段 1：高精度语音转译
+      if (audioBlob) {
+        setEvaluatingStage('transcribing');
+        try {
+          const whisperText = await transcribeAudioWithWhisper(audioBlob);
+          if (whisperText) {
+            finalTranscript = whisperText;
+            setTranscript(whisperText);
+          }
+        } catch (whisperErr: any) {
+          console.error('Whisper 转译失败:', whisperErr);
+          if (!finalTranscript.trim()) {
+            throw new Error(`语音转译失败且无本地转录文本: ${whisperErr.message}`);
+          }
+        }
+      }
+
+      if (!finalTranscript.trim()) {
+        showNotice('oral', '请先完成录音或提供转录文本', 'error');
+        return;
+      }
+
+      // 阶段 2：AI 评测
+      setEvaluatingStage('evaluating');
+      const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
+      const res = await runImpromptuSpeechEvaluation(theme, durationStr, finalTranscript);
 
       const score = Number(res.total_score || 0);
       setEvalResult({
@@ -263,6 +289,17 @@ export default function ImpromptuSpeechTab() {
         relevance: Number(res.relevance || 0),
         feedback: String(res.feedback || '')
       });
+
+      // 阶段 3：生成高阶完美示范范文
+      setEvaluatingStage('generating');
+      try {
+        const exemplar = await runSpeechExemplar(theme, finalTranscript);
+        setExemplarText(exemplar);
+      } catch (exemplarErr: any) {
+        console.error('生成演讲范文失败:', exemplarErr);
+        showNotice('oral', '评测已完成，但生成演讲范文失败', 'error');
+      }
+
       if (score >= 8) {
         playSuccess();
         setImpromptuPassed(true);
@@ -276,7 +313,7 @@ export default function ImpromptuSpeechTab() {
       playError();
       showNotice('oral', `评估失败: ${err.message}`, 'error');
     } finally {
-      setIsEvaluating(false);
+      setEvaluatingStage('idle');
     }
   };
 
@@ -285,9 +322,23 @@ export default function ImpromptuSpeechTab() {
     setTranscript('');
     accumulatedTranscriptRef.current = '';
     setEvalResult(null);
+    setExemplarText('');
     setIsEngineReady(false);
     manualStopRef.current = false;
     resetAudio();
+  };
+
+  const handleCopyExemplar = async () => {
+    if (exemplarText) {
+      try {
+        await navigator.clipboard.writeText(exemplarText);
+        showNotice('oral', '演讲范文已复制到剪贴板', 'success');
+        playSuccess();
+      } catch (err) {
+        playError();
+        showNotice('oral', '复制失败', 'error');
+      }
+    }
   };
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -311,7 +362,7 @@ export default function ImpromptuSpeechTab() {
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-violet-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
           <div className="text-[13px] text-violet-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
-            <div><span className="font-black text-violet-600 mr-2">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>5 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</div>
+            <div><span className="font-black text-violet-600 mr-2">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>3 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</div>
             <div><span className="font-black text-violet-600 mr-2">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</div>
             <div><span className="font-black text-violet-600 mr-2">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</div>
           </div>
@@ -346,7 +397,7 @@ export default function ImpromptuSpeechTab() {
                   {!isRecording ? 'STANDBY' : (isEngineReady ? 'REC' : 'CONNECTING')}
                 </span>
               </div>
-              <div className={`text-3xl font-black font-mono tabular-nums ${elapsed >= 300 ? 'text-emerald-400' : elapsed >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
+              <div className={`text-3xl font-black font-mono tabular-nums ${elapsed >= 180 ? 'text-emerald-400' : elapsed >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
                 {formatTime(elapsed)}
               </div>
             </div>
@@ -417,10 +468,19 @@ export default function ImpromptuSpeechTab() {
             )}
             <button
               onClick={handleEvaluate}
-              disabled={isEvaluating || isRecording || !transcript.trim()}
-              className="flex-1 flex items-center justify-center gap-2 bg-[#FF5722] hover:bg-[#e64a19] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
+              disabled={isEvaluating || isRecording || (!transcript.trim() && !audioBlob)}
+              className="flex-1 flex items-center justify-center gap-2 bg-[#FF5722] hover:bg-[#e64a19] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer animate-[all_0.3s_ease]"
             >
-              {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin" /> AI 评测中...</> : '提交 AI 评测 ➔'}
+              {evaluatingStage !== 'idle' ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin shrink-0 text-white" />
+                  <span className="text-[11px] tracking-normal font-black text-white/95 animate-pulse">
+                    {evaluatingStage === 'transcribing' && '转译中... (正在通过 Whisper 转译高精度语音文本)'}
+                    {evaluatingStage === 'evaluating' && '评测中... (正在调用 AI 评测接口)'}
+                    {evaluatingStage === 'generating' && '生成中... (正在为您生成高阶完美示范范文)'}
+                  </span>
+                </>
+              ) : '提交 AI 评测 ➔'}
             </button>
           </div>
 
@@ -561,89 +621,114 @@ export default function ImpromptuSpeechTab() {
 
       {/* 评测结果 */}
       {evalResult && (
-        <div className={`rounded-[2rem] p-8 border-2 animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <h4 className={`text-sm font-black uppercase tracking-widest ${evalResult.score >= 8 ? 'text-emerald-700' : 'text-red-700'}`}>
-              AI 四维评测报告
-            </h4>
-            <div className={`text-4xl font-black ${evalResult.score >= 8 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {evalResult.score.toFixed(1)} <span className={`text-xl ${evalResult.score >= 8 ? 'text-emerald-600/50' : 'text-red-600/50'}`}>/ 10</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* 维度得分网格 */}
-            <div className="lg:col-span-5 grid grid-cols-2 gap-3">
-              {[
-                { label: 'Logic', title: '逻辑连贯', score: evalResult.logic },
-                { label: 'Vocab', title: '词汇丰富', score: evalResult.vocabulary },
-                { label: 'Fluency', title: '语言流利', score: evalResult.fluency },
-                { label: 'Relevance', title: '主题相关', score: evalResult.relevance }
-              ].map((item, idx) => (
-                <div key={idx} className="bg-white/60 rounded-2xl p-4 border border-black/5 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{item.label}</div>
-                    <div className="text-xs font-bold text-gray-800 mb-2">{item.title}</div>
-                  </div>
-                  <div className="flex items-baseline gap-0.5">
-                    <span className="text-2xl font-black text-gray-900 leading-none">{item.score}</span>
-                    <span className="text-[10px] text-gray-400 font-bold">/10</span>
-                  </div>
-                </div>
-              ))}
-              {/* 音频特征（如果有） */}
-              {evalResult.audio_features && (
-                <div className="col-span-2 bg-amber-50/50 rounded-2xl p-3 border border-amber-200">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-2">音频特征</div>
-                  <div className="flex gap-3 text-[10px]">
-                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                      语速: {evalResult.audio_features.estimated_pace}
-                    </span>
-                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                      清晰度: {evalResult.audio_features.estimated_clarity}
-                    </span>
-                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                      自信度: {evalResult.audio_features.estimated_confidence}
-                    </span>
-                  </div>
-                </div>
-              )}
+        <>
+          <div className={`rounded-[2rem] p-8 border-2 animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <h4 className={`text-sm font-black uppercase tracking-widest ${evalResult.score >= 8 ? 'text-emerald-700' : 'text-red-700'}`}>
+                AI 四维评测报告
+              </h4>
+              <div className={`text-4xl font-black ${evalResult.score >= 8 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {evalResult.score.toFixed(1)} <span className={`text-xl ${evalResult.score >= 8 ? 'text-emerald-600/50' : 'text-red-600/50'}`}>/ 10</span>
+              </div>
             </div>
 
-            {/* 名师点评 */}
-            <div className="lg:col-span-7 bg-white/60 rounded-2xl p-6 border border-black/5 shadow-sm flex flex-col">
-              <h5 className="text-[11px] font-black uppercase tracking-widest text-gray-800 mb-4 flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> 名师点评
-              </h5>
-              <div className="flex-1">
-                <p className="text-[13px] leading-relaxed text-gray-700 font-medium whitespace-pre-line">
-                  {evalResult.feedback}
-                </p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* 维度得分网格 */}
+              <div className="lg:col-span-5 grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Logic', title: '逻辑连贯', score: evalResult.logic },
+                  { label: 'Vocab', title: '词汇丰富', score: evalResult.vocabulary },
+                  { label: 'Fluency', title: '语言流利', score: evalResult.fluency },
+                  { label: 'Relevance', title: '主题相关', score: evalResult.relevance }
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-white/60 rounded-2xl p-4 border border-black/5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{item.label}</div>
+                      <div className="text-xs font-bold text-gray-800 mb-2">{item.title}</div>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-2xl font-black text-gray-900 leading-none">{item.score}</span>
+                      <span className="text-[10px] text-gray-400 font-bold">/10</span>
+                    </div>
+                  </div>
+                ))}
+                {/* 音频特征（如果有） */}
+                {evalResult.audio_features && (
+                  <div className="col-span-2 bg-amber-50/50 rounded-2xl p-3 border border-amber-200">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-2">音频特征</div>
+                    <div className="flex gap-3 text-[10px]">
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        语速: {evalResult.audio_features.estimated_pace}
+                      </span>
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        清晰度: {evalResult.audio_features.estimated_clarity}
+                      </span>
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        自信度: {evalResult.audio_features.estimated_confidence}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* 改进建议 */}
-              {evalResult.improvement_suggestions && evalResult.improvement_suggestions.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">改进建议</div>
-                  <div className="flex flex-wrap gap-2">
-                    {evalResult.improvement_suggestions.map((s, i) => (
-                      <span key={i} className="text-[11px] text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
-                        → {s}
-                      </span>
-                    ))}
-                  </div>
+              {/* 名师点评 */}
+              <div className="lg:col-span-7 bg-white/60 rounded-2xl p-6 border border-black/5 shadow-sm flex flex-col">
+                <h5 className="text-[11px] font-black uppercase tracking-widest text-gray-800 mb-4 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> 名师点评
+                </h5>
+                <div className="flex-1">
+                  <p className="text-[13px] leading-relaxed text-gray-700 font-medium whitespace-pre-line">
+                    {evalResult.feedback}
+                  </p>
                 </div>
-              )}
 
-              {evalResult.score < 8 && (
-                <div className="mt-6 inline-flex items-center gap-2 bg-red-100/80 text-red-700 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-200/50 self-start">
-                  ⚠️ 未达标 (8分及格线) — 请重置开启新一轮挑战
-                </div>
-              )}
+                {/* 改进建议 */}
+                {evalResult.improvement_suggestions && evalResult.improvement_suggestions.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">改进建议</div>
+                    <div className="flex flex-wrap gap-2">
+                      {evalResult.improvement_suggestions.map((s, i) => (
+                        <span key={i} className="text-[11px] text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+                          → {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {evalResult.score < 8 && (
+                  <div className="mt-6 inline-flex items-center gap-2 bg-red-100/80 text-red-700 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-200/50 self-start">
+                    ⚠️ 未达标 (8分及格线) — 请重置开启新一轮挑战
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* AI 高管级完美示范范文 */}
+          {exemplarText && (
+            <div className="mt-6 bg-white/60 rounded-[2rem] p-8 border border-[#E9D5FF] shadow-sm animate-[fadeIn_0.3s_ease-out]">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-black uppercase tracking-widest text-violet-700">
+                  AI 高管级完美示范示范 (Optimized Speech)
+                </h4>
+                <div className="flex items-center gap-2">
+                  <SpeakButton text={exemplarText} title="播放 AI 完美示范示范" />
+                  <button
+                    onClick={handleCopyExemplar}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white transition-all cursor-pointer shadow-sm animate-[all_0.3s_ease]"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> 复制范文
+                  </button>
+                </div>
+              </div>
+              <p className="text-[13px] leading-relaxed text-gray-700 font-medium whitespace-pre-line italic bg-violet-50/50 p-5 rounded-2xl border border-violet-100">
+                {exemplarText}
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
