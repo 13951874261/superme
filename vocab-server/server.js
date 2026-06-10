@@ -1562,7 +1562,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
   }
 
-  // 涓ユ牸瀹炴柦鍙屽瘑閽ラ殧绂绘満鍒?  const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+  // 严格实施双密钥隔离机制
+  const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
   const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
