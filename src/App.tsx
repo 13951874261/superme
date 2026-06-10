@@ -5,6 +5,7 @@ import TextHighlighter from './components/TextHighlighter';
 import RightPanel from './components/RightPanel';
 import { getTodayDateDot } from './utils/date';
 import { EnglishProvider, useEnglishContext } from './components/modules/english/context/EnglishContext';
+import { TaskProvider } from './components/TaskContext';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -104,7 +105,9 @@ function AppContent() {
 export default function App() {
   return (
     <EnglishProvider>
-      <AppContent />
+      <TaskProvider>
+        <AppContent />
+      </TaskProvider>
     </EnglishProvider>
   );
 }

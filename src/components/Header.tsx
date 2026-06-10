@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Target, TrendingUp, Volume2, Globe } from 'lucide-react';
+import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
+import { useTask } from './TaskContext';
+import GlobalTaskCenter from './GlobalTaskCenter';
 
 export default function Header() {
   const [selectedVoice, setSelectedVoice] = useState<string>(() => {
@@ -9,6 +11,7 @@ export default function Header() {
   });
   const [showVoiceDropdown, setShowVoiceDropdown] = useState(false);
   const [activeVoiceTab, setActiveVoiceTab] = useState<'all' | 'US' | 'UK' | 'other'>('all');
+  const { pendingCount, setIsOpen } = useTask();
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -57,8 +60,9 @@ export default function Header() {
         </p>
       </div>
 
-      {/* 全局声线控制（Global Voice Selector） */}
-      <div className="relative inline-block text-left mb-6 xl:mb-0 xl:mx-8 shrink-0">
+      <div className="flex flex-wrap items-center gap-4 xl:gap-0">
+        {/* 全局声线控制（Global Voice Selector） */}
+        <div className="relative inline-block text-left mb-6 xl:mb-0 xl:mx-8 shrink-0">
         <button
           type="button"
           onClick={() => setShowVoiceDropdown(!showVoiceDropdown)}
@@ -160,6 +164,28 @@ export default function Header() {
           </div>
         )}
       </div>
+
+      {/* 提纯任务中心 (Task Center Button) */}
+      <div className="relative inline-block text-left mb-6 xl:mb-0 xl:mr-8 shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          className="flex items-center gap-2 bg-white border border-gray-200 text-[#202124] text-xs font-bold rounded-xl px-4 py-2.5 outline-none focus:border-[#FF5722] cursor-pointer shadow-sm hover:bg-gray-55 transition-colors border-t-2 border-t-amber-500 relative"
+          title="查看提纯任务中心"
+        >
+          <Loader2 className={`w-4 h-4 text-[#FF5722] ${pendingCount > 0 ? 'animate-spin' : ''}`} />
+          <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">提纯任务:</span>
+          <span className="font-black text-slate-800">
+            {pendingCount > 0 ? `${pendingCount} 个进行中` : '查看队列'}
+          </span>
+          {pendingCount > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 bg-[#FF5722] text-white text-[9px] font-black w-4.5 h-4.5 rounded-full flex items-center justify-center border border-white animate-pulse">
+              {pendingCount}
+            </span>
+          )}
+        </button>
+      </div>
+      </div>
       
       {/* 职业航标轴 (Career Roadmap) */}
       <div className="flex flex-col items-end">
@@ -181,6 +207,9 @@ export default function Header() {
           <span className="text-[#202124] font-black text-sm">45%</span>
         </div>
       </div>
+
+      {/* 全局任务抽屉 */}
+      <GlobalTaskCenter />
     </header>
   );
 }

@@ -1,0 +1,237 @@
+import React, { useState, useRef } from 'react';
+import { Video, Link, Languages, UploadCloud, FileVideo, AlertTriangle, Play, Sparkles } from 'lucide-react';
+
+interface VideoTranscribePanelProps {
+  onTaskCreated: (taskId: string) => void;
+}
+
+const API_BASE = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
+
+export default function VideoTranscribePanel({ onTaskCreated }: VideoTranscribePanelProps) {
+  const [videoUrl, setVideoUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [language, setLanguage] = useState('auto');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isDragActive, setIsDragActive] = useState(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setIsDragActive(true);
+    } else if (e.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith('video/')) {
+        setSelectedFile(file);
+        setVideoUrl(''); // 选择文件后清除 URL
+        setError(null);
+      } else {
+        setError('仅支持视频文件格式 (如 .mp4, .mkv, .mov)');
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setSelectedFile(e.target.files[0]);
+      setVideoUrl(''); // 选择文件后清除 URL
+      setError(null);
+    }
+  };
+
+  // 辅助函数：将文件转换为 Base64
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleSubmit = async () => {
+    if (!videoUrl.trim() && !selectedFile) {
+      setError('请粘贴视频 URL 或拖入本地视频文件');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+    setSubmitStatus('正在准备任务...');
+
+    try {
+      let payload: any = { language };
+
+      if (selectedFile) {
+        setSubmitStatus('正在读取并编码视频文件 (可能需要数秒)...');
+        const base64 = await fileToBase64(selectedFile);
+        payload.fileBase64 = base64;
+        payload.fileName = selectedFile.name;
+      } else {
+        payload.url = videoUrl.trim();
+      }
+
+      setSubmitStatus('正在向后台提炼中心创建任务...');
+      const response = await fetch(`${API_BASE}/api/materials/fetch-video`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await response.json();
+      if (!response.ok || data.success === false) {
+        throw new Error(data.error || '创建视频转写任务失败');
+      }
+
+      // 通知上层组件，任务已成功建立
+      onTaskCreated(data.taskId);
+      
+      // 清空选择
+      setSelectedFile(null);
+      setVideoUrl('');
+      setSubmitStatus(null);
+    } catch (err: any) {
+      setError(err.message || '任务发起失败，请稍后重试');
+      setSubmitStatus(null);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* 语言选择栏 */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+          <Languages className="w-3.5 h-3.5 text-[#FF5722]" />
+          视频主语言
+        </label>
+        <select
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+          className="w-full px-3 py-2 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs transition-all focus:border-[#FF5722] focus:bg-white focus:outline-none"
+          disabled={isSubmitting}
+        >
+          <option value="auto">自动识别 (Auto-Detect)</option>
+          <option value="en">英语 (English)</option>
+          <option value="zh">中文 (Chinese)</option>
+          <option value="ja">日语 (Japanese)</option>
+          <option value="es">西班牙语 (Spanish)</option>
+          <option value="fr">法语 (French)</option>
+          <option value="de">德语 (German)</option>
+        </select>
+      </div>
+
+      {/* URL 输入或拖拽区域选择器 */}
+      <div className="grid grid-cols-1 gap-4">
+        {/* 模式 A：粘贴 URL */}
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
+            <Link className="w-3.5 h-3.5" />
+            粘贴视频链接
+          </label>
+          <input
+            type="text"
+            value={videoUrl}
+            onChange={(e) => {
+              setVideoUrl(e.target.value);
+              setSelectedFile(null); // 清理拖拽文件以保持互斥
+            }}
+            placeholder="粘贴 MP4 视频直链地址 (如 https://example.com/movie.mp4)"
+            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-2xl text-xs transition-all focus:border-[#FF5722] focus:bg-white focus:outline-none"
+            disabled={isSubmitting}
+          />
+        </div>
+
+        {/* 分隔线 */}
+        <div className="relative flex py-1 items-center">
+          <div className="flex-grow border-t border-gray-100"></div>
+          <span className="flex-shrink mx-4 text-[10px] text-gray-400 font-bold uppercase tracking-wider">或者</span>
+          <div className="flex-grow border-t border-gray-100"></div>
+        </div>
+
+        {/* 模式 B：拖入文件 */}
+        <div
+          onDragEnter={handleDrag}
+          onDragOver={handleDrag}
+          onDragLeave={handleDrag}
+          onDrop={handleDrop}
+          onClick={() => !isSubmitting && fileInputRef.current?.click()}
+          className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+            isDragActive 
+              ? 'border-[#FF5722] bg-[#FF5722]/5' 
+              : selectedFile 
+                ? 'border-green-400 bg-green-50/20' 
+                : 'border-gray-200 hover:border-gray-300 bg-[#F8F9FA]'
+          } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            accept="video/*"
+            className="hidden"
+            disabled={isSubmitting}
+          />
+
+          {selectedFile ? (
+            <div className="flex flex-col items-center gap-2">
+              <FileVideo className="w-10 h-10 text-green-500" />
+              <p className="text-xs font-bold text-gray-700 truncate max-w-[250px]">{selectedFile.name}</p>
+              <p className="text-[10px] text-gray-400">
+                文件大小: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB (建议不超过 200MB)
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center gap-2">
+              <UploadCloud className={`w-10 h-10 ${isDragActive ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+              <p className="text-xs font-bold text-gray-600">拖拽本地视频文件到这里</p>
+              <p className="text-[10px] text-gray-400">或点击此处浏览选择文件</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* 状态与报错 */}
+      {error && (
+        <div className="p-3 bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs flex items-start gap-2">
+          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {submitStatus && (
+        <div className="p-3 bg-orange-50 text-orange-700 border border-orange-100 rounded-xl text-xs flex items-center gap-2 animate-pulse">
+          <Sparkles className="w-4 h-4 shrink-0 animate-spin text-[#FF5722]" />
+          <span>{submitStatus}</span>
+        </div>
+      )}
+
+      {/* 提交流程按钮 */}
+      <button
+        onClick={handleSubmit}
+        disabled={isSubmitting || (!videoUrl.trim() && !selectedFile)}
+        className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-2xl text-xs font-black tracking-widest uppercase transition-all shadow-md disabled:opacity-40 disabled:hover:bg-[#FF5722] cursor-pointer"
+      >
+        <Play className="w-4 h-4 fill-current" />
+        开始转写并提纯
+      </button>
+    </div>
+  );
+}

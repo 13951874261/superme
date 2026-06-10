@@ -2745,6 +2745,81 @@ app.post('/api/tts/speech', async (req, res) => {
   }
 });
 
+// ==========================================
+// 网页提取 API
+// ==========================================
+app.post('/api/materials/fetch-url', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ success: false, error: '缺少必要参数: url' });
+    }
+
+    const { fetchUrlContent } = require('./services/webFetcher');
+    const result = await fetchUrlContent(url);
+    res.json(result);
+  } catch (error) {
+    console.error('[Fetch URL Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// 视频转写 API (异步)
+// ==========================================
+app.post('/api/materials/fetch-video', async (req, res) => {
+  try {
+    const { url, fileBase64, fileName, language = 'auto' } = req.body;
+    
+    if (!url && !fileBase64) {
+      return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或 fileBase64 其中之一' });
+    }
+
+    const taskQueue = require('./services/taskQueue');
+    const { startTranscribeTask } = require('./services/videoTranscriber');
+
+    // 创建后台异步任务
+    const taskName = url ? `网页视频: ${url}` : `上传视频: ${fileName || '未命名视频'}`;
+    const task = taskQueue.createTask('video', taskName);
+
+    // 异步启动任务，不阻塞 HTTP 响应
+    startTranscribeTask(task.id, { url, fileBase64, fileName, language });
+
+    res.json({
+      success: true,
+      taskId: task.id,
+      status: task.status
+    });
+  } catch (error) {
+    console.error('[Fetch Video Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 获取所有后台任务列表
+app.get('/api/tasks', (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    res.json({ success: true, tasks: taskQueue.getAllTasks() });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 查询单任务详情/轮询
+app.get('/api/tasks/:taskId', (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    const task = taskQueue.getTask(req.params.taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+    }
+    res.json({ success: true, ...task });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.use((req, res) => res.status(404).json({ error: "Endpoint not found" }));
 
 app.listen(PORT, () => {
