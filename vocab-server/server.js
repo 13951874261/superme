@@ -359,11 +359,12 @@ app.post('/api/vocab/batch-add', (req, res) => {
         const word = item.word;
         if (!word) continue;
         
-        const dictType = item.dictType || item.dict_type || 'ai_extracted';
+        const isPhrase = !!item.is_phrase;
+        const dictType = item.dictType || item.dict_type || (isPhrase ? 'ai_phrase' : 'ai_extracted');
         const category = item.category || 'business';
         const payload = item.payload || {};
 
-        // 涓ユ牸鏌ラ噸锛屾棤瑙嗗ぇ灏忓啓锛岄槻姝㈡薄鏌撶敤鎴风幇鏈夎瘝搴?        const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
+        const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
         if (!existing) {
           const id = crypto.randomUUID();
           db.prepare(`
@@ -371,10 +372,16 @@ app.post('/api/vocab/batch-add', (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
           `).run(id, word, dictType, category, JSON.stringify(payload), now, now, '[]');
           addedCount++;
+        } else {
+          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
+            dictType,
+            category,
+            JSON.stringify(payload),
+            existing.id
+          );
         }
       }
     });
-
     insertMany(items);
 
     console.log(`[Batch Add] Success: callback batch added ${addedCount} words.`);
@@ -1726,18 +1733,45 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     }
     
     // 静默写入 SQLite 鐢熻瘝鏈?(瑙勯伩閲嶅椤?
+        // 写入 SQLite
     let addedCount = 0;
     const now = Date.now();
     for (const item of extractedWords) {
-      const wordStr = typeof item === 'object' ? (item.word || JSON.stringify(item)) : item;
-      const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
+      const isObject = typeof item === 'object' && item !== null;
+      const wordStr = isObject ? (item.word || JSON.stringify(item)) : item;
+      if (!wordStr) continue;
+
+      // 提取 dict_type：如果是短语使用 ai_phrase，单词使用 ai_extracted
+      const isPhrase = isObject ? !!item.is_phrase : false;
+      const dictType = isPhrase ? 'ai_phrase' : 'ai_extracted';
+      
+      // 提取 payload
+      let payload = { source: 'Material Upload' };
+      if (isObject && item.payload) {
+        payload = item.payload;
+        if (!payload.source) payload.source = 'Material Upload';
+      }
+
+      const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
       if (!existing) {
         const id = crypto.randomUUID();
         db.prepare(`
           INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, wordStr, 'ai_extracted', topic || 'material_extraction', JSON.stringify({ source: 'Material Upload' }), now, now, '[]');
+        `).run(id, wordStr, dictType, topic || 'material_extraction', JSON.stringify(payload), now, now, '[]');
         addedCount++;
+      } else {
+        // 如果存在但 payload 是空的，则进行补充更新
+        let oldPayload = {};
+        try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
+        if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
+          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
+            dictType,
+            topic || 'material_extraction',
+            JSON.stringify(payload),
+            existing.id
+          );
+        }
       }
     }
 

@@ -310,3 +310,22 @@ export async function getDictCoverage(): Promise<DictCoverageData> {
   }
   return data;
 }
+
+
+export interface BatchAddWordItem {
+  word: string;
+  category?: 'business' | 'general';
+  is_phrase?: boolean;
+  dictType?: string;
+  payload?: any;
+}
+
+/** 批量收录词条（支持单词与短语） */
+export async function batchAddWords(
+  items: BatchAddWordItem[]
+): Promise<{ success: boolean; addedCount: number; message: string }> {
+  return request('/batch-add', {
+    method: 'POST',
+    body: JSON.stringify(items),
+  });
+}

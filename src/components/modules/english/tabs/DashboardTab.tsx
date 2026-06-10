@@ -31,7 +31,8 @@ function DailyFlawVocabCard() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await generateDailyFlawVocabulary();
+      const currentWords = words.map(w => w.word).filter(Boolean);
+      const data = await generateDailyFlawVocabulary(currentWords);
       setWords(data.slice(0, 6));
     } catch (e: any) {
       setError(e.message || '获取每日破绽词汇失败，请重试');

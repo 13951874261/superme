@@ -46,12 +46,13 @@ export interface OralSandboxReply {
 /** 词汇提纯引擎 - 输入 */
 export interface VocabPurifyInput {
   article_text: string;
+  topic?: string; // 新增主题过滤变量
 }
 
 /** 词汇提纯引擎 - 返回结构 */
 export interface VocabPurifyResult {
   words?: Array<{ word: string; phonetic?: string; pos?: string; zh_meaning?: string }>;
-  phrases?: string[];
+  phrases?: Array<{ phrase: string; meaning: string }>; // 统一转为对象格式，包含 phrase 和 meaning
   sentences?: string[];
 }
 
@@ -1439,8 +1440,24 @@ export async function deletePersonalPrototype(id: string): Promise<{ success: bo
   return data;
 }
 
+const FLAW_SUB_THEMES = [
+  'evasive arguments and diversion tactics',
+  'unsubstantiated claims and lack of evidence',
+  'hidden assumptions and false premises',
+  'contradictory statements and double standards',
+  'circular reasoning and logical leaps',
+  'cognitive biases and subjective framing',
+  'exaggerations and fact distortion',
+  'shifting the burden of proof and defensive responses',
+  'ambiguous definitions and play on words',
+  'false dilemmas and oversimplification'
+];
+
 // 每日专属破绽词汇动态生成（调用 Dify 唤醒工作流）
-export async function generateDailyFlawVocabulary(userId = 'default-user'): Promise<Array<{
+export async function generateDailyFlawVocabulary(
+  excludeWords: string[] = [],
+  userId = 'default-user'
+): Promise<Array<{
   word: string;
   ipa: string;
   pronunciation_note: string;
@@ -1456,7 +1473,9 @@ export async function generateDailyFlawVocabulary(userId = 'default-user'): Prom
   try {
     const todayStr = new Date().toISOString().slice(0, 10);
     const randomSalt = Math.floor(Math.random() * 10000);
-    const dynamicTheme = `identifying logical flaws and business counterattack (Date: ${todayStr}, Salt: ${randomSalt})`;
+    const randomFocus = FLAW_SUB_THEMES[Math.floor(Math.random() * FLAW_SUB_THEMES.length)];
+    const dynamicTheme = `identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`;
+    const historyExclude = excludeWords.join(', ');
 
     const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -1465,7 +1484,10 @@ export async function generateDailyFlawVocabulary(userId = 'default-user'): Prom
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { theme: dynamicTheme },
+        inputs: { 
+          theme: dynamicTheme,
+          history_exclude: historyExclude
+        },
         response_mode: 'blocking',
         user: userId,
       }),
