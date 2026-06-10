@@ -1454,6 +1454,10 @@ export async function generateDailyFlawVocabulary(userId = 'default-user'): Prom
   }
 
   try {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const randomSalt = Math.floor(Math.random() * 10000);
+    const dynamicTheme = `identifying logical flaws and business counterattack (Date: ${todayStr}, Salt: ${randomSalt})`;
+
     const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
       method: 'POST',
       headers: {
@@ -1461,7 +1465,7 @@ export async function generateDailyFlawVocabulary(userId = 'default-user'): Prom
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { theme: 'identifying logical flaws and business counterattack' },
+        inputs: { theme: dynamicTheme },
         response_mode: 'blocking',
         user: userId,
       }),
