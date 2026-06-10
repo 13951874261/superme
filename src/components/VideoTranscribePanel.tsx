@@ -75,27 +75,21 @@ export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: 
     setSubmitStatus('正在准备任务...');
 
     try {
-      let payload: any = { 
-        language,
-        subtitle: topicHint 
-      };
+      const formData = new FormData();
+      formData.append('language', language);
+      formData.append('subtitle', topicHint);
 
       if (selectedFile) {
-        setSubmitStatus('正在读取并编码视频文件 (可能需要数秒)...');
-        const base64 = await fileToBase64(selectedFile);
-        payload.fileBase64 = base64;
-        payload.fileName = selectedFile.name;
+        setSubmitStatus('正在准备上传视频文件...');
+        formData.append('video', selectedFile);
       } else {
-        payload.url = videoUrl.trim();
+        formData.append('url', videoUrl.trim());
       }
 
-      setSubmitStatus('正在向后台提炼中心创建任务...');
+      setSubmitStatus('正在向后台提炼中心上传并创建任务 (大视频上传可能需要数十秒)...');
       const response = await fetch(`${API_BASE}/api/materials/fetch-video`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
+        body: formData,
       });
 
       const data = await response.json();

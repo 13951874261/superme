@@ -2765,25 +2765,39 @@ app.post('/api/materials/fetch-url', async (req, res) => {
 });
 
 // ==========================================
-// 视频转写 API (异步)
+// 视频转写 API (支持 URL 和 Multipart 二进制流上传)
 // ==========================================
-app.post('/api/materials/fetch-video', async (req, res) => {
+const multer = require('multer');
+const uploadDir = path.join(__dirname, 'public', 'temp_videos');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const upload = multer({ dest: uploadDir });
+
+app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) => {
   try {
-    const { url, fileBase64, fileName, language = 'auto', subtitle = '' } = req.body;
+    const { url, language = 'auto', subtitle = '' } = req.body;
+    const file = req.file;
     
-    if (!url && !fileBase64) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或 fileBase64 其中之一' });
+    if (!url && !file) {
+      return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或上传 video 文件' });
     }
 
     const taskQueue = require('./services/taskQueue');
     const { startTranscribeTask } = require('./services/videoTranscriber');
 
     // 创建后台异步任务
-    const taskName = url ? `网页视频: ${url}` : `上传视频: ${fileName || '未命名视频'}`;
+    const taskName = url ? `网页视频: ${url}` : `上传视频: ${file.originalname || '未命名视频'}`;
     const task = taskQueue.createTask('video', taskName);
 
     // 异步启动任务，不阻塞 HTTP 响应
-    startTranscribeTask(task.id, { url, fileBase64, fileName, language, subtitle });
+    startTranscribeTask(task.id, { 
+      url, 
+      filePath: file ? file.path : null, 
+      fileName: file ? file.originalname : null, 
+      language, 
+      subtitle 
+    });
 
     res.json({
       success: true,

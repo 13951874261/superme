@@ -13,9 +13,9 @@ if (!fs.existsSync(TMP_VIDEO_DIR)) {
 /**
  * 启动异步视频转写后台任务
  * @param {string} taskId 任务ID
- * @param {object} options 输入参数 ({ url, fileBase64, fileName, language, subtitle })
+ * @param {object} options 输入参数 ({ url, fileBase64, filePath, fileName, language, subtitle })
  */
-async function startTranscribeTask(taskId, { url, fileBase64, fileName, language = 'auto', subtitle = '' }) {
+async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName, language = 'auto', subtitle = '' }) {
   let videoPath = null;
   let audioPath = null;
 
@@ -63,6 +63,16 @@ async function startTranscribeTask(taskId, { url, fileBase64, fileName, language
       fileStream.close();
       taskQueue.updateTask(taskId, { progress: 40, logs: ['视频下载完成，准备提取音轨'] });
 
+    } else if (filePath) {
+      taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件...'] });
+      videoPath = filePath;
+
+      const stats = fs.statSync(videoPath);
+      const maxBytes = (parseInt(process.env.MAX_VIDEO_UPLOAD_MB, 10) || 200) * 1024 * 1024;
+      if (stats.size > maxBytes) {
+        throw new Error(`上传视频文件过大，超出系统限制 (${process.env.MAX_VIDEO_UPLOAD_MB || 200}MB)`);
+      }
+      taskQueue.updateTask(taskId, { progress: 40, logs: ['视频文件就位，准备提取音轨'] });
     } else if (fileBase64) {
       taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件，正在还原...'] });
       const name = fileName || `uploaded_${taskId}.mp4`;
