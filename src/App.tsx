@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import TextHighlighter from './components/TextHighlighter';
 import RightPanel from './components/RightPanel';
+import GlobalTaskCenter from './components/GlobalTaskCenter';
 import { getTodayDateDot } from './utils/date';
 import { EnglishProvider, useEnglishContext } from './components/modules/english/context/EnglishContext';
 import { TaskProvider } from './components/TaskContext';
@@ -98,6 +99,9 @@ function AppContent() {
         setActiveTab={setRightPanelTab}
         wordData={highlightedWordData}
       />
+
+      {/* 全局任务中心抽屉：渲染在 App 根级别，独立于 main-content */}
+      <GlobalTaskCenter />
     </div>
   );
 }

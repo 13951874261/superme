@@ -3,7 +3,7 @@ import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
 import { useTask } from './TaskContext';
-import GlobalTaskCenter from './GlobalTaskCenter';
+
 
 export default function Header() {
   const [selectedVoice, setSelectedVoice] = useState<string>(() => {
@@ -60,9 +60,9 @@ export default function Header() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 xl:gap-0">
+      <div className="flex flex-wrap items-center gap-4 xl:gap-6 my-4 xl:my-0">
         {/* 全局声线控制（Global Voice Selector） */}
-        <div className="relative inline-block text-left mb-6 xl:mb-0 xl:mx-8 shrink-0">
+        <div className="relative inline-block text-left shrink-0">
         <button
           type="button"
           onClick={() => setShowVoiceDropdown(!showVoiceDropdown)}
@@ -166,7 +166,7 @@ export default function Header() {
       </div>
 
       {/* 提纯任务中心 (Task Center Button) */}
-      <div className="relative inline-block text-left mb-6 xl:mb-0 xl:mr-8 shrink-0">
+      <div className="relative inline-block text-left shrink-0">
         <button
           type="button"
           onClick={() => setIsOpen(true)}
@@ -208,8 +208,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* 全局任务抽屉 */}
-      <GlobalTaskCenter />
+
     </header>
   );
 }

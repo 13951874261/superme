@@ -92,8 +92,36 @@ export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: 
         body: formData,
       });
 
+      // 检查 Content-Type，避免直接解析非 JSON 导致的 Crash
+      const contentType = response.headers.get('content-type') || '';
+
+      if (!response.ok) {
+        // 如果服务器返回的是 HTML（非 JSON 错误页面，比如 Nginx 或 CDN 拦截）
+        if (contentType.includes('text/html')) {
+          const htmlSnippet = await response.text();
+          
+          let readableError = '服务器拒绝了上传请求（返回了HTML错误页面）';
+          if (htmlSnippet.includes('413') || htmlSnippet.includes('Too Large')) {
+            readableError = `视频文件过大（${selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(0) : '未知'}MB），超出服务器允许的上传限制。请使用小于 100MB 的文件，或改用「粘贴视频链接」方式提纯。`;
+          } else if (htmlSnippet.includes('502') || htmlSnippet.includes('504')) {
+            readableError = '后端服务暂时不可用或上传超时。请稍后重试，或改用「粘贴视频链接」方式提纯。';
+          }
+          
+          throw new Error(readableError);
+        }
+
+        // 尝试解析 JSON 错误
+        try {
+          const data = await response.json();
+          throw new Error(data.error || '创建视频转写任务失败');
+        } catch (e: any) {
+          throw new Error(e.message || '创建视频转写任务失败');
+        }
+      }
+
+      // 正常解析成功的 JSON
       const data = await response.json();
-      if (!response.ok || data.success === false) {
+      if (data.success === false) {
         throw new Error(data.error || '创建视频转写任务失败');
       }
 

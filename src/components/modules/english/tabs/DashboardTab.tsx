@@ -921,94 +921,98 @@ export default function DashboardTab() {
               {(extractedWords.length > 0 || extractedPhrases.length > 0) && (
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
                   {extractedWords.length > 0 && (
-                    <div className="space-y-4">
-                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5">
+                    <div className="flex flex-col max-h-[700px]">
+                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5 shrink-0">
                         <span className="w-1.5 h-3 bg-indigo-550 rounded-full"></span>
                         成功提纯商战生词 ({extractedWords.length})
                       </h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                        {extractedWords.map((word) => {
-                          const details = vocabDetailsMap[word.toLowerCase().trim()];
-                          const phonetic = details?.phonetic || '';
-                          const meaning = details?.meaning || '中文释义加载中...';
-                          return (
-                            <div
-                              key={word}
-                              className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-indigo-150 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
-                            >
-                              {/* Top Row: Word & Pronunciation Button */}
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="flex flex-col">
-                                  <span className="font-serif font-black text-slate-800 text-sm tracking-wide break-all">
-                                    {word}
-                                  </span>
-                                  {phonetic && (
-                                    <span className="text-[10px] text-slate-400 font-sans mt-0.5 font-medium">
-                                      {phonetic}
+                      <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                          {extractedWords.map((word) => {
+                            const details = vocabDetailsMap[word.toLowerCase().trim()];
+                            const phonetic = details?.phonetic || '';
+                            const meaning = details?.meaning || '中文释义加载中...';
+                            return (
+                              <div
+                                key={word}
+                                className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-indigo-150 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
+                              >
+                                {/* Top Row: Word & Pronunciation Button */}
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="flex flex-col">
+                                    <span className="font-serif font-black text-slate-800 text-sm tracking-wide break-all">
+                                      {word}
                                     </span>
-                                  )}
+                                    {phonetic && (
+                                      <span className="text-[10px] text-slate-400 font-sans mt-0.5 font-medium">
+                                        {phonetic}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <SpeakButton
+                                    text={word}
+                                    iconClassName="w-3.5 h-3.5"
+                                    className="w-7 h-7 bg-indigo-50/50 text-indigo-500 hover:bg-indigo-650 hover:text-white border-none shrink-0"
+                                  />
                                 </div>
-                                <SpeakButton
-                                  text={word}
-                                  iconClassName="w-3.5 h-3.5"
-                                  className="w-7 h-7 bg-indigo-50/50 text-indigo-500 hover:bg-indigo-650 hover:text-white border-none shrink-0"
-                                />
-                              </div>
 
-                              {/* Bottom Row: Hover Translation */}
-                              <div className="mt-3 pt-2.5 border-t border-dashed border-slate-100/80">
-                                <div className="relative h-4 overflow-hidden">
-                                  <span className="absolute inset-0 text-[10px] text-slate-350 font-black tracking-widest transition-all duration-300 group-hover:opacity-0 group-hover:translate-y-[-10px] uppercase">
-                                    Hover to reveal
-                                  </span>
-                                  <span className="absolute inset-0 text-[11px] text-indigo-600 font-bold tracking-wide transition-all duration-300 opacity-0 translate-y-[10px] group-hover:opacity-100 group-hover:translate-y-0 truncate">
-                                    {meaning}
-                                  </span>
+                                {/* Bottom Row: Hover Translation */}
+                                <div className="mt-3 pt-2.5 border-t border-dashed border-slate-100/80">
+                                  <div className="relative h-4 overflow-hidden">
+                                    <span className="absolute inset-0 text-[10px] text-slate-350 font-black tracking-widest transition-all duration-300 group-hover:opacity-0 group-hover:translate-y-[-10px] uppercase">
+                                      Hover to reveal
+                                    </span>
+                                    <span className="absolute inset-0 text-[11px] text-indigo-600 font-bold tracking-wide transition-all duration-300 opacity-0 translate-y-[10px] group-hover:opacity-100 group-hover:translate-y-0 truncate">
+                                      {meaning}
+                                    </span>
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {extractedPhrases.length > 0 && (
-                    <div className="space-y-4">
-                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5">
+                    <div className="flex flex-col max-h-[700px]">
+                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5 shrink-0">
                         <span className="w-1.5 h-3 bg-amber-500 rounded-full"></span>
                         成功提纯高频句型 ({extractedPhrases.length})
                       </h5>
-                      <div className="space-y-3">
-                        {extractedPhrases.map((phrase, idx) => (
-                          <div
-                            key={idx}
-                            className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
-                          >
-                            {/* Gold Left Border Highlight Line */}
-                            <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FF5722] rounded-r-lg group-hover:bg-[#FF5722]/80 transition-colors"></div>
+                      <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="space-y-3">
+                          {extractedPhrases.map((phrase, idx) => (
+                            <div
+                              key={idx}
+                              className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
+                            >
+                              {/* Gold Left Border Highlight Line */}
+                              <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FF5722] rounded-r-lg group-hover:bg-[#FF5722]/80 transition-colors"></div>
 
-                            {/* Phrase Content */}
-                            <div className="flex-1 select-text text-left">
-                              <p className="text-xs text-slate-700 font-serif leading-relaxed italic">
-                                "{phrase}"
-                              </p>
-                              <div className="flex items-center gap-1.5 mt-2">
-                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                                  艾宾浩斯已入库 · 复习阶段: 1
-                                </span>
+                              {/* Phrase Content */}
+                              <div className="flex-1 select-text text-left">
+                                <p className="text-xs text-slate-700 font-serif leading-relaxed italic">
+                                  "{phrase}"
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                                    艾宾浩斯已入库 · 复习阶段: 1
+                                  </span>
+                                </div>
                               </div>
-                            </div>
 
-                            {/* Speak Button */}
-                            <SpeakButton
-                              text={phrase}
-                              iconClassName="w-3.5 h-3.5"
-                              className="w-8 h-8 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-600 hover:text-white border-none shrink-0"
-                            />
-                          </div>
-                        ))}
+                              {/* Speak Button */}
+                              <SpeakButton
+                                text={phrase}
+                                iconClassName="w-3.5 h-3.5"
+                                className="w-8 h-8 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-600 hover:text-white border-none shrink-0"
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   )}

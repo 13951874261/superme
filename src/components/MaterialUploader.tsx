@@ -154,18 +154,24 @@ export default function MaterialUploader({
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Step 1：当前主题 */}
-        <section className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-5 flex flex-col justify-between">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 1 当前主题</div>
-            <div className="text-sm font-black text-[#202124] leading-relaxed">{topicHint}</div>
+      {/* Step 1：当前主题 — 水平通栏 Banner */}
+      <section className="rounded-2xl bg-slate-50/80 border border-slate-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] bg-[#FF5722]/10 px-2.5 py-1 rounded-lg shrink-0">
+            Step 1
           </div>
-          <div className="text-[11px] text-gray-400 mt-4">来源：上方 Theme Gateway</div>
-        </section>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">当前主题：</span>
+            <span className="text-sm font-black text-[#202124] leading-relaxed">{topicHint}</span>
+          </div>
+        </div>
+        <div className="text-[10px] text-gray-400 font-medium shrink-0">来源：上方 Theme Gateway</div>
+      </section>
 
-        {/* Step 2：选择材料 (Tabs 重构) */}
-        <section className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-5 flex flex-col justify-between lg:col-span-1">
+      {/* Step 2 + Step 3：2:1 两栏布局 */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Step 2：选择材料 (col-span-2) */}
+        <section className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-5 lg:col-span-2">
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-3">Step 2 选择材料</div>
             
@@ -263,7 +269,7 @@ export default function MaterialUploader({
         </section>
 
         {/* Step 3：执行提纯 */}
-        <section className="rounded-2xl bg-[#202124] border border-gray-900 p-5 text-white flex flex-col justify-between">
+        <section className="rounded-2xl bg-[#202124] border border-gray-900 p-5 text-white flex flex-col justify-between lg:col-span-1">
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 3 执行</div>
             <p className="text-[11px] text-gray-400 leading-relaxed mb-4">
