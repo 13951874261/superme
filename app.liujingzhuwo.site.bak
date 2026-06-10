@@ -32,13 +32,7 @@ server {
 
     # Dify API 反向代理，完美解决浏览器端直连 Dify 接口导致的 CORS 跨域问题
     location /dify/ {
-        # 强制仅解析 IPv4, 禁用 IPv6
-        resolver 8.8.8.8 ipv6=off;
-        set $dify_upstream "dify.234124123.xyz";
-
-        rewrite ^/dify/(.*)$ /v1/$1 break;
-        proxy_pass https://$dify_upstream;
-
+        proxy_pass https://dify.234124123.xyz/v1/;
         proxy_ssl_server_name on;
         proxy_http_version 1.1;
         proxy_set_header Host dify.234124123.xyz;

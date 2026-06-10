@@ -124,6 +124,12 @@ try {
                 $relativePath = $file -replace '^vocab-server/', ''
                 $localFile = "$ProjectRoot\vocab-server\$relativePath".Replace('/', '\')
                 if (Test-Path $localFile -PathType Leaf) {
+                    if ($relativePath.Contains('/')) {
+                        $parts = $relativePath.Split('/')
+                        $dirParts = $parts[0..($parts.Length - 2)]
+                        $parentDir = [string]::Join('/', $dirParts)
+                        Invoke-RemoteCommand "mkdir -p $RemoteApiRoot/$parentDir"
+                    }
                     Write-Host "     Uploading: $relativePath"
                     Send-File $localFile "$RemoteApiRoot/$relativePath"
                 }
