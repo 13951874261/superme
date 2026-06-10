@@ -242,6 +242,7 @@ export default function MaterialUploader({
 
             {activeTab === 'video' && (
               <VideoTranscribePanel 
+                topicHint={topicHint}
                 onTaskCreated={handleVideoTaskCreated}
               />
             )}

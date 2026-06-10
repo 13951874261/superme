@@ -2769,7 +2769,7 @@ app.post('/api/materials/fetch-url', async (req, res) => {
 // ==========================================
 app.post('/api/materials/fetch-video', async (req, res) => {
   try {
-    const { url, fileBase64, fileName, language = 'auto' } = req.body;
+    const { url, fileBase64, fileName, language = 'auto', subtitle = '' } = req.body;
     
     if (!url && !fileBase64) {
       return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或 fileBase64 其中之一' });
@@ -2783,7 +2783,7 @@ app.post('/api/materials/fetch-video', async (req, res) => {
     const task = taskQueue.createTask('video', taskName);
 
     // 异步启动任务，不阻塞 HTTP 响应
-    startTranscribeTask(task.id, { url, fileBase64, fileName, language });
+    startTranscribeTask(task.id, { url, fileBase64, fileName, language, subtitle });
 
     res.json({
       success: true,

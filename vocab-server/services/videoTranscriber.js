@@ -13,9 +13,9 @@ if (!fs.existsSync(TMP_VIDEO_DIR)) {
 /**
  * 启动异步视频转写后台任务
  * @param {string} taskId 任务ID
- * @param {object} options 输入参数 ({ url, fileBase64, fileName, language })
+ * @param {object} options 输入参数 ({ url, fileBase64, fileName, language, subtitle })
  */
-async function startTranscribeTask(taskId, { url, fileBase64, fileName, language = 'auto' }) {
+async function startTranscribeTask(taskId, { url, fileBase64, fileName, language = 'auto', subtitle = '' }) {
   let videoPath = null;
   let audioPath = null;
 
@@ -102,8 +102,8 @@ async function startTranscribeTask(taskId, { url, fileBase64, fileName, language
     taskQueue.updateTask(taskId, { progress: 65, logs: ['音轨提取成功 (16kHz 单声道 MP3)，开始上传至转写引擎...'] });
 
     // 3. 上传 MP3 到 Dify 平台获取 file_id
-    const difyApiKey = process.env.DIFY_SPEECH_API_KEY || 'app-F6daqhSXH942sBrnGki4kzZq'; // 兜底使用系统工作流 key
-    const endpointBase = process.env.FETCH_ENDPOINT_BASE || 'https://9router.234124123.xyz/v1';
+    const difyApiKey = process.env.DIFY_SPEECH_API_KEY || 'app-2LpliLyJ8viBKpacvyoOHSAV';
+    const endpointBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const uploadFormData = new FormData();
     const audioBuffer = fs.readFileSync(audioPath);
@@ -140,12 +140,13 @@ async function startTranscribeTask(taskId, { url, fileBase64, fileName, language
       },
       body: JSON.stringify({
         inputs: {
-          file: {
+          audio_file: {
             transfer_method: 'local_file',
             upload_file_id: fileId,
-            type: 'document'
+            type: 'audio'
           },
-          language: language
+          language: language,
+          subtitle: subtitle || ''
         },
         response_mode: 'blocking',
         user: 'default-user'
@@ -160,8 +161,8 @@ async function startTranscribeTask(taskId, { url, fileBase64, fileName, language
     const workflowResult = await workflowResponse.json();
     const outputs = workflowResult?.data?.outputs || {};
     
-    // 获取转写产物（支持不同的输出格式）
-    const transcript = outputs.transcript || outputs.text || outputs.result || '';
+    // 获取转写产物（优先读取新工作流的 transcript_text 属性）
+    const transcript = outputs.transcript_text || outputs.transcript || outputs.text || outputs.result || '';
     if (!transcript) {
       throw new Error('语音识别成功，但返回的文本为空。请确认视频内包含人声并选择了正确的语言');
     }

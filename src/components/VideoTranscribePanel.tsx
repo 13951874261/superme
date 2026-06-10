@@ -2,12 +2,13 @@ import React, { useState, useRef } from 'react';
 import { Video, Link, Languages, UploadCloud, FileVideo, AlertTriangle, Play, Sparkles } from 'lucide-react';
 
 interface VideoTranscribePanelProps {
+  topicHint?: string;
   onTaskCreated: (taskId: string) => void;
 }
 
 const API_BASE = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
 
-export default function VideoTranscribePanel({ onTaskCreated }: VideoTranscribePanelProps) {
+export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: VideoTranscribePanelProps) {
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [language, setLanguage] = useState('auto');
@@ -74,7 +75,10 @@ export default function VideoTranscribePanel({ onTaskCreated }: VideoTranscribeP
     setSubmitStatus('正在准备任务...');
 
     try {
-      let payload: any = { language };
+      let payload: any = { 
+        language,
+        subtitle: topicHint 
+      };
 
       if (selectedFile) {
         setSubmitStatus('正在读取并编码视频文件 (可能需要数秒)...');
