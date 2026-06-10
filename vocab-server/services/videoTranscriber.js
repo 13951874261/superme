@@ -3,6 +3,8 @@ const path = require('path');
 const { exec } = require('child_process');
 const { validateUrl } = require('./urlValidator');
 const taskQueue = require('./taskQueue');
+const Database = require('better-sqlite3');
+const crypto = require('crypto');
 
 // 临时目录初始化
 const TMP_VIDEO_DIR = process.env.TMP_VIDEO_DIR || path.join(__dirname, '../public/temp_videos');
@@ -177,7 +179,7 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
       throw new Error('语音识别成功，但返回的文本为空。请确认视频内包含人声并选择了正确的语言');
     }
 
-    taskQueue.updateTask(taskId, { progress: 95, logs: ['转写成果提取成功，正在封装虚拟材料并清理垃圾...'] });
+    taskQueue.updateTask(taskId, { progress: 95, logs: ['转写成果提取成功，正在封装虚拟材料...'] });
 
     // 5. 组装虚拟材料 VirtualMaterial
     const virtualMaterial = {
@@ -188,11 +190,173 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
       sourceUrl: url || undefined
     };
 
+    // 自动触发 Dify 知识库导入与提纯分析入库
+    taskQueue.updateTask(taskId, { progress: 96, logs: ['转写成功！正在自动执行 Dify 知识库导入与提纯分析...'] });
+
+    const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+    const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
+    const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    // 1. 获取知识库列表，定位 English_Pro_Scenarios
+    const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
+      headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+    });
+    const dsData = await dsResponse.json();
+    const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
+    
+    if (!dataset) {
+      throw new Error('在 Dify 平台未找到名为 English_Pro_Scenarios 的知识库');
+    }
+    const datasetId = dataset.id;
+
+    // 2. 清空旧文档
+    taskQueue.updateTask(taskId, { logs: ['正在清空 Dify 知识库旧文档...'] });
+    const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
+      headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+    });
+    const docsData = await docsResponse.json();
+    const docIds = docsData.data?.map(d => d.id) || [];
+    
+    if (docIds.length > 0) {
+      await Promise.all(docIds.map(docId => 
+        fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+        })
+      ));
+    }
+
+    // 3. 上传新文档并进行向量化
+    taskQueue.updateTask(taskId, { logs: ['正在上传转写文件至 Dify 知识库...'] });
+    const docBlob = new Blob([Buffer.from(virtualMaterial.content, 'utf-8')], { type: 'text/markdown' });
+    const uploadDocFormData = new FormData();
+    uploadDocFormData.append('file', docBlob, virtualMaterial.name);
+    uploadDocFormData.append('data', JSON.stringify({ 
+      indexing_technique: 'high_quality', 
+      doc_form: 'hierarchical_model',
+      process_rule: { 
+        mode: 'hierarchical',
+        rules: {
+          pre_processing_rules: [
+            { id: 'remove_extra_spaces', enabled: true },
+            { id: 'remove_urls_emails', enabled: false }
+          ],
+          parent_mode: 'paragraph',
+          segmentation: {
+            separator: '\\n',
+            max_tokens: 1000
+          },
+          subchunk_segmentation: {
+            separator: '\\n',
+            max_tokens: 200
+          }
+        }
+      } 
+    }));
+
+    const uploadDocResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${DATASET_KEY}` },
+      body: uploadDocFormData
+    });
+    
+    if (!uploadDocResponse.ok) {
+      const errText = await uploadDocResponse.text();
+      throw new Error(`Dify 知识库文件入库遭拒: ${errText}`);
+    }
+
+    const uploadDocData = await uploadDocResponse.json();
+    const documentId = uploadDocData.document?.id;
+    const batchId = uploadDocData.batch; 
+
+    if (!documentId || !batchId) {
+      throw new Error('上传成功，但未从 Dify 拿到 batch ID');
+    }
+
+    // 4. 轮询嵌入状态
+    let isIndexed = false;
+    for (let i = 0; i < 40; i++) {
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      });
+      
+      if (!statusRes.ok) continue;      
+      const statusData = await statusRes.json();
+      const docInfo = statusData.data?.[0];
+      
+      if (docInfo) {
+        taskQueue.updateTask(taskId, { logs: [`知识库向量化进度: ${docInfo.indexing_status}`] });
+        if (docInfo.indexing_status === 'completed') {
+          isIndexed = true;
+          break;
+        } else if (docInfo.indexing_status === 'error') {
+          throw new Error('Dify 向量化流水线切分报错');
+        }
+      }
+    }
+
+    if (!isIndexed) {
+      throw new Error('Dify 向量化超时 (>120s)');
+    }
+
+    // 5. 触发 Dify 提纯工作流
+    taskQueue.updateTask(taskId, { progress: 98, logs: ['知识库向量化就绪！开始运行 Dify 提纯分析工作流...'] });
+    const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WORKFLOW_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: { topic: subtitle || 'General Business' },
+        response_mode: 'blocking',
+        user: 'system'
+      })
+    });
+    
+    const wfData = await wfResponse.json();
+    if (!wfResponse.ok) throw new Error(`提纯工作流执行失败: ${JSON.stringify(wfData)}`);
+    
+    const wfOutputs = wfData?.data?.outputs || {};
+    const rawExtracted = wfOutputs.extracted_words || wfOutputs.result || wfOutputs.text || '';
+    
+    let extractedWords = [];
+    if (Array.isArray(rawExtracted)) {
+      extractedWords = rawExtracted;
+    } else if (typeof rawExtracted === 'string') {
+      extractedWords = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
+    }
+
+    // 6. 写入 SQLite
+    taskQueue.updateTask(taskId, { logs: [`提纯提取成功，找到 ${extractedWords.length} 个候选词汇。正在查重新增至生词本...`] });
+    const isProd = process.env.NODE_ENV === 'production';
+    const dbPath = isProd ? '/var/www/super-agent/vocab.db' : path.join(__dirname, '../vocab.db');
+    const db = new Database(dbPath);
+
+    let addedCount = 0;
+    const now = Date.now();
+    for (const item of extractedWords) {
+      const wordStr = typeof item === 'object' ? (item.word || JSON.stringify(item)) : item;
+      const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
+      if (!existing) {
+        const id = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(id, wordStr, 'ai_extracted', subtitle || 'material_extraction', JSON.stringify({ source: 'Video Auto Extraction' }), now, now, '[]');
+        addedCount++;
+      }
+    }
+    db.close();
+
     // 6. 成功更新任务
     taskQueue.updateTask(taskId, {
       status: 'completed',
       progress: 100,
-      logs: ['转写任务已顺利完成！虚拟材料已生成。'],
+      logs: [`转写与自动提纯全部顺利完成！共新增 ${addedCount} 个词汇到生词本。`],
       result: virtualMaterial
     });
 

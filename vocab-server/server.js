@@ -2772,7 +2772,101 @@ const uploadDir = path.join(__dirname, 'public', 'temp_videos');
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
+const chunkDir = path.join(__dirname, 'public', 'temp_chunks');
+if (!fs.existsSync(chunkDir)) {
+  fs.mkdirSync(chunkDir, { recursive: true });
+}
 const upload = multer({ dest: uploadDir });
+
+// 分片上传接收 API
+app.post('/api/materials/upload-chunk', upload.single('chunk'), async (req, res) => {
+  try {
+    const { uploadId, chunkIndex } = req.body;
+    const file = req.file;
+
+    if (!uploadId || chunkIndex === undefined || !file) {
+      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, chunkIndex 或 chunk' });
+    }
+
+    const sessionDir = path.join(chunkDir, uploadId);
+    if (!fs.existsSync(sessionDir)) {
+      fs.mkdirSync(sessionDir, { recursive: true });
+    }
+
+    // 将上传的文件移动到目标分片文件路径，以分片索引命名
+    const targetPath = path.join(sessionDir, String(chunkIndex));
+    fs.renameSync(file.path, targetPath);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Upload Chunk Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 分片合并与任务启动 API
+app.post('/api/materials/merge-chunks', async (req, res) => {
+  try {
+    const { uploadId, fileName, language = 'auto', subtitle = '', totalChunks } = req.body;
+
+    if (!uploadId || !fileName || !totalChunks) {
+      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, fileName 或 totalChunks' });
+    }
+
+    const sessionDir = path.join(chunkDir, uploadId);
+    if (!fs.existsSync(sessionDir)) {
+      return res.status(400).json({ success: false, error: '上传分片目录不存在，请重新上传' });
+    }
+
+    // 创建最终文件的输出路径，过滤路径穿越字符
+    const safeFileName = fileName.replace(/[\\\/]/g, '_');
+    const finalFileName = `${uploadId}_${safeFileName}`;
+    const finalFilePath = path.join(uploadDir, finalFileName);
+
+    // 用 appendFileSync 顺序追加合并
+    fs.writeFileSync(finalFilePath, ''); // 创建或清空文件
+    for (let i = 0; i < totalChunks; i++) {
+      const chunkPath = path.join(sessionDir, String(i));
+      if (!fs.existsSync(chunkPath)) {
+        return res.status(400).json({ success: false, error: `合并失败: 缺少第 ${i} 块分片` });
+      }
+      const data = fs.readFileSync(chunkPath);
+      fs.appendFileSync(finalFilePath, data);
+    }
+
+    // 清理分片目录
+    try {
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+    } catch (rmErr) {
+      console.warn('[Merge Chunks] Cleanup temp dir failed:', rmErr.message);
+    }
+
+    const taskQueue = require('./services/taskQueue');
+    const { startTranscribeTask } = require('./services/videoTranscriber');
+
+    // 创建后台异步任务
+    const taskName = `上传视频(分片): ${fileName}`;
+    const task = taskQueue.createTask('video', taskName);
+
+    // 异步启动任务，不阻塞 HTTP 响应
+    startTranscribeTask(task.id, { 
+      url: null, 
+      filePath: finalFilePath, 
+      fileName: fileName, 
+      language, 
+      subtitle 
+    });
+
+    res.json({
+      success: true,
+      taskId: task.id,
+      status: task.status
+    });
+  } catch (error) {
+    console.error('[Merge Chunks Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) => {
   try {

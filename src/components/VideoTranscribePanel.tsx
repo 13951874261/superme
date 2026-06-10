@@ -75,59 +75,133 @@ export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: 
     setSubmitStatus('正在准备任务...');
 
     try {
-      const formData = new FormData();
-      formData.append('language', language);
-      formData.append('subtitle', topicHint);
-
       if (selectedFile) {
-        setSubmitStatus('正在准备上传视频文件...');
-        formData.append('video', selectedFile);
-      } else {
-        formData.append('url', videoUrl.trim());
-      }
+        // 自研分片上传逻辑
+        setSubmitStatus('正在准备分片上传视频文件...');
+        const uploadId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
+        const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB 一个分片
+        const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
 
-      setSubmitStatus('正在向后台提炼中心上传并创建任务 (大视频上传可能需要数十秒)...');
-      const response = await fetch(`${API_BASE}/api/materials/fetch-video`, {
-        method: 'POST',
-        body: formData,
-      });
+        for (let i = 0; i < totalChunks; i++) {
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, selectedFile.size);
+          const chunkBlob = selectedFile.slice(start, end);
 
-      // 检查 Content-Type，避免直接解析非 JSON 导致的 Crash
-      const contentType = response.headers.get('content-type') || '';
+          let success = false;
+          let retries = 3;
+          while (retries > 0 && !success) {
+            try {
+              const chunkFormData = new FormData();
+              chunkFormData.append('uploadId', uploadId);
+              chunkFormData.append('chunkIndex', String(i));
+              chunkFormData.append('totalChunks', String(totalChunks));
+              chunkFormData.append('chunk', chunkBlob, selectedFile.name);
 
-      if (!response.ok) {
-        // 如果服务器返回的是 HTML（非 JSON 错误页面，比如 Nginx 或 CDN 拦截）
-        if (contentType.includes('text/html')) {
-          const htmlSnippet = await response.text();
-          
-          let readableError = '服务器拒绝了上传请求（返回了HTML错误页面）';
-          if (htmlSnippet.includes('413') || htmlSnippet.includes('Too Large')) {
-            readableError = `视频文件过大（${selectedFile ? (selectedFile.size / (1024 * 1024)).toFixed(0) : '未知'}MB），超出服务器允许的上传限制。请使用小于 100MB 的文件，或改用「粘贴视频链接」方式提纯。`;
-          } else if (htmlSnippet.includes('502') || htmlSnippet.includes('504')) {
-            readableError = '后端服务暂时不可用或上传超时。请稍后重试，或改用「粘贴视频链接」方式提纯。';
+              const percent = Math.round((i / totalChunks) * 100);
+              setSubmitStatus(`正在上传视频分片 (${i + 1}/${totalChunks}) - 进度: ${percent}% ...`);
+
+              const chunkRes = await fetch(`${API_BASE}/api/materials/upload-chunk`, {
+                method: 'POST',
+                body: chunkFormData,
+              });
+
+              if (!chunkRes.ok) {
+                const errText = await chunkRes.text().catch(() => '');
+                throw new Error(errText || `HTTP 错误 ${chunkRes.status}`);
+              }
+              success = true;
+            } catch (err: any) {
+              retries--;
+              if (retries <= 0) {
+                throw new Error(`分片 (${i + 1}/${totalChunks}) 上传失败: ${err.message || '网络连接中断，请重试'}`);
+              }
+              // 自动重试前等待 1 秒
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+            }
           }
-          
-          throw new Error(readableError);
         }
 
-        // 尝试解析 JSON 错误
-        try {
-          const data = await response.json();
+        // 所有分片上传完毕，调用后端合并并启动任务
+        setSubmitStatus('分片上传完成，正在通知服务器合并文件并创建转写任务...');
+        const mergeRes = await fetch(`${API_BASE}/api/materials/merge-chunks`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            uploadId,
+            fileName: selectedFile.name,
+            language,
+            subtitle: topicHint,
+            totalChunks,
+          }),
+        });
+
+        const mergeContentType = mergeRes.headers.get('content-type') || '';
+        if (!mergeRes.ok) {
+          if (mergeContentType.includes('text/html')) {
+            const htmlSnippet = await mergeRes.text();
+            let readableError = '服务器在合并文件时返回了错误页面';
+            if (htmlSnippet.includes('502') || htmlSnippet.includes('504')) {
+              readableError = '文件合并超时或后端服务不可用，请稍后刷新任务中心查看，或联系管理员。';
+            }
+            throw new Error(readableError);
+          }
+          try {
+            const data = await mergeRes.json();
+            throw new Error(data.error || '创建视频转写任务失败');
+          } catch {
+            throw new Error('分片合并请求失败');
+          }
+        }
+
+        const data = await mergeRes.json();
+        if (data.success === false) {
           throw new Error(data.error || '创建视频转写任务失败');
-        } catch (e: any) {
-          throw new Error(e.message || '创建视频转写任务失败');
         }
+
+        // 通知上层组件，任务已成功建立
+        onTaskCreated(data.taskId);
+      } else {
+        // 原有 URL 链接提交逻辑
+        setSubmitStatus('正在提交视频链接并创建转写任务...');
+        const formData = new FormData();
+        formData.append('language', language);
+        formData.append('subtitle', topicHint);
+        formData.append('url', videoUrl.trim());
+
+        const response = await fetch(`${API_BASE}/api/materials/fetch-video`, {
+          method: 'POST',
+          body: formData,
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!response.ok) {
+          if (contentType.includes('text/html')) {
+            const htmlSnippet = await response.text();
+            let readableError = '服务器拒绝了上传请求（返回了HTML错误页面）';
+            if (htmlSnippet.includes('502') || htmlSnippet.includes('504')) {
+              readableError = '后端服务暂时不可用或请求超时，请稍后重试。';
+            }
+            throw new Error(readableError);
+          }
+          try {
+            const data = await response.json();
+            throw new Error(data.error || '创建视频转写任务失败');
+          } catch (e: any) {
+            throw new Error(e.message || '创建视频转写任务失败');
+          }
+        }
+
+        const data = await response.json();
+        if (data.success === false) {
+          throw new Error(data.error || '创建视频转写任务失败');
+        }
+
+        onTaskCreated(data.taskId);
       }
 
-      // 正常解析成功的 JSON
-      const data = await response.json();
-      if (data.success === false) {
-        throw new Error(data.error || '创建视频转写任务失败');
-      }
-
-      // 通知上层组件，任务已成功建立
-      onTaskCreated(data.taskId);
-      
       // 清空选择
       setSelectedFile(null);
       setVideoUrl('');
