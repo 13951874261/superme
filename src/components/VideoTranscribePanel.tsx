@@ -1,14 +1,19 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Video, Link, Languages, UploadCloud, FileVideo, AlertTriangle, Play, Sparkles } from 'lucide-react';
 
 interface VideoTranscribePanelProps {
   topicHint?: string;
   onTaskCreated: (taskId: string) => void;
+  onMediaChange?: (media: { type: 'file' | 'url'; file?: File; url?: string } | null) => void;
 }
 
 const API_BASE = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
 
-export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: VideoTranscribePanelProps) {
+export default function VideoTranscribePanel({ 
+  topicHint = '', 
+  onTaskCreated,
+  onMediaChange
+}: VideoTranscribePanelProps) {
   const [videoUrl, setVideoUrl] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [language, setLanguage] = useState('auto');
@@ -18,6 +23,16 @@ export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: 
   const [isDragActive, setIsDragActive] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (selectedFile) {
+      onMediaChange?.({ type: 'file', file: selectedFile });
+    } else if (videoUrl.trim()) {
+      onMediaChange?.({ type: 'url', url: videoUrl.trim() });
+    } else {
+      onMediaChange?.(null);
+    }
+  }, [selectedFile, videoUrl, onMediaChange]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();

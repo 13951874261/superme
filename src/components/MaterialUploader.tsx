@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, UploadCloud, Zap, Globe, Video } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, UploadCloud, Zap, Globe, Video, Play } from 'lucide-react';
 import { processMaterialsAndExtract } from '../services/difyAPI';
 import UrlFetchPanel from './UrlFetchPanel';
 import VideoTranscribePanel from './VideoTranscribePanel';
@@ -30,6 +30,13 @@ export default function MaterialUploader({
   const [logs, setLogs] = useState<string[]>([]);
   const [showLogs, setShowLogs] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('file');
+
+  // 用于保存文本文件的预览字串
+  const [previewContent, setPreviewContent] = useState<string>('');
+  // 用于保存来自视频面板 of 媒体预览状态
+  const [videoMedia, setVideoMedia] = useState<{ type: 'file' | 'url'; file?: File; url?: string } | null>(null);
+  // 用于视频文件本地播放的 Object URL
+  const [videoObjectURL, setVideoObjectURL] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addTask } = useTask();
@@ -120,6 +127,45 @@ export default function MaterialUploader({
       `${nowLabel()} 视频处理完毕后可从「任务中心」一键导入进行 Dify 最终提纯。`
     ]);
   };
+
+  // 切换 Tab 时清理状态，避免相互干扰
+  useEffect(() => {
+    if (activeTab === 'video') {
+      setSelectedFiles([]);
+      resetInput();
+    } else {
+      setVideoMedia(null);
+    }
+  }, [activeTab]);
+
+  // 读取文本文件的 Effect
+  useEffect(() => {
+    if (selectedFiles.length > 0) {
+      const file = selectedFiles[0];
+      if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          setPreviewContent((e.target?.result as string) || '');
+        };
+        reader.readAsText(file);
+      } else {
+        setPreviewContent('[二进制文档] 这是一个 PDF/Word 材料。点击“开始上传并提纯”后，系统将在服务器自动解析文本并提纯。');
+      }
+    } else {
+      setPreviewContent('');
+    }
+  }, [selectedFiles]);
+
+  // 处理视频 Blob URL 的 Effect
+  useEffect(() => {
+    if (videoMedia?.type === 'file' && videoMedia.file) {
+      const url = URL.createObjectURL(videoMedia.file);
+      setVideoObjectURL(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setVideoObjectURL('');
+    }
+  }, [videoMedia]);
 
   // 监听并承接全局任务中心 Drawer 中的“导入并提纯”事件
   useEffect(() => {
@@ -250,6 +296,7 @@ export default function MaterialUploader({
               <VideoTranscribePanel 
                 topicHint={topicHint}
                 onTaskCreated={handleVideoTaskCreated}
+                onMediaChange={setVideoMedia}
               />
             )}
 
@@ -269,12 +316,48 @@ export default function MaterialUploader({
         </section>
 
         {/* Step 3：执行提纯 */}
-        <section className="rounded-2xl bg-[#202124] border border-gray-900 p-5 text-white flex flex-col justify-between lg:col-span-1">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 3 执行</div>
-            <p className="text-[11px] text-gray-400 leading-relaxed mb-4">
-              系统将按顺序完成：清空知识库 → 载入新材料 → 向量化切片 → Dify智能抽提词汇与短语 → 写入艾宾浩斯生词本。
-            </p>
+        <section className="rounded-2xl bg-[#202124] border border-gray-900 p-5 text-white flex flex-col justify-between lg:col-span-1 min-h-[340px]">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 3 执行与预览</div>
+            
+            {/* 动态预览窗口 */}
+            <div className="flex-1 min-h-[160px] max-h-[200px] mb-4 bg-gray-950/40 rounded-xl p-3 border border-gray-800 flex flex-col overflow-hidden relative">
+              {activeTab === 'video' && videoMedia ? (
+                // 视频预览
+                <div className="flex-grow flex flex-col justify-center min-h-0">
+                  <div className="text-[9px] text-gray-500 mb-1.5 truncate">
+                    {videoMedia.type === 'file' ? `本地视频: ${videoMedia.file?.name}` : `网络视频: ${videoMedia.url}`}
+                  </div>
+                  {videoMedia.type === 'file' && videoObjectURL ? (
+                    <video src={videoObjectURL} controls className="w-full max-h-[120px] rounded-lg bg-black border border-gray-800" />
+                  ) : (
+                    <div className="flex-grow flex flex-col items-center justify-center border border-dashed border-gray-800 rounded-lg p-3">
+                      <Play className="w-6 h-6 text-gray-600 mb-1" />
+                      <span className="text-[9px] text-gray-400">视频链接已就绪，可在左侧发起转写</span>
+                    </div>
+                  )}
+                </div>
+              ) : selectedFiles.length > 0 ? (
+                // 文本/网页/导入文件预览
+                <div className="flex-grow flex flex-col min-h-0">
+                  <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-gray-800 text-[9px] text-gray-500">
+                    <span className="truncate max-w-[120px]">{selectedFiles[0].name}</span>
+                    <span className="font-mono">{(selectedFiles[0].size / 1024).toFixed(1)} KB</span>
+                  </div>
+                  <div className="flex-grow overflow-y-auto text-[10px] text-gray-300 font-mono leading-relaxed pr-1 whitespace-pre-wrap break-all">
+                    {previewContent || '正在加载预览...'}
+                  </div>
+                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-gray-950/80 to-transparent pointer-events-none" />
+                </div>
+              ) : (
+                // 默认提示
+                <div className="flex-grow flex flex-col items-center justify-center text-center p-2">
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    系统将自动执行：清空知识库 → 载入材料 → 向量化切片 → Dify智能抽提词汇 → 写入生词本。
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
           <button
             onClick={handleRunWorkflow}
