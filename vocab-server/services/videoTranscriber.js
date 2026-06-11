@@ -26,45 +26,62 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
 
     // 1. 获取视频资源
     if (url) {
-      taskQueue.updateTask(taskId, { progress: 10, logs: [`校验视频链接: ${url}`] });
-      const isValid = await validateUrl(url);
-      if (!isValid) {
-        throw new Error('视频链接格式非法或为受限的内部地址');
-      }
-
-      taskQueue.updateTask(taskId, { progress: 15, logs: ['开始从链接下载视频...'] });
-      videoPath = path.join(TMP_VIDEO_DIR, `video_${taskId}.mp4`);
-      
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`视频下载失败，HTTP 状态码: ${response.status}`);
-      }
-
-      // 检查 Content-Length 限制 (默认 200MB)
-      const contentLength = response.headers.get('content-length');
-      const maxBytes = (parseInt(process.env.MAX_VIDEO_UPLOAD_MB, 10) || 200) * 1024 * 1024;
-      if (contentLength && parseInt(contentLength, 10) > maxBytes) {
-        throw new Error(`视频文件过大，超出系统限制 (${process.env.MAX_VIDEO_UPLOAD_MB || 200}MB)`);
-      }
-
-      const fileStream = fs.createWriteStream(videoPath);
-      const reader = response.body.getReader();
-      
-      let downloadedBytes = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        fileStream.write(Buffer.from(value));
-        downloadedBytes += value.length;
+      if (url.includes('/api/temp_videos/')) {
+        let filename;
+        try {
+          const urlObj = new URL(url);
+          filename = path.basename(urlObj.pathname);
+        } catch (e) {
+          filename = path.basename(url);
+        }
+        const localPath = path.join(TMP_VIDEO_DIR, filename);
         
-        if (downloadedBytes > maxBytes) {
-          fileStream.close();
+        if (fs.existsSync(localPath)) {
+          taskQueue.updateTask(taskId, { progress: 40, logs: ['检测到本地直链视频，直接使用本地文件，准备提取音轨...'] });
+          videoPath = localPath;
+        } else {
+          throw new Error('本地直链对应的视频文件不存在');
+        }
+      } else {
+        taskQueue.updateTask(taskId, { progress: 10, logs: [`校验视频链接: ${url}`] });
+        const isValid = await validateUrl(url);
+        if (!isValid) {
+          throw new Error('视频链接格式非法或为受限的内部地址');
+        }
+
+        taskQueue.updateTask(taskId, { progress: 15, logs: ['开始从链接下载视频...'] });
+        videoPath = path.join(TMP_VIDEO_DIR, `video_${taskId}.mp4`);
+        
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`视频下载失败，HTTP 状态码: ${response.status}`);
+        }
+
+        // 检查 Content-Length 限制 (默认 200MB)
+        const contentLength = response.headers.get('content-length');
+        const maxBytes = (parseInt(process.env.MAX_VIDEO_UPLOAD_MB, 10) || 200) * 1024 * 1024;
+        if (contentLength && parseInt(contentLength, 10) > maxBytes) {
           throw new Error(`视频文件过大，超出系统限制 (${process.env.MAX_VIDEO_UPLOAD_MB || 200}MB)`);
         }
-      }
-      fileStream.close();
-      taskQueue.updateTask(taskId, { progress: 40, logs: ['视频下载完成，准备提取音轨'] });
 
+        const fileStream = fs.createWriteStream(videoPath);
+        const reader = response.body.getReader();
+        
+        let downloadedBytes = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          fileStream.write(Buffer.from(value));
+          downloadedBytes += value.length;
+          
+          if (downloadedBytes > maxBytes) {
+            fileStream.close();
+            throw new Error(`视频文件过大，超出系统限制 (${process.env.MAX_VIDEO_UPLOAD_MB || 200}MB)`);
+          }
+        }
+        fileStream.close();
+        taskQueue.updateTask(taskId, { progress: 40, logs: ['视频下载完成，准备提取音轨'] });
+      }
     } else if (filePath) {
       taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件...'] });
       videoPath = filePath;

@@ -26,6 +26,13 @@ if (!fs.existsSync(longAudioDir)) {
   fs.mkdirSync(longAudioDir, { recursive: true });
 }
 app.use('/api/long_audio', express.static(longAudioDir));
+
+// 静态文件服务：视频暂存目录
+const tempVideoDir = path.join(__dirname, 'public', 'temp_videos');
+if (!fs.existsSync(tempVideoDir)) {
+  fs.mkdirSync(tempVideoDir, { recursive: true });
+}
+app.use('/api/temp_videos', express.static(tempVideoDir));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
@@ -2898,6 +2905,37 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     });
   } catch (error) {
     console.error('[Merge Chunks Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 直接上传视频文件并返回直链
+app.post('/api/materials/upload-direct', upload.single('video'), (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, error: '未上传视频文件' });
+    }
+
+    // 为防止文件名冲突且保留后缀，对文件名进行安全重命名
+    const ext = path.extname(file.originalname) || '.mp4';
+    const newFilename = `${file.filename}${ext}`;
+    const newPath = path.join(uploadDir, newFilename);
+    
+    fs.renameSync(file.path, newPath);
+
+    // 获取当前请求的主机名与协议，拼接成直链 URL
+    const host = req.get('host');
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    const directUrl = `${protocol}://${host}/api/temp_videos/${newFilename}`;
+
+    res.json({
+      success: true,
+      url: directUrl,
+      fileName: file.originalname
+    });
+  } catch (error) {
+    console.error('[Upload Direct Error]:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

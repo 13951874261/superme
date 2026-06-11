@@ -76,92 +76,128 @@ export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: 
 
     try {
       if (selectedFile) {
-        // 自研分片上传逻辑
-        setSubmitStatus('正在准备分片上传视频文件...');
-        const uploadId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
-        const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB 一个分片
-        const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
+        let directUploadSuccess = false;
+        let taskId = '';
 
-        for (let i = 0; i < totalChunks; i++) {
-          const start = i * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, selectedFile.size);
-          const chunkBlob = selectedFile.slice(start, end);
+        try {
+          // 步骤 1：尝试直接上传
+          setSubmitStatus('正在尝试直接上传视频文件...');
+          const directFormData = new FormData();
+          directFormData.append('video', selectedFile);
 
-          let success = false;
-          let retries = 3;
-          while (retries > 0 && !success) {
-            try {
-              const chunkFormData = new FormData();
-              chunkFormData.append('uploadId', uploadId);
-              chunkFormData.append('chunkIndex', String(i));
-              chunkFormData.append('totalChunks', String(totalChunks));
-              chunkFormData.append('chunk', chunkBlob, selectedFile.name);
+          const uploadRes = await fetch(`${API_BASE}/api/materials/upload-direct`, {
+            method: 'POST',
+            body: directFormData,
+          });
 
-              const percent = Math.round((i / totalChunks) * 100);
-              setSubmitStatus(`正在上传视频分片 (${i + 1}/${totalChunks}) - 进度: ${percent}% ...`);
+          if (!uploadRes.ok) {
+            throw new Error(`直接上传失败，HTTP 状态码: ${uploadRes.status}`);
+          }
 
-              const chunkRes = await fetch(`${API_BASE}/api/materials/upload-chunk`, {
-                method: 'POST',
-                body: chunkFormData,
-              });
+          const uploadData = await uploadRes.json();
+          if (!uploadData.success || !uploadData.url) {
+            throw new Error(uploadData.error || '直接上传未返回有效直链');
+          }
 
-              if (!chunkRes.ok) {
-                const errText = await chunkRes.text().catch(() => '');
-                throw new Error(errText || `HTTP 错误 ${chunkRes.status}`);
+          // 步骤 2：使用返回的直链 URL 调用解析接口
+          setSubmitStatus('直接上传成功！正在提交视频直链并创建转写任务...');
+          const parseFormData = new FormData();
+          parseFormData.append('language', language);
+          parseFormData.append('subtitle', topicHint);
+          parseFormData.append('url', uploadData.url);
+
+          const parseRes = await fetch(`${API_BASE}/api/materials/fetch-video`, {
+            method: 'POST',
+            body: parseFormData,
+          });
+
+          if (!parseRes.ok) {
+            throw new Error(`提交直链解析失败，HTTP 状态码: ${parseRes.status}`);
+          }
+
+          const parseData = await parseRes.json();
+          if (!parseData.success) {
+            throw new Error(parseData.error || '创建转写任务失败');
+          }
+
+          taskId = parseData.taskId;
+          directUploadSuccess = true;
+          setSubmitStatus('任务已成功建立！');
+        } catch (directError: any) {
+          console.warn('[Direct Upload Failed, falling back to chunks]:', directError);
+          // 步骤 3：直接上传失败，进行退回分片上传的托底处理
+          setSubmitStatus('直接上传受限或失败，正在启动备用分片上传方案...');
+          
+          const uploadId = Date.now().toString() + '_' + Math.random().toString(36).substring(2, 9);
+          const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB 一个分片
+          const totalChunks = Math.ceil(selectedFile.size / CHUNK_SIZE);
+
+          for (let i = 0; i < totalChunks; i++) {
+            const start = i * CHUNK_SIZE;
+            const end = Math.min(start + CHUNK_SIZE, selectedFile.size);
+            const chunkBlob = selectedFile.slice(start, end);
+
+            let success = false;
+            let retries = 3;
+            while (retries > 0 && !success) {
+              try {
+                const chunkFormData = new FormData();
+                chunkFormData.append('uploadId', uploadId);
+                chunkFormData.append('chunkIndex', String(i));
+                chunkFormData.append('totalChunks', String(totalChunks));
+                chunkFormData.append('chunk', chunkBlob, selectedFile.name);
+
+                const percent = Math.round((i / totalChunks) * 100);
+                setSubmitStatus(`正在分片上传视频 (${i + 1}/${totalChunks}) - 进度: ${percent}% ...`);
+
+                const chunkRes = await fetch(`${API_BASE}/api/materials/upload-chunk`, {
+                  method: 'POST',
+                  body: chunkFormData,
+                });
+
+                if (!chunkRes.ok) {
+                  throw new Error(`HTTP 错误 ${chunkRes.status}`);
+                }
+                success = true;
+              } catch (err: any) {
+                retries--;
+                if (retries <= 0) {
+                  throw new Error(`分片 (${i + 1}/${totalChunks}) 上传失败: ${err.message || '网络连接中断，请重试'}`);
+                }
+                await new Promise((resolve) => setTimeout(resolve, 1000));
               }
-              success = true;
-            } catch (err: any) {
-              retries--;
-              if (retries <= 0) {
-                throw new Error(`分片 (${i + 1}/${totalChunks}) 上传失败: ${err.message || '网络连接中断，请重试'}`);
-              }
-              // 自动重试前等待 1 秒
-              await new Promise((resolve) => setTimeout(resolve, 1000));
             }
           }
-        }
 
-        // 所有分片上传完毕，调用后端合并并启动任务
-        setSubmitStatus('分片上传完成，正在通知服务器合并文件并创建转写任务...');
-        const mergeRes = await fetch(`${API_BASE}/api/materials/merge-chunks`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            uploadId,
-            fileName: selectedFile.name,
-            language,
-            subtitle: topicHint,
-            totalChunks,
-          }),
-        });
+          // 所有分片上传完毕，合并分片
+          setSubmitStatus('分片上传完成，正在通知服务器合并文件并创建转写任务...');
+          const mergeRes = await fetch(`${API_BASE}/api/materials/merge-chunks`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              uploadId,
+              fileName: selectedFile.name,
+              language,
+              subtitle: topicHint,
+              totalChunks,
+            }),
+          });
 
-        const mergeContentType = mergeRes.headers.get('content-type') || '';
-        if (!mergeRes.ok) {
-          if (mergeContentType.includes('text/html')) {
-            const htmlSnippet = await mergeRes.text();
-            let readableError = '服务器在合并文件时返回了错误页面';
-            if (htmlSnippet.includes('502') || htmlSnippet.includes('504')) {
-              readableError = '文件合并超时或后端服务不可用，请稍后刷新任务中心查看，或联系管理员。';
-            }
-            throw new Error(readableError);
-          }
-          try {
-            const data = await mergeRes.json();
-            throw new Error(data.error || '创建视频转写任务失败');
-          } catch {
+          if (!mergeRes.ok) {
             throw new Error('分片合并请求失败');
           }
+
+          const mergeData = await mergeRes.json();
+          if (!mergeData.success) {
+            throw new Error(mergeData.error || '分片合并转写失败');
+          }
+          taskId = mergeData.taskId;
         }
 
-        const data = await mergeRes.json();
-        if (data.success === false) {
-          throw new Error(data.error || '创建视频转写任务失败');
-        }
-
-        // 通知上层组件，任务已成功建立
-        onTaskCreated(data.taskId);
+        // 通知上层组件任务已成功建立
+        onTaskCreated(taskId);
       } else {
         // 原有 URL 链接提交逻辑
         setSubmitStatus('正在提交视频链接并创建转写任务...');
