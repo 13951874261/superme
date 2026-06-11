@@ -1,6 +1,6 @@
 server {
     server_name app.liujingzhuwo.site;
-    client_max_body_size 300m;
+    client_max_body_size 1024m;
 
     root /var/www/super-agent/dist;
     index index.html;

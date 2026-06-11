@@ -331,7 +331,7 @@ export default function VideoTranscribePanel({ topicHint = '', onTaskCreated }: 
               <FileVideo className="w-10 h-10 text-green-500" />
               <p className="text-xs font-bold text-gray-700 truncate max-w-[250px]">{selectedFile.name}</p>
               <p className="text-[10px] text-gray-400">
-                文件大小: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB (建议不超过 200MB)
+                文件大小: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB (建议不超过 1G)
               </p>
             </div>
           ) : (
