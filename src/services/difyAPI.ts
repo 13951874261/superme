@@ -1643,5 +1643,119 @@ export async function runSpeechExemplar(
   }
 }
 
+// ── 穿透系统新增扩展接口 ─────────────────────────────────────────
 
+/**
+ * 1. 动态生成符合当前场景框架和板块的训练材料
+ * 使用 Dify Chat API 的 API Key 产生灵活的定制文本
+ */
+export async function generateReadMaterial(
+  scene_type: 'policy' | 'report' | 'email' | 'book',
+  scene_framework: 'social' | 'gov' | 'corp',
+  userId = 'default-user'
+): Promise<string> {
+  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY，无法动态生成素材');
 
+  const frameworkName = {
+    social: '通用社交',
+    gov: '体制内职场',
+    corp: '跨国企业'
+  }[scene_framework];
+
+  const typeName = {
+    policy: '宏观政策精神/地方监管文件',
+    report: '商业案例与出海财报摘要',
+    email: '外企邮件/西式职场函件',
+    book: '经典课外书或高阶认知随笔'
+  }[scene_type];
+
+  // 拟定高规格的 Prompt 让 AI 返回单篇硬核材料
+  const query = `你是一个顶级商务与政策教官。请为我动态生成一篇用于高管穿透训练的【${typeName}】原始文本。
+场景框架要求限制在：【${frameworkName}】。
+内容必须专业、硬核、贴近真实商业利益博弈（比如包含具体的部门拉扯、财报数据隐性漏洞或政策潜台词）。
+字数在 150-300 字之间。不要任何前言、不要任何“好的，这是为您生成的材料”等废话，直接输出材料正文。`;
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: {},
+      query,
+      response_mode: 'blocking',
+      user: userId
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '动态生成素材失败');
+  return String(data?.answer || '').trim();
+}
+
+/**
+ * 2. 专属 AI 交互区：对已经分析出的结果进行追问和漏洞审计
+ */
+export interface ReadInteractiveChatInput {
+  scene_type: 'policy' | 'report' | 'email' | 'book';
+  scene_framework: 'social' | 'gov' | 'corp';
+  raw_text: string;
+  analysis_result: any;
+  user_query: string;
+  conversation_id?: string | null;
+}
+
+export async function sendReadInteractiveChatMessage(
+  params: ReadInteractiveChatInput,
+  userId = 'default-user'
+): Promise<{ answer: string; conversation_id: string }> {
+  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY，无法使用 AI 追问舱');
+
+  const frameworkName = { social: '通用社交', gov: '体制内职场', corp: '跨国企业' }[params.scene_framework];
+  
+  const query = `
+【上下文背景】
+- 场景框架: ${frameworkName}
+- 训练板块: ${params.scene_type}
+- 用户输入的原文: 
+"""
+${params.raw_text}
+"""
+- 系统已自动进行的四宫格穿透分析结果:
+${JSON.stringify(params.analysis_result, null, 2)}
+
+【用户追问】
+"${params.user_query}"
+
+【指令】
+请你作为高管教练，针对用户的追问，结合当前场景（${frameworkName}），指出他思维中的局限性、忽略的隐藏逻辑，或提供极具操作性的反向话术和风控建议。
+字数保持在 150-250 字左右，语气应当犀利、专业、富有洞察力。
+`;
+
+  const body = {
+    inputs: {},
+    query,
+    response_mode: 'blocking' as const,
+    user: userId,
+    ...(params.conversation_id ? { conversation_id: params.conversation_id } : {}),
+  };
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '专属交互舱对话请求失败');
+  return {
+    answer: String(data?.answer || ''),
+    conversation_id: String(data?.conversation_id || '')
+  };
+}
