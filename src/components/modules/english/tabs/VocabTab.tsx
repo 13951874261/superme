@@ -25,6 +25,9 @@ export default function VocabTab() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [isFallback, setIsFallback] = useState(false); // true=全量练习模式，false=今日复习模式
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
+  const [onlyCurrentTheme, setOnlyCurrentTheme] = useState(() => {
+    return localStorage.getItem('only_current_theme') !== 'false';
+  });
 
   const reloadVocab = useCallback(async () => {
     setLoadingDueWords(true);
@@ -73,12 +76,21 @@ export default function VocabTab() {
   // 修复：如果词没有 category 字段（存量数据），两区都可见（保守处理）
   const filteredWords = useMemo(() => {
     return dueWords.filter(w => {
+      // 1. 双区过滤
       const cat = w.category;
-      // 如果没有 category 字段，两区都可见
-      if (!cat) return true;
-      return vocabZone === 'business' ? cat !== 'general' : cat === 'general';
+      let matchesZone = true;
+      if (cat) {
+        matchesZone = vocabZone === 'business' ? cat !== 'general' : cat === 'general';
+      }
+      if (!matchesZone) return false;
+
+      // 2. 仅限当前主题过滤
+      if (onlyCurrentTheme) {
+        return w.category === theme || w.payload?.theme === theme;
+      }
+      return true;
     });
-  }, [dueWords, vocabZone]);
+  }, [dueWords, vocabZone, onlyCurrentTheme, theme]);
 
   const currentWord = useMemo(() => filteredWords[currentWordIdx], [filteredWords, currentWordIdx]);
   const currentWordExample = useMemo(() => (

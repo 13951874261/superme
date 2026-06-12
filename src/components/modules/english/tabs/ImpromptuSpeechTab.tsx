@@ -103,9 +103,8 @@ export default function ImpromptuSpeechTab() {
     }
   };
 
-  const startAudioRecording = async () => {
+  const startAudioRecording = (stream: MediaStream) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -125,8 +124,9 @@ export default function ImpromptuSpeechTab() {
       };
 
       mediaRecorder.start();
-    } catch (err) {
-      console.warn('音频录制初始化失败:', err);
+    } catch (err: any) {
+      console.warn('录音引擎初始化失败:', err);
+      showNotice('oral', `录音引擎初始化失败: ${err.message || err}`, 'error');
     }
   };
 
@@ -160,11 +160,30 @@ export default function ImpromptuSpeechTab() {
     setAudioBlob(null);
   };
 
-  const startRecording = (isContinue = false) => {
+  const startRecording = async (isContinue = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       showNotice('oral', '当前浏览器不支持语音识别（建议使用 Chrome）', 'error');
       return;
+    }
+
+    let stream: MediaStream | null = null;
+    if (!isContinue) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err: any) {
+        console.warn('音频录制初始化失败:', err);
+        const errName = err.name || '';
+        const errMsg = err.message || '';
+        if (errName === 'NotFoundError' || errMsg.includes('not found') || errMsg.includes('Requested device not found')) {
+          showNotice('oral', '未检测到麦克风设备，请确保已插入麦克风或启用了录音设备。', 'error');
+        } else if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errMsg.includes('denied') || errMsg.includes('Permission denied')) {
+          showNotice('oral', '麦克风权限被拒。请在浏览器地址栏允许网页访问麦克风，并检查系统麦克风授权。', 'error');
+        } else {
+          showNotice('oral', `麦克风初始化失败: ${errMsg || err}`, 'error');
+        }
+        return;
+      }
     }
 
     manualStopRef.current = false;
@@ -186,7 +205,10 @@ export default function ImpromptuSpeechTab() {
 
     recognition.onerror = (event: any) => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        showNotice('oral', `麦克风权限被拒: ${event.error}`, 'error');
+        const errorMsg = event.error === 'not-allowed'
+          ? '麦克风权限被拒。请在浏览器地址栏允许网页访问麦克风，并检查系统麦克风授权。'
+          : '语音识别服务不可用，请确保浏览器允许该服务。';
+        showNotice('oral', errorMsg, 'error');
         stopRecording();
         return;
       }
@@ -221,7 +243,9 @@ export default function ImpromptuSpeechTab() {
       setEvalResult(null);
       setIsEngineReady(false);
       resetAudio();
-      startAudioRecording();
+      if (stream) {
+        startAudioRecording(stream);
+      }
     }
   };
 

@@ -1587,7 +1587,7 @@ export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = 'defa
   formData.append('model', 'openai/whisper-1');
   formData.append('response_format', 'json');
 
-  const res = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
+  const res = await fetch('/api/audio/transcriptions', {
     method: 'POST',
     headers: {
       'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',

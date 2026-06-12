@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
@@ -46,11 +46,11 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 backdrop-blur-3xl bg-white/90 px-10 py-8 flex flex-col xl:flex-row justify-between items-start xl:items-center z-50 border-b border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] transition-all">
+    <header className="sticky top-0 backdrop-blur-3xl bg-white/90 px-10 py-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 xl:gap-0 z-50 border-b border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] transition-all">
       <div className="mb-6 xl:mb-0">
         <h1 className="text-2xl md:text-3xl font-serif font-black text-[#202124] flex items-center tracking-wide">
           B·AI 高管数字沙盘
-          <span className="ml-5 px-3 py-1 text-[9px] font-sans font-bold bg-[#FF5722]/10 text-[#FF5722] rounded-full flex items-center tracking-widest uppercase border border-[#FF5722]/20">
+          <span className="ml-5 flex-shrink-0 px-3 py-1 text-[9px] font-sans font-bold bg-[#FF5722]/10 text-[#FF5722] rounded-full flex items-center tracking-widest uppercase border border-[#FF5722]/20">
             <span className="w-1.5 h-1.5 bg-[#FF5722] rounded-full mr-2 animate-pulse"></span>
             沉浸式专注模式
           </span>
@@ -60,7 +60,7 @@ export default function Header() {
         </p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4 xl:gap-6 my-4 xl:my-0">
+      <div className="flex flex-row items-center gap-3 md:gap-4 flex-nowrap shrink-0 my-4 xl:my-0">
         {/* 全局声线控制（Global Voice Selector） */}
         <div className="relative inline-block text-left shrink-0">
         <button

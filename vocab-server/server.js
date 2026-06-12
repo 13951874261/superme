@@ -3000,6 +3000,52 @@ app.get('/api/tasks/:taskId', (req, res) => {
   }
 });
 
+// Whisper 语音转写中转代理 API，规避浏览器直连 9router 产生的 CORS 跨域限制
+app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No audio file uploaded.' });
+    }
+
+    if (typeof globalThis.FormData !== 'undefined') {
+      const formData = new globalThis.FormData();
+      const fileBuffer = fs.readFileSync(req.file.path);
+      const blob = new globalThis.Blob([fileBuffer], { type: req.file.mimetype });
+      
+      formData.append('file', blob, req.file.originalname || 'audio.mp3');
+      formData.append('model', req.body.model || 'openai/whisper-1');
+      formData.append('response_format', req.body.response_format || 'json');
+
+      const response = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: {
+          'Authorization': req.headers.authorization || 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
+        },
+        body: formData,
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(response.status).json(data);
+      }
+      return res.json(data);
+    } else {
+      throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
+    }
+  } catch (error) {
+    console.error('Whisper 中转失败:', error);
+    return res.status(500).json({ error: error.message });
+  } finally {
+    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (unlinkErr) {
+        console.warn('清理临时音频文件失败:', unlinkErr.message);
+      }
+    }
+  }
+});
+
 app.use((req, res) => res.status(404).json({ error: "Endpoint not found" }));
 
 app.listen(PORT, () => {
