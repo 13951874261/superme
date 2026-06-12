@@ -328,7 +328,50 @@ export default function GameTheoryModule() {
                 <span className="text-5xl font-black font-mono tracking-tighter text-zinc-800">
                   {result?.score ?? 0}
                 </span>
-                    {/* TAB 1: 真实高管斗争案例库 */}
+              </div>
+
+              <button 
+                onClick={() => { playClick(); setShowAlert(false); }}
+                className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-sm cursor-pointer"
+              >
+                我知道了，查阅推演报告
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 导航区域 */}
+      <div className="flex border-b border-zinc-200/80 mb-8 overflow-x-auto">
+        {([
+          { id: 'cases', name: '高管斗争案例研判' },
+          { id: 'tactics', name: '驭人术与人性档案' },
+          { id: 'simulation', name: '人机对战沙盘' },
+          { id: 'ascension', name: '顶层认知升维' }
+        ] as const).map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => handleTabChange(tab.id)}
+            className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeTab === tab.id
+                ? 'border-zinc-900 text-zinc-900'
+                : 'border-transparent text-zinc-400 hover:text-zinc-600'
+            }`}
+          >
+            {tab.name}
+          </button>
+        ))}
+      </div>
+
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+        >
+          {/* TAB 1: 真实高管斗争案例库 */}
           {activeTab === 'cases' && (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
               {/* 左面板 30%：环境与案例选择 */}
@@ -570,7 +613,65 @@ export default function GameTheoryModule() {
                       
                       <div className="relative pl-6 border-l border-zinc-200 space-y-4">
                         {result.causal_chain && result.causal_chain.map((step, idx) => (
-                          {/* TAB 2: 驭人术与人性档案 */}
+                          <div key={idx} className="relative group transition-all animate-fade-in">
+                            {/* 小圆点 */}
+                            <span className="absolute -left-[29px] top-1 w-3 h-3 rounded-full border-2 border-white bg-zinc-300 group-hover:bg-zinc-950 transition-all shadow-sm" />
+                            
+                            <div className="flex items-start gap-3">
+                              <span className="text-[9px] font-bold font-mono bg-zinc-50 border border-zinc-200 text-zinc-500 rounded px-1.5 py-0.5 shadow-sm">
+                                L{idx + 1}
+                              </span>
+                              <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                                {step}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 人性原型归档 */}
+                    {result.prototype_archive && (
+                      <div className="bg-zinc-900 text-zinc-100 rounded-2xl p-6 relative overflow-hidden border border-zinc-800 shadow-md">
+                        <div className="flex items-center justify-between mb-3 relative z-10">
+                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
+                            对手人性归档分类 (Archived Prototype)
+                          </span>
+                          <span className="text-[9px] bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 text-zinc-300">
+                            <UserCheck className="w-2.5 h-2.5" /> 已自动存库
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row md:items-center gap-4 relative z-10">
+                          <div>
+                            <h4 className="text-xs font-bold text-white">{result.prototype_archive.name}</h4>
+                            <span className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-bold mt-1 inline-block">
+                              {result.prototype_archive.type}
+                            </span>
+                          </div>
+                          <p className="text-xs text-zinc-400 font-medium leading-relaxed flex-1 border-t md:border-t-0 md:border-l border-zinc-800 pt-3 md:pt-0 md:pl-4">
+                            {result.prototype_archive.description}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 导师建议 */}
+                    <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
+                      <span className="text-[10px] text-zinc-800 font-bold uppercase tracking-wider block mb-2">
+                        战略决策局盘点拨 (Strategic Counsel)
+                      </span>
+                      <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
+                        {result.suggestion}
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: 驭人术与人性档案 */}
           {activeTab === 'tactics' && (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
               {/* 左面板 60%：手段工具箱 */}
