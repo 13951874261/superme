@@ -102,7 +102,7 @@ export default function ListenTab() {
   };
 
   return (
-    <div className="flex flex-col gap-6 min-h-[650px] h-[85vh]">
+    <div className="flex flex-col gap-6 h-[85vh] overflow-y-auto pr-2 pb-6 custom-scrollbar scroll-bottom-glow" style={{ scrollbarWidth: 'thin', scrollbarColor: '#FF5722 #f5f5f5' }}>
       <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm animate-[fadeIn_0.3s_ease-out]">
         <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
            <Headphones className="w-5 h-5" />
@@ -128,9 +128,9 @@ export default function ListenTab() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1 min-h-0">
-        <div className="lg:col-span-5 flex flex-col gap-6 overflow-y-auto min-h-0 pr-2 pb-4" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(0,0,0,0.1) transparent' }}>
-          <div className="bg-[#202124] rounded-[2rem] p-8 text-white shadow-[0_10px_30px_rgba(0,0,0,0.15)] relative overflow-hidden shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 min-h-0">
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          <div className="bg-[#1a1a1a] rounded-2xl p-6 text-white shadow-[0_10px_30px_rgba(0,0,0,0.15)] relative overflow-hidden shrink-0">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FF5722]/20 rounded-full blur-3xl"></div>
             <div className="flex flex-col gap-4 mb-6 relative z-10 border-b border-white/10 pb-5">
               <h4 className="text-[13px] font-black uppercase tracking-widest text-[#FF5722] leading-relaxed">
@@ -197,7 +197,7 @@ export default function ListenTab() {
                         speakEnglish(listenMaterial, playbackRate);
                       }
                     }} 
-                    className="text-white hover:text-[#FF5722] transition-colors cursor-pointer shrink-0" 
+                    className={`text-white hover:text-[#FF5722] transition-colors cursor-pointer shrink-0 rounded-full transition-all duration-300 ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : ''}`} 
                     title={isPlaying ? "暂停" : "播放截获音频"}
                   >
                     {isPlaying ? <PauseCircle className="w-10 h-10" /> : <PlayCircle className="w-10 h-10" />}
@@ -244,7 +244,7 @@ export default function ListenTab() {
                   </button>
                 </div>
               </div>
-              <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 max-h-[260px] overflow-y-auto ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none select-text' : 'bg-black text-white/5 blur-[4px] select-text cursor-text'}`}
+              <div className={`p-4 rounded-xl text-sm font-serif leading-relaxed transition-all duration-300 max-h-[260px] overflow-y-auto custom-scrollbar ${isTextVisible ? 'bg-white/10 text-gray-200 blur-none select-text' : 'bg-black text-white/5 blur-[4px] select-text cursor-text'}`}
                 onMouseUp={() => {
                   const sel = window.getSelection()?.toString().trim();
                   if (sel && sel.split(/\s+/).length <= 5 && isTextVisible) {
@@ -298,14 +298,14 @@ export default function ListenTab() {
               <button 
                 onClick={handleListenAnalyze}
                 disabled={isListenLoading || listenResult !== null}
-                className="w-full relative z-10 bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer shadow-lg"
+                className="w-full relative z-10 bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer shadow-lg ripple"
               >
                 {isListenLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在解码潜台词...</> : (listenResult ? '✅ 潜台词已解码 (见右侧)' : '🧠 请求 Dify 侧写此段原文')}
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm shrink-0 flex flex-col min-h-[250px]">
+          <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm shrink-0 flex flex-col min-h-[250px]">
             <div className="flex justify-between items-center mb-3">
               <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 block">Shadowing Dictation // 盲打笔记区</label>
               <span className="text-[9px] text-gray-400 font-bold">Local Draft</span>
@@ -319,21 +319,21 @@ export default function ListenTab() {
             />
             <button 
               onClick={() => setIsTextVisible(true)}
-              className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-gray-200 transition-colors flex items-center justify-center cursor-pointer"
+              className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-gray-200 transition-colors flex items-center justify-center cursor-pointer ripple"
             >
               👀 盲打完成，揭晓上方原文进行比对
             </button>
           </div>
         </div>
 
-        <div className="lg:col-span-7 bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm overflow-y-auto">
+        <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
             <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Decrypted Intelligence // 情报解密</h4>
             {listenResult && (
               <button 
                 onClick={() => generateListenMaterial(theme)}
                 disabled={isListenMaterialLoading}
-                className="px-4 py-2 bg-[#202124] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-sm flex items-center"
+                className="px-4 py-2 bg-[#1a1a1a] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-sm flex items-center ripple"
               >
                 {isListenMaterialLoading ? <><Loader2 className="w-3 h-3 animate-spin mr-1"/> 扫描中</> : '截获下一段 (Next Interception) ➔'}
               </button>
@@ -400,7 +400,7 @@ export default function ListenTab() {
                     <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">4. Extracted Jargons (截获黑话)</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {listenResult.subtext_analysis.key_jargons.map((item, idx) => (
-                        <div key={idx} className="bg-[#202124] rounded-lg p-3 text-white shadow-md">
+                        <div key={idx} className="bg-[#1a1a1a] rounded-lg p-3 text-white shadow-md">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <div className="text-xs font-black text-[#FF5722]">{item.word}</div>
                             <div className="flex items-center gap-1">
@@ -418,7 +418,7 @@ export default function ListenTab() {
                                     window.dispatchEvent(new Event('vocab-updated'));
                                   } catch { /* ignore */ }
                                 }}
-                                className="w-7 h-7 flex items-center justify-center bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-full transition-colors cursor-pointer"
+                                className="w-7 h-7 flex items-center justify-center bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-full transition-colors cursor-pointer ripple"
                               >
                                 <BookPlus className="w-3.5 h-3.5" />
                               </button>

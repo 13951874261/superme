@@ -50,12 +50,12 @@ export const BlindListeningCabin: React.FC<Props> = ({ isProcessing, onSubmit })
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 relative">
-      <h3 className="font-bold text-gray-800 mb-4">Blind Dictation / 盲听区</h3>
+    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 relative">
+      <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4">Blind Dictation / 盲听区</h3>
       <textarea
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
-        className="w-full h-32 p-4 bg-gray-50 border border-gray-100 rounded-lg focus:ring-1 focus:ring-gray-800 outline-none resize-none transition-all"
+        className="w-full h-32 p-4 bg-gray-50 border border-gray-100 rounded-xl focus:border-[#FF5722] focus:ring-1 focus:ring-[#FF5722] outline-none resize-none transition-all text-sm"
         placeholder="听写内容或记录感悟... (可长按右下角麦克风口述)"
         disabled={isProcessing}
       />
@@ -66,9 +66,10 @@ export const BlindListeningCabin: React.FC<Props> = ({ isProcessing, onSubmit })
         onTouchStart={handleStartRecord}
         onTouchEnd={handleStopRecord}
         disabled={isProcessing}
-        className={`absolute bottom-10 right-10 p-3 rounded-full text-white shadow-md transition-all ${
-          isRecording ? 'bg-red-500 animate-pulse scale-110' : 'bg-gray-800 hover:bg-gray-700'
+        className={`absolute bottom-10 right-10 p-3.5 rounded-full text-white shadow-md transition-all cursor-pointer ${
+          isRecording ? 'bg-[#FF5722] animate-pulse-glow scale-110' : 'bg-gray-800 hover:bg-gray-700 ripple'
         }`}
+        title="长按口述录音"
       >
         🎤
       </button>
@@ -76,7 +77,7 @@ export const BlindListeningCabin: React.FC<Props> = ({ isProcessing, onSubmit })
       <button
         onClick={() => onSubmit(draft)}
         disabled={!draft.trim() || isProcessing}
-        className="mt-4 w-full py-3 bg-gray-900 text-white rounded-lg font-medium disabled:opacity-50 hover:bg-black transition-colors"
+        className="mt-4 w-full py-3.5 bg-[#FF5722] text-white rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-all disabled:opacity-50 hover:shadow-lg transition-colors ripple cursor-pointer"
       >
         {isProcessing ? 'AI 引擎深度剖析中...' : '提交比对并解锁底牌'}
       </button>

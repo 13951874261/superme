@@ -96,6 +96,11 @@ export default function VideoTranscribePanel({
 
         try {
           // 步骤 1：尝试直接上传
+          const DIRECT_UPLOAD_LIMIT = 30 * 1024 * 1024; // 30MB
+          if (selectedFile.size > DIRECT_UPLOAD_LIMIT) {
+            throw new Error(`文件大小 (${(selectedFile.size / (1024 * 1024)).toFixed(2)}MB) 超出直接上传限制 (30MB)，自动切换至分片上传方案`);
+          }
+
           setSubmitStatus('正在尝试直接上传视频文件...');
           const directFormData = new FormData();
           directFormData.append('video', selectedFile);
