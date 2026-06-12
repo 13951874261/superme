@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   BookOpen, FileText, BarChart3, Mail, LibraryBig, Loader2, Sparkles,
-  Compass, Building, Globe, Send, ShieldAlert, Award, RefreshCw, MessageSquare, ChevronRight
+  Compass, Building, Globe, Send, ShieldAlert, Award, RefreshCw, MessageSquare, ChevronRight,
+  Eye, Key, ArrowUpRight, Shield, Zap, Target, HelpCircle, Activity
 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import { 
@@ -109,7 +110,7 @@ export default function ReadModule() {
     try {
       const res = await runCognitivePenetrationEngine({ scene_type: activeTab, text_input: inputText });
       setResult(res);
-      playSuccessCyber(); // 成功赛博琶音音效
+      playSuccessCyber(); // 成功赛博声效
       playReveal(); // 展开卡片音效
 
       // 计算随机 AI 深度评分与多维反馈细节
@@ -208,7 +209,6 @@ export default function ReadModule() {
     playClick();
     
     try {
-      // 借助 Dify Chat Key 快速评判立场反转
       const response = await sendReadInteractiveChatMessage({
         scene_type: activeTab,
         scene_framework: sceneFramework,
@@ -264,44 +264,65 @@ export default function ReadModule() {
       );
     }
 
-    // 政策精神卡片
+    // 政策精神卡片 - 升级为3D浮雕及高对比度排版
     if (activeTab === 'policy') {
       return (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Card 1 */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all stagger-1 hover:-translate-y-0.5 duration-300">
-              <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">01 / 表面结论</span>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100">{result?.surface_conclusion}</div>
+            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-1">
+              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-gray-100 text-gray-500 uppercase">
+                  <Eye className="w-3.5 h-3.5 text-gray-400" /> 01 / 表面结论
+                </span>
+                <span className="text-[10px] font-bold text-gray-400">官方宣传口径</span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.surface_conclusion}</div>
             </div>
-            {/* Card 2 - 隐藏意图流光 */}
-            <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(255,87,34,0.05)] border border-[#FF5722]/20 hover:border-[#FF5722]/40 flex flex-col hover:shadow-[0_8px_25px_rgba(255,87,34,0.1)] transition-all stagger-2 hover:-translate-y-0.5 duration-300">
-              <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase block flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#FF5722] animate-ping" />
-                02 / 隐藏意图与导向 (核心穿透)
-              </span>
-              <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10">{result?.hidden_intent}</div>
+            {/* Card 2 - 核心隐藏意图（暖色渐变霓虹流光边框） */}
+            <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 stagger-2 relative overflow-hidden">
+              <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+                  <Key className="w-3.5 h-3.5 text-[#FF5722]" /> 02 / 隐藏意图与导向
+                </span>
+                <span className="text-[10px] font-black text-[#FF5722] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722] animate-ping" />
+                  深层利益链博弈
+                </span>
+              </div>
+              <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.hidden_intent}</div>
             </div>
             {/* Card 3 */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all stagger-3 hover:-translate-y-0.5 duration-300">
-              <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">03 / 对行业工作的影响</span>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100">{result?.industry_impact}</div>
+            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-3">
+              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
+                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" /> 03 / 切身利益防线
+                </span>
+                <span className="text-[10px] font-bold text-blue-400">对我及行业影响</span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.industry_impact}</div>
             </div>
             {/* Card 4 - 暗黑科技感风险卡 */}
-            <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-all stagger-4 hover:-translate-y-0.5 duration-300">
-              <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">04 / 潜在风险与红利</span>
-              <div className="w-full bg-[#303134] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#404144]">{result?.risks_and_opportunities}</div>
+            <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 text-white stagger-4">
+              <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 攻防底牌盘点
+                </span>
+                <span className="text-[10px] font-bold text-amber-500">潜在风险与红利</span>
+              </div>
+              <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.risks_and_opportunities}</div>
             </div>
           </div>
 
           {/* 进阶专项一：政策信息溯源 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm transition-all stagger-5">
-            <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block flex items-center gap-2">
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.01)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.03)] transition-all stagger-5">
+            <span className="text-xs text-gray-400 font-black mb-4 tracking-widest uppercase block flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-[#FF5722]" /> 专项一：信息溯源要求 (怀疑精神培养)
             </span>
-            <div className="bg-[#f8f9fa] rounded-2xl p-4 border border-gray-200/60">
-              <p className="text-xs font-bold text-[#FF5722] mb-2">【高管追问指标】：此观点的“原始出处”是哪里？有无可能在传递、执行或媒体报道中被断章取义/曲解？</p>
-              <p className="text-xs text-gray-500 font-semibold leading-relaxed">
+            <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-200/60 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-[#FF5722]" />
+              <p className="text-xs md:text-sm font-bold text-[#FF5722] mb-2">【高管追问指标】：此观点的“原始出处”是哪里？有无可能在传递、执行或媒体报道中被断章取义/曲解？</p>
+              <p className="text-xs text-gray-500 font-semibold leading-relaxed pl-1">
                 *落地指引：请核对发文的司局室（如发改委高技术司 vs 规资局规划处），判断是政策顶层宣示，还是具体可落地实施的行为细则。对于各级媒体的解读，必须返回政府官网核对PDF原件字词。
               </p>
             </div>
@@ -310,40 +331,65 @@ export default function ReadModule() {
       );
     }
     
-    // 财报/商业案例
+    // 财报/商业案例 - 升级立体化
     if (activeTab === 'report') {
       return (
         <div className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all stagger-1 hover:-translate-y-0.5 duration-300">
-              <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">01 / 核心商业模式分析</span>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100">{result?.business_model}</div>
+            {/* Card 1 */}
+            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-1">
+              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-gray-100 text-gray-500 uppercase">
+                  <Target className="w-3.5 h-3.5 text-gray-400" /> 01 / 商业模式拆解
+                </span>
+                <span className="text-[10px] font-bold text-gray-400">核心商业价值链</span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.business_model}</div>
             </div>
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all stagger-2 hover:-translate-y-0.5 duration-300">
-              <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">02 / 海外市场/用户痛点</span>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100">{result?.market_pain_points}</div>
+            {/* Card 2 */}
+            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-2">
+              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
+                  <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> 02 / 出海痛点审计
+                </span>
+                <span className="text-[10px] font-bold text-blue-400">海外市场及用户痛点</span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.market_pain_points}</div>
             </div>
-            <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(255,87,34,0.05)] border border-[#FF5722]/20 flex flex-col hover:shadow-[0_8px_25px_rgba(255,87,34,0.1)] transition-all stagger-3 hover:-translate-y-0.5 duration-300 md:col-span-2">
-              <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase block flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#FF5722] animate-pulse" />
-                03 / 盈利逻辑破绽 (爆点审计)
-              </span>
-              <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10">{result?.profit_logic_flaws}</div>
+            {/* Card 3 - 爆点审计（高亮流光边框） */}
+            <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 md:col-span-2 stagger-3">
+              <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+                  <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> 03 / 盈利逻辑爆点
+                </span>
+                <span className="text-[10px] font-black text-[#FF5722] flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722] animate-ping" />
+                  商业/财务漏洞核实
+                </span>
+              </div>
+              <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.profit_logic_flaws}</div>
             </div>
-            <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-all stagger-4 hover:-translate-y-0.5 duration-300 md:col-span-2">
-              <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">04 / 信息溯源训练 (防伪指引)</span>
-              <div className="w-full bg-[#303134] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#404144]">{result?.traceability_training}</div>
+            {/* Card 4 - 暗黑科技感信息溯源卡 */}
+            <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 md:col-span-2 text-white stagger-4">
+              <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 溯源与防伪审计
+                </span>
+                <span className="text-[10px] font-bold text-amber-500">信息防伪指引</span>
+              </div>
+              <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.traceability_training}</div>
             </div>
           </div>
 
           {/* 进阶专项一：财报信息溯源 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm transition-all stagger-5">
-            <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block flex items-center gap-2">
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.01)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.03)] transition-all stagger-5">
+            <span className="text-xs text-gray-400 font-black mb-4 tracking-widest uppercase block flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-[#FF5722]" /> 专项一：防伪风控追问 (怀疑精神培养)
             </span>
-            <div className="bg-[#f8f9fa] rounded-2xl p-4 border border-gray-200/60">
-              <p className="text-xs font-bold text-[#FF5722] mb-2">【高管追问指标】：如果这些财报数据是伪造的/水分极高（例如关联交易虚增营收），我该通过哪些底牌勾稽关系去戳穿它？</p>
-              <p className="text-xs text-gray-500 font-semibold leading-relaxed">
+            <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-200/60 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-[#FF5722]" />
+              <p className="text-xs md:text-sm font-bold text-[#FF5722] mb-2">【高管追问指标】：如果这些财报数据是伪造的/水分极高（例如关联交易虚增营收），我该通过哪些底牌勾稽关系去戳穿它？</p>
+              <p className="text-xs text-gray-500 font-semibold leading-relaxed pl-1">
                 *落地指引：强制审视“销售商品、提供劳务收到的现金”与“营业收入”是否背离；仔细核对“存货周转天数”是否异常拉长。去海关数据网核对其实际出海货运集装箱吞吐量，切忌盲信单页简报。
               </p>
             </div>
@@ -352,47 +398,77 @@ export default function ReadModule() {
       );
     }
 
-    // 外企邮件
+    // 外企邮件 - 升级立体化
     if (activeTab === 'email') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(255,87,34,0.05)] border border-[#FF5722]/20 flex flex-col hover:shadow-[0_8px_25px_rgba(255,87,34,0.1)] transition-all stagger-1 hover:-translate-y-0.5 duration-300">
-            <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase block flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#FF5722] animate-pulse" />
-              01 / 剥离真实立场与因果
-            </span>
-            <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10">{result?.stripped_logic}</div>
+          {/* Card 1 */}
+          <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 stagger-1">
+            <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+                <Key className="w-3.5 h-3.5 text-[#FF5722]" /> 01 / 真实立场脱水
+              </span>
+              <span className="text-[10px] font-bold text-[#FF5722]">剥离表面客套</span>
+            </div>
+            <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.stripped_logic}</div>
           </div>
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all stagger-2 hover:-translate-y-0.5 duration-300">
-            <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">02 / 立场反转参考</span>
-            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-gray-100">{result?.stance_reversal}</div>
+          {/* Card 2 */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-2">
+            <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
+                <Compass className="w-3.5 h-3.5 text-blue-500" /> 02 / 利益视角反转
+              </span>
+              <span className="text-[10px] font-bold text-blue-400">对手/对方底层考量</span>
+            </div>
+            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.stance_reversal}</div>
           </div>
-          <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-all stagger-3 hover:-translate-y-0.5 duration-300">
-            <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">03 / 精准反向追问</span>
-            <div className="w-full bg-[#303134] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#404144]">{result?.counter_questions}</div>
+          {/* Card 3 */}
+          <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 text-white stagger-3">
+            <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                <Shield className="w-3.5 h-3.5 text-amber-500" /> 03 / 攻防反向施压
+              </span>
+              <span className="text-[10px] font-bold text-amber-500">精准反向追问话术</span>
+            </div>
+            <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.counter_questions}</div>
           </div>
         </div>
       );
     }
 
-    // 书目提纯
+    // 书目提纯 - 升级立体化
     if (activeTab === 'book') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-all stagger-1 hover:-translate-y-0.5 duration-300">
-            <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">01 / 思考亮点提炼</span>
-            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-gray-100">{result?.thought_highlights}</div>
+          {/* Card 1 */}
+          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-1">
+            <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-gray-100 text-gray-500 uppercase">
+                <Eye className="w-3.5 h-3.5 text-gray-400" /> 01 / 核心亮点萃取
+              </span>
+              <span className="text-[10px] font-bold text-gray-400">思考逻辑主线</span>
+            </div>
+            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.thought_highlights}</div>
           </div>
-          <div className="bg-white rounded-3xl p-6 shadow-[0_4px_20px_rgba(255,87,34,0.05)] border border-[#FF5722]/20 flex flex-col hover:shadow-[0_8px_25px_rgba(255,87,34,0.1)] transition-all stagger-2 hover:-translate-y-0.5 duration-300">
-            <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase block flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-[#FF5722] animate-pulse" />
-              02 / 逻辑漏洞 / 局限性
-            </span>
-            <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10">{result?.logic_flaws}</div>
+          {/* Card 2 */}
+          <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 stagger-2">
+            <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+                <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> 02 / 思维盲点审视
+              </span>
+              <span className="text-[10px] font-bold text-[#FF5722]">逻辑漏洞与局限性</span>
+            </div>
+            <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.logic_flaws}</div>
           </div>
-          <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-all stagger-3 hover:-translate-y-0.5 duration-300">
-            <span className="text-xs text-gray-400 font-black mb-3 tracking-widest uppercase block">03 / 高阶职场应用启示</span>
-            <div className="w-full bg-[#303134] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#404144]">{result?.workplace_application}</div>
+          {/* Card 3 */}
+          <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 text-white stagger-3">
+            <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                <Target className="w-3.5 h-3.5 text-amber-500" /> 03 / 实战落地启示
+              </span>
+              <span className="text-[10px] font-bold text-amber-500">高阶职场应用</span>
+            </div>
+            <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.workplace_application}</div>
           </div>
         </div>
       );
