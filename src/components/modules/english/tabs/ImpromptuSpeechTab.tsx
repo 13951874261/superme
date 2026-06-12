@@ -128,6 +128,50 @@ export default function ImpromptuSpeechTab() {
     };
   }, []);
 
+  // 当 theme 改变时，重置即兴演讲状态并停止任何正在进行的录音或播放
+  useEffect(() => {
+    // 1. 停止录音
+    manualStopRef.current = true;
+    recognitionRef.current?.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn('停止 MediaRecorder 失败:', e);
+      }
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    setIsEngineReady(false);
+
+    // 2. 停止回放与重置音频
+    if (audioPlaybackRef.current) {
+      try {
+        audioPlaybackRef.current.pause();
+      } catch (e) {
+        console.warn('暂停音频播放失败:', e);
+      }
+      audioPlaybackRef.current = null;
+    }
+    setIsPlaying(false);
+    setAudioUrl(null);
+    setAudioBlob(null);
+
+    // 3. 重置提示与评估状态
+    setElapsed(0);
+    setTranscript('');
+    accumulatedTranscriptRef.current = '';
+    setEvalResult(null);
+    setExemplarText('');
+    setPrompterResult(null);
+    setShowPrompter(false);
+    setIsLoadingPrompter(false);
+    setEvaluatingStage('idle');
+  }, [theme]);
+
   // 自动向下滚动锚定
   useEffect(() => {
     if (scrollRef.current) {

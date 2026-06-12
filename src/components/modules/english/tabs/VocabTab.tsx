@@ -59,6 +59,21 @@ export default function VocabTab() {
     }
   }, [activeTab, reloadVocab]);
 
+  // 当切换到 vocab 页面或全局切换 theme 时，默认强制将 onlyCurrentTheme 设为 true
+  useEffect(() => {
+    if (activeTab === 'vocab') {
+      setOnlyCurrentTheme(true);
+      localStorage.setItem('only_current_theme', 'true');
+    }
+  }, [activeTab, theme]);
+
+  // 当 theme 改变时，重置当前学习进度，防止因词库过滤导致索引越界
+  useEffect(() => {
+    setCurrentWordIdx(0);
+    setSentenceInput('');
+    setEvalResult(null);
+  }, [theme, setCurrentWordIdx, setSentenceInput]);
+
   // 监听全局 vocab-updated 事件
   useEffect(() => {
     const handleUpdate = () => {

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
@@ -75,6 +75,14 @@ export default function WriteTab() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [missionCollapsed, setMissionCollapsed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 当 theme 改变时，清空当前生成的突发任务、草稿、意图与批阅结果
+  useEffect(() => {
+    setChallengeText('');
+    setWritingText('');
+    setWriteIntent('');
+    setReviewResult(null);
+  }, [theme, setWritingText, setWriteIntent, setReviewResult]);
 
   const generateChallenge = async () => {
     setIsGeneratingChallenge(true);
