@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
@@ -46,7 +46,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 backdrop-blur-3xl bg-white/90 px-10 py-8 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 xl:gap-0 z-50 border-b border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] transition-all">
+    <header className="sticky top-0 backdrop-blur-3xl bg-white/90 px-10 py-6 grid grid-cols-1 xl:grid-cols-3 gap-6 items-center z-50 border-b border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] transition-all">
       <div className="mb-6 xl:mb-0">
         <h1 className="text-2xl md:text-3xl font-serif font-black text-[#202124] flex items-center tracking-wide">
           B·AI 高管数字沙盘
@@ -60,7 +60,7 @@ export default function Header() {
         </p>
       </div>
 
-      <div className="flex flex-row items-center gap-3 md:gap-4 flex-nowrap shrink-0 my-4 xl:my-0">
+      <div className="flex flex-row items-center xl:justify-center gap-3 md:gap-4 flex-nowrap shrink-0">
         {/* 全局声线控制（Global Voice Selector） */}
         <div className="relative inline-block text-left shrink-0">
         <button
@@ -188,7 +188,7 @@ export default function Header() {
       </div>
       
       {/* 职业航标轴 (Career Roadmap) */}
-      <div className="flex flex-col items-end">
+      <div className="flex flex-col items-start xl:items-end w-full">
         <div className="flex items-center text-xs font-black tracking-widest text-gray-400 uppercase mb-3">
           <span className="text-gray-300">2020 科员</span>
           <TrendingUp className="w-3 h-3 mx-2 text-gray-300" />
