@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Volume2, Loader2, Pause } from 'lucide-react';
 
 interface SpeakButtonProps {
@@ -247,7 +247,7 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
       audio.playbackRate = rate * globalRateMultiplier;
       currentAudio = audio;
       dispatchTtsState(content, 'playing');
-      window.dispatchEvent(new CustomEvent('tts-sentence-progress', { detail: { content, index: i, sentence: sentences[i] } }));      
+      window.dispatchEvent(new CustomEvent('tts-sentence-progress', { detail: { content, index: 0, sentence: sentences[0] || content } }));      
       await new Promise<void>((resolve, reject) => {
         audio!.onended = () => resolve();
         audio!.onerror = (e) => reject(e);

@@ -496,135 +496,143 @@ export default function DashboardTab() {
       {/* 每日破绽词汇推送板块 */}
       <DailyFlawVocabCard />
 
-      <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col md:flex-row gap-8">
-        <div className="flex flex-col">
-          <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5722] mb-3">战略阶段 (Stage)</span>
-          <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100">
-            <button onClick={(e) => { e.stopPropagation(); handleStageChange('0-6'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '0-6' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>0-6个月: 政商务</button>
-            <button onClick={(e) => { e.stopPropagation(); handleStageChange('6-12'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '6-12' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>6-12个月: 全场景</button>
-          </div>
-        </div>
-        <div className="flex flex-col flex-1">
-          <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 (Theme Gateway)</span>
-
-          {themeSwitchError && (
-            <div className="flex items-start gap-3 mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
-              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-              <div className="flex-1">
-                <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1">🚫 跨国高管拦截指令</p>
-                <p className="text-xs font-medium leading-relaxed whitespace-pre-line">{themeSwitchError}</p>
-              </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); setThemeSwitchError(null); }}
-                className="text-red-400 hover:text-red-600 text-lg leading-none font-bold shrink-0"
-              >×</button>
+      <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col gap-6">
+        {/* 控制区：战略阶段与当前闭环主题并排 */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5722] mb-3">战略阶段 (Stage)</span>
+            <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 self-start">
+              <button onClick={(e) => { e.stopPropagation(); handleStageChange('0-6'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '0-6' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>0-6个月: 政商务</button>
+              <button onClick={(e) => { e.stopPropagation(); handleStageChange('6-12'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '6-12' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>6-12个月: 全场景</button>
             </div>
-          )}
+          </div>
+          
+          <div className="flex flex-col md:col-span-2">
+            <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 (Theme Gateway)</span>
 
-          <div className="flex items-center gap-3">
-            <select
-              value={theme}
-              onChange={async (e) => {
-                const target = e.target;
-                const next = target.value;
-                if (next === theme) return;
-                setThemeSwitchError(null);
-                try {
-                  const m = await checkThemeMastery(theme);
-                  if (!m.isMastered) {
+            {themeSwitchError && (
+              <div className="flex items-start gap-3 mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+                <div className="flex-1">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1">🚫 跨国高管拦截指令</p>
+                  <p className="text-xs font-medium leading-relaxed whitespace-pre-line">{themeSwitchError}</p>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setThemeSwitchError(null); }}
+                  className="text-red-400 hover:text-red-600 text-lg leading-none font-bold shrink-0"
+                >×</button>
+              </div>
+            )}
+
+            <div className="flex items-center gap-3">
+              <select
+                value={theme}
+                onChange={async (e) => {
+                  const target = e.target;
+                  const next = target.value;
+                  if (next === theme) return;
+                  setThemeSwitchError(null);
+                  try {
+                    const m = await checkThemeMastery(theme);
+                    if (!m.isMastered) {
+                      target.value = theme;
+                      setThemeSwitchError(
+                        `当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n• 沉浸式口语沙盘：${m.oralCount}/10 轮\n• L3 书面评估最高分：${m.maxWriteScore}/10 分（及格线: 8分）\n\n请把当前阵地打透再拔营。`
+                      );
+                      return;
+                    }
+                    setTheme(next);
+                    await setThemeFocus({ theme: next }).catch(() => {});
+                  } catch {
                     target.value = theme;
-                    setThemeSwitchError(
-                      `当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n• 沉浸式口语沙盘：${m.oralCount}/10 轮\n• L3 书面评估最高分：${m.maxWriteScore}/10 分（及格线: 8分）\n\n请把当前阵地打透再拔营。`
-                    );
-                    return;
+                    setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。');
                   }
-                  setTheme(next);
-                  await setThemeFocus({ theme: next }).catch(() => {});
-                } catch {
-                  target.value = theme;
-                  setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。');
-                }
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                // 核心修复：一旦用户重新点击下拉框（意图切回当前任务/阶段），立刻清理旧的红色拦截弹窗
-                setThemeSwitchError(null);
-              }}
-              className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
-            >
-              <optgroup label="系统预置主题">
-                {getThemeOptions(stage).map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </optgroup>
-              {customThemes && customThemes.length > 0 && (
-                <optgroup label="自定义场景主题">
-                  {customThemes.map((c) => (
-                    <option key={c.id} value={c.displayName || c.themeName}>
-                      {c.displayName || c.themeName}
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // 核心修复：一旦用户重新点击下拉框（意图切回当前任务/阶段），立刻清理旧的红色拦截弹窗
+                  setThemeSwitchError(null);
+                }}
+                className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
+              >
+                <optgroup label="系统预置主题">
+                  {getThemeOptions(stage).map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
                     </option>
                   ))}
                 </optgroup>
+                {customThemes && customThemes.length > 0 && (
+                  <optgroup label="自定义场景主题">
+                    {customThemes.map((c) => (
+                      <option key={c.id} value={c.displayName || c.themeName}>
+                        {c.displayName || c.themeName}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+
+              {currentCustomTheme && (
+                <button
+                  disabled={isDeletingTheme}
+                  onClick={async () => {
+                    if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步删除在 Dify 知识库关联的文档。`)) return;
+                    setIsDeletingTheme(true);
+                    try {
+                       const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
+                       const res = await deleteCustomTheme(currentCustomTheme.id);
+                       if (res.success) {
+                         showNotice('dashboard', '成功删除自定义场景', 'success');
+                         const options = getThemeOptions(stage);
+                         setTheme(options[0].value);
+                         await refreshCustomThemes();
+                       }
+                    } catch (e: any) {
+                       showNotice('dashboard', `删除失败: ${e.message}`, 'error');
+                    } finally {
+                       setIsDeletingTheme(false);
+                    }
+                  }}
+                  className="bg-red-50 hover:bg-red-100 text-red-600 p-3 rounded-xl border border-red-200 transition-all cursor-pointer disabled:opacity-50"
+                  title="删除当前自定义场景"
+                >
+                  {isDeletingTheme ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                </button>
               )}
-            </select>
 
-            {currentCustomTheme && (
               <button
-                disabled={isDeletingTheme}
-                onClick={async () => {
-                  if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步删除在 Dify 知识库关联的文档。`)) return;
-                  setIsDeletingTheme(true);
-                  try {
-                     const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
-                     const res = await deleteCustomTheme(currentCustomTheme.id);
-                     if (res.success) {
-                       showNotice('dashboard', '成功删除自定义场景', 'success');
-                       const options = getThemeOptions(stage);
-                       setTheme(options[0].value);
-                       await refreshCustomThemes();
-                     }
-                  } catch (e: any) {
-                     showNotice('dashboard', `删除失败: ${e.message}`, 'error');
-                  } finally {
-                     setIsDeletingTheme(false);
-                  }
-                }}
-                className="bg-red-50 hover:bg-red-100 text-red-600 p-3 rounded-xl border border-red-200 transition-all cursor-pointer disabled:opacity-50"
-                title="删除当前自定义场景"
+                onClick={() => setIsCustomThemeModalOpen(true)}
+                className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl border border-indigo-200 transition-all font-bold text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap"
               >
-                {isDeletingTheme ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+                <Plus className="w-4 h-4" /> 自定义
               </button>
-            )}
-
-            <button
-              onClick={() => setIsCustomThemeModalOpen(true)}
-              className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl border border-indigo-200 transition-all font-bold text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap"
-            >
-              <Plus className="w-4 h-4" /> 自定义
-            </button>
-            <div
-              className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap border ${
-                masteryData.isMastered
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
-                  : 'bg-red-50 border-red-200 text-red-600'
-              }`}
-            >
-              {masteryData.isMastered ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
-              <span className="text-xs font-black uppercase tracking-widest">
-                {masteryData.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
-              </span>
+              <div
+                className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap border ${
+                  masteryData.isMastered
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                    : 'bg-red-50 border-red-200 text-red-600'
+                }`}
+              >
+                {masteryData.isMastered ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                <span className="text-xs font-black uppercase tracking-widest">
+                  {masteryData.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
+                </span>
+              </div>
             </div>
           </div>
+        </div>
+
+        {/* 状态与停留分析区 */}
+        <div className="border-t border-gray-100 pt-5">
           {!masteryData.isMastered && (
-            <div className="text-[10px] text-gray-500 font-medium mt-2">
+            <div className="text-[10px] text-gray-500 font-medium mb-3">
               当前通关进度：口语对抗 {masteryData.oralCount}/10 轮 | L3 书面最高分 {masteryData.maxWriteScore}/8 分 | 即兴演讲 {impromptuPassed ? '✅已达标' : '⚠️未达标'}
             </div>
           )}
 
           {stayStats && (
-            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 mt-4 transition-all hover:shadow-sm">
+            <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 transition-all hover:shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200/50 pb-3 mb-3.5">
                 <div className="flex items-center gap-2">
                   <span className="text-sm">📊</span>
