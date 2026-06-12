@@ -1,4 +1,5 @@
 import { ComparisonResult } from '../types/listening';
+import { transcribeAudioWithWhisper } from './difyAPI';
 
 // 优先从 localStorage 获取密钥，实现本地优先管理
 const getApiKey = (keyName: string) => localStorage.getItem(keyName) || import.meta.env[`VITE_${keyName}`];
@@ -69,23 +70,8 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
  * 调用 Dify 内置的语音转文字接口 (底层为阿里 Paraformer 或 Whisper)
  */
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
-  const apiKey = getApiKey('DIFY_STT_API_KEY');
-  
-  // 因为 Dify (部分版本 or 配置下) 不接受 WebM (415 Unsupported Media Type)，所以必须由前端转为 WAV
-  const wavBlob = await convertToWav(audioBlob);
-  
-  const formData = new FormData();
-  formData.append('file', wavBlob, 'recording.wav');
-
-  const response = await fetch(`${DIFY_BASE_URL}/audio-to-text`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}` },
-    body: formData,
-  });
-
-  if (!response.ok) throw new Error('语音识别请求失败');
-  const data = await response.json();
-  return data.text;
+  // 统一调用 transcribeAudioWithWhisper 以使用高精度的三个接口轮询
+  return transcribeAudioWithWhisper(audioBlob);
 }
 
 /**

@@ -11,6 +11,8 @@ export const BlindListeningCabin: React.FC<Props> = ({ isProcessing, onSubmit })
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
+  const recognitionTextRef = useRef<string>('');
 
   const handleStartRecord = async () => {
     try {
@@ -29,10 +31,39 @@ export const BlindListeningCabin: React.FC<Props> = ({ isProcessing, onSubmit })
           const text = await transcribeAudio(audioBlob);
           setDraft(prev => (prev ? prev + ' ' + text : text));
         } catch (error) {
-          console.error(error);
-          alert('语音识别失败，请检查网络或麦克风权限。');
+          console.error('语音转写失败，使用原生 SpeechRecognition 托底:', error);
+          const fallbackText = recognitionTextRef.current;
+          if (fallbackText) {
+            setDraft(prev => (prev ? prev + ' ' + fallbackText : fallbackText));
+            console.log('已应用原生语音识别托底内容: ', fallbackText);
+          } else {
+            alert('语音识别失败，请检查网络或麦克风权限。');
+          }
         }
       };
+
+      // 启动浏览器原生 SpeechRecognition 托底
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        
+        recognitionTextRef.current = '';
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            text += event.results[i][0].transcript;
+          }
+          recognitionTextRef.current = text.trim();
+        };
+        recognition.onerror = (err: any) => {
+          console.warn('SpeechRecognition error:', err);
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
 
       recorder.start();
       setIsRecording(true);
@@ -46,6 +77,9 @@ export const BlindListeningCabin: React.FC<Props> = ({ isProcessing, onSubmit })
       mediaRecorderRef.current.stop();
       mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
       setIsRecording(false);
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 

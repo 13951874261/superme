@@ -39,6 +39,8 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const recognitionTextRef = useRef<string>('');
 
   // 同步外部状态
   useEffect(() => {
@@ -96,9 +98,30 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await handleAssessment(audioBlob);
-        // 核心修复：绝对不要在这里 stop track！保持麦克风热启动状态，实现零延迟按住即录
-        // stream.getTracks().forEach(track => track.stop());
       };
+
+      // 启动浏览器原生 SpeechRecognition 托底
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        
+        recognitionTextRef.current = '';
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            text += event.results[i][0].transcript;
+          }
+          recognitionTextRef.current = text.trim();
+        };
+        recognition.onerror = (err: any) => {
+          console.warn('SpeechRecognition error:', err);
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
 
       mediaRecorder.start();
       setIsRecording(true);
@@ -113,13 +136,26 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
   };
 
   const handleAssessment = async (audioBlob: Blob) => {
     setIsAssessing(true);
     setLastResult(null);
     try {
-      const recognizedText = await transcribeAudio(audioBlob);
+      let recognizedText = '';
+      try {
+        recognizedText = await transcribeAudio(audioBlob);
+      } catch (err) {
+        console.error('语音转写接口失败，尝试使用原生识别托底:', err);
+        recognizedText = recognitionTextRef.current;
+        if (!recognizedText) {
+          throw new Error('语音识别失败，且本地托底数据为空');
+        }
+        console.log('已应用原生语音识别托底内容: ', recognizedText);
+      }
 
       const response = await fetch(`/api/pronunciation-assessment`, {
         method: 'POST',

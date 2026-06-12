@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ChevronDown, 
   ChevronUp, 
@@ -148,6 +148,8 @@ export default function SpeakModule() {
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<any>(null);
+  const recognitionTextRef = useRef<string>('');
 
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const [evalResult, setEvalResult] = useState<{
@@ -291,11 +293,45 @@ export default function SpeakModule() {
             setAggressiveInput(prev => prev ? prev + ' ' + text : text);
           }
         } catch (err) {
-          console.error('语音转写失败:', err);
+          console.error('语音中转接口识别失败，尝试原生 SpeechRecognition 托底:', err);
+          const fallbackText = recognitionTextRef.current;
+          if (fallbackText) {
+            if (inputMode === 'mild') {
+              setMildInput(prev => prev ? prev + ' ' + fallbackText : fallbackText);
+            } else {
+              setAggressiveInput(prev => prev ? prev + ' ' + fallbackText : fallbackText);
+            }
+            console.log('已应用原生语音识别托底内容: ', fallbackText);
+          } else {
+            console.warn('原生语音识别托底内容为空');
+          }
         } finally {
           setIsUploading(false);
         }
       };
+
+      // 启动浏览器原生 SpeechRecognition 托底
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = /[\u4e00-\u9fa5]/.test(promptTopic) ? 'zh-CN' : 'en-US';
+        
+        recognitionTextRef.current = '';
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            text += event.results[i][0].transcript;
+          }
+          recognitionTextRef.current = text.trim();
+        };
+        recognition.onerror = (err: any) => {
+          console.warn('SpeechRecognition error:', err);
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
 
       mediaRecorder.start();
       setIsRecording(true);
@@ -308,6 +344,9 @@ export default function SpeakModule() {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+    }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
   };
 

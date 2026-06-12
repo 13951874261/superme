@@ -1584,8 +1584,7 @@ export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = 'defa
   const formData = new FormData();
   // Whisper-1 接口强制要求传递 file 字段，格式这里转换为 mp3 规范以保障兼容性
   formData.append('file', audioBlob, 'audio.mp3');
-  formData.append('model', 'openai/whisper-1');
-  formData.append('response_format', 'json');
+  // 由后端中转接口轮询确定具体的模型与参数，这里仅作为原始文件流上传
 
   const res = await fetch('/api/audio/transcriptions', {
     method: 'POST',
