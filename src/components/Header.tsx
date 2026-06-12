@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
@@ -59,7 +59,7 @@ export default function Header() {
         </div>
 
         {/* 2. 中间：微操作台 */}
-        <div className="col-span-12 xl:col-span-5 flex items-center justify-center gap-4 flex-wrap xl:flex-nowrap">
+        <div className="col-span-12 xl:col-span-6 flex items-center justify-center gap-5 xl:gap-6 flex-wrap xl:flex-nowrap">
           {/* 专注模式 */}
           <button className="h-10 px-4 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs font-medium text-slate-600 whitespace-nowrap flex-shrink-0">
             <span className="relative flex h-2 w-2">
@@ -197,40 +197,44 @@ export default function Header() {
         </div>
 
         {/* 3. 右侧：步进器演变轴 */}
-        <div className="col-span-12 xl:col-span-4 flex flex-col gap-3 xl:pl-6 xl:border-l xl:border-slate-100">
+        <div className="col-span-12 xl:col-span-3 flex flex-col gap-2 xl:pl-6 xl:border-l xl:border-slate-100">
           <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono tracking-wider">
             <span>EVOLUTION TRACKER</span>
             <span className="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">45% Completed</span>
           </div>
           
-          <div className="flex items-center justify-between relative mt-2 px-1">
-            {/* 进度背景条 */}
-            <div className="absolute left-3 right-3 top-2.5 h-1 bg-slate-100 rounded-full z-0">
+          {/* 进度条轨道容器：固定高度，确保圆点垂直居中 */}
+          <div className="relative h-8 mt-1">
+            {/* 进度背景条：跨越三个节点 */}
+            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-slate-100 rounded-full z-0">
               <div className="h-full bg-gradient-to-r from-slate-400 to-indigo-500 rounded-full transition-all duration-1000 ease-out" style={{ width: '45%' }}></div>
             </div>
 
-            {/* 节点 1：2020 科员 (已达成) */}
-            <div className="flex flex-col items-center z-10">
-              <div className="w-3 h-3 rounded-full bg-slate-500 border-2 border-white shadow-sm mb-1.5"></div>
-              <span className="text-[9px] text-slate-400 font-mono leading-none">2020</span>
-              <span className="text-[11px] font-semibold text-slate-600 mt-1">科员</span>
-            </div>
-
-            {/* 节点 2：2026 支行副行长 (当前节点) */}
-            <div className="flex flex-col items-center z-10">
-              <div className="w-4 h-4 rounded-full bg-indigo-500 border-2 border-white shadow-md flex items-center justify-center relative mb-1">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                <div className="w-1.5 h-1.5 rounded-full bg-white relative z-20"></div>
+            {/* 节点轨道：均匀分布 */}
+            <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex justify-between items-start z-10 px-1">
+              {/* 节点 1：2020 科员 (已达成) */}
+              <div className="flex flex-col items-center w-16 -mt-1">
+                <div className="w-3 h-3 rounded-full bg-slate-500 border-2 border-white shadow-sm"></div>
+                <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">2020</span>
+                <span className="text-[10px] font-semibold text-slate-600 mt-0.5 whitespace-nowrap">科员</span>
               </div>
-              <span className="text-[9px] text-indigo-500 font-bold font-mono leading-none">2026</span>
-              <span className="text-[11px] font-bold text-slate-800 mt-1">支行副行长</span>
-            </div>
 
-            {/* 节点 3：2027 跨国大区VP (未达成) */}
-            <div className="flex flex-col items-center z-10 opacity-55">
-              <div className="w-3 h-3 rounded-full bg-slate-200 border-2 border-white shadow-sm mb-1.5"></div>
-              <span className="text-[9px] text-slate-400 font-mono leading-none">2027</span>
-              <span className="text-[11px] font-semibold text-slate-500 mt-1">大区VP</span>
+              {/* 节点 2：2026 支行副行长 (当前节点) */}
+              <div className="flex flex-col items-center w-16 -mt-1">
+                <div className="w-4 h-4 rounded-full bg-indigo-500 border-2 border-white shadow-md flex items-center justify-center relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-white relative z-20"></div>
+                </div>
+                <span className="text-[9px] text-indigo-500 font-bold font-mono leading-none mt-1">2026</span>
+                <span className="text-[10px] font-bold text-slate-800 mt-0.5 whitespace-nowrap">支行副行长</span>
+              </div>
+
+              {/* 节点 3：2027 跨国大区VP (未达成) */}
+              <div className="flex flex-col items-center w-16 -mt-1 opacity-55">
+                <div className="w-3 h-3 rounded-full bg-slate-200 border-2 border-white shadow-sm"></div>
+                <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">2027</span>
+                <span className="text-[10px] font-semibold text-slate-500 mt-0.5 whitespace-nowrap">大区VP</span>
+              </div>
             </div>
           </div>
         </div>
