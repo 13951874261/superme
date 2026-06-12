@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy, ArrowRight, Sparkles } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
@@ -36,6 +36,57 @@ export default function ImpromptuSpeechTab() {
   const [evaluatingStage, setEvaluatingStage] = useState<'idle' | 'transcribing' | 'evaluating' | 'generating'>('idle');
   const isEvaluating = evaluatingStage !== 'idle';
   const [exemplarText, setExemplarText] = useState('');
+
+  const [activeExemplarIdx, setActiveExemplarIdx] = useState<number | null>(null);
+  const exemplarContainerRef = useRef<HTMLDivElement>(null);
+
+  // 完美示范文本句切分
+  const exemplarSentences = useMemo(() => {
+    if (!exemplarText) return [];
+    return exemplarText
+      .split(/(?<!\b(?:Mr|Ms|Mrs|Dr|Co|Ltd|Inc|e\.g|i\.e|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Assoc|Univ|Prof|Dept))(?<=[.?!])\s+|\n+/i)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }, [exemplarText]);
+
+  useEffect(() => {
+    const handleProgress = (e: Event) => {
+      const { content, index } = (e as CustomEvent).detail;
+      if (typeof content === 'string' && exemplarText && content.trim() === exemplarText.trim()) {
+        setActiveExemplarIdx(index);
+        // 自动滚动到对应句子
+        const activeSpan = exemplarContainerRef.current?.querySelector(`[data-idx="${index}"]`);
+        if (activeSpan) {
+          activeSpan.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    };
+
+    const handleStateChange = (e: Event) => {
+      const { content, state } = (e as CustomEvent).detail;
+      if (typeof content === 'string' && exemplarText && content.trim() === exemplarText.trim()) {
+        if (state === 'stopped') {
+          setActiveExemplarIdx(null);
+        }
+      }
+    };
+
+    const handleStopped = (e: Event) => {
+      const { content } = (e as CustomEvent).detail;
+      if (typeof content === 'string' && exemplarText && content.trim() === exemplarText.trim()) {
+        setActiveExemplarIdx(null);
+      }
+    };
+
+    window.addEventListener('tts-sentence-progress', handleProgress);
+    window.addEventListener('tts-state', handleStateChange);
+    window.addEventListener('tts-stopped', handleStopped);
+    return () => {
+      window.removeEventListener('tts-sentence-progress', handleProgress);
+      window.removeEventListener('tts-state', handleStateChange);
+      window.removeEventListener('tts-stopped', handleStopped);
+    };
+  }, [exemplarText]);
 
   const [evalResult, setEvalResult] = useState<{
     score: number;
@@ -715,7 +766,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.openings.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-emerald-500/5 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-emerald-500/5 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all duration-200">
                         {p}
                       </div>
                     ))}
@@ -730,7 +781,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.transitions.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-blue-500/5 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-blue-500/5 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all duration-200">
                         {p}
                       </div>
                     ))}
@@ -745,7 +796,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.emphasizing.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-purple-500/5 hover:bg-white hover:border-purple-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-purple-500/5 hover:bg-white hover:border-purple-200 hover:shadow-sm transition-all duration-200">
                         {p}
                       </div>
                     ))}
@@ -760,7 +811,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.conclusions.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed text-gray-750 font-medium bg-white/45 p-2.5 rounded-xl border border-orange-500/5 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-orange-500/5 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-200">
                         {p}
                       </div>
                     ))}
@@ -895,9 +946,24 @@ export default function ImpromptuSpeechTab() {
                   </button>
                 </div>
               </div>
-              <p className="text-[13px] leading-relaxed text-gray-700 font-medium whitespace-pre-line italic bg-violet-50/50 p-5 rounded-2xl border border-violet-100">
-                {exemplarText}
-              </p>
+              <div 
+                ref={exemplarContainerRef}
+                className="text-[13px] leading-relaxed text-slate-850 font-serif italic bg-violet-50/50 p-5 rounded-2xl border border-violet-100 max-h-[250px] overflow-y-auto scroll-smooth"
+              >
+                {exemplarSentences.map((s, idx) => (
+                  <span
+                    key={idx}
+                    data-idx={idx}
+                    className={`transition-all duration-300 mx-0.5 rounded px-0.5 inline ${
+                      activeExemplarIdx === idx 
+                        ? 'bg-amber-100 ring-2 ring-amber-400 font-bold text-slate-900' 
+                        : 'text-slate-800'
+                    }`}
+                  >
+                    {s}{' '}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </>
