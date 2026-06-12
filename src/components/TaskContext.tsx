@@ -29,7 +29,7 @@ interface TaskContextType {
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-const API_BASE = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
+const API_BASE = '';
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);

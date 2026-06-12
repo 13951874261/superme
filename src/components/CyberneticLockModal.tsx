@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic } from 'lucide-react';
 
 interface CyberneticLockModalProps {
@@ -22,60 +22,75 @@ export default function CyberneticLockModal({
   const isWriteDone = maxWriteScore >= 8;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]">
-      <div className="bg-[#1C1C1E] border border-red-500/30 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_0_80px_rgba(239,68,68,0.15)] animate-[slideUp_0.4s_ease-out] relative z-10 mx-4">
-        {/* Glow alert icon container */}
-        <div className="w-20 h-20 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20 relative">
-          <div className="absolute inset-0 rounded-full bg-red-500/5 animate-ping opacity-75"></div>
-          <Lock className="w-10 h-10" />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm animate-[fadeIn_0.3s_ease-out]">
+      <div className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_15px_50px_rgba(0,0,0,0.06)] animate-[slideUp_0.4s_ease-out] relative z-10 mx-4">
+        {/* Elegant static icon container */}
+        <div className="w-16 h-16 bg-slate-50 text-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-150 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
+          <Lock className="w-6 h-6 text-slate-650" />
         </div>
 
-        <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-widest flex items-center justify-center gap-2">
-          <ShieldAlert className="w-6 h-6 text-red-500" />
-          控制论闭环阻断器激活
+        <h2 className="text-xl font-bold text-slate-900 mb-2 tracking-wide flex items-center justify-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-slate-600" />
+          主题目标闭环提示
         </h2>
-        <span className="text-[10px] text-red-500 font-bold uppercase tracking-widest block mb-4">
-          Cybernetic Closed-Loop Interceptor Active
+        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-4">
+          Theme Target Achievement Requirement
         </span>
 
-        <p className="text-gray-400 text-xs leading-relaxed mb-6">
-          根据全局控制论规约，当前阵地未被完全攻克前，全站其他模块已被锁定。<br />
-          请先在 <strong className="text-white">英语引擎</strong> 模块中完成当前主题的每日闭环指标。
+        <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
+          根据学习规约，当前主题的核心板块指标达成前，其他高级探索模块已锁定。
+          请先在<strong className="text-slate-900 mx-1">英语引擎</strong>中完成每日口语和写作的指标闭环。
         </p>
 
-        {/* Current Theme Info */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-left mb-6">
-          <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1.5">当前战役阵地</div>
-          <div className="text-sm font-bold text-white mb-4">{theme}</div>
+        {/* Current Theme Info with Admin Style */}
+        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 text-left mb-6">
+          <div className="text-[10px] text-slate-450 uppercase tracking-widest font-bold mb-1.5">当前主题阵地</div>
+          <div className="text-sm font-bold text-slate-800 mb-4">{theme}</div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Oral Stat Card */}
-            <div className={`p-3.5 rounded-xl border transition-all ${isOralDone ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/5 border-red-500/10'}`}>
+            <div className={`p-4 rounded-xl border transition-all ${
+              isOralDone 
+                ? 'bg-emerald-50/50 border-emerald-100' 
+                : 'bg-slate-100/70 border-slate-200/60'
+            }`}>
               <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
                   <Mic className="w-3 h-3" /> 口语沙盘
                 </span>
-                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${isOralDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  isOralDone 
+                    ? 'bg-emerald-100 text-emerald-800' 
+                    : 'bg-slate-200 text-slate-700'
+                }`}>
                   {isOralDone ? '已达标' : '未达标'}
                 </span>
               </div>
-              <div className="text-lg font-black text-white">
-                {oralCount} <span className="text-xs text-gray-500 font-normal">/ 10 轮</span>
+              <div className="text-base font-bold text-slate-800">
+                {oralCount} <span className="text-xs text-slate-400 font-normal">/ 10 轮</span>
               </div>
             </div>
 
             {/* Write Stat Card */}
-            <div className={`p-3.5 rounded-xl border transition-all ${isWriteDone ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/5 border-red-500/10'}`}>
+            <div className={`p-4 rounded-xl border transition-all ${
+              isWriteDone 
+                ? 'bg-emerald-50/50 border-emerald-100' 
+                : 'bg-slate-100/70 border-slate-200/60'
+            }`}>
               <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
                   <BookOpen className="w-3 h-3" /> 纵深写作
                 </span>
-                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${isWriteDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
+                <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                  isWriteDone 
+                    ? 'bg-emerald-100 text-emerald-800' 
+                    : 'bg-slate-200 text-slate-700'
+                }`}>
                   {isWriteDone ? '已达标' : '未达标'}
                 </span>
               </div>
-              <div className="text-lg font-black text-white">
-                {maxWriteScore} <span className="text-xs text-gray-500 font-normal">/ 8 分</span>
+              <div className="text-base font-bold text-slate-800">
+                {maxWriteScore} <span className="text-xs text-slate-400 font-normal">/ 8 分</span>
               </div>
             </div>
           </div>
@@ -84,9 +99,9 @@ export default function CyberneticLockModal({
         {/* Action Button */}
         <button
           onClick={onClose}
-          className="w-full bg-red-600 text-white font-black uppercase tracking-widest py-3.5 rounded-xl hover:bg-red-500 transition-colors shadow-lg shadow-red-950/20 cursor-pointer flex items-center justify-center gap-2 text-xs"
+          className="w-full bg-slate-900 text-white font-bold uppercase tracking-wide py-3 rounded-xl hover:bg-slate-800 transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2 text-xs"
         >
-          重返核心战场
+          返回主题战场
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+﻿@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -130,31 +130,6 @@ details[open] summary ~ * {
   background: rgba(255, 87, 34, 0.6);
 }
 
-/* Pulse Glow Animation */
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.4); }
-  50% { box-shadow: 0 0 0 10px rgba(255, 87, 34, 0); }
-}
-.animate-pulse-glow {
-  animation: pulse-glow 2s infinite;
-}
-
-/* Scroll Bottom Glow */
-.scroll-bottom-glow {
-  position: relative;
-}
-.scroll-bottom-glow::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  background: linear-gradient(to top, rgba(255, 87, 34, 0.08), transparent);
-  pointer-events: none;
-  animation: fadeIn 0.5s ease-out;
-}
-
 /* Ripple effect */
 .ripple {
   position: relative;
@@ -177,4 +152,19 @@ details[open] summary ~ * {
   height: 250%;
 }
 
+/* 极雅行政卡片风格：采用极致静雅的微投影和柔和的灰白过渡光效，去霓虹/去粒子 */
+.admin-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border: 1px solid #f3f4f6;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01), 0 8px 24px rgba(0, 0, 0, 0.02);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.admin-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02), 0 16px 40px rgba(0, 0, 0, 0.04);
+  border-color: #e5e7eb;
+}
 
+.admin-glow-soft {
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.01), 0 4px 12px rgba(0, 0, 0, 0.02);
+}

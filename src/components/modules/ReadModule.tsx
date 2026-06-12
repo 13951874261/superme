@@ -13,12 +13,63 @@ import {
   CognitivePenetrationResult 
 } from '../../services/difyAPI';
 import { 
-  playError, playClick, playSwitch, playUpload, playReveal, playSuccessCyber, playHeartbeat, playErrorCyber, playScan, playSuccess
+  playError, playClick, playSwitch, playUpload, playReveal, playSuccessCyber, playHeartbeat, playErrorCyber, playScan, playSuccess,
+  playWaterDrop, playPageTurn, playGentleWarning
 } from '../../utils/soundEffects';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
   text: string;
+}
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08
+    }
+  }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { type: 'spring' as const, stiffness: 260, damping: 25 }
+  }
+};
+
+function AnimatedScore({ score }: { score: number | null }) {
+  const [displayScore, setDisplayScore] = useState(0.0);
+
+  useEffect(() => {
+    if (score === null) {
+      setDisplayScore(0.0);
+      return;
+    }
+    const end = score;
+    const duration = 500; // 500ms
+    const startTime = performance.now();
+
+    function animate(currentTime: number) {
+      const elapsedTime = currentTime - startTime;
+      const progress = Math.min(elapsedTime / duration, 1);
+      const easeProgress = progress * (2 - progress); // Ease out quad
+      const currentScore = easeProgress * end;
+      setDisplayScore(parseFloat(currentScore.toFixed(1)));
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }, [score]);
+
+  return <span className="text-3xl font-black text-[#202124] tracking-tight">{displayScore.toFixed(1)}</span>;
 }
 
 export default function ReadModule() {
@@ -79,7 +130,7 @@ export default function ReadModule() {
     setUserReversalText('');
     setReversalSubmitted(false);
     setChatMessages([]);
-    playSwitch();
+    playPageTurn();
     try {
       const text = await generateReadMaterial(activeTab, sceneFramework);
       setInputText(text);
@@ -105,7 +156,7 @@ export default function ReadModule() {
     setReversalSubmitted(false);
     setChatMessages([]);
     setConversationId(null);
-    playScan(); // 播放扫描音效
+    playWaterDrop(); // 播放水滴音效
 
     try {
       const res = await runCognitivePenetrationEngine({ scene_type: activeTab, text_input: inputText });
@@ -143,7 +194,7 @@ export default function ReadModule() {
       if (Math.random() > 0.4) {
         setTimeout(() => {
           setIsReversalTriggered(true);
-          playHeartbeat(); // 心跳警报声
+          playGentleWarning(); // 播放温柔警音
 
           // 根据当前板块定制立场反转 Prompt
           let p = '';
@@ -264,25 +315,37 @@ export default function ReadModule() {
       );
     }
 
-    // 政策精神卡片 - 升级为3D浮雕及高对比度排版
+    // 政策精神卡片 - 升级为极简行政风 3D 柔影 & Framer Motion stagger 入场
     if (activeTab === 'policy') {
       return (
-        <div className="space-y-6">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="space-y-6"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Card 1 */}
-            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-1">
-              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-gray-100 text-gray-500 uppercase">
-                  <Eye className="w-3.5 h-3.5 text-gray-400" /> 01 / 表面结论
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
+                  <Eye className="w-3.5 h-3.5 text-slate-400" /> 01 / 表面结论
                 </span>
-                <span className="text-[10px] font-bold text-gray-400">官方宣传口径</span>
+                <span className="text-[10px] font-bold text-slate-400">官方宣传口径</span>
               </div>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.surface_conclusion}</div>
-            </div>
-            {/* Card 2 - 核心隐藏意图（暖色渐变霓虹流光边框） */}
-            <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 stagger-2 relative overflow-hidden">
-              <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.surface_conclusion}</div>
+            </motion.div>
+            
+            {/* Card 2 - 隐藏意图与导向（微醺橙柔和渐变高亮） */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
                   <Key className="w-3.5 h-3.5 text-[#FF5722]" /> 02 / 隐藏意图与导向
                 </span>
                 <span className="text-[10px] font-black text-[#FF5722] flex items-center gap-1">
@@ -290,32 +353,43 @@ export default function ReadModule() {
                   深层利益链博弈
                 </span>
               </div>
-              <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.hidden_intent}</div>
-            </div>
+              <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.hidden_intent}</div>
+            </motion.div>
+
             {/* Card 3 */}
-            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-3">
-              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
                   <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" /> 03 / 切身利益防线
                 </span>
                 <span className="text-[10px] font-bold text-blue-400">对我及行业影响</span>
               </div>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.industry_impact}</div>
-            </div>
-            {/* Card 4 - 暗黑科技感风险卡 */}
-            <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 text-white stagger-4">
-              <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.industry_impact}</div>
+            </motion.div>
+
+            {/* Card 4 - 行政深炭色高质感风险卡 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
                   <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 攻防底牌盘点
                 </span>
                 <span className="text-[10px] font-bold text-amber-500">潜在风险与红利</span>
               </div>
-              <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.risks_and_opportunities}</div>
-            </div>
+              <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.risks_and_opportunities}</div>
+            </motion.div>
           </div>
 
           {/* 进阶专项一：政策信息溯源 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.01)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.03)] transition-all stagger-5">
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] transition-all"
+          >
             <span className="text-xs text-gray-400 font-black mb-4 tracking-widest uppercase block flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-[#FF5722]" /> 专项一：信息溯源要求 (怀疑精神培养)
             </span>
@@ -326,40 +400,56 @@ export default function ReadModule() {
                 *落地指引：请核对发文的司局室（如发改委高技术司 vs 规资局规划处），判断是政策顶层宣示，还是具体可落地实施的行为细则。对于各级媒体的解读，必须返回政府官网核对PDF原件字词。
               </p>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       );
     }
     
     // 财报/商业案例 - 升级立体化
     if (activeTab === 'report') {
       return (
-        <div className="space-y-6">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="space-y-6"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Card 1 */}
-            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-1">
-              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-gray-100 text-gray-500 uppercase">
-                  <Target className="w-3.5 h-3.5 text-gray-400" /> 01 / 商业模式拆解
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
+                  <Target className="w-3.5 h-3.5 text-slate-400" /> 01 / 商业模式拆解
                 </span>
-                <span className="text-[10px] font-bold text-gray-400">核心商业价值链</span>
+                <span className="text-[10px] font-bold text-slate-400">核心商业价值链</span>
               </div>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.business_model}</div>
-            </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.business_model}</div>
+            </motion.div>
+
             {/* Card 2 */}
-            <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-2">
-              <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
                   <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> 02 / 出海痛点审计
                 </span>
                 <span className="text-[10px] font-bold text-blue-400">海外市场及用户痛点</span>
               </div>
-              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.market_pain_points}</div>
-            </div>
-            {/* Card 3 - 爆点审计（高亮流光边框） */}
-            <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 md:col-span-2 stagger-3">
-              <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
-                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.market_pain_points}</div>
+            </motion.div>
+
+            {/* Card 3 - 爆点审计（微醺橙柔和渐变高亮） */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 md:col-span-2 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
                   <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> 03 / 盈利逻辑爆点
                 </span>
                 <span className="text-[10px] font-black text-[#FF5722] flex items-center gap-1">
@@ -367,22 +457,29 @@ export default function ReadModule() {
                   商业/财务漏洞核实
                 </span>
               </div>
-              <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.profit_logic_flaws}</div>
-            </div>
-            {/* Card 4 - 暗黑科技感信息溯源卡 */}
-            <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 md:col-span-2 text-white stagger-4">
-              <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+              <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.profit_logic_flaws}</div>
+            </motion.div>
+
+            {/* Card 4 - 行政深炭色高质感风险卡 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 md:col-span-2 text-white relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
                   <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 溯源与防伪审计
                 </span>
                 <span className="text-[10px] font-bold text-amber-500">信息防伪指引</span>
               </div>
-              <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.traceability_training}</div>
-            </div>
+              <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.traceability_training}</div>
+            </motion.div>
           </div>
 
           {/* 进阶专项一：财报信息溯源 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.01)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.03)] transition-all stagger-5">
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] transition-all"
+          >
             <span className="text-xs text-gray-400 font-black mb-4 tracking-widest uppercase block flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-[#FF5722]" /> 专项一：防伪风控追问 (怀疑精神培养)
             </span>
@@ -393,84 +490,116 @@ export default function ReadModule() {
                 *落地指引：强制审视“销售商品、提供劳务收到的现金”与“营业收入”是否背离；仔细核对“存货周转天数”是否异常拉长。去海关数据网核对其实际出海货运集装箱吞吐量，切忌盲信单页简报。
               </p>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       );
     }
 
     // 外企邮件 - 升级立体化
     if (activeTab === 'email') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1 */}
-          <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 stagger-1">
-            <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        >
+          {/* Card 1 - 剥离客套（微醺橙柔和渐变高亮） */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
                 <Key className="w-3.5 h-3.5 text-[#FF5722]" /> 01 / 真实立场脱水
               </span>
               <span className="text-[10px] font-bold text-[#FF5722]">剥离表面客套</span>
             </div>
-            <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.stripped_logic}</div>
-          </div>
+            <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.stripped_logic}</div>
+          </motion.div>
+
           {/* Card 2 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-2">
-            <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
                 <Compass className="w-3.5 h-3.5 text-blue-500" /> 02 / 利益视角反转
               </span>
               <span className="text-[10px] font-bold text-blue-400">对手/对方底层考量</span>
             </div>
-            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.stance_reversal}</div>
-          </div>
-          {/* Card 3 */}
-          <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 text-white stagger-3">
-            <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.stance_reversal}</div>
+          </motion.div>
+
+          {/* Card 3 - 行政深炭色高质感风险卡 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
                 <Shield className="w-3.5 h-3.5 text-amber-500" /> 03 / 攻防反向施压
               </span>
               <span className="text-[10px] font-bold text-amber-500">精准反向追问话术</span>
             </div>
-            <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.counter_questions}</div>
-          </div>
-        </div>
+            <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.counter_questions}</div>
+          </motion.div>
+        </motion.div>
       );
     }
 
     // 书目提纯 - 升级立体化
     if (activeTab === 'book') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+        >
           {/* Card 1 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] hover:shadow-[0_15px_35px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300 stagger-1">
-            <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-gray-100 text-gray-500 uppercase">
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
                 <Eye className="w-3.5 h-3.5 text-gray-400" /> 01 / 核心亮点萃取
               </span>
-              <span className="text-[10px] font-bold text-gray-400">思考逻辑主线</span>
+              <span className="text-[10px] font-bold text-slate-400">思考逻辑主线</span>
             </div>
-            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-gray-100/80">{result?.thought_highlights}</div>
-          </div>
-          {/* Card 2 */}
-          <div className="bg-[#fffcf7] rounded-3xl p-6 border-2 border-[#FF5722]/30 shadow-[0_10px_35px_rgba(255,87,34,0.06)] hover:shadow-[0_15px_45px_rgba(255,87,34,0.12)] hover:-translate-y-1 transition-all duration-300 stagger-2">
-            <div className="flex items-center justify-between mb-4 border-b border-[#FF5722]/10 pb-3">
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-[#FF5722]/10 text-[#FF5722] uppercase">
+            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.thought_highlights}</div>
+          </motion.div>
+
+          {/* Card 2 - 漏洞审计（微醺橙柔和渐变高亮） */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
                 <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> 02 / 思维盲点审视
               </span>
               <span className="text-[10px] font-bold text-[#FF5722]">逻辑漏洞与局限性</span>
             </div>
-            <div className="w-full bg-[#fff3e0]/60 rounded-2xl p-4 text-xs md:text-sm text-[#d84315] font-black min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#FF5722]/10 shadow-inner">{result?.logic_flaws}</div>
-          </div>
-          {/* Card 3 */}
-          <div className="bg-[#121314] rounded-3xl p-6 border border-[#2d2f31] shadow-[0_10px_30px_rgba(0,0,0,0.15)] hover:shadow-[0_15px_45px_rgba(0,0,0,0.25)] hover:-translate-y-1 transition-all duration-300 text-white stagger-3">
-            <div className="flex items-center justify-between mb-4 border-b border-[#2d2f31] pb-3">
+            <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.logic_flaws}</div>
+          </motion.div>
+
+          {/* Card 3 - 行政深炭色高质感风险卡 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
                 <Target className="w-3.5 h-3.5 text-amber-500" /> 03 / 实战落地启示
               </span>
               <span className="text-[10px] font-bold text-amber-500">高阶职场应用</span>
             </div>
-            <div className="w-full bg-[#1c1d21] rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-[#2d2f31] shadow-inner">{result?.workplace_application}</div>
-          </div>
-        </div>
+            <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.workplace_application}</div>
+          </motion.div>
+        </motion.div>
       );
     }
     
@@ -495,23 +624,33 @@ export default function ReadModule() {
               { id: 'gov', label: '体制内职场', icon: <Building className="w-4 h-4" /> },
               { id: 'corp', label: '跨国企业', icon: <Globe className="w-4 h-4" /> },
               { id: 'social', label: '通用社交', icon: <Compass className="w-4 h-4" /> },
-            ].map((framework) => (
-              <button
-                key={framework.id}
-                onClick={() => {
-                  playSwitch();
-                  setSceneFramework(framework.id as any);
-                }}
-                className={`flex items-center gap-2 px-5 py-3 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border ${
-                  sceneFramework === framework.id
-                    ? 'bg-[#202124] text-white border-[#202124] shadow-md scale-102'
-                    : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                }`}
-              >
-                {framework.icon}
-                {framework.label}
-              </button>
-            ))}
+            ].map((framework) => {
+              const isActive = sceneFramework === framework.id;
+              return (
+                <button
+                  key={framework.id}
+                  onClick={() => {
+                    playPageTurn();
+                    setSceneFramework(framework.id as any);
+                  }}
+                  className={`relative flex items-center gap-2 px-5 py-3 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
+                    isActive
+                      ? 'text-white border-transparent'
+                      : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeFrameworkBg"
+                      className="absolute inset-0 bg-[#202124] rounded-full -z-10"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  {framework.icon}
+                  <span className="relative z-10">{framework.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -521,26 +660,39 @@ export default function ReadModule() {
             <span>●</span> 训练板块 (Core Modules)
           </label>
           <div className="flex flex-wrap gap-2">
-            {tabs.map(t => (
-              <button 
-                key={t.id}
-                onClick={() => {
-                  playSwitch();
-                  setActiveTab(t.id);
-                  setResult(null);
-                  setErrorMsg('');
-                  setIsReversalTriggered(false);
-                  setUserReversalText('');
-                  setReversalSubmitted(false);
-                  setChatMessages([]);
-                }}
-                className={`flex items-center text-xs py-3 px-5 font-bold tracking-widest uppercase rounded-full transition-all border ${
-                  activeTab === t.id 
-                    ? 'bg-[#FF5722] text-white border-[#FF5722] shadow-[0_4px_12px_rgba(255,87,34,0.3)] scale-102' 
-                    : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                }`}
-              >{t.icon} {t.label}</button>
-            ))}
+            {tabs.map(t => {
+              const isActive = activeTab === t.id;
+              return (
+                <button 
+                  key={t.id}
+                  onClick={() => {
+                    playPageTurn();
+                    setActiveTab(t.id);
+                    setResult(null);
+                    setErrorMsg('');
+                    setIsReversalTriggered(false);
+                    setUserReversalText('');
+                    setReversalSubmitted(false);
+                    setChatMessages([]);
+                  }}
+                  className={`relative flex items-center text-xs py-3 px-5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                    isActive 
+                      ? 'text-white border-transparent' 
+                      : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                  }`}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabBg"
+                      className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    />
+                  )}
+                  {t.icon}
+                  <span className="relative z-10">{t.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -604,48 +756,56 @@ export default function ReadModule() {
         </div>
 
         {/* 进阶专项二：立场反转练习 */}
-        {result && isReversalTriggered && (
-          <div className="mb-10 bg-white rounded-3xl p-6 border-2 border-red-500/30 shadow-[0_4px_25px_rgba(239,68,68,0.06)] animate-fade-in relative overflow-hidden">
-            {/* Alarm Shimmer border */}
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-red-500/80 via-amber-500/80 to-red-500/80 animate-pulse" />
-            <div className="flex items-center gap-2 mb-4">
-              <span className="flex h-2.5 w-2.5 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
-              </span>
-              <span className="text-xs text-red-600 font-black tracking-widest uppercase">专项二：立场反转挑战激活 (Stance Reversal Task)</span>
-            </div>
-            
-            <p className="text-xs md:text-sm font-black text-gray-800 mb-4 leading-relaxed">{reversalPrompt}</p>
-            
-            <textarea
-              rows={3}
-              value={userReversalText}
-              onChange={(e) => setUserReversalText(e.target.value)}
-              disabled={reversalSubmitted || isReversalLoading}
-              className="w-full bg-gray-50 border border-gray-200/80 rounded-2xl p-4 text-xs md:text-sm outline-none resize-none leading-relaxed text-gray-800 placeholder-gray-400 font-semibold focus:border-red-500/40 focus:bg-white transition-all disabled:opacity-80"
-              placeholder="请在这里输入您的反向解读与利益博弈思考..."
-            />
+        <AnimatePresence>
+          {result && isReversalTriggered && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, scale: 0.98 }}
+              animate={{ opacity: 1, height: 'auto', scale: 1 }}
+              exit={{ opacity: 0, height: 0, scale: 0.98 }}
+              transition={{ type: 'spring' as const, stiffness: 220, damping: 26 }}
+              className="mb-10 bg-[#fffdfa] rounded-3xl p-6 border border-amber-500/20 shadow-[0_0_25px_rgba(245,158,11,0.08)] relative overflow-hidden focus-within:shadow-[0_0_35px_rgba(245,158,11,0.12)] focus-within:border-amber-500/40 transition-all duration-500"
+            >
+              {/* Amber alarm pulse border */}
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/80 via-orange-500/80 to-amber-500/80 animate-pulse" />
+              <div className="flex items-center gap-2 mb-4">
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-600"></span>
+                </span>
+                <span className="text-xs text-amber-700 font-black tracking-widest uppercase">专项二：立场反转挑战激活 (Stance Reversal Task)</span>
+              </div>
+              
+              <p className="text-xs md:text-sm font-black text-gray-800 mb-4 leading-relaxed">{reversalPrompt}</p>
+              
+              <textarea
+                rows={3}
+                value={userReversalText}
+                onChange={(e) => setUserReversalText(e.target.value)}
+                disabled={reversalSubmitted || isReversalLoading}
+                className="w-full bg-slate-50/50 border border-gray-200/80 rounded-2xl p-4 text-xs md:text-sm outline-none resize-none leading-relaxed text-gray-800 placeholder-gray-400 font-semibold focus:border-amber-500/40 focus:bg-white transition-all disabled:opacity-80"
+                placeholder="请在这里输入您的反向解读与利益博弈思考..."
+              />
 
-            <div className="mt-4 flex justify-end">
-              {!reversalSubmitted ? (
-                <button
-                  onClick={handleSubmitReversal}
-                  disabled={!userReversalText.trim() || isReversalLoading}
-                  className="flex items-center gap-1.5 px-6 py-2.5 rounded-full text-xs font-black bg-red-600 hover:bg-red-700 text-white shadow-sm hover:shadow active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                >
-                  {isReversalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  提交反向决策思考
-                </button>
-              ) : (
-                <div className="w-full bg-red-50/50 rounded-2xl p-4 border border-red-100/60 mt-2 animate-[smoothAppear_0.4s_ease-out]">
-                  <span className="text-[10px] font-black text-red-600 block mb-2 uppercase tracking-wider">● 针对性审计反馈 (思维漏洞戳穿)</span>
-                  <p className="text-xs text-red-900 font-semibold leading-relaxed whitespace-pre-wrap">{reversalFeedback}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+              <div className="mt-4 flex justify-end">
+                {!reversalSubmitted ? (
+                  <button
+                    onClick={handleSubmitReversal}
+                    disabled={!userReversalText.trim() || isReversalLoading}
+                    className="flex items-center gap-1.5 px-6 py-2.5 rounded-full text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-sm hover:shadow active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                  >
+                    {isReversalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    提交反向决策思考
+                  </button>
+                ) : (
+                  <div className="w-full bg-amber-50/30 rounded-2xl p-4 border border-amber-100/50 mt-2 animate-[smoothAppear_0.4s_ease-out]">
+                    <span className="text-[10px] font-black text-amber-700 block mb-2 uppercase tracking-wider">● 针对性审计反馈 (思维漏洞戳穿)</span>
+                    <p className="text-xs text-amber-900 font-semibold leading-relaxed whitespace-pre-wrap">{reversalFeedback}</p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* AI 多维深度反馈面板 (评分和评价舱) */}
         {result && aiScore !== null && (
@@ -667,7 +827,7 @@ export default function ReadModule() {
                   />
                 </svg>
                 <div className="absolute flex flex-col items-center justify-center">
-                  <span className="text-3xl font-black text-[#202124] tracking-tight">{aiScore}</span>
+                  <AnimatedScore score={aiScore} />
                   <span className="text-[9px] font-bold text-gray-400">Score / 10.0</span>
                 </div>
               </div>
