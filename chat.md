@@ -1,501 +1,303 @@
-Perfect! This search lists all occurrences of emojis in our code, such as `🚫`, `💡`, `🎯`, `🎉`, `🏆`, `🎙`, `🚀`, `👉`, `✍️`, etc., which violates the Anti-Emoji Rule. Even flags like `🇺🇸` are emojis in unicode format and can be replaced with clean SVGs or text representation.
-This is a high-value discovery for visual redesign! We will outline how to replace all of them with specific Lucide icons or simple SVG shapes, making the app 100% compliant with the `taste-skill-v1` / `impeccable` frontend standards.
+Ah, excellent! The function `getUserCurrentProfile` in `vocabAPI.ts` has the exact same implementation.
 
-Let's double check if we need to scan any other files. We have all the files and paths from the first file listing.
-We are now ready to write a comprehensive, extremely detailed modification proposal for the user. We will make it detailed, including code snippets, folder paths, files, menu paths, and clean layout architectures.
+Now, let's output the complete detailed redesign plan as requested by the user. I'll make sure it has the requested sections:
+- UI/UX 方案 (UI/UX Scheme)
+- 待修改文件目录 (File Directory to modify)
+- 修改文件名 (File Names to modify)
+- 具体的修改方案 (Concrete modification schemes)
+- 参考代码 (Reference code)
 
-Let's review the required format of our response:
-- Role: AIM
-- Language: Chinese (mandatory)
-- Repeat the problem: Yes
-- Structure:
-  * **存在问题** (Existing issues)
-  * **对应菜单路径** (Corresponding menu path)
-  * **待修改文件目录** (File directory)
-  * **文件名称** (File name)
-  * **参考代码** (Reference code)
-  * **执行计划** (Execution plan)
-- All styles must match high-agency frontend (spring physics, Zinc/Slate colors, dropshadows, no purple glow, tabular numbers, zero emojis, semantic HTML).
-
-Let's organize the proposal into these key sections:
-1. **全局规范重构：彻底清退 Emoji 与 AI 渐变色** (Eliminate emojis & generic gradients globally)
-2. **全局布局升级：黄金折叠 (70/30 Context Sheet) 与行政级音效** (70/30 Context Sheet & audio)
-3. **底层引擎重构：Dify v0.6+ 极速约束与 `User_Current_Profile` 持久化记忆数组** (Dify response limits & User Profile memory)
-4. **八大核心功能板块细化改造** (Detailed module-by-module plans with code snippets)
-   - 洞察系统（听）
-   - 破局系统（说）
-   - 穿透系统（读）
-   - 决策文治系统（写）
-   - 驭心博弈系统
-   - 高阶审美系统
-   - 英语引擎模块
-   - 每周一聊
-5. **集成验证与测试用例方案** (Detailed test cases and validation plans)
-
-Let's write this analysis with absolute precision. We'll specify exactly what files to touch (with absolute paths relative to CWD) and write clear, complete TypeScript/React reference code blocks using Tailwind classes and Framer Motion. Let's start typing the response. No tools are executed for file modification.您好！我是 **AIM**。根据您的最新指令，我已深入对齐 `design-taste-frontend-v1`（高阶前沿美学）、`redesign-existing-projects`（重构升级规范）及 `impeccable`（极致产品规范）的规则与标准。
-
-以下是为您定制的 **《“Superme”个人成长与全方位能力训练系统》功能与 UI/UX 提升完整详细改造方案**。本方案完全遵循 **“极简高端行政风”**、**“零 Emoji 政策”**、**“禁 AI 蓝紫霓虹光效”** 和 **“物理阻尼 Perpetual 动效”**。
+Let's make sure it is in detailed Chinese, using no emojis (as per the "Zero Emoji" instruction), and with clean structure and formatting. I will output this now.好的，我将重新输出详细的改造方案，完全对齐您的核心需求并遵守各项约束规范（零 Emoji 政策、极简高端行政风）。
 
 ---
 
-# **“Superme” 个人成长系统全面重构与提升方案**
+### **1. UI / UX 方案**
+
+按照 **`impeccable`** 与 **`redesign-existing-projects`** 规范，用户画像的设置与展示将通过两处高阶、微细节的界面进行呈现和微操：
+
+#### **A. 侧边栏对话舱头部指示器与下拉浮窗 (RightPanel Drawer)**
+* **位置**：位于全局 AI 助手侧边栏顶部，紧邻“情报解密舱”标签，位于关闭按钮 `X` 左侧。
+* **样式**：采用 **True Glassmorphism (真·玻璃拟态)** 质感。
+  * **主按钮**：使用半透明背景 `bg-white/70 backdrop-blur-md`，搭配 1px 细微边界 `border border-gray-150`。文字使用小字号 `text-[10px] font-black uppercase tracking-wider`。左侧搭配一个 Lucide 极简地球图标 `Globe`，不带有任何表情符号或刺眼的霓虹渐变。
+  * **下拉菜单**：当点击后，向下弹出圆角浮窗。浮窗背景使用 `bg-white/90 backdrop-blur-lg border border-gray-100 shadow-xl`。
+  * **候选项反馈**：鼠标悬停在候选项（英国、美国、默认）上时，应用平滑的背景淡入 `hover:bg-slate-50` 效果；被选中的画像右侧显示一个微小的 Lucide 打勾图标 `Check`。
+
+#### **B. 悬浮底右全局参数控制台 (GlobalSettingsPanel)**
+* **位置**：点击右下角浮动控制按钮展开的面板。
+* **样式**：采用与原版面板高度一致的深色科技质感。
+  * 引入一个与“大模型对抗烈度”同等规格的三段式滑动选择排版（Segmented Control）。背景使用 `bg-gray-800 p-1 rounded-xl`，选中项使用 `bg-[#FF5722] text-white shadow-sm`，未选中项使用 `text-gray-400 hover:text-white`，提供极佳的反馈感与点击声效（`playScan()`）。
 
 ---
 
-## **一、 全局规范重构：彻底清退 Emoji 与 蓝紫渐变色**
+### **2. 待修改文件目录与文件名**
 
-### **1. 存在问题**
-- **Emoji 违规堆砌**：代码库中大量充斥 `💡`、`🚫`、`🎯`、`🎉`、`🏆`、`🎙`、`🚀`、`👉` 等 Emoji 符号，违反了高阶行政级 UI/UX 的规范。
-- **视觉噪音与低端感**：国旗 Emoji（如 `🇺🇸`、`🇬🇧`）和各种表情符号会使得原本严肃的高管模拟系统产生廉价游戏感，且在部分 Windows 机器上渲染出黑白或锯齿状。
-- **色彩倾向杂乱**：部分组件含有紫/蓝色渐变阴影，违反了 “ desaturated Slate/Zinc 极简冷灰调” 规范。
-
-### **2. 对应菜单路径**
-- 全局界面与各类提示弹窗、语言选择器。
-
-### **3. 待修改文件目录与文件名称**
-- `src/components/TextHighlighter.tsx`
-- `src/components/CustomCardModal.tsx`
-- `src/components/Header.tsx`
-- `src/components/modules/ListenModule.tsx`
-- `src/components/modules/OralWarRoom.tsx`
-- `src/config/voices.ts`
-
-### **4. 参考代码**
-以国旗展示和通知状态为例，使用 `@radix-ui/react-icons` 或 `lucide-react` 代替：
-```tsx
-// 待修改文件：src/config/voices.ts
-// 彻底移除 flag 字段中的 Emoji 国旗，改用 ISO 国家简码，并在前端渲染对应的极简 SVG 国旗组件或纯文字标示
-export interface VoiceConfig {
-  id: string;
-  name: string;
-  country: string;
-  gender: 'M' | 'F';
-  countryCode: string; // 用 "US", "GB", "CN" 代替 Emoji "🇺🇸" 等
-  highlight?: boolean;
-}
-
-// 待修改文件：src/components/TextHighlighter.tsx
-// 移除 "🚫 截获失败" 中的 Emoji，改用 Lucide AlertCircle 渲染
-import { AlertCircle } from 'lucide-react';
-setSaveResult({ 
-  message: '截获失败，请检查指挥中心网络。', 
-  icon: <AlertCircle className="w-4 h-4 text-zinc-500" />,
-  isError: true 
-});
-```
+| 序号 | 待修改文件目录 | 修改文件名 | 修改性质 | 改造目的 |
+| :--- | :--- | :--- | :--- | :--- |
+| **1** | `src/utils` | `profileHelper.ts` | **新建** | 创建全局统一的画像状态同步和文本扫描拦截器。 |
+| **2** | `src/services` | `difyAPI.ts` | **修改** | 去除重复定义，接入全局画像流，拦截流程的输入和输出。 |
+| **3** | `src/services` | `listeningAPI.ts` | **修改** | 去除重复定义，接入全局画像流，拦截输入和输出。 |
+| **4** | `src/services` | `trainingAPI.ts` | **修改** | 去除重复定义，接入全局画像流。 |
+| **5** | `src/services` | `vocabAPI.ts` | **修改** | 去除重复定义，接入全局画像流。 |
+| **6** | `src/components` | `GlobalSettingsPanel.tsx`| **修改** | 在底部悬浮面板中增加“地区画像”手动三段式调节。 |
+| **7** | `src/components` | `RightPanel.tsx` | **修改** | 在侧边栏头部增加高级玻璃态画像下拉切换浮窗。 |
 
 ---
 
-## **二、 全局布局升级：黄金折叠 (70/30 Context Sheet) 与行政级音效**
+### **3. 具体的修改方案与参考代码**
 
-### **1. 存在问题**
-- 原有 70/30 滑动面板依靠原生 Tailwind `transition-all duration-500 ease-in-out`，缺乏有物理阻尼质感的动效反馈。
-- 全局切换模块及弹窗开启时，未合理关联 `soundEffects.ts` 中的水滴声（`playClick()`）和纸张翻页声（`playPageTurn()`）。
+#### **第一步：创建核心拦截与管理工具 (`src/utils/profileHelper.ts`)**
+新建文件 `src/utils/profileHelper.ts`，为所有 API 请求和文本提炼打下基础：
 
-### **2. 对应菜单路径**
-- 全局主页面架构
-
-### **3. 待修改文件目录与文件名称**
-- `src/App.tsx`
-- `src/components/RightPanel.tsx`
-
-### **4. 参考代码**
-使用 `framer-motion` (`motion/react`) 替换原生 transition，并在面板展开与收起时精准绑定声音反馈：
-```tsx
-// 待修改文件：src/App.tsx
-import { motion } from 'motion/react';
-import { playPageTurn, playClick } from './utils/soundEffects';
-
-function AppContent() {
-  // ... 其他既有逻辑
-  const [hasRendered, setHasRendered] = useState(false);
-
-  useEffect(() => {
-    if (hasRendered) {
-      if (isRightPanelOpen) {
-        playPageTurn(); // 抽屉面板展开时触发沙沙纸张翻页音效
-      } else {
-        playClick();    // 面板合上时触发极致水滴声
-      }
-    } else {
-      setHasRendered(true);
-    }
-  }, [isRightPanelOpen]);
-
-  return (
-    <div className="bg-[#F8F9FA] text-[#202124] h-screen overflow-hidden flex font-sans relative w-full">
-      <TextHighlighter />
-      
-      {/* 黄金折叠主视觉容器 (70% 或 100% 宽度平滑缩进) */}
-      <motion.div 
-        animate={{ width: isRightPanelOpen ? '70vw' : '100vw' }}
-        transition={{ type: 'spring', stiffness: 180, damping: 25 }}
-        className="h-screen flex overflow-hidden shrink-0"
-      >
-        <Sidebar 
-          isOpen={isSidebarOpen} 
-          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
-          selectedDate={selectedDate}
-          onDateSelect={setSelectedDate}
-        />
-        <MainContent 
-          selectedDate={selectedDate} 
-          activeModule={activeModule}
-          setActiveModule={setActiveModule}
-          isLocked={isLocked}
-        />
-      </motion.div>
-
-      <RightPanel 
-        isOpen={isRightPanelOpen}
-        onClose={() => setIsRightPanelOpen(false)}
-        activeTab={rightPanelTab}
-        setActiveTab={setRightPanelTab}
-        wordData={highlightedWordData}
-      />
-      
-      <GlobalTaskCenter />
-    </div>
-  );
-}
-```
-
-```tsx
-// 待修改文件：src/components/RightPanel.tsx
-import { motion } from 'motion/react';
-import { playClick } from '../utils/soundEffects';
-
-export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
-  return (
-    <motion.aside
-      animate={{ 
-        width: isOpen ? '30vw' : '0vw',
-        opacity: isOpen ? 1 : 0 
-      }}
-      transition={{ type: 'spring', stiffness: 180, damping: 25 }}
-      style={{ minWidth: isOpen ? '350px' : '0px' }}
-      className="h-screen border-l border-zinc-200 bg-[#FAF9F6] flex flex-col shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.03)] z-[99] overflow-hidden"
-    >
-      {/* 选项卡按钮绑定行政音效 */}
-      <button onClick={() => { playClick(); setActiveTab('assistant'); }}>
-        全模组 AI 助手
-      </button>
-      <button onClick={() => { playClick(); setActiveTab('context'); }}>
-        情报解密舱
-      </button>
-      {/* ... 既有面板详情 */}
-    </motion.aside>
-  );
-}
-```
-
----
-
-## **三、 底层引擎重构：Dify 极速约束与 User_Current_Profile 持久化记忆**
-
-### **1. 存在问题**
-- 现有的 `difyAPI.ts` 没有接入 `User_Current_Profile` 短板画像阵列。
-- 没有限制工作流中的最大迭代思考次数，无法保障 3 秒内的初始响应（SMART原则）。
-
-### **2. 对应菜单路径**
-- 系统全局 / 后端服务
-
-### **3. 待修改文件目录与文件名称**
-- `src/services/difyAPI.ts`
-
-### **4. 参考代码**
-在 Dify 通讯协议载荷中注入 `User_Current_Profile` 动态数组，并在底层限定 Agent 运行时思考参数：
 ```typescript
-// 待修改文件：src/services/difyAPI.ts
+// D:\cursor\work\super-agent\src\utils\profileHelper.ts
 
-export interface DifyBaseInputs {
-  // 注入跨会话持久短板与人性弱点记忆变量
-  user_current_profile?: string[]; 
-  [key: string]: any;
+/**
+ * 获取当前持久化的画像
+ */
+export function getUserCurrentProfile(): string {
+  try {
+    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    if (!raw) return '';
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.join('; ');
+      }
+    }
+    return raw;
+  } catch (e) {
+    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  }
 }
 
-// 示例：更新口语沙盘调用接口，确保将历史短板透传给 Dify 决策难度权重调节器
-export async function runOralSandboxWorkflow(inputs: DifyBaseInputs & {
-  scene_type: string;
-  roles: string;
-  user_reply?: string;
-}) {
-  const profile = JSON.parse(localStorage.getItem('User_Current_Profile') || '[]');
-  const payload = {
-    inputs: {
-      ...inputs,
-      user_current_profile: profile, // 动态同步历史推演中发现的权力短板
-    },
-    response_mode: "streaming",
-    user: "superme-admin-agent",
-    // 强制限制工作流或 Agent 最大思考步骤数为 12 次，避免超时
-    agent_config: {
-      max_iterations: 12
+/**
+ * 保存画像并向全局广播状态同步事件
+ */
+export function saveUserCurrentProfile(profile: string) {
+  localStorage.setItem('user_current_profile', profile);
+  localStorage.setItem('User_Current_Profile', profile);
+  window.dispatchEvent(new Event('global-profile-changed'));
+}
+
+/**
+ * 智能分析提问或上下文，发现英国/美国画像指令时自动执行隐式更新
+ */
+export function updateProfileFromText(text: string): boolean {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  
+  // 匹配英国 (UK) 信号
+  if (
+    lower.includes("切换为英国") || 
+    lower.includes("切换为英音") || 
+    lower.includes("英国(uk)") || 
+    lower.includes("英国 (uk)") ||
+    lower.includes("[profile: uk]") ||
+    lower.includes("[profile: 英国]") ||
+    (lower.includes("英国") && (lower.includes("画像") || lower.includes("对齐") || lower.includes("设定")))
+  ) {
+    const current = getUserCurrentProfile();
+    if (current !== "英国 (UK)") {
+      saveUserCurrentProfile("英国 (UK)");
+      return true;
     }
+  }
+  
+  // 匹配美国 (US) 信号
+  if (
+    lower.includes("切换为美国") || 
+    lower.includes("切换为美音") || 
+    lower.includes("美国(us)") || 
+    lower.includes("美国 (us)") ||
+    lower.includes("[profile: us]") ||
+    lower.includes("[profile: 美国]") ||
+    (lower.includes("美国") && (lower.includes("画像") || lower.includes("对齐") || lower.includes("设定")))
+  ) {
+    const current = getUserCurrentProfile();
+    if (current !== "美国 (US)") {
+      saveUserCurrentProfile("美国 (US)");
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * 遍历并分析大模型返回的所有字符串，实现隐式自适应学习
+ */
+export function interceptOutputText(output: any): void {
+  if (!output) return;
+  if (typeof output === 'string') {
+    updateProfileFromText(output);
+  } else if (typeof output === 'object') {
+    for (const key in output) {
+      if (Object.prototype.hasOwnProperty.call(output, key)) {
+        const val = output[key];
+        if (typeof val === 'string') {
+          updateProfileFromText(val);
+        } else if (val && typeof val === 'object') {
+          interceptOutputText(val);
+        }
+      }
+    }
+  }
+}
+
+/**
+ * 包装并注入当前画像到 Dify 请求体中
+ */
+export function injectUserProfile(inputs: Record<string, any> = {}): Record<string, any> {
+  for (const key in inputs) {
+    if (Object.prototype.hasOwnProperty.call(inputs, key) && typeof inputs[key] === 'string') {
+      updateProfileFromText(inputs[key]);
+    }
+  }
+  
+  const profile = getUserCurrentProfile();
+  return {
+    ...inputs,
+    user_current_profile: profile,
   };
-  // ... 执行既有 fetch 逻辑
 }
 ```
 
----
+#### **第二步：修改 `difyAPI.ts` 等四个 API 模块**
+以 `src/services/difyAPI.ts` 为核心，进行如下清洗与桥接（其余三个 API 文件做类似修改）：
 
-## **四、 八大核心训练系统细化改造方案**
+1. **导入辅助函数，剔除原有的重复 `getUserCurrentProfile()` 与 `injectUserProfile()` 定义**：
+   ```typescript
+   // 文件头部
+   import { getUserCurrentProfile, injectUserProfile, interceptOutputText } from '../utils/profileHelper';
+   ```
+2. **在 API 核心 JSON 解析包装器中嵌入输出结果画像提炼拦截**：
+   ```typescript
+   function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
+     if (typeof raw !== 'string') {
+       interceptOutputText(raw);
+       return raw as T;
+     }
 
-### **1. 洞察系统（听） - 心理侧写与抓破绽**
-- **存在问题**：缺少针对“非语言信号”、“逻辑学谬误选择”以及 1-5 可信度评分的交互表单。
-- **对应菜单路径**：`主导航 -> 洞察(听)`
-- **待修改文件目录与文件名称**：`src/components/modules/ListenModule.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/ListenModule.tsx
-  // 升级答题区：强制提供破绽分析的三个维度表单 (逻辑谬误、事实破绽、意图隐性转移)
-  export default function ListenModule() {
-    const [credibilityScore, setCredibilityScore] = useState<number>(3); // 1-5 可信度评分
-    const [fallacyType, setFallacyType] = useState<string>('slippery_slope'); // 滑坡谬误等
+     interceptOutputText(raw);
+     const cleanJson = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+     try {
+       const parsed = JSON.parse(cleanJson) as T;
+       interceptOutputText(parsed);
+       return parsed;
+     } catch {
+       throw new Error(fallbackMessage);
+     }
+   }
+   ```
 
-    return (
-      <div className="space-y-6">
-        {/* 逻辑谬误专项判断 */}
-        <div className="bg-white border border-zinc-200/60 rounded-3xl p-6 shadow-sm">
-          <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-4">逻辑谬误侦测</h4>
-          <select 
-            value={fallacyType} 
-            onChange={(e) => setFallacyType(e.target.value)}
-            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl p-3 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-none"
-          >
-            <option value="slippery_slope">滑坡谬误 (Slippery Slope)</option>
-            <option value="hasty_generalization">以偏概全 (Hasty Generalization)</option>
-            <option value="ad_hominem">诉诸人身 (Ad Hominem)</option>
-            <option value="concept_shift">偷换概念 (Concept Shift)</option>
-          </select>
-        </div>
+#### **第三步：修改 `GlobalSettingsPanel.tsx` 页面**
+将手动设置画像嵌入到右下角的浮动大模型面板中。
 
-        {/* 1-5分可信度滑块 */}
-        <div className="bg-white border border-zinc-200/60 rounded-3xl p-6 shadow-sm">
-          <div className="flex justify-between items-center mb-3">
-            <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">陈述信息可信度评分</h4>
-            <span className="font-mono text-xs font-bold text-amber-600">{credibilityScore} / 5</span>
-          </div>
-          <input 
-            type="range" min="1" max="5" 
-            value={credibilityScore} 
-            onChange={(e) => setCredibilityScore(Number(e.target.value))}
-            className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-amber-600"
-          />
-        </div>
-      </div>
-    );
-  }
-  ```
+```typescript
+// 引入依赖
+import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 
-### **2. 破局系统（说） - 表达框架与语气多角色切换**
-- **存在问题**：口语沙盘中没有向用户推送具体的表达结构模板，也缺少在对话流中动态切换“强硬/温和”语气的测试模式。
-- **对应菜单路径**：`主导航 -> 破局(说)`
-- **待修改文件目录与文件名称**：`src/components/modules/english/tabs/ImpromptuSpeechTab.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/english/tabs/ImpromptuSpeechTab.tsx
-  // 在用户输入栏上方展示高管框架快捷模板
-  const PYRAMID_TEMPLATES = [
-    { name: '金字塔结构', template: '结论先行... 论据A... 论据B...' },
-    { name: '因果链推导', template: '起因描述... 中期连锁... 终局结果...' },
-    { name: '利弊对比法', template: '表面优势... 潜在风险... 平衡抉择...' }
-  ];
+// 组件内部添加状态与监听
+const [profile, setProfile] = useState(() => getUserCurrentProfile());
 
-  // 增加语气切换控制
-  const [toneMode, setToneMode] = useState<'assertive' | 'diplomatic'>('diplomatic'); // 强硬版 vs 温和版
-  ```
-
-### **3. 穿透系统（读） - 政策财报与立场反转**
-- **存在问题**：缺少让用户站在反对者或对立利益方的视角重新阐述分析的“立场反转”表单。
-- **对应菜单路径**：`主导航 -> 穿透(读)`
-- **待修改文件目录与文件名称**：`src/components/modules/ReadModule.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/ReadModule.tsx
-  // 立场反转表单设计
-  export function FlipPerspectivePanel() {
-    const [reverseAnalysis, setReverseAnalysis] = useState('');
-    return (
-      <div className="border border-zinc-200/50 bg-zinc-50/50 rounded-[2rem] p-8 mt-6">
-        <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">
-          立场反转训练 (Perspective Reversal Challenge)
-        </h5>
-        <p className="text-zinc-500 text-[11px] leading-relaxed mb-4">
-          站在反对本政策或竞争对手的利益视角，重新解读上方材料中的隐含因果：
-        </p>
-        <textarea
-          value={reverseAnalysis}
-          onChange={(e) => setReverseAnalysis(e.target.value)}
-          placeholder="请输入对立利益集团的博弈筹码与应对策略..."
-          className="w-full min-h-[100px] border border-zinc-200 rounded-2xl p-4 text-xs font-semibold focus:outline-none"
-        />
-      </div>
-    );
-  }
-  ```
-
-### **4. 决策文治系统（写） - 三级纵深批改与字数挑战**
-- **存在问题**：原有的批改仅为混合显示，未将“格式/措辞合规”、“逻辑结构”、“政治站位与领导思维”三级批改指标进行可视化分页呈现。字数极速压缩模块缺少校验。
-- **对应菜单路径**：`主导航 -> 文治(写)`
-- **待修改文件目录与文件名称**：`src/components/modules/english/tabs/WriteTab.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/english/tabs/WriteTab.tsx
-  // 渲染三级纵深批改 Tab 页签
-  const [activeLevel, setActiveLevel] = useState<'l1' | 'l2' | 'l3'>('l1');
-
-  return (
-    <div className="space-y-4">
-      {/* 三级纵深分层导航 */}
-      <div className="flex gap-2 border-b border-zinc-100 pb-3">
-        {['l1', 'l2', 'l3'].map((lvl) => (
-          <button
-            key={lvl}
-            onClick={() => setActiveLevel(lvl as any)}
-            className={`px-4 py-2 text-xs font-black uppercase tracking-widest rounded-lg transition-all ${
-              activeLevel === lvl 
-                ? 'bg-zinc-900 text-white shadow-sm' 
-                : 'text-zinc-400 hover:text-zinc-700'
-            }`}
-          >
-            {lvl === 'l1' ? '浅层: 措辞合规' : lvl === 'l2' ? '中层: 逻辑结构' : '深层: 决策站位'}
-          </button>
-        ))}
-      </div>
-      
-      {/* 优秀公文对标区 */}
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest mb-1.5 block">用户原始文本</label>
-          <div className="bg-zinc-50 border border-zinc-200/60 p-4 rounded-xl text-xs text-zinc-750 font-medium">
-            {userDraft}
-          </div>
-        </div>
-        <div>
-          <label className="text-[9px] text-amber-500 font-bold uppercase tracking-widest mb-1.5 block">对标优秀范本 (Benchmarked)</label>
-          <div className="bg-amber-50/20 border border-amber-100/50 p-4 rounded-xl text-xs text-zinc-800 italic font-semibold">
-            {benchmarkText}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-  ```
-
-### **5. 驭心博弈系统 - 真实斗争拆解与长因果链**
-- **存在问题**：案例研究仅有一次分析，无法体现“连续 5-10 层长因果推演”的逻辑闭环。
-- **对应菜单路径**：`主导航 -> 驭心博弈`
-- **待修改文件目录与文件名称**：`src/components/modules/GameTheoryModule.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/GameTheoryModule.tsx
-  // 实现 5 层级联因果链节点输入
-  interface CausalityNode {
-    step: number;
-    action: string;
-    reaction: string;
-  }
-  const [causalityChain, setCausalityChain] = useState<CausalityNode[]>([
-    { step: 1, action: '', reaction: '' }
-  ]);
-
-  const addCausalityLayer = () => {
-    if (causalityChain.length < 5) {
-      setCausalityChain([...causalityChain, { step: causalityChain.length + 1, action: '', reaction: '' }]);
-    }
+useEffect(() => {
+  const handleProfileChange = () => {
+    setProfile(getUserCurrentProfile());
   };
-  ```
-
-### **6. 高阶审美系统 - 顶级社交规约与人机对弈**
-- **存在问题**：21 点棋牌对局界面缺少高端大理石极简行政灰配色方案，避坑指南不够突出。
-- **对应菜单路径**：`主导航 -> 高阶审美`
-- **待修改文件目录与文件名称**：`src/components/modules/EntertainmentModule.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/EntertainmentModule.tsx
-  // 优化 21 点牌桌卡片样式，符合 Bento 2.0 极简白与冷灰（Zinc）的扩散阴影美学
-  <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-10 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.4)] text-zinc-100">
-    <div className="text-[10px] text-amber-500 uppercase tracking-widest font-black mb-6">
-      21点 智力博弈对垒 (Blackjack Intelligence Sandbox)
-    </div>
-    {/* 自研发牌与记点逻辑保持纯净不变 */}
+  window.addEventListener('global-profile-changed', handleProfileChange);
+  return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+}, []);
+```
+在组件返回的 TSX 中，插入画像三段式按钮：
+```tsx
+<div>
+  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
+    地区画像偏好
+  </label>
+  <div className="flex bg-gray-800 p-1 rounded-xl">
+    <button
+      onClick={() => { saveUserCurrentProfile('英国 (UK)'); playScan(); }}
+      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '英国 (UK)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+    >
+      英国 (UK)
+    </button>
+    <button
+      onClick={() => { saveUserCurrentProfile('美国 (US)'); playScan(); }}
+      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '美国 (US)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+    >
+      美国 (US)
+    </button>
+    <button
+      onClick={() => { saveUserCurrentProfile(''); playScan(); }}
+      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!profile ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+    >
+      默认
+    </button>
   </div>
-  ```
+</div>
+```
 
-### **7. 英语引擎模块 - 通关机制与双轨制词典**
-- **存在问题**：生词库没有隔离“政商务区”与“全场景区”，未对主题通关设立强拦截机制。
-- **对应菜单路径**：`主导航 -> 英语引擎`
-- **待修改文件目录与文件名称**：`src/components/modules/english/tabs/VocabTab.tsx` 和 `src/components/DictionaryPanel.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/english/tabs/VocabTab.tsx
-  // 双轨分类状态变量
-  const [vocabDomain, setVocabDomain] = useState<'politics_biz' | 'general'>('politics_biz');
+#### **第四步：修改 `RightPanel.tsx` 页面**
+在侧边栏右上角关闭按钮左侧嵌入微透光玻璃下拉画像切换浮层。
 
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-start gap-4 mb-4">
-        <button 
-          onClick={() => setVocabDomain('politics_biz')}
-          className={`px-4 py-2 rounded-xl text-xs font-black ${vocabDomain === 'politics_biz' ? 'bg-[#FF5722] text-white' : 'bg-zinc-100 text-zinc-500'}`}
-        >
-          政商务区 (Politics & Business)
-        </button>
-        <button 
-          onClick={() => setVocabDomain('general')}
-          className={`px-4 py-2 rounded-xl text-xs font-black ${vocabDomain === 'general' ? 'bg-zinc-800 text-white' : 'bg-zinc-100 text-zinc-500'}`}
-        >
-          全场景区 (General Scenarios)
-        </button>
-      </div>
-      {/* 接入艾宾浩斯复习曲线渲染卡片 */}
-    </div>
-  );
-  ```
+```typescript
+// 引入依赖
+import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
+import { Globe, Check } from 'lucide-react';
 
-### **8. 每周一聊 - 认知陪伴与自动推送**
-- **存在问题**：未将对话中暴露的盲点数据输出存入 LocalStorage，导致下一周无法自动根据此盲点画像向后端 Dify 策略推送定制案例。
-- **对应菜单路径**：`主导航 -> 每周一聊`
-- **待修改文件目录与文件名称**：`src/components/modules/WeeklyChatModule.tsx`
-- **参考代码**：
-  ```tsx
-  // 待修改文件：src/components/modules/WeeklyChatModule.tsx
-  // 在 AI 返回对话内容后，进行特征词检测并记录短板
-  const saveUserShortcomings = (aiResponseText: string) => {
-    const profile = JSON.parse(localStorage.getItem('User_Current_Profile') || '[]');
-    if (aiResponseText.includes('妥协') || aiResponseText.includes('信息不对称')) {
-      if (!profile.includes('容易妥协/缺乏威慑力')) {
-        profile.push('容易妥协/缺乏威慑力');
-        localStorage.setItem('User_Current_Profile', JSON.stringify(profile));
-      }
-    }
+// 组件内部增加状态与监听
+const [profile, setProfile] = useState(() => getUserCurrentProfile());
+const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+useEffect(() => {
+  const handleProfileChange = () => {
+    setProfile(getUserCurrentProfile());
   };
-  ```
+  window.addEventListener('global-profile-changed', handleProfileChange);
+  return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+}, []);
+```
+在右上角的关闭按钮左侧插入 HTML 元素：
+```tsx
+<div className="relative mr-2 flex items-center">
+  <button
+    onClick={() => setShowProfileMenu(!showProfileMenu)}
+    className="h-8 px-3 rounded-full border border-gray-150 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-650 cursor-pointer"
+  >
+    <Globe className="w-3.5 h-3.5 text-indigo-500" />
+    <span>画像: {profile || '默认'}</span>
+  </button>
 
----
-
-## **五、 执行计划与交付验证方案**
-
-### **1. 步骤分解执行表**
-| 步骤编号 | 阶段内容 | 预计变动文件 |
-| :--- | :--- | :--- |
-| **步骤 1** | 全局 UI/UX 动效与水滴/翻页音效集成，清退全部 Emoji | `src/App.tsx`, `src/components/RightPanel.tsx`, `src/config/voices.ts` |
-| **步骤 2** | `User_Current_Profile` 短板画像阵列和 Agent 思考次数控制 | `src/services/difyAPI.ts` |
-| **步骤 3** | 八大模块功能补全（包含 5 层因果推演、立场反转、三级公文批改） | `ListenModule.tsx`, `WriteTab.tsx`, `GameTheoryModule.tsx` |
-| **步骤 4** | 人机智力博弈升级，双轨词库与 BEC 通关状态控制锁测试 | `EntertainmentModule.tsx`, `VocabTab.tsx`, `MainContent.tsx` |
-
-### **2. 交付验证用例说明**
-- **用例 1（音效与清退 Emoji 校验）**：
-  - **菜单路径**：`右侧面板 -> 情报解密舱`
-  - **测试数据**：划词选中任意政商术语
-  - **预期结果**：无任何 Emoji 显示；右侧面板平滑滑出，并触发沙沙的 `playPageTurn` 纸张翻页声。
-- **用例 2（控制论拦截器闭环）**：
-  - **菜单路径**：`顶部选项卡 -> 驭心博弈`
-  - **测试数据**：当前英语引擎中 `oralCount` 为 5（未达标 10 轮）
-  - **预期结果**：系统触发平缓的和弦警告音 `playError()`，且弹出主题目标闭环提示 `CyberneticLockModal` 拦截进入，界面强制重定向锁定在英语引擎板块。
-- **用例 3（多层因果链推演）**：
-  - **菜单路径**：`驭心博弈 -> 策略推演沙盘`
-  - **测试数据**：输入“常务副局长削权应对方案”，填写 5 层因果预估
-  - **预期结果**：系统呈现从 1-5 层的可视化树形流程关系，在提交后自动更新 `User_Current_Profile` 本地数组。
+  {showProfileMenu && (
+    <div className="absolute right-0 top-full mt-2 z-[999] w-48 bg-white/90 backdrop-blur-lg border border-gray-100 rounded-2xl shadow-xl p-1.5 animate-[fadeIn_0.1s_ease-out]">
+      {[
+        { label: '英国 (UK)', value: '英国 (UK)', desc: '英式拼写及口音标准' },
+        { label: '美国 (US)', value: '美国 (US)', desc: '美式拼写及口音标准' },
+        { label: '未设定 (默认)', value: '', desc: '不进行特定倾向限制' }
+      ].map((item) => (
+        <button
+          key={item.value}
+          onClick={() => {
+            saveUserCurrentProfile(item.value);
+            setShowProfileMenu(false);
+          }}
+          className={`w-full flex flex-col items-start p-2 rounded-xl text-left transition hover:bg-slate-50 cursor-pointer ${
+            profile === item.value ? 'bg-indigo-50/50' : ''
+          }`}
+        >
+          <div className="flex items-center justify-between w-full">
+            <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">
+              {item.label}
+            </span>
+            {profile === item.value && <Check className="w-3 h-3 text-indigo-600" />}
+          </div>
+          <span className="text-[8px] text-gray-400 font-medium mt-0.5">
+            {item.desc}
+          </span>
+        </button>
+      ))}
+    </div>
+  )}
+</div>
+```
 

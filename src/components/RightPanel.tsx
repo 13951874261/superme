@@ -1,6 +1,7 @@
-import React from 'react';
-import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check } from 'lucide-react';
 import SpeakButton from './SpeakButton';
+import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -11,6 +12,16 @@ interface RightPanelProps {
 }
 
 export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
+  const [profile, setProfile] = useState(() => getUserCurrentProfile());
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  useEffect(() => {
+    const handleProfileChange = () => {
+      setProfile(getUserCurrentProfile());
+    };
+    window.addEventListener('global-profile-changed', handleProfileChange);
+    return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+  }, []);
   return (
     <aside
       className={`h-screen border-l border-gray-200 bg-[#FAF9F6] flex flex-col transition-all duration-500 ease-in-out shrink-0 shadow-[-10px_0_30px_rgba(0,0,0,0.03)] z-[99] ${
@@ -44,13 +55,62 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
           </button>
         </div>
 
-        <button
-          onClick={onClose}
-          className="p-1 rounded-full text-gray-400 hover:bg-gray-100 hover:text-[#FF5722] transition"
-          title="收起分析舱"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <div className="relative flex items-center">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="h-8 px-3 rounded-full border border-gray-150 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-650 cursor-pointer"
+            >
+              <Globe className="w-3.5 h-3.5 text-indigo-500" />
+              <span>画像: {profile || '默认'}</span>
+            </button>
+
+            {showProfileMenu && (
+              <>
+                <div 
+                  className="fixed inset-0 z-[998]" 
+                  onClick={() => setShowProfileMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-2 z-[999] w-48 bg-white/90 backdrop-blur-lg border border-gray-100 rounded-2xl shadow-xl p-1.5 animate-[fadeIn_0.1s_ease-out]">
+                  {[
+                    { label: '英国 (UK)', value: '英国 (UK)', desc: '英式拼写及口音标准' },
+                    { label: '美国 (US)', value: '美国 (US)', desc: '美式拼写及口音标准' },
+                    { label: '未设定 (默认)', value: '', desc: '不进行特定倾向限制' }
+                  ].map((item) => (
+                    <button
+                      key={item.value}
+                      onClick={() => {
+                        saveUserCurrentProfile(item.value);
+                        setShowProfileMenu(false);
+                      }}
+                      className={`w-full flex flex-col items-start p-2 rounded-xl text-left transition hover:bg-slate-50 cursor-pointer ${
+                        profile === item.value ? 'bg-indigo-50/50' : ''
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">
+                          {item.label}
+                        </span>
+                        {profile === item.value && <Check className="w-3 h-3 text-indigo-600" />}
+                      </div>
+                      <span className="text-[8px] text-gray-400 font-medium mt-0.5">
+                        {item.desc}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-1 rounded-full text-gray-400 hover:bg-gray-100 hover:text-[#FF5722] transition"
+            title="收起分析舱"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* 内容区域 */}

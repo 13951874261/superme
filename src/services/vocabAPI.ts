@@ -3,6 +3,8 @@
  * 统一封装所有对服务端 /api/vocab/* 的调用
  */
 
+import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+
 const API_BASE = '/api/vocab';
 
 export interface VocabEntry {
@@ -137,7 +139,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `HTTP ${res.status}`);
   }
-  return res.json();
+  const data = await res.json();
+  interceptOutputText(data);
+  return data;
 }
 
 /** 获取统计：总词数 + 今日待复习数 */
@@ -220,22 +224,6 @@ export async function deleteWord(id: string): Promise<{ success: boolean }> {
   return request(`/${id}`, { method: 'DELETE' });
 }
 
-function getUserCurrentProfile(): string {
-  try {
-    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-    if (!raw) return '';
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.join('; ');
-      }
-    }
-    return raw;
-  } catch (e) {
-    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-  }
-}
-
 /** 词典查询（由后端代理 Dify，避免前端暴露 token） */
 export async function queryDictionary(params: DictQueryParams): Promise<DictResult> {
   const res = await fetch('/api/dify/dict-query', {
@@ -254,6 +242,7 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
   if (!res.ok) {
     throw new Error(data?.message || `HTTP ${res.status}`);
   }
+  interceptOutputText(data);
   return data;
 }
 

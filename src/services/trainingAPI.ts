@@ -1,3 +1,5 @@
+import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+
 export interface SessionUpsertResponse {
   success: boolean;
   sessionId: string;
@@ -58,6 +60,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (!res.ok) {
     throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
   }
+  interceptOutputText(data);
   return data as T;
 }
 
@@ -279,21 +282,6 @@ export async function listCustomThemes(userId = 'default-user'): Promise<{ succe
   return request<{ success: boolean; themes: CustomTheme[] }>(`/api/theme/list?userId=${encodeURIComponent(userId)}`);
 }
 
-function getUserCurrentProfile(): string {
-  try {
-    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-    if (!raw) return '';
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.join('; ');
-      }
-    }
-    return raw;
-  } catch (e) {
-    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-  }
-}
 
 export async function addCustomTheme(params: {
   themeName: string;

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, ZapOff, Activity, Lock, Unlock } from 'lucide-react';
 import { playScan } from '../utils/soundEffects';
+import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 
 export type GlobalDifficulty = 'standard' | 'hardcore';
 
@@ -13,6 +14,15 @@ export default function GlobalSettingsPanel() {
   const [isInterceptorEnabled, setIsInterceptorEnabled] = useState<boolean>(
     localStorage.getItem('super_agent_global_interceptor') !== 'false'
   );
+  const [profile, setProfile] = useState(() => getUserCurrentProfile());
+
+  useEffect(() => {
+    const handleProfileChange = () => {
+      setProfile(getUserCurrentProfile());
+    };
+    window.addEventListener('global-profile-changed', handleProfileChange);
+    return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('super_agent_global_rate', String(rate));
@@ -46,6 +56,35 @@ export default function GlobalSettingsPanel() {
                 onChange={(e) => { setRate(Number(e.target.value)); playScan(); }}
                 className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
               />
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
+                地区画像偏好
+              </label>
+              <div className="flex bg-gray-800 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => { saveUserCurrentProfile('英国 (UK)'); playScan(); }}
+                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '英国 (UK)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  英国 (UK)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { saveUserCurrentProfile('美国 (US)'); playScan(); }}
+                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '美国 (US)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  美国 (US)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { saveUserCurrentProfile(''); playScan(); }}
+                  className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!profile ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  默认
+                </button>
+              </div>
             </div>
 
             <div>

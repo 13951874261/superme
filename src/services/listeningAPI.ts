@@ -1,5 +1,6 @@
 import { ComparisonResult } from '../types/listening';
 import { transcribeAudioWithWhisper } from './difyAPI';
+import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
 
 // 优先从 localStorage 获取密钥，实现本地优先管理
 const getApiKey = (keyName: string) => localStorage.getItem(keyName) || import.meta.env[`VITE_${keyName}`];
@@ -74,22 +75,6 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
   return transcribeAudioWithWhisper(audioBlob);
 }
 
-function getUserCurrentProfile(): string {
-  try {
-    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-    if (!raw) return '';
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.join('; ');
-      }
-    }
-    return raw;
-  } catch (e) {
-    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-  }
-}
-
 /**
  * 运行 Listening_Comparison_Engine 工作流
  */
@@ -122,7 +107,9 @@ export async function runListeningEngine(userInput: string, standardText: string
   if (!resultString) throw new Error('工作流未返回有效结果');
   
   try {
-    return JSON.parse(resultString) as ComparisonResult;
+    const parsed = JSON.parse(resultString) as ComparisonResult;
+    interceptOutputText(parsed);
+    return parsed;
   } catch (e) {
     throw new Error('解析 AI 返回的 JSON 格式失败');
   }

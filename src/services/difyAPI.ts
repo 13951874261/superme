@@ -1,3 +1,5 @@
+import { getUserCurrentProfile, injectUserProfile, interceptOutputText } from '../utils/profileHelper';
+
 // ── 原有接口保留 ────────────────────────────────────────────
 export interface ListenWorkflowInput {
   scene_type: string;
@@ -254,38 +256,18 @@ function getDifyApiKey() {
   return key;
 }
 
-function getUserCurrentProfile(): string {
-  try {
-    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-    if (!raw) return '';
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.join('; ');
-      }
-    }
-    return raw;
-  } catch (e) {
-    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-  }
-}
-
-function injectUserProfile(inputs: Record<string, any> = {}): Record<string, any> {
-  const profile = getUserCurrentProfile();
-  return {
-    ...inputs,
-    user_current_profile: profile,
-  };
-}
-
 function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
   if (typeof raw !== 'string') {
+    interceptOutputText(raw);
     return raw as T;
   }
 
+  interceptOutputText(raw);
   const cleanJson = raw.replace(/```json/g, '').replace(/```/g, '').trim();
   try {
-    return JSON.parse(cleanJson) as T;
+    const parsed = JSON.parse(cleanJson) as T;
+    interceptOutputText(parsed);
+    return parsed;
   } catch {
     throw new Error(fallbackMessage);
   }
@@ -301,6 +283,7 @@ async function request<T>(path: string, apiKey: string, options?: RequestInit): 
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
+  interceptOutputText(data);
   return data as T;
 }
 
@@ -331,7 +314,9 @@ export async function callOralSandbox(
     body: JSON.stringify({ inputs: injectUserProfile(inputs as any), conversationId, userId }),
   });
   if (!res.ok) throw new Error(`oral-sandbox HTTP ${res.status}`);
-  return res.json();
+  const data = await res.json();
+  interceptOutputText(data);
+  return data;
 }
 
 /**
@@ -545,6 +530,7 @@ export async function triggerEnglishMasteryExtraction(
     if (finalPayload.success === false) {
       throw new Error(finalPayload.error || finalPayload.message || "流式提取失败");
     }
+    interceptOutputText(finalPayload);
     return finalPayload;
   }
 
@@ -556,6 +542,7 @@ export async function triggerEnglishMasteryExtraction(
     }
     throw new Error(data?.error || data?.message || '提取词汇操作失败，请检查后端状态');
   }
+  interceptOutputText(data);
   return data as DailyExtractResult;
 }
 
@@ -614,6 +601,7 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
     throw new Error(data.error || data.message || '后端批阅代理接口异常');
   }
 
+  interceptOutputText(data);
   const reviewData = data.data;
   return {
     L1_Grammar: reviewData.L1 || reviewData.L1_Grammar || '',
