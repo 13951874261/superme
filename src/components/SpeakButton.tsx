@@ -160,7 +160,8 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
         const remainingText = sentences.slice(i).join(' ');
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(remainingText);
-        utterance.lang = 'en-US';
+        const langPrefix = voiceCode.split('-').slice(0, 2).join('-');
+        utterance.lang = langPrefix || 'en-US';
         window.speechSynthesis.speak(utterance);
       }
       break;
@@ -178,7 +179,7 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
   const content = normalizeSpeakText(text);
   if (!content) return false;
 
-  const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-US-EmmaNeural';
+  const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
   const model = `edge-tts/${voiceCode}`;
 
   // Toggle 功能：如果是相同内容正在播放，再次点击则停止播放
@@ -259,7 +260,8 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(content);
-        utterance.lang = 'en-US';
+        const langPrefix = voiceCode.split('-').slice(0, 2).join('-');
+        utterance.lang = langPrefix || 'en-US';
         window.speechSynthesis.speak(utterance);
       }
     } finally {

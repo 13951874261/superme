@@ -304,6 +304,12 @@ export default function DashboardTab() {
     return () => window.removeEventListener('global-voice-changed', handleVoiceChange);
   }, []);
 
+  const currentVoiceName = (() => {
+    if (typeof selectedVoice !== 'string') return 'Libby';
+    const match = selectedVoice.match(/en-[A-Z]{2}-([A-Za-z0-9]+)Neural/);
+    return match ? match[1] : 'Libby';
+  })();
+
   // 缓存今日提纯词汇的音标和释义详情
   const [vocabDetailsMap, setVocabDetailsMap] = useState<Record<string, any>>({});
 
@@ -852,7 +858,7 @@ export default function DashboardTab() {
                 今日情报截获 // Immersive Intel Briefing
               </h4>
               <p className="text-xs text-gray-400 font-medium">
-                基于主阵地主题【{theme}】生成的高阶商业实战材料，支持 EmmaNeural 语音收听与沉浸式阅读。
+                基于主阵地主题【{theme}】生成的高阶商业实战材料，支持 {currentVoiceName} 语音收听与沉浸式阅读。
               </p>
             </div>
             {generatedArticle && (
@@ -914,7 +920,7 @@ export default function DashboardTab() {
                 </button>
                 <SpeakButton 
                   text={generatedArticle} 
-                  label="收听全文 (Emma)" 
+                  label={`收听全文 (${currentVoiceName})`} 
                   className="px-5 py-3 bg-[#202124] text-white hover:bg-[#FF5722] shadow-md font-black rounded-xl" 
                 />
               </div>
@@ -1259,7 +1265,7 @@ export default function DashboardTab() {
 
               <SpeakButton
                 text={generatedArticle}
-                label="收听全文 (Emma)"
+                label={`收听全文 (${currentVoiceName})`}
                 className="px-4 py-2 bg-[#FF5722] text-white hover:bg-[#e64a19] shadow-sm text-[10px] font-black"
               />
 

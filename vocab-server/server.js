@@ -17,6 +17,18 @@ app.use(bodyParser.json({ limit: '50mb' }));
 const tempAudioDir = path.join(__dirname, 'public', 'temp_audio');
 if (!fs.existsSync(tempAudioDir)) {
   fs.mkdirSync(tempAudioDir, { recursive: true });
+} else {
+  try {
+    const files = fs.readdirSync(tempAudioDir);
+    for (const file of files) {
+      if (file.endsWith('.mp3')) {
+        fs.unlinkSync(path.join(tempAudioDir, file));
+      }
+    }
+    console.log('[TTS Cache] Cleaned temporary audio cache on startup.');
+  } catch (err) {
+    console.error('[TTS Cache] Failed to clean temporary audio cache on startup:', err);
+  }
 }
 app.use('/api/temp_audio', express.static(tempAudioDir));
 
@@ -2729,22 +2741,34 @@ app.post('/api/tts/speech', async (req, res) => {
       });
     }
 
+    // 从 model 字符串中提取 voice 参数
+    let ttsVoice = '';
+    if (finalModel.includes('/')) {
+      ttsVoice = finalModel.split('/')[1];
+    }
+
     let ttsResponse;
     let retries = 3;
     let lastError;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
+        // 构建请求体，同时保留 model 并附加 voice 参数
+        const requestPayload = {
+          model: finalModel,
+          input: input
+        };
+        if (ttsVoice) {
+          requestPayload.voice = ttsVoice;
+        }
+
         ttsResponse = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313'
           },
-          body: JSON.stringify({
-            model: finalModel,
-            input: input
-          })
+          body: JSON.stringify(requestPayload)
         });
 
         if (ttsResponse.ok) {
