@@ -1,204 +1,164 @@
-已完成对相关代码与后端接口的核对（`GameTheoryModule.tsx`、`difyAPI.ts`、`vocab-server/server.js`、`Cognitive Penetration Engine.yml`）。以下是 **选项 B：顶层认知升维训练（5 层 Why-Why-Why 纵深因果推演）** 的完整修改方案。
+
+### **1. 存在问题**
+*   **习惯追踪器（Habit Tracker）无法折叠与持久化**：侧边栏的 `Habit Matrix` 为纯静态渲染，无交互状态绑定，导致用户勾选后无法在 `localStorage` 中记录。同时，缺乏可折叠的展示交互，不满足 BRD 中“可折叠的 Habit Tracker”设计。
+*   **缺失“职业发展跟踪表”**：当前左侧侧边栏组件中完全没有“职业发展跟踪表（历史职位至意向职位的进阶路径）”模块，使得高层管理者无法进行进阶路径的可视化追踪。
+*   **动效与音效未深度对接**：折叠切换、状态勾选没有结合项目成熟的行政级水滴提示音（`playClick`）与翻页声（`playPageTurn`）。
 
 ---
 
-## 一、需求复述与确认
-
-你确认要实现 **TAB 4「顶层认知升维」**，将其从“下一个阶段开发中…”占位符，改造为真实可用的高阶认知闭环：强制用户对一个管理事件连追五层因果（穿透表象 → 结构 → 历史 → 利益 → 终极规律），由 Dify 引擎逐层研判打分，达标后纸张翻页解锁成果，并落地 BRD 中“穿透历史/穿透结构/穿透因果（强制 5-10 层因果链推演）”的要求。
-
----
-
-## 二、存在问题（现状诊断）
-
-- 功能缺失：`GameTheoryModule.tsx` 中 `activeTab === 'ascension'` 仅为静态占位卡片，无任何交互逻辑与后端联动。
-- 闭环断裂：BRD 要求的“5-10 层强制因果链推演 + 战略自省维度”完全未实现，与同模块已成熟的 TAB1/TAB2 形成体验断层。
-- UI/UX 欠缺：缺少“层层递进的微投影纵深卡片 + 行政级水滴/翻页音效闭环 + 控制论强制解锁”机制，未达 `impeccable` / `design-taste-frontend` 规范要求的克制冷灰行政美学。
+### **2. 对应菜单路径**
+*   **左侧导航与追踪区**（在“周主题归档链”下方，“即时答疑/多模型舱”上方）
 
 ---
 
-## 三、对应菜单路径
-
-主控工作区顶栏 Tab 导航 → `驭心博弈` → 模块内子 Tab → `顶层认知升维`
-
-（即 `MainContent.tsx` 的 `gametheory` → `GameTheoryModule.tsx` 内 `activeTab='ascension'`）
+### **3. 待修改文件目录**
+*   `src/components`
 
 ---
 
-## 四、待修改文件目录与文件名称
-
-- `src/components/modules/GameTheoryModule.tsx`（前端主改：新增升维状态 + 重构 ascension 面板 UI）
-- `src/services/difyAPI.ts`（新增 `runCognitiveAscension` 接口与类型）
-- `vocab-server/server.js`（新增 `/api/game-theory/ascension` 后端路由，对接 `Cognitive Penetration Engine.yml`）
-- 复用既有资产（不重复造轮子）：`ModuleWrapper.tsx`、`Confetti.tsx`、`utils/soundEffects.ts`、`motion/react`、`canvas-confetti`
+### **4. 文件名称**
+*   `Sidebar.tsx`
 
 ---
 
-## 五、参考代码
+### **5. 参考代码**
 
-### 1) `src/services/difyAPI.ts`（新增类型与函数）
+在 `src/components/Sidebar.tsx` 中做如下改造：
 
-```ts
-export interface CognitiveAscensionInput {
-  event_text: string;            // 待推演的管理事件
-  layers: { level: number; why: string }[]; // 用户的 5 层 Why 推演
-  dimension: 'history' | 'structure' | 'self'; // 穿透维度
-}
+#### **A. 引入音效与状态初始化部分**
+```tsx
+import { useState } from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
+import { playClick, playPageTurn } from '../utils/soundEffects';
 
-export interface CognitiveAscensionResult {
-  is_passed: boolean;            // 是否达标解锁
-  depth_score: number;           // 纵深度评分 0-10
-  layer_feedback: { level: number; verdict: string; gap: string }[]; // 逐层研判
-  ultimate_law: string;          // AI 提炼的终极规律
-  suggestion: string;            // 升维建议
-}
+// 习惯折叠状态与 localStorage 持久化
+const [isHabitOpen, setIsHabitOpen] = useState(true);
+const [habits, setHabits] = useState(() => {
+  const saved = localStorage.getItem('superme_habits');
+  return saved ? JSON.parse(saved) : {
+    sleep: false,
+    diet: false,
+    exercise: false,
+    goodDeed: false
+  };
+});
 
-export async function runCognitiveAscension(
-  inputs: CognitiveAscensionInput,
-  userId = 'default-user'
-): Promise<CognitiveAscensionResult> {
-  const res = await fetch('/api/game-theory/ascension', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...inputs,
-      user_current_profile: getUserCurrentProfile(),
-      userId,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || '升维推演引擎请求失败，请检查后端');
-  return data.result as CognitiveAscensionResult;
-}
-```
+// 处理习惯勾选更改并触发行政级水滴音效
+const handleHabitChange = (key: string) => {
+  const updated = { ...habits, [key]: !habits[key] };
+  setHabits(updated);
+  localStorage.setItem('superme_habits', JSON.stringify(updated));
+  playClick(); // 行政级水滴音
+};
 
-### 2) `vocab-server/server.js`（新增路由，复用现有 `/analyze` 模式）
-
-```js
-app.post('/api/game-theory/ascension', async (req, res) => {
-  const { event_text, layers, dimension, user_current_profile, userId = 'default-user' } = req.body;
-  if (!event_text || !Array.isArray(layers) || layers.length < 5) {
-    return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
-  }
-  try {
-    const difyApiKey = process.env.VITE_DIFY_COGNITIVE_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    const response = await fetch(`${baseUrl}/workflows/run`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${difyApiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inputs: {
-          event_text,
-          layers_text: layers.map(l => `Why-${l.level}: ${l.why}`).join('\n'),
-          dimension,
-          user_current_profile: user_current_profile || ''
-        },
-        response_mode: 'blocking',
-        user: userId,
-      }),
-    });
-    if (!response.ok) {
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
-    }
-    const data = await response.json();
-    const raw = data?.data?.outputs?.result ?? data?.answer ?? '';
-    const parsed = JSON.parse(String(raw).replace(/```json/g, '').replace(/```/g, '').trim());
-    res.json({ success: true, result: parsed });
-  } catch (err) {
-    res.status(500).json({ success: false, error: '升维引擎异常: ' + err.message });
-  }
+// 职业轨道折叠状态与数据初始化
+const [isCareerOpen, setIsCareerOpen] = useState(true);
+const [careerPath, setCareerPath] = useState(() => {
+  const saved = localStorage.getItem('superme_career');
+  return saved ? JSON.parse(saved) : {
+    history: '高级经理 (Senior Manager)',
+    current: '总监 (Director)',
+    target: '合伙人 (Partner / Managing Director)',
+    progress: 65
+  };
 });
 ```
 
-### 3) `src/components/modules/GameTheoryModule.tsx`（替换 ascension 占位块）
-
+#### **B. 习惯追踪器与职业发展表 UI 渲染部分**
 ```tsx
-// 顶部新增 state
-const [ascEvent, setAscEvent] = useState('');
-const [ascLayers, setAscLayers] = useState<string[]>(['', '', '', '', '']);
-const [ascDimension, setAscDimension] = useState<'history' | 'structure' | 'self'>('structure');
-const [ascLoading, setAscLoading] = useState(false);
-const [ascResult, setAscResult] = useState<CognitiveAscensionResult | null>(null);
-
-const handleAscensionSubmit = async () => {
-  if (!ascEvent.trim() || ascLayers.some(l => !l.trim())) { playGentleWarning(); return; }
-  setAscLoading(true); setAscResult(null); playClick();
-  try {
-    const r = await runCognitiveAscension({
-      event_text: ascEvent,
-      layers: ascLayers.map((why, i) => ({ level: i + 1, why })),
-      dimension: ascDimension,
-    });
-    setAscResult(r);
-    if (r.is_passed) {
-      playPageTurn();
-      confetti({ particleCount: 50, spread: 45, origin: { y: 0.6 }, colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#fff'] });
-    } else { playGentleWarning(); }
-  } catch (e) { playGentleWarning(); }
-  finally { setAscLoading(false); }
-};
-```
-
-```tsx
-{/* TAB 4: 顶层认知升维（替换原占位） */}
-{activeTab === 'ascension' && (
-  <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
-    {/* 左 70%：5 层纵深因果链 */}
-    <div className="lg:col-span-7 space-y-5">
-      <textarea
-        value={ascEvent} onChange={e => setAscEvent(e.target.value)}
-        placeholder="录入一个待穿透的管理事件 / 高管博弈现象…"
-        className="w-full h-24 bg-white border border-zinc-200/80 rounded-2xl p-4 text-sm text-zinc-800 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] focus:border-zinc-400 outline-none resize-none"
-      />
-      {ascLayers.map((val, i) => (
-        <div key={i}
-          className="bg-white border border-zinc-200/80 rounded-2xl p-4 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all hover:shadow-md"
-          style={{ marginLeft: `${i * 14}px` }}  /* 纵深层叠错位 */
-        >
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Why · 第 {i + 1} 层穿透</span>
-          <input
-            value={val}
-            onChange={e => { const n = [...ascLayers]; n[i] = e.target.value; setAscLayers(n); }}
-            placeholder={['表象之下的直接动因', '背后的结构性矛盾', '历史周期与路径依赖', '深层利益格局', '终极规律 / 不可逆趋势'][i]}
-            className="w-full mt-2 bg-transparent border-b border-zinc-100 py-1.5 text-sm text-zinc-800 outline-none focus:border-zinc-400"
-          />
-        </div>
-      ))}
-      <button onClick={handleAscensionSubmit} disabled={ascLoading}
-        className="w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01] transition-all disabled:opacity-40 flex items-center justify-center gap-2">
-        {ascLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Compass className="w-4 h-4 text-zinc-400" />}
-        {ascLoading ? '纵深推演研判中…' : '提交五层因果链并启动升维研判'}
-      </button>
-    </div>
-
-    {/* 右 30%：穿透维度 + 研判成果 */}
-    <div className="lg:col-span-3 space-y-4">
-      {/* 维度选择 + ascResult 逐层 verdict / ultimate_law 卡片渲染 */}
-    </div>
+{/* 习惯矩阵 (Habit Tracker) - 可折叠、可交互、带提示音 */}
+<div className="mt-8 border-t border-gray-100 pt-6">
+  <div 
+    className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
+    onClick={() => { setIsHabitOpen(!isHabitOpen); playPageTurn(); }}
+  >
+    <span>Habit Matrix</span>
+    {isHabitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
   </div>
-)}
+  
+  {isHabitOpen && (
+    <div className="grid grid-cols-2 gap-3 transition-all duration-300">
+      {Object.entries({
+        sleep: '睡眠达标',
+        diet: '饮食克制',
+        exercise: '核心运动',
+        goodDeed: '日行一善'
+      }).map(([key, label]) => (
+        <label key={key} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#FF5722] hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all group">
+          <input 
+            type="checkbox" 
+            checked={(habits as any)[key]}
+            onChange={() => handleHabitChange(key)}
+            className="w-4 h-4 text-[#FF5722] border-gray-300 rounded focus:ring-[#FF5722] cursor-pointer"
+          />
+          <span className="text-xs font-bold text-gray-600 group-hover:text-[#202124]">{label}</span>
+        </label>
+      ))}
+    </div>
+  )}
+</div>
+
+{/* 新增：职业发展跟踪表 (Career Progression) - 极简行政风格 */}
+<div className="mt-6 border-t border-gray-100 pt-6">
+  <div 
+    className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
+    onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
+  >
+    <span>Career Progression</span>
+    {isCareerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+  </div>
+  
+  {isCareerOpen && (
+    <div className="p-4 bg-white border border-gray-100 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+      <div className="space-y-3">
+        <div>
+          <span className="text-[10px] text-gray-400 block">起点职位 (History)</span>
+          <span className="text-xs font-bold text-gray-500">{careerPath.history}</span>
+        </div>
+        <div className="border-l-2 border-dashed border-gray-200 pl-3 my-1">
+          <span className="text-[10px] text-emerald-600 font-semibold block">当前定位 (Current)</span>
+          <span className="text-xs font-extrabold text-gray-800">{careerPath.current}</span>
+        </div>
+        <div>
+          <span className="text-[10px] text-gray-400 block">意向目标 (Target)</span>
+          <span className="text-xs font-bold text-[#FF5722]">{careerPath.target}</span>
+        </div>
+        
+        {/* 进阶能力匹配进度条 */}
+        <div className="mt-4 pt-2">
+          <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
+            <span>能力匹配度</span>
+            <span>{careerPath.progress}%</span>
+          </div>
+          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+            <div className="bg-gradient-to-r from-emerald-500 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
 ```
 
 ---
 
-## 六、执行计划（单步执行，每步提交确认）
+### **6. 执行计划**
 
-1. 步骤 1：`difyAPI.ts` 新增 `CognitiveAscensionInput/Result` 类型与 `runCognitiveAscension` 函数 → 提交确认。
-2. 步骤 2：`vocab-server/server.js` 新增 `/api/game-theory/ascension` 路由并对接 `Cognitive Penetration Engine.yml` → 提交确认。
-3. 步骤 3：`GameTheoryModule.tsx` 新增升维 state + handler，替换 ascension 占位为 5 层纵深 UI（含音效、Confetti、维度选择、逐层研判卡片）→ 提交确认。
-4. 步骤 4：运行 `npm run lint`（tsc 类型校验）验证编译通过 → 提交确认。
-5. 步骤 5：交付功能测试用例并演示验证路径。
+<proposed_plan>
+### 侧边栏追踪区重构执行步骤 (Sidebar Tracking Area Refactoring Steps)
 
----
+1. **导入资源与依赖 (Resource Importing)**
+   * 在 `src/components/Sidebar.tsx` 文件中添加 `playClick` 与 `playPageTurn` 音效接口的引用。
+   * 从 `lucide-react` 中引入 `ChevronUp` 及 `ChevronDown` 图标。
 
-## 七、功能测试用例（预览，将在步骤 5 完整交付）
+2. **状态绑定与本地序列化 (State & LocalStorage Binding)**
+   * 编写 `useState` 以维护习惯面板和职业面板的独立折叠开关。
+   * 编写基于 `localStorage` 的 `habits` state 加载及存储更新处理程序 `handleHabitChange`。
 
-| 编号 | 菜单路径 | 测试数据 | 预期结果 | 对应需求 |
-|---|---|---|---|---|
-| TC-01 | 驭心博弈 → 顶层认知升维 | 事件 + 仅填 3 层 | 触发轻柔警告音，拦截提交并提示补全 5 层 | 强制 5 层闭环 |
-| TC-02 | 同上 | 事件 + 5 层完整 + 维度“穿透结构” | 3 秒内返回研判，纸张翻页音 + 纸屑，展示逐层 verdict 与终极规律 | 5-10 层因果链推演 |
-| TC-03 | 同上 | 达标 `is_passed=true` | 解锁成果卡片，落库个人画像 | 控制论闭环 |
+3. **DOM 与 UI 结构重构 (UI Refactoring)**
+   * 替换原有的静态习惯跟踪 DOM 代码为条件渲染的 state 驱动代码。
+   * 在其正下方追加新建的 `Career Progression` 行政风格面板模块。
 
----
-
-确认信息：以上方案需新增 **1 个后端 API 路由**（`vocab-server/server.js`）与 **1 个 Dify Key 环境变量**（`VITE_DIFY_COGNITIVE_KEY`，未配置时回退复用 `VITE_DIFY_GAME_THEORY_KEY`）。这属于会影响后端服务的改动，请你确认是否同意。
-
+4. **效果验证与确认 (Validation)**
+   * 检查复选框点击是否流畅触发水滴声；折叠面板是否优雅收缩并伴有纸张翻页声。
+   * 刷新界面确保状态在 `localStorage` 中被成功记住。

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown } from 'lucide-react';
 import ChatModule from './ChatModule';
 import DictionaryPanel from './DictionaryPanel';
 import VocabularyBook from './VocabularyBook';
 import { formatDateShort, getRecentDates, getTodayDateDot } from '../utils/date';
+import { playClick, playPageTurn } from '../utils/soundEffects';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -18,6 +19,39 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
   const [isAprilWeek1Open, setIsAprilWeek1Open] = useState(false);
   const recentDates = getRecentDates(5);
   const today = getTodayDateDot();
+
+  // 习惯与职业追踪器状态管理
+  const [isHabitOpen, setIsHabitOpen] = useState(true);
+  const [isCareerOpen, setIsCareerOpen] = useState(true);
+
+  // 习惯持久化状态
+  const [habits, setHabits] = useState(() => {
+    const saved = localStorage.getItem('superme_habits');
+    return saved ? JSON.parse(saved) : {
+      sleep: false,
+      diet: false,
+      exercise: false,
+      goodDeed: false
+    };
+  });
+
+  const handleHabitChange = (key: string) => {
+    const updated = { ...habits, [key]: !habits[key as keyof typeof habits] };
+    setHabits(updated);
+    localStorage.setItem('superme_habits', JSON.stringify(updated));
+    playClick(); // 点击水滴声
+  };
+
+  // 职业路径数据持久化
+  const [careerPath, setCareerPath] = useState(() => {
+    const saved = localStorage.getItem('superme_career');
+    return saved ? JSON.parse(saved) : {
+      history: '高级经理 (Senior Manager)',
+      current: '总监 (Director)',
+      target: '合伙人 (Partner / Managing Director)',
+      progress: 65
+    };
+  });
 
   return (
     <aside className={`bg-[#f8f9fa] text-[#202124] flex flex-col transition-all duration-500 ease-in-out relative flex-shrink-0 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-gray-100/50 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
@@ -110,19 +144,73 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
              
              {/* 习惯矩阵 (Habit Tracker) */}
              <div className="mt-8 border-t border-gray-100 pt-6">
-               <div className="flex justify-between items-center text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4">
+               <div 
+                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
+                 onClick={() => { setIsHabitOpen(!isHabitOpen); playPageTurn(); }}
+               >
                  <span>Habit Matrix</span>
+                 {isHabitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                </div>
-               <div className="grid grid-cols-2 gap-3">
-                 {['睡眠达标', '饮食克制', '核心运动', '日行一善'].map((habit, idx) => (
-                   <label key={idx} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#FF5722] hover:shadow-sm transition-all group">
-                     <input 
-                       type="checkbox" 
-                       className="w-4 h-4 text-[#FF5722] border-gray-300 rounded focus:ring-[#FF5722] cursor-pointer"
-                     />
-                     <span className="text-xs font-bold text-gray-600 group-hover:text-[#202124]">{habit}</span>
-                   </label>
-                 ))}
+               
+               <div className={`overflow-hidden transition-all duration-500 ${isHabitOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
+                 <div className="grid grid-cols-2 gap-3 py-1">
+                   {Object.entries({
+                     sleep: '睡眠达标',
+                     diet: '饮食克制',
+                     exercise: '核心运动',
+                     goodDeed: '日行一善'
+                   }).map(([key, label]) => (
+                     <label key={key} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#FF5722] hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all group">
+                       <input 
+                         type="checkbox" 
+                         checked={habits[key as keyof typeof habits]}
+                         onChange={() => handleHabitChange(key)}
+                         className="w-4 h-4 text-[#FF5722] border-gray-300 rounded focus:ring-[#FF5722] cursor-pointer"
+                       />
+                       <span className="text-xs font-bold text-gray-600 group-hover:text-[#202124]">{label}</span>
+                     </label>
+                   ))}
+                 </div>
+               </div>
+             </div>
+
+             {/* 职业发展跟踪表 (Career Progression Tracker) */}
+             <div className="mt-6 border-t border-gray-100 pt-6">
+               <div 
+                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
+                 onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
+               >
+                 <span>Career Progression</span>
+                 {isCareerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+               </div>
+               
+               <div className={`overflow-hidden transition-all duration-500 ${isCareerOpen ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                 <div className="p-4 bg-white border border-gray-100 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] my-1">
+                   <div className="space-y-3">
+                     <div>
+                       <span className="text-[10px] text-gray-400 block">起点职位 (History)</span>
+                       <span className="text-xs font-bold text-gray-500">{careerPath.history}</span>
+                     </div>
+                     <div className="border-l-2 border-dashed border-gray-200 pl-3 my-1">
+                       <span className="text-[10px] text-emerald-600 font-semibold block">当前定位 (Current)</span>
+                       <span className="text-xs font-extrabold text-gray-800">{careerPath.current}</span>
+                     </div>
+                     <div>
+                       <span className="text-[10px] text-gray-400 block">意向目标 (Target)</span>
+                       <span className="text-xs font-bold text-[#FF5722]">{careerPath.target}</span>
+                     </div>
+                     
+                     <div className="mt-4 pt-2">
+                       <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
+                         <span>能力匹配度</span>
+                         <span>{careerPath.progress}%</span>
+                       </div>
+                       <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                         <div className="bg-gradient-to-r from-emerald-500 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
+                       </div>
+                     </div>
+                   </div>
+                 </div>
                </div>
              </div>
 
@@ -142,7 +230,6 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
 
         {/* 4. 艾宾浩斯生词本 */}
         <VocabularyBook />
-
 
       </div>
     </aside>
