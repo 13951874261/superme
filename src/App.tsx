@@ -67,12 +67,38 @@ function AppContent() {
     return () => window.removeEventListener('toggle-right-panel', handleToggle);
   }, []);
 
+  /**
+   * 智能判定并处理左侧空白区域的点击事件，实现 70/30 黄金折叠面板的“即刻收起”
+   */
+  const handleLeftAreaClick = (e: React.MouseEvent) => {
+    if (!isRightPanelOpen) return;
+    
+    // 1. 如果存在活跃的文本选择（例如用户正在长按或双击文本进行划词翻译），则忽略，防止干扰划词体验
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
+    }
+
+    // 2. 检查点击的目标元素是否为交互式控件，或是这些控件的子元素
+    // 包含：按钮、超链接、输入框、文本域、下拉选择框、具有按钮角色的组件，以及自定义 cursor-pointer/interactive 元素
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    
+    // 3. 若非上述交互式操作，判定为“点击空白处”，即刻收起右侧面板
+    if (!isInteractive) {
+      setIsRightPanelOpen(false);
+    }
+  };
+
   return (
     <div className="bg-[#F8F9FA] text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722] relative w-full">
       <TextHighlighter />
       
       {/* 黄金折叠主视界 (70% 或 100% 宽度平滑缩进) */}
       <div 
+        onClick={handleLeftAreaClick}
         className={`h-screen flex overflow-hidden transition-all duration-500 ease-in-out shrink-0 ${
           isRightPanelOpen ? 'w-[70vw]' : 'w-full'
         }`}

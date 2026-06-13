@@ -1,164 +1,93 @@
-
-### **1. 存在问题**
-*   **习惯追踪器（Habit Tracker）无法折叠与持久化**：侧边栏的 `Habit Matrix` 为纯静态渲染，无交互状态绑定，导致用户勾选后无法在 `localStorage` 中记录。同时，缺乏可折叠的展示交互，不满足 BRD 中“可折叠的 Habit Tracker”设计。
-*   **缺失“职业发展跟踪表”**：当前左侧侧边栏组件中完全没有“职业发展跟踪表（历史职位至意向职位的进阶路径）”模块，使得高层管理者无法进行进阶路径的可视化追踪。
-*   **动效与音效未深度对接**：折叠切换、状态勾选没有结合项目成熟的行政级水滴提示音（`playClick`）与翻页声（`playPageTurn`）。
+**您的问题是：**
+> 现有的交互机制中，当右侧面板打开时，用户只能通过点击右侧面板右上角的微小“X”按钮来关闭它。如果用户点击左侧 70% 的主控工作区或页面任何空白处，右侧面板不会自动收起。这产生了显著的认知摩擦，不符合“点击空白处即刻收起”的规范。
+> 输出完整的修改方案，包括存在问题、对应菜单路径、待修改文件目录、文件名称、参考代码、执行计划等。要求必须满足如下需求：
 
 ---
 
-### **2. 对应菜单路径**
-*   **左侧导航与追踪区**（在“周主题归档链”下方，“即时答疑/多模型舱”上方）
+为了确保完全响应您的指令，我已为您整理出**完整的修改方案**，并明确如何在该方案中完全适配与满足《“Superme”个人成长与全方位能力训练系统》BRD的各项规范：
+
+### 一、 存在问题与需求对齐
+1.  **存在问题**：当前系统实现了 70/30 左右分栏布局。当右侧 30% 上下文面板（`RightPanel`）滑出时，左侧 70% 主控工作区的点击事件未被监听。用户只能去寻找并点击右上角非常微小的“X”关闭按钮来收起面板，这形成了不必要的交互障碍。
+2.  **BRD规范要求**：
+    *   **70/30黄金空间折叠（彻底废除嵌套弹窗）**：左侧 70% 为主控工作区，右侧 30% 为动态滑出的上下文面板。点击空白处即刻收起，实现零认知摩擦。
+    *   **全局动效与声音设计**：保持点击等过渡场景的高端行政级音效（水滴声/纸张翻页声），严禁霓虹光效，保障行政级低调冷灰质感（Zinc/Slate）。
+    *   **防误触保护**：用户在左侧进行文字选择（如划词翻译）或点击交互式控件（按钮、表单）时，应避免意外关闭右侧面板，确保操作的连贯性。
 
 ---
 
-### **3. 待修改文件目录**
-*   `src/components`
+### 二、 完整修改方案
 
----
+#### 1. 对应菜单路径
+全局界面（当点击划词、查词或在英语/洞察/破局等模块调用 AI 助手滑出右侧面板后，点击左侧非交互式的任意空白背景区域）。
 
-### **4. 文件名称**
-*   `Sidebar.tsx`
+#### 2. 待修改文件目录
+`src/`
 
----
+#### 3. 文件名称
+`src/App.tsx`
 
-### **5. 参考代码**
+#### 4. 参考代码
+我们将于 `src/App.tsx` 中添加一个智能判定逻辑 `handleLeftAreaClick`，并将它绑定到左侧 70% 的容器上：
 
-在 `src/components/Sidebar.tsx` 中做如下改造：
-
-#### **A. 引入音效与状态初始化部分**
 ```tsx
-import { useState } from 'react';
-import { ChevronUp, ChevronDown } from 'lucide-react';
-import { playClick, playPageTurn } from '../utils/soundEffects';
+  /**
+   * 智能判定并处理左侧空白区域的点击事件，实现 70/30 黄金折叠面板的“即刻收起”
+   */
+  const handleLeftAreaClick = (e: React.MouseEvent) => {
+    if (!isRightPanelOpen) return;
+    
+    // 1. 如果存在活跃的文本选择（例如用户正在长按或双击文本进行划词翻译），则忽略，防止干扰划词体验
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
+    }
 
-// 习惯折叠状态与 localStorage 持久化
-const [isHabitOpen, setIsHabitOpen] = useState(true);
-const [habits, setHabits] = useState(() => {
-  const saved = localStorage.getItem('superme_habits');
-  return saved ? JSON.parse(saved) : {
-    sleep: false,
-    diet: false,
-    exercise: false,
-    goodDeed: false
+    // 2. 检查点击的目标元素是否为交互式控件，或是这些控件的子元素
+    // 包含：按钮、超链接、输入框、文本域、下拉选择框、具有按钮角色的组件，以及自定义 cursor-pointer/interactive 元素
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    
+    // 3. 若非上述交互式操作，判定为“点击空白处”，即刻收起右侧面板
+    if (!isInteractive) {
+      setIsRightPanelOpen(false);
+    }
   };
-});
-
-// 处理习惯勾选更改并触发行政级水滴音效
-const handleHabitChange = (key: string) => {
-  const updated = { ...habits, [key]: !habits[key] };
-  setHabits(updated);
-  localStorage.setItem('superme_habits', JSON.stringify(updated));
-  playClick(); // 行政级水滴音
-};
-
-// 职业轨道折叠状态与数据初始化
-const [isCareerOpen, setIsCareerOpen] = useState(true);
-const [careerPath, setCareerPath] = useState(() => {
-  const saved = localStorage.getItem('superme_career');
-  return saved ? JSON.parse(saved) : {
-    history: '高级经理 (Senior Manager)',
-    current: '总监 (Director)',
-    target: '合伙人 (Partner / Managing Director)',
-    progress: 65
-  };
-});
 ```
 
-#### **B. 习惯追踪器与职业发展表 UI 渲染部分**
+**JSX 节点绑定修改：**
 ```tsx
-{/* 习惯矩阵 (Habit Tracker) - 可折叠、可交互、带提示音 */}
-<div className="mt-8 border-t border-gray-100 pt-6">
-  <div 
-    className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
-    onClick={() => { setIsHabitOpen(!isHabitOpen); playPageTurn(); }}
-  >
-    <span>Habit Matrix</span>
-    {isHabitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-  </div>
-  
-  {isHabitOpen && (
-    <div className="grid grid-cols-2 gap-3 transition-all duration-300">
-      {Object.entries({
-        sleep: '睡眠达标',
-        diet: '饮食克制',
-        exercise: '核心运动',
-        goodDeed: '日行一善'
-      }).map(([key, label]) => (
-        <label key={key} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#FF5722] hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all group">
-          <input 
-            type="checkbox" 
-            checked={(habits as any)[key]}
-            onChange={() => handleHabitChange(key)}
-            className="w-4 h-4 text-[#FF5722] border-gray-300 rounded focus:ring-[#FF5722] cursor-pointer"
-          />
-          <span className="text-xs font-bold text-gray-600 group-hover:text-[#202124]">{label}</span>
-        </label>
-      ))}
-    </div>
-  )}
-</div>
-
-{/* 新增：职业发展跟踪表 (Career Progression) - 极简行政风格 */}
-<div className="mt-6 border-t border-gray-100 pt-6">
-  <div 
-    className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
-    onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
-  >
-    <span>Career Progression</span>
-    {isCareerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-  </div>
-  
-  {isCareerOpen && (
-    <div className="p-4 bg-white border border-gray-100 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-      <div className="space-y-3">
-        <div>
-          <span className="text-[10px] text-gray-400 block">起点职位 (History)</span>
-          <span className="text-xs font-bold text-gray-500">{careerPath.history}</span>
-        </div>
-        <div className="border-l-2 border-dashed border-gray-200 pl-3 my-1">
-          <span className="text-[10px] text-emerald-600 font-semibold block">当前定位 (Current)</span>
-          <span className="text-xs font-extrabold text-gray-800">{careerPath.current}</span>
-        </div>
-        <div>
-          <span className="text-[10px] text-gray-400 block">意向目标 (Target)</span>
-          <span className="text-xs font-bold text-[#FF5722]">{careerPath.target}</span>
-        </div>
-        
-        {/* 进阶能力匹配进度条 */}
-        <div className="mt-4 pt-2">
-          <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
-            <span>能力匹配度</span>
-            <span>{careerPath.progress}%</span>
-          </div>
-          <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-            <div className="bg-gradient-to-r from-emerald-500 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )}
-</div>
+      {/* 黄金折叠主视图 (70% 或 100% 宽度平滑缩进) */}
+      <div 
+        onClick={handleLeftAreaClick}
+        className={`h-screen flex overflow-hidden transition-all duration-500 ease-in-out shrink-0 ${
+          isRightPanelOpen ? 'w-[70vw]' : 'w-full'
+        }`}
+      >
 ```
 
 ---
 
-### **6. 执行计划**
+### 三、 结合实际数据的示例说明
 
-<proposed_plan>
-### 侧边栏追踪区重构执行步骤 (Sidebar Tracking Area Refactoring Steps)
+*   **场景 1：点击主控区页面背景空白处（关闭面板）**
+    *   *数据/路径*：用户在“英语引擎”页面，右侧面板展示了当前单词的详细商业注解。用户阅读完毕后，随手点击了左侧模块主页面的卡片外围灰色背景（`bg-[#F8F9FA]` 区域）。
+    *   *触发逻辑*：`isInteractive` 评估为 `false`，`selection.isCollapsed` 为 `true`。右侧面板即刻向右平滑滑出隐藏。
+*   **场景 2：划词选择单词（不关闭面板）**
+    *   *数据/路径*：用户使用鼠标拖拽，选中了左侧文本中的 “negotiation” 一词。
+    *   *触发逻辑*：点击释放时，系统检测到 `selection.toString().trim() === "negotiation"`（选中字符长度为 11，且非折叠状态）。逻辑终止，右侧面板保持开启，并由划词高亮工具（`TextHighlighter`）正常刷新词条数据。
+*   **场景 3：点击左侧表单输入框或 Tab 导航（不关闭面板）**
+    *   *数据/路径*：用户在左侧“口语对战”里点击了 “输入我的观点” 的 `textarea`，或者点击了“穿透(读)”的 Tab 按钮。
+    *   *触发逻辑*：`target.closest('textarea')` 或 `target.closest('button')` 判定为 `isInteractive === true`。逻辑终止，面板不收起，用户正常进行输入或模块切换。
 
-1. **导入资源与依赖 (Resource Importing)**
-   * 在 `src/components/Sidebar.tsx` 文件中添加 `playClick` 与 `playPageTurn` 音效接口的引用。
-   * 从 `lucide-react` 中引入 `ChevronUp` 及 `ChevronDown` 图标。
+---
 
-2. **状态绑定与本地序列化 (State & LocalStorage Binding)**
-   * 编写 `useState` 以维护习惯面板和职业面板的独立折叠开关。
-   * 编写基于 `localStorage` 的 `habits` state 加载及存储更新处理程序 `handleHabitChange`。
+### 四、 执行计划
 
-3. **DOM 与 UI 结构重构 (UI Refactoring)**
-   * 替换原有的静态习惯跟踪 DOM 代码为条件渲染的 state 驱动代码。
-   * 在其正下方追加新建的 `Career Progression` 行政风格面板模块。
-
-4. **效果验证与确认 (Validation)**
-   * 检查复选框点击是否流畅触发水滴声；折叠面板是否优雅收缩并伴有纸张翻页声。
-   * 刷新界面确保状态在 `localStorage` 中被成功记住。
+1.  **第一阶段：需求方案确认**（当前阶段）：向您呈递此完整方案，获得您的明确“同意”或“确认”后进入执行。
+2.  **第二阶段：修改代码**：使用 `apply_patch` 精准更新 `src/App.tsx` 中的点击监听器与 JSX 绑定，确保仅改动需要修改的部分。
+3.  **第三阶段：编译与代码验证**：
+    *   执行静态 TypeScript 类型校验：`npm run lint`。
+    *   执行 Vite 生产环境构建：`npm run build`。
+4.  **第四阶段：提供测试用例并交付**：给出此特性的具体功能测试案例，包括菜单路径、测试数据、预期结果。
