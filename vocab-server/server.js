@@ -2705,7 +2705,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify 升维引擎请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
     }
 
     const data = await response.json();

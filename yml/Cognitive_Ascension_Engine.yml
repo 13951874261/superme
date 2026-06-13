@@ -1,0 +1,231 @@
+app:
+  description: 针对用户的五层 Why 因果推演进行逻辑合理性审核，给出逐层研判、纵深评分、终极规律提炼及行动建议。
+  icon: 🧠
+  icon_background: '#E0F2FE'
+  icon_type: emoji
+  mode: workflow
+  name: Cognitive Ascension Engine
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 管理事件
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: event_text
+        - label: 五层推演链
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: layers_text
+        - label: 穿透维度
+          max_length: 48
+          options: []
+          required: true
+          type: text-input
+          variable: dimension
+      height: 165
+      id: start
+      position:
+        x: 83
+        y: 282
+      positionAbsolute:
+        x: 83
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: |-
+            你是一个顶级的心理学博士、战略分析专家与系统控制论大师。你的任务是针对用户提交的“管理/博弈危机事件”以及用户自己做出的“五层纵深因果链推演”进行严谨的合理性评估与研判。
+
+            【输入信息】
+            1. 待推演的管理事件：{{#start.event_text#}}
+            2. 穿透的自省维度：{{#start.dimension#}}
+            3. 用户提交的五层 Why 纵深推演：
+            {{#start.layers_text#}}
+
+            【研判规则】
+            1. 逐层审核：仔细审核用户的每一层推演（Why 1 至 Why 5），评估因果链是否逻辑自洽，是否逐层递进，还是属于同义反复或情绪宣泄。
+            2. 维度对齐：检查推演是否与所选维度（dimension）挂钩。例如，若维度为 structure，用户的第2、3层推演中应合理触及公司机制、信息孤岛或流程漏洞等结构性问题。
+            3. 判定达标 (is_passed)：
+               - 只有当用户的每一层推演都展现出了合理的因果传导，且第 4、5 层触及了深层利益格局与不可逆规律时，才判定为“达标 (is_passed: true)”。
+               - 若某一层推演明显泛泛而谈、逻辑跳跃、偏离所选自省维度或流于表面，则判定为“未达标 (is_passed: false)”。
+            4. 纵深度评分 (depth_score)：给出 0.0 到 10.0 之间的评分。6.0 分为及格线，代表基本完成了因果推进；8.5 分以上为优秀，代表对结构与规律的穿透极其深刻。
+
+            【输出格式要求】
+            必须且只能以合法的 JSON 字符串格式返回，请勿包含 markdown 格式的外框标记（即不要用 ```json ... ``` 包裹），直接以大括号 { 开始，} 结束。
+
+            【输出 JSON 字段格式】
+            {
+              "is_passed": true 或 false (布尔值，代表是否达标解锁),
+              "depth_score": 0.0-10.0之间的浮点数 (如 8.8),
+              "layer_feedback": [
+                {
+                  "level": 1,
+                  "verdict": "合格" 或 "需深化",
+                  "gap": "对 Why-1 穿透的点评。如果合格指出亮点，不合格则明确指出逻辑死穴"
+                },
+                {
+                  "level": 2,
+                  "verdict": "合格" 或 "需深化",
+                  "gap": "对 Why-2 穿透的点评及缝隙"
+                },
+                {
+                  "level": 3,
+                  "verdict": "合格" 或 "需深化",
+                  "gap": "对 Why-3 穿透的点评及缝隙"
+                },
+                {
+                  "level": 4,
+                  "verdict": "合格" 或 "需深化",
+                  "gap": "对 Why-4 穿透的点评及缝隙"
+                },
+                {
+                  "level": 5,
+                  "verdict": "合格" 或 "需深化",
+                  "gap": "对 Why-5 穿透的点评及缝隙"
+                }
+              ],
+              "ultimate_law": "AI 提炼出的关于该事件背后的一针见血的终极规律，用一句极具穿透力的格言进行概括",
+              "suggestion": "结合自省维度，给用户的下一步战略自省或职场破局提出的针对性建议"
+            }
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: |-
+            event_text: {{#start.event_text#}}
+            dimension: {{#start.dimension#}}
+            layers_text: {{#start.layers_text#}}
+        selected: false
+        title: 顶层认知升维研判LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []
