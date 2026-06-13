@@ -1415,6 +1415,38 @@ export async function runGameTheoryAnalysis(
   return data.result as GameTheoryAnalyzeResult;
 }
 
+export interface CognitiveAscensionInput {
+  event_text: string;            // 待推演的管理事件
+  layers: { level: number; why: string }[]; // 用户的 5 层 Why 推演
+  dimension: 'history' | 'structure' | 'self'; // 穿透维度
+}
+
+export interface CognitiveAscensionResult {
+  is_passed: boolean;            // 是否达标解锁
+  depth_score: number;           // 纵深度评分 0-10
+  layer_feedback: { level: number; verdict: string; gap: string }[]; // 逐层研判
+  ultimate_law: string;          // AI 提炼的终极规律
+  suggestion: string;            // 升维建议
+}
+
+export async function runCognitiveAscension(
+  inputs: CognitiveAscensionInput,
+  userId = 'default-user'
+): Promise<CognitiveAscensionResult> {
+  const res = await fetch('/api/game-theory/ascension', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...inputs,
+      user_current_profile: getUserCurrentProfile(),
+      userId,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || '升维推演引擎请求失败，请检查后端');
+  return data.result as CognitiveAscensionResult;
+}
+
 // 鑾峰彇鎵€鏈変汉鎬у師鍨嬫。妗?
 export async function getPersonalPrototypes(userId = 'default-user'): Promise<PersonalPrototype[]> {
   const res = await fetch(`/api/game-theory/prototypes?userId=${encodeURIComponent(userId)}`);

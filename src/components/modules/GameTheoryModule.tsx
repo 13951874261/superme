@@ -14,7 +14,9 @@ import {
   deletePersonalPrototype,
   GameTheoryAnalyzeInput, 
   GameTheoryAnalyzeResult, 
-  PersonalPrototype 
+  PersonalPrototype,
+  runCognitiveAscension,
+  CognitiveAscensionResult
 } from '../../services/difyAPI';
 
 // 预设高维博弈案例库
@@ -72,6 +74,48 @@ const PRESET_CASES: PresetCase[] = [
 
 export default function GameTheoryModule() {
   const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'ascension'>('cases');
+  
+  // 顶层认知升维训练状态
+  const [ascEvent, setAscEvent] = useState('');
+  const [ascLayers, setAscLayers] = useState<string[]>(['', '', '', '', '']);
+  const [ascDimension, setAscDimension] = useState<'history' | 'structure' | 'self'>('structure');
+  const [ascLoading, setAscLoading] = useState(false);
+  const [ascResult, setAscResult] = useState<CognitiveAscensionResult | null>(null);
+
+  const handleAscensionSubmit = async () => {
+    if (!ascEvent.trim() || ascLayers.some(l => !l.trim())) {
+      playGentleWarning();
+      return;
+    }
+    setAscLoading(true);
+    setAscResult(null);
+    playClick();
+    try {
+      const r = await runCognitiveAscension({
+        event_text: ascEvent,
+        layers: ascLayers.map((why, i) => ({ level: i + 1, why })),
+        dimension: ascDimension,
+      });
+      setAscResult(r);
+      if (r.is_passed) {
+        playPageTurn();
+        confetti({
+          particleCount: 50,
+          spread: 45,
+          origin: { y: 0.6 },
+          colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#fff']
+        });
+      } else {
+        playGentleWarning();
+      }
+    } catch (e) {
+      console.error(e);
+      playGentleWarning();
+    } finally {
+      setAscLoading(false);
+    }
+  };
+
   const [activeEnv, setActiveEnv] = useState<'gov_struggle' | 'corp_clash' | 'upward_takeover'>('corp_clash');
   const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>('pig_game');
   const [caseText, setCaseText] = useState('');
@@ -886,16 +930,156 @@ export default function GameTheoryModule() {
             </div>
           )}
 
-          {/* TAB 4: 顶层认知升维（后续开发占位） */}
+          {/* TAB 4: 顶层认知升维 */}
           {activeTab === 'ascension' && (
-            <div className="bg-white rounded-[2rem] p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-16">
-              <BookOpen className="w-12 h-12 mx-auto text-zinc-300 mb-4" />
-              <h3 className="text-base font-bold text-zinc-800 mb-2">顶层认知升维训练</h3>
-              <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
-                强制进行 5 层纵深的因果链推演（Why-Why-Why 练习），辅以“穿透历史”、“穿透结构”、“穿透自我”等战略自省维度，锻造决策战略家大脑。
-              </p>
-              <div className="mt-6 inline-block bg-zinc-50 border border-zinc-200 rounded-full px-4 py-2 text-[10px] font-bold text-zinc-500">
-                下一阶段开发中...
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
+              {/* 左 70%：5 层纵深因果链 */}
+              <div className="lg:col-span-7 space-y-5">
+                <div className="bg-white border border-zinc-200/80 rounded-[2rem] p-6 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">1. 录入待推演的管理事件 (Crisis Event Input)</span>
+                  <textarea
+                    value={ascEvent}
+                    onChange={e => setAscEvent(e.target.value)}
+                    placeholder="录入一个待穿透的管理事件 / 高管博弈现象（例如：新任外企VP在会议上将供应链延迟的责任隐性甩锅给我的团队…）"
+                    className="w-full h-24 bg-zinc-50/50 border border-zinc-200 rounded-2xl p-4 text-xs text-zinc-800 shadow-inner focus:border-zinc-400 outline-none resize-none leading-relaxed"
+                    disabled={ascLoading}
+                  />
+                </div>
+
+                <div className="space-y-3">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block pl-2">2. 强制 5 层因果链推演 (Why-Why-Why Deduction)</span>
+                  {ascLayers.map((val, i) => (
+                    <div key={i}
+                      className="bg-white border border-zinc-200/80 rounded-2xl p-4 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all hover:shadow-md"
+                      style={{ marginLeft: `${i * 12}px` }}  /* 纵深层叠错位 */
+                    >
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Why · 第 {i + 1} 层穿透</span>
+                      <input
+                        value={val}
+                        onChange={e => {
+                          const n = [...ascLayers];
+                          n[i] = e.target.value;
+                          setAscLayers(n);
+                        }}
+                        placeholder={['表象之下的直接动因（为什么发生了这件事？）', '背后的结构性矛盾（为什么原体系没有拦截它？）', '历史周期与路径依赖（为什么这个机制会长期演化至此？）', '深层利益格局（谁在以此获利？核心利益同盟是什么？）', '终极规律 / 不可逆趋势（该现象背后的底线决定性趋势？）'][i]}
+                        className="w-full mt-2 bg-transparent border-b border-zinc-100 py-1.5 text-xs text-zinc-800 outline-none focus:border-zinc-400"
+                        disabled={ascLoading}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <button 
+                  onClick={handleAscensionSubmit} 
+                  disabled={ascLoading || !ascEvent.trim() || ascLayers.some(l => !l.trim())}
+                  className="w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01] transition-all disabled:opacity-40 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {ascLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                      <span>纵深升维研判中…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Compass className="w-4 h-4 text-zinc-400" />
+                      <span>提交五层因果链并启动升维研判</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* 右 30%：穿透维度 + 研判成果 */}
+              <div className="lg:col-span-3 space-y-6">
+                {/* 维度选择 */}
+                <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-4">选择自省与穿透维度 (Analysis Dimension)</span>
+                  
+                  <div className="flex flex-col gap-2">
+                    {([
+                      { id: 'structure', name: '穿透结构 (Structural)', desc: '剖析制度缺陷与流程孤岛' },
+                      { id: 'history', name: '穿透历史 (Historical)', desc: '剖析路径依赖与演进周期' },
+                      { id: 'self', name: '穿透自我 (Self-reflective)', desc: '剖析个人认知盲区与心智障壁' }
+                    ] as const).map(dim => (
+                      <button
+                        key={dim.id}
+                        onClick={() => { playClick(); setAscDimension(dim.id); }}
+                        disabled={ascLoading}
+                        className={`w-full text-left p-3 rounded-xl border transition-all cursor-pointer flex flex-col gap-1 ${
+                          ascDimension === dim.id
+                            ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm'
+                            : 'bg-zinc-50 border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                        }`}
+                      >
+                        <span className="text-xs font-bold">{dim.name}</span>
+                        <span className={`text-[9px] ${ascDimension === dim.id ? 'text-zinc-300' : 'text-zinc-400'}`}>{dim.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 研判成果展示 */}
+                {ascResult && (
+                  <div className="space-y-4 animate-fade-in text-left">
+                    {/* 分数与达标状态 */}
+                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2">认知纵深评估得分</span>
+                      <div className="text-5xl font-black font-mono tracking-tighter text-zinc-800 mb-2">
+                        {ascResult.depth_score}
+                      </div>
+                      <span className={`inline-block text-[9px] font-bold px-3 py-1 rounded-full uppercase tracking-wider ${
+                        ascResult.is_passed
+                          ? 'bg-zinc-900 text-white'
+                          : 'bg-zinc-100 text-zinc-500 border border-zinc-200'
+                      }`}>
+                        {ascResult.is_passed ? '✓ 认知升维解锁' : '✗ 纵深不足·未能解锁'}
+                      </span>
+                    </div>
+
+                    {/* 逐层研判 */}
+                    <div className="bg-white rounded-[2rem] p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] space-y-3">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">逐层研判明细 (Verdict details)</span>
+                      <div className="space-y-3.5">
+                        {ascResult.layer_feedback && ascResult.layer_feedback.map((item, idx) => (
+                          <div key={idx} className="border-b border-zinc-100 pb-2.5 last:border-0 last:pb-0">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[9px] font-black uppercase text-zinc-400 tracking-wider">L{item.level} 穿透</span>
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                item.verdict === '合格' || item.verdict === '优秀'
+                                  ? 'bg-zinc-50 border border-zinc-200 text-zinc-700'
+                                  : 'bg-zinc-100 text-zinc-500'
+                              }`}>
+                                {item.verdict}
+                              </span>
+                            </div>
+                            <p className="text-[10px] text-zinc-600 leading-relaxed font-medium">
+                              <span className="text-zinc-400 font-bold">研判缝隙: </span>{item.gap || '无'}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 终极规律 */}
+                    {ascResult.ultimate_law && (
+                      <div className="bg-zinc-900 text-zinc-100 rounded-[2rem] p-6 border border-zinc-800 shadow-md">
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2">AI 萃取的终极规律</span>
+                        <p className="text-xs text-zinc-300 font-medium leading-relaxed italic">
+                          “{ascResult.ultimate_law}”
+                        </p>
+                      </div>
+                    )}
+
+                    {/* 导师建议 */}
+                    {ascResult.suggestion && (
+                      <div className="bg-zinc-100 border border-zinc-200/80 rounded-[2rem] p-5">
+                        <span className="text-[10px] text-zinc-800 font-bold uppercase tracking-wider block mb-2">升维自省建议 (Strategic Advice)</span>
+                        <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
+                          {ascResult.suggestion}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}

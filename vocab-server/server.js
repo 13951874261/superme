@@ -2674,6 +2674,59 @@ app.post('/api/game-theory/analyze', async (req, res) => {
   }
 });
 
+// 顶层认知升维推演 API 路由，对接 Cognitive Penetration Engine
+app.post('/api/game-theory/ascension', async (req, res) => {
+  const { event_text, layers, dimension, user_current_profile, userId = 'default-user' } = req.body;
+  if (!event_text || !Array.isArray(layers) || layers.length < 5) {
+    return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
+  }
+  try {
+    const difyApiKey = process.env.VITE_DIFY_COGNITIVE_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${difyApiKey}`, 
+        'Content-Type': 'application/json' 
+      },
+      body: JSON.stringify({
+        inputs: {
+          event_text,
+          layers_text: layers.map(l => `Why-${l.level}: ${l.why}`).join('\n'),
+          dimension,
+          user_current_profile: user_current_profile || ''
+        },
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Dify 升维引擎请求失败:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
+    }
+
+    const data = await response.json();
+    const raw = data?.data?.outputs?.result ?? data?.data?.outputs?.analysis_result ?? data?.answer ?? data?.message ?? '';
+    const cleanJson = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+    
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(cleanJson);
+    } catch (e) {
+      console.error('解析 Dify 升维引擎返回的 JSON 失败:', e, raw);
+      return res.status(500).json({ success: false, error: '升维研判结果格式异常，无法解析 JSON' });
+    }
+
+    res.json({ success: true, result: parsedResult });
+  } catch (err) {
+    console.error('升维引擎异常:', err);
+    res.status(500).json({ success: false, error: '升维引擎异常: ' + err.message });
+  }
+});
+
 // 鑾峰彇鎵€鏈変汉鎬у師鍨嬫。妗?
 app.get('/api/game-theory/prototypes', (req, res) => {
   try {

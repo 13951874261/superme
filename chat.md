@@ -1,303 +1,204 @@
-Ah, excellent! The function `getUserCurrentProfile` in `vocabAPI.ts` has the exact same implementation.
-
-Now, let's output the complete detailed redesign plan as requested by the user. I'll make sure it has the requested sections:
-- UI/UX 方案 (UI/UX Scheme)
-- 待修改文件目录 (File Directory to modify)
-- 修改文件名 (File Names to modify)
-- 具体的修改方案 (Concrete modification schemes)
-- 参考代码 (Reference code)
-
-Let's make sure it is in detailed Chinese, using no emojis (as per the "Zero Emoji" instruction), and with clean structure and formatting. I will output this now.好的，我将重新输出详细的改造方案，完全对齐您的核心需求并遵守各项约束规范（零 Emoji 政策、极简高端行政风）。
+已完成对相关代码与后端接口的核对（`GameTheoryModule.tsx`、`difyAPI.ts`、`vocab-server/server.js`、`Cognitive Penetration Engine.yml`）。以下是 **选项 B：顶层认知升维训练（5 层 Why-Why-Why 纵深因果推演）** 的完整修改方案。
 
 ---
 
-### **1. UI / UX 方案**
+## 一、需求复述与确认
 
-按照 **`impeccable`** 与 **`redesign-existing-projects`** 规范，用户画像的设置与展示将通过两处高阶、微细节的界面进行呈现和微操：
-
-#### **A. 侧边栏对话舱头部指示器与下拉浮窗 (RightPanel Drawer)**
-* **位置**：位于全局 AI 助手侧边栏顶部，紧邻“情报解密舱”标签，位于关闭按钮 `X` 左侧。
-* **样式**：采用 **True Glassmorphism (真·玻璃拟态)** 质感。
-  * **主按钮**：使用半透明背景 `bg-white/70 backdrop-blur-md`，搭配 1px 细微边界 `border border-gray-150`。文字使用小字号 `text-[10px] font-black uppercase tracking-wider`。左侧搭配一个 Lucide 极简地球图标 `Globe`，不带有任何表情符号或刺眼的霓虹渐变。
-  * **下拉菜单**：当点击后，向下弹出圆角浮窗。浮窗背景使用 `bg-white/90 backdrop-blur-lg border border-gray-100 shadow-xl`。
-  * **候选项反馈**：鼠标悬停在候选项（英国、美国、默认）上时，应用平滑的背景淡入 `hover:bg-slate-50` 效果；被选中的画像右侧显示一个微小的 Lucide 打勾图标 `Check`。
-
-#### **B. 悬浮底右全局参数控制台 (GlobalSettingsPanel)**
-* **位置**：点击右下角浮动控制按钮展开的面板。
-* **样式**：采用与原版面板高度一致的深色科技质感。
-  * 引入一个与“大模型对抗烈度”同等规格的三段式滑动选择排版（Segmented Control）。背景使用 `bg-gray-800 p-1 rounded-xl`，选中项使用 `bg-[#FF5722] text-white shadow-sm`，未选中项使用 `text-gray-400 hover:text-white`，提供极佳的反馈感与点击声效（`playScan()`）。
+你确认要实现 **TAB 4「顶层认知升维」**，将其从“下一个阶段开发中…”占位符，改造为真实可用的高阶认知闭环：强制用户对一个管理事件连追五层因果（穿透表象 → 结构 → 历史 → 利益 → 终极规律），由 Dify 引擎逐层研判打分，达标后纸张翻页解锁成果，并落地 BRD 中“穿透历史/穿透结构/穿透因果（强制 5-10 层因果链推演）”的要求。
 
 ---
 
-### **2. 待修改文件目录与文件名**
+## 二、存在问题（现状诊断）
 
-| 序号 | 待修改文件目录 | 修改文件名 | 修改性质 | 改造目的 |
-| :--- | :--- | :--- | :--- | :--- |
-| **1** | `src/utils` | `profileHelper.ts` | **新建** | 创建全局统一的画像状态同步和文本扫描拦截器。 |
-| **2** | `src/services` | `difyAPI.ts` | **修改** | 去除重复定义，接入全局画像流，拦截流程的输入和输出。 |
-| **3** | `src/services` | `listeningAPI.ts` | **修改** | 去除重复定义，接入全局画像流，拦截输入和输出。 |
-| **4** | `src/services` | `trainingAPI.ts` | **修改** | 去除重复定义，接入全局画像流。 |
-| **5** | `src/services` | `vocabAPI.ts` | **修改** | 去除重复定义，接入全局画像流。 |
-| **6** | `src/components` | `GlobalSettingsPanel.tsx`| **修改** | 在底部悬浮面板中增加“地区画像”手动三段式调节。 |
-| **7** | `src/components` | `RightPanel.tsx` | **修改** | 在侧边栏头部增加高级玻璃态画像下拉切换浮窗。 |
+- 功能缺失：`GameTheoryModule.tsx` 中 `activeTab === 'ascension'` 仅为静态占位卡片，无任何交互逻辑与后端联动。
+- 闭环断裂：BRD 要求的“5-10 层强制因果链推演 + 战略自省维度”完全未实现，与同模块已成熟的 TAB1/TAB2 形成体验断层。
+- UI/UX 欠缺：缺少“层层递进的微投影纵深卡片 + 行政级水滴/翻页音效闭环 + 控制论强制解锁”机制，未达 `impeccable` / `design-taste-frontend` 规范要求的克制冷灰行政美学。
 
 ---
 
-### **3. 具体的修改方案与参考代码**
+## 三、对应菜单路径
 
-#### **第一步：创建核心拦截与管理工具 (`src/utils/profileHelper.ts`)**
-新建文件 `src/utils/profileHelper.ts`，为所有 API 请求和文本提炼打下基础：
+主控工作区顶栏 Tab 导航 → `驭心博弈` → 模块内子 Tab → `顶层认知升维`
 
-```typescript
-// D:\cursor\work\super-agent\src\utils\profileHelper.ts
+（即 `MainContent.tsx` 的 `gametheory` → `GameTheoryModule.tsx` 内 `activeTab='ascension'`）
 
-/**
- * 获取当前持久化的画像
- */
-export function getUserCurrentProfile(): string {
+---
+
+## 四、待修改文件目录与文件名称
+
+- `src/components/modules/GameTheoryModule.tsx`（前端主改：新增升维状态 + 重构 ascension 面板 UI）
+- `src/services/difyAPI.ts`（新增 `runCognitiveAscension` 接口与类型）
+- `vocab-server/server.js`（新增 `/api/game-theory/ascension` 后端路由，对接 `Cognitive Penetration Engine.yml`）
+- 复用既有资产（不重复造轮子）：`ModuleWrapper.tsx`、`Confetti.tsx`、`utils/soundEffects.ts`、`motion/react`、`canvas-confetti`
+
+---
+
+## 五、参考代码
+
+### 1) `src/services/difyAPI.ts`（新增类型与函数）
+
+```ts
+export interface CognitiveAscensionInput {
+  event_text: string;            // 待推演的管理事件
+  layers: { level: number; why: string }[]; // 用户的 5 层 Why 推演
+  dimension: 'history' | 'structure' | 'self'; // 穿透维度
+}
+
+export interface CognitiveAscensionResult {
+  is_passed: boolean;            // 是否达标解锁
+  depth_score: number;           // 纵深度评分 0-10
+  layer_feedback: { level: number; verdict: string; gap: string }[]; // 逐层研判
+  ultimate_law: string;          // AI 提炼的终极规律
+  suggestion: string;            // 升维建议
+}
+
+export async function runCognitiveAscension(
+  inputs: CognitiveAscensionInput,
+  userId = 'default-user'
+): Promise<CognitiveAscensionResult> {
+  const res = await fetch('/api/game-theory/ascension', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...inputs,
+      user_current_profile: getUserCurrentProfile(),
+      userId,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || '升维推演引擎请求失败，请检查后端');
+  return data.result as CognitiveAscensionResult;
+}
+```
+
+### 2) `vocab-server/server.js`（新增路由，复用现有 `/analyze` 模式）
+
+```js
+app.post('/api/game-theory/ascension', async (req, res) => {
+  const { event_text, layers, dimension, user_current_profile, userId = 'default-user' } = req.body;
+  if (!event_text || !Array.isArray(layers) || layers.length < 5) {
+    return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
+  }
   try {
-    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-    if (!raw) return '';
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed.join('; ');
-      }
+    const difyApiKey = process.env.VITE_DIFY_COGNITIVE_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${difyApiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputs: {
+          event_text,
+          layers_text: layers.map(l => `Why-${l.level}: ${l.why}`).join('\n'),
+          dimension,
+          user_current_profile: user_current_profile || ''
+        },
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+    if (!response.ok) {
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
     }
-    return raw;
-  } catch (e) {
-    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    const data = await response.json();
+    const raw = data?.data?.outputs?.result ?? data?.answer ?? '';
+    const parsed = JSON.parse(String(raw).replace(/```json/g, '').replace(/```/g, '').trim());
+    res.json({ success: true, result: parsed });
+  } catch (err) {
+    res.status(500).json({ success: false, error: '升维引擎异常: ' + err.message });
   }
-}
-
-/**
- * 保存画像并向全局广播状态同步事件
- */
-export function saveUserCurrentProfile(profile: string) {
-  localStorage.setItem('user_current_profile', profile);
-  localStorage.setItem('User_Current_Profile', profile);
-  window.dispatchEvent(new Event('global-profile-changed'));
-}
-
-/**
- * 智能分析提问或上下文，发现英国/美国画像指令时自动执行隐式更新
- */
-export function updateProfileFromText(text: string): boolean {
-  if (!text) return false;
-  const lower = text.toLowerCase();
-  
-  // 匹配英国 (UK) 信号
-  if (
-    lower.includes("切换为英国") || 
-    lower.includes("切换为英音") || 
-    lower.includes("英国(uk)") || 
-    lower.includes("英国 (uk)") ||
-    lower.includes("[profile: uk]") ||
-    lower.includes("[profile: 英国]") ||
-    (lower.includes("英国") && (lower.includes("画像") || lower.includes("对齐") || lower.includes("设定")))
-  ) {
-    const current = getUserCurrentProfile();
-    if (current !== "英国 (UK)") {
-      saveUserCurrentProfile("英国 (UK)");
-      return true;
-    }
-  }
-  
-  // 匹配美国 (US) 信号
-  if (
-    lower.includes("切换为美国") || 
-    lower.includes("切换为美音") || 
-    lower.includes("美国(us)") || 
-    lower.includes("美国 (us)") ||
-    lower.includes("[profile: us]") ||
-    lower.includes("[profile: 美国]") ||
-    (lower.includes("美国") && (lower.includes("画像") || lower.includes("对齐") || lower.includes("设定")))
-  ) {
-    const current = getUserCurrentProfile();
-    if (current !== "美国 (US)") {
-      saveUserCurrentProfile("美国 (US)");
-      return true;
-    }
-  }
-  
-  return false;
-}
-
-/**
- * 遍历并分析大模型返回的所有字符串，实现隐式自适应学习
- */
-export function interceptOutputText(output: any): void {
-  if (!output) return;
-  if (typeof output === 'string') {
-    updateProfileFromText(output);
-  } else if (typeof output === 'object') {
-    for (const key in output) {
-      if (Object.prototype.hasOwnProperty.call(output, key)) {
-        const val = output[key];
-        if (typeof val === 'string') {
-          updateProfileFromText(val);
-        } else if (val && typeof val === 'object') {
-          interceptOutputText(val);
-        }
-      }
-    }
-  }
-}
-
-/**
- * 包装并注入当前画像到 Dify 请求体中
- */
-export function injectUserProfile(inputs: Record<string, any> = {}): Record<string, any> {
-  for (const key in inputs) {
-    if (Object.prototype.hasOwnProperty.call(inputs, key) && typeof inputs[key] === 'string') {
-      updateProfileFromText(inputs[key]);
-    }
-  }
-  
-  const profile = getUserCurrentProfile();
-  return {
-    ...inputs,
-    user_current_profile: profile,
-  };
-}
+});
 ```
 
-#### **第二步：修改 `difyAPI.ts` 等四个 API 模块**
-以 `src/services/difyAPI.ts` 为核心，进行如下清洗与桥接（其余三个 API 文件做类似修改）：
+### 3) `src/components/modules/GameTheoryModule.tsx`（替换 ascension 占位块）
 
-1. **导入辅助函数，剔除原有的重复 `getUserCurrentProfile()` 与 `injectUserProfile()` 定义**：
-   ```typescript
-   // 文件头部
-   import { getUserCurrentProfile, injectUserProfile, interceptOutputText } from '../utils/profileHelper';
-   ```
-2. **在 API 核心 JSON 解析包装器中嵌入输出结果画像提炼拦截**：
-   ```typescript
-   function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
-     if (typeof raw !== 'string') {
-       interceptOutputText(raw);
-       return raw as T;
-     }
-
-     interceptOutputText(raw);
-     const cleanJson = raw.replace(/```json/g, '').replace(/```/g, '').trim();
-     try {
-       const parsed = JSON.parse(cleanJson) as T;
-       interceptOutputText(parsed);
-       return parsed;
-     } catch {
-       throw new Error(fallbackMessage);
-     }
-   }
-   ```
-
-#### **第三步：修改 `GlobalSettingsPanel.tsx` 页面**
-将手动设置画像嵌入到右下角的浮动大模型面板中。
-
-```typescript
-// 引入依赖
-import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
-
-// 组件内部添加状态与监听
-const [profile, setProfile] = useState(() => getUserCurrentProfile());
-
-useEffect(() => {
-  const handleProfileChange = () => {
-    setProfile(getUserCurrentProfile());
-  };
-  window.addEventListener('global-profile-changed', handleProfileChange);
-  return () => window.removeEventListener('global-profile-changed', handleProfileChange);
-}, []);
-```
-在组件返回的 TSX 中，插入画像三段式按钮：
 ```tsx
-<div>
-  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
-    地区画像偏好
-  </label>
-  <div className="flex bg-gray-800 p-1 rounded-xl">
-    <button
-      onClick={() => { saveUserCurrentProfile('英国 (UK)'); playScan(); }}
-      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '英国 (UK)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
-    >
-      英国 (UK)
-    </button>
-    <button
-      onClick={() => { saveUserCurrentProfile('美国 (US)'); playScan(); }}
-      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '美国 (US)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
-    >
-      美国 (US)
-    </button>
-    <button
-      onClick={() => { saveUserCurrentProfile(''); playScan(); }}
-      className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!profile ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
-    >
-      默认
-    </button>
-  </div>
-</div>
+// 顶部新增 state
+const [ascEvent, setAscEvent] = useState('');
+const [ascLayers, setAscLayers] = useState<string[]>(['', '', '', '', '']);
+const [ascDimension, setAscDimension] = useState<'history' | 'structure' | 'self'>('structure');
+const [ascLoading, setAscLoading] = useState(false);
+const [ascResult, setAscResult] = useState<CognitiveAscensionResult | null>(null);
+
+const handleAscensionSubmit = async () => {
+  if (!ascEvent.trim() || ascLayers.some(l => !l.trim())) { playGentleWarning(); return; }
+  setAscLoading(true); setAscResult(null); playClick();
+  try {
+    const r = await runCognitiveAscension({
+      event_text: ascEvent,
+      layers: ascLayers.map((why, i) => ({ level: i + 1, why })),
+      dimension: ascDimension,
+    });
+    setAscResult(r);
+    if (r.is_passed) {
+      playPageTurn();
+      confetti({ particleCount: 50, spread: 45, origin: { y: 0.6 }, colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#fff'] });
+    } else { playGentleWarning(); }
+  } catch (e) { playGentleWarning(); }
+  finally { setAscLoading(false); }
+};
 ```
 
-#### **第四步：修改 `RightPanel.tsx` 页面**
-在侧边栏右上角关闭按钮左侧嵌入微透光玻璃下拉画像切换浮层。
-
-```typescript
-// 引入依赖
-import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
-import { Globe, Check } from 'lucide-react';
-
-// 组件内部增加状态与监听
-const [profile, setProfile] = useState(() => getUserCurrentProfile());
-const [showProfileMenu, setShowProfileMenu] = useState(false);
-
-useEffect(() => {
-  const handleProfileChange = () => {
-    setProfile(getUserCurrentProfile());
-  };
-  window.addEventListener('global-profile-changed', handleProfileChange);
-  return () => window.removeEventListener('global-profile-changed', handleProfileChange);
-}, []);
-```
-在右上角的关闭按钮左侧插入 HTML 元素：
 ```tsx
-<div className="relative mr-2 flex items-center">
-  <button
-    onClick={() => setShowProfileMenu(!showProfileMenu)}
-    className="h-8 px-3 rounded-full border border-gray-150 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-650 cursor-pointer"
-  >
-    <Globe className="w-3.5 h-3.5 text-indigo-500" />
-    <span>画像: {profile || '默认'}</span>
-  </button>
-
-  {showProfileMenu && (
-    <div className="absolute right-0 top-full mt-2 z-[999] w-48 bg-white/90 backdrop-blur-lg border border-gray-100 rounded-2xl shadow-xl p-1.5 animate-[fadeIn_0.1s_ease-out]">
-      {[
-        { label: '英国 (UK)', value: '英国 (UK)', desc: '英式拼写及口音标准' },
-        { label: '美国 (US)', value: '美国 (US)', desc: '美式拼写及口音标准' },
-        { label: '未设定 (默认)', value: '', desc: '不进行特定倾向限制' }
-      ].map((item) => (
-        <button
-          key={item.value}
-          onClick={() => {
-            saveUserCurrentProfile(item.value);
-            setShowProfileMenu(false);
-          }}
-          className={`w-full flex flex-col items-start p-2 rounded-xl text-left transition hover:bg-slate-50 cursor-pointer ${
-            profile === item.value ? 'bg-indigo-50/50' : ''
-          }`}
+{/* TAB 4: 顶层认知升维（替换原占位） */}
+{activeTab === 'ascension' && (
+  <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
+    {/* 左 70%：5 层纵深因果链 */}
+    <div className="lg:col-span-7 space-y-5">
+      <textarea
+        value={ascEvent} onChange={e => setAscEvent(e.target.value)}
+        placeholder="录入一个待穿透的管理事件 / 高管博弈现象…"
+        className="w-full h-24 bg-white border border-zinc-200/80 rounded-2xl p-4 text-sm text-zinc-800 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] focus:border-zinc-400 outline-none resize-none"
+      />
+      {ascLayers.map((val, i) => (
+        <div key={i}
+          className="bg-white border border-zinc-200/80 rounded-2xl p-4 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all hover:shadow-md"
+          style={{ marginLeft: `${i * 14}px` }}  /* 纵深层叠错位 */
         >
-          <div className="flex items-center justify-between w-full">
-            <span className="text-[10px] font-black uppercase tracking-wider text-slate-800">
-              {item.label}
-            </span>
-            {profile === item.value && <Check className="w-3 h-3 text-indigo-600" />}
-          </div>
-          <span className="text-[8px] text-gray-400 font-medium mt-0.5">
-            {item.desc}
-          </span>
-        </button>
+          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Why · 第 {i + 1} 层穿透</span>
+          <input
+            value={val}
+            onChange={e => { const n = [...ascLayers]; n[i] = e.target.value; setAscLayers(n); }}
+            placeholder={['表象之下的直接动因', '背后的结构性矛盾', '历史周期与路径依赖', '深层利益格局', '终极规律 / 不可逆趋势'][i]}
+            className="w-full mt-2 bg-transparent border-b border-zinc-100 py-1.5 text-sm text-zinc-800 outline-none focus:border-zinc-400"
+          />
+        </div>
       ))}
+      <button onClick={handleAscensionSubmit} disabled={ascLoading}
+        className="w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01] transition-all disabled:opacity-40 flex items-center justify-center gap-2">
+        {ascLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Compass className="w-4 h-4 text-zinc-400" />}
+        {ascLoading ? '纵深推演研判中…' : '提交五层因果链并启动升维研判'}
+      </button>
     </div>
-  )}
-</div>
+
+    {/* 右 30%：穿透维度 + 研判成果 */}
+    <div className="lg:col-span-3 space-y-4">
+      {/* 维度选择 + ascResult 逐层 verdict / ultimate_law 卡片渲染 */}
+    </div>
+  </div>
+)}
 ```
+
+---
+
+## 六、执行计划（单步执行，每步提交确认）
+
+1. 步骤 1：`difyAPI.ts` 新增 `CognitiveAscensionInput/Result` 类型与 `runCognitiveAscension` 函数 → 提交确认。
+2. 步骤 2：`vocab-server/server.js` 新增 `/api/game-theory/ascension` 路由并对接 `Cognitive Penetration Engine.yml` → 提交确认。
+3. 步骤 3：`GameTheoryModule.tsx` 新增升维 state + handler，替换 ascension 占位为 5 层纵深 UI（含音效、Confetti、维度选择、逐层研判卡片）→ 提交确认。
+4. 步骤 4：运行 `npm run lint`（tsc 类型校验）验证编译通过 → 提交确认。
+5. 步骤 5：交付功能测试用例并演示验证路径。
+
+---
+
+## 七、功能测试用例（预览，将在步骤 5 完整交付）
+
+| 编号 | 菜单路径 | 测试数据 | 预期结果 | 对应需求 |
+|---|---|---|---|---|
+| TC-01 | 驭心博弈 → 顶层认知升维 | 事件 + 仅填 3 层 | 触发轻柔警告音，拦截提交并提示补全 5 层 | 强制 5 层闭环 |
+| TC-02 | 同上 | 事件 + 5 层完整 + 维度“穿透结构” | 3 秒内返回研判，纸张翻页音 + 纸屑，展示逐层 verdict 与终极规律 | 5-10 层因果链推演 |
+| TC-03 | 同上 | 达标 `is_passed=true` | 解锁成果卡片，落库个人画像 | 控制论闭环 |
+
+---
+
+确认信息：以上方案需新增 **1 个后端 API 路由**（`vocab-server/server.js`）与 **1 个 Dify Key 环境变量**（`VITE_DIFY_COGNITIVE_KEY`，未配置时回退复用 `VITE_DIFY_GAME_THEORY_KEY`）。这属于会影响后端服务的改动，请你确认是否同意。
 
