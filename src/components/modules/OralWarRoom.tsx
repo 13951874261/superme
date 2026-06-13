@@ -382,7 +382,7 @@ export default function OralWarRoom({
           setShowConfetti(true);
           playSuccess();
           setTimeout(() => setShowGoldGlow(false), 3000);
-          setLastNotice('🎉 破绽反击成功！获得 +50 XP!');
+          setLastNotice('破绽反击成功！获得 +50 XP!');
           evaluatedSuccess = true;
         } else {
           playError();
@@ -394,9 +394,9 @@ export default function OralWarRoom({
       if (parsed?.flaw_point) {
         setIsLoopholePlanted(true);
         if (wasLoopholeActive && !evaluatedSuccess) {
-          setLastNotice('❌ 上轮未成功指出破绽。⚠️ 侦测到对手新发言存在逻辑漏洞！请重新进行针对性反击。');
+          setLastNotice('上轮未成功指出破绽。 侦测到对手新发言存在逻辑漏洞！请重新进行针对性反击。');
         } else if (!wasLoopholeActive) {
-          setLastNotice('⚠️ 侦测到对手发言存在逻辑漏洞！请进行针对性反击。');
+          setLastNotice('侦测到对手发言存在逻辑漏洞！请进行针对性反击。');
         }
       } else {
         if (!wasLoopholeActive) {
@@ -431,15 +431,12 @@ export default function OralWarRoom({
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>长按下方麦克风语音反击，或打字回复。沙盘会根据当前 Theme 自动锁定剧本。倒计时 10 秒内必须给出回应。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>多方势力动态对抗。AI 同步扮演发难者与盟友，对您进行跨文化和权力的双重极限施压。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
-              <span className="text-amber-500 mt-0.5">💡</span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【肌肉记忆】消化所有前置弹药。强迫您在毫秒级的高压对抗中，建立直觉性的、不打草稿的商务谈判反击能力。</p>
             </div>
           </div>
@@ -549,7 +546,7 @@ export default function OralWarRoom({
                 }`}
               >
                 <Trophy className="w-3.5 h-3.5 text-yellow-405" />
-                <span>🏆 逻辑反击积分: {combatPoints} XP</span>
+                <span>逻辑反击积分: {combatPoints} XP</span>
               </div>
               <div className="text-[11px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-3 py-2 border border-gray-200">
                 {isSending ? '对手推演中' : '待命'}
@@ -619,7 +616,7 @@ export default function OralWarRoom({
                               <p className="text-sm text-blue-900 leading-relaxed">{safeText(msg.parsed.hidden_intent)}</p>
                             </div>
                             <div className="rounded-2xl bg-red-50 border border-red-100 p-4">
-                              <div className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-2">🎯 发现破绽</div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-2">发现破绽</div>
                               <p className="text-sm text-red-900 leading-relaxed">{safeText(msg.parsed.flaw_point || '未识别到破绽')}</p>
                             </div>
                           </div>
@@ -680,7 +677,7 @@ export default function OralWarRoom({
               <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 flex items-start gap-3 shadow-md animate-pulse mb-3">
                 <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <h5 className="text-xs font-black uppercase tracking-widest text-amber-850 mb-1">⚠️ 警报：对手露出逻辑破绽！</h5>
+                  <h5 className="text-xs font-black uppercase tracking-widest text-amber-850 mb-1">警报：对手露出逻辑破绽！</h5>
                   <p className="text-xs font-semibold leading-relaxed">
                     侦测到上述对手发言中存在逻辑漏洞。请在您的回复中，用英语指出破绽并进行精准的商务分寸提问以获得额外积分！
                   </p>
@@ -709,7 +706,7 @@ export default function OralWarRoom({
                            ${ isRecording
                                ? 'border-red-400 bg-red-50/40 placeholder-red-300'
                                : 'border-gray-200 bg-[#f8f9fa] focus:border-[#FF5722]' }`}
-                placeholder={isRecording ? '🎙 正在倾听您的反击...' : '长按麦克风说话，或直接输入破局发言...'}
+                placeholder={isRecording ? '正在倾听您的反击...' : '长按麦克风说话，或直接输入破局发言...'}
               />
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
                 {/* 麦克风长按按钮 */}

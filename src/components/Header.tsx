@@ -82,7 +82,7 @@ export default function Header() {
               <span className="font-black text-slate-800 ml-1">
                 {(() => {
                   const matched = VOICE_OPTIONS.find(v => v.id === selectedVoice);
-                  return matched ? `${matched.flag} ${matched.name}` : '🇬🇧 Libby';
+                  return matched ? `${matched.name} (${matched.country})` : 'Libby (英国 (UK))';
                 })()}
               </span>
             </button>
@@ -139,11 +139,10 @@ export default function Header() {
                             ? 'bg-indigo-50/70 border-indigo-100 text-indigo-750 font-bold shadow-sm'
                             : voice.highlight
                               ? 'bg-red-50/30 border-red-100/50 text-red-500 hover:bg-red-50/50 hover:border-red-100'
-                              : 'bg-transparent border-transparent hover:bg-gray-50 text-slate-705'
+                              : 'bg-transparent border-transparent hover:bg-gray-50 text-slate-755'
                         }`}
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-sm">{voice.flag}</span>
                           <div className="flex flex-col">
                             <span className={`text-xs ${isSelected ? 'font-black' : 'font-semibold'} ${voice.highlight ? 'text-red-500 font-bold' : ''}`}>
                               {voice.name}
@@ -164,7 +163,7 @@ export default function Header() {
                           }`}
                           title="试听发音"
                         >
-                          <span className="text-[9px] font-bold block leading-none px-1">▶ 试听</span>
+                          <span className="text-[9px] font-bold block leading-none px-1">试听</span>
                         </button>
                       </div>
                     );

@@ -254,6 +254,30 @@ function getDifyApiKey() {
   return key;
 }
 
+function getUserCurrentProfile(): string {
+  try {
+    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    if (!raw) return '';
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.join('; ');
+      }
+    }
+    return raw;
+  } catch (e) {
+    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  }
+}
+
+function injectUserProfile(inputs: Record<string, any> = {}): Record<string, any> {
+  const profile = getUserCurrentProfile();
+  return {
+    ...inputs,
+    user_current_profile: profile,
+  };
+}
+
 function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
   if (typeof raw !== 'string') {
     return raw as T;
@@ -284,7 +308,7 @@ async function request<T>(path: string, apiKey: string, options?: RequestInit): 
 export async function runListenWorkflow(inputs: ListenWorkflowInput, userId = 'default-user') {
   return request<DifyWorkflowResponse>(`/workflows/run`, getDifyApiKey(), {
     method: 'POST',
-    body: JSON.stringify({ inputs, response_mode: 'blocking', user: userId }),
+    body: JSON.stringify({ inputs: injectUserProfile(inputs as any), response_mode: 'blocking', user: userId }),
   });
 }
 
@@ -304,7 +328,7 @@ export async function callOralSandbox(
   const res = await fetch('/api/english/oral-sandbox', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs, conversationId, userId }),
+    body: JSON.stringify({ inputs: injectUserProfile(inputs as any), conversationId, userId }),
   });
   if (!res.ok) throw new Error(`oral-sandbox HTTP ${res.status}`);
   return res.json();
@@ -464,7 +488,7 @@ export async function triggerEnglishMasteryExtraction(
   const response = await fetch("/api/english/daily-extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, materialText, userId, cefrLevel, genre }),
+    body: JSON.stringify({ topic, materialText, userId, cefrLevel, genre, user_current_profile: getUserCurrentProfile() }),
   });
 
   // 处理流式响应 (SSE)
@@ -550,7 +574,7 @@ export async function callVocabPurify(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs,
+      inputs: injectUserProfile(inputs as any),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -580,7 +604,8 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
     body: JSON.stringify({
       user_text: userText,
       mail_intent: mailIntent,
-      theme: theme
+      theme: theme,
+      user_current_profile: getUserCurrentProfile()
     }),
   });
 
@@ -603,7 +628,7 @@ export async function sendOralChatMessage(query: string, conversationId: string 
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_ORAL_API_KEY');
 
   const body = {
-    inputs: {},
+    inputs: injectUserProfile({}),
     query,
     response_mode: 'blocking' as const,
     user: userId,
@@ -635,7 +660,7 @@ export async function runEnglishListenEngine(text: string, theme: string, userId
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { listening_text: text, theme },
+      inputs: injectUserProfile({ listening_text: text, theme }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -665,7 +690,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { target_word: targetWord, theme },
+      inputs: injectUserProfile({ target_word: targetWord, theme }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -741,7 +766,7 @@ export async function runEnglishWakeupRoutine(theme: string, userId = 'default-u
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { theme },
+      inputs: injectUserProfile({ theme }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -776,7 +801,7 @@ export async function runEnglishSentenceEvaluation(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { target_word: targetWord, user_sentence: userSentence, theme },
+        inputs: injectUserProfile({ target_word: targetWord, user_sentence: userSentence, theme }),
         response_mode: 'blocking',
         user: userId,
       }),
@@ -833,7 +858,7 @@ export async function runListenMaterialGenerator(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { theme, genre, cefr_level: cefrLevel },
+      inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel }),
       query: "",
       response_mode: 'blocking',
       user: userId,
@@ -872,11 +897,11 @@ export async function runImpromptuSpeechEvaluation(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { 
+      inputs: injectUserProfile({ 
         theme, 
         duration,
         transcript
-      },
+      }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -972,6 +997,7 @@ export async function runPronunciationAssessment(
       targetText,
       recognizedText,
       userId,
+      user_current_profile: getUserCurrentProfile(),
     }),
   });
 
@@ -1066,7 +1092,7 @@ export async function runSpeechPrompter(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { theme, difficulty },
+      inputs: injectUserProfile({ theme, difficulty }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1135,7 +1161,7 @@ export async function runEnhancedSpeechEvaluation(
   const formData = new FormData();
   formData.append('file', audioFile, 'speech_audio.webm');
   formData.append('user', userId);
-  formData.append('inputs', JSON.stringify({ theme, duration_minutes: durationMinutes }));
+  formData.append('inputs', JSON.stringify(injectUserProfile({ theme, duration_minutes: durationMinutes })));
   formData.append('response_mode', 'blocking');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
@@ -1190,7 +1216,7 @@ export async function fetchInsightFeedback(inputs: InsightListenInputs, userId =
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: inputs,
+      inputs: injectUserProfile(inputs as any),
       response_mode: "blocking",
       user: userId
     })
@@ -1220,7 +1246,7 @@ export async function fetchDynamicInsightScenario(category: string, userId = 'de
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { category },
+      inputs: injectUserProfile({ category }),
       query: "", // 触发文本生成
       response_mode: 'blocking',
       user: userId
@@ -1261,7 +1287,7 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs,
+      inputs: injectUserProfile(inputs as any),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1322,7 +1348,7 @@ export async function runCognitivePenetrationEngine(inputs: CognitivePenetration
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs,
+      inputs: injectUserProfile(inputs as any),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1389,6 +1415,7 @@ export async function runGameTheoryAnalysis(
     },
     body: JSON.stringify({
       ...inputs,
+      user_current_profile: getUserCurrentProfile(),
       userId,
     }),
   });
@@ -1484,10 +1511,10 @@ export async function generateDailyFlawVocabulary(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: { 
+        inputs: injectUserProfile({ 
           theme: dynamicTheme,
           history_exclude: historyExclude
-        },
+        }),
         response_mode: 'blocking',
         user: userId,
       }),
@@ -1621,10 +1648,10 @@ export async function runSpeechExemplar(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { 
+      inputs: injectUserProfile({ 
         theme, 
         user_transcript: userTranscript
-      },
+      }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1682,7 +1709,7 @@ export async function generateReadMaterial(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: {},
+      inputs: injectUserProfile({}),
       query,
       response_mode: 'blocking',
       user: userId
@@ -1735,7 +1762,7 @@ ${JSON.stringify(params.analysis_result, null, 2)}
 `;
 
   const body = {
-    inputs: {},
+    inputs: injectUserProfile({}),
     query,
     response_mode: 'blocking' as const,
     user: userId,

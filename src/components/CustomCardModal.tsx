@@ -197,13 +197,16 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
           })));
         }
         if (res.phrases && res.phrases.length > 0) {
-          items = items.concat(res.phrases.map(p => ({
-            word: typeof p === 'string' ? p : (p.phrase || p),
-            pos: typeof p === 'object' ? (p.pos || 'phrase') : 'phrase',
-            zh_meaning: typeof p === 'object' ? (p.meaning || '') : '',
-            is_phrase: true,
-            selected: true,
-          })));
+          items = items.concat(res.phrases.map(p => {
+            const anyP = p as any;
+            return {
+              word: typeof p === 'string' ? p : (anyP.phrase || p),
+              pos: typeof p === 'object' && p !== null ? (anyP.pos || 'phrase') : 'phrase',
+              zh_meaning: typeof p === 'object' && p !== null ? (anyP.meaning || '') : '',
+              is_phrase: true,
+              selected: true,
+            };
+          }));
         }
         setExtractedItems(items);
         playSuccess();
@@ -446,7 +449,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                         category === 'business' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400'
                       }`}
                     >
-                      💼 政商务区
+                      政商务区
                     </button>
                     <button
                       type="button"
@@ -455,7 +458,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                         category === 'general' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400'
                       }`}
                     >
-                      🌐 全场景区
+                      全场景区
                     </button>
                   </div>
                 </div>

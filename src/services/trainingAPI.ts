@@ -279,6 +279,22 @@ export async function listCustomThemes(userId = 'default-user'): Promise<{ succe
   return request<{ success: boolean; themes: CustomTheme[] }>(`/api/theme/list?userId=${encodeURIComponent(userId)}`);
 }
 
+function getUserCurrentProfile(): string {
+  try {
+    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    if (!raw) return '';
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.join('; ');
+      }
+    }
+    return raw;
+  } catch (e) {
+    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  }
+}
+
 export async function addCustomTheme(params: {
   themeName: string;
   file: { fileName: string; content: string };
@@ -286,7 +302,10 @@ export async function addCustomTheme(params: {
 }): Promise<{ success: boolean; theme: CustomTheme; addedWordsCount: number; addedPhrasesCount: number }> {
   return request('/api/theme/custom-add', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      ...params,
+      user_current_profile: getUserCurrentProfile(),
+    }),
   });
 }
 

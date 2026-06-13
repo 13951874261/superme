@@ -679,7 +679,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
                 onClick={handleQuickFill}
                 className="text-[11px] font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100 px-3 py-1.5 rounded-lg transition-all"
               >
-                💡 模拟一键侧写 (调试首选)
+                模拟一键侧写 (调试首选)
               </button>
             </div>
           </div>

@@ -686,7 +686,7 @@ app.post('/api/theme/mark-email-complete', (req, res) => {
 
 // 创建自定义主题
 app.post('/api/theme/custom-add', async (req, res) => {
-  const { themeName, file, userId = 'default-user' } = req.body;
+  const { themeName, file, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!themeName || !file) {
     return res.status(400).json({ success: false, error: '缺少必要参数 themeName 或 file' });
@@ -802,7 +802,8 @@ app.post('/api/theme/custom-add', async (req, res) => {
       body: JSON.stringify({
         inputs: { 
           custom_theme_name: themeName,
-          topic: themeName
+          topic: themeName,
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: userId
@@ -1067,7 +1068,7 @@ app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
 // 处理字典查询请求（对接真实的 Dify 字典工作流）
 app.post('/api/dify/dict-query', async (req, res) => {
-  const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', userId = 'frontend-panel' } = req.body;
+  const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
 
   if (!word) {
     return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
@@ -1091,7 +1092,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
           dict_type: dictType || 'en_zh_bidirectional',
           direction: direction || 'auto',
           user_context: userContext || '',
-          locale: locale || 'zh-CN'
+          locale: locale || 'zh-CN',
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: userId || 'frontend-panel'
@@ -1166,7 +1168,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
 // 英语公文纵深批阅代理接口 (对接 Dify 写作批阅工作流)
 app.post('/api/dify/write-review', async (req, res) => {
-  const { user_text, mail_intent, theme } = req.body;
+  const { user_text, mail_intent, theme, user_current_profile } = req.body;
   if (!user_text || !mail_intent || !theme) {
     return res.status(400).json({ success: false, error: 'Missing required parameters: user_text, mail_intent, or theme.' });
   }
@@ -1187,7 +1189,8 @@ app.post('/api/dify/write-review', async (req, res) => {
         inputs: {
           user_text: user_text.trim(),
           mail_intent: mail_intent.trim(),
-          theme: theme.trim()
+          theme: theme.trim(),
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: 'system-agent'
@@ -1303,6 +1306,7 @@ app.get('/api/vocab/memory/:id', (req, res) => {
 // 调用 Dify 记忆辅助生成引擎生成联想记忆
 app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
   try {
+    const { user_current_profile } = req.body;
     const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
@@ -1341,7 +1345,8 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
           phonetic: phonetic || '',
           pos: pos || '',
           definition: definition || '',
-          examples: examples || ''
+          examples: examples || '',
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: 'system-agent'
@@ -1475,6 +1480,7 @@ app.get('/api/vocab/ebbinghaus/:id', (req, res) => {
 // 生成记忆图片（调用 text2image 工作流）
 app.post('/api/vocab/generate-image/:id', async (req, res) => {
   try {
+    const { user_current_profile } = req.body;
     const row = db.prepare('SELECT id, word, memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
@@ -1499,7 +1505,9 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {},
+        inputs: {
+          user_current_profile: user_current_profile || ''
+        },
         query: memoryAids.image_prompt,
         response_mode: 'blocking',
         user: 'default-user',
@@ -1582,7 +1590,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
 
 // 澶勭悊鐗╂枡鎻愮函瑙ｆ瀽璇锋眰锛堢湡瀹?Dify 鑱斿姩锛氭壘搴?-> 清空 -> 上传 -> 工作流抽提）
 app.post('/api/material/process-and-extract', async (req, res) => {
-  const { topic, userId, files } = req.body;
+  const { topic, userId, files, user_current_profile } = req.body;
   
   if (!files || files.length === 0) {
     return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
@@ -1729,7 +1737,10 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        inputs: { topic: topic || 'General Business' },
+        inputs: { 
+          topic: topic || 'General Business',
+          user_current_profile: user_current_profile || ''
+        },
         response_mode: 'blocking',
         user: userId || 'system'
       })
@@ -1856,7 +1867,7 @@ const WORD_DAILY_LIMIT = 50;
 const PHRASE_DAILY_LIMIT = 30;
 
 app.post('/api/english/daily-extract', async (req, res) => {
-  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting' } = req.body;
+  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', user_current_profile } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
   try {
@@ -1987,7 +1998,8 @@ app.post('/api/english/daily-extract', async (req, res) => {
               cefr_level: cefrLevel, 
               genre: genre,
               history_exclude: historyExclude,
-              user_flaws: userFlaws
+              user_flaws: userFlaws,
+              user_current_profile: user_current_profile || ''
             },
             query: "generate",
             response_mode: "streaming",
@@ -2452,7 +2464,7 @@ app.post('/api/dify/run-english-mastery', (req, res) => {
 // 发音纠正 API (Pronunciation Assessment)
 // 调用 Dify 宸ヤ綔娴佽繘琛屽彂闊宠瘎浼?// ==========================================
 app.post('/api/pronunciation-assessment', async (req, res) => {
-  const { targetText, recognizedText, userId = 'default-user' } = req.body;
+  const { targetText, recognizedText, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!targetText) {
     return res.status(400).json({ success: false, error: '缺少目标文本 (targetText)' });
@@ -2476,6 +2488,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
         inputs: {
           target_text: targetText,
           recognized_text: recognizedText || '',
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: userId,
@@ -2522,7 +2535,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
 // 调用 Dify 工作流进行高管级语法重构
 // ==========================================
 app.post('/api/grammar-polish', async (req, res) => {
-  const { originalText, userId = 'default-user' } = req.body;
+  const { originalText, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!originalText) {
     return res.status(400).json({ success: false, error: '缺少原始文本 (originalText)' });
@@ -2542,6 +2555,7 @@ app.post('/api/grammar-polish', async (req, res) => {
       body: JSON.stringify({
         inputs: {
           original_text: originalText, // 对应 yml 里的 start 节点变量
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: userId,
@@ -2576,7 +2590,7 @@ app.post('/api/grammar-polish', async (req, res) => {
 
 // 杩愯椹績鍗氬紙宸ヤ綔娴侊紝骞惰嚜鍔ㄦ寔涔呭寲鎻愬彇鍑烘潵鐨勪汉鎬у師鍨?
 app.post('/api/game-theory/analyze', async (req, res) => {
-  const { scene_type, game_model, case_text, user_answer, applied_tactics, userId = 'default-user' } = req.body;
+  const { scene_type, game_model, case_text, user_answer, applied_tactics, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!case_text || !user_answer) {
     return res.status(400).json({ success: false, error: '缂哄皯鍗辨満鍦烘櫙鎴栧绛栧唴瀹?' });
@@ -2598,7 +2612,8 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           game_model,
           case_text,
           user_answer,
-          applied_tactics: applied_tactics || ''
+          applied_tactics: applied_tactics || '',
+          user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
         user: userId,

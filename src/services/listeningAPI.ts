@@ -74,6 +74,22 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
   return transcribeAudioWithWhisper(audioBlob);
 }
 
+function getUserCurrentProfile(): string {
+  try {
+    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    if (!raw) return '';
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.join('; ');
+      }
+    }
+    return raw;
+  } catch (e) {
+    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  }
+}
+
 /**
  * 运行 Listening_Comparison_Engine 工作流
  */
@@ -87,7 +103,12 @@ export async function runListeningEngine(userInput: string, standardText: string
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: { user_input: userInput, standard_text: standardText, theme: theme },
+      inputs: { 
+        user_input: userInput, 
+        standard_text: standardText, 
+        theme: theme,
+        user_current_profile: getUserCurrentProfile()
+      },
       response_mode: 'blocking',
       user: 'local-user'
     }),

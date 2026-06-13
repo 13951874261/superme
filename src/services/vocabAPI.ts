@@ -220,6 +220,22 @@ export async function deleteWord(id: string): Promise<{ success: boolean }> {
   return request(`/${id}`, { method: 'DELETE' });
 }
 
+function getUserCurrentProfile(): string {
+  try {
+    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    if (!raw) return '';
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.join('; ');
+      }
+    }
+    return raw;
+  } catch (e) {
+    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  }
+}
+
 /** 词典查询（由后端代理 Dify，避免前端暴露 token） */
 export async function queryDictionary(params: DictQueryParams): Promise<DictResult> {
   const res = await fetch('/api/dify/dict-query', {
@@ -231,6 +247,7 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
       locale: 'zh-CN',
       userId: 'default-user',
       ...params,
+      user_current_profile: getUserCurrentProfile(),
     }),
   });
   const data = await res.json().catch(() => ({}));
@@ -286,6 +303,7 @@ export async function getMemoryAids(id: string): Promise<MemoryAids> {
 export async function enrichMemory(id: string): Promise<MemoryAids> {
   return request<MemoryAids>(`/enrich-memory/${id}`, {
     method: 'POST',
+    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() })
   });
 }
 
@@ -298,6 +316,7 @@ export async function getEbbinghausData(id: string): Promise<EbbinghausData> {
 export async function generateMemoryImage(id: string): Promise<{ success: boolean; id: string; image_url: string; download_url: string }> {
   return request<{ success: boolean; id: string; image_url: string; download_url: string }>(`/generate-image/${id}`, {
     method: 'POST',
+    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() })
   });
 }
 

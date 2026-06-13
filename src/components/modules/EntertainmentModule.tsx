@@ -190,7 +190,8 @@ export default function EntertainmentModule() {
         body: JSON.stringify({
           inputs: {
             scene_category: getDifySceneCategory(selectedScenario.id),
-            user_response: response
+            user_response: response,
+            user_current_profile: localStorage.getItem('user_current_profile') || localStorage.getItem('User_Current_Profile') || ''
           },
           response_mode: "blocking",
           user: "aesthetic_user_01"
