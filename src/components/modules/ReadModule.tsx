@@ -614,11 +614,11 @@ export default function ReadModule() {
       description="核心定位：深度结构化阅读。将输入的信息转化为高阶判断力和决策力，融合政策敏感度与商业逻辑视角。"
     >
       <div 
-        className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] relative flex flex-col lg:flex-row w-full gap-6 min-h-[80vh] lg:h-[80vh] overflow-hidden animate-[fadeIn_0.5s_ease-out]"
+        className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] relative flex flex-col lg:flex-row w-full gap-6 min-h-[500px] h-auto animate-fade-in"
         onClick={handleOutsideClick}
       >
         {/* 左侧 70% 工作区 */}
-        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-full overflow-y-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-5xl mx-auto'}`}>
+        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-5xl mx-auto'}`}>
           {/* 顶部一排：场景大框架（通用社交、体制内职场、跨国企业） */}
           <div className="mb-2">
             <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">

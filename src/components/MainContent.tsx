@@ -80,7 +80,7 @@ export default function MainContent({
     <main id="main-content" className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#F8F9FA] relative scroll-smooth font-sans">
       <Header />
       
-      <div className="px-5 md:px-8 lg:px-12 mx-auto w-full max-w-[1600px] pt-8 pb-24 flex flex-col h-full">
+      <div className="px-5 md:px-8 lg:px-12 mx-auto w-full max-w-[1600px] pt-8 pb-24 flex flex-col min-h-full">
         
         {/* 顶部 Tab 导航 (The Execution 调度器) */}
         <div className="mb-10 flex flex-wrap gap-3 border-b border-gray-200 pb-4">

@@ -336,7 +336,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         </div>
       </div>
 
-      <div className="relative flex h-[80vh] overflow-hidden w-full gap-6" onClick={handleOutsideClick}>
+      <div className="relative flex min-h-[500px] h-auto w-full gap-6" onClick={handleOutsideClick}>
         <AnimatePresence>
           {inlineNotice && noticeAnchor === 'review' && (
             <motion.div
@@ -351,9 +351,9 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         </AnimatePresence>
 
         {/* 左侧工作区：当右侧面板打开时占 70% 宽度，否则占 100% 宽度 */}
-        <div className={`transition-all duration-500 ease-in-out flex gap-6 h-full ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
+        <div className={`transition-all duration-500 ease-in-out flex gap-6 h-auto ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
           {/* 1. 左栏：规范与对标区 */}
-          <div className="w-[30%] min-w-[260px] flex flex-col gap-5 h-full overflow-y-auto pr-1 shrink-0">
+          <div className="w-[30%] min-w-[260px] flex flex-col gap-5 h-auto pr-1 shrink-0">
             {/* 对标文本上传/输入区 */}
             <div className="bg-zinc-50 border border-zinc-200/80 rounded-[2rem] p-5 shadow-sm flex flex-col gap-4">
               <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1.5">
@@ -410,7 +410,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
           </div>
 
           {/* 2. 中栏：纵深批阅与训练区 */}
-          <div className="flex-1 bg-white rounded-[2rem] p-6 border border-zinc-150 shadow-md flex flex-col h-full min-w-0">
+          <div className="flex-1 bg-white rounded-[2rem] p-6 border border-zinc-150 shadow-md flex flex-col h-auto min-w-0">
             {/* 五大模块切换 TAB */}
             <div className="grid grid-cols-5 bg-zinc-100 p-1.5 rounded-2xl mb-4 shrink-0 shadow-inner">
               {WRITE_MODULES.map((mod) => {
@@ -527,7 +527,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
                   : 'border-zinc-200 focus:border-zinc-400'
               }`}
               placeholder={WRITE_MODULES.find(m => m.id === activeModule)?.placeholder}
-              style={{ height: 'calc(100% - 150px)' }}
+              style={{ minHeight: '300px' }}
             />
 
             {isCyberLocked && (
@@ -576,7 +576,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="w-[30%] bg-zinc-50 border-l border-zinc-200 h-full p-5 shadow-2xl flex flex-col gap-4 overflow-y-auto shrink-0 relative"
+              className="w-[30%] bg-zinc-50 border-l border-zinc-200 h-auto p-5 shadow-2xl flex flex-col gap-4 shrink-0 relative"
               onClick={(e) => e.stopPropagation()}
             >
               {/* ① 浅层：格式与措辞合规 */}

@@ -588,7 +588,7 @@ export default function GameTheoryModule() {
 
                   {/* 右面板 70%：高维博弈沙盘研判 */}
                   <div className="md:col-span-7 space-y-6">
-                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative overflow-hidden ${
+                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative ${
                       animateBorder ? 'ring-2 ring-zinc-300' : ''
                     }`}>
                       {isLoading && (
@@ -1054,8 +1054,7 @@ export default function GameTheoryModule() {
                     </div>
                   ) : (
                     <div 
-                      className="space-y-3 pr-1 block w-full"
-                      style={{ maxHeight: '420px', overflowY: 'auto' }}
+                      className="space-y-3 pr-1 block w-full h-auto"
                     >
                       {prototypes.map(p => (
                         <div 

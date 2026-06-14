@@ -461,7 +461,7 @@ export default function EntertainmentModule() {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="grid grid-cols-1 lg:grid-cols-12 gap-8"
+            className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-auto"
           >
             {/* 左侧 60%：场景推送卡片列表 */}
             <div className="lg:col-span-7 space-y-4">
