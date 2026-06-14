@@ -1,56 +1,219 @@
-import React from 'react';
-import { Lock, Sparkles, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, Sparkles, Zap, Loader2, Calendar, Trash2 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
+import { playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
+import { runWeeklyCognitiveAnalysis } from '../../services/difyAPI';
+import { saveUserCurrentProfile, getUserCurrentProfile } from '../../utils/profileHelper';
+
+interface HistoryItem {
+  id: string;
+  date: string;
+  userContent: string;
+  aiAnalysis: string;
+  factors: string;
+}
 
 export default function WeeklyChatModule() {
+  const [content, setContent] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [currentResult, setCurrentResult] = useState<{ analysis: string; shortDebilitatingFactors: string } | null>(null);
+  const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
+  const [globalProfile, setGlobalProfile] = useState('');
+
+  // 初始化加载历史足迹与画像
+  useEffect(() => {
+    setGlobalProfile(getUserCurrentProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
+    
+    const localHistory = localStorage.getItem('super_agent_weekly_history');
+    if (localHistory) {
+      try {
+        setHistoryList(JSON.parse(localHistory));
+      } catch (e) {
+        console.error('解析历史沉淀失败:', e);
+      }
+    }
+    
+    const handleProfileChange = () => {
+      setGlobalProfile(getUserCurrentProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
+    };
+    window.addEventListener('global-profile-changed', handleProfileChange);
+    return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+  }, []);
+
+  const handleSubmit = async () => {
+    if (!content.trim()) return;
+    
+    // 播放纸张翻页声（代表封存入库）
+    playPageTurn();
+    setIsLoading(true);
+    setCurrentResult(null);
+
+    try {
+      const result = await runWeeklyCognitiveAnalysis(content);
+      
+      // 更新用户的全局能力短板（画像进化）
+      saveUserCurrentProfile(result.shortDebilitatingFactors);
+      
+      const newHistory: HistoryItem = {
+        id: Date.now().toString(),
+        date: new Date().toLocaleString('zh-CN', { 
+          month: '2-digit', 
+          day: '2-digit', 
+          hour: '2-digit', 
+          minute: '2-digit',
+          second: '2-digit'
+        }),
+        userContent: content,
+        aiAnalysis: result.analysis,
+        factors: result.shortDebilitatingFactors
+      };
+      
+      const updatedList = [newHistory, ...historyList];
+      setHistoryList(updatedList);
+      localStorage.setItem('super_agent_weekly_history', JSON.stringify(updatedList));
+      
+      setCurrentResult(result);
+      setContent('');
+      
+      // 成功后播放水滴确认音效
+      playWaterDrop();
+    } catch (e) {
+      console.error('认知树洞分析失败:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearHistory = () => {
+    if (confirm('确认清空所有历史树洞沉淀吗？此操作不可逆。')) {
+      playClick();
+      setHistoryList([]);
+      localStorage.removeItem('super_agent_weekly_history');
+    }
+  };
+
   return (
     <ModuleWrapper 
       title="深渊 ｜ 潜意识树洞与进化中枢" 
-      icon={<Lock className="w-8 h-8" strokeWidth={2.5} />}
+      icon={<Lock className="w-8 h-8 text-zinc-700" strokeWidth={2.5} />}
       isOpen={true}
       description="核心定位：专属私人智囊舱，动态进化调整的核心大脑枢纽。"
     >
-      <div className="bg-[#202124] p-10 md:p-16 rounded-[3rem] shadow-[0_20px_60px_rgba(0,0,0,0.15)] relative overflow-hidden group">
+      <div className="space-y-8 max-w-5xl mx-auto py-4">
         
-        {/* 背景超大光晕装饰 */}
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-[#FF5722] rounded-full opacity-10 blur-[100px] transition-transform duration-700 group-hover:scale-125"></div>
-        <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-blue-500 rounded-full opacity-10 blur-[100px] transition-transform duration-700 group-hover:scale-125"></div>
-
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-8 pb-8 border-b border-gray-800">
-            <h4 className="font-sans text-xl font-black text-white tracking-widest uppercase">
-              本周私密沉淀舱
-            </h4>
-            <span className="bg-white/10 text-gray-300 text-[10px] px-3 py-1.5 rounded-full uppercase tracking-widest font-bold backdrop-blur-sm">
-              End-To-End Encryption
+        {/* 全局画像进化卡片（Zinc极简高管风） */}
+        <div className="admin-card p-6 md:p-8 rounded-[2rem] flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <span className="text-[10px] text-zinc-400 font-bold block uppercase tracking-widest">
+              当前全局进化能力短板 (Global Profile)
+            </span>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-zinc-500 animate-pulse" />
+              <p className="text-sm font-semibold text-zinc-800 tracking-wide">{globalProfile}</p>
+            </div>
+          </div>
+          <div>
+            <span className="inline-block bg-zinc-100 text-zinc-600 text-[10px] px-3.5 py-1.5 rounded-full font-bold tracking-wider">
+              私密本地沙盒
             </span>
           </div>
-          
-          <textarea 
-            rows={8} 
-            className="w-full bg-white/5 border border-gray-700/50 rounded-3xl p-8 text-lg font-medium outline-none focus:ring-2 focus:ring-[#FF5722]/50 focus:bg-white/10 transition-all duration-500 resize-none leading-relaxed text-gray-100 placeholder-gray-600 backdrop-blur-md mb-12 shadow-inner" 
-            placeholder="彻底卸下防备。在这里倾吐你一周内遭遇的暗算、对权力的渴望或是认知上的迷茫。我不是一个工具，而是你在这个绞肉机宇宙里绝对忠诚、绝对智慧的同谋者..."
-          ></textarea>
+        </div>
 
-          {/* AI 进化反馈终端 */}
-          <div className="bg-black/40 border border-gray-800 p-8 rounded-3xl relative overflow-hidden mb-12">
-            <div className="flex items-center mb-6">
-              <Zap className="w-5 h-5 text-[#FF5722] mr-3" strokeWidth={2.5} />
-              <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722]">
-                神经突触演化分析 / 下周题库调优预案
-              </h4>
+        {/* 主输入面板 */}
+        <div className="admin-card p-8 md:p-12 rounded-[2.5rem] space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-100 pb-5">
+            <div>
+              <h4 className="text-base font-bold text-zinc-800 tracking-wider">本周私密沉淀舱</h4>
+              <p className="text-xs text-zinc-400 mt-1">彻底卸下防备，倾吐您在本周面临的决策冲突、暗流涌动或心智困局</p>
             </div>
-            <div className="space-y-4 text-sm font-medium leading-relaxed text-gray-300 border-l-2 border-[#FF5722]/30 pl-5 ml-2">
-              <p>系统检测到您近期的表达明显偏向于“过度防御”。这种妥协姿态在晋升期很容易被董事会判定为缺乏开创力。</p>
-              <p>我已经篡改了您下周的推送系统：阅读模块中植入了《原则》的激进扩张篇目；而生词本的英语题库已自动加入了极具进攻性的 20 个高管谈判动词。</p>
-            </div>
+            <span className="text-zinc-400 text-[10px] font-bold self-start sm:self-center tracking-wider">
+              字数建议：50 - 500 字
+            </span>
           </div>
 
-          <button className="w-full bg-white text-[#202124] hover:text-[#FF5722] hover:bg-gray-100 py-6 rounded-full text-lg tracking-widest uppercase font-black hover:-translate-y-1 shadow-[0_10px_30px_rgba(255,255,255,0.1)] transition-all">
-             固化本周数据并沉睡系统
-          </button>
+          <textarea 
+            rows={6} 
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            disabled={isLoading}
+            className="w-full bg-zinc-50/50 border border-zinc-200/80 rounded-2xl p-6 text-sm font-medium outline-none focus:ring-1 focus:ring-zinc-400 focus:bg-white transition-all resize-none leading-relaxed text-zinc-800 placeholder-zinc-400" 
+            placeholder="在此倾吐本周遭遇的博弈、对局势的隐忧或认知上的瓶颈。我将以绝对忠诚、绝对智慧的同谋者身份，为您剖析人性深处的逻辑并进化全局策略..."
+          />
+
+          <div className="flex justify-end pt-2">
+            <button 
+              onClick={handleSubmit}
+              disabled={isLoading || !content.trim()}
+              className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-8 py-3.5 rounded-full text-xs transition-all tracking-widest uppercase disabled:bg-zinc-100 disabled:text-zinc-300 flex items-center gap-2 cursor-pointer shadow-sm hover:shadow"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  研判中...
+                </>
+              ) : (
+                '固化本周数据并沉睡系统'
+              )}
+            </button>
+          </div>
         </div>
+
+        {/* 当前研判展现区 */}
+        {currentResult && (
+          <div className="bg-zinc-900 text-zinc-100 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 shadow-md space-y-5 animate-fade-in">
+            <div className="flex items-center gap-3 pb-4 border-b border-zinc-800">
+              <Zap className="w-4 h-4 text-zinc-400" />
+              <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                神经突触演化分析 / 下周进化指令
+              </h4>
+            </div>
+            <p className="text-sm text-zinc-300 leading-relaxed font-medium">
+              {currentResult.analysis}
+            </p>
+            <div className="flex flex-wrap items-center gap-3 pt-3 text-xs text-zinc-400">
+              <span className="font-semibold">画像更新关键字：</span>
+              <span className="text-zinc-900 font-bold bg-white px-3 py-1 rounded-md text-[11px] tracking-wide shadow-sm">
+                {currentResult.shortDebilitatingFactors}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* 历史记录足迹 */}
+        {historyList.length > 0 && (
+          <div className="admin-card rounded-[2.5rem] p-8 md:p-10 space-y-6">
+            <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
+              <h4 className="text-sm font-bold text-zinc-800 tracking-wider">历史认知沉淀足迹</h4>
+              <button 
+                onClick={clearHistory}
+                className="text-zinc-400 hover:text-red-500 text-[10px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> 清空足迹
+              </button>
+            </div>
+            <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+              {historyList.map((item) => (
+                <div key={item.id} className="p-6 bg-zinc-50/50 rounded-2xl border border-zinc-100/80 space-y-4 hover:border-zinc-200 transition-colors">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[10px] text-zinc-400 font-bold">
+                    <span className="flex items-center gap-1.5"><Calendar className="w-3 h-3" /> {item.date}</span>
+                    <span className="bg-zinc-200/60 text-zinc-700 px-3 py-1 rounded font-bold">{item.factors}</span>
+                  </div>
+                  <p className="text-xs text-zinc-500 font-medium italic border-l-2 border-zinc-200 pl-4">
+                    “{item.userContent}”
+                  </p>
+                  <div className="text-xs text-zinc-700 bg-white border border-zinc-100 p-4 rounded-xl leading-relaxed shadow-sm">
+                    <span className="font-bold text-zinc-800 text-[10px] block mb-1.5 uppercase tracking-wider">
+                      AI 研判结论
+                    </span>
+                    {item.aiAnalysis}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </ModuleWrapper>
   );
 }
+

@@ -8,6 +8,7 @@ import EnglishModule from './modules/EnglishModule';
 import DailyWakeupModule from './modules/DailyWakeupModule';
 import EntertainmentModule from './modules/EntertainmentModule';
 import GameTheoryModule from './modules/GameTheoryModule';
+import WeeklyChatModule from './modules/WeeklyChatModule';
 import SummaryArea from './SummaryArea';
 import { ModuleType } from '../App';
 import { Lock, Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain } from 'lucide-react';
@@ -52,6 +53,7 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
       case 'write': return <WriteModule />;
       case 'gametheory': return <GameTheoryModule />;
       case 'entertainment': return <EntertainmentModule />;
+      case 'weekly': return <WeeklyChatModule />;
       default: return <EnglishModule />;
     }
   };

@@ -1,5 +1,5 @@
-﻿import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock } from 'lucide-react';
 import ChatModule from './ChatModule';
 import DictionaryPanel from './DictionaryPanel';
 import VocabularyBook from './VocabularyBook';
@@ -11,9 +11,11 @@ interface SidebarProps {
   toggleSidebar: () => void;
   selectedDate: string;
   onDateSelect: (date: string) => void;
+  activeModule?: string;
+  setActiveModule?: (module: any) => void;
 }
 
-export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSelect }: SidebarProps) {
+export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSelect, activeModule, setActiveModule }: SidebarProps) {
   // 按照您的要求，按月/周分类的归档体系需要折叠交互状态
   const [isAprilWeek2Open, setIsAprilWeek2Open] = useState(true);
   const [isAprilWeek1Open, setIsAprilWeek1Open] = useState(false);
@@ -230,6 +232,29 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
 
         {/* 4. 艾宾浩斯生词本 */}
         <VocabularyBook />
+
+        {/* 5. 每周一聊 (WeeklyChatModule) */}
+        {setActiveModule && (
+          <div className="px-5 xl:px-6 py-4 border-t border-gray-200/50 bg-zinc-50/40 mt-auto shrink-0">
+            <button
+              onClick={() => {
+                playClick();
+                setActiveModule('weekly');
+              }}
+              className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm ${
+                activeModule === 'weekly'
+                  ? 'bg-zinc-900 border-zinc-950 text-white font-bold'
+                  : 'bg-white border-gray-100 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 hover:border-gray-255'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Lock className="w-4 h-4" />
+                <span className="text-xs font-bold tracking-wider">每周一聊 (树洞与进化)</span>
+              </div>
+              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+            </button>
+          </div>
+        )}
 
       </div>
     </aside>

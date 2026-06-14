@@ -108,6 +108,8 @@ function AppContent() {
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
           selectedDate={selectedDate}
           onDateSelect={setSelectedDate}
+          activeModule={activeModule}
+          setActiveModule={setActiveModule}
         />
         <MainContent 
           selectedDate={selectedDate} 
