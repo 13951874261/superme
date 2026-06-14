@@ -17,6 +17,7 @@ import {
   playWaterDrop, playPageTurn, playGentleWarning
 } from '../../utils/soundEffects';
 import { motion, AnimatePresence } from 'motion/react';
+import UrlFetchPanel from '../UrlFetchPanel';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -76,6 +77,9 @@ export default function ReadModule() {
   // 核心状态
   const [activeTab, setActiveTab] = useState<CognitivePenetrationInput['scene_type']>('policy');
   const [sceneFramework, setSceneFramework] = useState<'social' | 'gov' | 'corp'>('gov');
+  const [showContextSheet, setShowContextSheet] = useState(false);
+  const [inputMode, setInputMode] = useState<'manual' | 'url' | 'file'>('manual');
+  const [isFetchLoading, setIsFetchLoading] = useState(false);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isPushLoading, setIsPushLoading] = useState(false);
@@ -121,6 +125,22 @@ export default function ReadModule() {
     localStorage.setItem('read_module_today_summary', JSON.stringify(summary));
   };
 
+  // 智能点击空白处关闭右侧 Drawer 的 handler
+  const handleOutsideClick = (e: React.MouseEvent) => {
+    if (!showContextSheet) return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return; // 方便划词翻译
+    }
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    if (!isInteractive) {
+      setShowContextSheet(false); // 收起右侧面板
+    }
+  };
+
   // 1. 动态生成并置入今日素材
   const handleLoadDailyPush = async () => {
     setIsPushLoading(true);
@@ -156,6 +176,7 @@ export default function ReadModule() {
     setReversalSubmitted(false);
     setChatMessages([]);
     setConversationId(null);
+    setShowContextSheet(true);
     playWaterDrop(); // 播放水滴音效
 
     try {
@@ -324,7 +345,7 @@ export default function ReadModule() {
           animate="visible"
           className="space-y-6"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Card 1 */}
             <motion.div 
               variants={cardVariants} 
@@ -414,7 +435,7 @@ export default function ReadModule() {
           animate="visible"
           className="space-y-6"
         >
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 gap-6">
             {/* Card 1 */}
             <motion.div 
               variants={cardVariants} 
@@ -446,7 +467,7 @@ export default function ReadModule() {
             {/* Card 3 - 爆点审计（微醺橙柔和渐变高亮） */}
             <motion.div 
               variants={cardVariants} 
-              className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 md:col-span-2 relative overflow-hidden"
+              className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
             >
               <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
@@ -463,7 +484,7 @@ export default function ReadModule() {
             {/* Card 4 - 行政深炭色高质感风险卡 */}
             <motion.div 
               variants={cardVariants} 
-              className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 md:col-span-2 text-white relative overflow-hidden"
+              className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
             >
               <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
@@ -502,7 +523,7 @@ export default function ReadModule() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          className="grid grid-cols-1 gap-6"
         >
           {/* Card 1 - 剥离客套（微醺橙柔和渐变高亮） */}
           <motion.div 
@@ -556,7 +577,7 @@ export default function ReadModule() {
           variants={containerVariants}
           initial="hidden"
           animate="visible"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          className="grid grid-cols-1 gap-6"
         >
           {/* Card 1 */}
           <motion.div 
@@ -612,347 +633,471 @@ export default function ReadModule() {
       icon={<BookOpen className="w-8 h-8" strokeWidth={2.5} />}
       description="核心定位：深度结构化阅读。将输入的信息转化为高阶判断力和决策力，融合政策敏感度与商业逻辑视角。"
     >
-      <div className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)]">
-        
-        {/* 顶部一排：场景大框架（通用社交、体制内职场、跨国企业） */}
-        <div className="mb-8">
-          <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-            <span>●</span> 场景框架 (Training Scenarios)
-          </label>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { id: 'gov', label: '体制内职场', icon: <Building className="w-4 h-4" /> },
-              { id: 'corp', label: '跨国企业', icon: <Globe className="w-4 h-4" /> },
-              { id: 'social', label: '通用社交', icon: <Compass className="w-4 h-4" /> },
-            ].map((framework) => {
-              const isActive = sceneFramework === framework.id;
-              return (
-                <button
-                  key={framework.id}
-                  onClick={() => {
-                    playPageTurn();
-                    setSceneFramework(framework.id as any);
-                  }}
-                  className={`relative flex items-center gap-2 px-5 py-3 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
-                    isActive
-                      ? 'text-white border-transparent'
-                      : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeFrameworkBg"
-                      className="absolute inset-0 bg-[#202124] rounded-full -z-10"
-                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                    />
-                  )}
-                  {framework.icon}
-                  <span className="relative z-10">{framework.label}</span>
-                </button>
-              );
-            })}
+      <div 
+        className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] relative flex flex-col lg:flex-row w-full gap-6 min-h-[80vh] lg:h-[80vh] overflow-hidden animate-[fadeIn_0.5s_ease-out]"
+        onClick={handleOutsideClick}
+      >
+        {/* 左侧 70% 工作区 */}
+        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-full overflow-y-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full'}`}>
+          {/* 顶部一排：场景大框架（通用社交、体制内职场、跨国企业） */}
+          <div className="mb-2">
+            <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+              <span>●</span> 场景框架 (Training Scenarios)
+            </label>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { id: 'gov', label: '体制内职场', icon: <Building className="w-4 h-4" /> },
+                { id: 'corp', label: '跨国企业', icon: <Globe className="w-4 h-4" /> },
+                { id: 'social', label: '通用社交', icon: <Compass className="w-4 h-4" /> },
+              ].map((framework) => {
+                const isActive = sceneFramework === framework.id;
+                return (
+                  <button
+                    key={framework.id}
+                    onClick={() => {
+                      playPageTurn();
+                      setSceneFramework(framework.id as any);
+                    }}
+                    className={`relative flex items-center gap-2 px-5 py-3 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
+                      isActive
+                        ? 'text-white border-transparent'
+                        : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeFrameworkBg"
+                        className="absolute inset-0 bg-[#202124] rounded-full -z-10"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    {framework.icon}
+                    <span className="relative z-10">{framework.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* 极简风导航 Tabs (政策精神, 财报研判, 外企邮件, 书目提纯) */}
-        <div className="mb-6">
-          <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-            <span>●</span> 训练板块 (Core Modules)
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {tabs.map(t => {
-              const isActive = activeTab === t.id;
-              return (
-                <button 
-                  key={t.id}
-                  onClick={() => {
-                    playPageTurn();
-                    setActiveTab(t.id);
-                    setResult(null);
-                    setErrorMsg('');
-                    setIsReversalTriggered(false);
-                    setUserReversalText('');
-                    setReversalSubmitted(false);
-                    setChatMessages([]);
-                  }}
-                  className={`relative flex items-center text-xs py-3 px-5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
-                    isActive 
-                      ? 'text-white border-transparent' 
-                      : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                  }`}
-                >
-                  {isActive && (
-                    <motion.div
-                      layoutId="activeTabBg"
-                      className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
-                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                    />
-                  )}
-                  {t.icon}
-                  <span className="relative z-10">{t.label}</span>
-                </button>
-              );
-            })}
+          {/* 极简风导航 Tabs (政策精神, 财报研判, 外企邮件, 书目提纯) */}
+          <div className="mb-2">
+            <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+              <span>●</span> 训练板块 (Core Modules)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {tabs.map(t => {
+                const isActive = activeTab === t.id;
+                return (
+                  <button 
+                    key={t.id}
+                    onClick={() => {
+                      playPageTurn();
+                      setActiveTab(t.id);
+                      setResult(null);
+                      setErrorMsg('');
+                      setIsReversalTriggered(false);
+                      setUserReversalText('');
+                      setReversalSubmitted(false);
+                      setChatMessages([]);
+                    }}
+                    className={`relative flex items-center text-xs py-3 px-5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                      isActive 
+                        ? 'text-white border-transparent' 
+                        : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeTabBg"
+                        className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    {t.icon}
+                    <span className="relative z-10">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* 原文喂入区 & 推送 */}
-        <div className="bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 p-6 mb-6 transition-all focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.08)] focus-within:border-[#FF5722]/30">
-          <div className="flex justify-between items-center mb-4">
-            <span className="text-xs font-bold text-gray-400 tracking-widest uppercase">
-              {activeTab === 'book' ? '日常阅读/感悟与思考自由键入' : '输入需要穿透的原始素材'}
-            </span>
-            {activeTab !== 'book' && (
-              <button 
-                onClick={handleLoadDailyPush}
-                disabled={isPushLoading || isLoading}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] tracking-widest uppercase border border-[#FF5722]/20 hover:border-[#FF5722] hover:bg-[#FF5722]/5 text-[#FF5722] transition-all relative overflow-hidden active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+          {/* 输入源切换 (Input Mode Switcher) */}
+          <div className="mb-2">
+            <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
+              <span>●</span> 选择输入模式 (Input Mode)
+            </label>
+            <div className="flex gap-2">
+              {[
+                { id: 'manual', label: '手动输入' },
+                { id: 'url', label: '网页抓取' },
+                { id: 'file', label: '导入文档' },
+              ].map((mode) => {
+                const isActive = inputMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => {
+                      playPageTurn();
+                      setInputMode(mode.id as any);
+                    }}
+                    className={`relative flex items-center text-xs py-2.5 px-5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                      isActive
+                        ? 'text-white border-transparent'
+                        : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                    }`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        layoutId="activeInputModeBg"
+                        className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
+                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                      />
+                    )}
+                    <span className="relative z-10">{mode.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 网页抓取面板 */}
+          {inputMode === 'url' && (
+            <div className="mb-2 p-5 bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 animate-[fadeIn_0.3s_ease-out]">
+              <UrlFetchPanel
+                onFetchSuccess={(virtualFile) => {
+                  setInputText(virtualFile.content);
+                  playUpload();
+                }}
+                isLoading={isFetchLoading}
+                setIsLoading={setIsFetchLoading}
+              />
+            </div>
+          )}
+
+          {inputMode === 'file' && (
+            <div className="mb-2 p-6 bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 text-center flex flex-col items-center justify-center gap-3 animate-[fadeIn_0.3s_ease-out]">
+              <input
+                type="file"
+                accept=".txt,.md"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      setInputText((event.target?.result as string) || '');
+                      playUpload();
+                    };
+                    reader.readAsText(file);
+                  }
+                }}
+                className="hidden"
+                id="read-file-upload"
+              />
+              <label
+                htmlFor="read-file-upload"
+                className="flex items-center justify-center px-6 py-3 rounded-2xl text-xs font-black tracking-widest uppercase border border-gray-250 bg-[#f8f9fa] text-gray-700 hover:border-[#FF5722] hover:text-[#FF5722] transition-all cursor-pointer shadow-sm active:scale-95"
               >
-                {isPushLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 animate-pulse" />}
-                每日 AI 素材推送
+                <FileText className="w-4 h-4 mr-2 text-blue-600" /> 选择本地文档 (.txt / .md)
+              </label>
+              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                支持 UTF-8 编码的 TXT 或 Markdown 格式文本文件
+              </div>
+            </div>
+          )}
+
+          {/* 原文喂入区 & 推送 */}
+          <div className="bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 p-6 mb-2 transition-all focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.08)] focus-within:border-[#FF5722]/30">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-xs font-bold text-gray-400 tracking-widest uppercase">
+                {activeTab === 'book' ? '日常阅读/感悟与思考自由键入' : '输入需要穿透的原始素材'}
+              </span>
+              {activeTab !== 'book' && (
+                <button 
+                  onClick={handleLoadDailyPush}
+                  disabled={isPushLoading || isLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] tracking-widest uppercase border border-[#FF5722]/20 hover:border-[#FF5722] hover:bg-[#FF5722]/5 text-[#FF5722] transition-all relative overflow-hidden active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {isPushLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 animate-pulse" />}
+                  每日 AI 素材推送
+                </button>
+              )}
+            </div>
+            <textarea 
+              rows={4} 
+              value={inputText}
+              onChange={(e) => setInputText(e.target.value)}
+              className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
+              placeholder={
+                activeTab === 'book'
+                  ? "在这里输入您对课外书的阅读感悟、精彩章节提纯或思维碎碎念，让 AI 深入为您挑刺漏洞、构建认知闭环..."
+                  : "粘贴冗杂的原文，或点击右上方“每日 AI 素材推送”由 AI 推送符合该场景下的训练素材..."
+              }
+            />
+          </div>
+
+          {/* 触发/解码按钮 */}
+          <div className="relative w-full mb-2">
+            {errorMsg && (
+              <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black tracking-wider shadow-lg z-10 flex items-center gap-2 animate-bounce">
+                <span>⚠️</span> {errorMsg}
+                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-red-500 rotate-45"></div>
+              </div>
+            )}
+
+            <button 
+              onClick={handlePenetrate}
+              disabled={!inputText.trim() || isLoading || isPushLoading}
+              className={`w-full text-xs py-4 rounded-full tracking-widest uppercase font-black transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-98
+                ${isShaking ? 'bg-red-500 text-white animate-[shake_0.4s_ease-in-out] shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'btn-primary hover:scale-[1.005]'}`}
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {isShaking ? '解码异常' : '启动 AI 穿透解码'}
+            </button>
+
+            {result && !showContextSheet && (
+              <button
+                onClick={() => { playClick(); setShowContextSheet(true); }}
+                className="mt-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 w-full py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+              >
+                <span>展开解读报告 (Expand Analysis Report)</span>
               </button>
             )}
           </div>
-          <textarea 
-            rows={5} 
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
-            placeholder={
-              activeTab === 'book'
-                ? "在这里输入您对课外书的阅读感悟、精彩章节提纯或思维碎碎念，让 AI 深入为您挑刺漏洞、构建认知闭环..."
-                : "粘贴冗杂的原文，或点击右上方“每日 AI 素材推送”由 AI 推送符合该场景下的训练素材..."
-            }
-          />
-        </div>
 
-        {/* 触发/解码按钮 */}
-        <div className="relative w-full mb-10">
-          {errorMsg && (
-            <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black tracking-wider shadow-lg z-10 flex items-center gap-2 animate-bounce">
-              <span>⚠️</span> {errorMsg}
-              <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-red-500 rotate-45"></div>
+          {/* 板块总复盘记录 (Daily summary dashboard) */}
+          <div className="mt-auto bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-6 text-white relative overflow-hidden shadow-lg">
+            <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none transform translate-y-1/4 translate-x-1/8">
+              <BookOpen className="w-64 h-64 text-white" />
             </div>
-          )}
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-4 mb-4 gap-4">
+              <div>
+                <h5 className="text-xs font-black tracking-widest uppercase text-gray-400 mb-1">【穿透读】 板块总复盘舱</h5>
+                <p className="text-[10px] text-gray-500 font-bold">由 AI 高管教练对您每日深度吸收质量进行的量化看板</p>
+              </div>
+              
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">今日吸收素材</span>
+                  <span className="text-xl font-black text-[#FF5722]">{todaySummary.absorbedCount}</span>
+                </div>
+                <div className="text-center border-l border-white/10 pl-6">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">日均思考得分</span>
+                  <span className="text-xl font-black text-emerald-400">{todaySummary.averageScore || '-.-'}</span>
+                </div>
+              </div>
+            </div>
 
-          <button 
-            onClick={handlePenetrate}
-            disabled={!inputText.trim() || isLoading || isPushLoading}
-            className={`w-full text-xs py-4 rounded-full tracking-widest uppercase font-black transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-98
-              ${isShaking ? 'bg-red-500 text-white animate-[shake_0.4s_ease-in-out] shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'btn-primary hover:scale-[1.005]'}`}
-          >
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-            {isShaking ? '解码异常' : '启动 AI 穿透解码'}
-          </button>
-        </div>
-        
-        {/* 多维因果降维输出框 */}
-        <div className="mb-10">
-          <h4 className="text-lg font-black text-[#202124] mb-6 flex items-center gap-3">
-            <span>多维因果拆解</span> 
-            <span className="text-[10px] bg-[#FF5722]/10 text-[#FF5722] px-3 py-1 rounded-full uppercase tracking-widest font-black">Mandatory Output</span>
-          </h4>
-          {renderResultGrid()}
+            <div>
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+                <RefreshCw className="w-3.5 h-3.5 text-[#FF5722] animate-spin" /> 明日核心训练重点
+              </span>
+              <div className="bg-white/5 rounded-2xl p-3 border border-white/5 flex items-start gap-2">
+                <ChevronRight className="w-3.5 h-3.5 text-[#FF5722] shrink-0 mt-0.5" />
+                <p className="text-[11px] text-gray-300 font-semibold leading-relaxed">{todaySummary.lastFocus}</p>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* 进阶专项二：立场反转练习 */}
+        {/* 右侧 30% Context Sheet */}
         <AnimatePresence>
-          {result && isReversalTriggered && (
+          {showContextSheet && (
             <motion.div
-              initial={{ opacity: 0, height: 0, scale: 0.98 }}
-              animate={{ opacity: 1, height: 'auto', scale: 1 }}
-              exit={{ opacity: 0, height: 0, scale: 0.98 }}
-              transition={{ type: 'spring' as const, stiffness: 220, damping: 26 }}
-              className="mb-10 bg-[#fffdfa] rounded-3xl p-6 border border-amber-500/20 shadow-[0_0_25px_rgba(245,158,11,0.08)] relative overflow-hidden focus-within:shadow-[0_0_35px_rgba(245,158,11,0.12)] focus-within:border-amber-500/40 transition-all duration-500"
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-full lg:w-[30%] bg-zinc-50 border-l border-zinc-200 h-full p-5 overflow-y-auto shrink-0 relative shadow-2xl z-50 flex flex-col gap-4"
+              onClick={(e) => e.stopPropagation()}
             >
-              {/* Amber alarm pulse border */}
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/80 via-orange-500/80 to-amber-500/80 animate-pulse" />
-              <div className="flex items-center gap-2 mb-4">
-                <span className="flex h-2.5 w-2.5 relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-600"></span>
+              {/* 关闭头部栏 */}
+              <div className="flex justify-between items-center border-b border-zinc-200/60 pb-3 mb-2">
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                  AI 穿透解码报告
                 </span>
-                <span className="text-xs text-amber-700 font-black tracking-widest uppercase">专项二：立场反转挑战激活 (Stance Reversal Task)</span>
+                <button 
+                  onClick={() => { playPageTurn(); setShowContextSheet(false); }} 
+                  className="text-xs font-bold text-slate-400 hover:text-slate-800 transition-colors p-1"
+                >
+                  关闭
+                </button>
               </div>
-              
-              <p className="text-xs md:text-sm font-black text-gray-800 mb-4 leading-relaxed">{reversalPrompt}</p>
-              
-              <textarea
-                rows={3}
-                value={userReversalText}
-                onChange={(e) => setUserReversalText(e.target.value)}
-                disabled={reversalSubmitted || isReversalLoading}
-                className="w-full bg-slate-50/50 border border-gray-200/80 rounded-2xl p-4 text-xs md:text-sm outline-none resize-none leading-relaxed text-gray-800 placeholder-gray-400 font-semibold focus:border-amber-500/40 focus:bg-white transition-all disabled:opacity-80"
-                placeholder="请在这里输入您的反向解读与利益博弈思考..."
-              />
 
-              <div className="mt-4 flex justify-end">
-                {!reversalSubmitted ? (
-                  <button
-                    onClick={handleSubmitReversal}
-                    disabled={!userReversalText.trim() || isReversalLoading}
-                    className="flex items-center gap-1.5 px-6 py-2.5 rounded-full text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-sm hover:shadow active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
-                  >
-                    {isReversalLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                    提交反向决策思考
-                  </button>
-                ) : (
-                  <div className="w-full bg-amber-50/30 rounded-2xl p-4 border border-amber-100/50 mt-2 animate-[smoothAppear_0.4s_ease-out]">
-                    <span className="text-[10px] font-black text-amber-700 block mb-2 uppercase tracking-wider">● 针对性审计反馈 (思维漏洞戳穿)</span>
-                    <p className="text-xs text-amber-900 font-semibold leading-relaxed whitespace-pre-wrap">{reversalFeedback}</p>
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-[#FF5722] bg-white rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden animate-pulse">
+                  <Loader2 className="w-10 h-10 animate-spin mb-3" />
+                  <p className="font-black tracking-widest uppercase text-[10px] text-gray-400 text-center px-4">
+                    Cognitive Penetration & Structuralizing...
+                  </p>
+                </div>
+              ) : result ? (
+                <div className="space-y-6 animate-[fadeIn_0.4s_ease-out]">
+                  {/* 多维因果拆解 */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-1.5">
+                      <span>●</span> 多维因果拆解
+                    </h4>
+                    {renderResultGrid()}
                   </div>
-                )}
-              </div>
+
+                  {/* 进阶专项二：立场反转练习 */}
+                  {isReversalTriggered && (
+                    <div className="bg-[#fffdfa] rounded-3xl p-5 border border-amber-500/20 shadow-[0_0_25px_rgba(245,158,11,0.08)] relative overflow-hidden focus-within:shadow-[0_0_35px_rgba(245,158,11,0.12)] focus-within:border-amber-500/40 transition-all duration-500">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/80 via-orange-500/80 to-amber-500/80 animate-pulse" />
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                        </span>
+                        <span className="text-[10px] text-amber-700 font-black tracking-widest uppercase">专项二：立场反转挑战</span>
+                      </div>
+                      
+                      <p className="text-xs font-black text-gray-800 mb-3 leading-relaxed">{reversalPrompt}</p>
+                      
+                      <textarea
+                        rows={3}
+                        value={userReversalText}
+                        onChange={(e) => setUserReversalText(e.target.value)}
+                        disabled={reversalSubmitted || isReversalLoading}
+                        className="w-full bg-slate-50/50 border border-gray-200/80 rounded-2xl p-3 text-xs outline-none resize-none leading-relaxed text-gray-800 placeholder-gray-400 font-semibold focus:border-amber-500/40 focus:bg-white transition-all disabled:opacity-80"
+                        placeholder="输入您的反向解读与利益博弈思考..."
+                      />
+
+                      <div className="mt-3 flex justify-end">
+                        {!reversalSubmitted ? (
+                          <button
+                            onClick={handleSubmitReversal}
+                            disabled={!userReversalText.trim() || isReversalLoading}
+                            className="flex items-center gap-1 px-4 py-2 rounded-full text-[10px] font-black bg-amber-600 hover:bg-amber-700 text-white shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            {isReversalLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            提交反向思考
+                          </button>
+                        ) : (
+                          <div className="w-full bg-amber-50/30 rounded-2xl p-3 border border-amber-100/50 mt-2">
+                            <span className="text-[9px] font-black text-amber-700 block mb-1 uppercase tracking-wider">● 针对性审计反馈</span>
+                            <p className="text-[11px] text-amber-900 font-semibold leading-relaxed whitespace-pre-wrap">{reversalFeedback}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI 多维评分与专属 AI 交互舱 */}
+                  {aiScore !== null && (
+                    <div className="bg-white rounded-[2rem] p-5 border border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] flex flex-col gap-5">
+                      {/* 评分仪表盘 */}
+                      <div className="flex flex-col items-center justify-center pb-4 border-b border-gray-100">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">吸收深度评分</span>
+                        <div className="relative flex items-center justify-center w-24 h-24">
+                          <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="48" cy="48" r="40" stroke="#f0f0f0" strokeWidth="6" fill="transparent" />
+                            <circle 
+                              cx="48" cy="48" r="40" 
+                              stroke="#FF5722" strokeWidth="6" fill="transparent" 
+                              strokeDasharray={251.2} 
+                              strokeDashoffset={251.2 - (251.2 * aiScore) / 10} 
+                              strokeLinecap="round"
+                              className="transition-all duration-1000 ease-out"
+                            />
+                          </svg>
+                          <div className="absolute flex flex-col items-center justify-center">
+                            <AnimatedScore score={aiScore} />
+                            <span className="text-[8px] font-bold text-gray-400">/ 10.0</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 评价及 Chat */}
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <span className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider block mb-1 flex items-center gap-1">
+                            <Award className="w-3.5 h-3.5" /> 穿透导师评价
+                          </span>
+                          <p className="text-[11px] text-gray-600 font-bold leading-relaxed whitespace-pre-wrap">{aiInsightDetails}</p>
+                        </div>
+
+                        {/* 交互 Chat */}
+                        <div className="border-t border-gray-100 pt-3">
+                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2 flex items-center gap-1">
+                            <MessageSquare className="w-3 h-3" /> AI 深度追问舱
+                          </span>
+                          
+                          {chatMessages.length > 0 && (
+                            <div className="max-h-40 overflow-y-auto mb-2 space-y-2 pr-1 custom-scrollbar">
+                              {chatMessages.map((msg, i) => (
+                                <div 
+                                  key={i} 
+                                  className={`flex flex-col max-w-[90%] rounded-2xl p-2.5 text-[11px] leading-relaxed font-semibold transition-all ${
+                                    msg.role === 'user' 
+                                      ? 'bg-[#FF5722]/10 text-[#FF5722] ml-auto rounded-tr-none' 
+                                      : 'bg-gray-100 text-[#202124] rounded-tl-none border border-gray-200/50'
+                                  }`}
+                                >
+                                  <span className="text-[8px] font-black opacity-40 mb-0.5">{msg.role === 'user' ? 'ME' : 'AI COACH'}</span>
+                                  <p className="whitespace-pre-wrap">{msg.text}</p>
+                                </div>
+                              ))}
+                              {isChatLoading && (
+                                <div className="bg-gray-50 text-gray-400 rounded-2xl rounded-tl-none p-2.5 text-[11px] font-semibold w-max flex items-center gap-1 border border-gray-100 animate-pulse">
+                                  <Loader2 className="w-3 h-3 animate-spin" /> 深度剖析中...
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {chatMessages.length === 0 && (
+                            <div className="flex flex-col gap-1.5 mb-2">
+                              {[
+                                '追问这一政策出台后的真实利益博弈细节',
+                                '帮我指出我可能存在的解读误区'
+                              ].map((pill, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    setUserQuery(pill);
+                                    playClick();
+                                  }}
+                                  className="text-[9px] text-left font-bold px-2.5 py-1 rounded-lg bg-[#f8f9fa] border border-gray-200 text-gray-500 hover:text-[#FF5722] hover:border-[#FF5722]/30 hover:bg-[#FF5722]/5 transition-all cursor-pointer"
+                                >
+                                  {pill}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-1.5 bg-[#f8f9fa] rounded-xl p-1 border border-gray-200/60 focus-within:border-[#FF5722]/30 transition-all">
+                            <input 
+                              type="text" 
+                              value={userQuery}
+                              onChange={(e) => setUserQuery(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                              disabled={isChatLoading}
+                              className="flex-1 bg-transparent px-2 text-[11px] outline-none font-semibold text-[#202124] placeholder-gray-300"
+                              placeholder="进一步追问或剖析漏洞..."
+                            />
+                            <button
+                              onClick={handleSendChat}
+                              disabled={!userQuery.trim() || isChatLoading}
+                              className="p-2 rounded-lg bg-[#202124] hover:bg-[#FF5722] text-white transition-all duration-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                            >
+                              <Send className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-16 text-slate-400 font-semibold bg-white rounded-3xl border border-slate-100">
+                  暂无报告，请在左侧输入并启动解码
+                </div>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* AI 多维深度反馈面板 (评分和评价舱) */}
-        {result && aiScore !== null && (
-          <div className="mb-10 bg-white rounded-[2rem] p-6 md:p-8 border border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] grid grid-cols-1 lg:grid-cols-4 gap-6 items-center">
-            {/* 评分仪表盘 */}
-            <div className="flex flex-col items-center justify-center p-4 border-b lg:border-b-0 lg:border-r border-gray-100">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">本次吸收深度评分</span>
-              <div className="relative flex items-center justify-center w-28 h-28">
-                {/* SVG Ring */}
-                <svg className="w-full h-full transform -rotate-90">
-                  <circle cx="56" cy="56" r="48" stroke="#f0f0f0" strokeWidth="8" fill="transparent" />
-                  <circle 
-                    cx="56" cy="56" r="48" 
-                    stroke="#FF5722" strokeWidth="8" fill="transparent" 
-                    strokeDasharray={301.6} 
-                    strokeDashoffset={301.6 - (301.6 * aiScore) / 10} 
-                    strokeLinecap="round"
-                    className="transition-all duration-1000 ease-out"
-                  />
-                </svg>
-                <div className="absolute flex flex-col items-center justify-center">
-                  <AnimatedScore score={aiScore} />
-                  <span className="text-[9px] font-bold text-gray-400">Score / 10.0</span>
-                </div>
-              </div>
-            </div>
-
-            {/* AI 深度教练建议 & 追问交互舱 */}
-            <div className="lg:col-span-3 flex flex-col h-full justify-between">
-              <div>
-                <span className="text-xs font-black text-[#FF5722] uppercase tracking-wider block mb-2 flex items-center gap-1.5">
-                  <Award className="w-4 h-4" /> AI 穿透导师评价
-                </span>
-                <p className="text-xs md:text-sm text-gray-600 font-bold leading-relaxed whitespace-pre-wrap mb-4">{aiInsightDetails}</p>
-              </div>
-
-              {/* 专属 AI 交互舱 (Chatbot Interface) */}
-              <div className="border-t border-gray-100 pt-4 mt-auto">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-3 flex items-center gap-1">
-                  <MessageSquare className="w-3.5 h-3.5" /> 专属 AI 深度追问舱 (Interactive Chat)
-                </span>
-                
-                {/* 消息历史 */}
-                {chatMessages.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto mb-3 space-y-3 pr-2 custom-scrollbar">
-                    {chatMessages.map((msg, i) => (
-                      <div 
-                        key={i} 
-                        className={`flex flex-col max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed font-semibold transition-all ${
-                          msg.role === 'user' 
-                            ? 'bg-[#FF5722]/10 text-[#FF5722] ml-auto rounded-tr-none' 
-                            : 'bg-gray-100 text-[#202124] rounded-tl-none border border-gray-200/50'
-                        }`}
-                      >
-                        <span className="text-[9px] font-black opacity-40 mb-1">{msg.role === 'user' ? 'ME' : 'AI COACH'}</span>
-                        <p className="whitespace-pre-wrap">{msg.text}</p>
-                      </div>
-                    ))}
-                    {isChatLoading && (
-                      <div className="bg-gray-50 text-gray-400 rounded-2xl rounded-tl-none p-3 text-xs font-semibold w-max flex items-center gap-1.5 border border-gray-100 animate-pulse">
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> 教练正在深度剖析...
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* 快捷 Prompt 药丸 (Micro-Interactions) */}
-                {chatMessages.length === 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {[
-                      '追问这一政策出台后的真实利益博弈细节',
-                      '帮我指出我可能存在的解读误区',
-                      '提供该场景下的经典高管应对案例',
-                      '请提供针对此处破绽的反击话术'
-                    ].map((pill, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          setUserQuery(pill);
-                          playClick();
-                        }}
-                        className="text-[10px] font-bold px-3 py-1.5 rounded-full bg-[#f8f9fa] border border-gray-200 text-gray-500 hover:text-[#FF5722] hover:border-[#FF5722]/30 hover:bg-[#FF5722]/5 transition-all cursor-pointer"
-                      >
-                        {pill}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center gap-2 bg-[#f8f9fa] rounded-2xl p-1.5 border border-gray-200/60 focus-within:border-[#FF5722]/30 transition-all">
-                  <input 
-                    type="text" 
-                    value={userQuery}
-                    onChange={(e) => setUserQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                    disabled={isChatLoading}
-                    className="flex-1 bg-transparent px-3 text-xs outline-none font-semibold text-[#202124] placeholder-gray-300"
-                    placeholder="进一步追问或剖析自身思考漏洞..."
-                  />
-                  <button
-                    onClick={handleSendChat}
-                    disabled={!userQuery.trim() || isChatLoading}
-                    className="p-2.5 rounded-xl bg-[#202124] hover:bg-[#FF5722] text-white transition-all duration-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                  >
-                    <Send className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 板块总复盘记录 (Daily summary dashboard) */}
-        <div className="mt-8 bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-6 md:p-8 text-white relative overflow-hidden shadow-lg">
-          <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none transform translate-y-1/4 translate-x-1/8">
-            <BookOpen className="w-64 h-64 text-white" />
-          </div>
-          
-          <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-4 mb-4 gap-4">
-            <div>
-              <h5 className="text-sm font-black tracking-widest uppercase text-gray-400 mb-1">【穿透读】 板块总复盘舱</h5>
-              <p className="text-xs text-gray-500 font-bold">由 AI 高管教练对您每日深度吸收质量进行的量化看板</p>
-            </div>
-            
-            <div className="flex items-center gap-6">
-              <div className="text-center">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">今日吸收素材</span>
-                <span className="text-2xl font-black text-[#FF5722]">{todaySummary.absorbedCount}</span>
-              </div>
-              <div className="text-center border-l border-white/10 pl-6">
-                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">日均思考得分</span>
-                <span className="text-2xl font-black text-emerald-400">{todaySummary.averageScore || '-.-'}</span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
-              <RefreshCw className="w-3.5 h-3.5 text-[#FF5722] animate-spin" /> 明日核心训练重点
-            </span>
-            <div className="bg-white/5 rounded-2xl p-4 border border-white/5 flex items-start gap-3">
-              <ChevronRight className="w-4 h-4 text-[#FF5722] shrink-0 mt-0.5" />
-              <p className="text-xs text-gray-300 font-semibold leading-relaxed">{todaySummary.lastFocus}</p>
-            </div>
-          </div>
-        </div>
-
       </div>
     </ModuleWrapper>
   );
