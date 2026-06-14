@@ -120,6 +120,42 @@ export default function WriteTab() {
   const [showConfetti, setShowConfetti] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // 控制论锁定与右侧面板展示状态
+  const [isCyberLocked, setIsCyberLocked] = useState(false);
+  const [showContextSheet, setShowContextSheet] = useState(false);
+
+  // 同步锁定与面板状态
+  useEffect(() => {
+    if (reviewResult) {
+      const score = deriveL3MasteryScore(reviewResult);
+      setIsCyberLocked(score < 8);
+      setShowContextSheet(true);
+    } else {
+      setIsCyberLocked(false);
+      setShowContextSheet(false);
+    }
+  }, [reviewResult]);
+
+  // 智能空白处点击判定逻辑
+  const handleOutsideClick = (e: React.MouseEvent) => {
+    if (!showContextSheet) return;
+    
+    // 如果存在选中的文本，不收起面板（方便划词）
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
+    }
+
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    
+    if (!isInteractive) {
+      setShowContextSheet(false);
+    }
+  };
+
   // 监听主题切换，清空当前输入
   useEffect(() => {
     setChallengeText('');
@@ -300,262 +336,316 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
+      <div className="relative flex h-[80vh] overflow-hidden w-full gap-6" onClick={handleOutsideClick}>
         <AnimatePresence>
           {inlineNotice && noticeAnchor === 'review' && (
             <motion.div
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className={`absolute left-1/2 -translate-x-1/2 -top-3 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-md border transition-all duration-350 ${inlineNotice.tone === 'success' ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : inlineNotice.tone === 'error' ? 'bg-red-950 text-red-200 border-red-900' : 'bg-zinc-800 text-white border-zinc-700'}`}
+              className={`absolute left-1/2 -translate-x-1/2 -top-3 z-30 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-md border transition-all duration-350 ${inlineNotice.tone === 'success' ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : inlineNotice.tone === 'error' ? 'bg-red-950 text-red-200 border-red-900' : 'bg-zinc-800 text-white border-zinc-700'}`}
             >
               {inlineNotice.text}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* 1. 左栏：规范与对标区 */}
-        <div className="lg:col-span-3 flex flex-col gap-5 h-[80vh] overflow-y-auto pr-1">
-          {/* 对标文本上传/输入区 */}
-          <div className="bg-zinc-50 border border-zinc-200/80 rounded-[2rem] p-5 shadow-sm flex flex-col gap-4">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-750 border-b border-zinc-200 pb-2 flex items-center gap-1.5">
-              <BookOpen className="w-3.5 h-3.5" /> 对标优秀文本
-            </h4>
-            <p className="text-[10px] text-zinc-455 leading-normal">
-              粘贴或上传您认同的体制公文、大厂高管或外企信函文本。AI 将评估您的草稿与其在笔法与格局上的落差。
-            </p>
-            <div className="relative">
-              <textarea
-                value={benchmarkText}
-                onChange={(e) => handleBenchmarkChange(e.target.value)}
-                placeholder="在此粘贴您的对标样本段落..."
-                className="w-full h-32 bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-700 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner resize-none leading-relaxed"
+        {/* 左侧工作区：当右侧面板打开时占 70% 宽度，否则占 100% 宽度 */}
+        <div className={`transition-all duration-500 ease-in-out flex gap-6 h-full ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
+          {/* 1. 左栏：规范与对标区 */}
+          <div className="w-[30%] min-w-[260px] flex flex-col gap-5 h-full overflow-y-auto pr-1 shrink-0">
+            {/* 对标文本上传/输入区 */}
+            <div className="bg-zinc-50 border border-zinc-200/80 rounded-[2rem] p-5 shadow-sm flex flex-col gap-4">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5" /> 对标优秀文本
+              </h4>
+              <p className="text-[10px] text-zinc-455 leading-normal">
+                粘贴或上传您认同的体制公文、大厂高管或外企信函文本。AI 将评估您的草稿与其在笔法与格局上的落差。
+              </p>
+              <div className="relative">
+                <textarea
+                  value={benchmarkText}
+                  onChange={(e) => handleBenchmarkChange(e.target.value)}
+                  placeholder="在此粘贴您的对标样本段落..."
+                  className="w-full h-32 bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-700 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner resize-none leading-relaxed"
+                />
+                {benchmarkText && (
+                  <button
+                    onClick={clearBenchmark}
+                    className="absolute bottom-2.5 right-2.5 p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-500 rounded-lg hover:text-red-650 transition-all cursor-pointer border border-zinc-200"
+                    title="清空对标文本"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              
+              <label className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-dashed border border-zinc-300 hover:border-zinc-500 text-[10px] font-bold text-zinc-650 hover:bg-white transition-all cursor-pointer shadow-sm">
+                <Upload className="w-3.5 h-3.5" />
+                <span>导入对标文档 (.txt)</span>
+                <input type="file" accept=".txt" onChange={handleFileUpload} className="hidden" />
+              </label>
+            </div>
+
+            {/* 行文规范指南 */}
+            <div className="bg-white border border-zinc-150 rounded-[2rem] p-5 shadow-sm flex-1 flex flex-col min-h-[250px]">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-100 pb-2">
+                Writing SOP // 行文战术锦囊
+              </h4>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2">
+                <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
+                  <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">1. 破冰与站位 (Opening Position)</h5>
+                  <p className="text-[10px] text-zinc-505 leading-normal">起手直奔主题，避免琐碎客套。应以：“本提案旨在回应双方对于...”或“针对近期政策变动，我们建议...”切入。</p>
+                </div>
+                <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
+                  <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">2. 分寸与抗压 (Assertive Tone)</h5>
+                  <p className="text-[10px] text-zinc-505 leading-normal">在委婉拒绝或施压时，多使用中性的被动语态及情态动词淡化主观性。例如：“考虑到目前的政策契合度，该方案暂难直接推进。”</p>
+                </div>
+                <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
+                  <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">3. 字数挑战法则 (Concise Writing)</h5>
+                  <p className="text-[10px] text-zinc-505 leading-normal">高管阅读极度推崇“结论先行”。将次要叙述性信息极度压缩，仅保留“现状-诊断-建议方案”核心脉络。</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. 中栏：纵深批阅与训练区 */}
+          <div className="flex-1 bg-white rounded-[2rem] p-6 border border-zinc-150 shadow-md flex flex-col h-full min-w-0">
+            {/* 五大模块切换 TAB */}
+            <div className="grid grid-cols-5 bg-zinc-100 p-1.5 rounded-2xl mb-4 shrink-0 shadow-inner">
+              {WRITE_MODULES.map((mod) => {
+                const isActive = activeModule === mod.id;
+                const isLocked = isCyberLocked && !isActive;
+                return (
+                  <button
+                    key={mod.id}
+                    disabled={isLocked}
+                    onClick={() => {
+                      if (isLocked) {
+                        playError();
+                        return;
+                      }
+                      playClick();
+                      setActiveModule(mod.id);
+                    }}
+                    className={`py-2 px-1 text-[10px] font-black tracking-wider text-center rounded-xl transition-all ${
+                      isLocked
+                        ? 'text-zinc-400 opacity-60 cursor-not-allowed'
+                        : isActive
+                          ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200 cursor-pointer'
+                          : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50/50 cursor-pointer'
+                    }`}
+                  >
+                    {isLocked ? `🔒 ${mod.label.replace('写作', '')}` : mod.label.replace('写作', '')}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 模块描述信息 */}
+            <div className="mb-4 shrink-0 flex items-center justify-between border-b border-zinc-100 pb-2">
+              <div>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">当前维度：</span>
+                <span className="text-xs font-bold text-zinc-700">{WRITE_MODULES.find(m => m.id === activeModule)?.desc}</span>
+              </div>
+              <button
+                onClick={() => { playClick(); generateChallenge(); }}
+                disabled={isGeneratingChallenge}
+                className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-zinc-900 hover:bg-zinc-800 text-white transition-all shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {isGeneratingChallenge ? '正在生成...' : '获取AI挑战任务'}
+              </button>
+            </div>
+
+            {/* 任务卡展示：仅在有挑战任务时显示 */}
+            {challengeText && (
+              <div className="bg-zinc-900 text-zinc-300 rounded-xl mb-4 border border-zinc-800 overflow-hidden shrink-0 shadow-inner">
+                <div className="p-4 max-h-[120px] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-1.5 border-b border-zinc-800 pb-1.5">
+                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
+                      <Layers className="w-3 h-3" /> 突发刁钻场景任务
+                    </span>
+                    <button
+                      onClick={() => { playClick(); setChallengeText(''); }}
+                      className="text-[9px] font-black text-zinc-500 hover:text-zinc-300 cursor-pointer uppercase tracking-widest transition-colors"
+                    >
+                      重置
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium leading-relaxed text-zinc-350">{challengeText}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 字数极限挑战维度独占的配置栏 */}
+            {activeModule === 'limit_challenge' && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-zinc-50 border border-zinc-200/70 rounded-xl shrink-0">
+                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">字数规则：</span>
+                <div className="flex items-center gap-2 flex-1">
+                  {([
+                    { id: 'compress_50', label: '压缩至50字' },
+                    { id: 'compress_100', label: '压缩至100字' },
+                    { id: 'compress_200', label: '压缩至200字' },
+                    { id: 'expand', label: '论点充分展开' }
+                  ] as const).map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => { playClick(); setLimitChallengeType(type.id); }}
+                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-all border cursor-pointer ${limitChallengeType === type.id ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'}`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 意图输入 */}
+            <div className="mb-3 shrink-0">
+              <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">写作意图与指示 / Core Intent</label>
+              <input
+                type="text"
+                value={writeIntent}
+                onChange={(e) => setWriteIntent(e.target.value)}
+                placeholder="明确您的写作意图（如：委婉拒绝、极限向上请示、对齐上级某政策等）"
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs text-zinc-800 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner"
               />
-              {benchmarkText && (
+            </div>
+
+            <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2.5 shrink-0 flex items-center gap-1">
+              Drafting Zone // 决策起草区
+            </h4>
+
+            {/* 文本草稿起草区 */}
+            <textarea
+              ref={textareaRef}
+              value={writingText}
+              onChange={(e) => setWritingText(e.target.value)}
+              className={`w-full bg-zinc-50 border rounded-2xl px-5 py-4 text-xs text-zinc-800 outline-none resize-none leading-relaxed flex-1 shadow-inner placeholder-zinc-300 min-h-0 transition-all duration-300 ${
+                isCyberLocked
+                  ? 'border-red-500 focus:border-red-650 shadow-[0_0_10px_rgba(239,68,68,0.15)] ring-1 ring-red-500/20'
+                  : 'border-zinc-200 focus:border-zinc-400'
+              }`}
+              placeholder={WRITE_MODULES.find(m => m.id === activeModule)?.placeholder}
+              style={{ height: 'calc(100% - 150px)' }}
+            />
+
+            {isCyberLocked && (
+              <div className="mt-3 p-3.5 bg-red-50 border border-red-200/80 rounded-xl text-red-700 text-xs font-bold animate-pulse flex items-center gap-2">
+                <span className="text-sm">🔒</span>
+                <div>
+                  表达逻辑得分 {deriveL3MasteryScore(reviewResult)} 未达标（要求 8 分）。已锁定当前模块，请根据右侧建议修改草稿，或在右侧点击“一键采纳”AI重构方案后重新提交。
+                </div>
+              </div>
+            )}
+
+            {/* 审阅触发按钮 */}
+            <div className="mt-4 shrink-0 flex flex-col gap-2">
+              <button
+                onClick={() => { playClick(); handleReview(); }}
+                disabled={isReviewing || !writingText}
+                className="bg-zinc-900 text-white w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-zinc-950 transition-colors disabled:opacity-50 shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isReviewing ? (
+                  <>
+                    <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+                    <span>AI 正在审阅与风格对标中...</span>
+                  </>
+                ) : (
+                  '提交三维战略审阅 (Submit Strategy Review)'
+                )}
+              </button>
+
+              {reviewResult && !showContextSheet && (
                 <button
-                  onClick={clearBenchmark}
-                  className="absolute bottom-2.5 right-2.5 p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-500 rounded-lg hover:text-red-650 transition-all cursor-pointer border border-zinc-200"
-                  title="清空对标文本"
+                  onClick={() => { playClick(); setShowContextSheet(true); }}
+                  className="bg-zinc-100 hover:bg-zinc-200 border border-zinc-300 text-zinc-800 w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>展开审阅报告 (Expand Review Report)</span>
                 </button>
               )}
             </div>
-            
-            <label className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-dashed border border-zinc-300 hover:border-zinc-500 text-[10px] font-bold text-zinc-650 hover:bg-white transition-all cursor-pointer shadow-sm">
-              <Upload className="w-3.5 h-3.5" />
-              <span>导入对标文档 (.txt)</span>
-              <input type="file" accept=".txt" onChange={handleFileUpload} className="hidden" />
-            </label>
-          </div>
-
-          {/* 行文规范指南 */}
-          <div className="bg-white border border-zinc-150 rounded-[2rem] p-5 shadow-sm flex-1 flex flex-col min-h-[250px]">
-            <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-100 pb-2">
-              Writing SOP // 行文战术锦囊
-            </h4>
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2">
-              <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
-                <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">1. 破冰与站位 (Opening Position)</h5>
-                <p className="text-[10px] text-zinc-505 leading-normal">起手直奔主题，避免琐碎客套。应以：“本提案旨在回应双方对于...”或“针对近期政策变动，我们建议...”切入。</p>
-              </div>
-              <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
-                <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">2. 分寸与抗压 (Assertive Tone)</h5>
-                <p className="text-[10px] text-zinc-505 leading-normal">在委婉拒绝或施压时，多使用中性的被动语态及情态动词淡化主观性。例如：“考虑到目前的政策契合度，该方案暂难直接推进。”</p>
-              </div>
-              <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
-                <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">3. 字数挑战法则 (Concise Writing)</h5>
-                <p className="text-[10px] text-zinc-505 leading-normal">高管阅读极度推崇“结论先行”。将次要叙述性信息极度压缩，仅保留“现状-诊断-建议方案”核心脉络。</p>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* 2. 中栏：纵深批阅与训练区 */}
-        <div className="lg:col-span-6 bg-white rounded-[2rem] p-6 border border-zinc-150 shadow-md flex flex-col h-[80vh]">
-          {/* 五大模块切换 TAB */}
-          <div className="grid grid-cols-5 bg-zinc-100 p-1.5 rounded-2xl mb-4 shrink-0 shadow-inner">
-            {WRITE_MODULES.map((mod) => (
-              <button
-                key={mod.id}
-                onClick={() => { playClick(); setActiveModule(mod.id); }}
-                className={`py-2 px-1 text-[10px] font-black tracking-wider text-center rounded-xl transition-all cursor-pointer ${activeModule === mod.id ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200' : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50/50'}`}
-              >
-                {mod.label.replace('写作', '')}
-              </button>
-            ))}
-          </div>
-
-          {/* 模块描述信息 */}
-          <div className="mb-4 shrink-0 flex items-center justify-between border-b border-zinc-100 pb-2">
-            <div>
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">当前维度：</span>
-              <span className="text-xs font-bold text-zinc-700">{WRITE_MODULES.find(m => m.id === activeModule)?.desc}</span>
-            </div>
-            <button
-              onClick={() => { playClick(); generateChallenge(); }}
-              disabled={isGeneratingChallenge}
-              className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-zinc-900 hover:bg-zinc-800 text-white transition-all shadow-sm cursor-pointer disabled:opacity-50"
+        {/* 右侧 30%：动态滑出 Context Sheet 面板 */}
+        <AnimatePresence>
+          {showContextSheet && (
+            <motion.div
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-[30%] bg-zinc-50 border-l border-zinc-200 h-full p-5 shadow-2xl flex flex-col gap-4 overflow-y-auto shrink-0 relative"
+              onClick={(e) => e.stopPropagation()}
             >
-              {isGeneratingChallenge ? '正在生成...' : '获取AI挑战任务'}
-            </button>
-          </div>
+              {/* ① 浅层：格式与措辞合规 */}
+              <ReviewCard title="① 浅层：格式与措辞合规" content={reviewResult?.L1} isLoading={isReviewing} />
+              
+              {/* ② 中层：逻辑结构与条理 */}
+              <ReviewCard title="② 中层：逻辑结构与条理" content={reviewResult?.L2} isLoading={isReviewing} color="text-amber-600" />
+              
+              {/* ③ 深层：政治站位与领导思维 */}
+              <ReviewCard
+                title="③ 深层：政治站位与领导思维"
+                content={reviewResult?.L3}
+                isLoading={isReviewing}
+                isDark
+                optimized={reviewResult?.optimized_version}
+                onAdopt={() => {
+                  if (reviewResult?.optimized_version) {
+                    setWritingText(reviewResult.optimized_version);
+                    showNotice('review', '采纳改写方案成功', 'success');
+                    playSuccess();
+                  }
+                }}
+                onCopy={async () => {
+                  if (reviewResult?.optimized_version) {
+                    try {
+                      await navigator.clipboard.writeText(reviewResult.optimized_version);
+                      showNotice('review', '改写方案已复制到剪贴板', 'success');
+                      playSuccess();
+                    } catch (err) {
+                      playError();
+                      showNotice('review', '复制失败', 'error');
+                    }
+                  }
+                }}
+              />
 
-          {/* 任务卡展示：仅在有挑战任务时显示 */}
-          {challengeText && (
-            <div className="bg-zinc-900 text-zinc-300 rounded-xl mb-4 border border-zinc-800 overflow-hidden shrink-0 shadow-inner">
-              <div className="p-4 max-h-[120px] overflow-y-auto">
-                <div className="flex items-center justify-between mb-1.5 border-b border-zinc-800 pb-1.5">
-                  <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
-                    <Layers className="w-3 h-3" /> 突发刁钻场景任务
-                  </span>
-                  <button
-                    onClick={() => { playClick(); setChallengeText(''); }}
-                    className="text-[9px] font-black text-zinc-500 hover:text-zinc-300 cursor-pointer uppercase tracking-widest transition-colors"
-                  >
-                    重置
-                  </button>
-                </div>
-                <p className="text-xs font-medium leading-relaxed text-zinc-350">{challengeText}</p>
+              {/* 闭环复盘 (Daily Feedback Loop) */}
+              <div className="bg-white border border-zinc-200 shadow-sm rounded-2xl p-5 flex flex-col gap-3">
+                <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1">
+                  <span>🔄</span> 闭环复盘与跟踪
+                </h5>
+                {isReviewing ? (
+                  <p className="text-[10px] text-zinc-400 italic">正在生成复盘要点...</p>
+                ) : dailyFeedback.coreIssues.length > 0 ? (
+                  <div className="space-y-3">
+                    <div>
+                      <h6 className="text-[9px] font-bold text-red-750 mb-1 uppercase tracking-wider">今日写作核心问题 // Key Issues</h6>
+                      <ul className="list-disc pl-3.5 space-y-1">
+                        {dailyFeedback.coreIssues.map((issue, idx) => (
+                          <li key={idx} className="text-[10px] text-zinc-650 leading-relaxed">{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h6 className="text-[9px] font-bold text-zinc-750 mb-1 uppercase tracking-wider">明日写作提升重点 // Next Steps</h6>
+                      <ul className="list-disc pl-3.5 space-y-1">
+                        {dailyFeedback.nextFocus.map((focus, idx) => (
+                          <li key={idx} className="text-[10px] text-zinc-650 leading-relaxed">{focus}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-zinc-400 italic">完成审阅后，系统在此沉淀今日的复盘与明日提升指南。</p>
+                )}
               </div>
-            </div>
+            </motion.div>
           )}
-
-          {/* 字数极限挑战维度独占的配置栏 */}
-          {activeModule === 'limit_challenge' && (
-            <div className="flex items-center gap-3 mb-4 p-3 bg-zinc-50 border border-zinc-200/70 rounded-xl shrink-0">
-              <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">字数规则：</span>
-              <div className="flex items-center gap-2 flex-1">
-                {([
-                  { id: 'compress_50', label: '压缩至50字' },
-                  { id: 'compress_100', label: '压缩至100字' },
-                  { id: 'compress_200', label: '压缩至200字' },
-                  { id: 'expand', label: '论点充分展开' }
-                ] as const).map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => { playClick(); setLimitChallengeType(type.id); }}
-                    className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-all border cursor-pointer ${limitChallengeType === type.id ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'}`}
-                  >
-                    {type.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 意图输入 */}
-          <div className="mb-3 shrink-0">
-            <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">写作意图与指示 / Core Intent</label>
-            <input
-              type="text"
-              value={writeIntent}
-              onChange={(e) => setWriteIntent(e.target.value)}
-              placeholder="明确您的写作意图（如：委婉拒绝、极限向上请示、对齐上级某政策等）"
-              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs text-zinc-800 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner"
-            />
-          </div>
-
-          <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2.5 shrink-0 flex items-center gap-1">
-            Drafting Zone // 决策起草区
-          </h4>
-
-          {/* 文本草稿起草区 */}
-          <textarea
-            ref={textareaRef}
-            value={writingText}
-            onChange={(e) => setWritingText(e.target.value)}
-            className="w-full bg-zinc-50 border border-zinc-200 focus:border-zinc-400 rounded-2xl px-5 py-4 text-xs text-zinc-800 outline-none resize-none leading-relaxed flex-1 shadow-inner placeholder-zinc-300 min-h-0 transition-colors"
-            placeholder={WRITE_MODULES.find(m => m.id === activeModule)?.placeholder}
-            style={{ height: 'calc(100% - 150px)' }}
-          />
-
-          {/* 审阅触发按钮 */}
-          <div className="mt-4 shrink-0">
-            <button
-              onClick={() => { playClick(); handleReview(); }}
-              disabled={isReviewing || !writingText}
-              className="bg-zinc-900 text-white w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-zinc-950 transition-colors disabled:opacity-50 shadow-md cursor-pointer flex items-center justify-center gap-1.5"
-            >
-              {isReviewing ? (
-                <>
-                  <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
-                  <span>AI 正在审阅与风格对标中...</span>
-                </>
-              ) : (
-                '提交三维战略审阅 (Submit Strategy Review)'
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* 3. 右栏：反馈与每日复盘 */}
-        <div className="lg:col-span-3 flex flex-col gap-4 h-[80vh] overflow-y-auto pr-1">
-          {/* L1 基础审阅 */}
-          <ReviewCard title="L1 语法与合规" content={reviewResult?.L1} isLoading={isReviewing} />
-          
-          {/* L2 商务/政务分寸 */}
-          <ReviewCard title="L2 逻辑与分寸" content={reviewResult?.L2} isLoading={isReviewing} color="text-amber-600" />
-          
-          {/* L3 高管战略站位与重写示范 */}
-          <ReviewCard
-            title="L3 战略站位示范"
-            content={reviewResult?.L3}
-            isLoading={isReviewing}
-            isDark
-            optimized={reviewResult?.optimized_version}
-            onAdopt={() => {
-              if (reviewResult?.optimized_version) {
-                setWritingText(reviewResult.optimized_version);
-                showNotice('review', '采纳改写方案成功', 'success');
-                playSuccess();
-              }
-            }}
-            onCopy={async () => {
-              if (reviewResult?.optimized_version) {
-                try {
-                  await navigator.clipboard.writeText(reviewResult.optimized_version);
-                  showNotice('review', '改写方案已复制到剪贴板', 'success');
-                  playSuccess();
-                } catch (err) {
-                  playError();
-                  showNotice('review', '复制失败', 'error');
-                }
-              }
-            }}
-          />
-
-          {/* 新增：闭环复盘 (Daily Feedback Loop) */}
-          <div className="bg-zinc-50 border border-zinc-200 shadow-sm rounded-2xl p-5 flex flex-col gap-3">
-            <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1">
-              <span>🔄</span> 闭环复盘与跟踪
-            </h5>
-            {isReviewing ? (
-              <p className="text-[10px] text-zinc-400 italic">正在生成复盘要点...</p>
-            ) : dailyFeedback.coreIssues.length > 0 ? (
-              <div className="space-y-3">
-                <div>
-                  <h6 className="text-[9px] font-bold text-red-750 mb-1 uppercase tracking-wider">今日写作核心问题 // Key Issues</h6>
-                  <ul className="list-disc pl-3.5 space-y-1">
-                    {dailyFeedback.coreIssues.map((issue, idx) => (
-                      <li key={idx} className="text-[10px] text-zinc-650 leading-relaxed">{issue}</li>
-                    ))}
-                  </ul>
-                </div>
-                <div>
-                  <h6 className="text-[9px] font-bold text-zinc-750 mb-1 uppercase tracking-wider">明日写作提升重点 // Next Steps</h6>
-                  <ul className="list-disc pl-3.5 space-y-1">
-                    {dailyFeedback.nextFocus.map((focus, idx) => (
-                      <li key={idx} className="text-[10px] text-zinc-650 leading-relaxed">{focus}</li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            ) : (
-              <p className="text-[10px] text-zinc-400 italic">完成审阅后，系统在此沉淀今日的复盘与明日提升指南。</p>
-            )}
-          </div>
-        </div>
+        </AnimatePresence>
       </div>
     </div>
   );
