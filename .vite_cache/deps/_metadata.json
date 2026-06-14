@@ -1,0 +1,37 @@
+{
+  "hash": "b6b92c0e",
+  "configHash": "f215ba46",
+  "lockfileHash": "2953c953",
+  "browserHash": "88c86304",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/.pnpm/react@19.2.5/node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "5c314ffa",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../node_modules/.pnpm/react-dom@19.2.5_react@19.2.5/node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "a0306c5f",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/.pnpm/react@19.2.5/node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "abc054e8",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../node_modules/.pnpm/react@19.2.5/node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "2670b9a1",
+      "needsInterop": true
+    }
+  },
+  "chunks": {
+    "chunk-XFZDMXET": {
+      "file": "chunk-XFZDMXET.js"
+    }
+  }
+}

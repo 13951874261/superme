@@ -81,6 +81,9 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
 export async function runListeningEngine(userInput: string, standardText: string, theme: string): Promise<ComparisonResult> {
   const apiKey = getApiKey('DIFY_WORKFLOW_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY'); // 兼容新版配置
   
+  const profile = getUserCurrentProfile();
+  const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;
+
   const response = await fetch(`${DIFY_BASE_URL}/workflows/run`, {
     method: 'POST',
     headers: {
@@ -91,8 +94,8 @@ export async function runListeningEngine(userInput: string, standardText: string
       inputs: { 
         user_input: userInput, 
         standard_text: standardText, 
-        theme: theme,
-        user_current_profile: getUserCurrentProfile()
+        theme: displayTheme,
+        user_current_profile: profile
       },
       response_mode: 'blocking',
       user: 'local-user'

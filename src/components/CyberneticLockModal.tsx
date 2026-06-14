@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
-import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic } from 'lucide-react';
 import { playGentleWarning } from '../utils/soundEffects';
 
 interface CyberneticLockModalProps {
@@ -31,19 +31,27 @@ export default function CyberneticLockModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          className="fixed inset-0 z-[1000] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm"
-        >
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+          {/* 遮罩层 */}
           <motion.div 
-            initial={{ scale: 0.95, opacity: 0, y: 15 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.95, opacity: 0, y: 15 }}
-            transition={{ type: 'spring', damping: 25, stiffness: 350 }}
-            className="bg-white border border-slate-200 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_25px_60px_rgba(0,0,0,0.08)] relative z-10 mx-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+          />
+
+          {/* 弹窗内容 */}
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.96, y: 15 }}
+            animate={{ 
+              opacity: 1, 
+              scale: 1, 
+              y: 0,
+              transition: { type: 'spring', damping: 24, stiffness: 200 }
+            }}
+            exit={{ opacity: 0, scale: 0.96, y: 10 }}
+            className="bg-white border border-zinc-200/80 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative z-10 mx-4 w-full"
           >
             {/* Elegant static icon container */}
             <div className="w-16 h-16 bg-slate-50 text-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-150 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
@@ -126,7 +134,7 @@ export default function CyberneticLockModal({
               <ArrowRight className="w-4 h-4" />
             </button>
           </motion.div>
-        </motion.div>
+        </div>
       )}
     </AnimatePresence>
   );

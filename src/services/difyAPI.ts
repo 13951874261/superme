@@ -583,6 +583,9 @@ export async function callVocabPurify(
  * @param theme 全局阵地主题
  */
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
+  const profile = getUserCurrentProfile();
+  const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;
+
   const res = await fetch('/api/dify/write-review', {
     method: 'POST',
     headers: {
@@ -591,8 +594,8 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
     body: JSON.stringify({
       user_text: userText,
       mail_intent: mailIntent,
-      theme: theme,
-      user_current_profile: getUserCurrentProfile()
+      theme: displayTheme,
+      user_current_profile: profile
     }),
   });
 

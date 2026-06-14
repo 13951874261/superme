@@ -51,6 +51,11 @@ export default function ImpromptuSpeechTab() {
     };
   }, []);
 
+  const parsedProfile = useMemo(() => {
+    if (!userProfile) return [];
+    return userProfile.split(';').map(s => s.trim()).filter(Boolean);
+  }, [userProfile]);
+
   const [activeExemplarIdx, setActiveExemplarIdx] = useState<number | null>(null);
   const exemplarContainerRef = useRef<HTMLDivElement>(null);
 
@@ -202,12 +207,11 @@ export default function ImpromptuSpeechTab() {
     setIsLoadingPrompter(true);
     try {
       const { runSpeechPrompter } = await import('../../../../services/difyAPI');
-      const profileStr = getUserCurrentProfile();
-      let enrichedTheme = theme;
-      if (profileStr) {
-        enrichedTheme = `${theme} (针对画像短板进行挑战判定: ${profileStr})`;
-      }
-      const result = await runSpeechPrompter(enrichedTheme, '中等');
+      const userProfile = getUserCurrentProfile();
+      const targetTheme = userProfile 
+        ? `${theme} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)` 
+        : theme;
+      const result = await runSpeechPrompter(targetTheme, '中等');
       setPrompterResult(result);
       setShowPrompter(true);
     } catch (err: any) {
@@ -416,7 +420,12 @@ export default function ImpromptuSpeechTab() {
       // 阶段 2：AI 评测
       setEvaluatingStage('evaluating');
       const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
-      const res = await runImpromptuSpeechEvaluation(theme, durationStr, finalTranscript);
+      const profileStrForEval = getUserCurrentProfile();
+      let enrichedThemeForEval = theme;
+      if (profileStrForEval) {
+        enrichedThemeForEval = `${theme} (针对画像短板进行挑战判定: ${profileStrForEval})`;
+      }
+      const res = await runImpromptuSpeechEvaluation(enrichedThemeForEval, durationStr, finalTranscript);
 
       const score = Number(res.total_score || 0);
       setEvalResult({
@@ -431,7 +440,7 @@ export default function ImpromptuSpeechTab() {
       // 阶段 3：生成高阶完美示范范文
       setEvaluatingStage('generating');
       try {
-        const exemplar = await runSpeechExemplar(theme, finalTranscript);
+        const exemplar = await runSpeechExemplar(enrichedThemeForEval, finalTranscript);
         setExemplarText(exemplar);
       } catch (exemplarErr: any) {
         console.error('生成演讲范文失败:', exemplarErr);
@@ -519,24 +528,19 @@ export default function ImpromptuSpeechTab() {
       </div>
 
       {/* 全局画像自适应阻碍提示器 */}
-      {userProfile && (
-        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm transition-all duration-300">
-          <div className="bg-slate-900 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md flex items-center justify-center">
-            <Sparkles className="w-5 h-5 text-zinc-300" />
+      {parsedProfile.length > 0 && (
+        <div className="bg-slate-100 border border-slate-200/80 rounded-xl p-4 mb-5 flex items-center justify-between text-xs text-slate-700 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />
+            <div>
+              <span className="font-bold text-slate-900">画像自适应系统已激活：</span>
+              已靶向侦测您的能力短板 <span className="bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded mx-1">{userProfile}</span>，已为您动态定制即兴大纲与逻辑对抗阻碍。
+            </div>
           </div>
-          <div className="flex-1">
-            <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
-              <span>全局画像自适应挑战判定 // Global Profile Adaptation</span>
-              <span className="bg-slate-900 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest scale-90 origin-left">高阶阻碍模式</span>
-            </h5>
-            <p className="text-xs text-slate-500 font-semibold mt-1.5 leading-relaxed">
-              当前已自动检测到您的画像短板【<strong className="text-slate-800 font-bold">{userProfile}</strong>】，大模型已将模拟提问阻碍调至高阶对立状态，实施精准狙击。
-            </p>
-          </div>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">High-Obstacle Mode</span>
         </div>
       )}
-
-      {/* 通关状态徽章 */}
+{/* 通关状态徽章 */}
       {impromptuPassed && (
         <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4">
           <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
