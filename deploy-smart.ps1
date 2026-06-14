@@ -10,7 +10,7 @@ $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
 $HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfF'
-$HostKeyOptions = @('-hostkey', $HostKey)
+$HostKeyOptions = @()
 
 Set-Location $ProjectRoot
 
@@ -60,7 +60,7 @@ Write-Host ""
 # 2. SSH/SCP Setup
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
-$UsePuTTY = $false
+$UsePuTTY = $true
 
 if ($UsePuTTY) {
     Write-Host "PuTTY found. Enabling auto-password mode." -ForegroundColor Green
@@ -171,6 +171,30 @@ try {
     Invoke-RemoteCommand "sudo journalctl -u super-agent-vocab.service -n 20 --no-pager"
     Write-Host "--- Nginx Error Logs (Last 20 lines) ---" -ForegroundColor DarkCyan
     Invoke-RemoteCommand "sudo tail -n 20 /var/log/nginx/error.log"
+
+    # 6. Git Commit & Push to GitHub
+    Write-Host ""
+    Write-Host "========== Step 6: Git Push to GitHub ==========" -ForegroundColor Cyan
+    $branchName = (git branch --show-current)
+    Write-Host "Current branch: $branchName"
+    
+    $gitDiffStatus = git status --porcelain
+    if ($gitDiffStatus) {
+        Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
+        git add -A
+        $commitMsg = "deploy: auto-commit and deploy at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        git commit -m $commitMsg
+    } else {
+        Write-Host "No local changes to commit." -ForegroundColor Yellow
+    }
+
+    Write-Host "Pushing to GitHub..." -ForegroundColor DarkCyan
+    git push origin $branchName
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "Git push succeeded!" -ForegroundColor Green
+    } else {
+        Write-Host "Warning: Git push failed!" -ForegroundColor Red
+    }
 
     Write-Host ""
     Write-Host "=====================================================" -ForegroundColor Green

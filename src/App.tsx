@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { motion } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import TextHighlighter from './components/TextHighlighter';
@@ -105,11 +106,11 @@ function AppContent() {
       <TextHighlighter />
       
       {/* 黄金折叠主视界 (70% 或 100% 宽度平滑缩进) */}
-      <div 
+      <motion.div 
         onClick={handleLeftAreaClick}
-        className={`h-screen flex overflow-hidden transition-all duration-500 ease-in-out shrink-0 ${
-          isRightPanelOpen ? 'w-[70vw]' : 'w-full'
-        }`}
+        animate={{ width: isRightPanelOpen ? '70vw' : '100vw' }}
+        transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+        className="h-screen flex overflow-hidden shrink-0"
       >
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -128,7 +129,7 @@ function AppContent() {
           isLocked={isLocked}
           onLockTrigger={handleLockTrigger}
         />
-      </div>
+      </motion.div>
 
       {/* 右侧上下文及 AI 助手面板 (30% 宽度，收放微缩) */}
       <RightPanel 

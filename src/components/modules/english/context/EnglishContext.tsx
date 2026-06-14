@@ -150,6 +150,9 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;
   });
   const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, emailCompleted: false, _isInitial: true });
+  useEffect(() => {
+    (window as any).__setMasteryData = setMasteryData;
+  }, [setMasteryData]);
   const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
