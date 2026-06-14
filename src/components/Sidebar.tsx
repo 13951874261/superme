@@ -1,10 +1,13 @@
-import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock, Edit3 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import ChatModule from './ChatModule';
 import DictionaryPanel from './DictionaryPanel';
 import VocabularyBook from './VocabularyBook';
+import Confetti from './Confetti';
 import { formatDateShort, getRecentDates, getTodayDateDot } from '../utils/date';
 import { playClick, playPageTurn } from '../utils/soundEffects';
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -27,19 +30,41 @@ export default function Sidebar({
   isLocked,
   onLockTrigger
 }: SidebarProps) {
-  // 按照您的要求，按月/周分类的归档体系需要折叠交互状态
-  const [isAprilWeek2Open, setIsAprilWeek2Open] = useState(true);
-  const [isAprilWeek1Open, setIsAprilWeek1Open] = useState(false);
-  const recentDates = getRecentDates(5);
   const today = getTodayDateDot();
 
-  // 习惯与职业追踪器状态管理
+  // 月度日历折叠状态与视图年月
+  const [isCalendarOpen, setIsCalendarOpen] = useState(true);
+  const [viewYear, setViewYear] = useState(() => {
+    const parts = selectedDate.split('.');
+    return parts[0] ? Number(parts[0]) : new Date().getFullYear();
+  });
+  const [viewMonth, setViewMonth] = useState(() => {
+    const parts = selectedDate.split('.');
+    return parts[1] ? Number(parts[1]) - 1 : new Date().getMonth();
+  });
+
+  // 当外部 selectedDate 变化时，自动同步日历视图的月份与年份
+  useEffect(() => {
+    if (selectedDate) {
+      const parts = selectedDate.split('.');
+      if (parts.length === 3) {
+        const y = Number(parts[0]);
+        const m = Number(parts[1]) - 1;
+        if (!isNaN(y) && !isNaN(m)) {
+          setViewYear(y);
+          setViewMonth(m);
+        }
+      }
+    }
+  }, [selectedDate]);
+
+  // 习惯与职业追踪器折叠状态管理
   const [isHabitOpen, setIsHabitOpen] = useState(true);
   const [isCareerOpen, setIsCareerOpen] = useState(true);
 
-  // 习惯持久化状态
+  // 习惯持久化状态（绑定 selectedDate 进行数据隔离）
   const [habits, setHabits] = useState(() => {
-    const saved = localStorage.getItem('superme_habits');
+    const saved = localStorage.getItem(`superme_habits_${selectedDate}`);
     return saved ? JSON.parse(saved) : {
       sleep: false,
       diet: false,
@@ -48,10 +73,21 @@ export default function Sidebar({
     };
   });
 
+  // 当日期 selectedDate 切换时，重新加载对应的隔离习惯数据
+  useEffect(() => {
+    const saved = localStorage.getItem(`superme_habits_${selectedDate}`);
+    setHabits(saved ? JSON.parse(saved) : {
+      sleep: false,
+      diet: false,
+      exercise: false,
+      goodDeed: false
+    });
+  }, [selectedDate]);
+
   const handleHabitChange = (key: string) => {
     const updated = { ...habits, [key]: !habits[key as keyof typeof habits] };
     setHabits(updated);
-    localStorage.setItem('superme_habits', JSON.stringify(updated));
+    localStorage.setItem(`superme_habits_${selectedDate}`, JSON.stringify(updated));
     playClick(); // 点击水滴声
   };
 
@@ -65,6 +101,98 @@ export default function Sidebar({
       progress: 65
     };
   });
+
+  // 职业生涯编辑相关状态
+  const [isEditingCareer, setIsEditingCareer] = useState(false);
+  const [careerEditData, setCareerEditData] = useState({ ...careerPath });
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // 月度日历计算逻辑与辅助函数
+  const getDaysInMonth = (year: number, month: number) => {
+    const date = new Date(year, month, 1);
+    const days = [];
+    let startDay = date.getDay();
+    if (startDay === 0) startDay = 7; // 周日转换成 7，周一为 1
+    
+    // 上个月的补全日期
+    const prevMonthLastDate = new Date(year, month, 0).getDate();
+    for (let i = startDay - 1; i > 0; i--) {
+      days.push({
+        day: prevMonthLastDate - i + 1,
+        isCurrentMonth: false,
+        monthOffset: -1
+      });
+    }
+    
+    // 当月的日期
+    const lastDate = new Date(year, month + 1, 0).getDate();
+    for (let i = 1; i <= lastDate; i++) {
+      days.push({
+        day: i,
+        isCurrentMonth: true,
+        monthOffset: 0
+      });
+    }
+    
+    // 下个月的补全日期
+    const totalSlots = days.length <= 35 ? 35 : 42;
+    const nextDaysNeeded = totalSlots - days.length;
+    for (let i = 1; i <= nextDaysNeeded; i++) {
+      days.push({
+        day: i,
+        isCurrentMonth: false,
+        monthOffset: 1
+      });
+    }
+    
+    return days;
+  };
+
+  const getDateStr = (day: number, monthOffset: number) => {
+    let y = viewYear;
+    let m = viewMonth + monthOffset;
+    if (m < 0) {
+      m = 11;
+      y = y - 1;
+    } else if (m > 11) {
+      m = 0;
+      y = y + 1;
+    }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${y}.${pad(m + 1)}.${pad(day)}`;
+  };
+
+  const getHabitsCountForDate = (dateStr: string) => {
+    const saved = localStorage.getItem(`superme_habits_${dateStr}`);
+    if (!saved) return 0;
+    try {
+      const parsed = JSON.parse(saved);
+      return Object.values(parsed).filter(Boolean).length;
+    } catch (e) {
+      return 0;
+    }
+  };
+
+  const handlePrevMonth = () => {
+    playClick();
+    if (viewMonth === 0) {
+      setViewMonth(11);
+      setViewYear(viewYear - 1);
+    } else {
+      setViewMonth(viewMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    playClick();
+    if (viewMonth === 11) {
+      setViewMonth(0);
+      setViewYear(viewYear + 1);
+    } else {
+      setViewMonth(viewMonth + 1);
+    }
+  };
+
 
   return (
     <aside className={`bg-[#f8f9fa] text-[#202124] flex flex-col transition-all duration-500 ease-in-out relative flex-shrink-0 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-gray-100/50 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
@@ -94,63 +222,85 @@ export default function Sidebar({
           {/* 下方：按周/月折叠归档体系 */}
           <div className="flex flex-col space-y-5">
              
-             {/* 分区归档：最近 3 天 */}
+             {/* 月度日历 (Monthly Calendar) */}
              <div>
                <div 
-                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-500 font-bold uppercase tracking-widest hover:text-[#FF5722] transition-colors mb-2.5"
-                 onClick={() => setIsAprilWeek2Open(!isAprilWeek2Open)}
+                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-500 font-bold uppercase tracking-widest hover:text-[#FF5722] transition-colors mb-3"
+                 onClick={() => { setIsCalendarOpen(!isCalendarOpen); playClick(); }}
                >
-                 <span>RECENT - LAST 3 DAYS</span>
-                 {isAprilWeek2Open ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
+                 <span className="tracking-widest">Monthly Calendar</span>
+                 {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
                </div>
                
-               <div className={`overflow-hidden transition-all duration-500 ${isAprilWeek2Open ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="text-xs font-black tracking-widest text-[#202124] flex items-center py-1 flex-wrap">
-                  {recentDates.slice(0, 3).map((date, idx) => (
-                    <React.Fragment key={date}>
-                      <span
-                        className={`cursor-pointer transition-all duration-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${selectedDate === date ? 'bg-[#FF5722]/10 text-[#FF5722] scale-105' : 'text-gray-400 hover:text-gray-700'}`}
-                        onClick={() => onDateSelect(date)}
-                      >
-                        <span>{formatDateShort(new Date(date.replace(/\./g, '-')))}</span>
-                        {date === today ? (
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722]" title="今日" />
-                        ) : (
-                          <CheckCircle2 className="w-3 h-3 text-[#FF5722]/60" strokeWidth={2.5} />
-                        )}
-                      </span>
-                      {idx < 2 && <span className="text-gray-200 font-light mx-2">|</span>}
-                    </React.Fragment>
-                  ))}
+               <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCalendarOpen ? 'max-h-[320px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                 <div className="bg-white border border-slate-100 rounded-xl p-3.5 shadow-[0_3px_12px_rgba(15,23,42,0.03)] bg-gradient-to-br from-white to-slate-50/50">
+                   {/* 顶部年月切换 */}
+                   <div className="flex justify-between items-center mb-3">
+                     <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 rounded-full transition-all cursor-pointer">
+                       <ChevronLeft className="w-4 h-4 text-slate-500 hover:text-slate-800" strokeWidth={2.5} />
+                     </button>
+                     <span className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono tabular-nums">
+                       {viewYear}.{String(viewMonth + 1).padStart(2, '0')}
+                     </span>
+                     <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 rounded-full transition-all cursor-pointer">
+                       <ChevronRight className="w-4 h-4 text-slate-500 hover:text-slate-800" strokeWidth={2.5} />
+                     </button>
+                   </div>
 
-                 </div>
-               </div>
-             </div>
+                   {/* 星期表头 */}
+                   <div className="grid grid-cols-7 gap-1 mb-2 text-[9px] font-bold text-slate-400 text-center tracking-widest">
+                     <span>一</span>
+                     <span>二</span>
+                     <span>三</span>
+                     <span>四</span>
+                     <span>五</span>
+                     <span>六</span>
+                     <span>日</span>
+                   </div>
 
-             {/* 分区归档：更早 2 天 */}
-             <div>
-               <div 
-                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest hover:text-gray-600 transition-colors mb-2.5"
-                 onClick={() => setIsAprilWeek1Open(!isAprilWeek1Open)}
-               >
-                 <span>RECENT - EARLIER 2 DAYS</span>
-                 {isAprilWeek1Open ? <ChevronUp className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
-               </div>
-               
-               <div className={`overflow-hidden transition-all duration-500 ${isAprilWeek1Open ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="text-xs font-black tracking-widest text-[#202124] flex items-center py-1 flex-wrap">
-                   {recentDates.slice(3, 5).map((date, idx) => (
-                     <React.Fragment key={date}>
-                        <span
-                          className={`cursor-pointer transition-all duration-300 px-1.5 py-0.5 rounded inline-flex items-center gap-1 ${selectedDate === date ? 'bg-[#FF5722]/10 text-[#FF5722] scale-105' : 'text-gray-400 hover:text-gray-700'}`}
-                          onClick={() => onDateSelect(date)}
-                        >
-                          <span>{formatDateShort(new Date(date.replace(/\./g, '-')))}</span>
-                          <CheckCircle2 className="w-3 h-3 text-gray-300" strokeWidth={2.5} />
-                        </span>
-                       {idx < 1 && <span className="text-gray-200 font-light mx-2">|</span>}
-                     </React.Fragment>
-                   ))}
+                   {/* 日历网格 */}
+                   <div className="grid grid-cols-7 gap-y-2.5 gap-x-1 text-center">
+                     {getDaysInMonth(viewYear, viewMonth).map((slot, index) => {
+                       const dateStr = getDateStr(slot.day, slot.monthOffset);
+                       const isSelected = selectedDate === dateStr;
+                       const isToday = today === dateStr;
+                       const habitsCount = getHabitsCountForDate(dateStr);
+                       
+                       return (
+                         <div 
+                           key={`${index}-${slot.day}`} 
+                           onClick={() => {
+                             playClick();
+                             onDateSelect(dateStr);
+                           }}
+                           className="relative cursor-pointer select-none flex flex-col items-center justify-center group"
+                         >
+                           <span 
+                             className={`w-6 h-6 flex items-center justify-center text-[10px] font-bold transition-all duration-200 rounded-full ${
+                               isSelected 
+                                 ? 'bg-[#FF5722] text-white shadow-sm font-black' 
+                                 : isToday 
+                                   ? 'border border-[#FF5722]/60 text-[#FF5722] font-black bg-[#FF5722]/5' 
+                                   : slot.isCurrentMonth 
+                                     ? 'text-slate-800 hover:bg-slate-100' 
+                                     : 'text-slate-300 hover:bg-slate-50/50'
+                             }`}
+                           >
+                             {slot.day}
+                           </span>
+                           <div className="h-1 flex items-center justify-center mt-0.5 w-full">
+                             {habitsCount >= 3 ? (
+                               <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722]" />
+                             ) : habitsCount > 0 ? (
+                               <span className="w-1 h-1 rounded-full bg-slate-300" />
+                             ) : (
+                               <span className="w-1 h-1 rounded-full bg-transparent" />
+                             )}
+                           </div>
+                         </div>
+                       );
+                     })}
+                   </div>
                  </div>
                </div>
              </div>
@@ -167,62 +317,178 @@ export default function Sidebar({
                
                <div className={`overflow-hidden transition-all duration-500 ${isHabitOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
                  <div className="grid grid-cols-2 gap-3 py-1">
-                   {Object.entries({
-                     sleep: '睡眠达标',
-                     diet: '饮食克制',
-                     exercise: '核心运动',
-                     goodDeed: '日行一善'
-                   }).map(([key, label]) => (
-                     <label key={key} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl cursor-pointer hover:border-[#FF5722] hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)] transition-all group">
-                       <input 
-                         type="checkbox" 
-                         checked={habits[key as keyof typeof habits]}
-                         onChange={() => handleHabitChange(key)}
-                         className="w-4 h-4 text-[#FF5722] border-gray-300 rounded focus:ring-[#FF5722] cursor-pointer"
-                       />
-                       <span className="text-xs font-bold text-gray-600 group-hover:text-[#202124]">{label}</span>
-                     </label>
-                   ))}
+                    {Object.entries({
+                      sleep: '睡眠达标',
+                      diet: '饮食克制',
+                      exercise: '核心运动',
+                      goodDeed: '日行一善'
+                    }).map(([key, label]) => (
+                      <label 
+                        key={key} 
+                        className="flex items-center gap-3 p-3 bg-gradient-to-br from-white to-slate-50/40 border border-slate-100/80 rounded-xl cursor-pointer hover:border-[#FF5722]/60 hover:shadow-[0_6px_16px_rgba(15,23,42,0.04)] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 ease-out group"
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={!!habits[key as keyof typeof habits]}
+                          onChange={() => handleHabitChange(key)}
+                          className="w-4 h-4 text-[#FF5722] border-slate-200 rounded focus:ring-1 focus:ring-[#FF5722] focus:ring-offset-0 cursor-pointer accent-[#FF5722] transition-colors"
+                        />
+                        <span className="text-[11px] font-semibold text-slate-500 group-hover:text-slate-900 transition-colors">
+                          {label}
+                        </span>
+                      </label>
+                    ))}
                  </div>
                </div>
              </div>
-
+             
              {/* 职业发展跟踪表 (Career Progression Tracker) */}
              <div className="mt-6 border-t border-gray-100 pt-6">
                <div 
                  className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
                  onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
                >
-                 <span>Career Progression</span>
-                 {isCareerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                 <span className="tracking-widest">Career Progression</span>
+                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                   {!isEditingCareer && (
+                     <button 
+                       onClick={() => {
+                         playPageTurn();
+                         setCareerEditData({ ...careerPath });
+                         setIsEditingCareer(true);
+                       }}
+                       className="p-1 hover:bg-slate-100 rounded-md transition-colors text-slate-400 hover:text-slate-700 cursor-pointer"
+                       title="编辑职业轨迹"
+                     >
+                       <Edit3 className="w-3.5 h-3.5" />
+                     </button>
+                   )}
+                   {isCareerOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                 </div>
                </div>
                
-               <div className={`overflow-hidden transition-all duration-500 ${isCareerOpen ? 'max-h-[300px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="p-4 bg-white border border-gray-100 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.02)] my-1">
-                   <div className="space-y-3">
-                     <div>
-                       <span className="text-[10px] text-gray-400 block">起点职位 (History)</span>
-                       <span className="text-xs font-bold text-gray-500">{careerPath.history}</span>
-                     </div>
-                     <div className="border-l-2 border-dashed border-gray-200 pl-3 my-1">
-                       <span className="text-[10px] text-emerald-600 font-semibold block">当前定位 (Current)</span>
-                       <span className="text-xs font-extrabold text-gray-800">{careerPath.current}</span>
-                     </div>
-                     <div>
-                       <span className="text-[10px] text-gray-400 block">意向目标 (Target)</span>
-                       <span className="text-xs font-bold text-[#FF5722]">{careerPath.target}</span>
-                     </div>
-                     
-                     <div className="mt-4 pt-2">
-                       <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
-                         <span>能力匹配度</span>
-                         <span>{careerPath.progress}%</span>
-                       </div>
-                       <div className="w-full bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                         <div className="bg-gradient-to-r from-emerald-500 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
-                       </div>
-                     </div>
-                   </div>
+               <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCareerOpen ? 'max-h-[380px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                 <div className="p-4 bg-gradient-to-br from-white to-slate-50/50 border border-slate-100 rounded-xl shadow-[0_3px_12px_rgba(15,23,42,0.03)] my-1 relative overflow-hidden">
+                   <AnimatePresence mode="wait">
+                     {!isEditingCareer ? (
+                       <motion.div
+                         key="view"
+                         initial={{ opacity: 0, y: 5 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         exit={{ opacity: 0, y: -5 }}
+                         transition={{ duration: 0.2 }}
+                         className="space-y-3"
+                       >
+                         <div>
+                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">起点职位 (History)</span>
+                           <span className="text-xs font-semibold text-slate-600">{careerPath.history}</span>
+                         </div>
+                         <div className="border-l-2 border-dashed border-slate-200 pl-3 my-1">
+                           <span className="text-[9px] text-emerald-600 font-semibold uppercase tracking-widest block mb-0.5">当前定位 (Current)</span>
+                           <span className="text-xs font-extrabold text-slate-800">{careerPath.current}</span>
+                         </div>
+                         <div>
+                           <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-0.5">意向目标 (Target)</span>
+                           <span className="text-xs font-bold text-[#FF5722]">{careerPath.target}</span>
+                         </div>
+                         
+                         <div className="mt-4 pt-2">
+                           <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1.5">
+                             <span>能力匹配度</span>
+                             <span className="font-mono tabular-nums font-extrabold text-slate-700">{careerPath.progress}%</span>
+                           </div>
+                           <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                             <div className="bg-gradient-to-r from-emerald-500 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
+                           </div>
+                         </div>
+                       </motion.div>
+                     ) : (
+                       <motion.div
+                         key="edit"
+                         initial={{ opacity: 0, y: 5 }}
+                         animate={{ opacity: 1, y: 0 }}
+                         exit={{ opacity: 0, y: -5 }}
+                         transition={{ duration: 0.2 }}
+                         className="space-y-3"
+                       >
+                         <div className="space-y-2.5">
+                           <div>
+                             <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-1">起点职位 (History)</label>
+                             <input 
+                               type="text" 
+                               value={careerEditData.history}
+                               onChange={(e) => setCareerEditData({ ...careerEditData, history: e.target.value })}
+                               className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#FF5722] bg-white font-medium"
+                             />
+                           </div>
+                           <div>
+                             <label className="text-[9px] text-emerald-600 font-semibold uppercase tracking-widest block mb-1">当前定位 (Current)</label>
+                             <input 
+                               type="text" 
+                               value={careerEditData.current}
+                               onChange={(e) => setCareerEditData({ ...careerEditData, current: e.target.value })}
+                               className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#FF5722] bg-white font-medium"
+                             />
+                           </div>
+                           <div>
+                             <label className="text-[9px] text-slate-400 font-bold uppercase tracking-widest block mb-1">意向目标 (Target)</label>
+                             <input 
+                               type="text" 
+                               value={careerEditData.target}
+                               onChange={(e) => setCareerEditData({ ...careerEditData, target: e.target.value })}
+                               className="w-full px-2.5 py-1.5 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#FF5722] bg-white font-medium"
+                             />
+                           </div>
+                           <div>
+                             <div className="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">
+                               <span>能力匹配度</span>
+                               <span className="font-mono tabular-nums font-extrabold text-[#FF5722]">{careerEditData.progress}%</span>
+                             </div>
+                             <input 
+                               type="range" 
+                               min="0" 
+                               max="100" 
+                               value={careerEditData.progress}
+                               onChange={(e) => {
+                                 const val = Number(e.target.value);
+                                 if (val !== careerEditData.progress) {
+                                   setCareerEditData({ ...careerEditData, progress: val });
+                                   playClick(); // 拖动滑块实时播放微弱水滴声
+                                 }
+                               }}
+                               className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
+                             />
+                           </div>
+                         </div>
+
+                         <div className="flex gap-2 pt-2">
+                           <button 
+                             onClick={() => {
+                               playPageTurn();
+                               setIsEditingCareer(false);
+                             }}
+                             className="flex-1 py-1.5 text-[10px] font-bold text-slate-400 hover:text-slate-600 border border-slate-200 hover:border-slate-300 rounded-lg transition-colors cursor-pointer"
+                           >
+                             取消
+                           </button>
+                           <button 
+                             onClick={() => {
+                               playPageTurn();
+                               setCareerPath(careerEditData);
+                               localStorage.setItem('superme_career', JSON.stringify(careerEditData));
+                               setIsEditingCareer(false);
+                               if (careerEditData.progress === 100) {
+                                 setShowConfetti(true);
+                               }
+                             }}
+                             className="flex-1 py-1.5 text-[10px] font-bold text-white bg-[#FF5722] hover:bg-[#E04F1E] rounded-lg transition-colors cursor-pointer shadow-sm"
+                           >
+                             保存并推演
+                           </button>
+                         </div>
+                       </motion.div>
+                     )}
+                   </AnimatePresence>
                  </div>
                </div>
              </div>
@@ -272,6 +538,9 @@ export default function Sidebar({
         )}
 
       </div>
+      {showConfetti && (
+        <Confetti duration={3000} onComplete={() => setShowConfetti(false)} />
+      )}
     </aside>
   );
 }

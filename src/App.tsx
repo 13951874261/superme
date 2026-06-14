@@ -17,21 +17,7 @@ export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'en
 function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  useEffect(() => {
-    // 4 秒后自动弹起拦截 Modal 用于测试截图
-    const timer = setTimeout(() => {
-      setIsLockModalOpen(true);
-    }, 4000);
-    return () => clearTimeout(timer);
-  }, []);
 
-  // 为本地测试及演示自动兜底设定一个初始画像
-  useEffect(() => {
-    if (!localStorage.getItem('User_Current_Profile') && !localStorage.getItem('user_current_profile')) {
-      localStorage.setItem('User_Current_Profile', '防御性退缩; 缺乏大局观');
-      window.dispatchEvent(new Event('global-profile-changed'));
-    }
-  }, []);
   const [selectedDate, setSelectedDate] = useState(getTodayDateDot()); 
   
   // 当前专注的训练模块，默认聚焦您的核心诉求：英语
