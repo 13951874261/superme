@@ -77,7 +77,7 @@ export default function ReadModule() {
   // 核心状态
   const [activeTab, setActiveTab] = useState<CognitivePenetrationInput['scene_type']>('policy');
   const [sceneFramework, setSceneFramework] = useState<'social' | 'gov' | 'corp'>('gov');
-  const [showContextSheet, setShowContextSheet] = useState(false);
+  const [showContextSheet, setShowContextSheet] = useState(true);
   const [inputMode, setInputMode] = useState<'manual' | 'url' | 'file'>('manual');
   const [isFetchLoading, setIsFetchLoading] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -308,10 +308,10 @@ export default function ReadModule() {
   };
 
   const tabs: Array<{ id: CognitivePenetrationInput['scene_type'], label: string, icon: React.ReactNode }> = [
-    { id: 'policy', label: '政策精神', icon: <FileText className="w-4 h-4 mr-2" /> },
-    { id: 'report', label: '财报研判', icon: <BarChart3 className="w-4 h-4 mr-2" /> },
-    { id: 'email', label: '外企邮件', icon: <Mail className="w-4 h-4 mr-2" /> },
-    { id: 'book', label: '书目提纯', icon: <LibraryBig className="w-4 h-4 mr-2" /> },
+    { id: 'policy', label: '政策规制与大局', icon: <FileText className="w-4 h-4 mr-2" /> },
+    { id: 'report', label: '财报与商业模式', icon: <BarChart3 className="w-4 h-4 mr-2" /> },
+    { id: 'email', label: '外企跨文化博弈', icon: <Mail className="w-4 h-4 mr-2" /> },
+    { id: 'book', label: '高阶书目与认知', icon: <LibraryBig className="w-4 h-4 mr-2" /> },
   ];
 
   const renderResultGrid = () => {
@@ -914,7 +914,12 @@ export default function ReadModule() {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-gray-400 font-semibold italic text-center py-2">请先在上方输入原文并启动 AI 穿透解码，以激活专属追问舱。</p>
+              <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50 animate-pulse">
+                <MessageSquare className="w-6 h-6 text-gray-300 mb-2" />
+                <p className="text-[11px] text-gray-400 font-bold text-center leading-relaxed">
+                  AI 策略教练已就位 ｜ 请在上方录入或推送原始素材并启动解码，以激活追问舱。
+                </p>
+              </div>
             )}
           </div>
 
@@ -1076,8 +1081,51 @@ export default function ReadModule() {
                   )}
                 </div>
               ) : (
-                <div className="text-center py-16 text-slate-400 font-semibold bg-white rounded-3xl border border-slate-100">
-                  暂无报告，请在左侧输入并启动解码
+                <div className="bg-white rounded-[2rem] p-6 border border-gray-150 shadow-[0_4px_25px_rgba(0,0,0,0.025)] flex flex-col gap-6 animate-[fadeIn_0.5s_ease-out]">
+                  <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF5722] animate-pulse" />
+                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">
+                      高管认知构建导引
+                    </span>
+                  </div>
+
+                  {/* 核心要义及今日焦点 */}
+                  <div className="space-y-4">
+                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
+                      <span className="text-[9px] font-black text-slate-400 tracking-wider block mb-2 uppercase">
+                        💡 今日训练聚焦点
+                      </span>
+                      <p className="text-xs font-semibold text-slate-700 leading-relaxed">
+                        {activeTab === 'policy' && '重点追踪国家意志与地方博弈合规红线，判断政策的实质威慑力与合规切入点。'}
+                        {activeTab === 'report' && '重点穿透虚增营收与关联交易数据，审计现金流勾稽关系，剔除虚假扩张水分。'}
+                        {activeTab === 'email' && '精准还原字面客套话之下的隐性利益对峙与诉求退路，寻找反向应对突破口。'}
+                        {activeTab === 'book' && '审计论证的局限性与作者的思维局限偏见，完成理论向高层管理决策的转化。'}
+                      </p>
+                    </div>
+
+                    {/* 仪表盘统计备份 */}
+                    <div className="bg-gradient-to-br from-[#202124] to-[#303134] rounded-2xl p-4 text-white relative overflow-hidden shadow-inner">
+                      <span className="text-[9px] font-black text-gray-400 tracking-widest block mb-3 uppercase">
+                        📊 个人吸收度指标
+                      </span>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/5 rounded-xl p-2.5 border border-white/5 text-center">
+                          <span className="text-[8px] font-black text-gray-400 block mb-1">今日已吸收</span>
+                          <span className="text-lg font-black text-[#FF5722]">{todaySummary.absorbedCount} 篇</span>
+                        </div>
+                        <div className="bg-white/5 rounded-xl p-2.5 border border-white/5 text-center">
+                          <span className="text-[8px] font-black text-gray-400 block mb-1">日均思考分</span>
+                          <span className="text-lg font-black text-emerald-400">{todaySummary.averageScore || '-.-'} 分</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-gray-100 pt-3">
+                      <p className="text-[10px] text-gray-400 font-bold leading-relaxed">
+                        *AI 教练将从表层意图、核心盈利破绽、跨文化博弈等维度为您进行因果关系结构化拆解，请在左侧录入开始。
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </motion.div>
