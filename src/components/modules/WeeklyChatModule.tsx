@@ -3,7 +3,7 @@ import { Lock, Sparkles, Zap, Loader2, Calendar, Trash2 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
 import { runWeeklyCognitiveAnalysis } from '../../services/difyAPI';
-import { saveUserCurrentProfile, getUserCurrentProfile } from '../../utils/profileHelper';
+import { saveUserCurrentProfile, getUserCurrentProfile, appendUserProfileFactor } from '../../utils/profileHelper';
 
 interface HistoryItem {
   id: string;
@@ -51,8 +51,8 @@ export default function WeeklyChatModule() {
     try {
       const result = await runWeeklyCognitiveAnalysis(content);
       
-      // 更新用户的全局能力短板（画像进化）
-      saveUserCurrentProfile(result.shortDebilitatingFactors);
+      // 更新用户的全局能力短板（画像进化 - 增量追加）
+      appendUserProfileFactor(result.shortDebilitatingFactors);
       
       const newHistory: HistoryItem = {
         id: Date.now().toString(),

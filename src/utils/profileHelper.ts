@@ -27,6 +27,45 @@ export function saveUserCurrentProfile(profile: string) {
 }
 
 /**
+ * 追加画像短板并去重，限制最大长度为 5 个标签，并广播同步事件
+ */
+export function appendUserProfileFactor(newFactorsStr: string) {
+  if (!newFactorsStr) return;
+  let currentArray: string[] = [];
+  const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  if (raw) {
+    if (raw.startsWith('[') && raw.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          currentArray = parsed;
+        }
+      } catch (e) {
+        currentArray = raw.split(/; /).map(s => s.trim()).filter(Boolean);
+      }
+    } else {
+      currentArray = raw.split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
+    }
+  }
+
+  const incoming = newFactorsStr.split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
+  incoming.forEach(factor => {
+    if (!currentArray.includes(factor)) {
+      currentArray.push(factor);
+    }
+  });
+
+  if (currentArray.length > 5) {
+    currentArray = currentArray.slice(-5);
+  }
+
+  const jsonStr = JSON.stringify(currentArray);
+  localStorage.setItem('user_current_profile', jsonStr);
+  localStorage.setItem('User_Current_Profile', jsonStr);
+  window.dispatchEvent(new Event('global-profile-changed'));
+}
+
+/**
  * 智能分析提问或上下文，发现英国/美国画像指令时自动执行隐式更新
  */
 export function updateProfileFromText(text: string): boolean {
