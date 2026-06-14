@@ -107,7 +107,7 @@ export default function ReadModule() {
   const [todaySummary, setTodaySummary] = useState({
     absorbedCount: 0,
     averageScore: 0,
-    lastFocus: '强化体制内政务方向嗅觉'
+    lastFocus: '强化对宏观政策国家意志和地方博弈的敏感度'
   });
 
   // 日终复盘初始化
@@ -308,7 +308,7 @@ export default function ReadModule() {
   };
 
   const tabs: Array<{ id: CognitivePenetrationInput['scene_type'], label: string, icon: React.ReactNode }> = [
-    { id: 'policy', label: '政策规制与大局', icon: <FileText className="w-4 h-4 mr-2" /> },
+    { id: 'policy', label: '政策意图解构', icon: <FileText className="w-4 h-4 mr-2" /> },
     { id: 'report', label: '财报与商业模式', icon: <BarChart3 className="w-4 h-4 mr-2" /> },
     { id: 'email', label: '外企跨文化博弈', icon: <Mail className="w-4 h-4 mr-2" /> },
     { id: 'book', label: '高阶书目与认知', icon: <LibraryBig className="w-4 h-4 mr-2" /> },
@@ -618,7 +618,7 @@ export default function ReadModule() {
         onClick={handleOutsideClick}
       >
         {/* 左侧 70% 工作区 */}
-        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-full overflow-y-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full'}`}>
+        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-full overflow-y-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-5xl mx-auto'}`}>
           {/* 顶部一排：场景大框架（通用社交、体制内职场、跨国企业） */}
           <div className="mb-2">
             <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
@@ -1081,49 +1081,62 @@ export default function ReadModule() {
                   )}
                 </div>
               ) : (
-                <div className="bg-white rounded-[2rem] p-6 border border-gray-150 shadow-[0_4px_25px_rgba(0,0,0,0.025)] flex flex-col gap-6 animate-[fadeIn_0.5s_ease-out]">
-                  <div className="flex items-center gap-2 pb-3 border-b border-gray-100">
-                    <div className="w-2.5 h-2.5 rounded-full bg-[#FF5722] animate-pulse" />
-                    <span className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                      高管认知构建导引
-                    </span>
-                  </div>
-
-                  {/* 核心要义及今日焦点 */}
-                  <div className="space-y-4">
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100">
-                      <span className="text-[9px] font-black text-slate-400 tracking-wider block mb-2 uppercase">
-                        💡 今日训练聚焦点
-                      </span>
-                      <p className="text-xs font-semibold text-slate-700 leading-relaxed">
-                        {activeTab === 'policy' && '重点追踪国家意志与地方博弈合规红线，判断政策的实质威慑力与合规切入点。'}
-                        {activeTab === 'report' && '重点穿透虚增营收与关联交易数据，审计现金流勾稽关系，剔除虚假扩张水分。'}
-                        {activeTab === 'email' && '精准还原字面客套话之下的隐性利益对峙与诉求退路，寻找反向应对突破口。'}
-                        {activeTab === 'book' && '审计论证的局限性与作者的思维局限偏见，完成理论向高层管理决策的转化。'}
-                      </p>
-                    </div>
-
-                    {/* 仪表盘统计备份 */}
-                    <div className="bg-gradient-to-br from-[#202124] to-[#303134] rounded-2xl p-4 text-white relative overflow-hidden shadow-inner">
-                      <span className="text-[9px] font-black text-gray-400 tracking-widest block mb-3 uppercase">
-                        📊 个人吸收度指标
-                      </span>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-white/5 rounded-xl p-2.5 border border-white/5 text-center">
-                          <span className="text-[8px] font-black text-gray-400 block mb-1">今日已吸收</span>
-                          <span className="text-lg font-black text-[#FF5722]">{todaySummary.absorbedCount} 篇</span>
+                <div className="flex flex-col gap-5 animate-[fadeIn_0.4s_ease-out] h-full justify-between">
+                  <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.01)] flex flex-col gap-4">
+                    <h5 className="text-xs font-black text-[#FF5722] uppercase tracking-widest flex items-center gap-1.5 border-b border-gray-100 pb-2">
+                      <Target className="w-4 h-4" /> 高管认知穿透导引
+                    </h5>
+                    <p className="text-xs text-gray-500 leading-relaxed font-semibold">
+                      本系统旨在将输入的信息直接转化为高阶判断力和商业决策力。请在左侧主控区输入原始素材并启动解码。
+                    </p>
+                    
+                    <div className="flex flex-col gap-2.5 mt-2">
+                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                        <span className="text-[10px] bg-[#FF5722]/10 text-[#FF5722] font-black px-1.5 py-0.5 rounded">1</span>
+                        <div className="text-[11px] text-gray-700 font-bold">
+                          <span className="block text-gray-900 font-extrabold mb-0.5">政策意图解构</span>
+                          透过字面词句，探寻隐藏意图与对我/行业的本质影响。
                         </div>
-                        <div className="bg-white/5 rounded-xl p-2.5 border border-white/5 text-center">
-                          <span className="text-[8px] font-black text-gray-400 block mb-1">日均思考分</span>
-                          <span className="text-lg font-black text-emerald-400">{todaySummary.averageScore || '-.-'} 分</span>
+                      </div>
+                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                        <span className="text-[10px] bg-blue-500/10 text-blue-600 font-black px-1.5 py-0.5 rounded">2</span>
+                        <div className="text-[11px] text-gray-700 font-bold">
+                          <span className="block text-gray-900 font-extrabold mb-0.5">财报与商业模式</span>
+                          审计出海企业盈利破绽与海外市场合规/风险痛点。
+                        </div>
+                      </div>
+                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                        <span className="text-[10px] bg-purple-500/10 text-purple-600 font-black px-1.5 py-0.5 rounded">3</span>
+                        <div className="text-[11px] text-gray-700 font-bold">
+                          <span className="block text-gray-900 font-extrabold mb-0.5">外企跨文化博弈</span>
+                          穿透外企客套话与逻辑阻碍，剥离各方真实利益立场。
+                        </div>
+                      </div>
+                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-black px-1.5 py-0.5 rounded">4</span>
+                        <div className="text-[11px] text-gray-700 font-bold">
+                          <span className="block text-gray-900 font-extrabold mb-0.5">高阶书目与认知</span>
+                          纠偏个人思考盲点与逻辑漏洞，构建管理与发展闭环。
                         </div>
                       </div>
                     </div>
+                  </div>
 
-                    <div className="border-t border-gray-100 pt-3">
-                      <p className="text-[10px] text-gray-400 font-bold leading-relaxed">
-                        *AI 教练将从表层意图、核心盈利破绽、跨文化博弈等维度为您进行因果关系结构化拆解，请在左侧录入开始。
-                      </p>
+                  {/* 状态看板卡片，展示历史缓存 */}
+                  <div className="bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-5 text-white shadow-sm flex flex-col gap-3">
+                    <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
+                      <span className="text-[10px] font-black text-gray-400 tracking-wider uppercase">今日思维指数</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black">训练舱就绪</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">吸收素材</span>
+                        <span className="text-lg font-black text-[#FF5722]">{todaySummary.absorbedCount} 篇</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">平均得分</span>
+                        <span className="text-lg font-black text-emerald-400">{todaySummary.averageScore || '-.-'} 分</span>
+                      </div>
                     </div>
                   </div>
                 </div>
