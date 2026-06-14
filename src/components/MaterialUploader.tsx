@@ -138,19 +138,26 @@ export default function MaterialUploader({
     }
   }, [activeTab]);
 
-  // 读取文本文件的 Effect
+  // 监听选中的文件以实时生成预览内容
   useEffect(() => {
-    if (selectedFiles.length > 0) {
-      const file = selectedFiles[0];
-      if (file.type.startsWith('text/') || file.name.endsWith('.txt') || file.name.endsWith('.md')) {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setPreviewContent((e.target?.result as string) || '');
-        };
-        reader.readAsText(file);
-      } else {
-        setPreviewContent('[二进制文档] 这是一个 PDF/Word 材料。点击“开始上传并提纯”后，系统将在服务器自动解析文本并提纯。');
-      }
+    if (selectedFiles.length === 0) {
+      setPreviewContent('');
+      return;
+    }
+    const file = selectedFiles[0];
+    const isText = file.type.startsWith('text/') || 
+                   file.name.endsWith('.txt') || 
+                   file.name.endsWith('.md') ||
+                   file.name.endsWith('.json') ||
+                   file.name.endsWith('.srt') ||
+                   file.name.endsWith('.vtt') ||
+                   file.type === 'text/markdown';
+    if (isText) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setPreviewContent(e.target?.result as string || '');
+      };
+      reader.readAsText(file, 'utf-8');
     } else {
       setPreviewContent('');
     }
@@ -219,14 +226,14 @@ export default function MaterialUploader({
         {/* Step 2：选择材料 (col-span-2) */}
         <section className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-5 lg:col-span-2">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-3">Step 2 选择材料</div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 2 选择材料</div>
             
             {/* Tabs Selector */}
             <div className="flex border border-gray-200 rounded-xl overflow-hidden mb-4 bg-white">
               <button
                 onClick={() => setActiveTab('file')}
-                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                  activeTab === 'file' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  activeTab === 'file' ? 'bg-zinc-900 text-white shadow-sm' : 'text-gray-500 hover:bg-zinc-50'
                 }`}
                 disabled={status === 'running'}
               >
@@ -235,8 +242,8 @@ export default function MaterialUploader({
               </button>
               <button
                 onClick={() => setActiveTab('url')}
-                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                  activeTab === 'url' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  activeTab === 'url' ? 'bg-zinc-900 text-white shadow-sm' : 'text-gray-500 hover:bg-zinc-50'
                 }`}
                 disabled={status === 'running'}
               >
@@ -245,8 +252,8 @@ export default function MaterialUploader({
               </button>
               <button
                 onClick={() => setActiveTab('video')}
-                className={`flex-1 py-2 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-colors cursor-pointer ${
-                  activeTab === 'video' ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-50'
+                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                  activeTab === 'video' ? 'bg-zinc-900 text-white shadow-sm' : 'text-gray-500 hover:bg-zinc-50'
                 }`}
                 disabled={status === 'running'}
               >
@@ -321,39 +328,56 @@ export default function MaterialUploader({
             <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 3 执行与预览</div>
             
             {/* 动态预览窗口 */}
-            <div className="flex-1 min-h-[160px] max-h-[200px] mb-4 bg-gray-950/40 rounded-xl p-3 border border-gray-800 flex flex-col overflow-hidden relative">
+            <div className="flex-1 min-h-[160px] max-h-[200px] mb-4 bg-zinc-950 rounded-xl p-4 border border-zinc-800 flex flex-col overflow-hidden relative shadow-inner">
               {activeTab === 'video' && videoMedia ? (
-                // 视频预览
+                // 视频及字幕预览
                 <div className="flex-grow flex flex-col justify-center min-h-0">
-                  <div className="text-[9px] text-gray-500 mb-1.5 truncate">
+                  <div className="text-[9px] text-zinc-500 mb-1.5 truncate">
                     {videoMedia.type === 'file' ? `本地视频: ${videoMedia.file?.name}` : `网络视频: ${videoMedia.url}`}
                   </div>
-                  {videoMedia.type === 'file' && videoObjectURL ? (
-                    <video src={videoObjectURL} controls className="w-full max-h-[120px] rounded-lg bg-black border border-gray-800" />
+                  {selectedFiles.length > 0 ? (
+                    <div className="flex-grow flex flex-col min-h-0">
+                      <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-zinc-800 text-[9px] text-zinc-500">
+                        <span className="truncate max-w-[130px]">{selectedFiles[0].name}</span>
+                        <span className="font-mono">字幕已就绪</span>
+                      </div>
+                      <div className="flex-grow overflow-y-auto text-[10px] text-zinc-300 font-mono leading-relaxed pr-1 whitespace-pre-wrap break-all custom-scrollbar">
+                        {previewContent || '字幕转写内容正在装载...'}
+                      </div>
+                    </div>
+                  ) : videoMedia.type === 'file' && videoObjectURL ? (
+                    <video src={videoObjectURL} controls className="w-full max-h-[110px] rounded-lg bg-black border border-zinc-800" />
                   ) : (
-                    <div className="flex-grow flex flex-col items-center justify-center border border-dashed border-gray-800 rounded-lg p-3">
-                      <Play className="w-6 h-6 text-gray-600 mb-1" />
-                      <span className="text-[9px] text-gray-400">视频链接已就绪，可在左侧发起转写</span>
+                    <div className="flex-grow flex flex-col items-center justify-center border border-dashed border-zinc-800 rounded-lg p-3">
+                      <Play className="w-6 h-6 text-zinc-700 mb-1 animate-pulse" />
+                      <span className="text-[9px] text-zinc-500">视频链接已就绪，请在左侧点击“提取字幕并导入”</span>
                     </div>
                   )}
                 </div>
               ) : selectedFiles.length > 0 ? (
                 // 文本/网页/导入文件预览
                 <div className="flex-grow flex flex-col min-h-0">
-                  <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-gray-800 text-[9px] text-gray-500">
-                    <span className="truncate max-w-[120px]">{selectedFiles[0].name}</span>
+                  <div className="flex items-center justify-between mb-1.5 pb-1 border-b border-zinc-800 text-[9px] text-zinc-500">
+                    <span className="truncate max-w-[130px]">{selectedFiles[0].name}</span>
                     <span className="font-mono">{(selectedFiles[0].size / 1024).toFixed(1)} KB</span>
                   </div>
-                  <div className="flex-grow overflow-y-auto text-[10px] text-gray-300 font-mono leading-relaxed pr-1 whitespace-pre-wrap break-all">
-                    {previewContent || '正在加载预览...'}
+                  <div className="flex-grow overflow-y-auto text-[10px] text-zinc-300 font-mono leading-relaxed pr-1 whitespace-pre-wrap break-all custom-scrollbar">
+                    {previewContent ? (
+                      previewContent
+                    ) : (
+                      <span className="text-zinc-500 italic block py-2">
+                        [ 无法直接预览二进制文档 ]
+                        {"\n\n"}PDF / Word / DOCX 等二进制数据，将在点击下方“开始上传并提纯”后，由后台智能服务进行结构化解析与知识向量切片。
+                      </span>
+                    )}
                   </div>
-                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-gray-950/80 to-transparent pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
                 </div>
               ) : (
                 // 默认提示
                 <div className="flex-grow flex flex-col items-center justify-center text-center p-2">
-                  <p className="text-[11px] text-gray-400 leading-relaxed">
-                    系统将自动执行：清空知识库 → 载入材料 → 向量化切片 → Dify智能抽提词汇 → 写入生词本。
+                  <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
+                    系统将自动执行：清空知识库 → 载入材料 → 向量化切片 → Dify 智能抽提词汇 → 写入艾宾浩斯生词本。
                   </p>
                 </div>
               )}
