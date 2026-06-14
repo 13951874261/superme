@@ -12,20 +12,24 @@ import WeeklyChatModule from './modules/WeeklyChatModule';
 import SummaryArea from './SummaryArea';
 import { ModuleType } from '../App';
 import { Lock, Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain } from 'lucide-react';
-import { playError } from '../utils/soundEffects';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
-import CyberneticLockModal from './CyberneticLockModal';
 
 interface MainContentProps {
   selectedDate: string;
   activeModule: ModuleType;
   setActiveModule: (m: ModuleType) => void;
   isLocked: boolean;
+  onLockTrigger?: () => void;
 }
 
-export default function MainContent({ selectedDate, activeModule, setActiveModule, isLocked }: MainContentProps) {
+export default function MainContent({ 
+  selectedDate, 
+  activeModule, 
+  setActiveModule, 
+  isLocked,
+  onLockTrigger
+}: MainContentProps) {
   const { theme, masteryData } = useEnglishContext();
-  const [isLockModalOpen, setIsLockModalOpen] = useState(false);
 
   // 定义金属质感的导航选项卡
   const TABS = [
@@ -60,8 +64,7 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
 
   const handleTabClick = (tabId: ModuleType) => {
     if (isLocked && tabId !== 'english') {
-      playError();
-      setIsLockModalOpen(true);
+      if (onLockTrigger) onLockTrigger();
     } else {
       setActiveModule(tabId);
     }
@@ -114,14 +117,6 @@ export default function MainContent({ selectedDate, activeModule, setActiveModul
         </div>
       </div>
 
-      {/* 控制论闭环警示弹窗 */}
-      <CyberneticLockModal
-        isOpen={isLockModalOpen}
-        onClose={() => setIsLockModalOpen(false)}
-        theme={theme}
-        oralCount={masteryData.oralCount}
-        maxWriteScore={masteryData.maxWriteScore}
-      />
     </main>
   );
 }

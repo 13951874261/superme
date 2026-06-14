@@ -7,6 +7,8 @@ import GlobalTaskCenter from './components/GlobalTaskCenter';
 import { getTodayDateDot } from './utils/date';
 import { EnglishProvider, useEnglishContext } from './components/modules/english/context/EnglishContext';
 import { TaskProvider } from './components/TaskContext';
+import { playError } from './utils/soundEffects';
+import CyberneticLockModal from './components/CyberneticLockModal';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -23,7 +25,13 @@ function AppContent() {
   const [rightPanelTab, setRightPanelTab] = useState<'assistant' | 'context'>('assistant');
   const [highlightedWordData, setHighlightedWordData] = useState<any>(null);
 
-  const { masteryData } = useEnglishContext();
+  const { theme, masteryData } = useEnglishContext();
+  const [isLockModalOpen, setIsLockModalOpen] = useState(false);
+
+  const handleLockTrigger = () => {
+    playError();
+    setIsLockModalOpen(true);
+  };
 
   const [isInterceptorEnabled, setIsInterceptorEnabled] = useState(
     localStorage.getItem('super_agent_global_interceptor') !== 'false'
@@ -110,12 +118,15 @@ function AppContent() {
           onDateSelect={setSelectedDate}
           activeModule={activeModule}
           setActiveModule={setActiveModule}
+          isLocked={isLocked}
+          onLockTrigger={handleLockTrigger}
         />
         <MainContent 
           selectedDate={selectedDate} 
           activeModule={activeModule}
           setActiveModule={setActiveModule}
           isLocked={isLocked}
+          onLockTrigger={handleLockTrigger}
         />
       </div>
 
@@ -130,6 +141,15 @@ function AppContent() {
 
       {/* 全局任务中心抽屉：渲染在 App 根级别，独立于 main-content */}
       <GlobalTaskCenter />
+
+      {/* 控制论闭环警示弹窗 */}
+      <CyberneticLockModal
+        isOpen={isLockModalOpen}
+        onClose={() => setIsLockModalOpen(false)}
+        theme={theme}
+        oralCount={masteryData.oralCount}
+        maxWriteScore={masteryData.maxWriteScore}
+      />
     </div>
   );
 }

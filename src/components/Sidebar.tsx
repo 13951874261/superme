@@ -13,9 +13,20 @@ interface SidebarProps {
   onDateSelect: (date: string) => void;
   activeModule?: string;
   setActiveModule?: (module: any) => void;
+  isLocked?: boolean;
+  onLockTrigger?: () => void;
 }
 
-export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSelect, activeModule, setActiveModule }: SidebarProps) {
+export default function Sidebar({ 
+  isOpen, 
+  toggleSidebar, 
+  selectedDate, 
+  onDateSelect, 
+  activeModule, 
+  setActiveModule,
+  isLocked,
+  onLockTrigger
+}: SidebarProps) {
   // 按照您的要求，按月/周分类的归档体系需要折叠交互状态
   const [isAprilWeek2Open, setIsAprilWeek2Open] = useState(true);
   const [isAprilWeek1Open, setIsAprilWeek1Open] = useState(false);
@@ -238,8 +249,12 @@ export default function Sidebar({ isOpen, toggleSidebar, selectedDate, onDateSel
           <div className="px-5 xl:px-6 py-4 border-t border-gray-200/50 bg-zinc-50/40 mt-auto shrink-0">
             <button
               onClick={() => {
-                playClick();
-                setActiveModule('weekly');
+                if (isLocked) {
+                  if (onLockTrigger) onLockTrigger();
+                } else {
+                  playClick();
+                  setActiveModule('weekly');
+                }
               }}
               className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm ${
                 activeModule === 'weekly'
