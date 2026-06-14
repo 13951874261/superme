@@ -13,9 +13,9 @@ import {
   CognitivePenetrationResult 
 } from '../../services/difyAPI';
 import { 
-  playError, playClick, playSwitch, playUpload, playReveal, playSuccessCyber, playHeartbeat, playErrorCyber, playScan, playSuccess,
-  playWaterDrop, playPageTurn, playGentleWarning
+  playWaterDrop, playPageTurn
 } from '../../utils/soundEffects';
+import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
 import UrlFetchPanel from '../UrlFetchPanel';
 
@@ -154,10 +154,8 @@ export default function ReadModule() {
     try {
       const text = await generateReadMaterial(activeTab, sceneFramework);
       setInputText(text);
-      playUpload(); // 播放数据置入音效
     } catch (err: any) {
       console.error(err);
-      playErrorCyber();
       setErrorMsg('动态素材投喂失败，请手动录入');
       setTimeout(() => setErrorMsg(''), 4000);
     } finally {
@@ -182,12 +180,20 @@ export default function ReadModule() {
     try {
       const res = await runCognitivePenetrationEngine({ scene_type: activeTab, text_input: inputText });
       setResult(res);
-      playSuccessCyber(); // 成功赛博声效
-      playReveal(); // 展开卡片音效
+
 
       // 计算随机 AI 深度评分与多维反馈细节
       const score = parseFloat((8.5 + Math.random() * 1.4).toFixed(1)); // 随机 8.5 ~ 9.9 分
       setAiScore(score);
+      if (score >= 9.0) {
+        confetti({
+          particleCount: 80,
+          spread: 60,
+          origin: { y: 0.6 },
+          colors: ['#FF5722', '#202124', '#4CAF50', '#FFC107'],
+          disableForReducedMotion: true
+        });
+      }
       
       const frameworkText = { social: '通用社交', gov: '体制内职场', corp: '跨国企业' }[sceneFramework];
       setAiInsightDetails(`【教官深度评价】针对此篇素材，在【${frameworkText}】背景下，您的深度剖析准确触及了利益链核心。AI 已经智能补充了隐藏的战略考量。建议您结合“立场反转”和“信息溯源”进行防御性思考，避开惯性思维盲区。`);
@@ -215,7 +221,7 @@ export default function ReadModule() {
       if (Math.random() > 0.4) {
         setTimeout(() => {
           setIsReversalTriggered(true);
-          playGentleWarning(); // 播放温柔警音
+
 
           // 根据当前板块定制立场反转 Prompt
           let p = '';
@@ -233,7 +239,6 @@ export default function ReadModule() {
       }
     } catch (err: any) {
       console.error(err);
-      playErrorCyber();
       setErrorMsg(err.message || '穿透解码失败，请检查配置');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
@@ -250,7 +255,6 @@ export default function ReadModule() {
     setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
     setUserQuery('');
     setIsChatLoading(true);
-    playClick();
 
     try {
       const response = await sendReadInteractiveChatMessage({
@@ -264,10 +268,8 @@ export default function ReadModule() {
       
       setChatMessages(prev => [...prev, { role: 'assistant', text: response.answer }]);
       setConversationId(response.conversation_id);
-      playSuccess();
     } catch (err: any) {
       console.error(err);
-      playErrorCyber();
       setChatMessages(prev => [...prev, { role: 'assistant', text: `交互舱连接异常：${err.message}` }]);
     } finally {
       setIsChatLoading(false);
@@ -278,7 +280,6 @@ export default function ReadModule() {
   const handleSubmitReversal = async () => {
     if (!userReversalText.trim()) return;
     setIsReversalLoading(true);
-    playClick();
     
     try {
       const response = await sendReadInteractiveChatMessage({
@@ -297,10 +298,8 @@ export default function ReadModule() {
       setReversalFeedback(response.answer);
       setConversationId(response.conversation_id);
       setReversalSubmitted(true);
-      playSuccessCyber();
     } catch (e: any) {
       console.error(e);
-      playErrorCyber();
       setReversalFeedback(`思考收集失败：${e.message || '网络连接异常'}`);
       setReversalSubmitted(true);
     } finally {
@@ -353,9 +352,8 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
-                  <Eye className="w-3.5 h-3.5 text-slate-400" /> 01 / 表面结论
+                  <Eye className="w-3.5 h-3.5 text-slate-400" /> ① 政策宣示 (表面结论与宣发口径)
                 </span>
-                <span className="text-[10px] font-bold text-slate-400">官方宣传口径</span>
               </div>
               <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.surface_conclusion}</div>
             </motion.div>
@@ -367,11 +365,7 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
-                  <Key className="w-3.5 h-3.5 text-[#FF5722]" /> 02 / 隐藏意图与导向
-                </span>
-                <span className="text-[10px] font-black text-[#FF5722] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722] animate-ping" />
-                  深层利益链博弈
+                  <Key className="w-3.5 h-3.5 text-[#FF5722]" /> ② 战略图谋 (政策深层意图与利益导向)
                 </span>
               </div>
               <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.hidden_intent}</div>
@@ -384,9 +378,8 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
-                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" /> 03 / 切身利益防线
+                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" /> ③ 业务落脚点 (对本职与关联行业合规切入点)
                 </span>
-                <span className="text-[10px] font-bold text-blue-400">对我及行业影响</span>
               </div>
               <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.industry_impact}</div>
             </motion.div>
@@ -398,9 +391,8 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
-                  <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 攻防底牌盘点
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> ④ 攻防红线 (合规红线与制度性溢价机会)
                 </span>
-                <span className="text-[10px] font-bold text-amber-500">潜在风险与红利</span>
               </div>
               <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.risks_and_opportunities}</div>
             </motion.div>
@@ -443,9 +435,8 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
-                  <Target className="w-3.5 h-3.5 text-slate-400" /> 01 / 商业模式拆解
+                  <Target className="w-3.5 h-3.5 text-slate-400" /> ① 商业模式剖析 (核心盈利模式拆解)
                 </span>
-                <span className="text-[10px] font-bold text-slate-400">核心商业价值链</span>
               </div>
               <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.business_model}</div>
             </motion.div>
@@ -457,9 +448,8 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
-                  <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> 02 / 出海痛点审计
+                  <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> ② 地缘与政策冲击 (海外痛点与宏观政策传导机制)
                 </span>
-                <span className="text-[10px] font-bold text-blue-400">海外市场及用户痛点</span>
               </div>
               <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.market_pain_points}</div>
             </motion.div>
@@ -471,11 +461,7 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
-                  <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> 03 / 盈利逻辑爆点
-                </span>
-                <span className="text-[10px] font-black text-[#FF5722] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF5722] animate-ping" />
-                  商业/财务漏洞核实
+                  <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ③ 盈利成色审计 (现金流匹配与数据脱水破绽)
                 </span>
               </div>
               <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.profit_logic_flaws}</div>
@@ -532,9 +518,8 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
-                <Key className="w-3.5 h-3.5 text-[#FF5722]" /> 01 / 真实立场脱水
+                <Key className="w-3.5 h-3.5 text-[#FF5722]" /> ① 职场修辞 (客套话与字面意思还原)
               </span>
-              <span className="text-[10px] font-bold text-[#FF5722]">剥离表面客套</span>
             </div>
             <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.stripped_logic}</div>
           </motion.div>
@@ -546,9 +531,8 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
-                <Compass className="w-3.5 h-3.5 text-blue-500" /> 02 / 利益视角反转
+                <Compass className="w-3.5 h-3.5 text-blue-500" /> ② 利益对峙 (隐性底线与诉求脱水)
               </span>
-              <span className="text-[10px] font-bold text-blue-400">对手/对方底层考量</span>
             </div>
             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.stance_reversal}</div>
           </motion.div>
@@ -560,9 +544,8 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
-                <Shield className="w-3.5 h-3.5 text-amber-500" /> 03 / 攻防反向施压
+                <Shield className="w-3.5 h-3.5 text-amber-500" /> ③ 话术破局点 (因果关联与反向应对策)
               </span>
-              <span className="text-[10px] font-bold text-amber-500">精准反向追问话术</span>
             </div>
             <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.counter_questions}</div>
           </motion.div>
@@ -586,9 +569,8 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
-                <Eye className="w-3.5 h-3.5 text-gray-400" /> 01 / 核心亮点萃取
+                <Eye className="w-3.5 h-3.5 text-gray-400" /> ① 认知提纯 (核心论点与思想精髓)
               </span>
-              <span className="text-[10px] font-bold text-slate-400">思考逻辑主线</span>
             </div>
             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.thought_highlights}</div>
           </motion.div>
@@ -600,9 +582,8 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
-                <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> 02 / 思维盲点审视
+                <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ② 思维挑刺 (论证局限性与逻辑偏见审计)
               </span>
-              <span className="text-[10px] font-bold text-[#FF5722]">逻辑漏洞与局限性</span>
             </div>
             <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.logic_flaws}</div>
           </motion.div>
@@ -614,9 +595,8 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
-                <Target className="w-3.5 h-3.5 text-amber-500" /> 03 / 实战落地启示
+                <Target className="w-3.5 h-3.5 text-amber-500" /> ③ 战略落地转化 (管理决策与成长转化)
               </span>
-              <span className="text-[10px] font-bold text-amber-500">高阶职场应用</span>
             </div>
             <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.workplace_application}</div>
           </motion.div>
@@ -766,7 +746,6 @@ export default function ReadModule() {
               <UrlFetchPanel
                 onFetchSuccess={(virtualFile) => {
                   setInputText(virtualFile.content);
-                  playUpload();
                 }}
                 isLoading={isFetchLoading}
                 setIsLoading={setIsFetchLoading}
@@ -785,7 +764,6 @@ export default function ReadModule() {
                     const reader = new FileReader();
                     reader.onload = (event) => {
                       setInputText((event.target?.result as string) || '');
-                      playUpload();
                     };
                     reader.readAsText(file);
                   }
@@ -856,11 +834,87 @@ export default function ReadModule() {
 
             {result && !showContextSheet && (
               <button
-                onClick={() => { playClick(); setShowContextSheet(true); }}
+                onClick={() => { playPageTurn(); setShowContextSheet(true); }}
                 className="mt-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 w-full py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
               >
                 <span>展开解读报告 (Expand Analysis Report)</span>
               </button>
+            )}
+          </div>
+
+          {/* 专属 AI 交互区 */}
+          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.015)] mb-2">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-xs font-black text-gray-400 tracking-widest uppercase flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-[#FF5722]" /> 专属 AI 交互区 (细化要求与思考追问)
+              </span>
+            </div>
+            {result ? (
+              <div className="space-y-4">
+                {chatMessages.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar animate-[fadeIn_0.3s_ease-out]">
+                    {chatMessages.map((msg, i) => (
+                      <div 
+                        key={i} 
+                        className={`flex flex-col max-w-[85%] rounded-2xl p-2.5 text-[11px] leading-relaxed font-semibold ${
+                          msg.role === 'user' 
+                            ? 'bg-[#FF5722]/10 text-[#FF5722] ml-auto rounded-tr-none' 
+                            : 'bg-gray-100 text-[#202124] rounded-tl-none border border-gray-200/50'
+                        }`}
+                      >
+                        <span className="text-[8px] font-black opacity-40 mb-0.5">{msg.role === 'user' ? 'ME' : 'AI COACH'}</span>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      </div>
+                    ))}
+                    {isChatLoading && (
+                      <div className="bg-gray-50 text-gray-400 rounded-2xl rounded-tl-none p-2.5 text-[11px] font-semibold w-max flex items-center gap-1 border border-gray-100 animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin" /> 深度剖析中...
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {chatMessages.length === 0 && (
+                  <div className="flex flex-col gap-1.5 mb-2">
+                    {[
+                      '追问这一政策出台后的真实利益博弈细节',
+                      '帮我指出我可能存在的解读误区'
+                    ].map((pill, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setUserQuery(pill);
+                          playWaterDrop();
+                        }}
+                        className="text-[9px] text-left font-bold px-2.5 py-1 rounded-lg bg-[#f8f9fa] border border-gray-200 text-gray-500 hover:text-[#FF5722] hover:border-[#FF5722]/30 hover:bg-[#FF5722]/5 transition-all cursor-pointer w-full"
+                      >
+                        {pill}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 bg-[#f8f9fa] rounded-xl p-1 border border-gray-200/60 focus-within:border-[#FF5722]/30 transition-all">
+                  <input 
+                    type="text" 
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                    disabled={isChatLoading}
+                    className="flex-1 bg-transparent px-2 text-[11px] outline-none font-semibold text-[#202124]"
+                    placeholder="进一步追问或剖析漏洞..."
+                  />
+                  <button 
+                    onClick={handleSendChat} 
+                    disabled={!userQuery.trim() || isChatLoading} 
+                    className="p-2 rounded-lg bg-[#202124] hover:bg-[#FF5722] text-white transition-all duration-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 font-semibold italic text-center py-2">请先在上方输入原文并启动 AI 穿透解码，以激活专属追问舱。</p>
             )}
           </div>
 
@@ -1016,75 +1070,6 @@ export default function ReadModule() {
                             <Award className="w-3.5 h-3.5" /> 穿透导师评价
                           </span>
                           <p className="text-[11px] text-gray-600 font-bold leading-relaxed whitespace-pre-wrap">{aiInsightDetails}</p>
-                        </div>
-
-                        {/* 交互 Chat */}
-                        <div className="border-t border-gray-100 pt-3">
-                          <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2 flex items-center gap-1">
-                            <MessageSquare className="w-3 h-3" /> AI 深度追问舱
-                          </span>
-                          
-                          {chatMessages.length > 0 && (
-                            <div className="max-h-40 overflow-y-auto mb-2 space-y-2 pr-1 custom-scrollbar">
-                              {chatMessages.map((msg, i) => (
-                                <div 
-                                  key={i} 
-                                  className={`flex flex-col max-w-[90%] rounded-2xl p-2.5 text-[11px] leading-relaxed font-semibold transition-all ${
-                                    msg.role === 'user' 
-                                      ? 'bg-[#FF5722]/10 text-[#FF5722] ml-auto rounded-tr-none' 
-                                      : 'bg-gray-100 text-[#202124] rounded-tl-none border border-gray-200/50'
-                                  }`}
-                                >
-                                  <span className="text-[8px] font-black opacity-40 mb-0.5">{msg.role === 'user' ? 'ME' : 'AI COACH'}</span>
-                                  <p className="whitespace-pre-wrap">{msg.text}</p>
-                                </div>
-                              ))}
-                              {isChatLoading && (
-                                <div className="bg-gray-50 text-gray-400 rounded-2xl rounded-tl-none p-2.5 text-[11px] font-semibold w-max flex items-center gap-1 border border-gray-100 animate-pulse">
-                                  <Loader2 className="w-3 h-3 animate-spin" /> 深度剖析中...
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {chatMessages.length === 0 && (
-                            <div className="flex flex-col gap-1.5 mb-2">
-                              {[
-                                '追问这一政策出台后的真实利益博弈细节',
-                                '帮我指出我可能存在的解读误区'
-                              ].map((pill, idx) => (
-                                <button
-                                  key={idx}
-                                  onClick={() => {
-                                    setUserQuery(pill);
-                                    playClick();
-                                  }}
-                                  className="text-[9px] text-left font-bold px-2.5 py-1 rounded-lg bg-[#f8f9fa] border border-gray-200 text-gray-500 hover:text-[#FF5722] hover:border-[#FF5722]/30 hover:bg-[#FF5722]/5 transition-all cursor-pointer"
-                                >
-                                  {pill}
-                                </button>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="flex items-center gap-1.5 bg-[#f8f9fa] rounded-xl p-1 border border-gray-200/60 focus-within:border-[#FF5722]/30 transition-all">
-                            <input 
-                              type="text" 
-                              value={userQuery}
-                              onChange={(e) => setUserQuery(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
-                              disabled={isChatLoading}
-                              className="flex-1 bg-transparent px-2 text-[11px] outline-none font-semibold text-[#202124] placeholder-gray-300"
-                              placeholder="进一步追问或剖析漏洞..."
-                            />
-                            <button
-                              onClick={handleSendChat}
-                              disabled={!userQuery.trim() || isChatLoading}
-                              className="p-2 rounded-lg bg-[#202124] hover:bg-[#FF5722] text-white transition-all duration-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-                            >
-                              <Send className="w-3 h-3" />
-                            </button>
-                          </div>
                         </div>
                       </div>
                     </div>

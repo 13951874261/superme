@@ -60,7 +60,7 @@ Write-Host ""
 # 2. SSH/SCP Setup
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
-$UsePuTTY = $true
+$UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink)
 
 if ($UsePuTTY) {
     Write-Host "PuTTY found. Enabling auto-password mode." -ForegroundColor Green
