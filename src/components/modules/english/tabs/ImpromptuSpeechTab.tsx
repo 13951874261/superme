@@ -4,6 +4,7 @@ import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
 import SpeakButton from '../../../SpeakButton';
+import { getUserCurrentProfile } from '../../../../utils/profileHelper';
 
 const MAX_SECONDS = 1800; // 30分钟上限
 
@@ -36,6 +37,19 @@ export default function ImpromptuSpeechTab() {
   const [evaluatingStage, setEvaluatingStage] = useState<'idle' | 'transcribing' | 'evaluating' | 'generating'>('idle');
   const isEvaluating = evaluatingStage !== 'idle';
   const [exemplarText, setExemplarText] = useState('');
+
+  const [userProfile, setUserProfile] = useState('');
+
+  useEffect(() => {
+    setUserProfile(getUserCurrentProfile());
+    const handleProfileChange = () => {
+      setUserProfile(getUserCurrentProfile());
+    };
+    window.addEventListener('global-profile-changed', handleProfileChange);
+    return () => {
+      window.removeEventListener('global-profile-changed', handleProfileChange);
+    };
+  }, []);
 
   const [activeExemplarIdx, setActiveExemplarIdx] = useState<number | null>(null);
   const exemplarContainerRef = useRef<HTMLDivElement>(null);
@@ -188,7 +202,12 @@ export default function ImpromptuSpeechTab() {
     setIsLoadingPrompter(true);
     try {
       const { runSpeechPrompter } = await import('../../../../services/difyAPI');
-      const result = await runSpeechPrompter(theme, '中等');
+      const profileStr = getUserCurrentProfile();
+      let enrichedTheme = theme;
+      if (profileStr) {
+        enrichedTheme = `${theme} (针对画像短板进行挑战判定: ${profileStr})`;
+      }
+      const result = await runSpeechPrompter(enrichedTheme, '中等');
       setPrompterResult(result);
       setShowPrompter(true);
     } catch (err: any) {
@@ -498,6 +517,24 @@ export default function ImpromptuSpeechTab() {
           </div>
         </div>
       </div>
+
+      {/* 全局画像自适应阻碍提示器 */}
+      {userProfile && (
+        <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm transition-all duration-300">
+          <div className="bg-slate-900 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md flex items-center justify-center">
+            <Sparkles className="w-5 h-5 text-zinc-300" />
+          </div>
+          <div className="flex-1">
+            <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-2">
+              <span>全局画像自适应挑战判定 // Global Profile Adaptation</span>
+              <span className="bg-slate-900 text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-widest scale-90 origin-left">高阶阻碍模式</span>
+            </h5>
+            <p className="text-xs text-slate-500 font-semibold mt-1.5 leading-relaxed">
+              当前已自动检测到您的画像短板【<strong className="text-slate-800 font-bold">{userProfile}</strong>】，大模型已将模拟提问阻碍调至高阶对立状态，实施精准狙击。
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* 通关状态徽章 */}
       {impromptuPassed && (

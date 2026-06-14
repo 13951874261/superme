@@ -141,8 +141,19 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   }
   
   const profile = getUserCurrentProfile();
+  const result = { ...inputs };
+
+  if (profile) {
+    if (typeof result.theme === "string" && !result.theme.includes("Weakness:")) {
+      result.theme = `${result.theme} (Weakness: ${profile})`;
+    }
+    if (typeof result.topic === "string" && !result.topic.includes("Weakness:")) {
+      result.topic = `${result.topic} (Weakness: ${profile})`;
+    }
+  }
+
   return {
-    ...inputs,
+    ...result,
     user_current_profile: profile,
   };
 }
