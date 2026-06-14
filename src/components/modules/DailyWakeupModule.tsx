@@ -103,13 +103,15 @@ export default function DailyWakeupModule() {
   const completedCount = useMemo(() => result?.vocab?.length || 0, [result]);
 
   return (
-    <ModuleWrapper
+    <ModuleWrapper 
       title="每日唤醒 ｜ 发音与语法闭环"
-      icon={<Target className="w-8 h-8" strokeWidth={2.5} />}
+      icon={<TimerReset className="w-8 h-8" strokeWidth={2.5} />}
       description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
     >
-      <div className="space-y-6">
-        <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+      <div className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col gap-8 h-auto animate-fade-in">
+        
+        {/* 顶部场景大卡片 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white rounded-3xl p-6 lg:p-8 border border-gray-100/50 shadow-sm relative">
           {/* 左侧 8 栏：主标题、输入框及控制台、状态提示 */}
           <div className="md:col-span-8 space-y-6">
             <div>

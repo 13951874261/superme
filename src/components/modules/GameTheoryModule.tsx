@@ -1225,7 +1225,7 @@ export default function GameTheoryModule() {
 
                   {/* 右面板：博弈局势与反制策略录入 */}
                   <div className="md:col-span-7 space-y-6">
-                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative overflow-hidden ${
+                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative ${
                       simAnimateBorder ? 'ring-2 ring-zinc-300' : ''
                     }`}>
                       {simLoading && (
