@@ -28,6 +28,8 @@ import {
 import { runSpeakInfluenceEngine, transcribeAudioWithWhisper } from '../../services/difyAPI';
 import { playSuccessCyber, playErrorCyber, playHeartbeat } from '../../utils/soundEffects';
 import Confetti from '../Confetti';
+import { getUserCurrentProfile } from '../../utils/profileHelper';
+
 
 interface TheoryItem {
   title: string;
@@ -122,8 +124,9 @@ export default function SpeakModule() {
   const [dimLogic, setDimLogic] = useState('推理式');
 
   const [promptTopic, setPromptTopic] = useState('跨国企业年中预算会：项目预算突然被削减30%，如何在2分钟内说服美籍副总裁恢复资金？');
-  
+  const [matchedFactor, setMatchedFactor] = useState('');
   const [timeLimit, setTimeLimit] = useState(120);
+
   const [timeLeft, setTimeLeft] = useState(120);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -195,11 +198,53 @@ export default function SpeakModule() {
     };
   }, [isTimerRunning, timeLeft]);
 
+  useEffect(() => {
+    const checkProfile = () => {
+      const profile = getUserCurrentProfile();
+      const keywords = ['直属总监', '总监', '压制', '退缩', '汇报', '口语分寸', '分寸感'];
+      let foundKeyword = '';
+      if (profile) {
+        for (const kw of keywords) {
+          if (profile.includes(kw)) {
+            foundKeyword = kw;
+            break;
+          }
+        }
+      }
+      if (foundKeyword) {
+        setMatchedFactor(foundKeyword);
+        // 如果当前题目是初始题目，则进行初始化重写
+        setPromptTopic(prev => {
+          if (prev.includes('预算突然被削减30%') || prev.startsWith('针对短板【')) {
+            if (foundKeyword.includes('总监') || foundKeyword.includes('压制')) {
+              return `针对短板【${foundKeyword}】进化演练：在外企高管或直属总监的当面强力压制下，如何作为下属，利用【因果逻辑】进行【即兴发言】以从容应对，实现说服对方并挽回话语权？`;
+            } else if (foundKeyword.includes('退缩')) {
+              return `针对短板【${foundKeyword}】进化演练：在面临高压博弈时克服防御性退缩，作为下属，以坦诚的立场，使用【因果逻辑】坚决表明立场，达成说服对方目的。`;
+            } else {
+              return `针对短板【${foundKeyword}】进化演练：作为下属在正式汇报中，如何拿捏委婉的分寸，运用【金字塔逻辑】，在不引起对方反感的前提下委婉说服对方？`;
+            }
+          }
+          return prev;
+        });
+      } else {
+        setMatchedFactor('');
+      }
+    };
+
+    checkProfile();
+
+    window.addEventListener('global-profile-changed', checkProfile);
+    return () => {
+      window.removeEventListener('global-profile-changed', checkProfile);
+    };
+  }, []);
+
   const resetTimer = () => {
     setIsTimerRunning(false);
     if (timerRef.current) clearInterval(timerRef.current);
     setTimeLeft(timeLimit);
   };
+
 
   const handleTimeLimitChange = (secs: number) => {
     setTimeLimit(secs);
@@ -243,31 +288,58 @@ export default function SpeakModule() {
     setDimTransparency(rTransparency);
     setDimLogic(rLogic);
 
-    const scenarioText = SCENARIOS.find(s => s.id === selectedScenario)?.label || '职场';
+    const profile = getUserCurrentProfile();
+    const keywords = ['直属总监', '总监', '压制', '退缩', '汇报', '口语分寸', '分寸感'];
+    let foundKeyword = '';
+    if (profile) {
+      for (const kw of keywords) {
+        if (profile.includes(kw)) {
+          foundKeyword = kw;
+          break;
+        }
+      }
+    }
 
-    const topics: Record<string, string[]> = {
-      mnc: [
-        `作为[${rRole}]，在外企紧急重组会上，利用[${rStructure}]向管理层做一轮[${rType}]，旨在[${rPurpose}]对方同意保留你团队的核心技术资产。要求表达透明度为[${rTransparency}]，并偏向[${rLogic}]阐述。`,
-        `作为[${rRole}]，外企跨国合并冲突中，面对美籍总监的激烈质疑，利用[${rStructure}]即兴说服对方维持现有研发投入比例。`,
-        `外企晋升答辩挑战：用因果价值链条，针对高管提出的‘行政团队价值难量化’破绽进行完美说服。`
-      ],
-      gov: [
-        `作为[${rRole}]，在体制内半年度总结会上，针对临时提问，使用[${rStructure}]和委婉的分寸，向处长阐述某合规改造项目的阶段性延期。要求确保立场[${rRole}]和高说服力。`,
-        `体制内向上汇报突发风险：由于外协供货迟滞，如何用金字塔逻辑在不推卸责任的前提下申请宽限3天。`,
-        `体制内跨部门协调：平级单位推诿责任，如何在联席会议上委婉而清晰地指出对方的进度漏洞。`
-      ],
-      social: [
-        `作为[${rRole}]，在高端行业交流酒会上，面对同行对你商业模式的打探，进行[${rTransparency}]的客套隐形表达，利用[${rStructure}]既展现专业度又保护核心机密。`,
-        `非正式饭局说服：如何委婉拒绝一位老同学的项目入股请求，同时不伤害彼此的信任基础。`,
-        `即兴化解尴尬：在行业沙龙上被主持人推介评价某个竞品的优劣，用辩证的推理式逻辑进行得体作答。`
-      ]
-    };
+    if (foundKeyword) {
+      setMatchedFactor(foundKeyword);
+      let targetedTopic = '';
+      if (foundKeyword.includes('总监') || foundKeyword.includes('压制')) {
+        targetedTopic = `针对短板【${foundKeyword}】进化演练：在外企高管或直属总监的当面强力压制下，如何作为[${rRole}]，利用[${rStructure}]在[${rType}]中从容应对，实现[${rPurpose}]并挽回话语权？`;
+      } else if (foundKeyword.includes('退缩')) {
+        targetedTopic = `针对短板【${foundKeyword}】进化演练：在面临高压博弈时克服防御性退缩，作为[${rRole}]，以[${rTransparency}]的立场，使用[${rStructure}]坚决表明立场，达成[${rPurpose}]目的。`;
+      } else if (foundKeyword.includes('分寸') || foundKeyword.includes('口语')) {
+        targetedTopic = `针对短板【${foundKeyword}】进化演练：作为[${rRole}]在正式[${rType}]中，如何拿捏委婉的分寸，运用[${rStructure}]逻辑，在不引起对方反感的前提下委婉说服对方？`;
+      } else {
+        targetedTopic = `针对短板【${foundKeyword}】进化演练：面对高难度沟通挑战，作为[${rRole}]利用[${rStructure}]在[${rType}]中进行[${rLogic}]阐述，克服该短板以达成[${rPurpose}]。`;
+      }
+      setPromptTopic(targetedTopic);
+    } else {
+      setMatchedFactor('');
+      const topics: Record<string, string[]> = {
+        mnc: [
+          `作为[${rRole}]，在外企紧急重组会上，利用[${rStructure}]向管理层做一轮[${rType}]，旨在[${rPurpose}]对方同意保留你团队的核心技术资产。要求表达透明度为[${rTransparency}]，并偏向[${rLogic}]阐述。`,
+          `作为[${rRole}]，外企跨国合并冲突中，面对美籍总监的激烈质疑，利用[${rStructure}]即兴说服对方维持现有研发投入比例。`,
+          `外企晋升答辩挑战：用因果价值链条，针对高管提出的‘行政团队价值难量化’破绽进行完美说服。`
+        ],
+        gov: [
+          `作为[${rRole}]，在体制内半年度总结会上，针对临时提问，使用[${rStructure}]和委婉的分寸，向处长阐述某合规改造项目的阶段性延期。要求确保立场[${rRole}]和高说服力。`,
+          `体制内向上汇报突发风险：由于外协供货迟滞，如何用金字态逻辑在不推卸责任的前提下申请宽限3天。`,
+          `体制内跨部门协调：平级单位推诿责任，如何在联席会议上委婉而清晰地指出对方的进度漏洞。`
+        ],
+        social: [
+          `作为[${rRole}]，在高端行业交流酒会上，面对同行对你商业模式的打探，进行[${rTransparency}]的客套隐形表达，利用[${rStructure}]既展现专业度又保护核心机密。`,
+          `非正式饭局说服：如何委婉拒绝一位老同学的项目入股请求，同时不伤害彼此的信任基础。`,
+          `即兴化解尴尬：在行业沙龙上被主持人推介评价某个竞品的优劣，用辩证的推理式逻辑进行得体作答。`
+        ]
+      };
 
-    const sceneTopics = topics[selectedScenario] || topics.mnc;
-    const selectedTopic = sceneTopics[Math.floor(Math.random() * sceneTopics.length)];
-    setPromptTopic(selectedTopic);
+      const sceneTopics = topics[selectedScenario] || topics.mnc;
+      const selectedTopic = sceneTopics[Math.floor(Math.random() * sceneTopics.length)];
+      setPromptTopic(selectedTopic);
+    }
     resetTimer();
   };
+
 
   const startRecording = async () => {
     try {
@@ -623,7 +695,21 @@ export default function SpeakModule() {
 
       <section className="lg:col-span-7 flex flex-col space-y-6">
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] p-6">
+          {matchedFactor && (
+            <div className="mb-6 bg-amber-50/70 border border-amber-200/80 rounded-2xl p-4 flex items-start gap-3 animate-fade-in">
+              <Sparkles className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0 animate-pulse" />
+              <div className="space-y-1">
+                <span className="text-[10px] text-amber-700 font-bold block uppercase tracking-widest">
+                  高管级进化提示 ｜ Executive Evolution
+                </span>
+                <p className="text-xs font-semibold text-amber-800 leading-relaxed">
+                  能力进化针对性推送中：已检测到您的树洞短板（{getUserCurrentProfile()}），已自动调高相关高难度博弈关卡的出现权重。
+                </p>
+              </div>
+            </div>
+          )}
           <div className="flex border-b border-slate-100 pb-3 mb-6 overflow-x-auto gap-2">
+
             {[
               { id: 'structural', label: '结构化逻辑表达', icon: <Sliders className="w-4 h-4" /> },
               { id: 'impromptu', label: '即兴发言响应', icon: <Flame className="w-4 h-4" /> },

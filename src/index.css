@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -156,12 +156,14 @@ details[open] summary ~ * {
 .admin-card {
   background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
   border: 1px solid #f3f4f6;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.01), 0 8px 24px rgba(0, 0, 0, 0.02);
+  box-shadow: 0 4px 20px -4px rgba(9, 9, 11, 0.04), 0 8px 24px rgba(0, 0, 0, 0.02);
   transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .admin-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02), 0 16px 40px rgba(0, 0, 0, 0.04);
+  transform: scale(1.01) translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(9, 9, 11, 0.08), 0 16px 40px rgba(0, 0, 0, 0.03);
   border-color: #e5e7eb;
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
 }
 
 .admin-glow-soft {

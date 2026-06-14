@@ -13,6 +13,7 @@ import SummaryArea from './SummaryArea';
 import { ModuleType } from '../App';
 import { Lock, Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain } from 'lucide-react';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
+import { playClick, playPageTurn } from '../utils/soundEffects';
 
 interface MainContentProps {
   selectedDate: string;
@@ -66,9 +67,14 @@ export default function MainContent({
     if (isLocked && tabId !== 'english') {
       if (onLockTrigger) onLockTrigger();
     } else {
+      if (activeModule !== tabId) {
+        playClick();
+        playPageTurn();
+      }
       setActiveModule(tabId);
     }
   };
+
 
   return (
     <main id="main-content" className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#F8F9FA] relative scroll-smooth font-sans">
