@@ -72,6 +72,43 @@ const PRESET_CASES: PresetCase[] = [
   }
 ];
 
+// 对抗推演对手预设
+interface SimPresetOpponent {
+  id: 'vp' | 'vice-gm' | 'director';
+  name: string;
+  type: string;
+  env: 'gov_struggle' | 'corp_clash' | 'upward_takeover';
+  model: 'prisoner_dilemma' | 'pig_game' | 'info_asymmetry' | 'cold_trigger';
+  dilemma: string;
+}
+
+const SIM_OPPONENTS: SimPresetOpponent[] = [
+  {
+    id: 'vp',
+    name: '空降的改革派 VP',
+    type: '空降夺权型',
+    env: 'corp_clash',
+    model: 'prisoner_dilemma',
+    dilemma: '新上任 of VP 在大会上公开指出，你负责的业务流程存在严重隐患，准备绕过你直接指派其亲信接管核心模块，且不断以‘合规和转型’施压，这实际上是利益冲突与制度架空博弈。你将如何反制？'
+  },
+  {
+    id: 'vice-gm',
+    name: '任人唯亲的常务副总',
+    type: '安全感驱动型',
+    env: 'gov_struggle',
+    model: 'pig_game',
+    dilemma: '常务副总在资源分配中明显偏向其旧部，并将原本属于你团队的重要预算砍掉大半，同时私下通过‘谈心’拉拢你的核心骨干成员，对其许以重利，试图分化打压你。你将如何应对？'
+  },
+  {
+    id: 'director',
+    name: '多疑的总监',
+    type: '多疑多虑型',
+    env: 'upward_takeover',
+    model: 'info_asymmetry',
+    dilemma: '直属总监极度缺乏安全感，对你的工作细节事事过问，在汇报中把你的研究成果包装成其本人的战略思考，同时在跨部门会议中故意屏蔽关键背景信息，让你在毫不知情的情况下承担未知的跨部门协调风险。你该如何破局？'
+  }
+];
+
 export default function GameTheoryModule() {
   const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'ascension'>('cases');
   
@@ -149,11 +186,132 @@ export default function GameTheoryModule() {
   const [isLoading, setIsLoading] = useState(false);
   const [scanStep, setScanStep] = useState('');
   const [result, setResult] = useState<GameTheoryAnalyzeResult | null>(null);
-  
-  // 声光电弹框状态
-  const [showAlert, setShowAlert] = useState(false);
-  const [alertType, setAlertType] = useState<'success' | 'fail'>('success');
   const [animateBorder, setAnimateBorder] = useState(false);
+
+  // Simulation 对战沙盘状态
+  const [simOpponentId, setSimOpponentId] = useState<'vp' | 'vice-gm' | 'director' | 'custom'>('vp');
+  const [simCustomName, setSimCustomName] = useState('');
+  const [simCustomType, setSimCustomType] = useState('利益驱动型');
+  const [simCustomModel, setSimCustomModel] = useState<GameTheoryAnalyzeInput['game_model']>('prisoner_dilemma');
+  const [simCustomDilemma, setSimCustomDilemma] = useState('');
+  const [simAnswer, setSimAnswer] = useState('');
+  const [simSelectedTactics, setSimSelectedTactics] = useState<string[]>([]);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simScanStep, setSimScanStep] = useState('');
+  const [simResult, setSimResult] = useState<GameTheoryAnalyzeResult | null>(null);
+  const [simAnimateBorder, setSimAnimateBorder] = useState(false);
+
+  const handleOpponentChange = (id: typeof simOpponentId) => {
+    playClick();
+    setSimOpponentId(id);
+    setSimResult(null);
+    setSimAnswer('');
+    setSimSelectedTactics([]);
+    if (id !== 'custom') {
+      const opp = SIM_OPPONENTS.find(o => o.id === id);
+      if (opp) {
+        setSimSelectedTactics([]);
+      }
+    } else {
+      setSimCustomName('');
+      setSimCustomType('利益驱动型');
+      setSimCustomModel('prisoner_dilemma');
+      setSimCustomDilemma('');
+    }
+  };
+
+  const handleStartSimPlay = async () => {
+    let name = '';
+    let type = '';
+    let model: GameTheoryAnalyzeInput['game_model'] = 'prisoner_dilemma';
+    let dilemma = '';
+    let env: GameTheoryAnalyzeInput['scene_type'] = 'corp_clash';
+
+    if (simOpponentId !== 'custom') {
+      const opp = SIM_OPPONENTS.find(o => o.id === simOpponentId);
+      if (!opp) return;
+      name = opp.name;
+      type = opp.type;
+      model = opp.model;
+      dilemma = opp.dilemma;
+      env = opp.env;
+    } else {
+      if (!simCustomName.trim() || !simCustomDilemma.trim()) return;
+      name = simCustomName;
+      type = simCustomType;
+      model = simCustomModel;
+      dilemma = simCustomDilemma;
+      env = 'corp_clash';
+    }
+
+    if (!simAnswer.trim()) return;
+
+    setSimLoading(true);
+    setSimResult(null);
+    setSimAnimateBorder(true);
+
+    playClick();
+    const scanInterval = setInterval(() => playClick(), 1000);
+
+    const steps = [
+      '⚡ 接入驭心实操推演对战舱...',
+      `⚡ 模拟与对手 [${name}] (${type}) 利益博弈...`,
+      `⚡ 判定模型 [${model}] 触发条件...`,
+      '⚡ 计算 10 重长程对局因果演化...',
+      '⚡ 导出人机对决最终胜负评估中...'
+    ];
+
+    let currentStep = 0;
+    setSimScanStep(steps[0]);
+    const stepInterval = setInterval(() => {
+      currentStep++;
+      if (currentStep < steps.length) {
+        setSimScanStep(steps[currentStep]);
+      }
+    }, 1200);
+
+    try {
+      const caseTextFormatted = `【博弈对手姓名 / Name】: ${name}\n【人性分类 / Weakness Type】: ${type}\n【博弈局势描述 / Dilemma Detail】:\n${dilemma}`;
+      const fullAnswer = `【玩家应对策略】：\n${simAnswer}`;
+      
+      const inputs: GameTheoryAnalyzeInput = {
+        scene_type: env,
+        game_model: model,
+        case_text: caseTextFormatted,
+        user_answer: fullAnswer,
+        applied_tactics: simSelectedTactics.join(', ')
+      };
+
+      const res = await runGameTheoryAnalysis(inputs);
+      
+      clearInterval(scanInterval);
+      clearInterval(stepInterval);
+      setSimResult(res);
+      setSimAnimateBorder(false);
+
+      if (res.is_success) {
+        playPageTurn();
+        confetti({
+          particleCount: 60,
+          spread: 50,
+          origin: { y: 0.6 },
+          colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#ffffff']
+        });
+      } else {
+        playGentleWarning();
+      }
+      
+      fetchPrototypes();
+    } catch (err: any) {
+      clearInterval(scanInterval);
+      clearInterval(stepInterval);
+      setSimAnimateBorder(false);
+      playGentleWarning();
+      alert(err.message || '对决推演失败，请稍后再试');
+    } finally {
+      setSimLoading(false);
+    }
+  };
 
   // 加载人性原型档案
   useEffect(() => {
@@ -294,9 +452,8 @@ export default function GameTheoryModule() {
       setResult(res);
       setAnimateBorder(false);
 
-      // 根据分析结果触发对应的声光电弹窗
+      // 根据分析结果触发对应的声光电音效
       if (res.is_success) {
-        setAlertType('success');
         playPageTurn();
         confetti({
           particleCount: 60,
@@ -305,10 +462,8 @@ export default function GameTheoryModule() {
           colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#ffffff'] // Zinc冷灰色调碎屑
         });
       } else {
-        setAlertType('fail');
         playGentleWarning();
       }
-      setShowAlert(true);
       
       // 自动刷新人性原型档案列表
       fetchPrototypes();
@@ -341,49 +496,7 @@ export default function GameTheoryModule() {
       icon={<Brain className="w-8 h-8 text-zinc-700" strokeWidth={2} />}
       description="核心定位：不仅是读文字，而是读结构、读政策背后的风向、读外企运作实质与漏洞。破阶到 0.01% 的战略决策底层操作系统。"
     >
-      {/* 声光电高能动态弹窗 - 已改造为极简高端行政风微投影卡片 */}
-      {showAlert && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/40 backdrop-blur-sm transition-all">
-          <div className="relative max-w-lg w-full rounded-[2rem] p-8 md:p-10 border border-zinc-200/80 bg-white shadow-[0_12px_40px_-6px_rgba(9,9,11,0.08)] overflow-hidden">
-            <div className="flex flex-col items-center text-center relative z-10">
-              {alertType === 'success' ? (
-                <div className="w-16 h-16 rounded-full bg-zinc-100 border border-zinc-200 flex items-center justify-center mb-6 shadow-sm">
-                  <Trophy className="w-8 h-8 text-zinc-700" />
-                </div>
-              ) : (
-                <div className="w-16 h-16 rounded-full bg-zinc-50 border border-zinc-200 flex items-center justify-center mb-6 shadow-sm">
-                  <ShieldAlert className="w-8 h-8 text-zinc-600" />
-                </div>
-              )}
-
-              <h3 className="text-xl font-bold tracking-wider mb-2 text-zinc-900">
-                {alertType === 'success' ? '战略破局 ｜ 推演成功' : '遭受反噬 ｜ 推演预警'}
-              </h3>
-              
-              <p className="text-zinc-500 text-xs font-medium mb-6 leading-relaxed">
-                {alertType === 'success' 
-                  ? '您的对策逻辑推演完全自洽，已成功撕裂敌对派系的防线漏洞。人性档案库已同步录入该角色的死穴。'
-                  : '您的对策触碰了重复博弈中的“冷酷惩罚”红线，可能导致对方鱼死网破。请仔细查看下方因果推演报告进行策略调整。'
-                }
-              </p>
-
-              <div className="bg-zinc-50 border border-zinc-100 rounded-2xl py-4 px-8 w-full mb-6 shadow-sm">
-                <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">Deduction Strategy Score</span>
-                <span className="text-5xl font-black font-mono tracking-tighter text-zinc-800">
-                  {result?.score ?? 0}
-                </span>
-              </div>
-
-              <button 
-                onClick={() => { playClick(); setShowAlert(false); }}
-                className="w-full py-3 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl text-xs font-bold tracking-widest uppercase transition-all shadow-sm cursor-pointer"
-              >
-                我知道了，查阅推演报告
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 战略评估弹窗已改用右侧 30% Context Sheet */}
 
       {/* Tab 导航区域 */}
       <div className="flex border-b border-zinc-200/80 mb-8 overflow-x-auto">
@@ -417,301 +530,363 @@ export default function GameTheoryModule() {
         >
           {/* TAB 1: 真实高管斗争案例库 */}
           {activeTab === 'cases' && (
-            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
-              {/* 左面板 30%：环境与案例选择 */}
-              <div className="lg:col-span-3 space-y-6">
-                <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈环境选择 (Environments)</span>
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
+              {/* 左侧主控工作区：展示 Context Sheet 时折叠为 7 列，否则为 10 列 */}
+              <div className={`transition-all duration-300 lg:col-span-10 ${isLoading || result ? 'lg:col-span-7' : 'lg:col-span-10'}`}>
+                <div className="grid grid-cols-1 md:grid-cols-10 gap-6 items-start">
                   
-                  <div className="flex flex-col gap-1.5 mb-6">
-                    {([
-                      { id: 'gov_struggle', name: '体制内政治' },
-                      { id: 'corp_clash', name: '外企权斗局' },
-                      { id: 'upward_takeover', name: '以下克上战' }
-                    ] as const).map(env => (
-                      <button 
-                        key={env.id}
-                        onClick={() => { playClick(); setActiveEnv(env.id); }}
-                        className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
-                          activeEnv === env.id 
-                            ? 'bg-zinc-900 text-white shadow-sm' 
-                            : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                        }`}
-                      >
-                        {env.name}
-                        <span className={`w-1.5 h-1.5 rounded-full ${activeEnv === env.id ? 'bg-white' : 'bg-zinc-300'}`} />
-                      </button>
-                    ))}
-                  </div>
+                  {/* 左面板 30%：环境与案例选择 */}
+                  <div className="md:col-span-3 space-y-6">
+                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈环境选择 (Environments)</span>
+                      
+                      <div className="flex flex-col gap-1.5 mb-6">
+                        {([
+                          { id: 'gov_struggle', name: '体制内政治' },
+                          { id: 'corp_clash', name: '外企权斗局' },
+                          { id: 'upward_takeover', name: '以下克上战' }
+                        ] as const).map(env => (
+                          <button 
+                            key={env.id}
+                            onClick={() => { playClick(); setActiveEnv(env.id); }}
+                            className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
+                              activeEnv === env.id 
+                                ? 'bg-zinc-900 text-white shadow-sm' 
+                                : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                            }`}
+                          >
+                            {env.name}
+                            <span className={`w-1.5 h-1.5 rounded-full ${activeEnv === env.id ? 'bg-white' : 'bg-zinc-300'}`} />
+                          </button>
+                        ))}
+                      </div>
 
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">斗争案例选择 (Preset Cases)</span>
-                  <div className="space-y-2">
-                    {filteredPresets.map(c => {
-                      const isSelected = caseText === c.description;
-                      return (
-                        <button
-                          key={c.id}
-                          onClick={() => selectPresetCase(c)}
-                          className={`w-full text-left p-3 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1 cursor-pointer ${
-                            isSelected
-                              ? 'bg-zinc-50 border-zinc-400 text-zinc-950 font-semibold'
-                              : 'bg-white border-zinc-200/60 text-zinc-600 hover:border-zinc-300'
-                          }`}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <Flame className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                            {c.title}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-
-              {/* 右面板 70%：高维博弈沙盘研判 */}
-              <div className="lg:col-span-7 space-y-6">
-                <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative overflow-hidden ${
-                  animateBorder ? 'ring-2 ring-zinc-300' : ''
-                }`}>
-                  {isLoading && (
-                    <div className="absolute inset-x-0 top-0 h-0.5 bg-zinc-300 animate-pulse" />
-                  )}
-
-                  {/* 案例详情与模型 */}
-                  <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-100">
-                    <h4 className="font-bold text-sm text-zinc-800 flex items-center gap-2">
-                      <Swords className="w-4 h-4 text-zinc-600" /> 危机场景详情与沙盘装配
-                    </h4>
-                    
-                    <div className="flex items-center gap-2">
-                      <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">博弈模型:</span>
-                      <select 
-                        value={selectedModel}
-                        onChange={(e) => { playClick(); setSelectedModel(e.target.value as any); }}
-                        className="border border-zinc-200 bg-zinc-50 text-zinc-700 rounded-full px-3 py-1 text-[10px] font-bold outline-none cursor-pointer hover:bg-zinc-100"
-                        disabled={isLoading}
-                      >
-                        <option value="prisoner_dilemma">囚徒困境演化版</option>
-                        <option value="pig_game">智猪潜藏博弈</option>
-                        <option value="info_asymmetry">极度信息不对称</option>
-                        <option value="cold_trigger">冷酷触发策略</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="bg-zinc-50 border-l-2 border-zinc-500 p-4 rounded-xl mb-6">
-                    <textarea 
-                      rows={3}
-                      value={caseText}
-                      onChange={(e) => setCaseText(e.target.value)}
-                      className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
-                      placeholder="请从左侧选择一个案例，或在此处直接编辑、手动输入你要演练的高管权力斗争案例详情..."
-                      disabled={isLoading}
-                    />
-                  </div>
-
-                  {/* 关系人装配箱 - 选择参与博弈的已存对手性格原型 */}
-                  <div className="mb-6 bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
-                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2.5 flex items-center gap-1.5">
-                      <UserCheck className="w-3.5 h-3.5 text-zinc-500" />
-                      关系人装配箱 (Participants Context):
-                    </span>
-                    
-                    {prototypes.length === 0 ? (
-                      <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
-                        暂无已收录的人性档案。您可在“驭人术与人性档案”选项卡中手动录入，随后在此将他们“装配”入会议对峙现场。
-                      </p>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        {prototypes.map(p => {
-                          const isSelected = selectedProtoIds.includes(p.id);
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">斗争案例选择 (Preset Cases)</span>
+                      <div className="space-y-2">
+                        {filteredPresets.map(c => {
+                          const isSelected = caseText === c.description;
                           return (
                             <button
-                              key={p.id}
-                              onClick={() => toggleParticipant(p.id)}
-                              disabled={isLoading}
-                              className={`text-[10px] py-1 px-3 rounded-full font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                              key={c.id}
+                              onClick={() => selectPresetCase(c)}
+                              className={`w-full text-left p-3 rounded-xl border text-xs font-medium transition-all flex flex-col gap-1 cursor-pointer ${
                                 isSelected
-                                  ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm scale-102'
-                                  : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50'
+                                  ? 'bg-zinc-50 border-zinc-400 text-zinc-950 font-semibold'
+                                  : 'bg-white border-zinc-200/60 text-zinc-600 hover:border-zinc-300'
                               }`}
                             >
-                              <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-zinc-300'}`} />
-                              {p.name} ({p.type})
+                              <span className="flex items-center gap-1.5">
+                                <Flame className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                                {c.title}
+                              </span>
                             </button>
                           );
                         })}
                       </div>
-                    )}
-                  </div>
-
-                  {/* 强制四维度拆解表单 */}
-                  <div className="space-y-4 mb-6">
-                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block border-b border-zinc-100 pb-2">
-                      高层局势强制四维度拆解表单 (Forced Structural Analysis)
-                    </span>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-[10px] text-zinc-600 font-bold block mb-1">① 利益结构分析 (Stakeholder Interests)</label>
-                        <textarea
-                          rows={3}
-                          value={stakeholderInterests}
-                          onChange={(e) => setStakeholderInterests(e.target.value)}
-                          placeholder="分析局中各方的核心利益、诉求、联盟结构及潜在的冲突点..."
-                          className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed"
-                          disabled={isLoading}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-zinc-600 font-bold block mb-1">② 善/恶动机透视 (Motives Analysis)</label>
-                        <textarea
-                          rows={3}
-                          value={motivesAnalysis}
-                          onChange={(e) => setMotivesAnalysis(e.target.value)}
-                          placeholder="透视对方的行为动机：是利益驱使、安全感缺失，还是面子/恐惧作祟？"
-                          className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed"
-                          disabled={isLoading}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-zinc-600 font-bold block mb-1">③ 对方权力弱点 (Power Weaknesses)</label>
-                        <textarea
-                          rows={3}
-                          value={weaknesses}
-                          onChange={(e) => setWeaknesses(e.target.value)}
-                          placeholder="找出对方在规章制度、信息流、汇报链或核心团队中的软肋死穴..."
-                          className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed"
-                          disabled={isLoading}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] text-zinc-600 font-bold block mb-1">④ 博弈关键节点 (Key Decision Points)</label>
-                        <textarea
-                          rows={3}
-                          value={keyPoints}
-                          onChange={(e) => setKeyPoints(e.target.value)}
-                          placeholder="明确定策、话术、反制手段及你的具体应对与利益分配的底线动作..."
-                          className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed"
-                          disabled={isLoading}
-                        />
-                      </div>
                     </div>
                   </div>
 
-                  <button 
-                    onClick={handleStartSimulation}
-                    disabled={!caseText.trim() || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim() || isLoading}
-                    className={`w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                      isLoading 
-                        ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed' 
-                        : 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01]'
-                    }`}
-                  >
-                    {isLoading ? (
-                      <>
-                        <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                        <span>{scanStep}</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-4 h-4 text-zinc-400" />
-                        <span>提交四维研判并启动董事会推演</span>
-                      </>
-                    )}
-                  </button>
-                </div>
+                  {/* 右面板 70%：高维博弈沙盘研判 */}
+                  <div className="md:col-span-7 space-y-6">
+                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative overflow-hidden ${
+                      animateBorder ? 'ring-2 ring-zinc-300' : ''
+                    }`}>
+                      {isLoading && (
+                        <div className="absolute inset-x-0 top-0 h-0.5 bg-zinc-300 animate-pulse" />
+                      )}
 
-                {/* 实时分析成果报告区 */}
-                {result && (
-                  <div className="bg-zinc-50/50 border border-zinc-200/80 rounded-[2rem] p-6 md:p-8 space-y-6 animate-fade-in">
-                    <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
-                      <Compass className="w-4 h-4 text-zinc-600" /> 沙盘战略推演评估报告 (Simulation Report)
-                    </h3>
-
-                    {/* 三大支柱分析卡片 */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-white rounded-2xl p-5 border border-zinc-200/60 shadow-sm flex flex-col">
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-2">01 / 利益结构研判</span>
-                        <p className="text-xs text-zinc-600 leading-relaxed font-medium flex-1">{result.stakeholder_interests}</p>
-                      </div>
-                      <div className="bg-white rounded-2xl p-5 border border-zinc-200/60 shadow-sm flex flex-col">
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-2">02 / 人性动机透视</span>
-                        <p className="text-xs text-zinc-600 leading-relaxed font-medium flex-1">{result.motives_analysis}</p>
-                      </div>
-                      <div className="bg-white rounded-2xl p-5 border border-zinc-200/60 shadow-sm flex flex-col">
-                        <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider mb-2">03 / 防线弱点死穴</span>
-                        <p className="text-xs text-zinc-600 leading-relaxed font-medium flex-1">{result.weaknesses}</p>
-                      </div>
-                    </div>
-
-                    {/* 十重因果链条 */}
-                    <div className="bg-white rounded-2xl p-6 border border-zinc-200/60 shadow-sm">
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider block mb-4">
-                        长程因果传导链（10-Layer Causal Chain）
-                      </span>
-                      
-                      <div className="relative pl-6 border-l border-zinc-200 space-y-4">
-                        {result.causal_chain && result.causal_chain.map((step, idx) => (
-                          <div key={idx} className="relative group transition-all animate-fade-in">
-                            {/* 小圆点 */}
-                            <span className="absolute -left-[29px] top-1 w-3 h-3 rounded-full border-2 border-white bg-zinc-300 group-hover:bg-zinc-950 transition-all shadow-sm" />
-                            
-                            <div className="flex items-start gap-3">
-                              <span className="text-[9px] font-bold font-mono bg-zinc-50 border border-zinc-200 text-zinc-500 rounded px-1.5 py-0.5 shadow-sm">
-                                L{idx + 1}
-                              </span>
-                              <p className="text-xs text-zinc-600 font-medium leading-relaxed">
-                                {step}
-                              </p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 人性原型归档 */}
-                    {result.prototype_archive && (
-                      <div className="bg-zinc-900 text-zinc-100 rounded-2xl p-6 relative overflow-hidden border border-zinc-800 shadow-md">
-                        <div className="flex items-center justify-between mb-3 relative z-10">
-                          <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-                            对手人性归档分类 (Archived Prototype)
-                          </span>
-                          <span className="text-[9px] bg-zinc-800 border border-zinc-700 px-2 py-0.5 rounded-full font-bold flex items-center gap-1 text-zinc-300">
-                            <UserCheck className="w-2.5 h-2.5" /> 已自动存库
-                          </span>
+                      {/* 案例详情与模型 */}
+                      <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-100">
+                        <h4 className="font-bold text-sm text-zinc-800 flex items-center gap-2">
+                          <Swords className="w-4 h-4 text-zinc-600" /> 危机场景详情与沙盘装配
+                        </h4>
+                        
+                        <div className="flex items-center gap-2">
+                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">博弈模型:</span>
+                          <select 
+                            value={selectedModel}
+                            onChange={(e) => { playClick(); setSelectedModel(e.target.value as any); }}
+                            className="border border-zinc-200 bg-zinc-50 text-zinc-700 rounded-full px-3 py-1 text-[10px] font-bold outline-none cursor-pointer hover:bg-zinc-100"
+                            disabled={isLoading}
+                          >
+                            <option value="prisoner_dilemma">囚徒困境演化版</option>
+                            <option value="pig_game">智猪潜藏博弈</option>
+                            <option value="info_asymmetry">极度信息不对称</option>
+                            <option value="cold_trigger">冷酷触发策略</option>
+                          </select>
                         </div>
+                      </div>
 
-                        <div className="flex flex-col md:flex-row md:items-center gap-4 relative z-10">
+                      <div className="bg-zinc-50 border-l-2 border-zinc-500 p-4 rounded-xl mb-6">
+                        <textarea 
+                          rows={3}
+                          value={caseText}
+                          onChange={(e) => setCaseText(e.target.value)}
+                          className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
+                          placeholder="请从左侧选择一个案例，或在此处直接编辑、手动输入你要演练的高管权力斗争案例详情..."
+                          disabled={isLoading}
+                        />
+                      </div>
+
+                      {/* 关系人装配箱 - 选择参与博弈的已存对手性格原型 */}
+                      <div className="mb-6 bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2.5 flex items-center gap-1.5">
+                          <UserCheck className="w-3.5 h-3.5 text-zinc-500" />
+                          关系人装配箱 (Participants Context):
+                        </span>
+                        
+                        {prototypes.length === 0 ? (
+                          <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
+                            暂无已收录的人性档案。您可在“驭人术与人性档案”选项卡中手动录入，随后在此将他们“装配”入会议对峙现场。
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {prototypes.map(p => {
+                              const isSelected = selectedProtoIds.includes(p.id);
+                              return (
+                                <button
+                                  key={p.id}
+                                  onClick={() => toggleParticipant(p.id)}
+                                  disabled={isLoading}
+                                  className={`text-[10px] py-1 px-3 rounded-full font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm scale-102'
+                                      : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50'
+                                  }`}
+                                >
+                                  <span className={`w-1 h-1 rounded-full ${isSelected ? 'bg-white' : 'bg-zinc-300'}`} />
+                                  {p.name} ({p.type})
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 强制四维度拆解表单 */}
+                      <div className="space-y-4 mb-6">
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block border-b border-zinc-100 pb-2">
+                          高层局势强制四维度拆解表单 (Forced Structural Analysis)
+                        </span>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <h4 className="text-xs font-bold text-white">{result.prototype_archive.name}</h4>
-                            <span className="text-[10px] bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded font-bold mt-1 inline-block">
-                              {result.prototype_archive.type}
+                            <label className="text-[10px] text-zinc-600 font-bold block mb-1">① 利益结构分析 (Stakeholder Interests)</label>
+                            <textarea
+                              rows={3}
+                              value={stakeholderInterests}
+                              onChange={(e) => setStakeholderInterests(e.target.value)}
+                              placeholder="分析局中各方的核心利益、诉求、联盟结构及潜在的冲突点..."
+                              className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed font-medium"
+                              disabled={isLoading}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-zinc-600 font-bold block mb-1">② 善/恶动机透视 (Motives Analysis)</label>
+                            <textarea
+                              rows={3}
+                              value={motivesAnalysis}
+                              onChange={(e) => setMotivesAnalysis(e.target.value)}
+                              placeholder="透视对方的行为动机：是利益驱使、安全感缺失，还是面子/恐惧作祟？"
+                              className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed font-medium"
+                              disabled={isLoading}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-zinc-600 font-bold block mb-1">③ 对方权力弱点 (Power Weaknesses)</label>
+                            <textarea
+                              rows={3}
+                              value={weaknesses}
+                              onChange={(e) => setWeaknesses(e.target.value)}
+                              placeholder="找出对方在规章制度、信息流、汇报链或核心团队中的软肋死穴..."
+                              className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed font-medium"
+                              disabled={isLoading}
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] text-zinc-600 font-bold block mb-1">④ 博弈关键节点 (Key Decision Points)</label>
+                            <textarea
+                              rows={3}
+                              value={keyPoints}
+                              onChange={(e) => setKeyPoints(e.target.value)}
+                              placeholder="明确定策、话术、反制手段及你的具体应对与利益分配的底线动作..."
+                              className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-3 text-xs outline-none resize-none leading-relaxed font-medium"
+                              disabled={isLoading}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={handleStartSimulation}
+                        disabled={!caseText.trim() || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim() || isLoading}
+                        className={`w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          isLoading 
+                            ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed' 
+                            : 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01]'
+                        }`}
+                      >
+                        {isLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                            <span>{scanStep}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 text-zinc-400" />
+                            <span>提交四维研判并启动董事会推演</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 右侧 30% 上下文面板 (Context Sheet) */}
+              <AnimatePresence>
+                {(isLoading || result) && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 50 }}
+                    transition={{ duration: 0.3 }}
+                    className="lg:col-span-3 space-y-6"
+                  >
+                    {/* Header with X Close Button to Clear Result */}
+                    <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">战略评估面板</span>
+                      <button 
+                        onClick={() => { playClick(); setResult(null); }}
+                        className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-full transition-colors cursor-pointer"
+                        title="关闭评估"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Loading step tracker */}
+                    {isLoading && (
+                      <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-10">
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-zinc-500 mb-3" />
+                        <p className="text-xs text-zinc-600 font-bold">{scanStep}</p>
+                      </div>
+                    )}
+
+                    {/* Results details */}
+                    {result && (
+                      <>
+                        {/* 战略评估得分卡片 */}
+                        <div className="rounded-[2rem] p-6 border border-zinc-200 text-center shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] bg-zinc-50">
+                          {result.is_success ? (
+                            <Trophy className="w-8 h-8 mx-auto text-zinc-700 mb-3 animate-bounce" />
+                          ) : (
+                            <ShieldAlert className="w-8 h-8 mx-auto text-zinc-600 mb-3" />
+                          )}
+                          <h4 className="text-sm font-bold text-zinc-900 mb-1">
+                            {result.is_success ? '战略破局 ｜ 推演成功' : '遭受反噬 ｜ 推演预警'}
+                          </h4>
+                          <p className="text-zinc-500 text-[10px] font-medium mb-4 leading-relaxed">
+                            {result.is_success 
+                              ? '您的对策逻辑推演完全自洽，已成功撕裂敌对派系的防线漏洞。人性档案库已同步录入该角色的死穴。'
+                              : '您的对策触碰了重复博弈中的“冷酷惩罚”红线，可能导致对方鱼死网破。请仔细查看下方因果推演报告进行策略调整。'
+                            }
+                          </p>
+                          <div className="bg-white border border-zinc-100 rounded-xl py-3 px-6 shadow-inner">
+                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-0.5">Deduction Strategy Score</span>
+                            <span className="text-3xl font-black font-mono tracking-tighter text-zinc-800">
+                              {result.score}
                             </span>
                           </div>
-                          <p className="text-xs text-zinc-400 font-medium leading-relaxed flex-1 border-t md:border-t-0 md:border-l border-zinc-800 pt-3 md:pt-0 md:pl-4">
-                            {result.prototype_archive.description}
-                          </p>
                         </div>
-                      </div>
-                    )}
 
-                    {/* 导师建议 */}
-                    <div className="bg-zinc-100 border border-zinc-200 rounded-2xl p-5">
-                      <span className="text-[10px] text-zinc-800 font-bold uppercase tracking-wider block mb-2">
-                        战略决策局盘点拨 (Strategic Counsel)
-                      </span>
-                      <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
-                        {result.suggestion}
-                      </p>
-                    </div>
-                  </div>
+                        {/* 详细评估报告 (垂直单列排布) */}
+                        <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] space-y-6">
+                          <h3 className="text-xs font-bold text-zinc-900 flex items-center gap-2">
+                            <Compass className="w-4 h-4 text-zinc-600" /> 沙盘战略推演评估报告
+                          </h3>
+
+                          {/* 利益、动机、弱点 */}
+                          <div className="space-y-4">
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">01 / 利益结构研判</span>
+                              <p className="text-xs text-zinc-600 leading-relaxed font-medium">{result.stakeholder_interests}</p>
+                            </div>
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">02 / 人性动机透视</span>
+                              <p className="text-xs text-zinc-600 leading-relaxed font-medium">{result.motives_analysis}</p>
+                            </div>
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">03 / 防线弱点死穴</span>
+                              <p className="text-xs text-zinc-600 leading-relaxed font-medium">{result.weaknesses}</p>
+                            </div>
+                          </div>
+
+                          {/* 十重因果链 */}
+                          <div className="bg-white rounded-xl p-4 border border-zinc-100 shadow-inner">
+                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-3">
+                              长程因果传导链 (10-Layer Chain)
+                            </span>
+                            
+                            <div className="relative pl-4 border-l border-zinc-200 space-y-3">
+                              {result.causal_chain && result.causal_chain.map((step, idx) => (
+                                <div key={idx} className="relative group transition-all">
+                                  <span className="absolute -left-[21px] top-1 w-2 h-2 rounded-full border border-white bg-zinc-300 group-hover:bg-zinc-950 transition-all shadow-sm" />
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-[8px] font-bold font-mono bg-zinc-50 border border-zinc-200 text-zinc-500 rounded px-1 py-0.2 shadow-sm">
+                                      L{idx + 1}
+                                    </span>
+                                    <p className="text-[11px] text-zinc-600 font-medium leading-relaxed">
+                                      {step}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 对手人性归档 */}
+                          {result.prototype_archive && (
+                            <div className="bg-zinc-900 text-zinc-100 rounded-xl p-4 relative overflow-hidden border border-zinc-800 shadow-md">
+                              <div className="flex items-center justify-between mb-2 relative z-10">
+                                <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">
+                                  对手人性归档分类
+                                </span>
+                                <span className="text-[8px] bg-zinc-800 border border-zinc-700 px-1.5 py-0.2 rounded font-bold text-zinc-300">
+                                  已自动存库
+                                </span>
+                              </div>
+
+                              <div className="relative z-10 space-y-1">
+                                <h4 className="text-xs font-bold text-white">{result.prototype_archive.name}</h4>
+                                <span className="text-[8px] bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold inline-block">
+                                  {result.prototype_archive.type}
+                                </span>
+                                <p className="text-[10px] text-zinc-400 font-medium leading-relaxed pt-1.5 border-t border-zinc-800/80">
+                                  {result.prototype_archive.description}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 导师建议 */}
+                          <div className="bg-zinc-100 border border-zinc-200 rounded-xl p-4">
+                            <span className="text-[9px] text-zinc-800 font-bold uppercase tracking-wider block mb-1">
+                              战略决策局盘点拨
+                            </span>
+                            <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
+                              {result.suggestion}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
                 )}
-              </div>
+              </AnimatePresence>
             </div>
           )}
 
@@ -916,17 +1091,384 @@ export default function GameTheoryModule() {
             </div>
           )}
 
-          {/* TAB 3: 博弈实操推演（后续开发占位） */}
+          {/* TAB 3: 博弈论实操推演（人机对战） */}
           {activeTab === 'simulation' && (
-            <div className="bg-white rounded-[2rem] p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-16">
-              <Brain className="w-12 h-12 mx-auto text-zinc-300 mb-4" />
-              <h3 className="text-base font-bold text-zinc-800 mb-2">博弈论实操推演（人机对战）</h3>
-              <p className="text-xs text-zinc-500 max-w-md mx-auto leading-relaxed">
-                在该模块中，您将扮演己方角色，并在下拉菜单中挑选如“空降的改革派 VP”、“多疑的总监”等对手，与 AI 自动匹配模拟对峙，推演长程因果与退路分寸。
-              </p>
-              <div className="mt-6 inline-block bg-zinc-50 border border-zinc-200 rounded-full px-4 py-2 text-[10px] font-bold text-zinc-500">
-                下一阶段开发中...
+            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
+              {/* 左侧主控工作区：展示 Context Sheet 时折叠为 7 列，否则为 10 列 */}
+              <div className={`transition-all duration-300 lg:col-span-10 ${simLoading || simResult ? 'lg:col-span-7' : 'lg:col-span-10'}`}>
+                <div className="grid grid-cols-1 md:grid-cols-10 gap-6 items-start">
+                  
+                  {/* 左面板：对手与博弈模型选择 */}
+                  <div className="md:col-span-3 space-y-6">
+                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈对手选择 (Opponent Selection)</span>
+                      
+                      <div className="flex flex-col gap-1.5 mb-6">
+                        {/* 预设对手按钮 */}
+                        {SIM_OPPONENTS.map(opp => (
+                          <button
+                            key={opp.id}
+                            onClick={() => handleOpponentChange(opp.id)}
+                            className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
+                              simOpponentId === opp.id 
+                                ? 'bg-zinc-900 text-white shadow-sm' 
+                                : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                            }`}
+                          >
+                            {opp.name}
+                            <span className="text-[9px] opacity-75 font-normal">({opp.type})</span>
+                          </button>
+                        ))}
+                        
+                        {/* 自定义对手按钮 */}
+                        <button
+                          onClick={() => handleOpponentChange('custom')}
+                          className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
+                            simOpponentId === 'custom' 
+                              ? 'bg-zinc-900 text-white shadow-sm' 
+                              : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                          }`}
+                        >
+                          自定义博弈对手...
+                          <span className="text-[9px] opacity-75 font-normal">(自定义设定)</span>
+                        </button>
+                      </div>
+
+                      {/* 自定义输入详情 */}
+                      {simOpponentId === 'custom' && (
+                        <div className="space-y-4 pt-4 border-t border-zinc-100">
+                          {/* 快速装配下拉菜单 */}
+                          {prototypes.length > 0 && (
+                            <div>
+                              <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">从人性档案库装配</label>
+                              <select
+                                onChange={(e) => {
+                                  const proto = prototypes.find(p => p.id === e.target.value);
+                                  if (proto) {
+                                    playClick();
+                                    setSimCustomName(proto.name);
+                                    setSimCustomType(proto.type);
+                                    if (proto.description) {
+                                      setSimCustomDilemma(`对手性格：${proto.description}\n对决危机场景：`);
+                                    }
+                                  }
+                                }}
+                                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400"
+                              >
+                                <option value="">-- 选择已有档案原型 --</option>
+                                {prototypes.map(p => (
+                                  <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          <div>
+                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">对手姓名 / 职位</label>
+                            <input
+                              type="text"
+                              value={simCustomName}
+                              onChange={(e) => setSimCustomName(e.target.value)}
+                              placeholder="如：VP James"
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">人性弱点分类</label>
+                            <select
+                              value={simCustomType}
+                              onChange={(e) => setSimCustomType(e.target.value)}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400 cursor-pointer"
+                            >
+                              <option value="利益驱动型">利益驱动型</option>
+                              <option value="恐惧驱动型">恐惧驱动型</option>
+                              <option value="面子驱动型">面子驱动型</option>
+                              <option value="安全感驱动型">安全感驱动型</option>
+                              <option value="多疑多虑型">多疑多虑型</option>
+                              <option value="规避责任型">规避责任型</option>
+                              <option value="空降夺权型">空降夺权型</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">选择博弈模型</label>
+                            <select
+                              value={simCustomModel}
+                              onChange={(e) => setSimCustomModel(e.target.value as any)}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400 cursor-pointer"
+                            >
+                              <option value="prisoner_dilemma">囚徒困境演化版</option>
+                              <option value="pig_game">智猪潜藏博弈</option>
+                              <option value="info_asymmetry">极度信息不对称</option>
+                              <option value="cold_trigger">冷酷触发策略</option>
+                            </select>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 内置对手信息卡片 */}
+                      {simOpponentId !== 'custom' && (
+                        <div className="pt-4 border-t border-zinc-100 space-y-2">
+                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block">已选对手特征</span>
+                          <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-[10px] space-y-1.5">
+                            <div><span className="text-zinc-400 font-semibold">弱点原型：</span><span className="font-bold text-zinc-700">{SIM_OPPONENTS.find(o => o.id === simOpponentId)?.type}</span></div>
+                            <div><span className="text-zinc-400 font-semibold">推荐模型：</span><span className="font-bold text-zinc-700">{
+                              SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model === 'prisoner_dilemma' ? '囚徒困境演化版' :
+                              SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model === 'pig_game' ? '智猪潜藏博弈' :
+                              SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model === 'info_asymmetry' ? '极度信息不对称' : '冷酷触发策略'
+                            }</span></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 右面板：博弈局势与反制策略录入 */}
+                  <div className="md:col-span-7 space-y-6">
+                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative overflow-hidden ${
+                      simAnimateBorder ? 'ring-2 ring-zinc-300' : ''
+                    }`}>
+                      {simLoading && (
+                        <div className="absolute inset-x-0 top-0 h-0.5 bg-zinc-300 animate-pulse" />
+                      )}
+
+                      <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-100">
+                        <h4 className="font-bold text-sm text-zinc-800 flex items-center gap-2">
+                          <Swords className="w-4 h-4 text-zinc-600" /> 对手施压情境与策略对抗
+                        </h4>
+                      </div>
+
+                      {/* 刁难情境/博弈局势展示与编辑 */}
+                      <div className="bg-zinc-50 border-l-2 border-zinc-500 p-4 rounded-xl mb-6">
+                        <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1.5">对手施压情境 (Opponent Crisis Scenario)</span>
+                        {simOpponentId !== 'custom' ? (
+                          <p className="text-xs text-zinc-600 leading-relaxed font-semibold">
+                            {SIM_OPPONENTS.find(o => o.id === simOpponentId)?.dilemma}
+                          </p>
+                        ) : (
+                          <textarea
+                            rows={3}
+                            value={simCustomDilemma}
+                            onChange={(e) => setSimCustomDilemma(e.target.value)}
+                            placeholder="请手写设定该对手对你施加的权力危机、刁难场景或对立博弈详情..."
+                            className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
+                            disabled={simLoading}
+                          />
+                        )}
+                      </div>
+
+                      {/* 勾选手段 */}
+                      <div className="mb-6 bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2.5">
+                          反制对策勾选 (Select Tactics):
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {['借势上位', '构建联盟', '信息垄断', '软对抗', '制衡术', '分而治之', '恩威并施', '边缘化'].map(t => {
+                            const isSelected = simSelectedTactics.includes(t);
+                            return (
+                              <button
+                                key={t}
+                                onClick={() => {
+                                  playClick();
+                                  setSimSelectedTactics(prev =>
+                                    prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                                  );
+                                }}
+                                disabled={simLoading}
+                                className={`text-[10px] py-1 px-3 rounded-full font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                  isSelected
+                                    ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm'
+                                    : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50'
+                                }`}
+                              >
+                                {t}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 玩家应对方案录入 */}
+                      <div className="space-y-2 mb-6">
+                        <label className="text-[10px] text-zinc-600 font-bold block">我的反制对策行动案 (My Tactical Strategy)</label>
+                        <textarea
+                          rows={4}
+                          value={simAnswer}
+                          onChange={(e) => setSimAnswer(e.target.value)}
+                          placeholder="例如：“在会前私下与合规总监取得利益对齐，拉拢常务副总的心腹，在对立会议上抛出无可置辩的客观单据，并不直接表态，把球踢回给对方……”"
+                          className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-4 text-xs outline-none resize-none leading-relaxed font-medium font-semibold"
+                          disabled={simLoading}
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleStartSimPlay}
+                        disabled={simLoading || !simAnswer.trim() || (simOpponentId === 'custom' && (!simCustomName.trim() || !simCustomDilemma.trim()))}
+                        className={`w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                          simLoading
+                            ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed'
+                            : 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01]'
+                        }`}
+                      >
+                        {simLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                            <span>{simScanStep}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles className="w-4 h-4 text-zinc-400" />
+                            <span>启动人机博弈对决推演</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* 右侧 30% 上下文面板 (Context Sheet) */}
+              <AnimatePresence>
+                {(simLoading || simResult) && (
+                  <motion.div
+                    initial={{ opacity: 0, x: 50 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 50 }}
+                    transition={{ duration: 0.3 }}
+                    className="lg:col-span-3 space-y-6"
+                  >
+                    {/* Header with X Close Button to Clear Result */}
+                    <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">实操对决评估</span>
+                      <button 
+                        onClick={() => { playClick(); setSimResult(null); }}
+                        className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-full transition-colors cursor-pointer"
+                        title="关闭评估"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Loading status */}
+                    {simLoading && (
+                      <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-10">
+                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-zinc-500 mb-3" />
+                        <p className="text-xs text-zinc-600 font-bold">{simScanStep}</p>
+                      </div>
+                    )}
+
+                    {/* Results details */}
+                    {simResult && (
+                      <>
+                        {/* 战略评估得分卡片 */}
+                        <div className="rounded-[2rem] p-6 border border-zinc-200 text-center shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] bg-zinc-50">
+                          {simResult.is_success ? (
+                            <Trophy className="w-8 h-8 mx-auto text-zinc-700 mb-3 animate-bounce" />
+                          ) : (
+                            <ShieldAlert className="w-8 h-8 mx-auto text-zinc-600 mb-3" />
+                          )}
+                          <h4 className="text-sm font-bold text-zinc-900 mb-1">
+                            {simResult.is_success ? '战略破局 ｜ 对决成功' : '遭受反噬 ｜ 对决预警'}
+                          </h4>
+                          <p className="text-zinc-500 text-[10px] font-medium mb-4 leading-relaxed">
+                            {simResult.is_success 
+                              ? '您的人机对战策略成效卓越，成功化解对手攻势并占据博弈高位。'
+                              : '您的方案被对手看穿并实施了强力反制，建议重新审视对手的人性特征缺陷与博弈边界。'
+                            }
+                          </p>
+                          <div className="bg-white border border-zinc-100 rounded-xl py-3 px-6 shadow-inner">
+                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-0.5">Deduction Strategy Score</span>
+                            <span className="text-3xl font-black font-mono tracking-tighter text-zinc-800">
+                              {simResult.score}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 详细评估报告 (垂直单列排布) */}
+                        <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] space-y-6">
+                          <h3 className="text-xs font-bold text-zinc-900 flex items-center gap-2">
+                            <Compass className="w-4 h-4 text-zinc-600" /> 对局利益与人性推演报告
+                          </h3>
+
+                          {/* 利益、动机、弱点 */}
+                          <div className="space-y-4">
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">01 / 利益结构研判</span>
+                              <p className="text-xs text-zinc-600 leading-relaxed font-medium">{simResult.stakeholder_interests}</p>
+                            </div>
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">02 / 人性动机透视</span>
+                              <p className="text-xs text-zinc-600 leading-relaxed font-medium">{simResult.motives_analysis}</p>
+                            </div>
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">03 / 对手防御漏洞</span>
+                              <p className="text-xs text-zinc-600 leading-relaxed font-medium">{simResult.weaknesses}</p>
+                            </div>
+                          </div>
+
+                          {/* 十重因果链 */}
+                          <div className="bg-white rounded-xl p-4 border border-zinc-100 shadow-inner">
+                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-3">
+                              长程因果传导链 (10-Layer Chain)
+                            </span>
+                            
+                            <div className="relative pl-4 border-l border-zinc-200 space-y-3">
+                              {simResult.causal_chain && simResult.causal_chain.map((step, idx) => (
+                                <div key={idx} className="relative group transition-all">
+                                  <span className="absolute -left-[21px] top-1 w-2 h-2 rounded-full border border-white bg-zinc-300 group-hover:bg-zinc-950 transition-all shadow-sm" />
+                                  <div className="flex items-start gap-2">
+                                    <span className="text-[8px] font-bold font-mono bg-zinc-50 border border-zinc-200 text-zinc-500 rounded px-1 py-0.2 shadow-sm">
+                                      L{idx + 1}
+                                    </span>
+                                    <p className="text-[11px] text-zinc-600 font-medium leading-relaxed">
+                                      {step}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* 对手人性归档 */}
+                          {simResult.prototype_archive && (
+                            <div className="bg-zinc-900 text-zinc-100 rounded-xl p-4 relative overflow-hidden border border-zinc-800 shadow-md">
+                              <div className="flex items-center justify-between mb-2 relative z-10">
+                                <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">
+                                  对手人性归档分类
+                                </span>
+                                <span className="text-[8px] bg-zinc-800 border border-zinc-700 px-1.5 py-0.2 rounded font-bold text-zinc-300">
+                                  已自动存库
+                                </span>
+                              </div>
+
+                              <div className="relative z-10 space-y-1">
+                                <h4 className="text-xs font-bold text-white">{simResult.prototype_archive.name}</h4>
+                                <span className="text-[8px] bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold inline-block">
+                                  {simResult.prototype_archive.type}
+                                </span>
+                                <p className="text-[10px] text-zinc-400 font-medium leading-relaxed pt-1.5 border-t border-zinc-800/80">
+                                  {simResult.prototype_archive.description}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* 导师建议 */}
+                          <div className="bg-zinc-100 border border-zinc-200 rounded-xl p-4">
+                            <span className="text-[9px] text-zinc-800 font-bold uppercase tracking-wider block mb-1">
+                              战略对决局盘点拨
+                            </span>
+                            <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
+                              {simResult.suggestion}
+                            </p>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
 

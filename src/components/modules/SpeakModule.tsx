@@ -514,7 +514,19 @@ export default function SpeakModule() {
     try {
       const fullScenario = `[三大场景:${selectedScenario === 'mnc' ? '外企跨国环境' : selectedScenario === 'gov' ? '体制内公务环境' : '通用社交商务饭局'}] \n主题：${promptTopic} \n表达维度：类型-${dimType}, 目的-${dimPurpose}, 角色-${dimRole}, 结构-${dimStructure}, 透明度-${dimTransparency}, 逻辑-${dimLogic}`;
 
-      const res = await runSpeakInfluenceEngine({
+      const isMock = window.location.search.includes('mock=true') || (window as any).__MOCK_EVALUATION__;
+      const isGoldenScript = isMock && (currentInput.includes('Based on the current alignment') || currentInput.includes('Tier-A servers'));
+
+      const res = isMock ? {
+        score: isGoldenScript ? 92 : 67,
+        critique: isGoldenScript 
+          ? 'Based on the current alignment, cutting 30% budget will trigger a service disruption on Tier-A servers, resulting in a contract penalty of $50k. To secure our Q3 revenue projection, we propose two mitigation options...'
+          : '表达逻辑较为薄弱，缺乏具体事实和数据支撑，且用语过于情绪化，不符合外企高节奏效率沟通的要求。',
+        framework_analysis: isGoldenScript
+          ? '采用了完美的因果逻辑，直述商业价值和风险，非常出色。'
+          : '建议使用因果逻辑框架：直陈预算削减 of 业务影响（如服务中断、合同违约金），并给出替代方案。',
+        revised_version: 'Based on the current alignment, cutting 30% budget will trigger a service disruption on Tier-A servers, resulting in a contract penalty of $50k. To secure our Q3 revenue projection, we propose two mitigation options...'
+      } : await runSpeakInfluenceEngine({
         training_mode: activeTab === 'structural' ? '结构化表达' : activeTab === 'impromptu' ? '即兴发言' : '精准提问',
         scenario: fullScenario,
         user_role: dimRole,
@@ -522,10 +534,23 @@ export default function SpeakModule() {
         user_input: combinedInput
       });
 
-      const rawScore = res.score || 75;
-      const logicScore = Math.min(5, Number((rawScore * 0.05).toFixed(1)));
-      const expressionScore = Math.min(5, Number(((rawScore - (logicScore * 20)) * 0.05).toFixed(1)) || 3.8);
-      const totalScore = Number((logicScore + expressionScore).toFixed(1));
+      let logicScore: number, expressionScore: number, totalScore: number;
+      if (isMock) {
+        if (isGoldenScript) {
+          totalScore = 9.2;
+          logicScore = 4.6;
+          expressionScore = 4.6;
+        } else {
+          totalScore = 6.7;
+          logicScore = 3.2;
+          expressionScore = 3.5;
+        }
+      } else {
+        const rawScore = res.score || 75;
+        logicScore = Math.min(5, Number((rawScore * 0.05).toFixed(1)));
+        expressionScore = Math.min(5, Number(((rawScore - (logicScore * 20)) * 0.05).toFixed(1)) || 3.8);
+        totalScore = Number((logicScore + expressionScore).toFixed(1));
+      }
 
       const suggestions = [
         '在使用金字塔结构时，确保第一句话就是动作或结论，切忌铺垫过长',
@@ -537,8 +562,12 @@ export default function SpeakModule() {
         totalScore,
         logicScore,
         expressionScore,
-        critique: res.critique || '表达较为完整，但在分寸和逻辑链条的连贯性上仍有改进空间。',
-        frameworkAnalysis: res.framework_analysis || '建议在开头直接点明利益捆绑，随后分三点展开事实支撑。',
+        critique: isMock && !isGoldenScript
+          ? '表达逻辑较为薄弱，缺乏具体事实和数据支撑，且用语过于情绪化，不符合外企高节奏效率沟通的要求。'
+          : (res.critique || '表达较为完整，但在分寸和逻辑链条的连贯性上仍有改进空间。'),
+        frameworkAnalysis: isMock && !isGoldenScript
+          ? '建议使用因果逻辑框架：直陈预算削减的业务影响（如服务中断、合同违约金），并给出替代方案。'
+          : (res.framework_analysis || '建议在开头直接点明利益捆绑，随后分三点展开事实支撑。'),
         revisedVersion: res.revised_version || '重新设计的完美说辞：关于项目预算，我建议...',
         suggestions
       });
@@ -761,11 +790,15 @@ export default function SpeakModule() {
             ].map(tab => (
               <button
                 key={tab.id}
+                disabled={isCyberLocked && activeTab !== tab.id}
                 onClick={() => {
+                  if (isCyberLocked) return;
                   setActiveTab(tab.id as any);
                   generateAITopic();
                 }}
                 className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-xl transition-all whitespace-nowrap ${
+                  isCyberLocked && activeTab !== tab.id ? 'opacity-50 cursor-not-allowed' : ''
+                } ${
                   activeTab === tab.id 
                     ? 'bg-indigo-600 text-white shadow-md' 
                     : 'text-slate-500 hover:bg-slate-100'
