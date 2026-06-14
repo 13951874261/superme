@@ -23,12 +23,14 @@ import {
   User,
   Sliders,
   Check,
-  Send
+  Send,
+  Copy
 } from 'lucide-react';
 import { runSpeakInfluenceEngine, transcribeAudioWithWhisper } from '../../services/difyAPI';
-import { playSuccessCyber, playErrorCyber, playHeartbeat } from '../../utils/soundEffects';
+import { playSuccessCyber, playErrorCyber, playHeartbeat, playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
 import Confetti from '../Confetti';
 import { getUserCurrentProfile } from '../../utils/profileHelper';
+import { motion, AnimatePresence } from 'motion/react';
 
 
 interface TheoryItem {
@@ -115,6 +117,8 @@ export default function SpeakModule() {
   const [activeTab, setActiveTab] = useState<'structural' | 'impromptu' | 'counter' | 'promotion'>('structural');
   const [selectedScenario, setSelectedScenario] = useState('mnc');
   const [expandedTheories, setExpandedTheories] = useState<Record<string, boolean>>({ pyramid: true });
+  const [showContextSheet, setShowContextSheet] = useState(false);
+  const [isCyberLocked, setIsCyberLocked] = useState(false);
   
   const [dimType, setDimType] = useState('即兴发言');
   const [dimPurpose, setDimPurpose] = useState('说服');
@@ -175,6 +179,37 @@ export default function SpeakModule() {
     harvest: string;
     tomorrowFocus: string;
   } | null>(null);
+
+  // 同步锁定与面板展示状态
+  useEffect(() => {
+    if (evalResult) {
+      setIsCyberLocked(evalResult.totalScore < 8);
+      setShowContextSheet(true);
+    } else {
+      setIsCyberLocked(false);
+      setShowContextSheet(false);
+    }
+  }, [evalResult]);
+
+  // 智能空白处点击判定逻辑
+  const handleOutsideClick = (e: React.MouseEvent) => {
+    if (!showContextSheet) return;
+    
+    // 如果存在选中的文本，不收起面板（方便划词）
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
+    }
+
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    
+    if (!isInteractive) {
+      setShowContextSheet(false);
+    }
+  };
 
   useEffect(() => {
     if (isTimerRunning && timeLeft > 0) {
@@ -514,6 +549,8 @@ export default function SpeakModule() {
         tomorrowFocus: '重点练习体制内委婉反驳话术，设计针对性破绽提问'
       });
 
+      playPageTurn();
+
       if (totalScore >= 8) {
         playSuccessCyber();
         setShowConfetti(true);
@@ -553,8 +590,14 @@ export default function SpeakModule() {
   };
 
   return (
-    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-12 gap-8 p-1 text-slate-800 relative">
+    <div 
+      className="relative flex min-h-screen w-full gap-6 overflow-hidden text-slate-800"
+      onClick={handleOutsideClick}
+    >
       {showConfetti && <Confetti duration={4000} onComplete={() => setShowConfetti(false)} />}
+      
+      {/* Left Workspace */}
+      <div className={`transition-all duration-500 ease-in-out grid grid-cols-1 lg:grid-cols-12 gap-8 shrink-0 ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
       
       <section className="lg:col-span-5 flex flex-col space-y-6">
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] p-6">
@@ -878,7 +921,14 @@ export default function SpeakModule() {
               </button>
             </div>
           </div>
-
+          {evalResult && !showContextSheet && (
+          <button
+            onClick={() => { setShowContextSheet(true); }}
+            className="mt-4 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+          >
+            <span>展开审阅报告 (Expand Review Report)</span>
+          </button>
+        )}
         </div>
 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] p-6">
@@ -920,7 +970,11 @@ export default function SpeakModule() {
               placeholder={inputMode === 'mild' ? "请输入或录制温和版回应..." : "请输入或录制强硬版回应..."}
               value={inputMode === 'mild' ? mildInput : aggressiveInput}
               onChange={(e) => inputMode === 'mild' ? setMildInput(e.target.value) : setAggressiveInput(e.target.value)}
-              className="w-full rounded-2xl border border-slate-200 p-4 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-slate-50/30"
+              className={`w-full rounded-2xl border p-4 text-sm focus:outline-none bg-slate-50/30 transition-all duration-300 ${
+                isCyberLocked
+                  ? 'border-rose-500 focus:border-rose-650 shadow-[0_0_10px_rgba(244,63,94,0.15)] ring-1 ring-rose-500/20 focus:ring-rose-500'
+                  : 'border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500'
+              }`}
             />
             
             <div className="absolute right-4 bottom-4 flex items-center gap-2">
@@ -943,6 +997,15 @@ export default function SpeakModule() {
             </div>
           </div>
 
+          {isCyberLocked && evalResult && (
+            <div className="mb-4 p-3.5 bg-rose-50 border border-rose-200/80 rounded-xl text-rose-700 text-xs font-bold animate-pulse flex items-center gap-2">
+              <span className="text-sm">🔒</span>
+              <div>
+                表达逻辑得分 {evalResult.totalScore} 未达标（要求 8 分）。已锁定当前模块，请根据右侧建议修改草稿，或在右侧点击“一键采纳”AI重构方案后重新提交。
+              </div>
+            </div>
+          )}
+
           <button
             onClick={evaluateSpeech}
             disabled={isLoadingFeedback || (!mildInput && !aggressiveInput)}
@@ -961,17 +1024,29 @@ export default function SpeakModule() {
             )}
           </button>
         </div>
+      </section>
+    </div>
 
-        {evalResult && (
+    <AnimatePresence>
+      {showContextSheet && evalResult && (
+        <motion.div
+          initial={{ x: '100%', opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: '100%', opacity: 0 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+          className="fixed top-0 right-0 w-[30%] bg-slate-50 border-l border-slate-200 h-full p-5 shadow-2xl flex flex-col gap-4 overflow-y-auto z-50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button onClick={() => setShowContextSheet(false)} className="self-end text-slate-400 hover:text-slate-800 p-2">关闭</button>
           <div className="bg-white rounded-3xl border border-emerald-100 shadow-[0_15px_40px_rgba(16,185,129,0.05)] p-6 relative overflow-hidden transition-all duration-500 animate-[fadeIn_0.5s_ease-out]">
             <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-500 animate-pulse"></div>
 
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+            <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 mb-6">
               <div>
-                <h3 className="text-base font-black text-slate-900">教练深度剖析与双版本权衡</h3>
+                <h3 className="text-base font-black text-slate-900">教练深度剖析</h3>
                 <p className="text-[10px] text-slate-400 mt-0.5">多维对比评估体系已就绪</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2">
                 <div className="bg-emerald-50 border border-emerald-250/50 rounded-2xl p-2 px-3 text-right">
                   <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">逻辑战力</span>
                   <span className="text-base font-black text-emerald-700 font-mono">{evalResult.logicScore} / 5</span>
@@ -982,16 +1057,16 @@ export default function SpeakModule() {
                 </div>
                 <div className="bg-indigo-600 text-white rounded-2xl p-2 px-4 text-center shadow-lg shadow-indigo-600/10">
                   <span className="text-[9px] font-black uppercase tracking-widest block opacity-80">总得分</span>
-                  <span className="text-lg font-black font-mono">{evalResult.totalScore} <span className="text-xs font-normal">/ 10</span></span>
+                  <span className="text-lg font-black font-mono">{evalResult.totalScore} / 10</span>
                 </div>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+            <div className="grid grid-cols-1 gap-3 mb-6">
               {[
                 { label: '地域文化适配', score: '适配', color: 'text-indigo-600 bg-indigo-50' },
                 { label: '角色立场定位', score: '精准', color: 'text-emerald-600 bg-emerald-50' },
-                { label: '逻辑框架完整度', score: '极佳', color: 'text-amber-600 bg-amber-50' },
+                { label: '逻辑框架完整', score: '极佳', color: 'text-amber-600 bg-amber-50' },
                 { label: '语调停顿留白', score: '良好', color: 'text-teal-600 bg-teal-50' },
                 { label: '词汇精准度', score: '极佳', color: 'text-rose-600 bg-rose-50' },
                 { label: '事实数据调用', score: '尚可', color: 'text-purple-600 bg-purple-50' }
@@ -1030,9 +1105,41 @@ export default function SpeakModule() {
                   满分实战话术 (Golden Script)
                 </h4>
                 <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 relative">
-                  <p className="text-slate-800 text-xs font-medium leading-relaxed font-serif italic">
+                  <p className="text-slate-800 text-xs font-medium leading-relaxed font-serif italic mb-4">
                     "{evalResult.revisedVersion}"
                   </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={async () => {
+                        playClick();
+                        try {
+                          await navigator.clipboard.writeText(evalResult.revisedVersion);
+                          playSuccessCyber();
+                        } catch (err) {
+                          playErrorCyber();
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-350 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all cursor-pointer shadow-sm"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      复制范文
+                    </button>
+                    <button
+                      onClick={() => {
+                        playClick();
+                        playWaterDrop();
+                        if (inputMode === 'mild') {
+                          setMildInput(evalResult.revisedVersion);
+                        } else {
+                          setAggressiveInput(evalResult.revisedVersion);
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-650 hover:bg-emerald-600 text-white transition-all cursor-pointer shadow-sm animate-pulse"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      一键采纳
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -1102,9 +1209,9 @@ export default function SpeakModule() {
 
             </div>
           </div>
-        )}
-
-      </section>
+        </motion.div>
+      )}
+      </AnimatePresence>
     </div>
   );
 }
