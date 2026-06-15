@@ -499,7 +499,7 @@ export default function GameTheoryModule() {
       {/* 战略评估弹窗已改用右侧 30% Context Sheet */}
 
       {/* Tab 导航区域 */}
-      <div className="flex border-b border-zinc-200/80 mb-8 overflow-x-auto">
+      <div className="flex border border-slate-100 mb-6 bg-white p-1 rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.02)] overflow-x-auto">
         {([
           { id: 'cases', name: '高管斗争案例研判' },
           { id: 'tactics', name: '驭人术与人性档案' },
@@ -509,10 +509,10 @@ export default function GameTheoryModule() {
           <button
             key={tab.id}
             onClick={() => handleTabChange(tab.id)}
-            className={`py-3 px-6 text-xs font-bold border-b-2 transition-all cursor-pointer whitespace-nowrap ${
+            className={`flex-1 py-2 px-6 text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap ${
               activeTab === tab.id
-                ? 'border-zinc-900 text-zinc-900'
-                : 'border-transparent text-zinc-400 hover:text-zinc-600'
+                ? 'bg-zinc-900 text-white shadow-sm'
+                : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'
             }`}
           >
             {tab.name}
@@ -537,7 +537,7 @@ export default function GameTheoryModule() {
                   
                   {/* 左面板 30%：环境与案例选择 */}
                   <div className="md:col-span-3 space-y-6">
-                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)]">
                       <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈环境选择 (Environments)</span>
                       
                       <div className="flex flex-col gap-1.5 mb-6">
@@ -588,7 +588,7 @@ export default function GameTheoryModule() {
 
                   {/* 右面板 70%：高维博弈沙盘研判 */}
                   <div className="md:col-span-7 space-y-6">
-                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative ${
+                    <div className={`bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.02)] transition-all duration-300 relative ${
                       animateBorder ? 'ring-2 ring-zinc-300' : ''
                     }`}>
                       {isLoading && (
@@ -617,7 +617,7 @@ export default function GameTheoryModule() {
                         </div>
                       </div>
 
-                      <div className="bg-zinc-50 border-l-2 border-zinc-500 p-4 rounded-xl mb-6">
+                      <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
                         <textarea 
                           rows={3}
                           value={caseText}
@@ -1099,7 +1099,7 @@ export default function GameTheoryModule() {
                   
                   {/* 左面板：对手与博弈模型选择 */}
                   <div className="md:col-span-3 space-y-6">
-                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)]">
                       <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈对手选择 (Opponent Selection)</span>
                       
                       <div className="flex flex-col gap-1.5 mb-6">
@@ -1225,7 +1225,7 @@ export default function GameTheoryModule() {
 
                   {/* 右面板：博弈局势与反制策略录入 */}
                   <div className="md:col-span-7 space-y-6">
-                    <div className={`bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all duration-300 relative ${
+                    <div className={`bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.02)] transition-all duration-300 relative ${
                       simAnimateBorder ? 'ring-2 ring-zinc-300' : ''
                     }`}>
                       {simLoading && (
@@ -1239,7 +1239,7 @@ export default function GameTheoryModule() {
                       </div>
 
                       {/* 刁难情境/博弈局势展示与编辑 */}
-                      <div className="bg-zinc-50 border-l-2 border-zinc-500 p-4 rounded-xl mb-6">
+                      <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
                         <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1.5">对手施压情境 (Opponent Crisis Scenario)</span>
                         {simOpponentId !== 'custom' ? (
                           <p className="text-xs text-zinc-600 leading-relaxed font-semibold">

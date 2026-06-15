@@ -553,7 +553,7 @@ export default function ImpromptuSpeechTab() {
       )}
 
       {/* 录音主控区 */}
-      <div className="bg-[#202124] rounded-[2rem] p-8 text-white relative overflow-hidden">
+      <div className="bg-[#202124] rounded-3xl p-5 md:p-6 text-white relative overflow-hidden">
         <div className="absolute -right-10 -top-10 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
@@ -695,7 +695,7 @@ export default function ImpromptuSpeechTab() {
 
       {/* 主题提示面板 */}
       {showPrompter && prompterResult && (
-        <div className="bg-gradient-to-br from-orange-50/70 to-amber-50/70 border border-amber-500/20 ring-1 ring-amber-500/5 rounded-[2rem] p-6 shadow-[0_10px_35px_-5px_rgba(245,158,11,0.08)] animate-[fadeIn_0.3s_ease-out]">
+        <div className="bg-gradient-to-br from-orange-50/70 to-amber-50/70 border border-amber-500/20 ring-1 ring-amber-500/5 rounded-3xl p-5 md:p-6 shadow-[0_10px_35px_-5px_rgba(245,158,11,0.08)] animate-[fadeIn_0.3s_ease-out]">
           <div className="flex items-center justify-between mb-6 pb-4 border-b border-amber-500/10">
             <div className="flex items-center gap-3">
               <div className="bg-amber-500/10 p-2 rounded-xl text-amber-500">
@@ -930,7 +930,7 @@ export default function ImpromptuSpeechTab() {
       {/* 评测结果 */}
       {evalResult && (
         <>
-          <div className={`rounded-[2rem] p-8 border-2 animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+          <div className={`rounded-3xl p-5 md:p-6 border animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50/40 border-emerald-200/60 shadow-[0_12px_35px_rgba(16,185,129,0.015)]' : 'bg-red-50/40 border-red-200/60 shadow-[0_12px_35px_rgba(239,68,68,0.015)]'}`}>
             {/* Header */}
             <div className="flex items-center justify-between mb-8">
               <h4 className={`text-sm font-black uppercase tracking-widest ${evalResult.score >= 8 ? 'text-emerald-700' : 'text-red-700'}`}>
@@ -1016,7 +1016,7 @@ export default function ImpromptuSpeechTab() {
 
           {/* AI 高管级完美示范范文 */}
           {exemplarText && (
-            <div className="mt-6 bg-white/60 rounded-[2rem] p-8 border border-[#E9D5FF] shadow-sm animate-[fadeIn_0.3s_ease-out]">
+            <div className="mt-5 bg-white/60 rounded-3xl p-5 md:p-6 border border-[#E9D5FF]/80 shadow-[0_10px_30px_rgba(233,213,255,0.015)] animate-[fadeIn_0.3s_ease-out]">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-sm font-black uppercase tracking-widest text-violet-700">
                   AI 高管级完美示范示范 (Optimized Speech)

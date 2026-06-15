@@ -64,12 +64,12 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
 
   return (
     <div className="w-full relative px-2 mb-20">
-      {/* 康奈尔底栏标题注记 */}
-      <div className="absolute -top-4 left-10 bg-white border-l-4 border-[#FF5722] px-6 py-1.5 text-[10px] font-black tracking-[0.25em] text-[#FF5722] uppercase z-10 shadow-[0_2px_10px_rgba(255,87,34,0.08)] rounded-r-md border border-gray-100/50 backdrop-blur-md">
+      {/* 康奈尔底栏标题注记：去除 Side-stripe */}
+      <div className="absolute -top-3.5 left-10 bg-[#FF5722]/5 border border-[#FF5722]/20 px-4 py-1 text-[10px] font-black tracking-[0.2em] text-[#FF5722] uppercase z-10 shadow-sm rounded-full backdrop-blur-md">
         Cornell Summary Area
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border-4 border-gray-100 rounded-[2rem] p-8 md:p-12 hover:border-[#FF5722]/20 transition-colors duration-500 bg-white relative">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border border-slate-100/80 rounded-3xl p-6 md:p-8 hover:border-[#FF5722]/20 transition-all duration-300 shadow-[0_12px_35px_rgba(0,0,0,0.015)] bg-white relative">
         
         {/* 左半区：每周实践复盘 (AI总结区) */}
         <div className="flex flex-col border-b md:border-b-0 md:border-r border-gray-100 md:pr-12 md:pb-0 pb-10">
@@ -81,7 +81,7 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
             AI 汇总进度 / 总结思维漏洞 / 定向深化建议
           </p>
           
-          <div className="flex-1 bg-gradient-to-br from-gray-50/90 to-white/20 rounded-2xl p-6 text-sm text-[#202124] leading-relaxed font-medium min-h-[200px] border border-gray-100 shadow-inner group transition-all duration-500 hover:bg-white relative overflow-hidden">
+          <div className="flex-1 bg-slate-50/70 rounded-xl p-5 text-sm text-gray-700 leading-relaxed font-medium min-h-[160px] border border-slate-100 shadow-inner group transition-all duration-500 hover:bg-white relative overflow-hidden">
              {/* Shimmer sweep effect */}
              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#FF5722]/3 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[2000ms] ease-out pointer-events-none" />
              <div className="flex items-center text-[#FF5722] mb-3 text-xs font-black font-mono tracking-widest animate-pulse">
@@ -89,7 +89,7 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
                 ANALYZING WEEKLY DATA...
              </div>
              <div className="relative z-10 text-gray-700">{summaryText}</div>
-             <div className="mt-4 text-xs text-gray-400 font-semibold border-t border-gray-100/50 pt-3 relative z-10"> {nextFocus} </div>
+             <div className="mt-4 text-xs text-gray-400 font-semibold border-t border-slate-100/60 pt-3 relative z-10"> {nextFocus} </div>
           </div>
         </div>
 
@@ -108,14 +108,14 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
               rows={6} 
               value={reflection}
               onChange={(e) => setReflection(e.target.value)}
-              className="w-full bg-[#f1f3f4] border-2 border-transparent rounded-2xl p-5 text-sm text-[#202124] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#FF5722]/5 focus:border-[#FF5722] focus:shadow-[0_0_15px_rgba(255,87,34,0.08)] mb-6 transition-all duration-300 resize-none leading-relaxed placeholder-gray-400 font-medium" 
+              className="w-full bg-slate-50 border border-slate-200/60 rounded-xl p-4 text-xs text-gray-800 focus:bg-white focus:outline-none focus:border-[#FF5722]/40 focus:shadow-[0_0_15px_rgba(255,87,34,0.05)] mb-4 transition-all duration-300 resize-none leading-relaxed placeholder-gray-400 font-medium" 
               placeholder="记录这周的内心感悟，或是你刚读完的书的启发。你越吐露真言，这个 AI 就越能与您的潜意识同频同构..."
             />
             
             <button
               onClick={handleSaveReview}
               disabled={saving}
-              className="w-full mt-auto bg-[#202124] hover:bg-[#FF5722] text-white py-4 rounded-full text-xs font-black tracking-[0.15em] uppercase flex items-center justify-center transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.01] active:scale-[0.97] hover:shadow-[0_8px_24px_rgba(255,87,34,0.22)] shadow-[0_4px_14px_rgba(0,0,0,0.08)] disabled:opacity-60 cursor-pointer"
+              className="w-full mt-auto bg-[#202124] hover:bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-[0.15em] uppercase flex items-center justify-center transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.01] active:scale-[0.97] hover:shadow-[0_8px_24px_rgba(255,87,34,0.22)] shadow-[0_4px_14px_rgba(0,0,0,0.08)] disabled:opacity-60 cursor-pointer"
             >
               <Send className="w-4 h-4 mr-3" strokeWidth={2.5} />
               {saving ? '保存中...' : '上传心智与反思至专属分身'}

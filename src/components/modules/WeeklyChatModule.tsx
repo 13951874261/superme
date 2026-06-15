@@ -102,7 +102,7 @@ export default function WeeklyChatModule() {
       <div className="space-y-8 max-w-5xl mx-auto py-4">
         
         {/* 全局画像进化卡片（Zinc极简高管风） */}
-        <div className="admin-card p-6 md:p-8 rounded-[2rem] flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="admin-card p-5 md:p-6 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <span className="text-[10px] text-zinc-400 font-bold block uppercase tracking-widest">
               当前全局进化能力短板 (Global Profile)
@@ -160,7 +160,7 @@ export default function WeeklyChatModule() {
 
         {/* 当前研判展现区 */}
         {currentResult && (
-          <div className="bg-zinc-900 text-zinc-100 border border-zinc-800 rounded-[2.5rem] p-8 md:p-10 shadow-md space-y-5 animate-fade-in">
+          <div className="bg-zinc-900 text-zinc-100 border border-zinc-850 rounded-3xl p-5 md:p-7 shadow-md space-y-4 animate-fade-in">
             <div className="flex items-center gap-3 pb-4 border-b border-zinc-800">
               <Zap className="w-4 h-4 text-zinc-400" />
               <h4 className="text-xs font-black uppercase tracking-widest text-zinc-400">
@@ -181,7 +181,7 @@ export default function WeeklyChatModule() {
 
         {/* 历史记录足迹 */}
         {historyList.length > 0 && (
-          <div className="admin-card rounded-[2.5rem] p-8 md:p-10 space-y-6">
+          <div className="admin-card rounded-3xl p-5 md:p-7 space-y-5">
             <div className="flex items-center justify-between border-b border-zinc-100 pb-4">
               <h4 className="text-sm font-bold text-zinc-800 tracking-wider">历史认知沉淀足迹</h4>
               <button 

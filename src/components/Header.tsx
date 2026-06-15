@@ -46,7 +46,7 @@ export default function Header() {
 
   return (
     <header className="w-full max-w-[1400px] mx-auto px-6 py-4 relative z-50">
-      <div className="grid grid-cols-12 items-center gap-6 p-6 md:p-8 rounded-[2rem] border border-slate-200/50 bg-white/85 backdrop-blur-xl shadow-[0_20px_50px_-20px_rgba(0,0,0,0.03)] min-h-[120px]">
+      <div className="grid grid-cols-12 items-center gap-6 p-5 md:p-6 rounded-2xl border border-slate-200/50 bg-white/85 backdrop-blur-xl shadow-[0_15px_35px_-15px_rgba(0,0,0,0.02)] min-h-[100px]">
         
         {/* 1. 左侧：品牌与叙事区 */}
         <div className="col-span-12 xl:col-span-3 flex flex-col justify-center">

@@ -612,57 +612,100 @@ export default function ReadModule() {
       title="解构 ｜ 看透商业与格局底牌" 
       icon={<BookOpen className="w-8 h-8" strokeWidth={2.5} />}
       description="核心定位：深度结构化阅读。将输入的信息转化为高阶判断力和决策力，融合政策敏感度与商业逻辑视角。"
+      compact={true}
     >
       <div 
-        className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] relative flex flex-col lg:flex-row w-full gap-6 min-h-[500px] h-auto animate-fade-in"
+        className="bg-white rounded-3xl p-5 md:p-7 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.02)] relative flex flex-col lg:flex-row w-full gap-6 min-h-[400px] h-auto animate-fade-in"
         onClick={handleOutsideClick}
       >
         {/* 左侧 70% 工作区 */}
         <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-5xl mx-auto'}`}>
-          {/* 顶部一排：场景大框架（通用社交、体制内职场、跨国企业） */}
-          <div className="mb-2">
-            <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-              <span>●</span> 场景框架 (Training Scenarios)
-            </label>
-            <div className="flex flex-wrap gap-3">
-              {[
-                { id: 'gov', label: '体制内职场', icon: <Building className="w-4 h-4" /> },
-                { id: 'corp', label: '跨国企业', icon: <Globe className="w-4 h-4" /> },
-                { id: 'social', label: '通用社交', icon: <Compass className="w-4 h-4" /> },
-              ].map((framework) => {
-                const isActive = sceneFramework === framework.id;
-                return (
-                  <button
-                    key={framework.id}
-                    onClick={() => {
-                      playPageTurn();
-                      setSceneFramework(framework.id as any);
-                    }}
-                    className={`relative flex items-center gap-2 px-5 py-3 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
-                      isActive
-                        ? 'text-white border-transparent'
-                        : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeFrameworkBg"
-                        className="absolute inset-0 bg-[#202124] rounded-full -z-10"
-                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                      />
-                    )}
-                    {framework.icon}
-                    <span className="relative z-10">{framework.label}</span>
-                  </button>
-                );
-              })}
+          {/* 场景框架与输入模式并排一行 (非移动端下) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+            {/* 场景框架 */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">
+                场景框架 / Training Scenarios
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'gov', label: '体制内职场', icon: <Building className="w-3.5 h-3.5" /> },
+                  { id: 'corp', label: '跨国企业', icon: <Globe className="w-3.5 h-3.5" /> },
+                  { id: 'social', label: '通用社交', icon: <Compass className="w-3.5 h-3.5" /> },
+                ].map((framework) => {
+                  const isActive = sceneFramework === framework.id;
+                  return (
+                    <button
+                      key={framework.id}
+                      onClick={() => {
+                        playPageTurn();
+                        setSceneFramework(framework.id as any);
+                      }}
+                      className={`relative flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
+                        isActive
+                          ? 'text-white border-transparent'
+                          : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeFrameworkBg"
+                          className="absolute inset-0 bg-[#202124] rounded-full -z-10"
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      {framework.icon}
+                      <span className="relative z-10">{framework.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 输入模式 */}
+            <div>
+              <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">
+                输入模式 / Input Mode
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: 'manual', label: '手动输入' },
+                  { id: 'url', label: '网页抓取' },
+                  { id: 'file', label: '导入文档' },
+                ].map((mode) => {
+                  const isActive = inputMode === mode.id;
+                  return (
+                    <button
+                      key={mode.id}
+                      onClick={() => {
+                        playPageTurn();
+                        setInputMode(mode.id as any);
+                      }}
+                      className={`relative flex items-center text-xs py-2 px-4 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                        isActive
+                          ? 'text-white border-transparent'
+                          : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeInputModeBg"
+                          className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      <span className="relative z-10">{mode.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 
-          {/* 极简风导航 Tabs (政策精神, 财报研判, 外企邮件, 书目提纯) */}
-          <div className="mb-2">
-            <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-              <span>●</span> 训练板块 (Core Modules)
+          {/* 训练板块 */}
+          <div className="mb-3">
+            <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">
+              训练板块 / Core Modules
             </label>
             <div className="flex flex-wrap gap-2">
               {tabs.map(t => {
@@ -680,7 +723,7 @@ export default function ReadModule() {
                       setReversalSubmitted(false);
                       setChatMessages([]);
                     }}
-                    className={`relative flex items-center text-xs py-3 px-5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                    className={`relative flex items-center text-xs py-2 px-4 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
                       isActive 
                         ? 'text-white border-transparent' 
                         : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
@@ -695,45 +738,6 @@ export default function ReadModule() {
                     )}
                     {t.icon}
                     <span className="relative z-10">{t.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* 输入源切换 (Input Mode Switcher) */}
-          <div className="mb-2">
-            <label className="block text-xs font-black text-gray-400 tracking-wider uppercase mb-3 flex items-center gap-1.5">
-              <span>●</span> 选择输入模式 (Input Mode)
-            </label>
-            <div className="flex gap-2">
-              {[
-                { id: 'manual', label: '手动输入' },
-                { id: 'url', label: '网页抓取' },
-                { id: 'file', label: '导入文档' },
-              ].map((mode) => {
-                const isActive = inputMode === mode.id;
-                return (
-                  <button
-                    key={mode.id}
-                    onClick={() => {
-                      playPageTurn();
-                      setInputMode(mode.id as any);
-                    }}
-                    className={`relative flex items-center text-xs py-2.5 px-5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
-                      isActive
-                        ? 'text-white border-transparent'
-                        : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeInputModeBg"
-                        className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
-                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                      />
-                    )}
-                    <span className="relative z-10">{mode.label}</span>
                   </button>
                 );
               })}
@@ -1081,41 +1085,41 @@ export default function ReadModule() {
                   )}
                 </div>
               ) : (
-                <div className="flex flex-col gap-5 animate-[fadeIn_0.4s_ease-out] h-full justify-between">
-                  <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.01)] flex flex-col gap-4">
-                    <h5 className="text-xs font-black text-[#FF5722] uppercase tracking-widest flex items-center gap-1.5 border-b border-gray-100 pb-2">
-                      <Target className="w-4 h-4" /> 高管认知穿透导引
+                <div className="flex flex-col gap-4 animate-[fadeIn_0.4s_ease-out] justify-start">
+                  <div className="bg-white rounded-3xl p-5 border border-slate-100/80 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col gap-4">
+                    <h5 className="text-xs font-black text-[#FF5722] uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                      <Target className="w-4 h-4 text-[#FF5722]" /> 高管认知穿透导引
                     </h5>
                     <p className="text-xs text-gray-500 leading-relaxed font-semibold">
                       本系统旨在将输入的信息直接转化为高阶判断力和商业决策力。请在左侧主控区输入原始素材并启动解码。
                     </p>
                     
-                    <div className="flex flex-col gap-2.5 mt-2">
-                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                    <div className="flex flex-col gap-2.5 mt-1">
+                      <div className="p-3 bg-orange-50/50 rounded-2xl border border-orange-100/80 flex gap-2 items-start transition-all hover:bg-orange-50 hover:shadow-sm">
                         <span className="text-[10px] bg-[#FF5722]/10 text-[#FF5722] font-black px-1.5 py-0.5 rounded">1</span>
-                        <div className="text-[11px] text-gray-700 font-bold">
-                          <span className="block text-gray-900 font-extrabold mb-0.5">政策意图解构</span>
+                        <div className="text-[11px] text-orange-900/90 font-medium">
+                          <span className="block text-orange-950 font-black mb-0.5">政策意图解构</span>
                           透过字面词句，探寻隐藏意图与对我/行业的本质影响。
                         </div>
                       </div>
-                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                      <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100/80 flex gap-2 items-start transition-all hover:bg-blue-50 hover:shadow-sm">
                         <span className="text-[10px] bg-blue-500/10 text-blue-600 font-black px-1.5 py-0.5 rounded">2</span>
-                        <div className="text-[11px] text-gray-700 font-bold">
-                          <span className="block text-gray-900 font-extrabold mb-0.5">财报与商业模式</span>
+                        <div className="text-[11px] text-blue-900/90 font-medium">
+                          <span className="block text-blue-950 font-black mb-0.5">财报与商业模式</span>
                           审计出海企业盈利破绽与海外市场合规/风险痛点。
                         </div>
                       </div>
-                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                      <div className="p-3 bg-purple-50/50 rounded-2xl border border-purple-100/80 flex gap-2 items-start transition-all hover:bg-purple-50 hover:shadow-sm">
                         <span className="text-[10px] bg-purple-500/10 text-purple-600 font-black px-1.5 py-0.5 rounded">3</span>
-                        <div className="text-[11px] text-gray-700 font-bold">
-                          <span className="block text-gray-900 font-extrabold mb-0.5">外企跨文化博弈</span>
+                        <div className="text-[11px] text-purple-900/90 font-medium">
+                          <span className="block text-purple-950 font-black mb-0.5">外企跨文化博弈</span>
                           穿透外企客套话与逻辑阻碍，剥离各方真实利益立场。
                         </div>
                       </div>
-                      <div className="p-3 bg-[#f8f9fa] rounded-2xl border border-gray-200/50 flex gap-2 items-start">
+                      <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/80 flex gap-2 items-start transition-all hover:bg-emerald-50 hover:shadow-sm">
                         <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-black px-1.5 py-0.5 rounded">4</span>
-                        <div className="text-[11px] text-gray-700 font-bold">
-                          <span className="block text-gray-900 font-extrabold mb-0.5">高阶书目与认知</span>
+                        <div className="text-[11px] text-emerald-900/90 font-medium">
+                          <span className="block text-emerald-950 font-black mb-0.5">高阶书目与认知</span>
                           纠偏个人思考盲点与逻辑漏洞，构建管理与发展闭环。
                         </div>
                       </div>
@@ -1123,10 +1127,10 @@ export default function ReadModule() {
                   </div>
 
                   {/* 状态看板卡片，展示历史缓存 */}
-                  <div className="bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-5 text-white shadow-sm flex flex-col gap-3">
+                  <div className="bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-5 text-white shadow-[0_10px_30px_rgba(0,0,0,0.05)] flex flex-col gap-3">
                     <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
                       <span className="text-[10px] font-black text-gray-400 tracking-wider uppercase">今日思维指数</span>
-                      <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black">训练舱就绪</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black animate-pulse">训练舱就绪</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>

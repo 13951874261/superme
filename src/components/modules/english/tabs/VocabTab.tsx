@@ -215,7 +215,7 @@ export default function VocabTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2rem] p-10 border border-gray-100 shadow-sm flex flex-col items-center justify-center min-h-[500px]">
+      <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.015)] flex flex-col items-center justify-center min-h-[400px]">
       {/* 模式标签 */}
       {!loadingDueWords && filteredWords.length > 0 && (
         <div className={`self-stretch flex items-center gap-2 mb-6 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest ${

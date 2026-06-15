@@ -19,18 +19,14 @@ export default function ModuleWrapper({
   isOpen = true, 
   description, 
   badge,
-  compact = false
+  compact = true
 }: ModuleWrapperProps) {
   // 分割标题为大副标题
   const [main, sub] = title.split('｜').map(s => s.trim());
 
   return (
-    <section id={id} className={`w-full flex flex-col ${compact ? 'mb-10' : 'mb-16'}`}>
-      <div className={`
-        flex items-center 
-        ${compact ? 'space-x-4 mb-6 p-4 md:p-5' : 'space-x-6 mb-10 p-6 md:p-8'} 
-        rounded-3xl bg-gradient-to-r from-gray-50/70 to-white/30 backdrop-blur-[4px] border border-gray-100/50 shadow-[0_4px_20px_rgba(0,0,0,0.01)] relative overflow-hidden
-      `}>
+    <section id={id} className={`w-full flex flex-col ${compact ? 'mb-6' : 'mb-10'}`}>
+      <div className="flex items-center space-x-4 mb-4 p-4 md:p-5 rounded-2xl bg-white border border-slate-100/80 shadow-[0_4px_20px_rgba(0,0,0,0.015)] relative overflow-hidden">
         {/* 背景微装饰 */}
         <div className={`absolute -right-10 -top-10 ${compact ? 'w-28 h-28' : 'w-40 h-40'} bg-gradient-to-br from-[#FF5722]/5 to-transparent rounded-full blur-2xl pointer-events-none`} />
         
@@ -63,8 +59,8 @@ export default function ModuleWrapper({
            )}
            
            {description && (
-             <div className={`${compact ? 'mt-2' : 'mt-4'} border-l-2 border-[#FF5722]/30 pl-4 py-0.5`}>
-               <p className="text-xs md:text-sm text-gray-500 font-medium leading-relaxed tracking-wide">{description}</p>
+             <div className="mt-2.5 bg-[#FF5722]/[0.02] border border-[#FF5722]/10 rounded-2xl px-4 py-2">
+               <p className="text-xs text-gray-650 font-bold leading-relaxed tracking-wide">{description}</p>
              </div>
            )}
         </div>

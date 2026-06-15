@@ -71,7 +71,7 @@ function DailyFlawVocabCard() {
   };
 
   return (
-    <div className="bg-slate-900 text-white rounded-[2rem] p-8 border border-slate-800 shadow-[0_4px_25px_rgba(0,0,0,0.15)] relative overflow-hidden mt-6">
+    <div className="bg-slate-900 text-white rounded-3xl p-5 md:p-6 border border-slate-800 shadow-[0_12px_30px_rgba(0,0,0,0.12)] relative overflow-hidden mt-6">
       <div className="absolute -right-16 -top-16 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
       
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
@@ -502,7 +502,7 @@ export default function DashboardTab() {
       {/* 每日破绽词汇推送板块 */}
       <DailyFlawVocabCard />
 
-      <div className="bg-white rounded-[2rem] p-8 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] flex flex-col gap-6">
+      <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5">
         {/* 控制区：战略阶段与当前闭环主题并排 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
           <div className="flex flex-col">
@@ -685,7 +685,7 @@ export default function DashboardTab() {
         </div>
       </div>
 
-      <div className="bg-[#202124] rounded-[2rem] p-8 text-white relative overflow-hidden">
+      <div className="bg-[#202124] rounded-3xl p-5 md:p-6 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF5722]/10 rounded-full blur-3xl pointer-events-none"></div>
         <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-6 flex items-center">
           <Clock className="w-5 h-5 mr-3" /> 基础唤醒追踪 (Foundation)
@@ -850,7 +850,7 @@ export default function DashboardTab() {
         )}
 
         {/* 沉浸式阅读与收听 */}
-        <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-[0_4px_20px_rgba(0,0,0,0.02)] mb-8 space-y-6">
+        <div className="bg-white rounded-3xl border border-slate-100 p-5 md:p-6 shadow-[0_6px_20px_rgba(0,0,0,0.015)] mb-6 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
             <div>
               <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-1 flex items-center">

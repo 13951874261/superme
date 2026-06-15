@@ -405,10 +405,10 @@ export default function EntertainmentModule() {
       description="顶级商务礼仪、跨文化审美认知升维与高端圈层智力博弈对抗系统。旨在打造严肃、克制、极具秩序感的阶层跃迁训练场。"
     >
       {/* 头部微投影行政风选项卡 */}
-      <div className="flex border-b border-zinc-200 mb-8 bg-white/50 p-1.5 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+      <div className="flex border border-slate-100 mb-6 bg-white p-1 rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.02)]">
         <button 
           onClick={() => { triggerClick(); setActiveTab('manners'); setSelectedScenario(null); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === 'manners' 
               ? 'bg-zinc-900 text-white shadow-sm' 
               : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'
@@ -419,7 +419,7 @@ export default function EntertainmentModule() {
         </button>
         <button 
           onClick={() => { triggerClick(); setActiveTab('aesthetics'); setSelectedScenario(null); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === 'aesthetics' 
               ? 'bg-zinc-900 text-white shadow-sm' 
               : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'
@@ -430,7 +430,7 @@ export default function EntertainmentModule() {
         </button>
         <button 
           onClick={() => { triggerClick(); setActiveTab('blackjack'); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === 'blackjack' 
               ? 'bg-zinc-900 text-white shadow-sm' 
               : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'
@@ -441,7 +441,7 @@ export default function EntertainmentModule() {
         </button>
         <button 
           onClick={() => { triggerClick(); setActiveTab('reflection'); }}
-          className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-lg transition-all ${
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
             activeTab === 'reflection' 
               ? 'bg-zinc-900 text-white shadow-sm' 
               : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'
@@ -559,9 +559,9 @@ export default function EntertainmentModule() {
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-80 border border-dashed border-zinc-200 rounded-xl text-center p-6 bg-white/50 shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
-                  <Wine className="w-8 h-8 text-zinc-300 mb-3 animate-pulse" />
-                  <p className="text-xs text-zinc-400">请先在左侧选择一个要修炼的情境</p>
+                <div className="flex flex-col items-center justify-center h-80 border border-dashed border-[#FF5722]/20 rounded-xl text-center p-6 bg-[#FF5722]/[0.015] shadow-[0_4px_15px_rgba(255,87,34,0.01)]">
+                  <Wine className="w-8 h-8 text-[#FF5722]/40 mb-3 animate-pulse" />
+                  <p className="text-xs text-gray-500 font-bold">请先在左侧选择一个要修炼的情境</p>
                 </div>
               )}
             </div>

@@ -83,7 +83,7 @@ export default function MainContent({
       <div className="px-5 md:px-8 lg:px-12 mx-auto w-full max-w-[1600px] pt-8 pb-24 flex flex-col min-h-full">
         
         {/* 顶部 Tab 导航 (The Execution 调度器) */}
-        <div className="mb-10 flex flex-wrap gap-3 border-b border-gray-200 pb-4">
+        <div className="mb-6 flex flex-wrap gap-2.5 border-b border-slate-200/60 pb-3">
           {TABS.map(tab => {
             const isTabLocked = isLocked && tab.id !== 'english';
             const isActive = activeModule === tab.id;
@@ -91,7 +91,7 @@ export default function MainContent({
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id as ModuleType)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-t-xl font-black text-xs tracking-widest uppercase transition-all duration-300 relative ${
+                className={`flex items-center gap-1.5 px-5 py-2.5 rounded-t-xl font-black text-xs tracking-widest uppercase transition-all duration-300 relative ${
                   isActive
                     ? 'bg-white text-[#202124] border-t-2 border-[#FF5722] shadow-[0_-4px_10px_rgba(0,0,0,0.02)] scale-105 transform origin-bottom z-10'
                     : isTabLocked

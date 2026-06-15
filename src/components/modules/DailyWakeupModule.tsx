@@ -185,10 +185,10 @@ export default function DailyWakeupModule() {
         }
       `}</style>
 
-      <div className="bg-[#f8f9fa] rounded-[2.5rem] p-4 md:p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col gap-6 h-auto animate-fade-in">
+      <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100/80 shadow-[0_12px_35px_rgba(0,0,0,0.02)] flex flex-col gap-6 h-auto animate-fade-in">
         
         {/* 场景化沉浸状态卡片 (Awakening Guidance Card) */}
-        <div className={`w-full rounded-[2rem] p-4 md:p-5 text-white relative overflow-hidden transition-all duration-700 ${
+        <div className={`w-full rounded-2xl p-4 md:p-5 text-white relative overflow-hidden transition-all duration-700 ${
           running 
             ? 'bg-[#1b1c1e] border border-amber-500/30 scale-[1.002] ring-1 ring-amber-500/10 animate-glow-pulse' 
             : 'bg-[#202124] border border-white/5 shadow-md'
@@ -374,8 +374,8 @@ export default function DailyWakeupModule() {
 
         {result && (
           <>
-            <div className="bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-5">
+            <div className="bg-white rounded-2xl border border-slate-100 p-5 shadow-[0_4px_15px_rgba(0,0,0,0.01)]">
+              <div className="flex items-center gap-2 mb-4">
                 <Volume2 className="w-5 h-5 text-[#FF5722]" />
                 <h4 className="text-sm font-black uppercase tracking-widest text-[#202124]">10 个高频词发音注意点</h4>
               </div>
@@ -407,7 +407,7 @@ export default function DailyWakeupModule() {
               </div>
             </div>
 
-            <div className="bg-[#202124] rounded-[2rem] border border-gray-900 p-6 lg:p-8 text-white shadow-sm flex flex-col gap-6">
+            <div className="bg-[#202124] rounded-2xl border border-gray-900 p-5 lg:p-6 text-white shadow-sm flex flex-col gap-5">
               <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                 <div className="flex items-center gap-2">
                   <TimerReset className="w-5 h-5 text-[#FF5722]" />

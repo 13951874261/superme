@@ -323,20 +323,20 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
     <div className="flex flex-col gap-6">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
-      {/* 顶部微投影 SOP 说明区 */}
-      <div className="bg-zinc-50 border border-zinc-200/60 rounded-2xl p-5 flex items-start gap-4 shadow-sm transition-all duration-300">
-        <div className="bg-zinc-900 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-sm">
-           <Zap className="w-5 h-5" />
+      {/* 顶部微投影 SOP 说明区：精简为单行，收缩高度 */}
+      <div className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+        <div className="bg-zinc-900 text-white p-1.5 rounded-lg shrink-0 shadow-sm">
+           <Zap className="w-3.5 h-3.5" />
         </div>
-        <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-zinc-800 mb-1">决策文治与价值提炼系统 // Tactical SOP</h5>
-          <p className="text-xs text-zinc-500 font-medium leading-relaxed">
-            请遵循此写作闭环：左侧导入对标文本与行文指南，中栏起草应对场景进行极限演练，右侧获得高管级三维反馈并完成每日复盘。
+        <div className="flex-1 flex flex-wrap items-center justify-between gap-2">
+          <h5 className="text-xs font-bold text-zinc-800">决策文治与价值提炼系统 // Tactical SOP</h5>
+          <p className="text-[11px] text-zinc-400 font-medium">
+            左侧导入对标文本与指南，中栏起草进行极限演练，右侧获取高管级三维反馈。
           </p>
         </div>
       </div>
 
-      <div className="relative flex min-h-[500px] h-auto w-full gap-6" onClick={handleOutsideClick}>
+      <div className="relative flex min-h-[450px] h-auto w-full gap-6" onClick={handleOutsideClick}>
         <AnimatePresence>
           {inlineNotice && noticeAnchor === 'review' && (
             <motion.div
@@ -353,11 +353,11 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         {/* 左侧工作区：当右侧面板打开时占 70% 宽度，否则占 100% 宽度 */}
         <div className={`transition-all duration-500 ease-in-out flex gap-6 h-auto ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
           {/* 1. 左栏：规范与对标区 */}
-          <div className="w-[30%] min-w-[260px] flex flex-col gap-5 h-auto pr-1 shrink-0">
+          <div className="w-[30%] min-w-[260px] flex flex-col gap-4 h-auto pr-1 shrink-0">
             {/* 对标文本上传/输入区 */}
-            <div className="bg-zinc-50 border border-zinc-200/80 rounded-[2rem] p-5 shadow-sm flex flex-col gap-4">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5" /> 对标优秀文本
+            <div className="bg-white border border-slate-100/85 rounded-2xl p-4 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-3">
+              <h4 className="text-[11px] font-bold text-zinc-700 border-b border-zinc-100 pb-1.5 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-[#FF5722]" /> 对标优秀文本
               </h4>
               <p className="text-[10px] text-zinc-455 leading-normal">
                 粘贴或上传您认同的体制公文、大厂高管或外企信函文本。AI 将评估您的草稿与其在笔法与格局上的落差。
@@ -388,8 +388,8 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
             </div>
 
             {/* 行文规范指南 */}
-            <div className="bg-white border border-zinc-150 rounded-[2rem] p-5 shadow-sm flex-1 flex flex-col min-h-[250px]">
-              <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-100 pb-2">
+            <div className="bg-white border border-slate-100/85 rounded-2xl p-4 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex-1 flex flex-col min-h-[250px]">
+              <h4 className="text-[11px] font-bold text-zinc-700 border-b border-zinc-100 pb-1.5">
                 Writing SOP // 行文战术锦囊
               </h4>
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2">
@@ -410,9 +410,9 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
           </div>
 
           {/* 2. 中栏：纵深批阅与训练区 */}
-          <div className="flex-1 bg-white rounded-[2rem] p-6 border border-zinc-150 shadow-md flex flex-col h-auto min-w-0">
+          <div className="flex-1 bg-white border border-slate-100/90 shadow-[0_12px_35px_rgba(0,0,0,0.02)] rounded-3xl p-5 md:p-6 flex flex-col h-auto min-w-0">
             {/* 五大模块切换 TAB */}
-            <div className="grid grid-cols-5 bg-zinc-100 p-1.5 rounded-2xl mb-4 shrink-0 shadow-inner">
+            <div className="grid grid-cols-5 bg-[#f8f9fa] border border-slate-200/50 p-1 rounded-xl mb-4 shrink-0 shadow-inner">
               {WRITE_MODULES.map((mod) => {
                 const isActive = activeModule === mod.id;
                 const isLocked = isCyberLocked && !isActive;
