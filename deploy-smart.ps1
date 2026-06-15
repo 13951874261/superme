@@ -13,7 +13,7 @@ $ProjectRoot = 'D:\cursor\work\super-agent'
 $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
-$HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfF'
+$HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfE'
 $HostKeyOptions = if ($HostKey) { @("-hostkey", $HostKey) } else { @() }
 
 Set-Location $ProjectRoot
@@ -194,7 +194,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "deploy: optimize UI/UX Sidebar, Habit Tracker, smart vocab categorization, and global motion/sound effects at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "deploy: refactor Confetti.tsx to use canvas-confetti and play administrative sound effects at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow
