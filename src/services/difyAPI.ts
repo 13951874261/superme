@@ -1559,7 +1559,7 @@ export async function generateDailyFlawVocabulary(
   }
 }
 
-function getFallbackFlawVocab(): Array<{
+export function getFallbackFlawVocab(): Array<{
   word: string;
   ipa: string;
   pronunciation_note: string;

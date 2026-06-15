@@ -302,7 +302,7 @@ export default function Sidebar({
              </div>
              
              {/* 习惯矩阵 (Habit Tracker) */}
-             <div className="mt-8 border-t border-gray-100 pt-6">
+             <div className="mt-8 border-t border-zinc-200/60 pt-6">
                <div 
                  className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
                  onClick={() => { setIsHabitOpen(!isHabitOpen); playPageTurn(); }}
@@ -321,7 +321,11 @@ export default function Sidebar({
                     }).map(([key, label]) => (
                       <label 
                         key={key} 
-                        className="flex items-center gap-3 p-3 bg-gradient-to-br from-white to-slate-50/40 border border-slate-100/80 rounded-xl cursor-pointer hover:border-[#FF5722]/60 hover:shadow-[0_6px_16px_rgba(15,23,42,0.04)] hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-300 ease-out group"
+                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.98] group ${
+                          habits[key as keyof typeof habits]
+                            ? 'bg-gradient-to-br from-white to-orange-50/20 border-orange-200/80 shadow-[0_2px_8px_rgba(255,87,34,0.03)]'
+                            : 'bg-gradient-to-br from-white to-zinc-50/50 border-zinc-200/60 hover:border-zinc-300 hover:shadow-[0_4px_12px_rgba(24,24,27,0.02)]'
+                        }`}
                       >
                         <input 
                           type="checkbox" 

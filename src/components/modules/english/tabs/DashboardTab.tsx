@@ -8,7 +8,7 @@ import MaterialUploader from '../../../MaterialUploader';
 import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
-import { generateDailyFlawVocabulary, triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
+import { generateDailyFlawVocabulary, triggerEnglishMasteryExtraction, getDailyQuotaStatus, getFallbackFlawVocab } from '../../../../services/difyAPI';
 import { addWord, getAllWords } from '../../../../services/vocabAPI';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
@@ -22,6 +22,7 @@ interface FlawVocabWord {
 
 function DailyFlawVocabCard() {
   const [words, setWords] = useState<FlawVocabWord[]>([]);
+  const [sessionExclude, setSessionExclude] = useState<string[]>([]); // 记录本次刷新过的历史单词
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingWord, setAddingWord] = useState<Record<string, boolean>>({});
@@ -31,9 +32,46 @@ function DailyFlawVocabCard() {
     setIsLoading(true);
     setError(null);
     try {
-      const currentWords = words.map(w => w.word).filter(Boolean);
-      const data = await generateDailyFlawVocabulary(currentWords);
-      setWords(data.slice(0, 6));
+      // A. 获取当前生词本已有单词
+      const dbWords = await getAllWords();
+      const dbWordStrings = dbWords.map(w => w.word.toLowerCase().trim()).filter(Boolean);
+
+      // B. 合并生词本与本次会话已刷新单词，并去重
+      const allExclude = Array.from(new Set([...dbWordStrings, ...sessionExclude]));
+
+      // C. 调用大模型接口生成（传递最新去重单词列表以让大模型避重，限制最近 50 个词防止 token 溢出）
+      const apiExclude = allExclude.slice(-50);
+      const data = await generateDailyFlawVocabulary(apiExclude);
+
+      // D. 前端再次进行强校验排重过滤
+      const filtered = data.filter(item => {
+        const wLower = item.word.toLowerCase().trim();
+        return !dbWordStrings.includes(wLower) && !sessionExclude.includes(wLower);
+      });
+
+      // E. 如果过滤后不足 6 个词，用备用词库进行补充（同样进行排重）
+      let finalWords = [...filtered];
+      if (finalWords.length < 6) {
+        const fallbackList = getFallbackFlawVocab();
+        for (const fb of fallbackList) {
+          if (finalWords.length >= 6) break;
+          const fbLower = fb.word.toLowerCase().trim();
+          const notInDb = !dbWordStrings.includes(fbLower);
+          const notInSession = !sessionExclude.includes(fbLower);
+          const notInFinal = !finalWords.some(w => w.word.toLowerCase().trim() === fbLower);
+          if (notInDb && notInSession && notInFinal) {
+            finalWords.push(fb);
+          }
+        }
+      }
+
+      // F. 取前 6 个展示
+      const displayWords = finalWords.slice(0, 6);
+      setWords(displayWords);
+
+      // G. 记录这 6 个新展示的词汇到会话排除列表中，防止下次刷新重复
+      const newSessionExclude = displayWords.map(w => w.word.toLowerCase().trim());
+      setSessionExclude(prev => Array.from(new Set([...prev, ...newSessionExclude])));
     } catch (e: any) {
       setError(e.message || '获取每日破绽词汇失败，请重试');
     } finally {
