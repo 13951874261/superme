@@ -3,7 +3,7 @@ import { CheckCircle2, Clock3, Loader2, Target, TimerReset, Volume2, Zap } from 
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
 import { runEnglishWakeupRoutine } from '../../services/difyAPI';
-import { upsertTrainingSession } from '../../services/trainingAPI';
+import { upsertTrainingSession, getThemeStayStats, getTrainingSessionByDate, ThemeStayStats } from '../../services/trainingAPI';
 
 interface WakeupWord {
   word: string;
@@ -37,6 +37,11 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
+  
+  // 新增接口数据状态
+  const [stayStats, setStayStats] = useState<ThemeStayStats | null>(null);
+  const [todaySession, setTodaySession] = useState<any | null>(null);
+  
   const startRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -61,10 +66,38 @@ export default function DailyWakeupModule() {
 
   useEffect(() => () => stopTimer(), []);
 
+  // 异步拉取真实接口数据
+  const loadStatsAndSession = async (currentTheme: string) => {
+    try {
+      const today = new Date();
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      
+      const [stats, sessionDetail] = await Promise.all([
+        getThemeStayStats(currentTheme).catch(() => null),
+        getTrainingSessionByDate({ trainingDate: todayStr }).catch(() => null)
+      ]);
+      
+      if (stats) setStayStats(stats);
+      if (sessionDetail) setTodaySession(sessionDetail.session);
+    } catch (error) {
+      console.error('加载打卡状态与主题统计失败:', error);
+    }
+  };
+
+  // 防抖自动拉取
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadStatsAndSession(theme);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [theme]);
+
   const handleStart = async () => {
     setLoading(true);
     setNotice('正在生成今日唤醒内容...');
     try {
+      // 触发一次数据更新
+      loadStatsAndSession(theme);
       const data = await runEnglishWakeupRoutine(theme);
       setResult(data);
       setNotice(`已生成主题：${data.theme || theme}`);
@@ -93,6 +126,8 @@ export default function DailyWakeupModule() {
       });
       setNotice(`打卡成功，今日练习时长 ${formatSeconds(seconds)}`);
       stopTimer();
+      // 打卡成功重新加载数据
+      await loadStatsAndSession(theme);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '打卡失败');
     } finally {
@@ -102,14 +137,165 @@ export default function DailyWakeupModule() {
 
   const completedCount = useMemo(() => result?.vocab?.length || 0, [result]);
 
+  // 动态徽章
+  const stickerBadge = useMemo(() => {
+    const isCompleted = todaySession && todaySession.totalMinutes > 0;
+    const days = stayStats?.stayDays || 0;
+    
+    if (isCompleted) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 animate-fade-in relative z-20">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          ✨ 唤醒打卡已完成
+        </div>
+      );
+    }
+    
+    if (running) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse relative z-20">
+          <Clock3 className="w-3.5 h-3.5" />
+          ⏱️ 唤醒打卡计时中
+        </div>
+      );
+    }
+    
+    return (
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-[#FF5722]/10 text-[#FF5722] border border-[#FF5722]/20 relative z-20">
+        <span>🔥 主题研习第 {days} 天</span>
+      </div>
+    );
+  }, [todaySession, stayStats, running]);
+
   return (
     <ModuleWrapper 
       title="每日唤醒 ｜ 发音与语法闭环"
       icon={<TimerReset className="w-8 h-8" strokeWidth={2.5} />}
       description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
+      badge={stickerBadge}
     >
+      <style>{`
+        @keyframes border-glow {
+          0%, 100% { border-color: rgba(245, 158, 11, 0.15); box-shadow: 0 10px 30px rgba(245, 158, 11, 0.02); }
+          50% { border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 10px 35px rgba(245, 158, 11, 0.12); }
+        }
+        .animate-glow-pulse {
+          animation: border-glow 3s infinite ease-in-out;
+        }
+      `}</style>
+
       <div className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col gap-8 h-auto animate-fade-in">
         
+        {/* 场景化沉浸状态卡片 (Awakening Guidance Card) */}
+        <div className={`w-full rounded-[2rem] p-6 md:p-8 text-white relative overflow-hidden transition-all duration-700 ${
+          running 
+            ? 'bg-[#1b1c1e] border border-amber-500/30 scale-[1.002] ring-1 ring-amber-500/10 animate-glow-pulse' 
+            : 'bg-[#202124] border border-white/5 shadow-md'
+        }`}>
+          {/* CSS 网格背景效果 */}
+          <div 
+            className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+            style={{
+              backgroundImage: `
+                linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)
+              `,
+              backgroundSize: '20px 20px'
+            }}
+          />
+          
+          {/* 渐变流光 */}
+          <div className={`absolute -right-20 -bottom-20 w-64 h-64 rounded-full blur-3xl pointer-events-none transition-all duration-1000 ${
+            running 
+              ? 'bg-amber-500/10 animate-pulse' 
+              : 'bg-emerald-500/5'
+          }`} />
+          
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+            {/* 左侧及中间信息 */}
+            <div className="flex-1 space-y-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/10 text-gray-300 border border-white/5">
+                  AWAKENING STATUS
+                </span>
+                <span className={`h-2 w-2 rounded-full ${running ? 'bg-amber-500 animate-ping' : todaySession && todaySession.totalMinutes > 0 ? 'bg-emerald-500' : 'bg-gray-500'}`} />
+                <span className="text-xs font-bold text-gray-400">
+                  {running ? '唤醒计时中' : todaySession && todaySession.totalMinutes > 0 ? '今日已完成唤醒' : '等待开启唤醒'}
+                </span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                {/* 左侧：聚焦主题 */}
+                <div className="md:col-span-4 space-y-1">
+                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">当前聚焦主题</div>
+                  <div className="text-lg font-black text-white flex flex-wrap items-center gap-2">
+                    <span className="text-amber-400">{theme}</span>
+                    <span className="text-xs font-semibold text-gray-400 bg-white/5 px-2 py-0.5 rounded-md">研习第 {stayStats?.stayDays || 0} 天</span>
+                  </div>
+                </div>
+                
+                {/* 中间：今日建议与薄弱点 */}
+                <div className="md:col-span-8 space-y-2 border-t md:border-t-0 md:border-l border-white/5 md:pl-6 pt-3 md:pt-0">
+                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">今日唤醒建议</div>
+                  <p className="text-xs md:text-sm text-gray-300 leading-relaxed font-medium">
+                    {stayStats?.todaySuggestion || '输入您要训练的业务主题（例如：银团贷款），系统将载入发音重点与建议。'}
+                  </p>
+                  
+                  {stayStats?.weakPoints && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 pt-2 border-t border-white/5 text-xs text-gray-400">
+                      {stayStats.weakPoints.pronunciation && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          <span>发音弱点：<strong className="text-amber-400 font-bold">{stayStats.weakPoints.pronunciation}</strong></span>
+                        </div>
+                      )}
+                      {stayStats.weakPoints.grammar && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                          <span>语法弱点：<strong className="text-blue-400 font-bold">{stayStats.weakPoints.grammar}</strong></span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            
+            {/* 右侧：状态面板 */}
+            <div className="flex lg:flex-col items-start lg:items-end justify-between border-t lg:border-t-0 lg:border-l border-white/5 pt-4 lg:pt-0 lg:pl-6 shrink-0 gap-4">
+              <div className="text-left lg:text-right">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">今日打卡状态</div>
+                <div className="text-sm font-black text-white mt-1 flex items-center gap-2 lg:justify-end">
+                  {running ? (
+                    <span className="text-amber-400 flex items-center gap-1.5">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      </span>
+                      计时中 ({formatSeconds(seconds)})
+                    </span>
+                  ) : todaySession && todaySession.totalMinutes > 0 ? (
+                    <span className="text-emerald-400 flex items-center gap-1">
+                      ✅ 已打卡 ({todaySession.totalMinutes} 分钟)
+                    </span>
+                  ) : (
+                    <span className="text-gray-400 flex items-center gap-1">
+                      💤 未打卡
+                    </span>
+                  )}
+                </div>
+              </div>
+              
+              <div className="text-left lg:text-right">
+                <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">系统研习数据</div>
+                <div className="text-xs font-bold text-gray-300 mt-0.5">
+                  累计停留 {stayStats?.stayDays || 0} 天
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* 顶部场景大卡片 */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white rounded-3xl p-6 lg:p-8 border border-gray-100/50 shadow-sm relative">
           {/* 左侧 8 栏：主标题、输入框及控制台、状态提示 */}
