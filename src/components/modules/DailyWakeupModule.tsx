@@ -173,6 +173,7 @@ export default function DailyWakeupModule() {
       icon={<TimerReset className="w-8 h-8" strokeWidth={2.5} />}
       description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
       badge={stickerBadge}
+      compact
     >
       <style>{`
         @keyframes border-glow {
@@ -184,10 +185,10 @@ export default function DailyWakeupModule() {
         }
       `}</style>
 
-      <div className="bg-[#f8f9fa] rounded-[2.5rem] p-6 md:p-10 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col gap-8 h-auto animate-fade-in">
+      <div className="bg-[#f8f9fa] rounded-[2.5rem] p-4 md:p-6 border border-gray-100 shadow-[0_8px_30px_rgba(0,0,0,0.02)] flex flex-col gap-6 h-auto animate-fade-in">
         
         {/* 场景化沉浸状态卡片 (Awakening Guidance Card) */}
-        <div className={`w-full rounded-[2rem] p-6 md:p-8 text-white relative overflow-hidden transition-all duration-700 ${
+        <div className={`w-full rounded-[2rem] p-4 md:p-5 text-white relative overflow-hidden transition-all duration-700 ${
           running 
             ? 'bg-[#1b1c1e] border border-amber-500/30 scale-[1.002] ring-1 ring-amber-500/10 animate-glow-pulse' 
             : 'bg-[#202124] border border-white/5 shadow-md'
@@ -211,9 +212,9 @@ export default function DailyWakeupModule() {
               : 'bg-emerald-500/5'
           }`} />
           
-          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             {/* 左侧及中间信息 */}
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-3">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-white/10 text-gray-300 border border-white/5">
                   AWAKENING STATUS
@@ -224,18 +225,18 @@ export default function DailyWakeupModule() {
                 </span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                 {/* 左侧：聚焦主题 */}
                 <div className="md:col-span-4 space-y-1">
                   <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">当前聚焦主题</div>
-                  <div className="text-lg font-black text-white flex flex-wrap items-center gap-2">
+                  <div className="text-base font-black text-white flex flex-wrap items-center gap-2">
                     <span className="text-amber-400">{theme}</span>
                     <span className="text-xs font-semibold text-gray-400 bg-white/5 px-2 py-0.5 rounded-md">研习第 {stayStats?.stayDays || 0} 天</span>
                   </div>
                 </div>
                 
                 {/* 中间：今日建议与薄弱点 */}
-                <div className="md:col-span-8 space-y-2 border-t md:border-t-0 md:border-l border-white/5 md:pl-6 pt-3 md:pt-0">
+                <div className="md:col-span-8 space-y-2 border-t md:border-t-0 md:border-l border-white/5 md:pl-4 pt-3 md:pt-0">
                   <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">今日唤醒建议</div>
                   <p className="text-xs md:text-sm text-gray-300 leading-relaxed font-medium">
                     {stayStats?.todaySuggestion || '输入您要训练的业务主题（例如：银团贷款），系统将载入发音重点与建议。'}
@@ -262,7 +263,7 @@ export default function DailyWakeupModule() {
             </div>
             
             {/* 右侧：状态面板 */}
-            <div className="flex lg:flex-col items-start lg:items-end justify-between border-t lg:border-t-0 lg:border-l border-white/5 pt-4 lg:pt-0 lg:pl-6 shrink-0 gap-4">
+            <div className="flex lg:flex-col items-start lg:items-end justify-between border-t lg:border-t-0 lg:border-l border-white/5 pt-4 lg:pt-0 lg:pl-4 shrink-0 gap-4">
               <div className="text-left lg:text-right">
                 <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">今日打卡状态</div>
                 <div className="text-sm font-black text-white mt-1 flex items-center gap-2 lg:justify-end">
