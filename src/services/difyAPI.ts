@@ -1569,48 +1569,217 @@ export function getFallbackFlawVocab(): Array<{
   return [
     {
       word: "fallacy",
-      ipa: "/?f?l?si/",
+      ipa: "/ˈfæləsi/",
       pronunciation_note: "商务谈判中用于指出对方的逻辑漏洞。重音在第一音节。",
       meaning_zh: "谬误；谬论；虚妄的信念",
       example: "We must identify the logical fallacy in their pricing argument before making a counter-offer."
     },
     {
       word: "counterproductive",
-      ipa: "/?ka?nt?pr??d?kt?v/",
-      pronunciation_note: "常用于指出对方提案的潜在弊端。重音在第三音节。",
+      ipa: "/ˌkaʊntərprəˈdʌktɪv/",
+      pronunciation_note: "常用于指出对方提案的潜在弊端。重音在后半部分的 duct。",
       meaning_zh: "适得其反的；不起作用的",
       example: "Hasty price cuts might prove counterproductive to our long-term brand equity."
     },
     {
       word: "plausible",
-      ipa: "/?pl??z?bl/",
-      pronunciation_note: "用于形容对方听起来合理但经不起推敲的辩解。",
-      meaning_zh: "貌似可信的；花言巧语的；貌似合理的",
+      ipa: "/ˈplɔːzəbl/",
+      pronunciation_note: "注意中间时的 s 发 /z/ 音。指表面听起来合理但实际经不起推敲的辩解。",
+      meaning_zh: "貌似可信的；花言羊语的；貌似合理的",
       example: "Their excuse for the delivery delay sounds plausible, but we need concrete evidence."
     },
     {
       word: "bait-and-switch",
-      ipa: "/?be?t ?n ?sw?t?/",
-      pronunciation_note: "商业谈判中常见的低端套路陷阱名词。",
-      meaning_zh: "诱客买贵货的把戏；挂羊头卖肉；套路行为",
+      ipa: "/ˌbeɪt ən ˈswɪtʃ/",
+      pronunciation_note: "连读为 bait-an-switch。常用于商业谈判中指责对方临时变卦的套路。",
+      meaning_zh: "诱客买贵货的把戏；挂羊头卖狗肉；套路行为",
       example: "The supplier's sudden price increase after the initial low quote felt like a bait-and-switch."
     },
     {
       word: "red herring",
-      ipa: "/?red ?her??/",
-      pronunciation_note: "用于指出对方试图转移讨论焦点的逻辑花招。",
+      ipa: "/ˌred ˈherɪŋ/",
+      pronunciation_note: "红鲱鱼，隐喻转移视线的话题。注意 red 与 herring 的连读。",
       meaning_zh: "转移注意力的话题；障眼法；红鲱鱼",
       example: "Bringing up minor administrative delays is just a red herring to distract us from the core issue."
     },
     {
       word: "preemptive",
-      ipa: "/pri?empt?v/",
-      pronunciation_note: "商务防御或反击策略中的常用形容词。",
-      meaning_zh: "先发制人的；有先买权的；防患于未然的",
+      ipa: "/priːˈemptɪv/",
+      pronunciation_note: "中间双元音/元音过渡要清晰。指先发制人的预防性手段。",
+      meaning_zh: "先发制人的；防患于未然的",
       example: "We launched a preemptive marketing campaign to neutralize the competitor's upcoming product release."
+    },
+    {
+      word: "cognitive bias",
+      ipa: "/ˈkɒɡnətɪv ˈbaɪəs/",
+      pronunciation_note: "cognitive 中的 g 要轻发音，bias 重音在第一音节。常指思维定势或认知偏差。",
+      meaning_zh: "认知偏差；认知偏见",
+      example: "Confirmation bias is a common cognitive bias where people only listen to information that agrees with them."
+    },
+    {
+      word: "circular reasoning",
+      ipa: "/ˈsɜːkjələ ˈriːzənɪŋ/",
+      pronunciation_note: "circular 词尾的 r 在英音中不发音。指循环论证 of 逻辑漏洞。",
+      meaning_zh: "循环论证",
+      example: "Saying we should trust them because they are trustworthy is just circular reasoning."
+    },
+    {
+      word: "straw man",
+      ipa: "/ˈstrɔː mæn/",
+      pronunciation_note: "稻草人。指故意歪曲对方观点以便于攻击的论证谬误。",
+      meaning_zh: "稻草人谬误；歪曲论点",
+      example: "You are attacking a straw man; I never suggested that we should stop marketing altogether."
+    },
+    {
+      word: "slippery slope",
+      ipa: "/ˌslɪpəri ˈsləʊp/",
+      pronunciation_note: "slope 发 /sləʊp/，不要发成 /slɒp/。比喻滑坡谬误，即无根据地推导极端后果。",
+      meaning_zh: "滑坡谬误；灾难性的第一步",
+      example: "Claiming that a small budget cut will lead to immediate bankruptcy is a slippery slope argument."
+    },
+    {
+      word: "confirmation bias",
+      ipa: "/ˌkɒnfəˈmeɪʃn ˈbaɪəs/",
+      pronunciation_note: "confirmation 重音在 mation 上。指选择性相信符合自己预期信息的倾向。",
+      meaning_zh: "确认偏误；确认偏差",
+      example: "Relying only on positive customer surveys and ignoring complaints is classic confirmation bias."
+    },
+    {
+      word: "post hoc",
+      ipa: "/ˌpəʊst ˈhɒk/",
+      pronunciation_note: "拉丁语借词。指因果混淆，错误地认为先发生的事情就是原因。",
+      meaning_zh: "后此谬误；因果混淆",
+      example: "Assuming the sales increase was purely due to the new logo is a post hoc fallacy."
+    },
+    {
+      word: "ad hominem",
+      ipa: "/ˌæd ˈhɒmɪnem/",
+      pronunciation_note: "拉丁语借词。指对人不对事的攻击（人身攻击）。",
+      meaning_zh: "人身攻击；诉诸人身的",
+      example: "Instead of addressing the security flaw, they made an ad hominem attack on the researcher's credentials."
+    },
+    {
+      word: "false dilemma",
+      ipa: "/ˌfɔːls dɪˈlemə/",
+      pronunciation_note: "dilemma 的重音在 lem 上。指非黑即白、强行二选一的谬误。",
+      meaning_zh: "虚假两难；非黑即白谬误",
+      example: "Presenting the issue as either cutting quality or going out of business is a false dilemma."
+    },
+    {
+      word: "overgeneralization",
+      ipa: "/ˌəʊvədʒenrəlaɪˈzeɪʃn/",
+      pronunciation_note: "重音在末尾的 zation 上。指以偏概全，过度概括。",
+      meaning_zh: "过度概括；以偏概全",
+      example: "Saying all local suppliers are unreliable based on one bad experience is an overgeneralization."
+    },
+    {
+      word: "equivocation",
+      ipa: "/ɪˌkwɪvəˈkeɪʃn/",
+      pronunciation_note: "重音在 ca 上。指故意使用模棱两可的双关语或词汇来误导。",
+      meaning_zh: "模棱两可的话；含糊其辞",
+      example: "The contract's use of the word 'temporary' was a deliberate equivocation."
+    },
+    {
+      word: "non sequitur",
+      ipa: "/ˌnɒn ˈsekwɪtə/",
+      pronunciation_note: "拉丁语借词，意为‘不相干的推论’。注意 sequitur 的发音。",
+      meaning_zh: "不相干的推论；答非所问",
+      example: "We have the best office design, so our profit will double next month—that is a complete non sequitur."
+    },
+    {
+      word: "hasty generalization",
+      ipa: "/ˈheɪsti ˌdʒenrəlaɪˈzeɪʃn/",
+      pronunciation_note: "hasty 的元音是 /eɪ/。指在样本不足的情况下草率得出结论。",
+      meaning_zh: "轻率概括；草率下结论",
+      example: "Testing the software with only two users before launch would lead to a hasty generalization."
+    },
+    {
+      word: "cherry-picking",
+      ipa: "/ˈtʃeri ˈpɪkɪŋ/",
+      pronunciation_note: "意为挑樱桃。指只挑选对自己有利的数据或事实而忽略反向证据。",
+      meaning_zh: "选择性挑选；挑精拣肥",
+      example: "Presenting only the successful trial results while hiding the failures is cherry-picking."
+    },
+    {
+      word: "sunk cost fallacy",
+      ipa: "/ˈsʌŋk kɒst ˈfæləsi/",
+      pronunciation_note: "sunk cost 意为沉没成本。指因为前期已投入而继续坚持错误决定的倾向。",
+      meaning_zh: "沉没成本谬误",
+      example: "Investing more money in the failing project just because we spent millions already is a sunk cost fallacy."
+    },
+    {
+      word: "begging the question",
+      ipa: "/ˈbeɡɪŋ ðə ˈkwestʃən/",
+      pronunciation_note: "本意指把尚未证明的假设当作前提（同义反复/设问谬误）。",
+      meaning_zh: "顺理成章的假定；设问谬误；循环论证",
+      example: "Assuming that our product is superior because it is better than others is begging the question."
+    },
+    {
+      word: "double standard",
+      ipa: "/ˈdʌbl ˈstændəd/",
+      pronunciation_note: "注意 standard 的尾音不要发成 /dɑːd/。指对不同的人或事采取不同的标准。",
+      meaning_zh: "双重标准",
+      example: "Allowing one team to submit late work while penalizing another is a clear double standard."
+    },
+    {
+      word: "appeal to authority",
+      ipa: "/əˈpiːl tu ˈɔːθɒrəti/",
+      pronunciation_note: "authority 的 th 发音为无声 /θ/。指盲目诉诸并不对口的‘权威’来佐证观点。",
+      meaning_zh: "诉诸权威",
+      example: "Using a famous actor's opinion to support a complex financial decision is an appeal to authority."
+    },
+    {
+      word: "moving the goalposts",
+      ipa: "/ˈmuːvɪŋ ðə ˈɡəʊlpəʊsts/",
+      pronunciation_note: "比喻在比赛或谈判中临时改变规则或合格判定标准。",
+      meaning_zh: "改变标准；临时改变要求；移动球门",
+      example: "Every time we meet their targets, they increase the requirements—they keep moving the goalposts."
+    },
+    {
+      word: "anecdotal evidence",
+      ipa: "/ˌænɪkˈdəʊtl ˈevɪdəns/",
+      pronunciation_note: "anecdotal 重音在 do 上。指缺乏统计意义的个人传言或个案证据。",
+      meaning_zh: "专断证言；个案传言；轶事证据",
+      example: "Your friend's bad experience with the device is just anecdotal evidence; mass data says otherwise."
+    },
+    {
+      word: "false equivalence",
+      ipa: "/ˌfɔːls ɪˈkwɪvələns/",
+      pronunciation_note: "equivalence 的重音在 qui 上。指将两个完全不同性质的事物强行等同。",
+      meaning_zh: "虚假等同；混淆视听",
+      example: "Comparing a minor typo to database corruption is a false equivalence."
+    },
+    {
+      word: "survivorship bias",
+      ipa: "/səˈvaɪvəʃɪp ˈbaɪəs/",
+      pronunciation_note: "survivorship 重音在 vi 上。指只关注成功者而忽略大量失败者的偏差。",
+      meaning_zh: "幸存者偏差",
+      example: "Studying only successful startups to draft a business strategy is a classic survivorship bias."
+    },
+    {
+      word: "framing effect",
+      ipa: "/ˈfreɪmɪŋ ɪˈfekt/",
+      pronunciation_note: "framing 意为框架。指人们因信息表达方式（框架）不同而做出不同决策的效应。",
+      meaning_zh: "框架效应",
+      example: "Describing the meat as 80% lean instead of 20% fat leverages the framing effect."
+    },
+    {
+      word: "anchoring effect",
+      ipa: "/ˈæŋkərɪŋ ɪˈfekt/",
+      pronunciation_note: "anchoring 重音在第一音节。指人类在决策时过度依赖第一笔信息（锚点）的效应。",
+      meaning_zh: "锚定效应",
+      example: "The high initial price set by the seller created an anchoring effect for the negotiation."
+    },
+    {
+      word: "halo effect",
+      ipa: "/ˈheɪləʊ ɪˈfekt/",
+      pronunciation_note: "halo发音为 /ˈheɪləʊ/。指因某人或某物单一方面优秀而推断其整体都优秀的效应。",
+      meaning_zh: "光环效应；晕轮效应",
+      example: "Because the founder is a great speaker, investors assumed the product was perfect—a clear halo effect."
     }
   ];
 }
+
 
 export async function clearTodayQuotaAndData(userId = 'default-user'): Promise<{ success: boolean; message: string }> {
   const res = await fetch('/api/english/clear-today', {

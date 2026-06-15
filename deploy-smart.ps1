@@ -3,6 +3,10 @@
 # Detects git changes and runs incremental deployments
 # ============================================================
 
+param(
+    [switch]$UseSystemSSH
+)
+
 $ErrorActionPreference = 'Stop'
 
 $ProjectRoot = 'D:\cursor\work\super-agent'
@@ -10,7 +14,7 @@ $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
 $HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfF'
-$HostKeyOptions = @()
+$HostKeyOptions = if ($HostKey) { @("-hostkey", $HostKey) } else { @() }
 
 Set-Location $ProjectRoot
 
@@ -60,21 +64,25 @@ Write-Host ""
 # 2. SSH/SCP Setup
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
-$UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink)
+$UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink) -and (-not $UseSystemSSH)
 
 if ($UsePuTTY) {
-    Write-Host "PuTTY found. Enabling auto-password mode." -ForegroundColor Green
+    Write-Host "PuTTY found. Enabling auto-password mode (leave empty if using SSH key/Pageant)." -ForegroundColor Green
     $Password = Read-Host 'Enter SSH password' -AsSecureString
     $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
     $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto($PasswordPtr)
 } else {
-    Write-Host "Using system ssh/scp. You may need to enter password multiple times." -ForegroundColor Yellow
+    Write-Host "Using system ssh/scp. You may need to enter password or use local SSH keys." -ForegroundColor Yellow
 }
 
 function Invoke-RemoteCommand {
     param([string]$Command)
     if ($UsePuTTY) {
-        & $Plink @HostKeyOptions -pw $PlainPassword -batch $ServerHost $Command
+        if ($PlainPassword) {
+            & $Plink @HostKeyOptions -pw $PlainPassword -batch $ServerHost $Command
+        } else {
+            & $Plink @HostKeyOptions -batch $ServerHost $Command
+        }
     } else {
         ssh $ServerHost $Command
     }
@@ -84,7 +92,11 @@ function Invoke-RemoteCommand {
 function Send-File {
     param([string]$Source, [string]$Destination)
     if ($UsePuTTY) {
-        & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source "${ServerHost}:$Destination"
+        if ($PlainPassword) {
+            & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source "${ServerHost}:$Destination"
+        } else {
+            & $Pscp -r @HostKeyOptions -batch $Source "${ServerHost}:$Destination"
+        }
     } else {
         scp -r $Source "${ServerHost}:$Destination"
     }
@@ -182,7 +194,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "deploy: abolish nested modals and replace canvas-confetti with framer motion animations for BRD compliance at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "deploy: guarantee 6 daily flaw words with 30 fallback words and reset logic on refresh at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow

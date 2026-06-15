@@ -65,13 +65,46 @@ function DailyFlawVocabCard() {
         }
       }
 
-      // F. 取前 6 个展示
+      // F. 强力兜底：如果依然不足 6 个词（说明排除项过多导致备用池已消耗完毕），则忽略会话历史去重限制，重新使用备选词补足
+      let usedReset = false;
+      if (finalWords.length < 6) {
+        usedReset = true;
+        const fallbackList = getFallbackFlawVocab();
+        for (const fb of fallbackList) {
+          if (finalWords.length >= 6) break;
+          const fbLower = fb.word.toLowerCase().trim();
+          const notInDb = !dbWordStrings.includes(fbLower);
+          const notInFinal = !finalWords.some(w => w.word.toLowerCase().trim() === fbLower);
+          if (notInDb && notInFinal) {
+            finalWords.push(fb);
+          }
+        }
+      }
+
+      // G. 终极兜底：如果用户几乎把备用词库的所有词都添加到了生词本中，导致不重复的词不足 6 个，允许重复显示生词本里的备用词补足，确保绝不出现空白卡片
+      if (finalWords.length < 6) {
+        const fallbackList = getFallbackFlawVocab();
+        for (const fb of fallbackList) {
+          if (finalWords.length >= 6) break;
+          const fbLower = fb.word.toLowerCase().trim();
+          const notInFinal = !finalWords.some(w => w.word.toLowerCase().trim() === fbLower);
+          if (notInFinal) {
+            finalWords.push(fb);
+          }
+        }
+      }
+
+      // H. 取前 6 个展示
       const displayWords = finalWords.slice(0, 6);
       setWords(displayWords);
 
-      // G. 记录这 6 个新展示的词汇到会话排除列表中，防止下次刷新重复
+      // I. 记录这 6 个新展示的词汇到会话排除列表中，防止下次刷新重复；如果触发了重置，则清空之前历史，重置为仅包含这 6 个新词
       const newSessionExclude = displayWords.map(w => w.word.toLowerCase().trim());
-      setSessionExclude(prev => Array.from(new Set([...prev, ...newSessionExclude])));
+      if (usedReset) {
+        setSessionExclude(newSessionExclude);
+      } else {
+        setSessionExclude(prev => Array.from(new Set([...prev, ...newSessionExclude])));
+      }
     } catch (e: any) {
       setError(e.message || '获取每日破绽词汇失败，请重试');
     } finally {
