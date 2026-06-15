@@ -7,6 +7,7 @@ import VocabularyBook from './VocabularyBook';
 import Confetti from './Confetti';
 import { formatDateShort, getRecentDates, getTodayDateDot } from '../utils/date';
 import { playClick, playPageTurn } from '../utils/soundEffects';
+import { GLOBAL_SPRING } from '../utils/motion';
 
 
 interface SidebarProps {
@@ -174,7 +175,7 @@ export default function Sidebar({
   };
 
   const handlePrevMonth = () => {
-    playClick();
+    playPageTurn();
     if (viewMonth === 0) {
       setViewMonth(11);
       setViewYear(viewYear - 1);
@@ -184,7 +185,7 @@ export default function Sidebar({
   };
 
   const handleNextMonth = () => {
-    playClick();
+    playPageTurn();
     if (viewMonth === 11) {
       setViewMonth(0);
       setViewYear(viewYear + 1);
@@ -195,9 +196,12 @@ export default function Sidebar({
 
 
   return (
-    <aside className={`bg-zinc-50/95 backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-500 ease-in-out relative flex-shrink-0 z-30 shadow-[4px_0_24px_rgba(24,24,27,0.03)] border-r border-zinc-200/60 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
+    <aside className={`bg-gradient-to-br from-white to-zinc-50/50 backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
       <button 
-        onClick={toggleSidebar} 
+        onClick={() => {
+          playPageTurn();
+          toggleSidebar();
+        }} 
         className="absolute -right-5 top-12 bg-white text-gray-500 p-2 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:text-[#FF5722] hover:shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-40 transition-all duration-300"
       >
         {isOpen ? <ChevronLeft className="w-5 h-5" strokeWidth={2} /> : <ChevronRight className="w-5 h-5" strokeWidth={2} />}
@@ -278,8 +282,8 @@ export default function Sidebar({
                            <span 
                              className={`w-6 h-6 flex items-center justify-center text-[10px] font-bold transition-all duration-200 rounded-full ${
                                isSelected ? 'bg-[#FF5722] text-white shadow-sm font-black' : isToday ? 'border border-zinc-300 text-[#FF5722] font-black bg-white shadow-[0_1px_4px_rgba(0,0,0,0.03)]' : slot.isCurrentMonth 
-                                     ? 'text-slate-800 hover:bg-slate-100' 
-                                     : 'text-slate-300 hover:bg-slate-50/50'
+                                     ? 'text-slate-800 hover:bg-slate-100 hover:ring-1 hover:ring-slate-200 hover:shadow-[0_2px_8px_rgba(0,0,0,0.02)]' 
+                                     : 'text-slate-300 hover:bg-slate-50/50 hover:ring-1 hover:ring-slate-100'
                              }`}
                            >
                              {slot.day}
@@ -319,9 +323,12 @@ export default function Sidebar({
                       exercise: '核心运动',
                       goodDeed: '日行一善'
                     }).map(([key, label]) => (
-                      <label 
+                      <motion.label 
+                        whileHover={{ scale: 1.02, translateY: -2 }}
+                        whileTap={{ scale: 0.98 }}
+                        transition={GLOBAL_SPRING}
                         key={key} 
-                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.98] group ${
+                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all duration-300 group ${
                           habits[key as keyof typeof habits]
                             ? 'bg-gradient-to-br from-white to-orange-50/20 border-orange-200/80 shadow-[0_2px_8px_rgba(255,87,34,0.03)]'
                             : 'bg-gradient-to-br from-white to-zinc-50/50 border-zinc-200/60 hover:border-zinc-300 hover:shadow-[0_4px_12px_rgba(24,24,27,0.02)]'
@@ -336,7 +343,7 @@ export default function Sidebar({
                         <span className="text-[11px] font-semibold text-slate-500 group-hover:text-slate-900 transition-colors">
                           {label}
                         </span>
-                      </label>
+                      </motion.label>
                     ))}
                  </div>
                </div>

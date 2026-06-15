@@ -194,7 +194,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "deploy: guarantee 6 daily flaw words with 30 fallback words and reset logic on refresh at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "deploy: optimize UI/UX Sidebar, Habit Tracker, smart vocab categorization, and global motion/sound effects at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow

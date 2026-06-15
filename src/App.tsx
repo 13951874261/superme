@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
@@ -10,6 +10,7 @@ import { EnglishProvider, useEnglishContext } from './components/modules/english
 import { TaskProvider } from './components/TaskContext';
 import { playError } from './utils/soundEffects';
 import CyberneticLockModal from './components/CyberneticLockModal';
+import { GLOBAL_SPRING } from './utils/motion';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -109,9 +110,10 @@ function AppContent() {
       
       {/* 黄金折叠主视界 (70% 或 100% 宽度平滑缩进) */}
       <motion.div 
+        layout
         onClick={handleLeftAreaClick}
         animate={{ width: isRightPanelOpen ? '70vw' : '100vw' }}
-        transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+        transition={GLOBAL_SPRING}
         className="h-screen flex overflow-hidden shrink-0"
       >
         <Sidebar 

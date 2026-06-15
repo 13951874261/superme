@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 import { playClick, playPageTurn } from '../utils/soundEffects';
+import { GLOBAL_SPRING } from '../utils/motion';
 
 interface RightPanelProps {
   isOpen: boolean;
@@ -46,7 +47,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
-          transition={{ type: 'spring', damping: 26, stiffness: 220 }}
+          transition={GLOBAL_SPRING}
           className="h-screen w-[30vw] min-w-[350px] border-l border-zinc-150 bg-gradient-to-b from-zinc-50 to-white flex flex-col shrink-0 shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[99] overflow-hidden"
         >
           {/* 头部 Tab 区域 */}
