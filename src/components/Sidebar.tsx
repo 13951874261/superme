@@ -196,7 +196,7 @@ export default function Sidebar({
 
 
   return (
-    <aside className={`bg-gradient-to-br from-white to-zinc-50/50 backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
+    <aside className={`bg-gradient-to-br from-white to-zinc-50/50 backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
       <button 
         onClick={() => {
           playPageTurn();
@@ -207,7 +207,8 @@ export default function Sidebar({
         {isOpen ? <ChevronLeft className="w-5 h-5" strokeWidth={2} /> : <ChevronRight className="w-5 h-5" strokeWidth={2} />}
       </button>
 
-      <div className={`flex-1 flex flex-col overflow-y-auto overflow-x-hidden ${isOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 delay-100 scrollbar-thin`}>
+      <div className="w-full h-full flex flex-col overflow-hidden">
+        <div className={`flex-1 flex flex-col overflow-y-auto overflow-x-hidden ${isOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 delay-100 scrollbar-thin`}>
         
         {/* 1. 左上角：绝对契合指令：极简拼合标题与文本归档链 */}
         <div className="px-8 pt-10 pb-8 border-b border-zinc-200/60 bg-white/60">
@@ -544,6 +545,7 @@ export default function Sidebar({
           </div>
         )}
 
+        </div>
       </div>
       {showConfetti && (
         <Confetti duration={3000} onComplete={() => setShowConfetti(false)} />
