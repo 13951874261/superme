@@ -77,7 +77,7 @@ export default function ReadModule() {
   // 核心状态
   const [activeTab, setActiveTab] = useState<CognitivePenetrationInput['scene_type']>('policy');
   const [sceneFramework, setSceneFramework] = useState<'social' | 'gov' | 'corp'>('gov');
-  const [showContextSheet, setShowContextSheet] = useState(true);
+  const [showContextSheet, setShowContextSheet] = useState(false);
   const [inputMode, setInputMode] = useState<'manual' | 'url' | 'file'>('manual');
   const [isFetchLoading, setIsFetchLoading] = useState(false);
   const [inputText, setInputText] = useState('');
@@ -174,12 +174,12 @@ export default function ReadModule() {
     setReversalSubmitted(false);
     setChatMessages([]);
     setConversationId(null);
-    setShowContextSheet(true);
     playWaterDrop(); // 播放水滴音效
 
     try {
       const res = await runCognitivePenetrationEngine({ scene_type: activeTab, text_input: inputText });
       setResult(res);
+      setShowContextSheet(true);
 
 
       // 计算随机 AI 深度评分与多维反馈细节
@@ -619,128 +619,134 @@ export default function ReadModule() {
         onClick={handleOutsideClick}
       >
         {/* 左侧 70% 工作区 */}
-        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-6 h-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-5xl mx-auto'}`}>
-          {/* 场景框架与输入模式并排一行 (非移动端下) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-            {/* 场景框架 */}
+        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-4 h-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-4xl mx-auto'}`}>
+          {/* 统一控制台头部 */}
+          <div className="bg-slate-50/50 rounded-3xl p-4 border border-slate-100/80 flex flex-col gap-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)]">
+            {/* 场景框架与输入模式并排一行 (非移动端下) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 场景框架 */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 tracking-widest">
+                  场景框架 ｜ Scenarios
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'gov', label: '体制内职场', icon: <Building className="w-3 h-3" /> },
+                    { id: 'corp', label: '跨国企业', icon: <Globe className="w-3 h-3" /> },
+                    { id: 'social', label: '通用社交', icon: <Compass className="w-3 h-3" /> },
+                  ].map((framework) => {
+                    const isActive = sceneFramework === framework.id;
+                    return (
+                      <button
+                        key={framework.id}
+                        onClick={() => {
+                          playPageTurn();
+                          setSceneFramework(framework.id as any);
+                        }}
+                        className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
+                          isActive
+                            ? 'text-white border-transparent'
+                            : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeFrameworkBg"
+                            className="absolute inset-0 bg-[#202124] rounded-full -z-10 shadow-[0_2px_8px_rgba(32,33,36,0.15)]"
+                            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                          />
+                        )}
+                        {framework.icon}
+                        <span className="relative z-10 text-[11px]">{framework.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 输入模式 */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 tracking-widest">
+                  输入模式 ｜ Input Mode
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'manual', label: '手动输入' },
+                    { id: 'url', label: '网页抓取' },
+                    { id: 'file', label: '导入文档' },
+                  ].map((mode) => {
+                    const isActive = inputMode === mode.id;
+                    return (
+                      <button
+                        key={mode.id}
+                        onClick={() => {
+                          playPageTurn();
+                          setInputMode(mode.id as any);
+                        }}
+                        className={`relative flex items-center text-xs py-1.5 px-3.5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                          isActive
+                            ? 'text-white border-transparent'
+                            : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeInputModeBg"
+                            className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_2px_8px_rgba(255,87,34,0.2)]"
+                            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                          />
+                        )}
+                        <span className="relative z-10 text-[11px]">{mode.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* 虚线分隔线 */}
+            <div className="border-t border-slate-200/60 w-full" />
+
+            {/* 训练板块 */}
             <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">
-                场景框架 / Training Scenarios
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 tracking-widest">
+                训练板块 ｜ Core Modules
               </label>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'gov', label: '体制内职场', icon: <Building className="w-3.5 h-3.5" /> },
-                  { id: 'corp', label: '跨国企业', icon: <Globe className="w-3.5 h-3.5" /> },
-                  { id: 'social', label: '通用社交', icon: <Compass className="w-3.5 h-3.5" /> },
-                ].map((framework) => {
-                  const isActive = sceneFramework === framework.id;
+              <div className="flex flex-wrap gap-1.5">
+                {tabs.map(t => {
+                  const isActive = activeTab === t.id;
                   return (
-                    <button
-                      key={framework.id}
+                    <button 
+                      key={t.id}
                       onClick={() => {
                         playPageTurn();
-                        setSceneFramework(framework.id as any);
+                        setActiveTab(t.id);
+                        setResult(null);
+                        setErrorMsg('');
+                        setIsReversalTriggered(false);
+                        setUserReversalText('');
+                        setReversalSubmitted(false);
+                        setChatMessages([]);
                       }}
-                      className={`relative flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
-                        isActive
-                          ? 'text-white border-transparent'
+                      className={`relative flex items-center text-xs py-1.5 px-3.5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                        isActive 
+                          ? 'text-white border-transparent' 
                           : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
                       }`}
                     >
                       {isActive && (
                         <motion.div
-                          layoutId="activeFrameworkBg"
-                          className="absolute inset-0 bg-[#202124] rounded-full -z-10"
+                          layoutId="activeTabBg"
+                          className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_2px_8px_rgba(255,87,34,0.2)]"
                           transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                         />
                       )}
-                      {framework.icon}
-                      <span className="relative z-10">{framework.label}</span>
+                      {React.cloneElement(t.icon as React.ReactElement, { className: 'w-3.5 h-3.5 mr-1.5' })}
+                      <span className="relative z-10 text-[11px]">{t.label}</span>
                     </button>
                   );
                 })}
               </div>
-            </div>
-
-            {/* 输入模式 */}
-            <div>
-              <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">
-                输入模式 / Input Mode
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: 'manual', label: '手动输入' },
-                  { id: 'url', label: '网页抓取' },
-                  { id: 'file', label: '导入文档' },
-                ].map((mode) => {
-                  const isActive = inputMode === mode.id;
-                  return (
-                    <button
-                      key={mode.id}
-                      onClick={() => {
-                        playPageTurn();
-                        setInputMode(mode.id as any);
-                      }}
-                      className={`relative flex items-center text-xs py-2 px-4 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
-                        isActive
-                          ? 'text-white border-transparent'
-                          : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                      }`}
-                    >
-                      {isActive && (
-                        <motion.div
-                          layoutId="activeInputModeBg"
-                          className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
-                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                        />
-                      )}
-                      <span className="relative z-10">{mode.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* 训练板块 */}
-          <div className="mb-3">
-            <label className="block text-[11px] font-bold text-gray-400 uppercase mb-1.5 tracking-wider">
-              训练板块 / Core Modules
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {tabs.map(t => {
-                const isActive = activeTab === t.id;
-                return (
-                  <button 
-                    key={t.id}
-                    onClick={() => {
-                      playPageTurn();
-                      setActiveTab(t.id);
-                      setResult(null);
-                      setErrorMsg('');
-                      setIsReversalTriggered(false);
-                      setUserReversalText('');
-                      setReversalSubmitted(false);
-                      setChatMessages([]);
-                    }}
-                    className={`relative flex items-center text-xs py-2 px-4 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
-                      isActive 
-                        ? 'text-white border-transparent' 
-                        : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
-                    }`}
-                  >
-                    {isActive && (
-                      <motion.div
-                        layoutId="activeTabBg"
-                        className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_4px_12px_rgba(255,87,34,0.3)]"
-                        transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-                      />
-                    )}
-                    {t.icon}
-                    <span className="relative z-10">{t.label}</span>
-                  </button>
-                );
-              })}
             </div>
           </div>
 
@@ -788,7 +794,7 @@ export default function ReadModule() {
           )}
 
           {/* 原文喂入区 & 推送 */}
-          <div className="bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 p-6 mb-2 transition-all focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.08)] focus-within:border-[#FF5722]/30">
+          <div className="bg-gradient-to-br from-slate-50/40 to-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 p-6 mb-2 transition-all duration-300 hover:border-[#FF5722]/20 hover:shadow-[0_8px_30px_rgba(255,87,34,0.04)] focus-within:border-[#FF5722]/40 focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.08)]">
             <div className="flex justify-between items-center mb-4">
               <span className="text-xs font-bold text-gray-400 tracking-widest uppercase">
                 {activeTab === 'book' ? '日常阅读/感悟与思考自由键入' : '输入需要穿透的原始素材'}
@@ -797,7 +803,7 @@ export default function ReadModule() {
                 <button 
                   onClick={handleLoadDailyPush}
                   disabled={isPushLoading || isLoading}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] tracking-widest uppercase border border-[#FF5722]/20 hover:border-[#FF5722] hover:bg-[#FF5722]/5 text-[#FF5722] transition-all relative overflow-hidden active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] tracking-widest uppercase border border-[#FF5722]/20 hover:border-[#FF5722] hover:bg-[#FF5722]/5 hover:shadow-[0_4px_12px_rgba(255,87,34,0.15)] text-[#FF5722] transition-all relative overflow-hidden active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
                 >
                   {isPushLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 animate-pulse" />}
                   每日 AI 素材推送
