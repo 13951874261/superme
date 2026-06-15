@@ -4,7 +4,6 @@ import {
   Layers, AlertCircle, CheckCircle, HelpCircle, Trophy, UserCheck, Flame, Compass, X, BookOpen, Users
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import confetti from 'canvas-confetti';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playPageTurn, playGentleWarning } from '../../utils/soundEffects';
 import { 
@@ -118,6 +117,12 @@ export default function GameTheoryModule() {
   const [ascDimension, setAscDimension] = useState<'history' | 'structure' | 'self'>('structure');
   const [ascLoading, setAscLoading] = useState(false);
   const [ascResult, setAscResult] = useState<CognitiveAscensionResult | null>(null);
+  const [showSuccessBadge, setShowSuccessBadge] = useState(false);
+
+  const triggerSuccessAnimation = () => {
+    setShowSuccessBadge(true);
+    setTimeout(() => setShowSuccessBadge(false), 2500);
+  };
 
   const handleAscensionSubmit = async () => {
     if (!ascEvent.trim() || ascLayers.some(l => !l.trim())) {
@@ -136,12 +141,7 @@ export default function GameTheoryModule() {
       setAscResult(r);
       if (r.is_passed) {
         playPageTurn();
-        confetti({
-          particleCount: 50,
-          spread: 45,
-          origin: { y: 0.6 },
-          colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#fff']
-        });
+        triggerSuccessAnimation();
       } else {
         playGentleWarning();
       }
@@ -291,12 +291,7 @@ export default function GameTheoryModule() {
 
       if (res.is_success) {
         playPageTurn();
-        confetti({
-          particleCount: 60,
-          spread: 50,
-          origin: { y: 0.6 },
-          colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#ffffff']
-        });
+        triggerSuccessAnimation();
       } else {
         playGentleWarning();
       }
@@ -356,14 +351,9 @@ export default function GameTheoryModule() {
       setNewProtoName('');
       setNewProtoDesc('');
       
-      // 成功录入时播放翻页声并喷洒 Confetti 极简纸屑
+      // 成功录入时播放翻页声并触发 SuccessBadge
       playPageTurn();
-      confetti({
-        particleCount: 50,
-        spread: 45,
-        origin: { y: 0.6 },
-        colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#ffffff']
-      });
+      triggerSuccessAnimation();
 
       fetchPrototypes();
     } catch (err) {
@@ -455,12 +445,7 @@ export default function GameTheoryModule() {
       // 根据分析结果触发对应的声光电音效
       if (res.is_success) {
         playPageTurn();
-        confetti({
-          particleCount: 60,
-          spread: 50,
-          origin: { y: 0.6 },
-          colors: ['#f4f4f5', '#e4e4e7', '#d4d4d8', '#ffffff'] // Zinc冷灰色调碎屑
-        });
+        triggerSuccessAnimation();
       } else {
         playGentleWarning();
       }
@@ -1625,6 +1610,21 @@ export default function GameTheoryModule() {
             </div>
           )}
         </motion.div>
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showSuccessBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 22 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[3000] flex items-center gap-3 bg-zinc-900 border border-zinc-800 text-white px-6 py-3.5 rounded-full shadow-2xl"
+          >
+            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-zinc-950 font-black text-xs">✓</div>
+            <span className="text-xs font-black uppercase tracking-widest text-zinc-100">博弈达成 (Game Theory Mastered)</span>
+          </motion.div>
+        )}
       </AnimatePresence>
     </ModuleWrapper>
   );

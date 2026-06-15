@@ -1,5 +1,5 @@
-﻿import { useEffect } from 'react';
-import confetti from 'canvas-confetti';
+import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface ConfettiProps {
   duration?: number;
@@ -7,27 +7,38 @@ interface ConfettiProps {
 }
 
 export default function Confetti({ duration = 3000, onComplete }: ConfettiProps) {
-  useEffect(() => {
-    // 极低饱和度与高端行政配色：优雅灰色、白色、高雅微金色
-    const colors = ['#E5E7EB', '#F3F4F6', '#FFFFFF', '#D4AF37', '#AA7C11'];
-    
-    // 触发一个极具克制力、低粒子数（约10-12个）的高雅纸屑喷洒特效
-    confetti({
-      particleCount: 12,
-      spread: 50,
-      origin: { y: 0.75 },
-      colors: colors,
-      scalar: 0.75, // 精致小巧的纸屑尺寸
-      disableForReducedMotion: true,
-      gravity: 1.1, // 下落稍快，不显拖沓
-    });
+  const [show, setShow] = useState(true);
 
-    const timer = setTimeout(() => {
+  useEffect(() => {
+    // 留出 300ms 运行退出动画
+    const completeTimer = setTimeout(() => {
+      setShow(false);
+    }, Math.max(100, duration - 300));
+
+    const destroyTimer = setTimeout(() => {
       if (onComplete) onComplete();
     }, duration);
 
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(completeTimer);
+      clearTimeout(destroyTimer);
+    };
   }, [duration, onComplete]);
 
-  return null; // canvas-confetti 自动维护全局 Canvas，组件无需挂载多余 DOM
+  return (
+    <AnimatePresence>
+      {show && (
+        <motion.div
+          initial={{ opacity: 0, y: -20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -10, scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 300, damping: 22 }}
+          className="fixed top-8 left-1/2 -translate-x-1/2 z-[3000] flex items-center gap-3 bg-zinc-900 border border-zinc-800 text-white px-6 py-3.5 rounded-full shadow-2xl"
+        >
+          <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-zinc-950 font-black text-xs">✓</div>
+          <span className="text-xs font-black uppercase tracking-widest text-zinc-100">挑战达成 (Challenge Completed)</span>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 }

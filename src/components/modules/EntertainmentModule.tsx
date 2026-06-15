@@ -4,7 +4,6 @@ import {
   BookOpen, RotateCcw, HelpCircle, FileText, ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import confetti from 'canvas-confetti';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playSuccess, playError } from '../../utils/soundEffects';
 
@@ -120,8 +119,32 @@ export default function EntertainmentModule() {
   const [response, setResponse] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [difyFeedback, setDifyFeedback] = useState<any>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSuccessBadge, setShowSuccessBadge] = useState(false);
   const [scanStep, setScanStep] = useState(0);
+
+  const triggerSuccessAnimation = () => {
+    setShowSuccessBadge(true);
+    setTimeout(() => setShowSuccessBadge(false), 2500);
+  };
+
+  const openRightPanel = (feedback: any) => {
+    const event = new CustomEvent('toggle-right-panel', {
+      detail: {
+        open: true,
+        tab: 'context',
+        wordData: {
+          word: feedback.is_passed ? "体面过关 (Passed)" : "触碰禁忌 (Failed)",
+          phonetic: `SCORE: ${feedback.score}/10`,
+          meaning: feedback.feedback,
+          source: "社交智库研判结果",
+          definition_en: "",
+          business_note: "",
+          examples: []
+        }
+      }
+    });
+    window.dispatchEvent(event);
+  };
 
   // 21点对抗博弈状态
   const [chips, setChips] = useState(10000);
@@ -207,17 +230,11 @@ export default function EntertainmentModule() {
         }
         const parsedOutputs = typeof rawOutput === 'object' ? rawOutput : JSON.parse(rawOutput); 
         setDifyFeedback(parsedOutputs);
-        setIsModalOpen(true);
+        openRightPanel(parsedOutputs);
 
         if (parsedOutputs.is_passed) {
           triggerSuccess();
-          // 行政风香槟金洒花
-          confetti({
-            particleCount: 60,
-            spread: 50,
-            origin: { y: 0.7 },
-            colors: ['#D4AF37', '#C0C0C0', '#F5F5F5', '#E6E6FA']
-          });
+          triggerSuccessAnimation();
         } else {
           triggerWarning();
         }
@@ -350,12 +367,12 @@ export default function EntertainmentModule() {
       finalChips += bet;
       resultMsg = '庄家爆牌，您赢了！';
       triggerSuccess();
-      confetti({ particleCount: 30, colors: ['#D4AF37', '#C0C0C0'] });
+      triggerSuccessAnimation();
     } else if (outcome === 'player_won') {
       finalChips += bet;
       resultMsg = '比牌获胜，您赢了！';
       triggerSuccess();
-      confetti({ particleCount: 30, colors: ['#D4AF37', '#C0C0C0'] });
+      triggerSuccessAnimation();
     } else if (outcome === 'dealer_won') {
       finalChips -= bet;
       resultMsg = '庄家点数更大，您输了。';
@@ -795,45 +812,20 @@ export default function EntertainmentModule() {
         </div>
       )}
 
-      {/* 研判结果超级克制弹窗 (行政极简风) */}
-      {isModalOpen && difyFeedback && (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-zinc-950/45 backdrop-blur-xs p-4">
-          <div className="relative w-full max-w-md bg-white border border-zinc-200 rounded-xl p-8 shadow-2xl space-y-6">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center border ${
-                difyFeedback.is_passed 
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-600' 
-                  : 'bg-rose-50 border-rose-200 text-rose-600'
-              }`}>
-                {difyFeedback.is_passed ? <CheckCircle2 className="w-6 h-6" /> : <AlertTriangle className="w-6 h-6" />}
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-zinc-800 tracking-wide">
-                  {difyFeedback.is_passed ? "体面过关 (Passed)" : "触碰禁忌 (Failed)"}
-                </h3>
-                <span className="text-[9px] text-zinc-400 font-mono tracking-widest mt-0.5 block">SOCIAL INTELLIGENCE VERDICT</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between bg-zinc-50 border border-zinc-200/60 rounded-lg px-4 py-2.5 text-xs">
-              <span className="text-zinc-500 font-medium">决策得分：</span>
-              <span className="font-bold text-zinc-800 font-mono text-sm">{difyFeedback.score} / 10</span>
-            </div>
-
-            <div className="bg-zinc-50 border border-zinc-200/60 rounded-lg p-4 text-xs leading-relaxed text-zinc-600">
-              <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">避坑指南与解读</h4>
-              <p>{difyFeedback.feedback}</p>
-            </div>
-
-            <button
-              onClick={() => { triggerClick(); setIsModalOpen(false); }}
-              className="w-full bg-zinc-900 hover:bg-zinc-800 text-white font-bold text-xs py-3 px-4 rounded-lg transition-all"
-            >
-              {difyFeedback.is_passed ? "收入社交智库" : "重构应对策略"}
-            </button>
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {showSuccessBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 22 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[3000] flex items-center gap-3 bg-zinc-900 border border-zinc-800 text-white px-6 py-3.5 rounded-full shadow-2xl"
+          >
+            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-zinc-950 font-black text-xs">✓</div>
+            <span className="text-xs font-black uppercase tracking-widest text-zinc-100">决策达成 (Decision Sustained)</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </ModuleWrapper>
   );
 }

@@ -15,7 +15,6 @@ import {
 import { 
   playWaterDrop, playPageTurn
 } from '../../utils/soundEffects';
-import confetti from 'canvas-confetti';
 import { motion, AnimatePresence } from 'motion/react';
 import UrlFetchPanel from '../UrlFetchPanel';
 
@@ -98,6 +97,12 @@ export default function ReadModule() {
   // AI 多维深度反馈状态与原地 Chat 状态
   const [aiScore, setAiScore] = useState<number | null>(null);
   const [aiInsightDetails, setAiInsightDetails] = useState('');
+  const [showSuccessBadge, setShowSuccessBadge] = useState(false);
+
+  const triggerSuccessAnimation = () => {
+    setShowSuccessBadge(true);
+    setTimeout(() => setShowSuccessBadge(false), 2500);
+  };
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [userQuery, setUserQuery] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -186,13 +191,7 @@ export default function ReadModule() {
       const score = parseFloat((8.5 + Math.random() * 1.4).toFixed(1)); // 随机 8.5 ~ 9.9 分
       setAiScore(score);
       if (score >= 9.0) {
-        confetti({
-          particleCount: 80,
-          spread: 60,
-          origin: { y: 0.6 },
-          colors: ['#FF5722', '#202124', '#4CAF50', '#FFC107'],
-          disableForReducedMotion: true
-        });
+        triggerSuccessAnimation();
       }
       
       const frameworkText = { social: '通用社交', gov: '体制内职场', corp: '跨国企业' }[sceneFramework];
@@ -1155,6 +1154,21 @@ export default function ReadModule() {
           )}
         </AnimatePresence>
       </div>
+
+      <AnimatePresence>
+        {showSuccessBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 22 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[3000] flex items-center gap-3 bg-zinc-900 border border-zinc-800 text-white px-6 py-3.5 rounded-full shadow-2xl"
+          >
+            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-zinc-950 font-black text-xs">✓</div>
+            <span className="text-xs font-black uppercase tracking-widest text-zinc-100">深度达成 (Insight Acquired)</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </ModuleWrapper>
   );
 }

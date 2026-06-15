@@ -195,7 +195,7 @@ export default function Sidebar({
 
 
   return (
-    <aside className={`bg-[#f8f9fa] text-[#202124] flex flex-col transition-all duration-500 ease-in-out relative flex-shrink-0 z-30 shadow-[4px_0_24px_rgba(0,0,0,0.02)] border-r border-gray-100/50 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
+    <aside className={`bg-zinc-50/95 backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-500 ease-in-out relative flex-shrink-0 z-30 shadow-[4px_0_24px_rgba(24,24,27,0.03)] border-r border-zinc-200/60 overflow-hidden ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
       <button 
         onClick={toggleSidebar} 
         className="absolute -right-5 top-12 bg-white text-gray-500 p-2 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:text-[#FF5722] hover:shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-40 transition-all duration-300"
@@ -206,14 +206,14 @@ export default function Sidebar({
       <div className={`flex-1 flex flex-col overflow-y-auto overflow-x-hidden ${isOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 delay-100 scrollbar-thin`}>
         
         {/* 1. 左上角：绝对契合指令：极简拼合标题与文本归档链 */}
-        <div className="px-8 pt-10 pb-8 border-b border-gray-200/60 bg-white">
+        <div className="px-8 pt-10 pb-8 border-b border-zinc-200/60 bg-white/60">
           <div className="flex justify-between items-baseline mb-6">
             <h1 className="text-3xl font-black text-[#FF5722] tracking-tighter">B·AI</h1>
           </div>
           
           {/* 单行或凝练呈现：今日日期 + 本周主题 */}
           <div className="mb-8">
-            <div className="text-[#202124] font-black text-sm tracking-tight leading-relaxed">
+            <div className="text-zinc-900 font-black text-sm tracking-tight leading-relaxed">
               <span className="text-[#FF5722] mr-2">{selectedDate}</span> 
               本周主题：海外信贷谈判与博弈
             </div>
@@ -226,14 +226,14 @@ export default function Sidebar({
              <div>
                <div 
                  className="flex justify-between items-center cursor-pointer text-[10px] text-gray-500 font-bold uppercase tracking-widest hover:text-[#FF5722] transition-colors mb-3"
-                 onClick={() => { setIsCalendarOpen(!isCalendarOpen); playClick(); }}
+                 onClick={() => { setIsCalendarOpen(!isCalendarOpen); playPageTurn(); }}
                >
                  <span className="tracking-widest">Monthly Calendar</span>
                  {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
                </div>
                
                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCalendarOpen ? 'max-h-[320px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="bg-white border border-slate-100 rounded-xl p-3.5 shadow-[0_3px_12px_rgba(15,23,42,0.03)] bg-gradient-to-br from-white to-slate-50/50">
+                 <div className="bg-gradient-to-br from-white to-zinc-50/80 border border-zinc-200/60 rounded-xl p-3.5 shadow-[0_2px_12px_rgba(24,24,27,0.03)]">
                    {/* 顶部年月切换 */}
                    <div className="flex justify-between items-center mb-3">
                      <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 rounded-full transition-all cursor-pointer">
@@ -277,11 +277,7 @@ export default function Sidebar({
                          >
                            <span 
                              className={`w-6 h-6 flex items-center justify-center text-[10px] font-bold transition-all duration-200 rounded-full ${
-                               isSelected 
-                                 ? 'bg-[#FF5722] text-white shadow-sm font-black' 
-                                 : isToday 
-                                   ? 'border border-[#FF5722]/60 text-[#FF5722] font-black bg-[#FF5722]/5' 
-                                   : slot.isCurrentMonth 
+                               isSelected ? 'bg-[#FF5722] text-white shadow-sm font-black' : isToday ? 'border border-zinc-300 text-[#FF5722] font-black bg-white shadow-[0_1px_4px_rgba(0,0,0,0.03)]' : slot.isCurrentMonth 
                                      ? 'text-slate-800 hover:bg-slate-100' 
                                      : 'text-slate-300 hover:bg-slate-50/50'
                              }`}
@@ -343,7 +339,7 @@ export default function Sidebar({
              </div>
              
              {/* 职业发展跟踪表 (Career Progression Tracker) */}
-             <div className="mt-6 border-t border-gray-100 pt-6">
+             <div className="mt-6 border-t border-zinc-200/60 pt-6">
                <div 
                  className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
                  onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
@@ -368,7 +364,7 @@ export default function Sidebar({
                </div>
                
                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCareerOpen ? 'max-h-[380px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="p-4 bg-gradient-to-br from-white to-slate-50/50 border border-slate-100 rounded-xl shadow-[0_3px_12px_rgba(15,23,42,0.03)] my-1 relative overflow-hidden">
+                 <div className="p-4 bg-gradient-to-br from-white to-zinc-50/80 border border-zinc-200/60 rounded-xl shadow-[0_2px_12px_rgba(24,24,27,0.03)] my-1 relative overflow-hidden">
                    <AnimatePresence mode="wait">
                      {!isEditingCareer ? (
                        <motion.div
@@ -398,7 +394,7 @@ export default function Sidebar({
                              <span className="font-mono tabular-nums font-extrabold text-slate-700">{careerPath.progress}%</span>
                            </div>
                            <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                             <div className="bg-gradient-to-r from-emerald-500 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
+                             <div className="bg-gradient-to-r from-zinc-400 to-[#FF5722] h-1.5 transition-all duration-500" style={{ width: `${careerPath.progress}%` }}></div>
                            </div>
                          </div>
                        </motion.div>
