@@ -13,12 +13,43 @@ import CyberneticLockModal from './components/CyberneticLockModal';
 import { GLOBAL_SPRING } from './utils/motion';
 import LoginPage from './components/LoginPage';
 import BackgroundOverlay from './components/BackgroundOverlay';
+import { HelpCircle, X } from 'lucide-react';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
 
 function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
+  const toggleChatbot = () => {
+    const dify = (window as any).difyChatbot;
+    if (dify) {
+      if (isChatOpen) {
+        if (typeof dify.close === 'function') {
+          dify.close();
+        } else {
+          const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
+          if (bubbleBtn) bubbleBtn.click();
+        }
+        setIsChatOpen(false);
+      } else {
+        if (typeof dify.open === 'function') {
+          dify.open();
+        } else {
+          const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
+          if (bubbleBtn) bubbleBtn.click();
+        }
+        setIsChatOpen(true);
+      }
+    } else {
+      const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
+      if (bubbleBtn) {
+        bubbleBtn.click();
+        setIsChatOpen(!isChatOpen);
+      }
+    }
+  };
 
 
   const [selectedDate, setSelectedDate] = useState(getTodayDateDot()); 
@@ -170,6 +201,35 @@ function AppContent() {
         oralCount={masteryData.oralCount}
         maxWriteScore={masteryData.maxWriteScore}
       />
+
+      {/* 项目答疑右下角悬浮按钮 */}
+      <motion.div
+        className="fixed bottom-6 right-6 z-50"
+        initial={{ scale: 0, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 1, type: 'spring', stiffness: 260, damping: 20 }}
+      >
+        <button
+          onClick={toggleChatbot}
+          className={`flex items-center gap-2 px-4 py-3 rounded-full shadow-lg transition-all duration-300 cursor-pointer font-bold text-xs tracking-wider border select-none ${
+            isChatOpen
+              ? 'bg-zinc-800 text-white border-zinc-700 hover:bg-zinc-950 hover:shadow-zinc-950/20'
+              : 'bg-white text-emerald-700 border-emerald-100 hover:bg-emerald-50 hover:border-emerald-300 hover:shadow-emerald-600/10'
+          }`}
+        >
+          {isChatOpen ? (
+            <>
+              <X className="w-4 h-4" />
+              <span>关闭答疑</span>
+            </>
+          ) : (
+            <>
+              <HelpCircle className="w-4 h-4" />
+              <span>项目答疑</span>
+            </>
+          )}
+        </button>
+      </motion.div>
     </div>
   );
 }
