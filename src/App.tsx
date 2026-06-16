@@ -14,6 +14,7 @@ import { GLOBAL_SPRING } from './utils/motion';
 import LoginPage from './components/LoginPage';
 import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
+import GlobalSettingsPanel from './components/GlobalSettingsPanel';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -192,6 +193,7 @@ function AppContent() {
 
       {/* 全局任务中心抽屉：渲染在 App 根级别，独立于 main-content */}
       <GlobalTaskCenter />
+      <GlobalSettingsPanel />
 
       {/* 控制论闭环警示弹窗 */}
       <CyberneticLockModal
@@ -225,7 +227,7 @@ function AppContent() {
           ) : (
             <>
               <HelpCircle className="w-4 h-4" />
-              <span>项目答疑</span>
+              <span>答疑</span>
             </>
           )}
         </button>

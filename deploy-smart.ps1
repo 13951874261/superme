@@ -196,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "deploy: improve layout and prevent overlay for bottom-right qa button at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "deploy: rename floating Q&A button to 答疑 and fix Dify chatbot window layout at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow
