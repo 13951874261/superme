@@ -33,6 +33,18 @@ export default function Sidebar({
 }: SidebarProps) {
   const today = getTodayDateDot();
 
+  const [bgEnabled, setBgEnabled] = useState(
+    localStorage.getItem('super_agent_bg_enabled') !== 'false'
+  );
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setBgEnabled(localStorage.getItem('super_agent_bg_enabled') !== 'false');
+    };
+    window.addEventListener('global-settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
+  }, []);
+
   // 月度日历折叠状态与视图年月
   const [isCalendarOpen, setIsCalendarOpen] = useState(true);
   const [viewYear, setViewYear] = useState(() => {
@@ -196,7 +208,7 @@ export default function Sidebar({
 
 
   return (
-    <aside className={`bg-gradient-to-br from-white to-zinc-50/50 backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
+    <aside className={`bg-gradient-to-br ${bgEnabled ? 'from-white/70 to-zinc-50/30' : 'from-white to-zinc-50/50'} backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
       <button 
         onClick={() => {
           playPageTurn();

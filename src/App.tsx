@@ -12,6 +12,7 @@ import { playError } from './utils/soundEffects';
 import CyberneticLockModal from './components/CyberneticLockModal';
 import { GLOBAL_SPRING } from './utils/motion';
 import LoginPage from './components/LoginPage';
+import BackgroundOverlay from './components/BackgroundOverlay';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -32,6 +33,18 @@ function AppContent() {
 
   const { theme, masteryData } = useEnglishContext();
   const [isLockModalOpen, setIsLockModalOpen] = useState(false);
+
+  const [bgEnabled, setBgEnabled] = useState(
+    localStorage.getItem('super_agent_bg_enabled') !== 'false'
+  );
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setBgEnabled(localStorage.getItem('super_agent_bg_enabled') !== 'false');
+    };
+    window.addEventListener('global-settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
+  }, []);
 
   const handleLockTrigger = () => {
     playError();
@@ -106,7 +119,8 @@ function AppContent() {
   };
 
   return (
-    <div className="bg-[#F8F9FA] text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722] relative w-full">
+    <div className={`text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722] relative w-full transition-colors duration-300 ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
+      <BackgroundOverlay />
       <TextHighlighter />
       
       {/* 黄金折叠主视界 (70% 或 100% 宽度平滑缩进) */}

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from './Header';
 import ListenModule from './modules/ListenModule';
 import SpeakModule from './modules/SpeakModule';
@@ -31,6 +31,18 @@ export default function MainContent({
   onLockTrigger
 }: MainContentProps) {
   const { theme, masteryData } = useEnglishContext();
+
+  const [bgEnabled, setBgEnabled] = useState(
+    localStorage.getItem('super_agent_bg_enabled') !== 'false'
+  );
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setBgEnabled(localStorage.getItem('super_agent_bg_enabled') !== 'false');
+    };
+    window.addEventListener('global-settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
+  }, []);
 
   // 定义金属质感的导航选项卡
   const TABS = [
@@ -77,7 +89,7 @@ export default function MainContent({
 
 
   return (
-    <main id="main-content" className="flex-1 flex flex-col h-screen overflow-y-auto bg-[#F8F9FA] relative scroll-smooth font-sans">
+    <main id="main-content" className={`flex-1 flex flex-col h-screen overflow-y-auto relative scroll-smooth font-sans transition-colors duration-300 ${bgEnabled ? 'bg-[#F8F9FA]/40 backdrop-blur-sm' : 'bg-[#F8F9FA]'}`}>
       <Header />
       
       <div className="px-5 md:px-8 lg:px-12 mx-auto w-full max-w-[1600px] pt-8 pb-24 flex flex-col min-h-full">

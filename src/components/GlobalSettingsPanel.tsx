@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Zap, ZapOff, Activity, Lock, Unlock } from 'lucide-react';
+import { Settings, Zap, ZapOff, Activity, Lock, Unlock, Image } from 'lucide-react';
 import { playScan } from '../utils/soundEffects';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 
@@ -15,6 +15,20 @@ export default function GlobalSettingsPanel() {
     localStorage.getItem('super_agent_global_interceptor') !== 'false'
   );
   const [profile, setProfile] = useState(() => getUserCurrentProfile());
+
+  const [bgEnabled, setBgEnabled] = useState<boolean>(
+    localStorage.getItem('super_agent_bg_enabled') !== 'false'
+  );
+  const [bgIndex, setBgIndex] = useState<number>(
+    parseInt(localStorage.getItem('super_agent_bg_index') || '0', 10)
+  );
+  const [bgBlur, setBgBlur] = useState<number>(
+    parseInt(localStorage.getItem('super_agent_bg_blur') || '10', 10)
+  );
+  const [bgOpacity, setBgOpacity] = useState<number>(
+    parseFloat(localStorage.getItem('super_agent_bg_opacity') || '0.45')
+  );
+  const [isBgSectionOpen, setIsBgSectionOpen] = useState(false);
 
   const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -61,13 +75,17 @@ export default function GlobalSettingsPanel() {
     localStorage.setItem('super_agent_global_rate', String(rate));
     localStorage.setItem('super_agent_global_diff', difficulty);
     localStorage.setItem('super_agent_global_interceptor', String(isInterceptorEnabled));
+    localStorage.setItem('super_agent_bg_enabled', String(bgEnabled));
+    localStorage.setItem('super_agent_bg_index', String(bgIndex));
+    localStorage.setItem('super_agent_bg_blur', String(bgBlur));
+    localStorage.setItem('super_agent_bg_opacity', String(bgOpacity));
     window.dispatchEvent(new Event('global-settings-changed'));
-  }, [rate, difficulty, isInterceptorEnabled]);
+  }, [rate, difficulty, isInterceptorEnabled, bgEnabled, bgIndex, bgBlur, bgOpacity]);
 
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
       {isOpen && (
-        <div className="mb-4 bg-[#202124] text-white p-5 rounded-2xl shadow-2xl border border-gray-800 w-72 animate-[fadeIn_0.2s_ease-out]">
+        <div className="mb-4 bg-[#202124] text-white p-5 rounded-2xl shadow-2xl border border-gray-800 w-72 max-h-[80vh] overflow-y-auto custom-scrollbar animate-[fadeIn_0.2s_ease-out]">
           <div className="flex items-center justify-between mb-6 border-b border-gray-800 pb-3">
             <h4 className="text-[11px] font-black uppercase tracking-widest text-gray-300 flex items-center">
               <Settings className="w-4 h-4 mr-2" /> 全局统筹 (Global)
@@ -158,6 +176,115 @@ export default function GlobalSettingsPanel() {
                     <Unlock className="w-3 h-3 mr-1" /> 禁用
                   </button>
                 </div>
+              </div>
+
+              {/* 网页背景图控制折叠项 */}
+              <div className="border-t border-gray-800 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setIsBgSectionOpen(!isBgSectionOpen); playScan(); }}
+                  className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors py-1 cursor-pointer"
+                >
+                  <span className="flex items-center gap-1.5"><Image className="w-3.5 h-3.5" /> 网页背景图管理</span>
+                  <span className="text-xs">{isBgSectionOpen ? '▲' : '▼'}</span>
+                </button>
+
+                {isBgSectionOpen && (
+                  <div className="mt-3 space-y-4 animate-[fadeIn_0.2s_ease-out]">
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                        背景显示开关
+                      </label>
+                      <div className="flex bg-gray-800 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => { setBgEnabled(true); playScan(); }}
+                          className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${bgEnabled ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          开启
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setBgEnabled(false); playScan(); }}
+                          className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${!bgEnabled ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
+                        >
+                          关闭
+                        </button>
+                      </div>
+                    </div>
+
+                    {bgEnabled && (
+                      <>
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 block">
+                            选择背景图
+                          </label>
+                          <div className="grid grid-cols-4 gap-2">
+                            {Array.from({ length: 8 }).map((_, index) => {
+                              const isActive = bgIndex === index;
+                              return (
+                                <button
+                                  key={index}
+                                  type="button"
+                                  onClick={() => { setBgIndex(index); playScan(); }}
+                                  style={{
+                                    backgroundImage: `url(/images/backgrounds/bg-${index + 1}.jpg)`,
+                                    backgroundSize: 'cover',
+                                    backgroundPosition: 'center',
+                                  }}
+                                  className={`aspect-video rounded-lg relative overflow-hidden transition-all duration-200 cursor-pointer shadow-md hover:scale-105 ${
+                                    isActive 
+                                      ? 'ring-2 ring-[#FF5722] ring-offset-1 ring-offset-zinc-900 scale-105 shadow-[#FF5722]/30' 
+                                      : 'brightness-75 hover:brightness-100'
+                                  }`}
+                                  title={`背景图 ${index + 1}`}
+                                >
+                                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                                    <span className="text-[9px] font-mono font-black text-white bg-black/60 px-1.5 py-0.5 rounded">
+                                      {index + 1}
+                                    </span>
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex justify-between mb-2">
+                            <span>背景模糊度</span>
+                            <span className="text-[#FF5722] font-mono font-bold">{bgBlur}px</span>
+                          </label>
+                          <input
+                            type="range"
+                            min="0"
+                            max="24"
+                            step="1"
+                            value={bgBlur}
+                            onChange={(e) => { setBgBlur(Number(e.target.value)); }}
+                            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex justify-between mb-2">
+                            <span>图层遮罩透明度</span>
+                            <span className="text-[#FF5722] font-mono font-bold">{Math.round(bgOpacity * 100)}%</span>
+                          </label>
+                          <input
+                            type="range"
+                            min="0.10"
+                            max="0.90"
+                            step="0.05"
+                            value={bgOpacity}
+                            onChange={(e) => { setBgOpacity(Number(e.target.value)); }}
+                            className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
+                          />
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* 修改系统解锁密码折叠项 */}

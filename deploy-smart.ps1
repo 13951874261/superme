@@ -112,7 +112,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
 
         Write-Host "  -> Uploading frontend artifacts" -ForegroundColor DarkCyan
+        Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds"
         Send-File "$ProjectRoot\dist\index.html" "$RemoteWebRoot/dist/"
+        Send-File "$ProjectRoot\dist\images" "$RemoteWebRoot/dist/"
         Send-File "$ProjectRoot\dist\*" "$RemoteWebRoot/dist/"
         
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
@@ -194,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "deploy: implement login page and password settings at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "deploy: implement customizable page background images and controls at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow

@@ -18,6 +18,18 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
   const [profile, setProfile] = useState(() => getUserCurrentProfile());
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
+  const [bgEnabled, setBgEnabled] = useState(
+    localStorage.getItem('super_agent_bg_enabled') !== 'false'
+  );
+
+  useEffect(() => {
+    const handleSettingsChange = () => {
+      setBgEnabled(localStorage.getItem('super_agent_bg_enabled') !== 'false');
+    };
+    window.addEventListener('global-settings-changed', handleSettingsChange);
+    return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
+  }, []);
+
   // 监听打开状态触发纸张翻页音效
   useEffect(() => {
     if (isOpen) {
@@ -48,10 +60,10 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={GLOBAL_SPRING}
-          className="h-screen w-[30vw] min-w-[350px] border-l border-zinc-150 bg-gradient-to-b from-zinc-50 to-white flex flex-col shrink-0 shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[99] overflow-hidden"
+          className={`h-screen w-[30vw] min-w-[350px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shrink-0 shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[99] overflow-hidden transition-all duration-300`}
         >
           {/* 头部 Tab 区域 */}
-          <div className="flex items-center justify-between border-b border-zinc-200 bg-white px-4 py-3 shrink-0">
+          <div className={`flex items-center justify-between border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300`}>
             <div className="flex items-center gap-1">
               <button
                 onClick={() => handleTabChange('assistant')}
