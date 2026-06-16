@@ -9,7 +9,6 @@ import ListenTab from './english/tabs/ListenTab';
 import WriteTab from './english/tabs/WriteTab';
 import ImpromptuSpeechTab from './english/tabs/ImpromptuSpeechTab';
 import { checkThemeMastery } from '../../services/trainingAPI';
-import GlobalSettingsPanel from '../GlobalSettingsPanel';
 import ThemeMasteryOverlay from '../ThemeMasteryOverlay';
 
 const SUB_TABS = [
@@ -27,7 +26,6 @@ function EnglishModuleContent() {
   return (
     <>
       {showMasteryOverlay && <ThemeMasteryOverlay theme={theme} onDismiss={() => setShowMasteryOverlay(false)} />}
-      <GlobalSettingsPanel />
       <ModuleWrapper
       title="英语战略 ｜ 跨文化信任构建"
       icon={<Globe className="w-8 h-8" strokeWidth={2.5} />}
