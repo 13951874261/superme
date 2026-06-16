@@ -5,6 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Super Agent - 高层管理者锻造系统</title>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Dify Chatbot 配置 -->
+    <script>
+      window.difyChatbotConfig = {
+        token: 'SQb8O34NAVGEV18I',
+        baseUrl: 'https://dify.234124123.xyz',
+        inputs: {},
+        systemVariables: {},
+        userVariables: {},
+      };
+    </script>
+    <script
+      src="https://dify.234124123.xyz/embed.min.js"
+      id="SQb8O34NAVGEV18I"
+      defer
+    ></script>
+
+    <!-- 自定义样式：隐藏默认浮窗按钮 -->
+    <style>
+      #dify-chatbot-bubble-button {
+        display: none !important;
+      }
+      #dify-chatbot-bubble-window {
+        width: 24rem !important;
+        height: 40rem !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

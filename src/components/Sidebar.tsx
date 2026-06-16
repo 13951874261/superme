@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock, Edit3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock, Edit3, HelpCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ChatModule from './ChatModule';
 import DictionaryPanel from './DictionaryPanel';
@@ -522,6 +522,29 @@ export default function Sidebar({
             <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> E2E Encrypted
           </div>
           <ChatModule />
+        </div>
+
+        {/* 6. 项目答疑按钮 */}
+        <div className="px-5 xl:px-6 py-4 border-t border-gray-200/50 bg-zinc-50/40 shrink-0">
+          <button
+            onClick={() => {
+              if ((window as any).difyChatbot) {
+                (window as any).difyChatbot.open();
+              } else {
+                const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
+                if (bubbleBtn) {
+                  bubbleBtn.click();
+                }
+              }
+            }}
+            className="w-full flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer bg-white border-gray-100 text-zinc-700 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 shadow-sm"
+          >
+            <div className="flex items-center gap-2.5">
+              <HelpCircle className="w-4 h-4" />
+              <span className="text-xs font-bold tracking-wider">项目答疑</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+          </button>
         </div>
 
         {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}
