@@ -519,7 +519,7 @@ export default function Sidebar({
         {/* 2. 即时答疑模块 (多模型舱) — 固定最大高度，避免撑满侧边栏 */}
         <div className="px-5 xl:px-6 py-6 flex flex-col shrink-0">
           <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mb-2 flex items-center">
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> E2E Encrypted
+            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> 答疑
           </div>
           <ChatModule />
         </div>
