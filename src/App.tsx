@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
 import TextHighlighter from './components/TextHighlighter';
@@ -11,6 +11,7 @@ import { TaskProvider } from './components/TaskContext';
 import { playError } from './utils/soundEffects';
 import CyberneticLockModal from './components/CyberneticLockModal';
 import { GLOBAL_SPRING } from './utils/motion';
+import LoginPage from './components/LoginPage';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -160,10 +161,18 @@ function AppContent() {
 }
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
   return (
     <EnglishProvider>
       <TaskProvider>
-        <AppContent />
+        <AnimatePresence mode="wait">
+          {!isAuthenticated ? (
+            <LoginPage key="login-page" onUnlock={() => setIsAuthenticated(true)} />
+          ) : (
+            <AppContent key="app-content" />
+          )}
+        </AnimatePresence>
       </TaskProvider>
     </EnglishProvider>
   );
