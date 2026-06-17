@@ -42,6 +42,8 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
     try {
       const data = await enrichMemory(wordId);
       setMemoryAids(data);
+      // 分发事件通知其他组件（如生词本和解密舱）刷新最新的 payload 与词义数据
+      window.dispatchEvent(new Event('vocab-updated'));
     } catch (e: any) {
       console.error(e);
       setError(e.message || '调用AI记忆引擎失败，请重试');

@@ -1303,6 +1303,105 @@ app.get('/api/vocab/memory/:id', (req, res) => {
   }
 });
 
+// 辅助函数：检测并净化受占位符污染的 payload 属性值
+async function checkAndEnrichPlaceholderPayload(row) {
+  let payload = {};
+  try {
+    payload = row.payload ? JSON.parse(row.payload) : {};
+  } catch (e) {
+    console.error(`[Payload Enrich] Parse failed for word: ${row.word}`, e);
+  }
+
+  // 占位符字符串特征检测
+  const hasPlaceholder = 
+    !payload.meaning || 
+    payload.meaning === '待复习补充' || 
+    payload.meaning === '核心释义' ||
+    (payload.phonetic && payload.phonetic.includes('对齐')) ||
+    (payload.definition_en && payload.definition_en.includes('精准定义')) ||
+    (payload.business_note && payload.business_note.includes('特定商环境')) ||
+    (Array.isArray(payload.examples) && payload.examples.some(ex => typeof ex === 'string' && ex.includes('例句1')));
+
+  if (hasPlaceholder) {
+    console.log(`[Payload Enrich] 检测到词条 "${row.word}" (ID: ${row.id}) 使用了占位符 payload，正在启动静默字典查询纠正...`);
+    const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
+    const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    try {
+      const response = await fetch(`${BASE_URL}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: {
+            word: row.word.trim(),
+            dict_type: 'en_en_business',
+            direction: 'auto',
+            user_context: '',
+            locale: 'zh-CN',
+            user_current_profile: ''
+          },
+          response_mode: 'blocking',
+          user: 'backend-enrich-job'
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const resultStr = data?.data?.outputs?.result;
+        if (resultStr) {
+          const parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
+          if (parsedResult && parsedResult.ok && parsedResult.payload) {
+            const dp = parsedResult.payload;
+            
+            let meaning = dp.translation_main || (Array.isArray(dp.definitions_en) ? dp.definitions_en[0] : '待复习补充');
+            let definition_en = Array.isArray(dp.definitions_en) ? dp.definitions_en.join('; ') : (dp.definition || '');
+            let business_note = dp.business_notes || '';
+            let examples = [];
+
+            if (parsedResult.type === 'en_zh_bidirectional') {
+              meaning = dp.translation_main || '';
+              definition_en = dp.translation_main || '';
+              if (Array.isArray(dp.example_sentences)) {
+                examples = dp.example_sentences.map(s => typeof s === 'object' ? `${s.en || ''} ${s.zh || ''}` : s);
+              } else if (Array.isArray(dp.business_examples)) {
+                examples = dp.business_examples.map(s => `${s.en || ''} ${s.zh || ''}`);
+              }
+            } else {
+              if (Array.isArray(dp.example_sentences)) {
+                examples = dp.example_sentences.map(s => typeof s === 'object' ? `${s.en || ''} ${s.zh || ''}` : s);
+              } else {
+                examples = dp.example_sentences || [];
+              }
+            }
+
+            const newPayload = {
+              word: row.word,
+              phonetic: dp.phonetic || '',
+              partOfSpeech: dp.pos || '',
+              meaning: meaning,
+              definition_en: definition_en,
+              business_note: business_note,
+              examples: examples,
+              source: '自动纠正净化'
+            };
+
+            db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(newPayload), row.id);
+            console.log(`[Payload Enrich] 成功更新词条 "${row.word}" 数据库 payload`);
+            return newPayload;
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[Payload Enrich] 静默字典查询及更新失败 for "${row.word}":`, err);
+    }
+  }
+
+  return payload;
+}
+
 // 调用 Dify 记忆辅助生成引擎生成联想记忆
 app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
   try {
@@ -1312,17 +1411,21 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
       return res.status(404).json({ error: 'Word not found' });
     }
 
-    const payload = row.payload ? JSON.parse(row.payload) : {};
+    const payload = await checkAndEnrichPlaceholderPayload(row);
     const word = row.word;
     
     let phonetic = payload.phonetic || '';
-    let pos = payload.pos || '';
-    let definition = payload.definition || payload.translation_main || '';
-    if (Array.isArray(payload.definitions_en)) {
+    let pos = payload.partOfSpeech || payload.pos || '';
+    let definition = payload.meaning || payload.definition || payload.translation_main || '';
+    if (payload.definition_en) {
+      definition += (definition ? '; ' : '') + payload.definition_en;
+    } else if (Array.isArray(payload.definitions_en)) {
       definition += (definition ? '; ' : '') + payload.definitions_en.join('; ');
     }
     let examples = '';
-    if (Array.isArray(payload.example_sentences)) {
+    if (Array.isArray(payload.examples)) {
+      examples = payload.examples.map(s => typeof s === 'object' ? `${s.en || ''} ${s.zh || ''}` : s).join('\n');
+    } else if (Array.isArray(payload.example_sentences)) {
       examples = payload.example_sentences.map(s => typeof s === 'object' ? `${s.en || ''} ${s.zh || ''}` : s).join('\n');
     } else if (Array.isArray(payload.business_examples)) {
       examples = payload.business_examples.map(s => `${s.en || ''} ${s.zh || ''}`).join('\n');
