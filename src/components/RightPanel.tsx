@@ -48,6 +48,9 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
     }
 
     const loadData = async () => {
+      // 切换新词时，立即同步清空上一个词的本地词条和字典缓存，防止异步等待期间的数据错乱
+      setLocalWordEntry(null);
+      setDictResult(null);
       try {
         const allWords = await getAllWords();
         const found = allWords.find(w => w.word.toLowerCase() === wordData.word.toLowerCase());
@@ -384,7 +387,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                               <BrainCircuit className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                               生词记忆辅助
                             </h3>
-                            <MemoryAidPanel wordId={localWordEntry.id} wordText={wordData.word} />
+                            <MemoryAidPanel key={localWordEntry.id} wordId={localWordEntry.id} wordText={wordData.word} />
                           </div>
                         )}
 
