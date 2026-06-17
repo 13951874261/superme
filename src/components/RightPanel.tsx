@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check } from 'lucide-react';
+import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock } from 'lucide-react';
+import { getAllWords, queryDictionary, type VocabEntry } from '../services/vocabAPI';
+import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
+import MemoryAidPanel from './MemoryAidPanel';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
@@ -17,6 +20,70 @@ interface RightPanelProps {
 export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
   const [profile, setProfile] = useState(() => getUserCurrentProfile());
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  const [localWordEntry, setLocalWordEntry] = useState<VocabEntry | null>(null);
+  const [dictResult, setDictResult] = useState<any>(null);
+  const [dictLoading, setDictLoading] = useState(false);
+
+  useEffect(() => {
+    const handleVocabUpdate = async () => {
+      if (!wordData?.word) return;
+      try {
+        const allWords = await getAllWords();
+        const found = allWords.find(w => w.word.toLowerCase() === wordData.word.toLowerCase());
+        setLocalWordEntry(found || null);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    window.addEventListener('vocab-updated', handleVocabUpdate);
+    return () => window.removeEventListener('vocab-updated', handleVocabUpdate);
+  }, [wordData]);
+
+  useEffect(() => {
+    if (!wordData?.word) {
+      setLocalWordEntry(null);
+      setDictResult(null);
+      return;
+    }
+
+    const loadData = async () => {
+      try {
+        const allWords = await getAllWords();
+        const found = allWords.find(w => w.word.toLowerCase() === wordData.word.toLowerCase());
+        setLocalWordEntry(found || null);
+      } catch (err) {
+        console.error('Failed to search local word database:', err);
+        setLocalWordEntry(null);
+      }
+
+      setDictLoading(true);
+      try {
+        const res = await queryDictionary({
+          word: wordData.word,
+          dictType: 'en_en_business',
+        });
+        if (res && res.ok) {
+          setDictResult(res);
+        } else {
+          const resBi = await queryDictionary({
+            word: wordData.word,
+            dictType: 'en_zh_bidirectional',
+          });
+          if (resBi && resBi.ok) {
+            setDictResult(resBi);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to query dictionary for RightPanel:', err);
+        setDictResult(null);
+      } finally {
+        setDictLoading(false);
+      }
+    };
+
+    loadData();
+  }, [wordData]);
 
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
@@ -200,9 +267,15 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                                 {wordData.word}
                               </h2>
                               {wordData.phonetic && (
-                                <span className="text-xs text-gray-400 font-mono">
+                                <span className="text-xs text-gray-400 font-mono block">
                                   /{wordData.phonetic}/
                                 </span>
+                              )}
+                              {localWordEntry && localWordEntry.next_review_date <= Date.now() && (
+                                <div className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 text-[10px] font-bold">
+                                  <Clock className="w-3 h-3" />
+                                  <span>今日待复习</span>
+                                </div>
                               )}
                             </div>
                             <SpeakButton
@@ -212,72 +285,106 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                           </div>
                         </div>
 
-                        {/* 核心释义 */}
-                        <div className="space-y-2">
-                          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <span className="w-1 h-3 bg-[#FF5722] rounded-full"></span>
-                            核心释义
+                        {/* 字典详情融合 */}
+                        {dictLoading ? (
+                          <div className="flex flex-col items-center justify-center py-10">
+                            <Loader2 className="w-6 h-6 text-[#FF5722] animate-spin mb-2" />
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">正在加载商业字典情报...</span>
                           </div>
-                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-gray-800 leading-relaxed font-semibold">
-                            {wordData.meaning || '未获取到释义。'}
+                        ) : dictResult && dictResult.ok && dictResult.payload ? (
+                          <div className="border border-gray-100 rounded-2xl p-4 bg-white shadow-sm space-y-4">
+                            {dictResult.type === 'en_en_business' && (
+                              <EnEnBusinessView payload={dictResult.payload} query={wordData.word} />
+                            )}
+                            {dictResult.type === 'en_zh_bidirectional' && (
+                              <EnZhBidirectionalView payload={dictResult.payload} query={wordData.word} />
+                            )}
+                            {dictResult.type === 'zh_modern' && (
+                              <ZhModernView payload={dictResult.payload} query={wordData.word} />
+                            )}
                           </div>
-                        </div>
-
-                        {/* 英文定义 */}
-                        {wordData.definition_en && (
-                          <div className="space-y-2">
-                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1 h-3 bg-blue-500 rounded-full"></span>
-                                English Definition
-                              </span>
-                              <SpeakButton text={wordData.definition_en} className="w-6 h-6 border-none bg-transparent hover:bg-slate-100" iconClassName="w-3.5 h-3.5" />
-                            </div>
-                            <div className="bg-white border border-gray-100 rounded-xl p-4 text-xs text-gray-600 leading-relaxed font-medium">
-                              {wordData.definition_en}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 商务注解 */}
-                        {wordData.business_note && (
-                          <div className="space-y-2">
-                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
-                              <span className="flex items-center gap-1.5">
-                                <span className="w-1 h-3 bg-purple-500 rounded-full"></span>
-                                Business Context / 商务注解
-                              </span>
-                              <SpeakButton text={wordData.business_note} className="w-6 h-6 border-none bg-transparent hover:bg-slate-100" iconClassName="w-3.5 h-3.5" />
-                            </div>
-                            <div className="bg-purple-50/50 border border-purple-100/50 text-[#d84315] rounded-xl p-4 text-xs leading-relaxed italic font-medium">
-                              {wordData.business_note}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 应用场景例句 */}
-                        {wordData.examples && wordData.examples.length > 0 && (
-                          <div className="space-y-2">
-                            <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
-                              <span className="w-1 h-3 bg-[#FF5722] rounded-full"></span>
-                              Usage Scenarios / 应用场景
-                            </div>
+                        ) : (
+                          /* 保底降级显示 */
+                          <div className="space-y-5">
+                            {/* 核心释义 */}
                             <div className="space-y-2">
-                              {wordData.examples.map((ex: string, index: number) => (
-                                <div
-                                  key={index}
-                                  className="bg-slate-50 border border-slate-100/70 p-3.5 rounded-xl text-xs text-gray-600 leading-relaxed relative pl-6 pr-10 font-medium"
-                                >
-                                  <span className="absolute left-2.5 top-4 w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
-                                  {ex}
-                                  <SpeakButton
-                                    text={ex}
-                                    className="absolute right-2 top-2 w-6 h-6 border-none bg-transparent hover:bg-slate-200"
-                                    iconClassName="w-3.5 h-3.5"
-                                  />
-                                </div>
-                              ))}
+                              <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                <span className="w-1 h-3 bg-[#FF5722] rounded-full"></span>
+                                核心释义
+                              </div>
+                              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-gray-800 leading-relaxed font-semibold">
+                                {wordData.meaning || '未获取到释义。'}
+                              </div>
                             </div>
+
+                            {/* 英文定义 */}
+                            {wordData.definition_en && (
+                              <div className="space-y-2">
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-1 h-3 bg-blue-500 rounded-full"></span>
+                                    English Definition
+                                  </span>
+                                  <SpeakButton text={wordData.definition_en} className="w-6 h-6 border-none bg-transparent hover:bg-slate-100" iconClassName="w-3.5 h-3.5" />
+                                </div>
+                                <div className="bg-white border border-gray-100 rounded-xl p-4 text-xs text-gray-600 leading-relaxed font-medium">
+                                  {wordData.definition_en}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 商务注解 */}
+                            {wordData.business_note && (
+                              <div className="space-y-2">
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
+                                  <span className="flex items-center gap-1.5">
+                                    <span className="w-1 h-3 bg-purple-500 rounded-full"></span>
+                                    Business Context / 商务注解
+                                  </span>
+                                  <SpeakButton text={wordData.business_note} className="w-6 h-6 border-none bg-transparent hover:bg-slate-100" iconClassName="w-3.5 h-3.5" />
+                                </div>
+                                <div className="bg-purple-50/50 border border-purple-100/50 text-[#d84315] rounded-xl p-4 text-xs leading-relaxed italic font-medium">
+                                  {wordData.business_note}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* 应用场景 */}
+                            {wordData.examples && wordData.examples.length > 0 && (
+                              <div className="space-y-2">
+                                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-1.5">
+                                  <span className="w-1 h-3 bg-[#FF5722] rounded-full"></span>
+                                  Usage Scenarios / 应用场景
+                                </div>
+                                <div className="space-y-2">
+                                  {wordData.examples.map((ex, index) => (
+                                    <div
+                                      key={index}
+                                      className="bg-slate-50 border border-slate-100/70 p-3.5 rounded-xl text-xs text-gray-600 leading-relaxed relative pl-6 pr-10 font-medium"
+                                    >
+                                      <span className="absolute left-2.5 top-4 w-1.5 h-1.5 bg-blue-400 rounded-full"></span>
+                                      {ex}
+                                      <SpeakButton
+                                        text={ex}
+                                        className="absolute right-2 top-2 w-6 h-6 border-none bg-transparent hover:bg-slate-200"
+                                        iconClassName="w-3.5 h-3.5"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* 生词本记忆辅助融合 */}
+                        {localWordEntry && (
+                          <div className="border-t border-gray-150 pt-5 mt-5">
+                            <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
+                              <BrainCircuit className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                              生词记忆辅助
+                            </h3>
+                            <MemoryAidPanel wordId={localWordEntry.id} wordText={wordData.word} />
                           </div>
                         )}
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { BookmarkPlus, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { addWord, updateWordPayload } from '../services/vocabAPI';
@@ -109,7 +109,7 @@ export default function TextHighlighter() {
       
       // 触发右侧 30% 视窗自动弹出并显示该词详情
       window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-        detail: { open: true, tab: 'context', wordData: payload }
+        detail: { open: true, tab: 'context', wordData: { ...payload, id: wordId } }
       }));
 
       // 触发高端烟花效果

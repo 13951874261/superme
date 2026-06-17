@@ -1,4 +1,4 @@
-# ============================================================
+﻿# ============================================================
 # Super-Agent Smart Deploy Script
 # Detects git changes and runs incremental deployments
 # ============================================================
@@ -196,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "deploy: remove duplicate global coordinator button and fix QA button layout overlap at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "deploy: integrate dictionary and memory aid panels into intelligence decryption cabin at $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow
