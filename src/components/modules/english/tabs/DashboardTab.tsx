@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Globe, User, Plus } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
 import CustomThemeModal from './CustomThemeModal';
@@ -541,7 +541,8 @@ export default function DashboardTab() {
   };
 
   return (
-    <div className="space-y-8 animate-[fadeIn_0.3s_ease-out] relative">
+    <>
+      <div className="space-y-8 animate-[fadeIn_0.3s_ease-out] relative">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP */}
@@ -1509,6 +1510,9 @@ export default function DashboardTab() {
           )}
         </div>
       )}
+      </div>
+
+      {/* 自定义主题弹窗 - 必须在动画容器和条件渲染外部 */}
       <CustomThemeModal
         isOpen={isCustomThemeModalOpen}
         onClose={() => setIsCustomThemeModalOpen(false)}
@@ -1518,6 +1522,6 @@ export default function DashboardTab() {
           await setThemeFocus({ theme: newThemeName }).catch(() => {});
         }}
       />
-    </div>
+    </>
   );
 }

@@ -196,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "fix: 修复单词截获占位符数据导致记忆辅助生成错位问题，增加自动查词纠正与前端实时刷新 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "fix: 修复点击自定义按钮无反应，将主题弹窗组件移至最外层 Fragment 并隔离动画干扰 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow
