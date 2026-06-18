@@ -673,21 +673,24 @@ export default function DashboardTab() {
               )}
 
               <button
-                onClick={() => setIsCustomThemeModalOpen(true)}
+                onClick={() => {
+                  console.log('[DashboardTab] Opening CustomThemeModal');
+                  setIsCustomThemeModalOpen(true);
+                }}
                 className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl border border-indigo-200 transition-all font-bold text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap"
               >
                 <Plus className="w-4 h-4" /> 自定义
               </button>
               <div
                 className={`flex items-center gap-2 px-5 py-3 rounded-xl transition-all whitespace-nowrap border ${
-                  masteryData.isMastered
+                  masteryData?.isMastered
                     ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
                     : 'bg-red-50 border-red-200 text-red-600'
                 }`}
               >
-                {masteryData.isMastered ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                {masteryData?.isMastered ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
                 <span className="text-xs font-black uppercase tracking-widest">
-                  {masteryData.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
+                  {masteryData?.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
                 </span>
               </div>
             </div>
@@ -696,9 +699,9 @@ export default function DashboardTab() {
 
         {/* 状态与停留分析区 */}
         <div className="border-t border-gray-100 pt-5">
-          {!masteryData.isMastered && (
+          {!masteryData?.isMastered && (
             <div className="text-[10px] text-gray-500 font-medium mb-3">
-              当前通关进度：口语对抗 {masteryData.oralCount}/10 轮 | L3 书面最高分 {masteryData.maxWriteScore}/8 分 | 即兴演讲 {impromptuPassed ? '✅已达标' : '⚠️未达标'}
+              当前通关进度：口语对抗 {masteryData?.oralCount || 0}/10 轮 | L3 书面最高分 {masteryData?.maxWriteScore || 0}/8 分 | 即兴演讲 {impromptuPassed ? '✅已达标' : '⚠️未达标'}
             </div>
           )}
 
