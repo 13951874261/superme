@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Globe, User, Plus } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
+import StrategicRoadmap from './StrategicRoadmap';
 import CustomThemeModal from './CustomThemeModal';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
@@ -575,97 +576,9 @@ export default function DashboardTab() {
       <DailyFlawVocabCard />
 
       <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5">
-        {/* 战略路线图：时间轴进度式设计 */}
-        <div className="space-y-5">
-          {/* 标题 */}
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5722]">战略路线图</span>
-            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Roadmap</span>
-          </div>
-          
-          {/* 时间轴主体 */}
-          <div className="relative bg-gradient-to-r from-slate-50 to-white rounded-2xl p-5 border border-slate-100">
-            {/* 时间轴线 */}
-            <div className="absolute top-[52px] left-8 right-8 h-1 bg-gradient-to-r from-[#FF5722] via-[#FF5722] to-slate-200 rounded-full"></div>
-            
-            {/* 时间节点 */}
-            <div className="flex justify-between items-start relative z-10">
-              {/* 0月节点 */}
-              <div className="flex flex-col items-center">
-                <div className="w-4 h-4 rounded-full bg-[#FF5722] shadow-lg shadow-orange-200 mb-2"></div>
-                <span className="text-xs font-black text-[#FF5722]">0月</span>
-              </div>
-              
-              {/* 6月节点 */}
-              <div className="flex flex-col items-center">
-                <div className="w-4 h-4 rounded-full bg-[#FF5722] shadow-lg shadow-orange-200 mb-2"></div>
-                <span className="text-xs font-black text-[#FF5722]">6月</span>
-              </div>
-              
-              {/* 12月节点 */}
-              <div className="flex flex-col items-center">
-                <div className="w-4 h-4 rounded-full bg-slate-300 border-2 border-slate-200 mb-2"></div>
-                <span className="text-xs font-bold text-slate-400">12月</span>
-              </div>
-            </div>
-            
-            {/* 双轨道卡片 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
-              {/* 政务轨道 */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleTrackChange('business'); }}
-                className={`relative text-left p-5 rounded-2xl border-2 transition-all cursor-pointer ${
-                  stage === 'business' 
-                    ? 'border-[#FF5722] bg-gradient-to-br from-orange-50 to-white shadow-lg shadow-orange-100' 
-                    : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                {stage === 'business' && (
-                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#FF5722] flex items-center justify-center">
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">🎯</span>
-                  <span className="text-xs font-black text-[#FF5722] uppercase tracking-wider">政务集中突破期</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  <span className="font-black text-slate-800">0-6个月</span> · 集中攻克 <span className="font-bold text-[#FF5722]">10个</span> 核心商务场景
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  商务谈判、危机公关、项目汇报...
-                </p>
-              </button>
-              
-              {/* 全场景轨道 */}
-              <button 
-                onClick={(e) => { e.stopPropagation(); handleTrackChange('all'); }}
-                className={`relative text-left p-5 rounded-2xl border-2 transition-all cursor-pointer ${
-                  stage === 'all' 
-                    ? 'border-indigo-500 bg-gradient-to-br from-indigo-50 to-white shadow-lg shadow-indigo-100' 
-                    : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                {stage === 'all' && (
-                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center">
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mb-2">
-                  <span className="text-lg">🌐</span>
-                  <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">全场景拓展期</span>
-                </div>
-                <p className="text-[11px] text-slate-600 leading-relaxed">
-                  <span className="font-black text-slate-800">0-12个月</span> · 覆盖 <span className="font-bold text-indigo-500">16个</span> 场景（含政务10场景）
-                </p>
-                <p className="text-[10px] text-slate-400 mt-1.5">
-                  政务 + 跨文化社交 + 应急沟通...
-                </p>
-              </button>
-            </div>
-          </div>
-          
-          {/* 当前闭环主题 */}
+        <StrategicRoadmap stage={stage} handleTrackChange={handleTrackChange} />
+
+        {/* 当前闭环主题 */}
           <div className="flex flex-col">
             <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 <span className="text-slate-300">//</span> Theme Gateway</span>
 
@@ -1510,7 +1423,6 @@ export default function DashboardTab() {
           )}
         </div>
       )}
-      </div>
 
       {/* 自定义主题弹窗 - 必须在动画容器和条件渲染外部 */}
       <CustomThemeModal
