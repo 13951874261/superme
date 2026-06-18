@@ -301,12 +301,11 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
 // ==========================================
 interface EnEnBusinessViewProps {
   payload: EnEnBusinessPayload;
-  query: string;
-  meaningZh?: string;
+ query: string;
 }
 
-export function EnEnBusinessView({ payload, query, meaningZh }: EnEnBusinessViewProps) {
-  const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [] } = payload;
+export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
+  const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [], meaning_zh } = payload;
   
   // 过滤掉空内容的 scenarios
   const validScenarios = scenarios.filter(sc => {
@@ -354,7 +353,7 @@ export function EnEnBusinessView({ payload, query, meaningZh }: EnEnBusinessView
       </div>
 
       {/* 中文译义 */}
-      {meaningZh && meaningZh.trim() && (
+      {meaning_zh && meaning_zh.trim() && (
         <div className="relative border border-rose-100/80 bg-gradient-to-r from-rose-50/50 to-rose-100/10 rounded-2xl p-4 shadow-sm overflow-hidden">
           <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500"></div>
           <div className="text-[10px] font-bold text-rose-700 uppercase tracking-widest mb-1.5 select-none flex items-center gap-1">
@@ -362,7 +361,7 @@ export function EnEnBusinessView({ payload, query, meaningZh }: EnEnBusinessView
             中文译义
           </div>
           <div className="text-sm font-bold text-gray-800 leading-relaxed">
-            {meaningZh}
+            {meaning_zh}
           </div>
         </div>
       )}

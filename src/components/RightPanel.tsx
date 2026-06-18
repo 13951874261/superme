@@ -297,7 +297,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                         ) : dictResult && dictResult.ok && dictResult.payload ? (
                           <div className="border border-gray-100 rounded-2xl p-4 bg-white shadow-sm space-y-4">
                             {dictResult.type === 'en_en_business' && (
-                              <EnEnBusinessView payload={dictResult.payload} query={wordData.word} meaningZh={wordData.meaning} />
+                              <EnEnBusinessView payload={dictResult.payload} query={wordData.word} />
                             )}
                             {dictResult.type === 'en_zh_bidirectional' && (
                               <EnZhBidirectionalView payload={dictResult.payload} query={wordData.word} />

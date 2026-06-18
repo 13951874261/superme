@@ -58,7 +58,8 @@ export interface ZhModernPayload {
   synonyms: string[];
   antonyms: string[];
   confusable_pairs: ConfusablePairZh[];
-  level?: string;
+ level?: string;
+  meaning_zh?: string;
 }
 
 // --- 商务英英词典结构 ---
