@@ -124,8 +124,6 @@ interface ZhModernViewProps {
 export function ZhModernView({ payload, query }: ZhModernViewProps) {
   const { pos, definition, phonetic, usage_notes, other_meanings = [], example_sentences = [], collocations = [], synonyms = [], antonyms = [], confusable_pairs = [] } = payload;
   
-  const validExampleSentences = example_sentences.filter(sent => typeof sent === 'string' ? sent.trim() : false);
-  
   const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
   const [showCollocations, setShowCollocations] = useState(false);
   const [showConfusable, setShowConfusable] = useState(false);
@@ -204,7 +202,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">例句支撑</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
-            {validExampleSentences.map((sent, idx) => (
+            {example_sentences.map((sent, idx) => (
               <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs text-gray-700 leading-relaxed flex gap-2">
                 <span className="text-indigo-400 font-bold shrink-0">{idx + 1}.</span>
                 <span className="select-text">{sent}</span>
@@ -431,11 +429,11 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
       )}
 
       {/* 真实例句支撑 */}
-      {validEnExampleSentences.length > 0 && (
+      {validExampleSentences.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Example Sentences</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
-            {validEnExampleSentences.map((sent, idx) => (
+            {example_sentences.map((sent, idx) => (
               <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs text-gray-700 leading-relaxed flex items-start gap-2">
                 <span className="text-indigo-400 font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
                 <span className="flex-1 select-text">{sent}</span>
