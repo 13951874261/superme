@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+﻿import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, CustomTheme } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
@@ -28,7 +28,12 @@ export const GENERAL_THEMES = [
   { value: '中东商务：跨文化禁忌', label: '中东商务：跨文化禁忌' },
 ];
 
-export const getThemeOptions = (stage: '0-6' | '6-12') => stage === '0-6' ? BUSINESS_THEMES : GENERAL_THEMES;
+// 全场景主题 = 政务10场景 + 日常6场景
+export const ALL_THEMES = [...BUSINESS_THEMES, ...GENERAL_THEMES];
+
+// 轨道模式：政务轨道只显示政务场景，全场景轨道显示所有场景
+export type StageTrack = 'business' | 'all';
+export const getThemeOptions = (track: StageTrack) => track === 'business' ? BUSINESS_THEMES : ALL_THEMES;
 
 export function localTrainingDate() {
   const d = new Date();
@@ -52,8 +57,8 @@ interface EnglishContextType {
   // Global
   activeTab: EnglishTab;
   setActiveTab: React.Dispatch<React.SetStateAction<EnglishTab>>;
-  stage: '0-6' | '6-12';
-  setStage: React.Dispatch<React.SetStateAction<'0-6' | '6-12'>>;
+  stage: StageTrack;
+  setStage: React.Dispatch<React.SetStateAction<StageTrack>>;
   theme: string;
   setTheme: React.Dispatch<React.SetStateAction<string>>;
   masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean };
@@ -143,8 +148,8 @@ const EnglishContext = createContext<EnglishContextType | undefined>(undefined);
 
 export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
-  const [stage, setStage] = useState<'0-6' | '6-12'>(() => {
-    return (localStorage.getItem('english_stage') as '0-6' | '6-12') || '0-6';
+  const [stage, setStage] = useState<StageTrack>(() => {
+    return (localStorage.getItem('english_stage') as StageTrack) || 'business';
   });
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;

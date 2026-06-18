@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Globe, User, Plus } from 'lucide-react';
-import { useEnglishContext, getThemeOptions } from '../context/EnglishContext';
+import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
 import CustomThemeModal from './CustomThemeModal';
 import PronunciationTrainer from '../../PronunciationTrainer';
 import GrammarPolishTrainer from '../../GrammarPolishTrainer';
@@ -287,9 +287,9 @@ export default function DashboardTab() {
     };
   }, [theme]);
 
-  const handleStageChange = async (newStage: '0-6' | '6-12') => {
+  const handleTrackChange = async (newTrack: 'business' | 'all') => {
     // 核心修复：切回当前阶段时，不加限制并直接清理可能残留的弹窗
-    if (newStage === stage) {
+    if (newTrack === stage) {
       setThemeSwitchError(null);
       return;
     }
@@ -306,8 +306,8 @@ export default function DashboardTab() {
       
       // 校验通过，放行阶段切换
       setThemeSwitchError(null);
-      setStage(newStage);
-      const options = getThemeOptions(newStage);
+      setStage(newTrack);
+      const options = getThemeOptions(newTrack);
       if (!options.find(o => o.value === theme)) {
         setTheme(options[0].value);
         await setThemeFocus({ theme: options[0].value }).catch(() => {});
@@ -574,18 +574,99 @@ export default function DashboardTab() {
       <DailyFlawVocabCard />
 
       <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5">
-        {/* 控制区：战略阶段与当前闭环主题并排 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
-          <div className="flex flex-col">
-            <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5722] mb-3">战略阶段 (Stage)</span>
-            <div className="flex bg-gray-50 p-1.5 rounded-xl border border-gray-100 self-start">
-              <button onClick={(e) => { e.stopPropagation(); handleStageChange('0-6'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '0-6' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>0-6个月: 政商务</button>
-              <button onClick={(e) => { e.stopPropagation(); handleStageChange('6-12'); }} className={`px-5 py-2.5 text-xs font-black tracking-widest uppercase rounded-lg transition-all ${stage === '6-12' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-[#202124]'}`}>6-12个月: 全场景</button>
+        {/* 战略路线图：时间轴进度式设计 */}
+        <div className="space-y-5">
+          {/* 标题 */}
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest font-black text-[#FF5722]">战略路线图</span>
+            <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Roadmap</span>
+          </div>
+          
+          {/* 时间轴主体 */}
+          <div className="relative bg-gradient-to-r from-slate-50 to-white rounded-2xl p-5 border border-slate-100">
+            {/* 时间轴线 */}
+            <div className="absolute top-[52px] left-8 right-8 h-1 bg-gradient-to-r from-[#FF5722] via-[#FF5722] to-slate-200 rounded-full"></div>
+            
+            {/* 时间节点 */}
+            <div className="flex justify-between items-start relative z-10">
+              {/* 0月节点 */}
+              <div className="flex flex-col items-center">
+                <div className="w-4 h-4 rounded-full bg-[#FF5722] shadow-lg shadow-orange-200 mb-2"></div>
+                <span className="text-xs font-black text-[#FF5722]">0月</span>
+              </div>
+              
+              {/* 6月节点 */}
+              <div className="flex flex-col items-center">
+                <div className="w-4 h-4 rounded-full bg-[#FF5722] shadow-lg shadow-orange-200 mb-2"></div>
+                <span className="text-xs font-black text-[#FF5722]">6月</span>
+              </div>
+              
+              {/* 12月节点 */}
+              <div className="flex flex-col items-center">
+                <div className="w-4 h-4 rounded-full bg-slate-300 border-2 border-slate-200 mb-2"></div>
+                <span className="text-xs font-bold text-slate-400">12月</span>
+              </div>
+            </div>
+            
+            {/* 双轨道卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+              {/* 政务轨道 */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleTrackChange('business'); }}
+                className={`relative text-left p-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                  stage === 'business' 
+                    ? 'border-[#FF5722] bg-gradient-to-br from-orange-50 to-white shadow-lg shadow-orange-100' 
+                    : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {stage === 'business' && (
+                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-[#FF5722] flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🎯</span>
+                  <span className="text-xs font-black text-[#FF5722] uppercase tracking-wider">政务集中突破期</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <span className="font-black text-slate-800">0-6个月</span> · 集中攻克 <span className="font-bold text-[#FF5722]">10个</span> 核心商务场景
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  商务谈判、危机公关、项目汇报...
+                </p>
+              </button>
+              
+              {/* 全场景轨道 */}
+              <button 
+                onClick={(e) => { e.stopPropagation(); handleTrackChange('all'); }}
+                className={`relative text-left p-5 rounded-2xl border-2 transition-all cursor-pointer ${
+                  stage === 'all' 
+                    ? 'border-indigo-500 bg-gradient-to-br from-indigo-50 to-white shadow-lg shadow-indigo-100' 
+                    : 'border-slate-200 bg-slate-50/50 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {stage === 'all' && (
+                  <div className="absolute top-3 right-3 w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center">
+                    <CheckCircle2 className="w-4 h-4 text-white" />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">🌐</span>
+                  <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">全场景拓展期</span>
+                </div>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  <span className="font-black text-slate-800">0-12个月</span> · 覆盖 <span className="font-bold text-indigo-500">16个</span> 场景（含政务10场景）
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1.5">
+                  政务 + 跨文化社交 + 应急沟通...
+                </p>
+              </button>
             </div>
           </div>
           
-          <div className="flex flex-col md:col-span-2">
-            <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 (Theme Gateway)</span>
+          {/* 当前闭环主题 */}
+          <div className="flex flex-col">
+            <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 <span className="text-slate-300">//</span> Theme Gateway</span>
 
             {themeSwitchError && (
               <div className="flex items-start gap-3 mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
@@ -627,13 +708,12 @@ export default function DashboardTab() {
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  // 核心修复：一旦用户重新点击下拉框（意图切回当前任务/阶段），立刻清理旧的红色拦截弹窗
                   setThemeSwitchError(null);
                 }}
                 className="flex-1 bg-[#f8f9fa] border border-gray-200 text-[#202124] text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[#FF5722]"
               >
                 <optgroup label="系统预置主题">
-                  {getThemeOptions(stage).map((o) => (
+                  {getThemeOptions(stage as 'business' | 'all').map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
                     </option>
@@ -661,7 +741,7 @@ export default function DashboardTab() {
                        const res = await deleteCustomTheme(currentCustomTheme.id);
                        if (res.success) {
                          showNotice('dashboard', '成功删除自定义场景', 'success');
-                         const options = getThemeOptions(stage);
+                         const options = getThemeOptions(stage as 'business' | 'all');
                          setTheme(options[0].value);
                          await refreshCustomThemes();
                        }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { X, Loader2, FileText, CheckCircle2, AlertTriangle, UploadCloud } from 'lucide-react';
 import { addCustomTheme } from '../../../../services/trainingAPI';
 import { playSuccess, playError } from '../../../../utils/soundEffects';
@@ -73,9 +73,9 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
       if (res.success) {
         playSuccess();
         setExtractedResult({
-          displayName: res.theme.displayName,
-          addedWordsCount: res.addedWordsCount,
-          addedPhrasesCount: res.addedPhrasesCount,
+          displayName: res.theme.displayName || res.theme.themeName || themeName.trim(),
+          addedWordsCount: res.addedWordsCount || 0,
+          addedPhrasesCount: res.addedPhrasesCount || 0,
         });
         setStep(3);
       } else {
@@ -83,7 +83,9 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
       }
     } catch (err: any) {
       playError();
-      setError(err.message || '自定义场景创建中发生异常，请检查后端或 Dify 服务。');
+      const errorMsg = err.message || '自定义场景创建中发生异常';
+      console.error('[CustomThemeModal] 创建失败:', err);
+      setError(errorMsg + '。请确认后端服务 (vocab-server) 已启动，且 Dify API 配置正确。');
     } finally {
       setIsProcessing(false);
     }
