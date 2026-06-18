@@ -1,4 +1,5 @@
 ﻿import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, FileText, CheckCircle2, AlertTriangle, UploadCloud } from 'lucide-react';
 import { addCustomTheme } from '../../../../services/trainingAPI';
 import { playSuccess, playError } from '../../../../utils/soundEffects';
@@ -110,7 +111,8 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
     onClose();
   };
 
-  return (
+  return createPortal(
+    (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
       <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 w-full max-w-xl text-white shadow-2xl relative overflow-hidden">
         {/* 背景光效 */}
@@ -250,5 +252,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
         )}
       </div>
     </div>
+    ),
+    document.body
   );
 }
