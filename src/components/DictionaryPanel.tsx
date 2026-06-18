@@ -198,7 +198,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
       )}
 
       {/* 例句区 */}
-      {example_sentences.length > 0 && (
+      {validExampleSentences.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">例句支撑</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
@@ -305,6 +305,24 @@ interface EnEnBusinessViewProps {
 export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
   const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [] } = payload;
   
+  // 过滤掉空内容的 scenarios
+  const validScenarios = scenarios.filter(sc => {
+    if (typeof sc === 'string') return sc.trim();
+    return sc.example_en?.trim();
+  }).map(sc => {
+    if (typeof sc === 'string') return { scene: 'Scenario', example_en: sc };
+    return sc;
+  });
+  
+  // 过滤掉空内容的 example_sentences (EnEnBusinessView 中是字符串数组)
+  const validEnExampleSentences = example_sentences.filter(sent => {
+    if (typeof sent === 'string') return sent.trim();
+    return sent?.en?.trim() || sent?.zh?.trim();
+  }).map(sent => {
+    if (typeof sent === 'string') return sent;
+    return sent.en || sent.zh || '';
+  });
+  
   const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
   const [showCollocations, setShowCollocations] = useState(false);
   const wordDisplay = headword || query;
@@ -390,11 +408,11 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
       )}
 
       {/* 商务场景用例 (Scenarios) */}
-      {scenarios.length > 0 && (
+      {validScenarios.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Workplace Scenarios</div>
           <div className="space-y-2.5">
-            {scenarios.map((sc, idx) => (
+            {validScenarios.map((sc, idx) => (
               <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:border-indigo-100 hover:shadow transition">
                 <div className="flex items-center gap-1.5 mb-1.5 select-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
@@ -411,7 +429,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
       )}
 
       {/* 真实例句支撑 */}
-      {example_sentences.length > 0 && (
+      {validExampleSentences.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Example Sentences</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
@@ -494,6 +512,24 @@ interface EnZhBidirectionalViewProps {
 export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
   const { direction_resolved, phonetic, pos, translation_main, other_meanings = [], business_examples = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [], etymology } = payload;
   
+  // 过滤掉空内容的 business_examples
+  const validBusinessExamples = business_examples.filter(ex => {
+    if (typeof ex === 'string') return ex.trim();
+    return (ex.en?.trim() || ex.zh?.trim());
+  }).map(ex => {
+    if (typeof ex === 'string') return { scene: '商务场景', en: ex, zh: '' };
+    return ex;
+  });
+  
+  // 过滤掉空内容的 example_sentences
+  const validExampleSentences = example_sentences.filter(sent => {
+    if (typeof sent === 'string') return sent.trim();
+    return (sent.en?.trim() || sent.zh?.trim());
+  }).map(sent => {
+    if (typeof sent === 'string') return { en: sent, zh: '' };
+    return sent;
+  });
+  
   const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
   const [showCollocations, setShowCollocations] = useState(false);
   const isEnToZh = direction_resolved === 'en_to_zh';
@@ -563,11 +599,11 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
       )}
 
       {/* 商务场景例句 (Business Examples) */}
-      {business_examples.length > 0 && (
+      {validBusinessExamples.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">商务语境场景</div>
           <div className="space-y-2.5">
-            {business_examples.map((ex, idx) => (
+            {validBusinessExamples.map((ex, idx) => (
               <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:border-indigo-100 hover:shadow transition">
                 <div className="flex items-center gap-1.5 mb-1 select-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
@@ -585,7 +621,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
       )}
 
       {/* 真实中英双语例句 */}
-      {example_sentences.length > 0 && (
+      {validExampleSentences.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">中英对照例句</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
