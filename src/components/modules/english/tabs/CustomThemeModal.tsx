@@ -10,6 +10,7 @@ interface CustomThemeModalProps {
 }
 
 export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomThemeModalProps) {
+  console.log('[CustomThemeModal] Render, isOpen:', isOpen);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [themeName, setThemeName] = useState('');
   const [file, setFile] = useState<{ fileName: string; content: string } | null>(null);
