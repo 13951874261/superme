@@ -376,7 +376,18 @@ async function fileToBase64Content(file: File): Promise<string> {
   });
 }
 
-export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user') {
+export interface MaterialProcessResult {
+  success: boolean;
+  topic: string;
+  total: number;
+  words: string[];
+  phrases: string[];
+  article: string;
+  results: any[];
+  logs: string[];
+}
+
+export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user'): Promise<MaterialProcessResult> {
   // 灏嗗墠绔?File 对象转为 Base64 传递给后端的统一提纯路由
   const filePayloads = await Promise.all(
     files.map(async (f) => {
@@ -408,7 +419,7 @@ export async function processMaterialsAndExtract(files: File[], topic: string, u
     throw new Error(data?.error || data?.message || '提纯流水线执行失败，请检查后端状态');
   }
 
-  return data;
+  return data as MaterialProcessResult;
 }
 
 export interface DailyExtractResult {

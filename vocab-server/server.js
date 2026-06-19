@@ -1831,7 +1831,25 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
     console.log(`[Material] 向量装弹完毕！准许放行唤醒大模型...`);
 
+    // --- 新增动作：提取 Dify 切分好的文本段落 ---
+    let articleText = "";
+    try {
+      const segmentsRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}/segments`, {
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      });
+      if (segmentsRes.ok) {
+        const segmentsData = await segmentsRes.json();
+        const segments = segmentsData.data || [];
+        articleText = segments.map(s => s.content || '').join('\n\n');
+      } else {
+        console.warn("[Material] 获取分段文本接口响应失败", segmentsRes.status);
+      }
+    } catch (e) {
+      console.error("[Material] 获取分段文本请求失败:", e.message);
+    }
+
     // ---------------------------------------------------------
+
     // 鍔ㄤ綔鍥涳細缁堟瀬鎶芥彁锛屽敜閱掑ぇ妯″瀷姒ㄥ彇鏍稿績璇嶆眹骞跺叆搴?    // ---------------------------------------------------------
     const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -1908,10 +1926,28 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       }
     }
 
+    let wordsToReturn = [];
+    let phrasesToReturn = [];
+
+    for (const item of extractedWords) {
+      const isObject = typeof item === 'object' && item !== null;
+      const wordStr = isObject ? (item.word || JSON.stringify(item)) : item;
+      if (!wordStr) continue;
+      const isPhrase = isObject ? !!item.is_phrase : false;
+      if (isPhrase) {
+        phrasesToReturn.push(wordStr);
+      } else {
+        wordsToReturn.push(wordStr);
+      }
+    }
+
     res.json({
       success: true,
       topic: topic || 'Unknown Topic',
       total: files.length,
+      words: wordsToReturn,
+      phrases: phrasesToReturn,
+      article: articleText,
       results: [
         {
           fileName: fileObj.fileName || "Document",

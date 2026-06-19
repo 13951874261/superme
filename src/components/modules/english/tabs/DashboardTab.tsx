@@ -998,7 +998,29 @@ export default function DashboardTab() {
           )}
         </div>
 
-        <MaterialUploader topicHint={theme} onExtractionSuccess={() => setActiveTab('vocab')} />
+        <MaterialUploader 
+          topicHint={theme} 
+          onExtractionSuccess={(data) => {
+            if (data) {
+              setGeneratedArticle(data.article);
+              localStorage.setItem('super_agent_last_generated_article', data.article);
+
+              setExtractedWords(data.words);
+              localStorage.setItem('super_agent_last_generated_words', JSON.stringify(data.words));
+
+              setExtractedPhrases(data.phrases);
+              localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(data.phrases));
+
+              showNotice('dashboard', '提纯成功！材料与提纯词汇已下发至上方情报截获板块，可点击查看。', 'success');
+              playSuccess();
+              
+              // 滚动到该板块区域以引起用户注意
+              window.scrollTo({ top: 300, behavior: 'smooth' });
+            } else {
+              setActiveTab('vocab');
+            }
+          }} 
+        />
       </div>
 
       {/* 沉浸式阅读空间 Fullscreen Modal */}

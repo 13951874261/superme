@@ -196,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "refactor: 优化 DailyWakeupModule 布局，避免重复展示唤醒建议与弱点 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "feat: 统一【一键材料提纯】与【今日情报截获】功能，支持二进制文档文本提取与合并展示 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow
