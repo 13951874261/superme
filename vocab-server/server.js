@@ -2649,7 +2649,7 @@ app.post('/api/grammar-polish', async (req, res) => {
     const difyApiKey = process.env.DIFY_GRAMMAR_API_KEY || 'app-547Sa5oIC3Qb9RUZdasJs1Ef';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    const response = await fetch(`${baseUrl}/chat-messages`, {
+    const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${difyApiKey}`,
@@ -2668,7 +2668,15 @@ app.post('/api/grammar-polish', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify 语法润色请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
+      let errorMsg = errText;
+      try {
+        const errObj = JSON.parse(errText);
+        if (errObj.code === "not_chat_app") {
+           errorMsg = "Dify 工作流配置错误: 请使用 workflow 模式的 API 路径 (/workflows/run)";
+        }
+      } catch(e) {}
+
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errorMsg}` });
     }
 
     const data = await response.json();

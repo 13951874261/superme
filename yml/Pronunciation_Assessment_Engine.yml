@@ -118,7 +118,7 @@ workflow:
           variable: target_text
         - desc: 通过 Whisper 或 STT 识别出的用户实际录音文本
           label: recognized_text
-          max_length: 1024
+          max_length: 4096
           options: []
           required: false
           type: text-input
