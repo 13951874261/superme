@@ -37,7 +37,8 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
-  
+  const [isSuggestionExpanded, setIsSuggestionExpanded] = useState(false);
+
   // 新增接口数据状态
   const [stayStats, setStayStats] = useState<ThemeStayStats | null>(null);
   const [todaySession, setTodaySession] = useState<any | null>(null);
@@ -236,12 +237,57 @@ export default function DailyWakeupModule() {
                 </div>
                 
                 {/* 中间：今日建议与薄弱点 */}
-                <div className="md:col-span-8 space-y-2 border-t md:border-t-0 md:border-l border-white/5 md:pl-4 pt-3 md:pt-0">
-                  <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">今日唤醒建议</div>
-                  <p className="text-xs md:text-sm text-gray-300 leading-relaxed font-medium">
-                    {stayStats?.todaySuggestion || '输入您要训练的业务主题（例如：银团贷款），系统将载入发音重点与建议。'}
-                  </p>
-                  
+                <div className="md:col-span-8 space-y-3 border-t md:border-t-0 md:border-l border-white/5 md:pl-4 pt-3 md:pt-0">
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">今日唤醒建议</div>
+                    {stayStats?.todaySuggestion && stayStats.todaySuggestion.length > 150 && (
+                      <button
+                        onClick={() => setIsSuggestionExpanded(!isSuggestionExpanded)}
+                        className="text-[10px] font-medium text-amber-500 hover:text-amber-400 flex items-center gap-1 transition-colors bg-amber-500/10 px-2 py-0.5 rounded-full"
+                      >
+                        {isSuggestionExpanded ? '收起详情' : '展开全文'}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="relative group">
+                    <div className={`text-xs md:text-sm text-gray-300 leading-relaxed font-medium transition-all duration-300 ${!isSuggestionExpanded && stayStats?.todaySuggestion && stayStats.todaySuggestion.length > 150 ? 'line-clamp-4' : ''}`}>
+                      {stayStats?.todaySuggestion ? (
+                        <div className="space-y-2">
+                          {/* 尝试对文本进行简单的换行和格式化处理 */}
+                          {stayStats.todaySuggestion.split(/(?=评分: \d+分)|(?=\[[\d:]+\] 练习:)/).map((segment, idx) => {
+                            // 检测是否是日志数据段
+                            const isLog = segment.includes('评分:') || segment.includes('练习:');
+                            if (isLog) {
+                              return (
+                                <span key={idx} className="inline-block bg-white/5 border border-white/10 rounded-md px-2 py-1 my-1 mr-2 text-[10px] text-gray-400 font-mono align-middle">
+                                  {segment.trim()}
+                                </span>
+                              );
+                            }
+                            // 如果包含重点纠正，则加粗高亮
+                            if (segment.includes('重点纠正')) {
+                               const parts = segment.split('重点纠正');
+                               return (
+                                 <span key={idx}>
+                                   {parts[0]}<span className="text-emerald-400 font-bold bg-emerald-400/10 px-1.5 py-0.5 rounded mr-1">重点纠正</span>{parts[1]}
+                                 </span>
+                               )
+                            }
+                            return <span key={idx}>{segment}</span>;
+                          })}
+                        </div>
+                      ) : (
+                        '输入您要训练的业务主题（例如：银团贷款），系统将载入发音重点与建议。'
+                      )}
+                    </div>
+
+                    {/* 渐变遮罩 (仅在未展开且有长文本时显示) */}
+                    {!isSuggestionExpanded && stayStats?.todaySuggestion && stayStats.todaySuggestion.length > 150 && (
+                      <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-[#202124] to-transparent pointer-events-none"></div>
+                    )}
+                  </div>
+
                   {stayStats?.weakPoints && (
                     <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 pt-2 border-t border-white/5 text-xs text-gray-400">
                       {stayStats.weakPoints.pronunciation && (
