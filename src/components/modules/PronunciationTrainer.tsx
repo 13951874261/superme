@@ -45,11 +45,22 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    if (!targetText.trim()) {
-      showToast('请先输入您要练习的目标单词或句子！');
+    if (!file) {
+      console.log('[PronunciationTrainer] 未选择任何文件');
       return;
     }
+    console.log('[PronunciationTrainer] 已选择文件:', file.name, file.type, file.size);
+    if (!targetText.trim()) {
+      showToast('请先输入您要练习的目标单词或句子！');
+      // 清空 value 确保下次选同一个文件依然能触发
+      e.target.value = '';
+      return;
+    }
+
+    // 清空 value 确保下次选同一个文件依然能触发
+    e.target.value = '';
+
+    // 开始评估
     await handleAssessment(file);
   };
 
