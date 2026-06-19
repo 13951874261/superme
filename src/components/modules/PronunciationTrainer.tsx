@@ -174,9 +174,17 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
         console.error('语音转写接口失败，尝试使用原生识别托底:', err);
         recognizedText = recognitionTextRef.current;
         if (!recognizedText) {
-          throw new Error('语音识别失败，且本地托底数据为空');
+          // 不再直接 throw Error，而是允许兜底为空，或者赋值特定的兜底字符，让 Dify 进行低分评价
+          console.warn('语音识别失败，且本地托底为空，采用 [Unrecognized] 占位符');
+          recognizedText = '[Unrecognized]';
+        } else {
+          console.log('已应用原生语音识别托底内容: ', recognizedText);
         }
-        console.log('已应用原生语音识别托底内容: ', recognizedText);
+      }
+
+      // 二次保障：万一 Whisper 返回了完全空的文本
+      if (!recognizedText || !recognizedText.trim()) {
+         recognizedText = '[Unrecognized]';
       }
 
       const response = await fetch(`/api/pronunciation-assessment`, {

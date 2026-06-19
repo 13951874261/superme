@@ -120,7 +120,7 @@ workflow:
           label: recognized_text
           max_length: 1024
           options: []
-          required: true
+          required: false
           type: text-input
           variable: recognized_text
       height: 135
