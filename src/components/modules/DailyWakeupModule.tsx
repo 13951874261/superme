@@ -2,6 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { CheckCircle2, Clock3, Loader2, Target, TimerReset, Volume2, Zap } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
+import PronunciationTrainer from './PronunciationTrainer';
+import GrammarPolishTrainer from './GrammarPolishTrainer';
+import { useEnglishContext } from './english/context/EnglishContext';
 import { runEnglishWakeupRoutine } from '../../services/difyAPI';
 import { upsertTrainingSession, getThemeStayStats, getTrainingSessionByDate, ThemeStayStats } from '../../services/trainingAPI';
 
@@ -30,6 +33,7 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function DailyWakeupModule() {
+  const { pronunciationNotes, setPronunciationNotes, grammarNotes, setGrammarNotes } = useEnglishContext();
   const [theme, setTheme] = useState('银团贷款');
   const [result, setResult] = useState<WakeupResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -510,6 +514,37 @@ export default function DailyWakeupModule() {
             </div>
           </>
         )}
+
+        {/* 基础唤醒追踪 (Foundation) - 从英语战略模块迁移至此 */}
+        <div className="bg-[#202124] rounded-3xl p-5 md:p-6 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF5722]/10 rounded-full blur-3xl pointer-events-none"></div>
+          <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-6 flex items-center">
+            <Clock3 className="w-5 h-5 mr-3" /> 基础唤醒追踪 (Foundation)
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col">
+              <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 flex-shrink-0">发音纠正 (10min/Day)</span>
+              <div className="flex-1 min-h-0">
+                <PronunciationTrainer
+                  initialNotes={pronunciationNotes}
+                  onNotesChange={setPronunciationNotes}
+                  userId="default-user"
+                />
+              </div>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col">
+              <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 flex-shrink-0">核心语法复健 (8-10个核心点)</span>
+              <div className="flex-1 min-h-0">
+                <GrammarPolishTrainer
+                  initialNotes={grammarNotes}
+                  onNotesChange={setGrammarNotes}
+                  userId="default-user"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </ModuleWrapper>
   );

@@ -3,13 +3,11 @@ import { Target, AlertTriangle, CheckCircle2, Clock, Loader2, Zap, Volume2, Book
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
 import StrategicRoadmap from './StrategicRoadmap';
 import CustomThemeModal from './CustomThemeModal';
-import PronunciationTrainer from '../../PronunciationTrainer';
-import GrammarPolishTrainer from '../../GrammarPolishTrainer';
 import MaterialUploader from '../../../MaterialUploader';
 import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
-import { generateDailyFlawVocabulary, triggerEnglishMasteryExtraction, getDailyQuotaStatus, getFallbackFlawVocab } from '../../../../services/difyAPI';
+import { triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
 import { addWord, getAllWords } from '../../../../services/vocabAPI';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
@@ -254,6 +252,8 @@ export default function DashboardTab() {
   } = useEnglishContext();
 
   const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
+  const [dashboardSubTab, setDashboardSubTab] = useState<'arsenal' | 'roadmap'>('arsenal');
+  const [isSopExpanded, setIsSopExpanded] = useState(false);
   const currentCustomTheme = customThemes?.find(c => (c.displayName || c.themeName) === theme);
 
   const [stayStats, setStayStats] = useState<{
@@ -547,35 +547,59 @@ export default function DashboardTab() {
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP */}
-      <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
-        <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
-           <Target className="w-5 h-5" />
-        </div>
-        <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-indigo-800/80 font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>在上方选择战略阶段与闭环主题，在下方一键“生成今日长文并提纯”获取语料弹药。</p>
+      <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-4 flex flex-col gap-3 shrink-0 shadow-sm transition-all duration-300">
+        <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsSopExpanded(!isSopExpanded)}>
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-600 text-white p-2 rounded-lg shadow-md">
+               <Target className="w-4 h-4" />
             </div>
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
+            <div className="text-left">
+              <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 leading-tight">战术使用指南 // Tactical SOP</h5>
+              <p className="text-[10px] text-indigo-800/80 font-medium mt-0.5">点击展开/收起模块使用说明</p>
+            </div>
+          </div>
+          <button className="text-indigo-500 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors text-xs font-bold">
+            {isSopExpanded ? '收起指南 ∧' : '展开指南 ∨'}
+          </button>
+        </div>
+
+        {isSopExpanded && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 border-t border-indigo-100/50 text-left animate-[fadeIn_0.2s_ease-out]">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10">
+              <span className="text-amber-500 mt-0.5">💡</span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>在战局总览选择战略阶段，在弹药库一键“生成长文并提纯”获取语料弹药。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10">
               <span className="text-amber-500 mt-0.5">💡</span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>硬核“通关锁”机制——口语不练满 10 轮、邮件拿不到 8 分，阵地将被强制死锁。</p>
             </div>
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10">
               <span className="text-amber-500 mt-0.5">💡</span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【全局中枢】它设定的 Theme 将统治后续所有模块的场景；它抽取的弹药将直接输送至 Vocab 矩阵。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>它设定的 Theme 将统治全局场景；抽取的弹药将直接输送至 Vocab 矩阵。</p>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* 每日破绽词汇推送板块 */}
-      <DailyFlawVocabCard />
+      {/* 进度总控二级导航面板 */}
+      <div className="flex items-center gap-3 border-b border-gray-200/60 pb-1 pt-2">
+        <button
+          onClick={() => setDashboardSubTab('arsenal')}
+          className={`px-6 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'arsenal' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-t-xl'}`}
+        >
+          <Zap className="w-4 h-4 inline-block mr-1.5 -mt-0.5"/> 弹药补给库
+        </button>
+        <button
+          onClick={() => setDashboardSubTab('roadmap')}
+          className={`px-6 py-2.5 text-xs font-black uppercase tracking-widest transition-all ${dashboardSubTab === 'roadmap' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-t-xl'}`}
+        >
+          <Target className="w-4 h-4 inline-block mr-1.5 -mt-0.5"/> 战局与进度总览
+        </button>
+      </div>
 
-      <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5">
+      {dashboardSubTab === 'roadmap' && (
+        <>
+          <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5 animate-[fadeIn_0.3s_ease-out]">
         <StrategicRoadmap stage={stage} handleTrackChange={handleTrackChange} />
 
         {/* 当前闭环主题 */}
@@ -751,38 +775,12 @@ export default function DashboardTab() {
             </div>
           )}
         </div>
+        </>
+      )}
       </div>
 
-      <div className="bg-[#202124] rounded-3xl p-5 md:p-6 text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-[#FF5722]/10 rounded-full blur-3xl pointer-events-none"></div>
-        <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-6 flex items-center">
-          <Clock className="w-5 h-5 mr-3" /> 基础唤醒追踪 (Foundation)
-        </h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col">
-            <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 flex-shrink-0">发音纠正 (10min/Day)</span>
-            <div className="flex-1 min-h-0">
-              <PronunciationTrainer 
-                initialNotes={pronunciationNotes} 
-                onNotesChange={setPronunciationNotes} 
-                userId="default-user" 
-              />
-            </div>
-          </div>
-          <div className="bg-white/5 border border-white/10 rounded-2xl p-5 flex flex-col">
-            <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-2 flex-shrink-0">核心语法复健 (8-10个核心点)</span>
-            <div className="flex-1 min-h-0">
-              <GrammarPolishTrainer 
-                initialNotes={grammarNotes} 
-                onNotesChange={setGrammarNotes} 
-                userId="default-user" 
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="relative">
+      {dashboardSubTab === 'arsenal' && (
+      <div className="relative animate-[fadeIn_0.3s_ease-out]">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-4">
           <h4 className="text-sm font-black uppercase tracking-widest text-[#202124] flex items-center">
             <Target className="w-5 h-5 mr-3 text-[#FF5722]" /> 弹药补给库 (Arsenal)
@@ -1247,6 +1245,7 @@ export default function DashboardTab() {
 
         <MaterialUploader topicHint={theme} onExtractionSuccess={() => setActiveTab('vocab')} />
       </div>
+      )}
 
       {/* 沉浸式阅读空间 Fullscreen Modal */}
       {isImmersiveOpen && generatedArticle && (

@@ -196,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "fix: 解决 DailyWakeupModule 建议文本 line-clamp 不生效问题，移除 space-y-2 外层 div 以保证折叠样式生效 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "feat: 新增每日破绽词汇推送模块，迁移基础唤醒至唤醒模块，优化总控子页签与战术指南折叠 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow

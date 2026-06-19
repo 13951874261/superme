@@ -10,6 +10,7 @@ import WriteTab from './english/tabs/WriteTab';
 import ImpromptuSpeechTab from './english/tabs/ImpromptuSpeechTab';
 import { checkThemeMastery } from '../../services/trainingAPI';
 import ThemeMasteryOverlay from '../ThemeMasteryOverlay';
+import DailyErrorVocabularyModule from './DailyErrorVocabularyModule';
 
 const SUB_TABS = [
   { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
@@ -25,6 +26,7 @@ function EnglishModuleContent() {
 
   return (
     <>
+      <DailyErrorVocabularyModule />
       {showMasteryOverlay && <ThemeMasteryOverlay theme={theme} onDismiss={() => setShowMasteryOverlay(false)} />}
       <ModuleWrapper
       title="英语战略 ｜ 跨文化信任构建"
