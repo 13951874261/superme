@@ -196,7 +196,7 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "fix: 修复点击自定义按钮无反应，将主题弹窗组件移至最外层 Fragment 并隔离动画干扰 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        $commitMsg = "fix: 解决 DailyWakeupModule 建议文本 line-clamp 不生效问题，移除 space-y-2 外层 div 以保证折叠样式生效 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
         git commit -m $commitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow

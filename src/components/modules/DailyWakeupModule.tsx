@@ -253,8 +253,8 @@ export default function DailyWakeupModule() {
                   <div className="relative group">
                     <div className={`text-xs md:text-sm text-gray-300 leading-relaxed font-medium transition-all duration-300 ${!isSuggestionExpanded && stayStats?.todaySuggestion && stayStats.todaySuggestion.length > 150 ? 'line-clamp-4' : ''}`}>
                       {stayStats?.todaySuggestion ? (
-                        <div className="space-y-2">
-                          {/* 尝试对文本进行简单的换行和格式化处理 */}
+                        <>
+                          {/* 直接在同一层级渲染文本以保证 line-clamp 生效 */}
                           {stayStats.todaySuggestion.split(/(?=评分: \d+分)|(?=\[[\d:]+\] 练习:)/).map((segment, idx) => {
                             // 检测是否是日志数据段
                             const isLog = segment.includes('评分:') || segment.includes('练习:');
@@ -276,7 +276,7 @@ export default function DailyWakeupModule() {
                             }
                             return <span key={idx}>{segment}</span>;
                           })}
-                        </div>
+                        </>
                       ) : (
                         '输入您要训练的业务主题（例如：银团贷款），系统将载入发音重点与建议。'
                       )}
