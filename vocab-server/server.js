@@ -2601,7 +2601,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify 发音纠正请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
     }
 
     const data = await response.json();
@@ -2668,7 +2668,7 @@ app.post('/api/grammar-polish', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify 语法润色请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
     }
 
     const data = await response.json();
@@ -2726,7 +2726,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify 博弈引擎请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
     }
 
     const data = await response.json();
