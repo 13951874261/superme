@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Mic, Loader2, History, ChevronDown, CheckCircle, AlertCircle, Volume2 } from 'lucide-react';
+import { Mic, Loader2, History, ChevronDown, CheckCircle, AlertCircle, Volume2, Upload } from 'lucide-react';
 import { transcribeAudio } from '../../services/listeningAPI';
 
 interface PronunciationTrainerProps {
@@ -41,6 +41,17 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
   const streamRef = useRef<MediaStream | null>(null);
   const recognitionRef = useRef<any>(null);
   const recognitionTextRef = useRef<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!targetText.trim()) {
+      showToast('请先输入您要练习的目标单词或句子！');
+      return;
+    }
+    await handleAssessment(file);
+  };
 
   // 同步外部状态
   useEffect(() => {
@@ -227,7 +238,24 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
           className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF5722]/50 transition-colors"
           disabled={isRecording || isAssessing}
         />
-        
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept="audio/*"
+          style={{ display: 'none' }}
+        />
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isAssessing}
+          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-indigo-600 hover:bg-indigo-700 text-white"
+          title="上传音频文件"
+        >
+          <Upload className="w-5 h-5" />
+        </button>
+
         <button
           onMouseDown={startRecording}
           onMouseUp={stopRecording}
