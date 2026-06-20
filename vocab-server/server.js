@@ -1792,6 +1792,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
       });
+      if (!dsResponse.ok) throw new Error(`获取知识库列表失败 (HTTP ${dsResponse.status})`);
       const dsData = await dsResponse.json();
       const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
 
@@ -1810,6 +1811,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
       });
+      if (!docsResponse.ok) throw new Error(`获取现有文档列表失败 (HTTP ${docsResponse.status})`);
       const docsData = await docsResponse.json();
       const docIds = docsData.data?.map(d => d.id) || [];
 
@@ -1819,12 +1821,13 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           progress: 30,
           logs: [`[后台] 检测到 ${docIds.length} 个旧文档，正在清空知识库...`]
         });
-        await Promise.all(docIds.map(docId =>
-          fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
+        await Promise.all(docIds.map(async docId => {
+          const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-          })
-        ));
+          });
+          if (!delRes.ok) console.warn(`[后台] 删除旧文档 ${docId} 失败 (HTTP ${delRes.status})`);
+        }));
         taskQueue.updateTask(task.id, {
           progress: 40,
           logs: ['[后台] 旧文档清空完成。']
@@ -1986,8 +1989,11 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         })
       });
 
+      if (!wfResponse.ok) {
+        const errText = await wfResponse.text().catch(() => '');
+        throw new Error(`工作流执行失败 (HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
+      }
       const wfData = await wfResponse.json();
-      if (!wfResponse.ok) throw new Error(`工作流执行失败: ${JSON.stringify(wfData)}`);
 
       // 解析工作流输出（由于具体工作流的输出变量名不明确，兼容常见字段结构）
       const outputs = wfData?.data?.outputs || {};
