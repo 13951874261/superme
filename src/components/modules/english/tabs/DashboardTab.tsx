@@ -169,6 +169,70 @@ export default function DashboardTab() {
 
   // 缓存今日提纯词汇的音标和释义详情
   const [vocabDetailsMap, setVocabDetailsMap] = useState<Record<string, any>>({});
+  const [asyncMeanings, setAsyncMeanings] = useState<Record<string, { meaning: string; phonetic?: string }>>({});
+  const [pendingTranslations, setPendingTranslations] = useState<Set<string>>(new Set());
+
+  // 过滤明显的占位词和无效文本
+  const getDisplayMeaning = (text?: string) => {
+    const val = (text || '').trim();
+    if (!val) return '';
+    if (val.includes('目标词的中文简明翻译')) return '';
+    if (val.includes('中文释义加载中')) return '';
+    return val;
+  };
+
+  // 自动调用英汉双向译制翻译接口补齐释义
+  const fetchBilingualTranslation = async (text: string) => {
+    const keyStr = text.toLowerCase().trim();
+    if (!keyStr || pendingTranslations.has(keyStr) || asyncMeanings[keyStr]) return;
+
+    setPendingTranslations(prev => {
+      const next = new Set(prev);
+      next.add(keyStr);
+      return next;
+    });
+
+    try {
+      const { queryDictionary } = await import('../../../../services/vocabAPI');
+      const res = await queryDictionary({
+        word: text,
+        dictType: 'en_zh_bidirectional', // 复用英汉双向译制类型
+      });
+
+      if (res.ok && res.payload) {
+        const payload = res.payload as any;
+        const mainTrans = payload.translation_main || payload.meaning_zh || payload.meaning || '';
+        const phone = payload.phonetic || '';
+
+        if (mainTrans) {
+          setAsyncMeanings(prev => ({
+            ...prev,
+            [keyStr]: { meaning: mainTrans, phonetic: phone }
+          }));
+
+          // 静默落库到本地 SQLite 词库中，以便持久化
+          await addWord({
+            word: text,
+            dictType: 'en_zh_bidirectional',
+            category: 'business',
+            payload: {
+              meaning: mainTrans,
+              phonetic: phone,
+              translation_main: mainTrans
+            }
+          }).catch(() => {});
+        }
+      }
+    } catch (err) {
+      console.warn(`[Auto Translate] Failed for "${text}":`, err);
+    } finally {
+      setPendingTranslations(prev => {
+        const next = new Set(prev);
+        next.delete(keyStr);
+        return next;
+      });
+    }
+  };
 
   const loadVocabDetails = async () => {
     try {
@@ -804,7 +868,23 @@ export default function DashboardTab() {
                           {extractedWords.map((word) => {
                             const details = vocabDetailsMap[word.toLowerCase().trim()];
                             const phonetic = details?.phonetic || '';
-                            const meaning = details?.meaning || '中文释义加载中...';
+
+                            // 过滤无意义模板占位释义
+                            let rawMeaning = getDisplayMeaning(details?.meaning);
+                            const cleanKey = word.toLowerCase().trim();
+
+                            if (!rawMeaning) {
+                              if (asyncMeanings[cleanKey]?.meaning) {
+                                rawMeaning = asyncMeanings[cleanKey].meaning;
+                              } else {
+                                // 自动补齐释义
+                                fetchBilingualTranslation(word);
+                                rawMeaning = '释义查询中...';
+                              }
+                            }
+
+                            const finalPhonetic = phonetic || asyncMeanings[cleanKey]?.phonetic || '';
+
                             return (
                               <div
                                 key={word}
@@ -816,9 +896,9 @@ export default function DashboardTab() {
                                     <span className="font-serif font-black text-slate-800 text-sm tracking-wide break-all">
                                       {word}
                                     </span>
-                                    {phonetic && (
+                                    {finalPhonetic && (
                                       <span className="text-[10px] text-slate-400 font-sans mt-0.5 font-medium">
-                                        {phonetic}
+                                        {finalPhonetic}
                                       </span>
                                     )}
                                   </div>
@@ -836,7 +916,7 @@ export default function DashboardTab() {
                                       Hover to reveal
                                     </span>
                                     <span className="absolute inset-0 text-[11px] text-indigo-600 font-bold tracking-wide transition-all duration-300 opacity-0 translate-y-[10px] group-hover:opacity-100 group-hover:translate-y-0 truncate">
-                                      {meaning}
+                                      {rawMeaning}
                                     </span>
                                   </div>
                                 </div>
@@ -856,35 +936,61 @@ export default function DashboardTab() {
                       </h5>
                       <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
                         <div className="space-y-3">
-                          {extractedPhrases.map((phrase, idx) => (
-                            <div
-                              key={idx}
-                              className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-amber-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
-                            >
-                              {/* Left Border Highlight Line */}
-                              <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FFC107] rounded-r-lg group-hover:bg-[#FFC107]/80 transition-colors"></div>
+                          {extractedPhrases.map((phrase, idx) => {
+                            const details = vocabDetailsMap[phrase.toLowerCase().trim()];
+                            let rawMeaning = getDisplayMeaning(details?.meaning);
+                            const cleanKey = phrase.toLowerCase().trim();
 
-                              {/* Phrase Content */}
-                              <div className="flex-1 select-text text-left">
-                                <p className="text-sm text-slate-800 font-serif leading-relaxed font-bold">
-                                  {phrase}
-                                </p>
-                                <div className="flex items-center gap-1.5 mt-2">
-                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
-                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                                    核心短语
-                                  </span>
+                            if (!rawMeaning) {
+                              if (asyncMeanings[cleanKey]?.meaning) {
+                                rawMeaning = asyncMeanings[cleanKey].meaning;
+                              } else {
+                                fetchBilingualTranslation(phrase);
+                                rawMeaning = '释义查询中...';
+                              }
+                            }
+
+                            return (
+                              <div
+                                key={idx}
+                                className="group flex flex-col justify-between p-4 bg-white border border-slate-100 hover:border-amber-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5 text-left"
+                              >
+                                {/* Left Border Highlight Line */}
+                                <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FFC107] rounded-r-lg group-hover:bg-[#FFC107]/80 transition-colors"></div>
+
+                                {/* Phrase Content */}
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 select-text">
+                                    <p className="text-sm text-slate-800 font-serif leading-relaxed font-bold">
+                                      {phrase}
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                      <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                                        核心短语
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Speak Button */}
+                                  <SpeakButton
+                                    text={phrase}
+                                    iconClassName="w-3.5 h-3.5"
+                                    className="w-8 h-8 bg-amber-50/50 text-amber-600 hover:bg-amber-600 hover:text-white border-none shrink-0"
+                                  />
                                 </div>
-                              </div>
 
-                              {/* Speak Button */}
-                              <SpeakButton
-                                text={phrase}
-                                iconClassName="w-3.5 h-3.5"
-                                className="w-8 h-8 bg-amber-50/50 text-amber-600 hover:bg-amber-600 hover:text-white border-none shrink-0"
-                              />
-                            </div>
-                          ))}
+                                {/* Chinese Translation Display */}
+                                {rawMeaning && (
+                                  <div className="mt-2.5 pt-2 border-t border-dashed border-slate-100/80">
+                                    <p className="text-xs text-indigo-600 font-bold tracking-wide">
+                                      {rawMeaning}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -898,35 +1004,61 @@ export default function DashboardTab() {
                       </h5>
                       <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
                         <div className="space-y-3">
-                          {extractedSentences.map((phrase, idx) => (
-                            <div
-                              key={idx}
-                              className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
-                            >
-                              {/* Gold Left Border Highlight Line */}
-                              <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-emerald-500 rounded-r-lg group-hover:bg-emerald-500/80 transition-colors"></div>
+                          {extractedSentences.map((phrase, idx) => {
+                            const details = vocabDetailsMap[phrase.toLowerCase().trim()];
+                            let rawMeaning = getDisplayMeaning(details?.meaning);
+                            const cleanKey = phrase.toLowerCase().trim();
 
-                              {/* Phrase Content */}
-                              <div className="flex-1 select-text text-left">
-                                <p className="text-xs text-slate-700 font-serif leading-relaxed italic">
-                                  "{phrase}"
-                                </p>
-                                <div className="flex items-center gap-1.5 mt-2">
-                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                                    艾宾浩斯已入库 · 复习阶段: 1
-                                  </span>
+                            if (!rawMeaning) {
+                              if (asyncMeanings[cleanKey]?.meaning) {
+                                rawMeaning = asyncMeanings[cleanKey].meaning;
+                              } else {
+                                fetchBilingualTranslation(phrase);
+                                rawMeaning = '翻译查询中...';
+                              }
+                            }
+
+                            return (
+                              <div
+                                key={idx}
+                                className="group flex flex-col justify-between p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5 text-left"
+                              >
+                                {/* Gold Left Border Highlight Line */}
+                                <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-emerald-500 rounded-r-lg group-hover:bg-emerald-500/80 transition-colors"></div>
+
+                                {/* Phrase Content */}
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1 select-text">
+                                    <p className="text-xs text-slate-705 font-serif leading-relaxed italic">
+                                      "{phrase}"
+                                    </p>
+                                    <div className="flex items-center gap-1.5 mt-2">
+                                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                      <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                                        艾宾浩斯已入库 · 复习阶段: 1
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Speak Button */}
+                                  <SpeakButton
+                                    text={phrase}
+                                    iconClassName="w-3.5 h-3.5"
+                                    className="w-8 h-8 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-600 hover:text-white border-none shrink-0"
+                                  />
                                 </div>
-                              </div>
 
-                              {/* Speak Button */}
-                              <SpeakButton
-                                text={phrase}
-                                iconClassName="w-3.5 h-3.5"
-                                className="w-8 h-8 bg-emerald-50/50 text-emerald-600 hover:bg-emerald-600 hover:text-white border-none shrink-0"
-                              />
-                            </div>
-                          ))}
+                                {/* Sentence Translation Display */}
+                                {rawMeaning && (
+                                  <div className="mt-2.5 pt-2 border-t border-dashed border-slate-100/80">
+                                    <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                                      {rawMeaning}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>

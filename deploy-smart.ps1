@@ -27,6 +27,7 @@ $changedFiles = $gitStatus | ForEach-Object { $_ -replace '^...|\s+$', '' }
 $needFrontendDeploy = $false
 $needBackendDeploy = $false
 $needNginxDeploy = $false
+$needDocSyncOnly = $false
 
 if ($changedFiles.Count -eq 0) {
     Write-Host "No unstaged changes. Checking previous commit changes..." -ForegroundColor Yellow
@@ -47,13 +48,20 @@ foreach ($file in $changedFiles) {
         $needFrontendDeploy = $true
         $needBackendDeploy = $true
     }
+    if ($file -match "\.md$") {
+        $needDocSyncOnly = $true
+    }
 }
 
 if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
-    Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
-    $needFrontendDeploy = $true
-    $needBackendDeploy = $true
-    $needNginxDeploy = $true
+    if ($needDocSyncOnly) {
+        Write-Host "Only documentation changes detected. Skipping service deployments." -ForegroundColor Yellow
+    } else {
+        Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
+        $needFrontendDeploy = $true
+        $needBackendDeploy = $true
+        $needNginxDeploy = $true
+    }
 }
 
 Write-Host "[Analysis Results]" -ForegroundColor DarkCyan
@@ -129,9 +137,11 @@ try {
         Write-Host ""
         Write-Host "========== Step 3: Backend Sync and Restart ==========" -ForegroundColor Cyan
         
-        Write-Host "  -> Backup server.js on remote" -ForegroundColor DarkCyan
-        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-        Invoke-RemoteCommand "cp $RemoteApiRoot/server.js $RemoteApiRoot/server.js.bak-$timestamp"
+        if ($changedFiles -match "vocab-server/server\.js") {
+            Write-Host "  -> Backup server.js on remote" -ForegroundColor DarkCyan
+            $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+            Invoke-RemoteCommand "cp $RemoteApiRoot/server.js $RemoteApiRoot/server.js.bak-$timestamp"
+        }
         
         Write-Host "  -> Uploading changed backend files" -ForegroundColor DarkCyan
         foreach ($file in $changedFiles) {

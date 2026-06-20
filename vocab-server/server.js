@@ -1628,10 +1628,26 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
           }),
         });
 
-        const chatData = await chatResp.json().catch(() => ({}));
+        let chatData = {};
+        try {
+          chatData = await chatResp.json();
+        } catch (e) {
+          const rawText = await chatResp.text().catch(() => '');
+          console.error('[generate-image] Failed to parse JSON response. Status:', chatResp.status, 'Raw:', rawText.substring(0, 500));
+          taskQueue.updateTask(task.id, {
+            status: 'failed',
+            error: `Dify 返回格式异常 (HTTP ${chatResp.status}): ${rawText.substring(0, 200) || '无法读取原始响应体'}`
+          });
+          return;
+        }
+
         if (!chatResp.ok) {
           console.error('[generate-image] Dify error:', chatData);
-          taskQueue.updateTask(task.id, { status: 'failed', error: 'Image generation failed: ' + chatData.message });
+          const errMsg = chatData?.error || chatData?.message || chatData?.response_message || JSON.stringify(chatData).substring(0, 200);
+          taskQueue.updateTask(task.id, {
+            status: 'failed',
+            error: `Dify 服务异常 (${chatResp.status}): ${errMsg}`
+          });
           return;
         }
 
@@ -1639,10 +1655,21 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         let imageUrl = '';
         let downloadUrl = '';
 
+        // 格式 1: { preview: "..." }
         if (chatData.preview) {
           imageUrl = chatData.preview;
+        // 格式 2: { previews: [{ url: "..." }] }
         } else if (chatData.previews && chatData.previews.length > 0) {
-          imageUrl = chatData.previews[0].url;
+          imageUrl = chatData.previews[0].url || chatData.previews[0];
+        // 格式 3: { data: { outputs: { image_url: "..." } } } (workflow 输出)
+        } else if (chatData.data?.outputs?.image_url) {
+          imageUrl = chatData.data.outputs.image_url;
+        // 格式 4: { data: { outputs: { url: "..." } } }
+        } else if (chatData.data?.outputs?.url) {
+          imageUrl = chatData.data.outputs.url;
+        // 格式 5: { data: { image_url: "..." } }
+        } else if (chatData.data?.image_url) {
+          imageUrl = chatData.data.image_url;
         }
 
         // 尝试从 answer 中提取 URL
@@ -1676,7 +1703,11 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         }
 
         if (!imageUrl) {
-          taskQueue.updateTask(task.id, { status: 'failed', error: 'No image URL in response' });
+          console.error('[generate-image] 无法从响应中解析图片 URL，完整响应:', JSON.stringify(chatData).substring(0, 500));
+          taskQueue.updateTask(task.id, {
+            status: 'failed',
+            error: `Dify 返回了非图片数据，响应格式不兼容: ${JSON.stringify(chatData).substring(0, 200)}`
+          });
           return;
         }
 
