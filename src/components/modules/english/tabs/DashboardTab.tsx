@@ -268,6 +268,64 @@ export default function DashboardTab() {
     }
   }, [extractedWords]);
 
+  // 一键将提纯出来的生词或短语手动加入生词本
+  const handleAddWordToVocab = async (text: string, isPhrase: boolean = false) => {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+    const cleanKey = cleanText.toLowerCase().trim();
+
+    // 已收录则跳过
+    if (vocabDetailsMap[cleanKey]) {
+      showNotice('dashboard', `“${cleanText}” 已在生词本中`, 'info');
+      return;
+    }
+
+    try {
+      let meaning = asyncMeanings[cleanKey]?.meaning || '';
+      let phonetic = asyncMeanings[cleanKey]?.phonetic || '';
+
+      // 若释义未在缓存中，则尝试调用英汉双向译制接口快速补齐
+      if (!meaning) {
+        try {
+          const { queryDictionary } = await import('../../../../services/vocabAPI');
+          const res = await queryDictionary({
+            word: cleanText,
+            dictType: 'en_zh_bidirectional',
+          });
+          if (res.ok && res.payload) {
+            const payload = res.payload as any;
+            meaning = payload.translation_main || payload.meaning_zh || payload.meaning || '';
+            phonetic = payload.phonetic || phonetic;
+          }
+        } catch {
+          // 即使补齐失败，也允许继续添加
+        }
+      }
+
+      await addWord({
+        word: cleanText,
+        dictType: isPhrase ? 'ai_phrase' : 'ai_extracted',
+        category: 'business',
+        payload: {
+          meaning: meaning || '',
+          phonetic: phonetic || '',
+          translation_main: meaning || '',
+          source: 'Material Upload',
+          topic: theme,
+        },
+      });
+
+      showNotice('dashboard', `“${cleanText}” 已成功加入生词本`, 'success');
+      playSuccess();
+      window.dispatchEvent(new Event('vocab-updated'));
+      loadVocabDetails();
+    } catch (err: any) {
+      const msg = err instanceof Error ? err.message : String(err);
+      showNotice('dashboard', `收录失败: ${msg}`, 'error');
+      playError();
+    }
+  };
+
   // 加载每日配额状态
   const loadQuotaStatus = async () => {
     try {
@@ -884,13 +942,14 @@ export default function DashboardTab() {
                             }
 
                             const finalPhonetic = phonetic || asyncMeanings[cleanKey]?.phonetic || '';
+                            const isStored = !!vocabDetailsMap[cleanKey];
 
                             return (
                               <div
                                 key={word}
                                 className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-indigo-150 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
                               >
-                                {/* Top Row: Word & Pronunciation Button */}
+                                {/* Top Row: Word & Pronunciation/Save Button */}
                                 <div className="flex items-start justify-between gap-2">
                                   <div className="flex flex-col">
                                     <span className="font-serif font-black text-slate-800 text-sm tracking-wide break-all">
@@ -902,11 +961,29 @@ export default function DashboardTab() {
                                       </span>
                                     )}
                                   </div>
-                                  <SpeakButton
-                                    text={word}
-                                    iconClassName="w-3.5 h-3.5"
-                                    className="w-7 h-7 bg-indigo-50/50 text-indigo-500 hover:bg-indigo-650 hover:text-white border-none shrink-0"
-                                  />
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {isStored ? (
+                                      <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center shrink-0">
+                                        ✓ 已收录
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAddWordToVocab(word, false);
+                                        }}
+                                        className="text-[9px] font-bold text-indigo-650 bg-indigo-50/80 hover:bg-indigo-600 hover:text-white px-2 py-0.5 rounded-lg border border-indigo-100 transition-all cursor-pointer shrink-0"
+                                        title="收录入生词本"
+                                      >
+                                        + 收录
+                                      </button>
+                                    )}
+                                    <SpeakButton
+                                      text={word}
+                                      iconClassName="w-3.5 h-3.5"
+                                      className="w-7 h-7 bg-indigo-50/50 text-indigo-500 hover:bg-indigo-650 hover:text-white border-none shrink-0"
+                                    />
+                                  </div>
                                 </div>
 
                                 {/* Bottom Row: Hover Translation */}
@@ -940,6 +1017,7 @@ export default function DashboardTab() {
                             const details = vocabDetailsMap[phrase.toLowerCase().trim()];
                             let rawMeaning = getDisplayMeaning(details?.meaning);
                             const cleanKey = phrase.toLowerCase().trim();
+                            const isPhraseStored = !!vocabDetailsMap[cleanKey];
 
                             if (!rawMeaning) {
                               if (asyncMeanings[cleanKey]?.meaning) {
@@ -972,12 +1050,30 @@ export default function DashboardTab() {
                                     </div>
                                   </div>
 
-                                  {/* Speak Button */}
-                                  <SpeakButton
-                                    text={phrase}
-                                    iconClassName="w-3.5 h-3.5"
-                                    className="w-8 h-8 bg-amber-50/50 text-amber-600 hover:bg-amber-600 hover:text-white border-none shrink-0"
-                                  />
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    {isPhraseStored ? (
+                                      <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center shrink-0">
+                                        ✓ 已收录
+                                      </span>
+                                    ) : (
+                                      <button
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleAddWordToVocab(phrase, true);
+                                        }}
+                                        className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-600 hover:text-white px-2 py-0.5 rounded-lg border border-amber-100 transition-all cursor-pointer shrink-0"
+                                        title="收录入生词本"
+                                      >
+                                        + 收录
+                                      </button>
+                                    )}
+                                    {/* Speak Button */}
+                                    <SpeakButton
+                                      text={phrase}
+                                      iconClassName="w-3.5 h-3.5"
+                                      className="w-8 h-8 bg-amber-50/50 text-amber-600 hover:bg-amber-600 hover:text-white border-none shrink-0"
+                                    />
+                                  </div>
                                 </div>
 
                                 {/* Chinese Translation Display */}
@@ -1035,7 +1131,7 @@ export default function DashboardTab() {
                                     <div className="flex items-center gap-1.5 mt-2">
                                       <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                                       <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                                        艾宾浩斯已入库 · 复习阶段: 1
+                                        提纯金句 · 支持点读
                                       </span>
                                     </div>
                                   </div>

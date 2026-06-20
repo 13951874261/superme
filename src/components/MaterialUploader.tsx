@@ -8,7 +8,7 @@ import { useTask } from './TaskContext';
 interface MaterialUploaderProps {
   topicHint?: string;
   onUploadSuccess?: (fileName: string) => void;
-  onExtractionSuccess?: (data?: { article: string, words: string[], phrases: string[] }) => void;
+  onExtractionSuccess?: (data?: { article: string, words: string[], phrases: string[], sentences?: string[] }) => void;
 }
 
 type WorkflowStatus = 'idle' | 'running' | 'success' | 'error';
@@ -79,13 +79,13 @@ export default function MaterialUploader({
       files.forEach(file => onUploadSuccess?.(file.name));
       window.dispatchEvent(new Event('vocab-updated'));
       
-      const articleFallback = previewContent || result.article || '由于是二进制文档，后台已完成提纯，但未能获取到原文本。';
-      const actualArticle = result.article || articleFallback;
-      
+      const actualArticle = previewContent?.trim() || result.article || '由于是二进制文档，后台已完成提纯，但未能获取到原文本。';
+
       onExtractionSuccess?.({
         article: actualArticle,
         words: result.words || [],
-        phrases: result.phrases || []
+        phrases: result.phrases || [],
+        sentences: (result as any).sentences || []
       });
       resetInput();
     } catch (error) {

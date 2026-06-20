@@ -1927,28 +1927,75 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     const outputs = wfData?.data?.outputs || {};
     // 鍋囪澶фā鍨嬭繑鍥炰簡涓€涓互閫楀彿鍒嗛殧鐨勫瓧绗︿覆锛屾屾垨鑰?JSON 数组
     const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
-    
-    let extractedWords = [];
+
+    let extractedItems = [];
     if (Array.isArray(rawExtracted)) {
-      extractedWords = rawExtracted;
+      extractedItems = rawExtracted;
     } else if (typeof rawExtracted === 'string') {
-      // 暴力正则：切分并清理
-      extractedWords = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
+      // 尝试解析是否为 JSON 字符串
+      let cleanJson = rawExtracted.trim();
+      if (cleanJson.startsWith('```json')) cleanJson = cleanJson.substring(7);
+      else if (cleanJson.startsWith('```')) cleanJson = cleanJson.substring(3);
+      if (cleanJson.endsWith('```')) cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+      cleanJson = cleanJson.trim();
+      try {
+        const parsed = JSON.parse(cleanJson);
+        if (parsed.words && Array.isArray(parsed.words)) extractedItems.push(...parsed.words);
+        if (parsed.phrases && Array.isArray(parsed.phrases)) extractedItems.push(...parsed.phrases);
+        if (Array.isArray(parsed)) extractedItems = parsed;
+      } catch (e) {
+        // 暴力正则：切分并清理
+        extractedItems = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
+      }
     }
-    
+
+    let wordsToReturn = [];
+    let phrasesToReturn = [];
+    let sentencesToReturn = [];
+
+    // 智能分流
+    for (const item of extractedItems) {
+      const isObject = typeof item === 'object' && item !== null;
+      const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : item;
+      const cleanStr = String(wordStr).trim();
+      if (!cleanStr) continue;
+
+      let dictType = 'ai_extracted';
+      if (isObject && item.is_phrase !== undefined) {
+        dictType = item.is_phrase ? 'ai_phrase' : 'ai_extracted';
+      } else {
+        // 启发式判断
+        if (cleanStr.length > 40 || /[.!?。！？]$/.test(cleanStr)) {
+          dictType = 'ai_sentence';
+        } else if (cleanStr.includes(' ')) {
+          dictType = 'ai_phrase';
+        }
+      }
+
+      if (dictType === 'ai_sentence') {
+        sentencesToReturn.push(cleanStr);
+      } else if (dictType === 'ai_phrase') {
+        phrasesToReturn.push(isObject ? item : cleanStr);
+      } else {
+        wordsToReturn.push(isObject ? item : cleanStr);
+      }
+    }
+
+    // 组合生词和短语以入库
+    const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
+
     // 静默写入 SQLite 鐢熻瘝鏈?(瑙勯伩閲嶅椤?
         // 写入 SQLite
     let addedCount = 0;
     const now = Date.now();
-    for (const item of extractedWords) {
+    for (const item of vocabToInsert) {
       const isObject = typeof item === 'object' && item !== null;
-      const wordStr = isObject ? (item.word || JSON.stringify(item)) : item;
+      const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
       if (!wordStr) continue;
 
-      // 提取 dict_type：如果是短语使用 ai_phrase，单词使用 ai_extracted
-      const isPhrase = isObject ? !!item.is_phrase : false;
-      const dictType = isPhrase ? 'ai_phrase' : 'ai_extracted';
-      
+      // 提取 dict_type
+      const dictType = phrasesToReturn.includes(item) ? 'ai_phrase' : 'ai_extracted';
+
       // 提取 payload
       let payload = { source: 'Material Upload' };
       if (isObject && item.payload) {
@@ -1979,33 +2026,19 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       }
     }
 
-    let wordsToReturn = [];
-    let phrasesToReturn = [];
-
-    for (const item of extractedWords) {
-      const isObject = typeof item === 'object' && item !== null;
-      const wordStr = isObject ? (item.word || JSON.stringify(item)) : item;
-      if (!wordStr) continue;
-      const isPhrase = isObject ? !!item.is_phrase : false;
-      if (isPhrase) {
-        phrasesToReturn.push(wordStr);
-      } else {
-        wordsToReturn.push(wordStr);
-      }
-    }
-
     res.json({
       success: true,
       topic: topic || 'Unknown Topic',
       total: files.length,
-      words: wordsToReturn,
-      phrases: phrasesToReturn,
+      words: wordsToReturn.map(i => typeof i === 'object' ? (i.word || i.text) : String(i)),
+      phrases: phrasesToReturn.map(i => typeof i === 'object' ? (i.word || i.phrase || i.text) : String(i)),
+      sentences: sentencesToReturn,
       article: articleText,
       results: [
         {
           fileName: fileObj.fileName || "Document",
-          summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${extractedWords.length} terms, actual added ${addedCount} words.`,
-          key_points: extractedWords.slice(0, 5) // 向前端展示前5个核心词
+          summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${vocabToInsert.length} terms, actual added ${addedCount} words.`,
+          key_points: wordsToReturn.slice(0, 5).map(i => typeof i === 'object' ? (i.word || i.text) : String(i)) // 向前端展示前5个核心词
         }
       ],
       logs: [
