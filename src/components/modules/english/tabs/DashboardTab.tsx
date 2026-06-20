@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
 import StrategicRoadmap from './StrategicRoadmap';
@@ -123,6 +124,15 @@ export default function DashboardTab() {
       return [];
     }
   });
+  const [extractedSentences, setExtractedSentences] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]');
+    } catch {
+      return [];
+    }
+  });
+
+  const [isArticleExpanded, setIsArticleExpanded] = useState(false);
 
   // 题材与难度等级控制
   const [cefrLevel, setCefrLevel] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
@@ -242,6 +252,7 @@ export default function DashboardTab() {
       // 保存生成的文章和提取出来的词汇/短语
       if (result.article) {
         setGeneratedArticle(result.article);
+        setIsArticleExpanded(false);
         localStorage.setItem('super_agent_last_generated_article', result.article);
       }
       if (result.words) {
@@ -251,6 +262,10 @@ export default function DashboardTab() {
       if (result.phrases) {
         setExtractedPhrases(result.phrases);
         localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases));
+      }
+      if (result.sentences) {
+        setExtractedSentences(result.sentences);
+        localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences));
       }
 
       // 根据配额状态给出差异化提示
@@ -294,9 +309,12 @@ export default function DashboardTab() {
       setGeneratedArticle('');
       setExtractedWords([]);
       setExtractedPhrases([]);
+      setExtractedSentences([]);
+      setIsArticleExpanded(false);
       localStorage.removeItem('super_agent_last_generated_article');
       localStorage.removeItem('super_agent_last_generated_words');
       localStorage.removeItem('super_agent_last_generated_phrases');
+      localStorage.removeItem('super_agent_last_generated_sentences');
       
       // 重新拉取最新的配额状态
       await loadQuotaStatus();
@@ -719,9 +737,12 @@ export default function DashboardTab() {
                             setGeneratedArticle('');
                             setExtractedWords([]);
                             setExtractedPhrases([]);
+                            setExtractedSentences([]);
+                            setIsArticleExpanded(false);
                             localStorage.removeItem('super_agent_last_generated_article');
                             localStorage.removeItem('super_agent_last_generated_words');
                             localStorage.removeItem('super_agent_last_generated_phrases');
+                            localStorage.removeItem('super_agent_last_generated_sentences');
                             showNotice('dashboard', '已成功初始化生成器，可以重新配置生成。', 'success');
                             playSuccess();
                           }}
@@ -750,12 +771,28 @@ export default function DashboardTab() {
 
           {generatedArticle ? (
             <>
-              <div className="text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa]/60 rounded-2xl border border-gray-100 whitespace-pre-line select-text shadow-sm">
-                {generatedArticle}
+              <div className="relative">
+                <div
+                  className={`text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa]/60 rounded-2xl border border-gray-100 whitespace-pre-line select-text shadow-sm transition-all duration-300 ${
+                    isArticleExpanded ? '' : 'line-clamp-6'
+                  }`}
+                >
+                  {generatedArticle}
+                </div>
+
+                {generatedArticle.length > 300 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsArticleExpanded(prev => !prev)}
+                    className="mt-3 inline-flex items-center px-4 py-2 rounded-full bg-orange-50 text-[#FF5722] text-xs font-black hover:bg-orange-100 transition-colors"
+                  >
+                    {isArticleExpanded ? '收起长文' : '展开全文'}
+                  </button>
+                )}
               </div>
 
-              {(extractedWords.length > 0 || extractedPhrases.length > 0) && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-4">
+              {(extractedWords.length > 0 || extractedPhrases.length > 0 || extractedSentences.length > 0) && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pt-4">
                   {extractedWords.length > 0 && (
                     <div className="flex flex-col max-h-[700px]">
                       <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5 shrink-0">
@@ -763,7 +800,7 @@ export default function DashboardTab() {
                         成功提纯商战生词 ({extractedWords.length})
                       </h5>
                       <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-1 gap-3.5">
                           {extractedWords.map((word) => {
                             const details = vocabDetailsMap[word.toLowerCase().trim()];
                             const phonetic = details?.phonetic || '';
@@ -815,17 +852,59 @@ export default function DashboardTab() {
                     <div className="flex flex-col max-h-[700px]">
                       <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5 shrink-0">
                         <span className="w-1.5 h-3 bg-amber-500 rounded-full"></span>
-                        成功提纯高频句型 ({extractedPhrases.length})
+                        成功提纯高频短语 ({extractedPhrases.length})
                       </h5>
                       <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
                         <div className="space-y-3">
                           {extractedPhrases.map((phrase, idx) => (
                             <div
                               key={idx}
+                              className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-amber-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
+                            >
+                              {/* Left Border Highlight Line */}
+                              <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FFC107] rounded-r-lg group-hover:bg-[#FFC107]/80 transition-colors"></div>
+
+                              {/* Phrase Content */}
+                              <div className="flex-1 select-text text-left">
+                                <p className="text-sm text-slate-800 font-serif leading-relaxed font-bold">
+                                  {phrase}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-2">
+                                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span>
+                                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
+                                    核心短语
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Speak Button */}
+                              <SpeakButton
+                                text={phrase}
+                                iconClassName="w-3.5 h-3.5"
+                                className="w-8 h-8 bg-amber-50/50 text-amber-600 hover:bg-amber-600 hover:text-white border-none shrink-0"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {extractedSentences.length > 0 && (
+                    <div className="flex flex-col max-h-[700px]">
+                      <h5 className="text-[11px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-1.5 shrink-0">
+                        <span className="w-1.5 h-3 bg-emerald-500 rounded-full"></span>
+                        成功提纯高频句型 ({extractedSentences.length})
+                      </h5>
+                      <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
+                        <div className="space-y-3">
+                          {extractedSentences.map((phrase, idx) => (
+                            <div
+                              key={idx}
                               className="group flex items-center justify-between gap-4 p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5"
                             >
                               {/* Gold Left Border Highlight Line */}
-                              <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FF5722] rounded-r-lg group-hover:bg-[#FF5722]/80 transition-colors"></div>
+                              <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-emerald-500 rounded-r-lg group-hover:bg-emerald-500/80 transition-colors"></div>
 
                               {/* Phrase Content */}
                               <div className="flex-1 select-text text-left">
@@ -1011,6 +1090,10 @@ export default function DashboardTab() {
               setExtractedPhrases(data.phrases);
               localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(data.phrases));
 
+              const sentences = (data as any).sentences || [];
+              setExtractedSentences(sentences);
+              localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(sentences));
+
               showNotice('dashboard', '提纯成功！材料与提纯词汇已下发至上方情报截获板块，可点击查看。', 'success');
               playSuccess();
               
@@ -1024,8 +1107,8 @@ export default function DashboardTab() {
       </div>
 
       {/* 沉浸式阅读空间 Fullscreen Modal */}
-      {isImmersiveOpen && generatedArticle && (
-        <div className={`fixed inset-0 z-50 flex flex-col transition-all duration-300 ${
+      {isImmersiveOpen && generatedArticle && createPortal(
+        <div className={`fixed inset-0 z-[9999] flex flex-col transition-all duration-300 ${
           immersiveTheme === 'dark' ? 'bg-[#0f172a] text-slate-205' :
           immersiveTheme === 'parchment' ? 'bg-[#fcf8f2] text-slate-800' : 'bg-white text-slate-900'
         }`}>
@@ -1199,7 +1282,8 @@ export default function DashboardTab() {
               </button>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* 自定义主题弹窗 - 必须在动画容器和条件渲染外部 */}

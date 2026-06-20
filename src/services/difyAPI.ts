@@ -437,8 +437,10 @@ export interface DailyExtractResult {
   };
   words: string[];
   phrases: string[];
+  sentences?: string[];
   wordCount: number;
   phraseCount: number;
+  sentenceCount?: number;
   wordsAddedCount: number;
   phrasesAddedCount: number;
 }

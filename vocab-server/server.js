@@ -2282,28 +2282,35 @@ app.post('/api/english/daily-extract', async (req, res) => {
         return { word: String(item) };
       }).filter(x => x.word);
 
-      const allExamples = [];
+      const sentenceList = [];
       for (const item of vocabList) {
         if (item && Array.isArray(item.examples)) {
-          allExamples.push(...item.examples);
+          sentenceList.push(...item.examples);
         }
       }
 
       const rawPhrases = parsedPhrases || [];
+      const phraseList = [];
       if (Array.isArray(rawPhrases)) {
         for (const p of rawPhrases) {
-          if (typeof p === 'string') {
-            allExamples.push(p);
-          } else if (typeof p === 'object' && p !== null) {
-            allExamples.push(p.phrase || p.phrase_text || p.sentence || p.text || JSON.stringify(p));
+          const text = typeof p === 'string' ? p : (p.phrase || p.phrase_text || p.sentence || p.text || "");
+          if (text) {
+             // 简单的区分：如果有标点或过长，视为句子，否则视为短语
+             if (/[.!?]$/.test(text.trim()) || text.trim().length > 40) {
+               sentenceList.push(text.trim());
+             } else {
+               phraseList.push(text.trim());
+             }
           }
         }
       }
-      phraseList = [...new Set(allExamples)].map(s => s.trim()).filter(s => s && s.length < 500);
+
+      const uniquePhraseList = [...new Set(phraseList)].filter(s => s);
+      const uniqueSentenceList = [...new Set(sentenceList)].filter(s => s);
 
       // 后期配额存库逻辑
       const wordsToStore = vocabList.slice(0, wordsLeft);
-      const phrasesToStore = phraseList.slice(0, phrasesLeft);
+      const phrasesToStore = uniquePhraseList.slice(0, phrasesLeft);
 
       let wordsAddedCount = 0;
       const now = Date.now();
@@ -2397,9 +2404,11 @@ app.post('/api/english/daily-extract', async (req, res) => {
         },
         words: wordsToStore.map(w => w.word),
         phrases: phrasesToStore,
+        sentences: uniqueSentenceList,
         article: articleText,
         wordCount: wordsToStore.length,
         phraseCount: phrasesToStore.length,
+        sentenceCount: uniqueSentenceList.length,
         wordsAddedCount,
         phrasesAddedCount,
       };

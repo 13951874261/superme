@@ -4,7 +4,8 @@
 # ============================================================
 
 param(
-    [switch]$UseSystemSSH
+    [switch]$UseSystemSSH,
+    [string]$CommitMessage = ""
 )
 
 $ErrorActionPreference = 'Stop'
@@ -196,8 +197,11 @@ try {
     if ($gitDiffStatus) {
         Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
         git add -A
-        $commitMsg = "feat: 统一【一键材料提纯】与【今日情报截获】功能，支持二进制文档文本提取与合并展示 $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        git commit -m $commitMsg
+        if ([string]::IsNullOrWhiteSpace($CommitMessage)) {
+            $CommitMessage = "chore: auto deploy update"
+        }
+        $finalCommitMsg = "$CommitMessage $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
+        git commit -m $finalCommitMsg
     } else {
         Write-Host "No local changes to commit." -ForegroundColor Yellow
     }
