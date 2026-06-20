@@ -1596,95 +1596,117 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
       return res.status(400).json({ error: 'No image_prompt found, please generate memory aids first' });
     }
 
-    const text2imageApiKey = process.env.DIFY_TEXT2IMAGE_API_KEY || 'app-P3RxMjvtrhr2rFAXqKcfGSFA';
-    const difyBaseUrl = process.env.DIFY_TEXT2IMAGE_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const taskQueue = require('./services/taskQueue');
+    const taskName = `生成记忆图片: ${row.word}`;
+    const task = taskQueue.createTask('image-gen', taskName);
 
-    console.log(`[generate-image] Calling text2image workflow for prompt: "${memoryAids.image_prompt}"`);
+    // 立即返回 task ID 给前端
+    res.json({ success: true, taskId: task.id, status: task.status });
 
-    const chatResp = await fetch(`${difyBaseUrl}/chat-messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${text2imageApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: {
-          user_current_profile: user_current_profile || ''
-        },
-        query: memoryAids.image_prompt,
-        response_mode: 'blocking',
-        user: 'default-user',
-      }),
-    });
-
-    const chatData = await chatResp.json().catch(() => ({}));
-    if (!chatResp.ok) {
-      console.error('[generate-image] Dify error:', chatData);
-      return res.status(502).json({ error: 'Image generation failed', detail: chatData.message });
-    }
-
-    // 解析返回的图片 URL
-    let imageUrl = '';
-    let downloadUrl = '';
-
-    if (chatData.preview) {
-      imageUrl = chatData.preview;
-    } else if (chatData.previews && chatData.previews.length > 0) {
-      imageUrl = chatData.previews[0].url;
-    }
-
-    // 尝试从 answer 中提取 URL
-    if (!imageUrl && chatData.answer) {
-      let parsed = null;
-      let cleanAnswer = chatData.answer.trim();
-      if (cleanAnswer.startsWith('```')) {
-        cleanAnswer = cleanAnswer.replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim();
-      }
+    // 异步执行生成任务
+    setImmediate(async () => {
       try {
-        parsed = JSON.parse(cleanAnswer);
-      } catch (e) {
-        const jsonMatch = cleanAnswer.match(/\{[\s\S]*?\}/);
-        if (jsonMatch) {
-          try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) {}
+        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 Dify text2image 模型'] });
+        const text2imageApiKey = process.env.DIFY_TEXT2IMAGE_API_KEY || 'app-P3RxMjvtrhr2rFAXqKcfGSFA';
+        const difyBaseUrl = process.env.DIFY_TEXT2IMAGE_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+        console.log(`[generate-image] Calling text2image workflow for prompt: "${memoryAids.image_prompt}"`);
+
+        const chatResp = await fetch(`${difyBaseUrl}/chat-messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${text2imageApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            inputs: {
+              user_current_profile: user_current_profile || ''
+            },
+            query: memoryAids.image_prompt,
+            response_mode: 'blocking',
+            user: 'default-user',
+          }),
+        });
+
+        const chatData = await chatResp.json().catch(() => ({}));
+        if (!chatResp.ok) {
+          console.error('[generate-image] Dify error:', chatData);
+          taskQueue.updateTask(task.id, { status: 'failed', error: 'Image generation failed: ' + chatData.message });
+          return;
         }
-      }
 
-      if (parsed) {
-        imageUrl = parsed.url || parsed.image_url || parsed.imageUrl || '';
-        downloadUrl = parsed.download_url || parsed.downloadUrl || imageUrl || '';
-      }
+        // 解析返回的图片 URL
+        let imageUrl = '';
+        let downloadUrl = '';
 
-      if (!imageUrl) {
-        const urlMatches = [...chatData.answer.matchAll(/(https?:\/\/[^\s"'`<>\{\}\[\]]+\.(jpg|jpeg|png|webp))/gi)];
-        if (urlMatches.length > 0) {
-          imageUrl = urlMatches[0][1];
-          downloadUrl = urlMatches.length > 1 ? urlMatches[1][1] : imageUrl;
+        if (chatData.preview) {
+          imageUrl = chatData.preview;
+        } else if (chatData.previews && chatData.previews.length > 0) {
+          imageUrl = chatData.previews[0].url;
         }
+
+        // 尝试从 answer 中提取 URL
+        if (!imageUrl && chatData.answer) {
+          let parsed = null;
+          let cleanAnswer = chatData.answer.trim();
+          if (cleanAnswer.startsWith('```')) {
+            cleanAnswer = cleanAnswer.replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim();
+          }
+          try {
+            parsed = JSON.parse(cleanAnswer);
+          } catch (e) {
+            const jsonMatch = cleanAnswer.match(/\{[\s\S]*?\}/);
+            if (jsonMatch) {
+              try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) {}
+            }
+          }
+
+          if (parsed) {
+            imageUrl = parsed.url || parsed.image_url || parsed.imageUrl || '';
+            downloadUrl = parsed.download_url || parsed.downloadUrl || imageUrl || '';
+          }
+
+          if (!imageUrl) {
+            const urlMatches = [...chatData.answer.matchAll(/(https?:\/\/[^\s"'`<>\{\}\[\]]+\.(jpg|jpeg|png|webp))/gi)];
+            if (urlMatches.length > 0) {
+              imageUrl = urlMatches[0][1];
+              downloadUrl = urlMatches.length > 1 ? urlMatches[1][1] : imageUrl;
+            }
+          }
+        }
+
+        if (!imageUrl) {
+          taskQueue.updateTask(task.id, { status: 'failed', error: 'No image URL in response' });
+          return;
+        }
+
+        if (!downloadUrl) {
+          downloadUrl = imageUrl;
+        }
+
+        // 更新数据库
+        memoryAids.image_url = imageUrl;
+        memoryAids.download_url = downloadUrl;
+        memoryAids.image_generated_at = Date.now();
+
+        db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?')
+          .run(JSON.stringify(memoryAids), row.id);
+
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          result: {
+            id: row.id,
+            image_url: imageUrl,
+            download_url: downloadUrl,
+          },
+          logs: ['图片生成与入库完成']
+        });
+      } catch (err) {
+        console.error('[generate-image async] Error:', err);
+        taskQueue.updateTask(task.id, { status: 'failed', error: err.message });
       }
-    }
-
-    if (!imageUrl) {
-      return res.status(502).json({ error: 'No image URL in response', raw: JSON.stringify(chatData).substring(0, 500) });
-    }
-
-    if (!downloadUrl) {
-      downloadUrl = imageUrl;
-    }
-
-    // 更新数据库
-    memoryAids.image_url = imageUrl;
-    memoryAids.download_url = downloadUrl;
-    memoryAids.image_generated_at = Date.now();
-
-    db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?')
-      .run(JSON.stringify(memoryAids), row.id);
-
-    res.json({
-      success: true,
-      id: row.id,
-      image_url: imageUrl,
-      download_url: downloadUrl,
     });
+
   } catch (error) {
     console.error('[generate-image] Error:', error);
     res.status(500).json({ error: error.message });

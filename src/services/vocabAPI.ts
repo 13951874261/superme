@@ -304,10 +304,33 @@ export async function getEbbinghausData(id: string): Promise<EbbinghausData> {
 
 /** 生成记忆配图 */
 export async function generateMemoryImage(id: string): Promise<{ success: boolean; id: string; image_url: string; download_url: string }> {
-  return request<{ success: boolean; id: string; image_url: string; download_url: string }>(`/generate-image/${id}`, {
+  const initialRes = await request<{ success: boolean; taskId?: string; id?: string; image_url?: string; download_url?: string }>(`/generate-image/${id}`, {
     method: 'POST',
     body: JSON.stringify({ user_current_profile: getUserCurrentProfile() })
   });
+
+  if (initialRes.taskId) {
+    let attempts = 0;
+    while (attempts < 60) {
+      const res = await fetch(`/api/tasks/${initialRes.taskId}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '获取任务状态失败');
+
+      if (data.status === 'completed' && data.result) {
+        return { success: true, id, image_url: data.result.image_url, download_url: data.result.download_url };
+      }
+      if (data.status === 'failed') {
+        throw new Error(data.error || '图片生成失败');
+      }
+
+      await new Promise(r => setTimeout(r, 3000));
+      attempts++;
+    }
+    throw new Error('生成图片超时，请稍后重试');
+  }
+
+  // Fallback to synchronous if backend didn't return taskId
+  return initialRes as { success: boolean; id: string; image_url: string; download_url: string };
 }
 
 /** 获取词典查询统计/覆盖率 */
