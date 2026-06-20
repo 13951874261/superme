@@ -387,8 +387,8 @@ export interface MaterialProcessResult {
   logs: string[];
 }
 
-export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user'): Promise<MaterialProcessResult> {
-  // 灏嗗墠绔?File 对象转为 Base64 传递给后端的统一提纯路由
+export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user'): Promise<{ success: boolean; taskId: string }> {
+  // 将前端 File 对象转为 Base64 传递给后端的统一提纯路由
   const filePayloads = await Promise.all(
     files.map(async (f) => {
       const base64Content = await new Promise<string>((resolve, reject) => {
@@ -415,11 +415,11 @@ export async function processMaterialsAndExtract(files: File[], topic: string, u
   });
 
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data?.error || data?.message || '提纯流水线执行失败，请检查后端状态');
+  if (!response.ok || !data.success || !data.taskId) {
+    throw new Error(data?.error || data?.message || '无法发起异步提纯任务');
   }
 
-  return data as MaterialProcessResult;
+  return data; // 返回 { success: true, taskId }
 }
 
 export interface DailyExtractResult {

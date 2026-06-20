@@ -71,31 +71,29 @@ export default function MaterialUploader({
 
     try {
       const result = await processMaterialsAndExtract(files, topicHint, 'default-user');
-      setLogs(result.logs || []);
-      const lastResult = result.results?.[result.results.length - 1];
-      setCurrentFileName(lastResult?.fileName || files[files.length - 1]?.name || '全部文件');
-      setStatus('success');
-      setCurrentStep('全部处理完成');
-      files.forEach(file => onUploadSuccess?.(file.name));
-      window.dispatchEvent(new Event('vocab-updated'));
-      
-      const actualArticle = previewContent?.trim() || result.article || '由于是二进制文档，后台已完成提纯，但未能获取到原文本。';
 
-      onExtractionSuccess?.({
-        article: actualArticle,
-        words: result.words || [],
-        phrases: result.phrases || [],
-        sentences: (result as any).sentences || []
+      // 拿到 taskId 后，直接推入全局任务中心上下文托管轮询
+      addTask({
+        id: result.taskId,
+        type: 'material',
+        name: `材料提纯: ${files[files.length - 1]?.name || '多个文档'}`,
+        status: 'pending',
+        progress: 5,
+        logs: [`[${nowLabel()}] 提纯任务已在后台建立，正在排队清库...`]
       });
+
+      // UI 界面提示用户关注任务中心
+      setStatus('idle');
+      setCurrentStep('已成功将提纯任务提交到后台，请在顶栏「提纯任务中心」追踪具体进度');
+      setLogs([
+        `${nowLabel()} 异步提纯任务建立成功，TaskId: ${result.taskId}`,
+        `${nowLabel()} 正在清空旧向量并上传新文件，请前往任务中心查阅流式日志`
+      ]);
+
       resetInput();
     } catch (error) {
       const message = error instanceof Error ? error.message : '未知错误';
-      const serverLogs = (error as Error & { logs?: string[] }).logs;
-      if (serverLogs?.length) {
-        setLogs(serverLogs);
-      } else {
-        appendLog(`处理失败：${message}`);
-      }
+      appendLog(`处理失败：${message}`);
       setStatus('error');
       setCurrentStep(`处理失败：${message}`);
     }

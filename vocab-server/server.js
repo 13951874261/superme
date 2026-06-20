@@ -1753,349 +1753,414 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
   }
 });
 
-// 澶勭悊鐗╂枡鎻愮函瑙ｆ瀽璇锋眰锛堢湡瀹?Dify 鑱斿姩锛氭壘搴?-> 清空 -> 上传 -> 工作流抽提）
+// 处理材料提纯解析请求（真实 Dify 联动：找库 -> 清空 -> 上传 -> 工作流抽提）
 app.post('/api/material/process-and-extract', async (req, res) => {
   const { topic, userId, files, user_current_profile } = req.body;
-  
+
   if (!files || files.length === 0) {
     return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
   }
 
-  // 严格实施双密钥隔离机制
-  const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
-  const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
-  const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const taskQueue = require('./services/taskQueue');
+  const taskName = `材料提纯: ${files[0]?.fileName || '未知文件'}`;
+  const task = taskQueue.createTask('material', taskName);
 
-  try {
-    // ---------------------------------------------------------
-    // 鍔ㄤ綔涓€锛氳幏鍙栫煡璇嗗簱鍒楄〃锛岀簿纭畾浣?English_Pro_Scenarios
-    // ---------------------------------------------------------
-    const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
-      headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-    });
-    const dsData = await dsResponse.json();
-    const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
-    
-    if (!dataset) {
-      throw new Error('鍦?Dify 骞冲彴鏈壘鍒板悕涓?English_Pro_Scenarios 的知识库');
-    }
-    const datasetId = dataset.id;
+  // 立即返回 taskId 给前端，不阻塞连接
+  res.json({ success: true, taskId: task.id, status: task.status });
 
-    // ---------------------------------------------------------
-    // 动作二：暴力清场，无情删除旧文件
-    // ---------------------------------------------------------
-    const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
-      headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-    });
-    const docsData = await docsResponse.json();
-    const docIds = docsData.data?.map(d => d.id) || [];
-    
-    // 开启并发屠杀，清空知识库
-    if (docIds.length > 0) {
-      await Promise.all(docIds.map(docId => 
-        fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-        })
-      ));
-    }
+  // 异步执行生成任务
+  setImmediate(async () => {
+    // 严格实施双密钥隔离机制
+    const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+    const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
+    const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    // ---------------------------------------------------------
-    // 动作三：物理重铸，组装上传新弹药
-    // ---------------------------------------------------------
-    const fileObj = files[0];
-    const base64Data = fileObj.content || fileObj.base64 || '';
-    const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
-    const buffer = Buffer.from(base64Content, 'base64');
-    
-    // 使用 Node 18+ 的全局 Blob 涓?FormData 装配二进制大文件
-    const blob = new Blob([buffer], { type: 'application/octet-stream' });
-    const formData = new FormData();
-    formData.append('file', blob, fileObj.fileName || 'upload_material.pdf');
-    // 鍏抽敭淇锛氱煡璇嗗簱浣跨敤浜嗏€滅埗瀛愭枃鏈垎鍧椻€?Hierarchical)
-    // 蹇呴』鎻愪緵瀹屾暣鐨?rules (包括 pre_processing_rules 鍜?subchunk_segmentation)
-    formData.append('data', JSON.stringify({ 
-      indexing_technique: 'high_quality', 
-      doc_form: 'hierarchical_model',
-      process_rule: { 
-        mode: 'hierarchical',
-        rules: {
-          pre_processing_rules: [
-            { id: 'remove_extra_spaces', enabled: true },
-            { id: 'remove_urls_emails', enabled: false }
-          ],
-          parent_mode: 'paragraph',
-          segmentation: {
-            separator: '\\n',
-            max_tokens: 1000
-          },
-          subchunk_segmentation: {
-            separator: '\\n',
-            max_tokens: 200
+    try {
+      taskQueue.updateTask(task.id, {
+        status: 'running',
+        progress: 5,
+        logs: ['[后台] 启动材料异步提纯工作流...']
+      });
+
+      // ---------------------------------------------------------
+      // 动作一：获取知识库列表，定位 English_Pro_Scenarios
+      // ---------------------------------------------------------
+      taskQueue.updateTask(task.id, {
+        progress: 10,
+        logs: ['[后台] 正在从 Dify 获取知识库列表定位目标 English_Pro_Scenarios...']
+      });
+      const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      });
+      const dsData = await dsResponse.json();
+      const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
+
+      if (!dataset) {
+        throw new Error('在 Dify 平台未找到名为 English_Pro_Scenarios 的知识库');
+      }
+      const datasetId = dataset.id;
+
+      // ---------------------------------------------------------
+      // 动作二：暴力清场，无情删除旧文件
+      // ---------------------------------------------------------
+      taskQueue.updateTask(task.id, {
+        progress: 20,
+        logs: ['[后台] 定位成功，正在获取知识库现有文档列表...']
+      });
+      const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      });
+      const docsData = await docsResponse.json();
+      const docIds = docsData.data?.map(d => d.id) || [];
+
+      // 开启并发删除，清空知识库
+      if (docIds.length > 0) {
+        taskQueue.updateTask(task.id, {
+          progress: 30,
+          logs: [`[后台] 检测到 ${docIds.length} 个旧文档，正在清空知识库...`]
+        });
+        await Promise.all(docIds.map(docId =>
+          fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+          })
+        ));
+        taskQueue.updateTask(task.id, {
+          progress: 40,
+          logs: ['[后台] 旧文档清空完成。']
+        });
+      } else {
+        taskQueue.updateTask(task.id, {
+          progress: 40,
+          logs: ['[后台] 知识库已为空，无需清空。']
+        });
+      }
+
+      // ---------------------------------------------------------
+      // 动作三：物理重铸，组装上传新弹药
+      // ---------------------------------------------------------
+      taskQueue.updateTask(task.id, {
+        progress: 45,
+        logs: ['[后台] 正在对新材料进行 Base64 转换与物理重组...']
+      });
+      const fileObj = files[0];
+      const base64Data = fileObj.content || fileObj.base64 || '';
+      const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
+      const buffer = Buffer.from(base64Content, 'base64');
+
+      // 使用 Node 18+ 的全局 Blob 和 FormData 装配二进制大文件
+      const blob = new Blob([buffer], { type: 'application/octet-stream' });
+      const formData = new FormData();
+      formData.append('file', blob, fileObj.fileName || 'upload_material.pdf');
+      // 关键修正：知识库使用了“父子文本分块” (Hierarchical)
+      // 必须提供完整的 rules (包括 pre_processing_rules 和 subchunk_segmentation)
+      formData.append('data', JSON.stringify({
+        indexing_technique: 'high_quality',
+        doc_form: 'hierarchical_model',
+        process_rule: {
+          mode: 'hierarchical',
+          rules: {
+            pre_processing_rules: [
+              { id: 'remove_extra_spaces', enabled: true },
+              { id: 'remove_urls_emails', enabled: false }
+            ],
+            parent_mode: 'paragraph',
+            segmentation: {
+              separator: '\\n',
+              max_tokens: 1000
+            },
+            subchunk_segmentation: {
+              separator: '\\n',
+              max_tokens: 200
+            }
           }
         }
-      } 
-    }));
+      }));
 
-    const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${DATASET_KEY}` },
-      body: formData
-    });
-    
-    if (!uploadResponse.ok) {
-      const errText = await uploadResponse.text();
-      throw new Error(`Dify 文件入库遭拒: ${errText}`);
-    }
-
-    const uploadData = await uploadResponse.json();
-    const documentId = uploadData.document?.id;
-    const batchId = uploadData.batch; 
-
-    if (!documentId || !batchId) {
-      throw new Error('鏂囦欢宸插彂閫侊紝浣嗘湭浠?Dify 拿到 batch ID 导致无法跟踪');
-    }
-
-    console.log(`[Material] 文档上传成功 (ID: ${documentId}, Batch: ${batchId})锛屾鍦ㄩ攣瀹氱瓑寰呭悜閲忚寮?..`);
-
-    // ---------------------------------------------------------
-    // 鍔ㄤ綔涓夌偣浜旓細楂橀杞鏌ヨ鏂囨。宓屽叆鐘舵€?(鑾峰彇娴佹按绾胯繘搴?
-    // ---------------------------------------------------------
-    let isIndexed = false;
-    // 设定 40 次轮询，每次 3 秒，总计容忍等待 120 绉掞紝缁濅笉楗挎澶фā鍨?
-    for (let i = 0; i < 40; i++) {
-      await new Promise(resolve => setTimeout(resolve, 3000));
-      
-      const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+      taskQueue.updateTask(task.id, {
+        progress: 50,
+        logs: ['[后台] 正在将材料上传并推送至 Dify 进行向量化切片...']
       });
-      
-      if (!statusRes.ok) continue; // 鍋跺彂缃戠粶鎶栧姩鐩存帴蹇界暐锛岃繘鍏ヤ笅涓€杞?      
-      const statusData = await statusRes.json();
-      // 鑾峰彇娴佹按绾垮祵鍏ョ姸鎬?(返回值为数组格式)
-      const docInfo = statusData.data?.[0];
-      
-      if (docInfo) {
-        console.log(`[Material] 绗?${i + 1} 娆¤繘搴︽壂鎻? status = ${docInfo.indexing_status}`);
-        if (docInfo.indexing_status === 'completed') {
-          isIndexed = true;
-          break;
-        } else if (docInfo.indexing_status === 'error') {
-          throw new Error('Dify 流水线切分报错，请前往后台查看原因');
+      const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${DATASET_KEY}` },
+        body: formData
+      });
+
+      if (!uploadResponse.ok) {
+        const errText = await uploadResponse.text();
+        throw new Error(`Dify 文件入库遭拒: ${errText}`);
+      }
+
+      const uploadData = await uploadResponse.json();
+      const documentId = uploadData.document?.id;
+      const batchId = uploadData.batch;
+
+      if (!documentId || !batchId) {
+        throw new Error('文件已发送，但未从 Dify 拿到 batch ID 导致无法跟踪');
+      }
+
+      taskQueue.updateTask(task.id, {
+        progress: 55,
+        logs: [`[后台] 文件上传成功 (ID: ${documentId}, Batch: ${batchId})，开始轮询向量化索引状态...`]
+      });
+
+      // ---------------------------------------------------------
+      // 动作三点五：高频轮询查询文档嵌入状态（获取流水线进度）
+      // ---------------------------------------------------------
+      let isIndexed = false;
+      // 设定 40 次轮询，每次 3 秒，总计容忍等待 120 秒，绝不饿死大模型
+      for (let i = 0; i < 40; i++) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+
+        const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+        });
+
+        if (!statusRes.ok) continue; // 偶发网络抖动直接忽略，进入下一轮
+        const statusData = await statusRes.json();
+        // 获取流水线嵌入状态 (返回值为数组格式)
+        const docInfo = statusData.data?.[0];
+
+        if (docInfo) {
+          taskQueue.updateTask(task.id, {
+            progress: Math.min(68, 55 + i),
+            logs: [`[后台] 第 ${i + 1} 次扫描 Dify 索引状态: ${docInfo.indexing_status}`]
+          });
+          if (docInfo.indexing_status === 'completed') {
+            isIndexed = true;
+            break;
+          } else if (docInfo.indexing_status === 'error') {
+            throw new Error('Dify 流水线切分报错，请前往后台查看原因');
+          }
         }
       }
-    }
 
-    if (!isIndexed) {
-      throw new Error('Dify indexing timeout (>120s).');
-    }
-
-    console.log(`[Material] 向量装弹完毕！准许放行唤醒大模型...`);
-
-    // --- 新增动作：提取 Dify 切分好的文本段落 ---
-    let articleText = "";
-    try {
-      const segmentsRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}/segments`, {
-        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-      });
-      if (segmentsRes.ok) {
-        const segmentsData = await segmentsRes.json();
-        const segments = segmentsData.data || [];
-        articleText = segments.map(s => s.content || '').join('\n\n');
-      } else {
-        console.warn("[Material] 获取分段文本接口响应失败", segmentsRes.status);
+      if (!isIndexed) {
+        throw new Error('Dify indexing timeout (>120s).');
       }
-    } catch (e) {
-      console.error("[Material] 获取分段文本请求失败:", e.message);
-    }
 
-    // ---------------------------------------------------------
+      taskQueue.updateTask(task.id, {
+        progress: 70,
+        logs: ['[后台] 向量装弹完毕！准许放行，正在获取 Dify 分段文本段落...']
+      });
 
-    // 鍔ㄤ綔鍥涳細缁堟瀬鎶芥彁锛屽敜閱掑ぇ妯″瀷姒ㄥ彇鏍稿績璇嶆眹骞跺叆搴?    // ---------------------------------------------------------
-    const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${WORKFLOW_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: { 
-          topic: topic || 'General Business',
-          user_current_profile: user_current_profile || ''
-        },
-        response_mode: 'blocking',
-        user: userId || 'system'
-      })
-    });
-    
-    const wfData = await wfResponse.json();
-    if (!wfResponse.ok) throw new Error(`宸ヤ綔娴佹墽琛屽け璐? ${JSON.stringify(wfData)}`);
-    
-    // 解析工作流输出（由于具体工作流的输出变量名不明确，兼容常见字段结构）
-    const outputs = wfData?.data?.outputs || {};
-    // 鍋囪澶фā鍨嬭繑鍥炰簡涓€涓互閫楀彿鍒嗛殧鐨勫瓧绗︿覆锛屾屾垨鑰?JSON 数组
-    const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
-
-    let extractedItems = [];
-    if (Array.isArray(rawExtracted)) {
-      extractedItems = rawExtracted;
-    } else if (typeof rawExtracted === 'string') {
-      // 尝试解析是否为 JSON 字符串
-      let cleanJson = rawExtracted.trim();
-      if (cleanJson.startsWith('```json')) cleanJson = cleanJson.substring(7);
-      else if (cleanJson.startsWith('```')) cleanJson = cleanJson.substring(3);
-      if (cleanJson.endsWith('```')) cleanJson = cleanJson.substring(0, cleanJson.length - 3);
-      cleanJson = cleanJson.trim();
+      // --- 新增动作：提取 Dify 切分好的文本段落 ---
+      let articleText = "";
       try {
-        const parsed = JSON.parse(cleanJson);
-        if (parsed.words && Array.isArray(parsed.words)) extractedItems.push(...parsed.words);
-        if (parsed.phrases && Array.isArray(parsed.phrases)) extractedItems.push(...parsed.phrases);
-        if (Array.isArray(parsed)) extractedItems = parsed;
+        const segmentsRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}/segments`, {
+          headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+        });
+        if (segmentsRes.ok) {
+          const segmentsData = await segmentsRes.json();
+          const segments = segmentsData.data || [];
+          articleText = segments.map(s => s.content || '').join('\n\n');
+        } else {
+          console.warn("[Material] 获取分段文本接口响应失败", segmentsRes.status);
+        }
       } catch (e) {
-        // 暴力正则：切分并清理
-        extractedItems = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
+        console.error("[Material] 获取分段文本请求失败:", e.message);
       }
-    }
 
-    let wordsToReturn = [];
-    let phrasesToReturn = [];
-    let sentencesToReturn = [];
+      // ---------------------------------------------------------
+      // 动作四：终极抽提，唤醒大模型榨取核心词汇并入库
+      // ---------------------------------------------------------
+      taskQueue.updateTask(task.id, {
+        progress: 75,
+        logs: ['[后台] 正在唤醒大模型主题萃取工作流，榨取核心词汇、短语与高频句型...']
+      });
+      const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${WORKFLOW_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: {
+            topic: topic || 'General Business',
+            user_current_profile: user_current_profile || ''
+          },
+          response_mode: 'blocking',
+          user: userId || 'system'
+        })
+      });
 
-    // 智能分流
-    for (const item of extractedItems) {
-      const isObject = typeof item === 'object' && item !== null;
-      const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : item;
-      const cleanStr = String(wordStr).trim();
-      if (!cleanStr) continue;
+      const wfData = await wfResponse.json();
+      if (!wfResponse.ok) throw new Error(`工作流执行失败: ${JSON.stringify(wfData)}`);
 
-      let dictType = 'ai_extracted';
-      if (isObject && item.is_phrase !== undefined) {
-        dictType = item.is_phrase ? 'ai_phrase' : 'ai_extracted';
-      } else {
-        // 启发式判断
-        if (cleanStr.length > 40 || /[.!?。！？]$/.test(cleanStr)) {
-          dictType = 'ai_sentence';
-        } else if (cleanStr.includes(' ')) {
-          dictType = 'ai_phrase';
+      // 解析工作流输出（由于具体工作流的输出变量名不明确，兼容常见字段结构）
+      const outputs = wfData?.data?.outputs || {};
+      const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
+
+      let extractedItems = [];
+      if (Array.isArray(rawExtracted)) {
+        extractedItems = rawExtracted;
+      } else if (typeof rawExtracted === 'string') {
+        // 尝试解析是否为 JSON 字符串
+        let cleanJson = rawExtracted.trim();
+        if (cleanJson.startsWith('\`\`\`json')) cleanJson = cleanJson.substring(7);
+        else if (cleanJson.startsWith('\`\`\`')) cleanJson = cleanJson.substring(3);
+        if (cleanJson.endsWith('\`\`\`')) cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+        cleanJson = cleanJson.trim();
+        try {
+          const parsed = JSON.parse(cleanJson);
+          if (parsed.words && Array.isArray(parsed.words)) extractedItems.push(...parsed.words);
+          if (parsed.phrases && Array.isArray(parsed.phrases)) extractedItems.push(...parsed.phrases);
+          if (Array.isArray(parsed)) extractedItems = parsed;
+        } catch (e) {
+          // 暴力正则：切分并清理
+          extractedItems = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
         }
       }
 
-      if (dictType === 'ai_sentence') {
-        sentencesToReturn.push(cleanStr);
-      } else if (dictType === 'ai_phrase') {
-        phrasesToReturn.push(isObject ? item : cleanStr);
-      } else {
-        wordsToReturn.push(isObject ? item : cleanStr);
+      let wordsToReturn = [];
+      let phrasesToReturn = [];
+      let sentencesToReturn = [];
+
+      // 智能分流
+      for (const item of extractedItems) {
+        const isObject = typeof item === 'object' && item !== null;
+        const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : item;
+        const cleanStr = String(wordStr).trim();
+        if (!cleanStr) continue;
+
+        let dictType = 'ai_extracted';
+        if (isObject && item.is_phrase !== undefined) {
+          dictType = item.is_phrase ? 'ai_phrase' : 'ai_extracted';
+        } else {
+          // 启发式判断
+          if (cleanStr.length > 40 || /[.!?。！？]$/.test(cleanStr)) {
+            dictType = 'ai_sentence';
+          } else if (cleanStr.includes(' ')) {
+            dictType = 'ai_phrase';
+          }
+        }
+
+        if (dictType === 'ai_sentence') {
+          sentencesToReturn.push(cleanStr);
+        } else if (dictType === 'ai_phrase') {
+          phrasesToReturn.push(isObject ? item : cleanStr);
+        } else {
+          wordsToReturn.push(isObject ? item : cleanStr);
+        }
       }
-    }
 
-    // 组合生词和短语以入库
-    const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
+      // 组合生词和短语以入库
+      const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
 
-    // 静默写入 SQLite 鐢熻瘝鏈?(瑙勯伩閲嶅椤?
-        // 写入 SQLite
-    let addedCount = 0;
-    const now = Date.now();
-    for (const item of vocabToInsert) {
-      const isObject = typeof item === 'object' && item !== null;
-      const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
-      if (!wordStr) continue;
+      taskQueue.updateTask(task.id, {
+        progress: 85,
+        logs: [`[后台] 成功抽提出 ${vocabToInsert.length} 个词汇与短语，以及 ${sentencesToReturn.length} 个高频句型，开始写入 SQLite 本地生词本...`]
+      });
 
-      // 提取 dict_type
-      const dictType = phrasesToReturn.includes(item) ? 'ai_phrase' : 'ai_extracted';
+      // 写入 SQLite
+      let addedCount = 0;
+      const now = Date.now();
+      for (const item of vocabToInsert) {
+        const isObject = typeof item === 'object' && item !== null;
+        const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
+        if (!wordStr) continue;
 
-      // 提取 payload
-      let payload = { source: 'Material Upload' };
-      if (isObject && item.payload) {
-        payload = item.payload;
-        if (!payload.source) payload.source = 'Material Upload';
+        // 提取 dict_type
+        const dictType = phrasesToReturn.includes(item) ? 'ai_phrase' : 'ai_extracted';
+
+        // 提取 payload
+        let payload = { source: 'Material Upload' };
+        if (isObject && item.payload) {
+          payload = item.payload;
+          if (!payload.source) payload.source = 'Material Upload';
+        }
+
+        const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
+        if (!existing) {
+          const id = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, wordStr, dictType, topic || 'material_extraction', JSON.stringify(payload), now, now, '[]');
+          addedCount++;
+        } else {
+          // 如果存在但 payload 是空的，则进行补充更新
+          let oldPayload = {};
+          try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
+          if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
+            db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
+              dictType,
+              topic || 'material_extraction',
+              JSON.stringify(payload),
+              existing.id
+            );
+          }
+        }
       }
 
-      const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
-      if (!existing) {
+      // ===== 高频句型入库（dict_type = 'ai_sentence'） =====
+      let addedSentenceCount = 0;
+      for (const item of sentencesToReturn) {
+        const isObject = typeof item === 'object' && item !== null;
+        const sentenceStr = isObject
+          ? (item.word || item.sentence || item.text || '')
+          : String(item);
+        const cleanSent = String(sentenceStr).trim();
+        if (!cleanSent || cleanSent.length > 500) continue;
+
+        // 句型查重：以前 50 字符作为 LIKE 匹配键，避免误判
+        const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
+        const existingSent = db.prepare(
+          "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
+        ).get(`${probe}%`);
+        if (existingSent) continue;
+
+        let sentPayload = { source: 'Material Upload', type: 'sentence', topic: topic || '' };
+        if (isObject && item.payload) {
+          sentPayload = { ...sentPayload, ...item.payload };
+          sentPayload.type = 'sentence';
+          if (!sentPayload.source) sentPayload.source = 'Material Upload';
+        }
+
         const id = crypto.randomUUID();
         db.prepare(`
           INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, wordStr, dictType, topic || 'material_extraction', JSON.stringify(payload), now, now, '[]');
-        addedCount++;
-      } else {
-        // 如果存在但 payload 是空的，则进行补充更新
-        let oldPayload = {};
-        try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
-        if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
-          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
-            dictType,
-            topic || 'material_extraction',
-            JSON.stringify(payload),
-            existing.id
-          );
-        }
-      }
-    }
-
-    // ===== 高频句型入库（dict_type = 'ai_sentence'） =====
-    let addedSentenceCount = 0;
-    for (const item of sentencesToReturn) {
-      const isObject = typeof item === 'object' && item !== null;
-      const sentenceStr = isObject
-        ? (item.word || item.sentence || item.text || '')
-        : String(item);
-      const cleanSent = String(sentenceStr).trim();
-      if (!cleanSent || cleanSent.length > 500) continue;
-
-      // 句型查重：以前 50 字符作为 LIKE 匹配键，避免误判
-      const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
-      const existingSent = db.prepare(
-        "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
-      ).get(`${probe}%`);
-      if (existingSent) continue;
-
-      let sentPayload = { source: 'Material Upload', type: 'sentence', topic: topic || '' };
-      if (isObject && item.payload) {
-        sentPayload = { ...sentPayload, ...item.payload };
-        sentPayload.type = 'sentence';
-        if (!sentPayload.source) sentPayload.source = 'Material Upload';
+        `).run(id, cleanSent, 'ai_sentence', topic || 'material_extraction', JSON.stringify(sentPayload), now, now, '[]');
+        addedSentenceCount++;
       }
 
-      const id = crypto.randomUUID();
-      db.prepare(`
-        INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, cleanSent, 'ai_sentence', topic || 'material_extraction', JSON.stringify(sentPayload), now, now, '[]');
-      addedSentenceCount++;
+      // 任务完成，保存最终数据包
+      taskQueue.updateTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        result: {
+          success: true,
+          topic: topic || 'Unknown Topic',
+          total: files.length,
+          words: wordsToReturn.map(i => typeof i === 'object' ? (i.word || i.text) : String(i)),
+          phrases: phrasesToReturn.map(i => typeof i === 'object' ? (i.word || i.phrase || i.text) : String(i)),
+          sentences: sentencesToReturn.map(i => typeof i === 'object' ? (i.word || i.sentence || i.text) : String(i)),
+          addedSentenceCount,
+          article: articleText,
+          results: [
+            {
+              fileName: fileObj.fileName || "Document",
+              summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${vocabToInsert.length} terms, actual added ${addedCount} words.`,
+              key_points: wordsToReturn.slice(0, 5).map(i => typeof i === 'object' ? (i.word || i.text) : String(i))
+            }
+          ]
+        },
+        logs: ['[后台] 提纯流水线全部执行完毕，生词本入库固化成功！']
+      });
+
+    } catch (error) {
+      console.error('[Material Process Worker Error]:', error);
+      taskQueue.updateTask(task.id, {
+        status: 'failed',
+        progress: 100,
+        logs: [`[后台] 提纯流水线执行失败：${error.message}`]
+      });
     }
-
-    res.json({
-      success: true,
-      topic: topic || 'Unknown Topic',
-      total: files.length,
-      words: wordsToReturn.map(i => typeof i === 'object' ? (i.word || i.text) : String(i)),
-      phrases: phrasesToReturn.map(i => typeof i === 'object' ? (i.word || i.phrase || i.text) : String(i)),
-      sentences: sentencesToReturn.map(i => typeof i === 'object' ? (i.word || i.sentence || i.text) : String(i)),
-      addedSentenceCount,
-      article: articleText,
-      results: [
-        {
-          fileName: fileObj.fileName || "Document",
-          summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${vocabToInsert.length} terms, actual added ${addedCount} words.`,
-          key_points: wordsToReturn.slice(0, 5).map(i => typeof i === 'object' ? (i.word || i.text) : String(i)) // 向前端展示前5个核心词
-        }
-      ],
-      logs: [
-        "1. Dify 知识库定位并清空完成",
-        "2. Memory Base64 conversion and physical storage success.",
-        `3. AI 钀冨彇涓?SQLite 固化完毕 (新增: ${addedCount})`
-      ]
-    });
-  } catch (error) {
-    console.error('Material Pipeline Error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ==========================================
+  });
+});// ==========================================
 // 英语引擎每日词汇+鐭鎻愮函锛堝甫姣忔棩閰嶉鎺у埗锛?// 纭寚鏍囷細姣忔棩鏈€澶?50 词汇 + 30 短语
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
