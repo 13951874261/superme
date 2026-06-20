@@ -379,7 +379,10 @@ app.post('/api/vocab/batch-add', (req, res) => {
         if (!word) continue;
         
         const isPhrase = !!item.is_phrase;
-        const dictType = item.dictType || item.dict_type || (isPhrase ? 'ai_phrase' : 'ai_extracted');
+        const isSentence = !!item.is_sentence
+          || item.dictType === 'ai_sentence' || item.dict_type === 'ai_sentence'
+          || (item.payload && item.payload.partOfSpeech === 'sentence');
+        const dictType = item.dictType || item.dict_type || (isSentence ? 'ai_sentence' : (isPhrase ? 'ai_phrase' : 'ai_extracted'));
         const category = item.category || 'business';
         const payload = item.payload || {};
 
@@ -1075,7 +1078,10 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
-  const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://app.liujingzhuwo.site/v1';
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 15000);
 
   try {
     console.log(`[Dict Query] 开始查询词条: "${word}", 字典类型: "${dictType}"`);
@@ -1097,13 +1103,16 @@ app.post('/api/dify/dict-query', async (req, res) => {
         },
         response_mode: 'blocking',
         user: userId || 'frontend-panel'
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Dict Query] Dify 服务器返回错误(${response.status}):`, errText);
-      
+      console.warn(`[Dict Query] Dify 服务器返回错误(${response.status}):`, errText);
+
       // 记录失败日志
       try {
         db.prepare(`
@@ -1112,7 +1121,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
       } catch (logErr) {}
 
-      return res.status(response.status).json({ ok: false, message: `Dify 服务器异常: ${response.status}` });
+      return res.json({ ok: false, fallback: true, message: `Dify 服务器异常: ${response.status}` });
     }
 
     const data = await response.json();
@@ -1120,7 +1129,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
     if (!resultStr) {
       console.warn('[Dict Query] 工作流未返回 result 字段:', data);
-      
+
       // 记录失败日志
       try {
         db.prepare(`
@@ -1129,7 +1138,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
       } catch (logErr) {}
 
-      return res.status(500).json({ ok: false, message: 'Dify 工作流未返回正确的 result 字段' });
+      return res.json({ ok: false, fallback: true, message: 'Dify 工作流未返回正确结果，已降级' });
     }
 
     // 解析工作流输出结果
@@ -1137,8 +1146,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
     try {
       parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
     } catch (e) {
-      console.error('[Dict Query] 解析 result JSON 失败:', e, resultStr);
-      
+      console.warn('[Dict Query] 解析 result JSON 失败:', e.message);
+
       // 记录解析错误日志
       try {
         db.prepare(`
@@ -1147,7 +1156,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
       } catch (logErr) {}
 
-      return res.status(500).json({ ok: false, message: '工作流结果解析异常，返回数据非合法 JSON' });
+      return res.json({ ok: false, fallback: true, message: '工作流结果解析异常，返回降级结果' });
     }
 
     // 记录成功日志
@@ -1161,8 +1170,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
     console.log(`[Dict Query] 查询 "${word}" 成功，返回结果`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
-    console.error('[Dict Query] 服务端请求异常', error);
-    return res.status(500).json({ ok: false, message: `词典服务器异常: ${error.message}` });
+    console.warn('[Dict Query] 服务端请求异常，已返回降级结果:', error.message);
+    return res.json({ ok: false, fallback: true, message: `词典服务器异常: ${error.message}` });
   }
 });
 
@@ -2026,13 +2035,46 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       }
     }
 
+    // ===== 高频句型入库（dict_type = 'ai_sentence'） =====
+    let addedSentenceCount = 0;
+    for (const item of sentencesToReturn) {
+      const isObject = typeof item === 'object' && item !== null;
+      const sentenceStr = isObject
+        ? (item.word || item.sentence || item.text || '')
+        : String(item);
+      const cleanSent = String(sentenceStr).trim();
+      if (!cleanSent || cleanSent.length > 500) continue;
+
+      // 句型查重：以前 50 字符作为 LIKE 匹配键，避免误判
+      const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
+      const existingSent = db.prepare(
+        "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
+      ).get(`${probe}%`);
+      if (existingSent) continue;
+
+      let sentPayload = { source: 'Material Upload', type: 'sentence', topic: topic || '' };
+      if (isObject && item.payload) {
+        sentPayload = { ...sentPayload, ...item.payload };
+        sentPayload.type = 'sentence';
+        if (!sentPayload.source) sentPayload.source = 'Material Upload';
+      }
+
+      const id = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(id, cleanSent, 'ai_sentence', topic || 'material_extraction', JSON.stringify(sentPayload), now, now, '[]');
+      addedSentenceCount++;
+    }
+
     res.json({
       success: true,
       topic: topic || 'Unknown Topic',
       total: files.length,
       words: wordsToReturn.map(i => typeof i === 'object' ? (i.word || i.text) : String(i)),
       phrases: phrasesToReturn.map(i => typeof i === 'object' ? (i.word || i.phrase || i.text) : String(i)),
-      sentences: sentencesToReturn,
+      sentences: sentencesToReturn.map(i => typeof i === 'object' ? (i.word || i.sentence || i.text) : String(i)),
+      addedSentenceCount,
       article: articleText,
       results: [
         {
@@ -2447,6 +2489,30 @@ app.post('/api/english/daily-extract', async (req, res) => {
       });
       insertPhrase(phrasesToStore);
 
+      let sentencesAddedCount = 0;
+      const insertSentence = db.transaction((sentences) => {
+        for (const sentStr of sentences) {
+          const s = typeof sentStr === 'string' ? sentStr.trim() : String(sentStr);
+          if (!s || s.length > 500) continue;
+
+          // 句子查重：以前 50 字符作为模糊匹配
+          const probe = s.substring(0, 50).replace(/[%_]/g, '\\$&');
+          const existingSent = db.prepare(
+            "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
+          ).get(`${probe}%`);
+
+          if (!existingSent) {
+            const id = crypto.randomUUID();
+            db.prepare(`
+              INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(id, s, 'ai_sentence', topic || 'daily_extraction', JSON.stringify({ source: 'Daily Extract', topic, type: 'sentence' }), now, now, '[]');
+            sentencesAddedCount++;
+          }
+        }
+      });
+      insertSentence(uniqueSentenceList);
+
       db.prepare(`
         UPDATE daily_vocab_quota
         SET words_added = words_added + ?, phrases_added = phrases_added + ?, last_extraction_at = ?, updated_at = ?
@@ -2474,12 +2540,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
         console.warn('[Daily Extract] 流式写入生成历史失败:', e.message);
       }
 
-      console.log(`[Daily Extract] Completed. User ${userId} ${today} added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`);
+      console.log(`[Daily Extract] Completed. User ${userId} ${today} added ${wordsAddedCount} words, ${phrasesAddedCount} phrases, ${sentencesAddedCount} sentences.`);
 
-      // 鍙戦€佹祦缁撴潫鏍囪锛屽苟闄勫甫鏈€缁堢殑鍏ュ簱鍜岀粺璁?JSON 数据作为最后一部分事件
+      // 鍙戦€佹祦缁撴潫鏍囪锛屽苟闄跚 finalPayload
       const finalPayload = {
         success: true,
-        message: `Extraction complete: added ${wordsAddedCount} words, ${phrasesAddedCount} phrases.`,
+        message: `Extraction complete: added ${wordsAddedCount} words, ${phrasesAddedCount} phrases, ${sentencesAddedCount} sentences.`,
         quota: {
           wordsLimit: WORD_DAILY_LIMIT,
           wordsUsed: updatedWordsUsed,
@@ -2497,6 +2563,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
         sentenceCount: uniqueSentenceList.length,
         wordsAddedCount,
         phrasesAddedCount,
+        sentencesAddedCount
       };
 
       res.write(`\ndata: ${JSON.stringify(finalPayload)}\n\n`);

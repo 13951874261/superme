@@ -5,7 +5,7 @@ import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelp
 // 优先从 localStorage 获取密钥，实现本地优先管理
 const getApiKey = (keyName: string) => localStorage.getItem(keyName) || import.meta.env[`VITE_${keyName}`];
 
-const DIFY_BASE_URL = import.meta.env.VITE_DIFY_BASE_URL || 'https://dify.234124123.xyz/v1'; // 适配自定义部署的 Dify
+const DIFY_BASE_URL = import.meta.env.VITE_DIFY_BASE_URL || '/dify'; // 适配自定义部署的 Dify
 
 /**
  * 将任意 Audio Blob 转换为标准 PCM WAV Blob

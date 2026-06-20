@@ -224,7 +224,7 @@ export default function DashboardTab() {
         }
       }
     } catch (err) {
-      console.warn(`[Auto Translate] Failed for "${text}":`, err);
+      // 自动翻译异常静默降级，不污染控制台
     } finally {
       setPendingTranslations(prev => {
         const next = new Set(prev);

@@ -247,7 +247,7 @@ export function toVocabEnrichmentPayload(result: WordEnrichmentResult): VocabEnr
 }
 
 // ── 基础请求封装 ─────────────────────────────────────────────
-const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+const DIFY_API_BASE_URL = import.meta.env.VITE_DIFY_API_BASE_URL || '/dify';
 const DIFY_APP_ID = import.meta.env.VITE_DIFY_APP_ID || '56a4d2c1-006c-4c46-95cc-7b6bedafbcff';
 
 function getDifyApiKey() {
@@ -1558,7 +1558,7 @@ export async function generateDailyFlawVocabulary(
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      console.warn('Dify API response not ok, using local fallback vocab. Error:', data?.message || data?.error);
+      // Dify 异常时静默使用本地 fallback，避免控制台红屏
       return getFallbackFlawVocab();
     }
 
@@ -1567,7 +1567,7 @@ export async function generateDailyFlawVocabulary(
     const parsed = JSON.parse(clean);
     return parsed.vocab || getFallbackFlawVocab();
   } catch (e) {
-    console.warn('Failed to fetch/parse Dify flaw vocab, using local fallback vocab. Error:', e);
+    // 请求/解析失败时静默使用本地 fallback，避免控制台红屏
     return getFallbackFlawVocab();
   }
 }

@@ -109,6 +109,7 @@ export default function MaterialUploader({
   const handleUrlFetchSuccess = (virtualFile: { name: string; content: string; mimeType: string }) => {
     const file = new File([virtualFile.content], virtualFile.name, { type: virtualFile.mimeType });
     setSelectedFiles([file]);
+    setPreviewContent(virtualFile.content);
     setCurrentFileName(virtualFile.name);
     setCurrentStep(`已加载网页提取材料：${virtualFile.name}`);
     setLogs([
