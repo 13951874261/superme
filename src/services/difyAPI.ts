@@ -820,16 +820,19 @@ export async function runListenMaterialGenerator(
   userId = 'default-user'
 ): Promise<string> {
   let apiKey: string;
+  let endpoint = '/completion-messages';
+
   if (duration === 'long') {
     apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
+    // 长听力应用（advanced-chat）使用 /chat-messages 接口
+    endpoint = '/chat-messages';
   } else {
     apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成听力材料。');
   }
 
-  // 该应用为 Text Generator (Completion) 模式，使用 /completion-messages 接口
-  const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
+  const res = await fetch(`${DIFY_API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
