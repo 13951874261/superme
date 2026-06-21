@@ -29,7 +29,7 @@ export default function ListenTab() {
   const [highlightedWord, setHighlightedWord] = useState('');
   const [listenGenre, setListenGenre] = useState<'news' | 'meeting' | 'podcast'>('meeting');
   const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
-  const [listenDuration, setListenDuration] = useState<'short' | 'long'>('short');
+  const [listenDuration, setListenDuration] = useState<number>(30);
   const [isFullscreenText, setIsFullscreenText] = useState(false);
   const [isAddingHighlight, setIsAddingHighlight] = useState(false);
 
@@ -158,14 +158,18 @@ export default function ListenTab() {
                   <option value="B2" className="text-black">B2 高阶</option>
                   <option value="C1" className="text-black">C1 母语级</option>
                 </select>
-                <select
-                  value={listenDuration}
-                  onChange={(e) => setListenDuration(e.target.value as 'short' | 'long')}
-                  className="bg-black/20 text-white/90 text-[10px] px-3 py-1.5 rounded-lg border border-white/10 outline-none focus:border-[#FF5722] focus:bg-black/40 transition-all cursor-pointer hover:border-white/20"
-                >
-                  <option value="short" className="text-black">短听力 (25s)</option>
-                  <option value="long" className="text-black">长听力 (30min+)</option>
-                </select>
+                <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 transition-all">
+                  <span className="text-[10px] text-gray-400 font-black">时长:</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="100"
+                    value={listenDuration}
+                    onChange={(e) => setListenDuration(Number(e.target.value))}
+                    className="w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
+                  />
+                  <span className="text-[10px] text-[#FF5722] font-black w-6 text-right">{listenDuration}m</span>
+                </div>
                 <button
                   onClick={() => generateListenMaterial(theme)}
                   disabled={isListenMaterialLoading}

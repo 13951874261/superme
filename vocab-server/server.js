@@ -3048,7 +3048,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
       console.error('解析 Dify 杩斿洖鐨?JSON 失败:', e, rawResult);
-      return res.status(500).json({ success: false, error: '鍗氬紙鍒嗘瀽缁撴灉鏍煎紡寮傚父锛屾棤娉曡В鏋?JSON' });
+      return res.status(500).json({ success: false, error: '鍗氬紙鍒嗘瀽缁撴灉鏍煎紡寮傚父，无法解析 JSON' });
     }
 
     // 鑷姩鎶撳彇骞跺綊妗ｄ汉鎬у師鍨?
@@ -3227,50 +3227,56 @@ app.post('/api/tts/speech', async (req, res) => {
       ttsVoice = finalModel.split('/')[1];
     }
 
-    let ttsResponse;
-    let retries = 3;
-    let lastError;
+    // 智能切分文本 (按句号或换行等，每块不超过 3000 字符)
+    const MAX_CHUNK_LENGTH = 3000;
+    const textChunks = [];
+    let currentChunk = '';
+    const sentences = input.match(/[^.!?\n]+[.!?\n]+/g) || [input];
+    for (const sentence of sentences) {
+      if ((currentChunk + sentence).length > MAX_CHUNK_LENGTH) {
+        if (currentChunk.trim().length > 0) textChunks.push(currentChunk.trim());
+        currentChunk = sentence;
+      } else currentChunk += sentence;
+    }
+    if (currentChunk.trim().length > 0) textChunks.push(currentChunk.trim());
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-      try {
-        // 构建请求体，同时保留 model 并附加 voice 参数
-        const requestPayload = {
-          model: finalModel,
-          input: input
-        };
-        if (ttsVoice) {
-          requestPayload.voice = ttsVoice;
-        }
-
-        ttsResponse = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313'
-          },
-          body: JSON.stringify(requestPayload)
-        });
-
-        if (ttsResponse.ok) {
-          break; // 成功获取响应，跳出重试循环
-        } else {
-          const errText = await ttsResponse.text().catch(() => '');
-          lastError = new Error(`TTS status ${ttsResponse.status} - ${errText}`);
-        }
-      } catch (err) {
-        lastError = err;
-      }
-      
-      if (attempt < retries) {
-        console.warn(`[TTS] Attempt ${attempt} failed: ${lastError.message}. Retrying in 500ms...`);
-        await new Promise(resolve => setTimeout(resolve, 500));
-      }
+    // 兜底截断
+    const finalChunks = [];
+    for (const chunk of textChunks) {
+       let temp = chunk;
+       while (temp.length > MAX_CHUNK_LENGTH) {
+         finalChunks.push(temp.substring(0, MAX_CHUNK_LENGTH));
+         temp = temp.substring(MAX_CHUNK_LENGTH);
+       }
+       if (temp.length > 0) finalChunks.push(temp);
     }
 
-    if (!ttsResponse || !ttsResponse.ok) {
-      const errMsg = lastError ? lastError.message : 'Unknown error';
-      console.error('[TTS] All attempts failed:', errMsg);
-      return res.status(500).json({ error: `TTS synthesis failed: ${errMsg}` });
+    const audioBuffers = [];
+    let lastError = null;
+
+    for (let i = 0; i < finalChunks.length; i++) {
+      const chunkText = finalChunks[i];
+      let chunkBuffer = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const req = { model: finalModel, input: chunkText };
+          if (ttsVoice) req.voice = ttsVoice;
+          const res = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313' },
+            body: JSON.stringify(req)
+          });
+          if (res.ok) {
+            chunkBuffer = Buffer.from(await res.arrayBuffer());
+            break;
+          } else {
+            lastError = new Error(await res.text().catch(()=>''));
+          }
+        } catch (err) { lastError = err; }
+        if (attempt < 3) await new Promise(r => setTimeout(r, 500));
+      }
+      if (!chunkBuffer) return res.status(500).json({ error: `TTS failed at chunk ${i+1}` });
+      audioBuffers.push(chunkBuffer);
     }
 
     // 保存到 MD5 缓存路径

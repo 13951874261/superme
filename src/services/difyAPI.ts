@@ -813,16 +813,19 @@ export async function getDueVocabulary(userId = 'default-user') {
 }
 
 export async function runListenMaterialGenerator(
-  theme: string,
-  genre: 'news' | 'meeting' | 'podcast' = 'meeting',
-  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
-  duration: 'short' | 'long' = 'short',
+  theme: string, 
+  genre: 'news' | 'meeting' | 'podcast',
+  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1',
+  duration: number | 'short' | 'long',
   userId = 'default-user'
 ): Promise<string> {
   let apiKey: string;
   let endpoint = '/completion-messages';
 
-  if (duration === 'long') {
+  // 智能路由：大于等于 5 分钟走长文本引擎，否则走短听力生成器
+  const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
+
+  if (isLong) {
     apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
     // 长听力应用（advanced-chat）使用 /chat-messages 接口
@@ -832,6 +835,9 @@ export async function runListenMaterialGenerator(
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成听力材料。');
   }
 
+  // 对大模型更友好的动态提示词拼装
+  const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
+
   const res = await fetch(`${DIFY_API_BASE_URL}${endpoint}`, {
     method: 'POST',
     headers: {
@@ -839,7 +845,7 @@ export async function runListenMaterialGenerator(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration }),
+      inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration: durationParam }),
       query: endpoint === '/chat-messages' ? "请执行听力材料生成任务" : "",
       response_mode: 'streaming',
       user: userId,
