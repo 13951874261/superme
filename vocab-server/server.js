@@ -2112,6 +2112,13 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           const parsed = JSON.parse(cleanJson);
           if (parsed.words && Array.isArray(parsed.words)) extractedItems.push(...parsed.words);
           if (parsed.phrases && Array.isArray(parsed.phrases)) extractedItems.push(...parsed.phrases);
+          if (parsed.sentences && Array.isArray(parsed.sentences)) {
+            extractedItems.push(...parsed.sentences.map(s => {
+              if (typeof s === 'string') return { word: s, is_sentence: true };
+              if (typeof s === 'object' && s !== null) return { ...s, is_sentence: true };
+              return s;
+            }));
+          }
           if (Array.isArray(parsed)) extractedItems = parsed;
         } catch (e) {
           // 暴力正则：切分并清理
@@ -2131,7 +2138,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         if (!cleanStr) continue;
 
         let dictType = 'ai_extracted';
-        if (isObject && item.is_phrase !== undefined) {
+        if (isObject && item.is_sentence) {
+          dictType = 'ai_sentence';
+        } else if (isObject && item.is_phrase !== undefined) {
           dictType = item.is_phrase ? 'ai_phrase' : 'ai_extracted';
         } else {
           // 启发式判断
