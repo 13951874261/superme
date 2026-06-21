@@ -489,65 +489,6 @@ export async function triggerEnglishMasteryExtraction(
     body: JSON.stringify({ topic, materialText, userId, cefrLevel, genre, user_current_profile: getUserCurrentProfile() }),
   });
 
-  // 处理流式响应 (SSE)
-  if (response.headers.get("content-type")?.includes("text/event-stream")) {
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let finalPayload: any = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      const chunk = decoder.decode(value, { stream: true });
-      buffer += chunk;
-
-      // 按行处理 SSE 数据
-      let lineEnd = buffer.indexOf("\n");
-      while (lineEnd !== -1) {
-        const line = buffer.substring(0, lineEnd).trim();
-        buffer = buffer.substring(lineEnd + 1);
-
-        if (line.startsWith("data: ")) {
-          const dataStr = line.slice(6).trim();
-          if (dataStr === "[DONE]") break;
-          
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.success !== undefined) {
-              finalPayload = parsed;
-            }
-          } catch (e) {
-            // 忽略临时解析错误（数据块被截断）
-          }
-        }
-        lineEnd = buffer.indexOf("\n");
-      }
-    }
-
-    // 处理残余缓冲数据
-    if (buffer.trim().startsWith("data: ")) {
-      const dataStr = buffer.trim().slice(6).trim();
-      try {
-        const parsed = JSON.parse(dataStr);
-        if (parsed.success !== undefined) {
-          finalPayload = parsed;
-        }
-      } catch (e) {}
-    }
-
-    if (!finalPayload) {
-      throw new Error("Failed to receive completion payload from stream");
-    }
-    if (finalPayload.success === false) {
-      throw new Error(finalPayload.error || finalPayload.message || "流式提取失败");
-    }
-    interceptOutputText(finalPayload);
-    return finalPayload;
-  }
-
-  // 传统 JSON 响应处理
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data?.success) {
     if (data?.quotaExceeded) {
@@ -555,8 +496,34 @@ export async function triggerEnglishMasteryExtraction(
     }
     throw new Error(data?.error || data?.message || '提取词汇操作失败，请检查后端状态');
   }
-  interceptOutputText(data);
-  return data as DailyExtractResult;
+
+  // 如果没有输入材料，后端会直接返回配额数据而没有 taskId
+  if (!data.taskId) {
+    interceptOutputText(data);
+    return data as DailyExtractResult;
+  }
+
+  const taskId = data.taskId;
+
+  // 开始轮询 (每3秒一次)
+  while (true) {
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const statusRes = await fetch(`/api/english/daily-extract/status/${taskId}`);
+    const statusData = await statusRes.json().catch(() => ({}));
+    
+    if (!statusRes.ok || !statusData.success) {
+      throw new Error(statusData?.error || '状态轮询失败，请检查网络或后端服务');
+    }
+
+    if (statusData.status === 'completed') {
+      interceptOutputText(statusData);
+      return statusData as DailyExtractResult;
+    } else if (statusData.status === 'failed') {
+      throw new Error(statusData.error || '后台生成失败');
+    }
+    // status === 'pending' 则继续等待
+  }
 }
 
 export async function callVocabPurify(
