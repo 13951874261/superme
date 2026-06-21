@@ -3289,8 +3289,7 @@ app.post('/api/tts/speech', async (req, res) => {
     }
 
     // 保存到 MD5 缓存路径
-    const arrayBuffer = await ttsResponse.arrayBuffer();
-    fs.writeFileSync(audioPath, Buffer.from(arrayBuffer));
+    fs.writeFileSync(audioPath, Buffer.concat(audioBuffers));
 
     // 返回音频文件的访问 URL
     res.json({
