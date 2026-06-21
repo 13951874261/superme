@@ -108,6 +108,24 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (data.status === 'completed') {
               // 触发自定义事件通知词本更新
               window.dispatchEvent(new CustomEvent('vocab-updated'));
+
+              // 识别是否为材料提纯任务 (根据 data.result 结构判断)
+              if (data.result && (data.result.article || data.result.words)) {
+                const result = data.result;
+                const taskName = data.name || data.taskName || '未命名材料';
+                
+                // 写入 Dashboard 专用的 localStorage 键
+                localStorage.setItem('super_agent_last_generated_article', result.article || '');
+                localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words || []));
+                localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases || []));
+                localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences || []));
+                
+                // 记录当前情报源的名称，用于 UI 侧的重新设计展示
+                localStorage.setItem('super_agent_intel_source', `材料提纯: ${taskName}`);
+
+                // 分发自定义全局事件，通知 DashboardTab 页面重新读取 localStorage
+                window.dispatchEvent(new CustomEvent('intel-data-refreshed'));
+              }
             }
           }
         }

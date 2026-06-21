@@ -164,6 +164,10 @@ export default function DashboardTab() {
     }
   });
 
+  const [intelSource, setIntelSource] = useState<string>(() => {
+    return localStorage.getItem('super_agent_intel_source') || '每日系统生成';
+  });
+
   const [isArticleExpanded, setIsArticleExpanded] = useState(false);
 
   // 题材与难度等级控制
@@ -191,6 +195,19 @@ export default function DashboardTab() {
     };
     window.addEventListener('global-voice-changed', handleVoiceChange);
     return () => window.removeEventListener('global-voice-changed', handleVoiceChange);
+  }, []);
+
+  useEffect(() => {
+    const handleIntelRefresh = () => {
+      setGeneratedArticle(localStorage.getItem('super_agent_last_generated_article') || '');
+      setExtractedWords(JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]'));
+      setExtractedPhrases(JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]'));
+      setExtractedSentences(JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]'));
+      setIntelSource(localStorage.getItem('super_agent_intel_source') || '每日系统生成');
+    };
+
+    window.addEventListener('intel-data-refreshed', handleIntelRefresh);
+    return () => window.removeEventListener('intel-data-refreshed', handleIntelRefresh);
   }, []);
 
   const currentVoiceName = (() => {
@@ -963,6 +980,36 @@ export default function DashboardTab() {
 
         {/* 沉浸式阅读与收听 */}
         <div className="bg-white rounded-3xl border border-slate-100 p-5 md:p-6 shadow-[0_6px_20px_rgba(0,0,0,0.015)] mb-6 space-y-5">
+          {/* 新设计的 UI 状态指示条 */}
+          <div className="intel-source-banner" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            padding: '10px 16px',
+            backgroundColor: '#1a202c',
+            borderLeft: '4px solid #3182ce',
+            borderRadius: '8px',
+            marginBottom: '16px'
+          }}>
+            <div>
+              <span style={{ color: '#718096', marginRight: '8px', fontSize: '12px', fontWeight: 'bold' }}>📂 当前情报源:</span>
+              <span style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: '900', letterSpacing: '0.05em' }}>{intelSource}</span>
+            </div>
+            {intelSource !== '每日系统生成' && (
+              <button 
+                onClick={async () => {
+                  localStorage.setItem('super_agent_intel_source', '每日系统生成');
+                  setIntelSource('每日系统生成');
+                  await handleAutoGenerate();
+                }}
+                disabled={isAutoGenerating}
+                style={{ color: '#63b3ed', background: 'none', border: 'none', cursor: isAutoGenerating ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 'bold', opacity: isAutoGenerating ? 0.5 : 1 }}
+              >
+                [ 还原每日生成 ]
+              </button>
+            )}
+          </div>
+
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
             <div>
               <h4 className="text-sm font-black uppercase tracking-widest text-[#FF5722] mb-1 flex items-center">
