@@ -50,10 +50,14 @@ foreach ($file in $changedFiles) {
 }
 
 if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
-    Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
-    $needFrontendDeploy = $true
-    $needBackendDeploy = $true
-    $needNginxDeploy = $true
+    if ($changedFiles) {
+        Write-Host "Changes detected only in non-deployable files (e.g. yml). Skipping server deployment." -ForegroundColor Magenta
+    } else {
+        Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
+        $needFrontendDeploy = $true
+        $needBackendDeploy = $true
+        $needNginxDeploy = $true
+    }
 }
 
 Write-Host "[Analysis Results]" -ForegroundColor DarkCyan
@@ -137,6 +141,13 @@ try {
         foreach ($file in $changedFiles) {
             if ($file -match "^vocab-server/") {
                 $relativePath = $file -replace '^vocab-server/', ''
+                
+                # 黑名单过滤：跳过数据库文件和环境变量配置
+                if ($relativePath -match "\.(db|sqlite|db-journal|db-shm|db-wal)$" -or $relativePath -match "^\.env") {
+                    Write-Host "     Skipping sensitive file: $relativePath" -ForegroundColor Yellow
+                    continue
+                }
+
                 $localFile = "$ProjectRoot\vocab-server\$relativePath".Replace('/', '\')
                 if (Test-Path $localFile -PathType Leaf) {
                     if ($relativePath.Contains('/')) {

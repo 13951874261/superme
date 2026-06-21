@@ -387,7 +387,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                               <BrainCircuit className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
                               生词记忆辅助
                             </h3>
-                            <MemoryAidPanel key={localWordEntry.id} wordId={localWordEntry.id} wordText={wordData.word} />
+                            <MemoryAidPanel wordId={localWordEntry.id} wordText={wordData.word} />
                           </div>
                         )}
 

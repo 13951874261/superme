@@ -1,5 +1,5 @@
 ﻿import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, CustomTheme } from '../../../../services/trainingAPI';
+import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, CustomTheme } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
 import { LongAudio } from '../../../../services/listeningAPI';
@@ -175,6 +175,22 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshCustomThemes();
+  }, []);
+
+  // 加载后端历史通关主题列表（用于路线图等真实进度）
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await getMasteredThemes();
+        if (!cancelled && res.success && Array.isArray(res.masteredThemes)) {
+          setMasteredThemes(res.masteredThemes);
+        }
+      } catch {
+        // ignore — road map still works with local data
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {

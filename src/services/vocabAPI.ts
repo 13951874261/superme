@@ -79,13 +79,14 @@ export interface EnEnBusinessPayload {
   phonetic: string;
   definitions_en: string[];
   business_notes: string;
-  scenarios: ScenarioEn[];
+  scenarios: (string | ScenarioEn)[];
   other_meanings: OtherMeaningEn[];
-  example_sentences: string[];
+  example_sentences: (string | { en: string; zh: string })[];
   synonyms: string[];
   antonyms: string[];
   collocations: string[];
   level?: string;
+  meaning_zh?: string;
 }
 
 // --- 英汉双向商务词典结构 ---
@@ -111,8 +112,8 @@ export interface EnZhBidirectionalPayload {
   pos: string;
   translation_main: string;
   other_meanings: OtherMeaningEnZh[];
-  business_examples: BusinessExampleEnZh[];
-  example_sentences: ExampleSentenceEnZh[];
+  business_examples: (string | BusinessExampleEnZh)[];
+  example_sentences: (string | ExampleSentenceEnZh)[];
   synonyms: string[];
   antonyms: string[];
   collocations: string[];

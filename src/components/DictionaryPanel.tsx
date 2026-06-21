@@ -641,7 +641,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">中英对照例句</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
-            {example_sentences.map((sent, idx) => (
+            {validExampleSentences.map((sent, idx) => (
               <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs leading-relaxed flex items-start gap-2">
                 <span className="text-indigo-400 font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
                 <div className="flex-1 space-y-1">

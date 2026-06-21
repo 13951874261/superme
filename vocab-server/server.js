@@ -248,11 +248,127 @@ function calculateNextReview(quality, repetitions, easeFactor, interval) {
     newRepetitions = 0;
     newInterval = 1;
   }
-  
+
   newEaseFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   if (newEaseFactor < 1.3) newEaseFactor = 1.3;
-  
+
   return { repetitions: newRepetitions, easeFactor: newEaseFactor, interval: newInterval };
+}
+
+const DEFAULT_IMAGE_GEN_MODELS = [
+  'cf/@cf/black-forest-labs/flux-2-klein-9b',
+  'nb/nanobanana-flash',
+  'fal/fal-ai/flux/schnell',
+  'stability/stable-image-ultra',
+  'runway/gen4_image'
+];
+
+function extractGeneratedImageUrl(responseData) {
+  const firstImage = Array.isArray(responseData?.data) ? responseData.data[0] : null;
+  let imageUrl = '';
+  let downloadUrl = '';
+  let revisedPrompt = '';
+
+  if (firstImage?.url) {
+    imageUrl = firstImage.url;
+    downloadUrl = firstImage.url;
+    revisedPrompt = firstImage.revised_prompt || '';
+  } else if (firstImage?.b64_json) {
+    imageUrl = `data:image/png;base64,${firstImage.b64_json}`;
+    downloadUrl = imageUrl;
+    revisedPrompt = firstImage.revised_prompt || '';
+  } else if (responseData?.url) {
+    imageUrl = responseData.url;
+    downloadUrl = responseData.url;
+  } else if (responseData?.image_url) {
+    imageUrl = responseData.image_url;
+    downloadUrl = responseData.download_url || responseData.image_url;
+  } else if (responseData?.preview) {
+    imageUrl = responseData.preview;
+    downloadUrl = responseData.download_url || responseData.preview;
+  }
+
+  if (!imageUrl) {
+    const responseText = typeof responseData === 'string' ? responseData : JSON.stringify(responseData || '');
+    const urlMatches = [...responseText.matchAll(/(https?:\/\/[^\s"'`<>\{\}\[\]]+\.(jpg|jpeg|png|webp))/gi)];
+    if (urlMatches.length > 0) {
+      imageUrl = urlMatches[0][1];
+      downloadUrl = urlMatches.length > 1 ? urlMatches[1][1] : imageUrl;
+    }
+  }
+
+  return { imageUrl, downloadUrl: downloadUrl || imageUrl, revisedPrompt };
+}
+
+function buildImageGenerationPayload(model, prompt) {
+  if (model === 'stability/stable-image-ultra') {
+    return {
+      model,
+      prompt,
+      output_format: 'png',
+      aspect_ratio: '1:1',
+    };
+  }
+
+  if (model === 'runway/gen4_image') {
+    return {
+      model,
+      prompt,
+      promptText: prompt,
+      ratio: '1024:1024',
+      referenceImages: [],
+    };
+  }
+
+  return {
+    model,
+    prompt,
+    n: 1,
+    size: 'auto',
+    quality: 'auto',
+    background: 'auto',
+    image_detail: 'high',
+    output_format: 'png',
+  };
+}
+
+async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
+  const requestUrl = `${String(baseUrl || '').replace(/\/$/, '')}/images/generations`;
+  const payload = buildImageGenerationPayload(model, prompt);
+  const response = await fetch(requestUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const rawText = await response.text().catch(() => '');
+  let responseData = {};
+  try {
+    responseData = rawText ? JSON.parse(rawText) : {};
+  } catch (error) {
+    return {
+      ok: false,
+      error: `9router 返回格式异常 (HTTP ${response.status}): ${rawText.substring(0, 200) || '无法读取原始响应体'}`
+    };
+  }
+
+  if (!response.ok) {
+    const errMsg = responseData?.error?.message || responseData?.error || responseData?.message || JSON.stringify(responseData).substring(0, 200);
+    return { ok: false, error: `9router 服务异常 (${response.status}): ${errMsg}` };
+  }
+
+  const { imageUrl, downloadUrl, revisedPrompt } = extractGeneratedImageUrl(responseData);
+  if (!imageUrl) {
+    return {
+      ok: false,
+      error: `9router 返回了非图片数据，响应格式不兼容: ${JSON.stringify(responseData).substring(0, 200)}`
+    };
+  }
+
+  return { ok: true, imageUrl, downloadUrl, revisedPrompt };
 }
 
 // ==========================================
@@ -660,6 +776,59 @@ app.get('/api/theme/check-mastery', (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Database error on check-mastery' });
+  }
+});
+
+// 获取所有已通关主题列表
+app.get('/api/theme/mastered-list', (req, res) => {
+  try {
+    const { userId = 'default-user' } = req.query;
+
+    // 1. 查找所有产生过交互的主题
+    const candidateThemesRows = db.prepare(`
+      SELECT DISTINCT theme FROM (
+        SELECT scene_type AS theme FROM training_attempts WHERE user_id = ? AND scene_type IS NOT NULL
+        UNION
+        SELECT theme FROM theme_progress WHERE user_id = ? AND theme IS NOT NULL
+      )
+    `).all(userId, userId);
+
+    const masteredThemes = [];
+
+    // 2. 依次验证每个主题是否达标
+    for (const row of candidateThemesRows) {
+      const themeName = row.theme;
+
+      const oralCountRow = db.prepare(`
+        SELECT COUNT(*) as count FROM training_attempts
+        WHERE user_id = ? AND scene_type = ? AND module_type = 'oral'
+      `).get(userId, themeName);
+      const oralCount = oralCountRow ? oralCountRow.count : 0;
+
+      const maxWriteRow = db.prepare(`
+        SELECT MAX(score) as max_score FROM training_attempts
+        WHERE user_id = ? AND scene_type = ? AND module_type = 'write'
+      `).get(userId, themeName);
+      const maxWriteScore = (maxWriteRow && maxWriteRow.max_score !== null) ? maxWriteRow.max_score : 0;
+
+      const emailRow = db.prepare(`
+        SELECT has_perfect_email FROM theme_progress WHERE user_id = ? AND theme = ?
+      `).get(userId, themeName);
+      const emailCompleted = emailRow ? !!emailRow.has_perfect_email : false;
+
+      if (oralCount >= 10 && maxWriteScore >= 8 && emailCompleted) {
+        masteredThemes.push(themeName);
+      }
+    }
+
+    res.json({
+      success: true,
+      userId,
+      masteredThemes
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Database error on mastered-list' });
   }
 });
 
@@ -1615,113 +1784,43 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
     // 异步执行生成任务
     setImmediate(async () => {
       try {
-        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 Dify text2image 模型'] });
-        const text2imageApiKey = process.env.DIFY_TEXT2IMAGE_API_KEY || 'app-P3RxMjvtrhr2rFAXqKcfGSFA';
-        const difyBaseUrl = process.env.DIFY_TEXT2IMAGE_BASE_URL || 'https://dify.234124123.xyz/v1';
+        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://9router.234124123.xyz/v1';
+        const apiKey = process.env.IMAGE_GEN_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+        const models = (process.env.IMAGE_GEN_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
+        if (models.length === 0) models.push(...DEFAULT_IMAGE_GEN_MODELS);
 
-        console.log(`[generate-image] Calling text2image workflow for prompt: "${memoryAids.image_prompt}"`);
+        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 9router /v1/images/generations'] });
+        console.log(`[generate-image] prompt: "${memoryAids.image_prompt}", models: [${models.join(', ')}]`);
 
-        const chatResp = await fetch(`${difyBaseUrl}/chat-messages`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${text2imageApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            inputs: {
-              user_current_profile: user_current_profile || ''
-            },
-            query: memoryAids.image_prompt,
-            response_mode: 'blocking',
-            user: 'default-user',
-          }),
-        });
-
-        let chatData = {};
-        try {
-          chatData = await chatResp.json();
-        } catch (e) {
-          const rawText = await chatResp.text().catch(() => '');
-          console.error('[generate-image] Failed to parse JSON response. Status:', chatResp.status, 'Raw:', rawText.substring(0, 500));
-          taskQueue.updateTask(task.id, {
-            status: 'failed',
-            error: `Dify 返回格式异常 (HTTP ${chatResp.status}): ${rawText.substring(0, 200) || '无法读取原始响应体'}`
-          });
-          return;
-        }
-
-        if (!chatResp.ok) {
-          console.error('[generate-image] Dify error:', chatData);
-          const errMsg = chatData?.error || chatData?.message || chatData?.response_message || JSON.stringify(chatData).substring(0, 200);
-          taskQueue.updateTask(task.id, {
-            status: 'failed',
-            error: `Dify 服务异常 (${chatResp.status}): ${errMsg}`
-          });
-          return;
-        }
-
-        // 解析返回的图片 URL
         let imageUrl = '';
         let downloadUrl = '';
+        let lastError = '';
 
-        // 格式 1: { preview: "..." }
-        if (chatData.preview) {
-          imageUrl = chatData.preview;
-        // 格式 2: { previews: [{ url: "..." }] }
-        } else if (chatData.previews && chatData.previews.length > 0) {
-          imageUrl = chatData.previews[0].url || chatData.previews[0];
-        // 格式 3: { data: { outputs: { image_url: "..." } } } (workflow 输出)
-        } else if (chatData.data?.outputs?.image_url) {
-          imageUrl = chatData.data.outputs.image_url;
-        // 格式 4: { data: { outputs: { url: "..." } } }
-        } else if (chatData.data?.outputs?.url) {
-          imageUrl = chatData.data.outputs.url;
-        // 格式 5: { data: { image_url: "..." } }
-        } else if (chatData.data?.image_url) {
-          imageUrl = chatData.data.image_url;
-        }
+        for (const model of models) {
+          console.log(`[generate-image] try model=${model}`);
+          taskQueue.updateTask(task.id, { logs: [`尝试模型: ${model}`] });
 
-        // 尝试从 answer 中提取 URL
-        if (!imageUrl && chatData.answer) {
-          let parsed = null;
-          let cleanAnswer = chatData.answer.trim();
-          if (cleanAnswer.startsWith('```')) {
-            cleanAnswer = cleanAnswer.replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, '$1').trim();
-          }
-          try {
-            parsed = JSON.parse(cleanAnswer);
-          } catch (e) {
-            const jsonMatch = cleanAnswer.match(/\{[\s\S]*?\}/);
-            if (jsonMatch) {
-              try { parsed = JSON.parse(jsonMatch[0]); } catch (e2) {}
-            }
-          }
-
-          if (parsed) {
-            imageUrl = parsed.url || parsed.image_url || parsed.imageUrl || '';
-            downloadUrl = parsed.download_url || parsed.downloadUrl || imageUrl || '';
-          }
-
-          if (!imageUrl) {
-            const urlMatches = [...chatData.answer.matchAll(/(https?:\/\/[^\s"'`<>\{\}\[\]]+\.(jpg|jpeg|png|webp))/gi)];
-            if (urlMatches.length > 0) {
-              imageUrl = urlMatches[0][1];
-              downloadUrl = urlMatches.length > 1 ? urlMatches[1][1] : imageUrl;
-            }
+          const result = await tryGenerateImageOnce(baseUrl, apiKey, model, memoryAids.image_prompt);
+          if (result.ok) {
+            imageUrl = result.imageUrl;
+            downloadUrl = result.downloadUrl;
+            console.log(`[generate-image] success model=${model} url=${imageUrl}`);
+            taskQueue.updateTask(task.id, { logs: [`模型 ${model} 成功`] });
+            break;
+          } else {
+            lastError = result.error;
+            console.log(`[generate-image] model ${model} failed: ${lastError}`);
+            taskQueue.updateTask(task.id, { logs: [`模型 ${model} 失败: ${lastError}`] });
           }
         }
 
         if (!imageUrl) {
-          console.error('[generate-image] 无法从响应中解析图片 URL，完整响应:', JSON.stringify(chatData).substring(0, 500));
+          console.error('[generate-image] all models failed');
           taskQueue.updateTask(task.id, {
             status: 'failed',
-            error: `Dify 返回了非图片数据，响应格式不兼容: ${JSON.stringify(chatData).substring(0, 200)}`
+            error: `所有生图模型均失败，最后错误: ${lastError}`
           });
           return;
-        }
-
-        if (!downloadUrl) {
-          downloadUrl = imageUrl;
         }
 
         // 更新数据库

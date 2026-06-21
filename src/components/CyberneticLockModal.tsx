@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic } from 'lucide-react';
+import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic, Mail } from 'lucide-react';
 import { playGentleWarning } from '../utils/soundEffects';
 
 interface CyberneticLockModalProps {
@@ -9,6 +9,7 @@ interface CyberneticLockModalProps {
   theme: string;
   oralCount: number;
   maxWriteScore: number;
+  emailCompleted: boolean;
 }
 
 export default function CyberneticLockModal({
@@ -16,9 +17,10 @@ export default function CyberneticLockModal({
   onClose,
   theme,
   oralCount,
-  maxWriteScore
+  maxWriteScore,
+  emailCompleted
 }: CyberneticLockModalProps) {
-  
+
   useEffect(() => {
     if (isOpen) {
       playGentleWarning();
@@ -33,7 +35,7 @@ export default function CyberneticLockModal({
       {isOpen && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center">
           {/* 遮罩层 */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -42,11 +44,11 @@ export default function CyberneticLockModal({
           />
 
           {/* 弹窗内容 */}
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.96, y: 15 }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1, 
+            animate={{
+              opacity: 1,
+              scale: 1,
               y: 0,
               transition: { type: 'spring', damping: 24, stiffness: 200 }
             }}
@@ -68,7 +70,7 @@ export default function CyberneticLockModal({
 
             <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
               根据学习规约，当前主题的核心板块指标达成前，其他高级探索模块已锁定。
-              请先在<strong className="text-slate-900 mx-1">英语引擎</strong>中完成每日口语和写作的指标闭环。
+              请先在<strong className="text-slate-900 mx-1">英语引擎</strong>中完成每日口语、写作和邮件的指标闭环。
             </p>
 
             {/* Current Theme Info with Admin Style */}
@@ -76,11 +78,11 @@ export default function CyberneticLockModal({
               <div className="text-[10px] text-slate-450 uppercase tracking-widest font-bold mb-1.5">当前主题阵地</div>
               <div className="text-sm font-bold text-slate-800 mb-4">{theme}</div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Oral Stat Card */}
                 <div className={`p-4 rounded-xl border transition-all ${
-                  isOralDone 
-                    ? 'bg-emerald-50/50 border-emerald-100' 
+                  isOralDone
+                    ? 'bg-emerald-50/50 border-emerald-100'
                     : 'bg-slate-100/70 border-slate-200/60'
                 }`}>
                   <div className="flex justify-between items-center mb-1">
@@ -88,8 +90,8 @@ export default function CyberneticLockModal({
                       <Mic className="w-3 h-3" /> 口语沙盘
                     </span>
                     <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      isOralDone 
-                        ? 'bg-emerald-100 text-emerald-800' 
+                      isOralDone
+                        ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-700'
                     }`}>
                       {isOralDone ? '已达标' : '未达标'}
@@ -102,8 +104,8 @@ export default function CyberneticLockModal({
 
                 {/* Write Stat Card */}
                 <div className={`p-4 rounded-xl border transition-all ${
-                  isWriteDone 
-                    ? 'bg-emerald-50/50 border-emerald-100' 
+                  isWriteDone
+                    ? 'bg-emerald-50/50 border-emerald-100'
                     : 'bg-slate-100/70 border-slate-200/60'
                 }`}>
                   <div className="flex justify-between items-center mb-1">
@@ -111,8 +113,8 @@ export default function CyberneticLockModal({
                       <BookOpen className="w-3 h-3" /> 纵深写作
                     </span>
                     <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      isWriteDone 
-                        ? 'bg-emerald-100 text-emerald-800' 
+                      isWriteDone
+                        ? 'bg-emerald-100 text-emerald-800'
                         : 'bg-slate-200 text-slate-700'
                     }`}>
                       {isWriteDone ? '已达标' : '未达标'}
@@ -120,6 +122,29 @@ export default function CyberneticLockModal({
                   </div>
                   <div className="text-base font-bold text-slate-800">
                     {maxWriteScore} <span className="text-xs text-slate-400 font-normal">/ 8 分</span>
+                  </div>
+                </div>
+
+                {/* Email Stat Card */}
+                <div className={`p-4 rounded-xl border transition-all ${
+                  emailCompleted
+                    ? 'bg-emerald-50/50 border-emerald-100'
+                    : 'bg-slate-100/70 border-slate-200/60'
+                }`}>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> 邮件闭环
+                    </span>
+                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                      emailCompleted
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-200 text-slate-700'
+                    }`}>
+                      {emailCompleted ? '已达标' : '未达标'}
+                    </span>
+                  </div>
+                  <div className="text-xs text-slate-600 font-medium">
+                    {emailCompleted ? '已完成' : '未完成'}
                   </div>
                 </div>
               </div>

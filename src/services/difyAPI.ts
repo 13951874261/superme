@@ -849,12 +849,19 @@ export async function runListenMaterialGenerator(
   theme: string,
   genre: 'news' | 'meeting' | 'podcast' = 'meeting',
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
+  duration: 'short' | 'long' = 'short',
   userId = 'default-user'
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成拦截剧本。');
+  let apiKey: string;
+  if (duration === 'long') {
+    apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
+    if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
+  } else {
+    apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
+    if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成听力材料。');
+  }
 
-  // 该应用为 Text Generator (Completion) 妯″紡锛屼娇鐢?/completion-messages 接口
+  // 该应用为 Text Generator (Completion) 模式，使用 /completion-messages 接口
   const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
     method: 'POST',
     headers: {
@@ -862,7 +869,7 @@ export async function runListenMaterialGenerator(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel }),
+      inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration }),
       query: "",
       response_mode: 'blocking',
       user: userId,
@@ -870,9 +877,9 @@ export async function runListenMaterialGenerator(
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '生成截获剧本失败');
+  if (!res.ok) throw new Error(data?.message || data?.error || '生成听力材料失败');
 
-  // Completion 缁撴灉鍦?data.answer
+  // Completion 结果在 data.answer
   return String(data?.answer || '').trim();
 }
 

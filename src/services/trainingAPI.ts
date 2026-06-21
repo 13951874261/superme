@@ -102,6 +102,17 @@ export async function checkThemeMastery(theme: string, userId = 'default-user'):
   return request<ThemeMasteryCheck>(`/api/theme/check-mastery?${q.toString()}`);
 }
 
+export interface ThemeMasteredListResponse {
+  success: boolean;
+  userId?: string;
+  masteredThemes: string[];
+}
+
+export async function getMasteredThemes(userId = 'default-user'): Promise<ThemeMasteredListResponse> {
+  const q = new URLSearchParams({ userId });
+  return request<ThemeMasteredListResponse>(`/api/theme/mastered-list?${q.toString()}`);
+}
+
 export async function setThemeFocus(params: {
   theme: string;
   difficulty?: string;

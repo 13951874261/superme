@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { BookOpen, Loader2, CheckCircle2, Mic, Zap, Briefcase, Globe, CalendarCheck, Library } from 'lucide-react';
+import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, Library, BrainCircuit } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
@@ -7,6 +7,54 @@ import { submitReview, getAllWords, getReviewWords } from '../../../../services/
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import CustomCardModal from '../../../CustomCardModal';
+import MemoryAidPanel from '../../../MemoryAidPanel';
+import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
+
+// --- Payload Adapter ---
+function adaptWordPayload(word: any) {
+  if (!word) return { type: '', payload: null };
+  const payload = word.payload || {};
+  const dictType = word.dict_type || '';
+
+  // 如果 payload 已经是标准词典结构之一，直接返回
+  if (payload.translation_main || payload.definitions_en || payload.definition) {
+    let resolvedType = dictType;
+    if (dictType === 'manual_capture' || dictType === 'ai_extracted' || dictType === 'ai_phrase') {
+      if (payload.translation_main) resolvedType = 'en_zh_bidirectional';
+      else if (payload.definitions_en) resolvedType = 'en_en_business';
+      else if (payload.definition) resolvedType = 'zh_modern';
+    }
+    return { type: resolvedType, payload };
+  }
+
+  // 否则，它是 Dify 划线提纯/自动补全的扁平格式，适配为 en_en_business（商务英英）格式
+  const adaptedPayload: any = {
+    headword: word.word,
+    pos: payload.partOfSpeech || payload.pos || '',
+    phonetic: payload.phonetic || '',
+    meaning_zh: payload.meaning || payload.meaning_zh || '',
+    definitions_en: payload.definition_en ? [payload.definition_en] : [],
+    business_notes: payload.business_note || payload.businessNote || '',
+    scenarios: Array.isArray(payload.examples)
+      ? payload.examples.map((ex: any) => ({
+          scene: '商务场景',
+          example_en: typeof ex === 'string' ? ex : (ex.en || ex.example || '')
+        }))
+      : [],
+    other_meanings: [],
+    example_sentences: Array.isArray(payload.examples)
+      ? payload.examples.filter((ex: any) => typeof ex === 'string' ? ex.trim() : (ex.en || ex.zh || ''))
+      : [],
+    synonyms: Array.isArray(payload.synonyms) ? payload.synonyms : [],
+    antonyms: Array.isArray(payload.antonyms) ? payload.antonyms : [],
+    collocations: Array.isArray(payload.collocations) ? payload.collocations : [],
+  };
+
+  return {
+    type: 'en_en_business',
+    payload: adaptedPayload
+  };
+}
 
 export default function VocabTab() {
   const {
@@ -108,12 +156,9 @@ export default function VocabTab() {
   }, [dueWords, vocabZone, onlyCurrentTheme, theme]);
 
   const currentWord = useMemo(() => filteredWords[currentWordIdx], [filteredWords, currentWordIdx]);
-  const currentWordExample = useMemo(() => (
-    currentWord?.payload?.examples?.[0]
-    || currentWord?.payload?.related_sentences?.[0]
-    || currentWord?.payload?.related_phrases?.[0]
-    || ''
-  ), [currentWord]);
+
+  // 适配词典视图所需的 payload 结构
+  const adaptedWord = useMemo(() => adaptWordPayload(currentWord), [currentWord]);
 
   const handleEvaluate = async () => {
     if (!currentWord || !sentenceInput.trim()) return;
@@ -124,7 +169,7 @@ export default function VocabTab() {
       const result = await runEnglishSentenceEvaluation(currentWord.word, sentenceInput, theme);
       const quality = Math.max(0, Math.min(5, Math.round(Number(result.score ?? 4))));
       setEvalResult({ feedback: result.feedback, quality });
-      
+
       if (quality >= 3) {
         playSuccess();
         if (quality === 5) setShowConfetti(true);
@@ -145,6 +190,8 @@ export default function VocabTab() {
   return (
     <div className="flex flex-col gap-6">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
+
+      {/* 战术使用指南 Banner */}
       <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm animate-[fadeIn_0.3s_ease-out]">
         <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
            <BookOpen className="w-5 h-5" />
@@ -152,7 +199,7 @@ export default function VocabTab() {
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 mb-1">战术使用指南 // Tactical SOP</h5>
           <p className="text-xs text-indigo-800/80 font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
               <span className="text-amber-500 mt-0.5">💡</span>
@@ -169,7 +216,7 @@ export default function VocabTab() {
           </div>
         </div>
       </div>
-      
+
       {/* 双区生词本切换 — 含区别说明 */}
       <div className="flex flex-col gap-2">
         <div className="flex justify-between items-center w-full">
@@ -215,6 +262,7 @@ export default function VocabTab() {
         </div>
       </div>
 
+      {/* 主容器：包含复习模式标签与今日词汇展示 */}
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.015)] flex flex-col items-center justify-center min-h-[400px]">
       {/* 模式标签 */}
       {!loadingDueWords && filteredWords.length > 0 && (
@@ -238,132 +286,125 @@ export default function VocabTab() {
           <p className="text-sm text-gray-500 mt-2">请到“进度总控”执行提纯，或休息一下。</p>
         </div>
       ) : (
-        <div className="w-full">
-          <div className="bg-[#202124] rounded-3xl p-8 mb-6 relative overflow-hidden flex flex-col md:flex-row items-center justify-between border border-gray-800 shadow-xl">
-            <div className="absolute -left-10 -top-10 w-40 h-40 bg-[#FF5722]/20 rounded-full blur-3xl pointer-events-none"></div>
-            <div className="relative z-10 text-center md:text-left mb-6 md:mb-0">
-              <span className="inline-block px-3 py-1 bg-white/10 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-md mb-3 border border-white/5">Target Acquisition</span>
-              <span className="ml-3 text-xs font-black text-gray-500 uppercase tracking-widest">[ {currentWordIdx + 1} / {dueWords.length} ]</span>
-              <div className="flex items-center md:items-end justify-center md:justify-start gap-4 mb-2">
-                <h2 className="text-4xl md:text-6xl font-black text-white tracking-tight font-serif">{currentWord.word}</h2>
-                <SpeakButton text={currentWord.word} title={`播放 ${currentWord.word}`} className="w-10 h-10 bg-white/10 text-white hover:bg-[#FF5722]" iconClassName="w-5 h-5" />
-              </div>
-              <p className="text-gray-400 font-bold tracking-widest text-lg font-mono">{currentWord.payload?.phonetic || currentWord.payload?.definition_en || ''}</p>
-              
-              {inlineNotice && noticeAnchor === 'eval' && (
-                <div className={`mt-4 inline-flex rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
-                  {inlineNotice.text}
+        <div className="w-full max-w-4xl mx-auto space-y-6">
+
+          {/* ================= 上方区域：词汇情报捕获与记忆辅助 ================= */}
+          <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
+            <div className="bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6">
+
+              {/* 情报卡片标题 */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="inline-block px-3 py-1 bg-slate-150 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-md border border-slate-200">Target Acquisition</span>
+                  <span className="ml-3 text-xs font-black text-gray-500 uppercase tracking-widest">[ {currentWordIdx + 1} / {filteredWords.length} ]</span>
                 </div>
-              )}
-            </div>
-            
-            <div className="relative z-10 flex flex-wrap justify-center gap-2">
-              <span className="px-4 py-2 bg-white/5 text-gray-400 text-xs font-black uppercase tracking-widest border border-white/10 rounded-xl backdrop-blur-md shadow-sm">{currentWord.payload?.partOfSpeech || currentWord.dict_type || '词条'}</span>
-              <span className="px-4 py-2 bg-blue-500/10 text-blue-400 text-xs font-black uppercase tracking-widest border border-blue-500/20 rounded-xl backdrop-blur-md shadow-sm">商务高频</span>
-              <span className="px-4 py-2 bg-[#FF5722]/10 text-[#FF5722] text-xs font-black uppercase tracking-widest border border-[#FF5722]/20 rounded-xl backdrop-blur-md shadow-sm">{theme}</span>
+                <SpeakButton text={currentWord.word} title={`播放 ${currentWord.word}`} className="w-8 h-8 bg-slate-100 text-slate-600 hover:bg-[#FF5722] hover:text-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0" iconClassName="w-4 h-4" />
+              </div>
+
+              {/* 1. 核心词典视图渲染 */}
+              {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
+              {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
+              {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+
+              {/* 2. 生词记忆辅助面板 */}
+              <div className="border-t border-slate-100 pt-6">
+                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
+                  <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
+                  生词记忆辅助
+                </h4>
+                <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <div className="lg:col-span-5 flex flex-col gap-6">
-              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col h-full">
-                <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center border-b border-gray-100 pb-3 shrink-0">
-                  <BookOpen className="w-4 h-4 mr-2" /> Lexical Analysis (语意识别)
-                </h5>
-                <div className="text-sm text-gray-700 leading-relaxed font-medium mb-6 bg-gray-50 p-4 rounded-xl border border-gray-100/50">
-                  {currentWord.payload?.definition_en || currentWord.payload?.meaning || '暂无释义'}
-                </div>
-                
-                <h5 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center border-b border-gray-100 pb-3 shrink-0">
-                  <Mic className="w-4 h-4 mr-2" /> Context Intercept (语境监听)
-                </h5>
-                <div className="bg-blue-50/50 p-5 rounded-xl border border-blue-100 relative group transition-all hover:bg-blue-50 flex-1 min-h-[120px]">
-                  <div className="absolute top-4 right-4">
-                    <SpeakButton text={currentWordExample} title="播放商务例句" className="bg-white text-blue-600 shadow-sm hover:bg-blue-600 hover:text-white" />
-                  </div>
-                  <p className="text-sm text-blue-900 leading-relaxed italic pr-12 font-medium">
-                    "{currentWordExample || '暂无例句'}"
-                  </p>
-                </div>
+          {/* ================= 下方区域：强制闭环造句与评估 ================= */}
+          <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
+            <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-all ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
+
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <label className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-[#FF5722]" />
+                  Forced Application (强制闭环造句)
+                </label>
               </div>
-            </div>
 
-            <div className="lg:col-span-7 flex flex-col">
-              <div className={`flex-1 rounded-3xl p-8 transition-all border-2 flex flex-col ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : 'border-gray-100 bg-white shadow-sm'}`}>
-                <div className="flex justify-between items-center mb-6 border-b border-gray-100/50 pb-4 shrink-0">
-                  <label className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center">
-                    <Zap className="w-5 h-5 mr-2 text-[#FF5722]" /> Forced Application (强制闭环造句)
-                  </label>
-                </div>
-                
-                <textarea
-                  rows={4}
-                  value={sentenceInput}
-                  onChange={(e) => setSentenceInput(e.target.value)}
-                  disabled={isEvaluating || (!!evalResult && evalResult.quality >= 3)}
-                  className="w-full flex-1 min-h-[120px] bg-gray-50 border-2 border-transparent focus:border-[#FF5722] rounded-2xl p-5 text-sm text-[#202124] outline-none resize-none shadow-inner transition-colors disabled:bg-white/50"
-                  placeholder={`使用 [ ${currentWord.word} ] \n结合当前阵地【${theme}】造句。\n\nAI 教官将实时从「语法精确度」与「商务权力分寸」两方面进行判卷...`}
-                />
+              <textarea
+                rows={4}
+                value={sentenceInput}
+                onChange={(e) => setSentenceInput(e.target.value)}
+                disabled={isEvaluating || (!!evalResult && evalResult.quality >= 3)}
+                className="w-full flex-1 min-h-[120px] bg-slate-50 border-2 border-transparent focus:border-[#FF5722] rounded-2xl p-5 text-sm text-[#202124] outline-none resize-none shadow-inner transition-colors disabled:bg-white/50"
+                placeholder={`使用 [ ${currentWord.word} ] \n结合当前阵地【${theme}】造句。\n\nAI 教官将实时从「语法精确度」与「商务权力分寸」两方面进行判卷...`}
+              />
 
-                {evalResult && (
-                  <div className="mt-6 p-6 bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.05)] border border-gray-100 animate-[fadeIn_0.3s_ease-out]">
-                    <div className="flex items-center justify-between mb-4">
-                      <h5 className={`text-[11px] font-black uppercase tracking-widest ${evalResult.quality >= 3 ? 'text-emerald-500' : 'text-red-500'}`}>
-                        AI 教官判卷 (SM-2 权重: {evalResult.quality}/5)
-                      </h5>
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${evalResult.quality >= 3 ? 'bg-emerald-500' : 'bg-red-500'}`}>
-                        {evalResult.quality >= 3 ? 'PASS' : 'REJECT'}
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">{evalResult.feedback}</p>
+              {/* 评估结果回显 */}
+              {evalResult && (
+                <div className="p-6 bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.05)] border border-slate-100 animate-[fadeIn_0.3s_ease-out]">
+                  <div className="flex items-center justify-between mb-4">
+                    <h5 className={`text-[11px] font-black uppercase tracking-widest ${evalResult.quality >= 3 ? 'text-emerald-500' : 'text-red-500'}`}>
+                      AI 教官判卷 (SM-2 权重: {evalResult.quality}/5)
+                    </h5>
+                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${evalResult.quality >= 3 ? 'bg-emerald-500' : 'bg-red-500'}`}>
+                      {evalResult.quality >= 3 ? 'PASS' : 'REJECT'}
+                    </span>
                   </div>
-                )}
+                  <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">{evalResult.feedback}</p>
+                </div>
+              )}
 
-                <div className="mt-6 shrink-0 flex gap-4">
-                  {!evalResult ? (
+              {/* 操作按钮 */}
+              <div className="shrink-0 flex gap-4">
+                {!evalResult ? (
+                  <button
+                    onClick={handleEvaluate}
+                    disabled={isEvaluating || !sentenceInput.trim()}
+                    className="w-full bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#FF5722] transition-all disabled:opacity-50 flex justify-center items-center cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200"
+                  >
+                    {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> AI 军控识别中...</> : '提交评估并推入记忆曲线 ➔'}
+                  </button>
+                ) : evalResult.quality >= 3 ? (
+                  <button
+                    onClick={() => {
+                      setEvalResult(null);
+                      setSentenceInput('');
+                      setCurrentWordIdx((p) => p + 1);
+                    }}
+                    className="w-full bg-[#FF5722] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-all cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200 flex justify-center items-center"
+                  >
+                    下一个战术目标 (Next Target) ➔
+                  </button>
+                ) : (
+                  <>
                     <button
                       onClick={handleEvaluate}
                       disabled={isEvaluating || !sentenceInput.trim()}
-                      className="w-full bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#FF5722] transition-all disabled:opacity-50 flex justify-center items-center cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 duration-200"
+                      className="flex-1 bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#303134] transition-all cursor-pointer shadow-lg hover:shadow-xl active:scale-[0.98] flex justify-center items-center"
                     >
-                      {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> AI 军控识别中...</> : '提交评估并推入记忆曲线 ➔'}
+                      {isEvaluating ? <Loader2 className="w-5 h-5 animate-spin" /> : '修改并重新提交 ↻'}
                     </button>
-                  ) : evalResult.quality >= 3 ? (
                     <button
                       onClick={() => {
                         setEvalResult(null);
                         setSentenceInput('');
                         setCurrentWordIdx((p) => p + 1);
                       }}
-                      className="w-full bg-[#FF5722] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-all cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 duration-200 flex justify-center items-center"
+                      className="px-6 bg-red-50 text-red-500 py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-red-100 transition-all cursor-pointer border border-red-200 active:scale-[0.98]"
                     >
-                      下一个战术目标 (Next Target) ➔
+                      强行跳过
                     </button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={handleEvaluate}
-                        disabled={isEvaluating || !sentenceInput.trim()}
-                        className="flex-1 bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#303134] transition-all cursor-pointer shadow-lg hover:shadow-xl flex justify-center items-center"
-                      >
-                        {isEvaluating ? <Loader2 className="w-5 h-5 animate-spin" /> : '修改并重新提交 ↻'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEvalResult(null);
-                          setSentenceInput('');
-                          setCurrentWordIdx((p) => p + 1);
-                        }}
-                        className="px-6 bg-red-50 text-red-500 py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-red-100 transition-all cursor-pointer border border-red-200"
-                      >
-                        强行跳过
-                      </button>
-                    </>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
+
+              {/* 内联提示（保留原有逻辑） */}
+              {inlineNotice && noticeAnchor === 'eval' && (
+                <div className={`mt-2 inline-flex rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
+                  {inlineNotice.text}
+                </div>
+              )}
             </div>
           </div>
+
         </div>
       )}
       </div>

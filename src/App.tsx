@@ -95,7 +95,11 @@ function AppContent() {
     return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
   }, []);
 
-  const isLocked = isInterceptorEnabled && !masteryData._isInitial && (masteryData.oralCount < 10 || masteryData.maxWriteScore < 8);
+  const isLocked = isInterceptorEnabled && !masteryData._isInitial && (
+    masteryData.oralCount < 10 ||
+    masteryData.maxWriteScore < 8 ||
+    !masteryData.emailCompleted
+  );
 
   // 当触发控制论强制锁定且当前不在英语引擎时，强行重定向至英语引擎
   useEffect(() => {
@@ -202,6 +206,7 @@ function AppContent() {
         theme={theme}
         oralCount={masteryData.oralCount}
         maxWriteScore={masteryData.maxWriteScore}
+        emailCompleted={masteryData.emailCompleted}
       />
 
       {/* 项目答疑右下角悬浮按钮 */}

@@ -25,7 +25,8 @@ export default function DashboardTab() {
     grammarNotes, setGrammarNotes,
     impromptuPassed,
     inlineNotice, noticeAnchor, setActiveTab, showNotice,
-    customThemes, refreshCustomThemes
+    customThemes, refreshCustomThemes,
+    masteredThemes,
   } = useEnglishContext();
 
   const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
@@ -64,33 +65,64 @@ export default function DashboardTab() {
     };
   }, [theme]);
 
+  // 主题锁定机制 - 单一数据源
+  // 与 EnglishContext.tsx 中 isMastered 判定保持一致：
+  //   口语 >= 10 轮 && 写作最高分 >= 8 分 && emailCompleted
+  const buildLockMessage = (
+    currentTheme: string,
+    m: { oralCount: number; maxWriteScore: number; emailCompleted: boolean }
+  ) => {
+    const oralOk = m.oralCount >= 10;
+    const writeOk = m.maxWriteScore >= 8;
+    const emailOk = !!m.emailCompleted;
+    const mark = (ok: boolean) => (ok ? '✅ 已达标' : '⚠️ 未达标');
+    return [
+      `当前阵地【${currentTheme}】尚未被攻克！`,
+      '',
+      '通关三件套：',
+      `• 沉浸式口语沙盘：${m.oralCount}/10 轮 ${mark(oralOk)}`,
+      `• L3 书面最高分：${m.maxWriteScore}/8 分 ${mark(writeOk)}`,
+      `• 邮件闭环：${emailOk ? '已完成' : '未完成'} ${mark(emailOk)}`,
+      '',
+      '三项全部达标后才可切换主题或阶段。',
+    ].join('\n');
+  };
+
+  // 公共主题锁定校验：返回 true 表示放行，false 表示已被锁定（错误信息已写入）
+  const runMasteryGate = async (): Promise<boolean> => {
+    try {
+      const m = await checkThemeMastery(theme);
+      if (!m.isMastered) {
+        setThemeSwitchError(buildLockMessage(theme, m));
+        return false;
+      }
+      setThemeSwitchError(null);
+      return true;
+    } catch {
+      setThemeSwitchError(
+        '后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。'
+      );
+      return false;
+    }
+  };
+
   const handleTrackChange = async (newTrack: 'business' | 'all') => {
     // 核心修复：切回当前阶段时，不加限制并直接清理可能残留的弹窗
     if (newTrack === stage) {
       setThemeSwitchError(null);
       return;
     }
-    
+
     // 堵住漏洞：切换阶段也会导致主题变更，必须执行强制拦截校验！
-    try {
-      const m = await checkThemeMastery(theme);
-      if (!m.isMastered) {
-        setThemeSwitchError(
-          `当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n• 沉浸式口语沙盘：${m.oralCount}/10 轮\n• L3 书面评估最高分：${m.maxWriteScore}/10 分（及格线: 8分）\n\n请把当前阵地打透再拔营。`
-        );
-        return;
-      }
-      
-      // 校验通过，放行阶段切换
-      setThemeSwitchError(null);
-      setStage(newTrack);
-      const options = getThemeOptions(newTrack);
-      if (!options.find(o => o.value === theme)) {
-        setTheme(options[0].value);
-        await setThemeFocus({ theme: options[0].value }).catch(() => {});
-      }
-    } catch {
-      setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。');
+    const passed = await runMasteryGate();
+    if (!passed) return;
+
+    // 校验通过，放行阶段切换
+    setStage(newTrack);
+    const options = getThemeOptions(newTrack);
+    if (!options.find(o => o.value === theme)) {
+      setTheme(options[0].value);
+      await setThemeFocus({ theme: options[0].value }).catch(() => {});
     }
   };
 
@@ -498,7 +530,13 @@ export default function DashboardTab() {
 
       {/* 核心中枢：战局大纲与当前闭环主题控制 */}
       <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5 animate-[fadeIn_0.3s_ease-out]">
-        <StrategicRoadmap stage={stage} handleTrackChange={handleTrackChange} />
+        <StrategicRoadmap
+          stage={stage}
+          handleTrackChange={handleTrackChange}
+          masteredThemes={masteredThemes}
+          customThemesCount={customThemes?.length || 0}
+          currentTheme={theme}
+        />
 
         {/* 当前闭环主题 */}
           <div className="flex flex-col">
@@ -526,21 +564,16 @@ export default function DashboardTab() {
                   const next = target.value;
                   if (next === theme) return;
                   setThemeSwitchError(null);
-                  try {
-                    const m = await checkThemeMastery(theme);
-                    if (!m.isMastered) {
-                      target.value = theme;
-                      setThemeSwitchError(
-                        `当前阵地【${theme}】尚未被攻克！\n\n当前战绩：\n• 沉浸式口语沙盘：${m.oralCount}/10 轮\n• L3 书面评估最高分：${m.maxWriteScore}/10 分（及格线: 8分）\n\n请把当前阵地打透再拔营。`
-                      );
-                      return;
-                    }
-                    setTheme(next);
-                    await setThemeFocus({ theme: next }).catch(() => {});
-                  } catch {
+
+                  // 拦截逻辑收敛至 runMasteryGate()
+                  const passed = await runMasteryGate();
+                  if (!passed) {
                     target.value = theme;
-                    setThemeSwitchError('后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。');
+                    return;
                   }
+
+                  setTheme(next);
+                  await setThemeFocus({ theme: next }).catch(() => {});
                 }}
                 onClick={(e) => {
                   e.stopPropagation();

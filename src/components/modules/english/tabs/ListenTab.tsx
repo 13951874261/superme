@@ -29,6 +29,7 @@ export default function ListenTab() {
   const [highlightedWord, setHighlightedWord] = useState('');
   const [listenGenre, setListenGenre] = useState<'news' | 'meeting' | 'podcast'>('meeting');
   const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
+  const [listenDuration, setListenDuration] = useState<'short' | 'long'>('short');
   const [isFullscreenText, setIsFullscreenText] = useState(false);
   const [isAddingHighlight, setIsAddingHighlight] = useState(false);
 
@@ -61,7 +62,7 @@ export default function ListenTab() {
     
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
-      const script = await runListenMaterialGenerator(targetTheme, listenGenre, listenCefr);
+      const script = await runListenMaterialGenerator(targetTheme, listenGenre, listenCefr, listenDuration);
       setListenMaterial(script);
       
       try {
@@ -156,6 +157,14 @@ export default function ListenTab() {
                   <option value="B1" className="text-black">B1 进阶</option>
                   <option value="B2" className="text-black">B2 高阶</option>
                   <option value="C1" className="text-black">C1 母语级</option>
+                </select>
+                <select
+                  value={listenDuration}
+                  onChange={(e) => setListenDuration(e.target.value as 'short' | 'long')}
+                  className="bg-black/20 text-white/90 text-[10px] px-3 py-1.5 rounded-lg border border-white/10 outline-none focus:border-[#FF5722] focus:bg-black/40 transition-all cursor-pointer hover:border-white/20"
+                >
+                  <option value="short" className="text-black">短听力 (25s)</option>
+                  <option value="long" className="text-black">长听力 (30min+)</option>
                 </select>
                 <button
                   onClick={() => generateListenMaterial(theme)}
