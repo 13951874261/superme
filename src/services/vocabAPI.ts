@@ -228,15 +228,21 @@ export async function deleteWord(id: string): Promise<{ success: boolean }> {
 
 /** 词典查询（由后端代理 Dify，避免前端暴露 token） */
 export async function queryDictionary(params: DictQueryParams): Promise<DictResult> {
+  let resolvedDirection = params.direction || 'auto';
+  if (params.dictType === 'en_zh_bidirectional' && (!params.direction || params.direction === 'auto')) {
+    const hasChinese = /[\u4e00-\u9fa5]/.test(params.word || '');
+    resolvedDirection = hasChinese ? 'zh_to_en' : 'en_to_zh';
+  }
+
   const res = await fetch('/api/dify/dict-query', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      direction: 'auto',
       userContext: '',
       locale: 'zh-CN',
       userId: 'default-user',
       ...params,
+      direction: resolvedDirection,
       user_current_profile: getUserCurrentProfile(),
     }),
   });
