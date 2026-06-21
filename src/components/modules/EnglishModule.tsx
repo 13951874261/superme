@@ -40,8 +40,8 @@ function EnglishModuleContent() {
             onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id as EnglishTab); }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.02] active:scale-[0.98] ${
               activeTab === tab.id 
-                ? 'bg-[#202124] text-white shadow-[0_4px_12px_rgba(32,33,36,0.12)] border border-[#202124]' 
-                : 'text-gray-500 hover:text-[#202124] hover:bg-white hover:shadow-sm border border-transparent'
+                ? 'bg-[var(--color-brand)] text-white shadow-[0_4px_12px_rgba(0,0,0,0.12)] border border-[var(--color-brand)]' 
+                : 'text-gray-500 hover:text-[var(--color-brand)] hover:bg-white hover:shadow-sm border border-transparent'
             }`}
           >
             {tab.icon} {tab.label}

@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, UploadCloud, Zap, Globe, Video, Play } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, UploadCloud, Zap, Globe, Video, Play, Sparkles } from 'lucide-react';
 import { processMaterialsAndExtract } from '../services/difyAPI';
 import UrlFetchPanel from './UrlFetchPanel';
 import VideoTranscribePanel from './VideoTranscribePanel';
@@ -203,44 +203,48 @@ export default function MaterialUploader({
   const progress = status === 'success' ? 100 : status === 'running' ? 65 : selectedFiles.length > 0 ? 25 : 0;
 
   return (
-    <div className="bg-white rounded-[2rem] border border-gray-100 p-8 shadow-sm mt-8 space-y-6">
+    <div className="bg-white rounded-[var(--radius-xl)] border border-[var(--color-border)] p-8 shadow-[var(--shadow-card)] mt-8 space-y-6">
       <div>
-        <h4 className="text-sm font-black uppercase tracking-widest text-[#202124] mb-2 flex items-center">
-          <UploadCloud className="w-5 h-5 mr-2 text-[#FF5722]" />
+        <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-surface-dark)] mb-2 flex items-center leading-none">
+          <UploadCloud className="w-5 h-5 mr-2 text-[var(--color-primary)]" />
           一键材料提纯
         </h4>
-        <p className="text-xs text-gray-400 font-medium leading-relaxed">
+        <p className="text-xs text-gray-400 font-medium leading-relaxed mt-2">
           将本地文档、网页内容或音视频转写文字投喂给 Dify 知识库，并自动写入艾宾浩斯生词本。
         </p>
       </div>
 
       {/* Step 1：当前主题 — 水平通栏 Banner */}
-      <section className="rounded-2xl bg-slate-50/80 border border-slate-100 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] bg-[#FF5722]/10 px-2.5 py-1 rounded-lg shrink-0">
+      <section className="rounded-[var(--radius-md)] bg-gradient-to-r from-slate-50 to-slate-100/50 border border-[var(--color-border)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm relative overflow-hidden">
+        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
+        <div className="flex items-center gap-3 relative z-10">
+          <div className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)] bg-[var(--color-primary-light)] px-2.5 py-1 rounded-lg shrink-0">
             Step 1
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">当前主题：</span>
-            <span className="text-sm font-black text-[#202124] leading-relaxed">{topicHint}</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              当前主题：
+            </span>
+            <span className="text-sm font-black text-[var(--color-surface-dark)] leading-relaxed">{topicHint}</span>
           </div>
         </div>
-        <div className="text-[10px] text-gray-400 font-medium shrink-0">来源：上方 Theme Gateway</div>
+        <div className="text-[10px] text-gray-400 font-medium shrink-0 relative z-10">来源：上方 Theme Gateway</div>
       </section>
 
-      {/* Step 2 + Step 3：2:1 两栏布局 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Step 2：选择材料 (col-span-2) */}
-        <section className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-5 lg:col-span-2">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 2 选择材料</div>
+      {/* Step 2 + Step 3：等比两栏布局 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Step 2：选择材料 (左栏) */}
+        <section className="rounded-[var(--radius-xl)] bg-[var(--color-surface-mid)] border border-[var(--color-border)] p-5 flex flex-col min-h-[420px]">
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)] mb-3">Step 2 选择材料</div>
             
             {/* Tabs Selector */}
             <div className="flex border border-gray-200 rounded-xl overflow-hidden mb-4 bg-white">
               <button
                 onClick={() => setActiveTab('file')}
-                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeTab === 'file' ? 'bg-zinc-900 text-white shadow-sm' : 'text-gray-500 hover:bg-zinc-50'
+                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeTab === 'file' ? 'bg-[var(--color-primary)] text-white shadow-md' : 'text-gray-500 hover:bg-zinc-50 hover:shadow-sm'
                 }`}
                 disabled={status === 'running'}
               >
@@ -249,8 +253,8 @@ export default function MaterialUploader({
               </button>
               <button
                 onClick={() => setActiveTab('url')}
-                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeTab === 'url' ? 'bg-zinc-900 text-white shadow-sm' : 'text-gray-500 hover:bg-zinc-50'
+                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeTab === 'url' ? 'bg-[var(--color-primary)] text-white shadow-md' : 'text-gray-500 hover:bg-zinc-50 hover:shadow-sm'
                 }`}
                 disabled={status === 'running'}
               >
@@ -259,8 +263,8 @@ export default function MaterialUploader({
               </button>
               <button
                 onClick={() => setActiveTab('video')}
-                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                  activeTab === 'video' ? 'bg-zinc-900 text-white shadow-sm' : 'text-gray-500 hover:bg-zinc-50'
+                className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeTab === 'video' ? 'bg-[var(--color-primary)] text-white shadow-md' : 'text-gray-500 hover:bg-zinc-50 hover:shadow-sm'
                 }`}
                 disabled={status === 'running'}
               >
@@ -284,17 +288,18 @@ export default function MaterialUploader({
                 />
                 <label
                   htmlFor="material-wizard-upload"
-                  className={`flex items-center justify-center px-4 py-3 rounded-xl text-xs font-black tracking-widest uppercase transition-all border cursor-pointer ${
+                  className={`group flex flex-col items-center justify-center px-4 py-8 rounded-xl text-xs font-black tracking-widest uppercase transition-all border-2 border-dashed cursor-pointer ${
                     status === 'running'
-                      ? 'bg-gray-100 text-gray-400 border-gray-100 cursor-not-allowed'
-                      : 'bg-white text-[#202124] border-gray-200 hover:border-[#FF5722] hover:text-[#FF5722]'
+                      ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                      : 'bg-white text-[var(--color-surface-dark)] border-[var(--color-border)] hover:border-[var(--color-primary)] hover:text-[var(--color-primary)] hover:shadow-[0_0_0_3px_var(--color-primary-light)]'
                   }`}
                 >
-                  <FileText className="w-4 h-4 mr-2" />选择本地文档
+                  <UploadCloud className="w-8 h-8 mb-2 text-[var(--color-primary)] group-hover:scale-110 transition-transform" />
+                  选择本地文档
+                  <span className="text-[10px] text-gray-400 leading-relaxed font-medium mt-1 normal-case tracking-normal">
+                    支持 PDF / Word / TXT / MD 格式
+                  </span>
                 </label>
-                <div className="text-[10px] text-gray-400 leading-relaxed">
-                  支持 PDF / Word / TXT / MD 格式
-                </div>
               </div>
             )}
 
@@ -316,12 +321,15 @@ export default function MaterialUploader({
 
             {/* 选中材料回显 (针对本地文档 & 网页提取) */}
             {activeTab !== 'video' && selectedFiles.length > 0 && (
-              <div className="mt-4 space-y-1">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">当前载入的提纯材料</div>
+              <div className="mt-4 space-y-2">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">当前载入的提纯材料</div>
                 {selectedFiles.map(file => (
-                  <div key={file.name} className="text-[11px] text-gray-600 truncate bg-white rounded-lg px-2.5 py-1.5 border border-gray-100 flex items-center justify-between">
-                    <span className="truncate">{file.name}</span>
-                    <span className="text-[9px] text-green-650 bg-green-50 px-1.5 py-0.5 rounded font-bold">已载入</span>
+                  <div key={file.name} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-[var(--color-border)] shadow-sm hover:shadow-[var(--shadow-hover)] transition-shadow">
+                    <FileText className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
+                    <span className="text-xs font-medium text-gray-700 truncate flex-1">{file.name}</span>
+                    <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center">
+                      <CheckCircle2 className="w-3 h-3 mr-0.5" />已载入
+                    </span>
                   </div>
                 ))}
               </div>
@@ -329,10 +337,10 @@ export default function MaterialUploader({
           </div>
         </section>
 
-        {/* Step 3：执行提纯 */}
-        <section className="rounded-2xl bg-[#202124] border border-gray-900 p-5 text-white flex flex-col justify-between lg:col-span-1 min-h-[340px]">
+        {/* Step 3：执行提纯 (右栏) */}
+        <section className="rounded-[var(--radius-xl)] bg-[var(--color-surface-dark)] border border-zinc-800 p-5 text-white flex flex-col justify-between min-h-[420px]">
           <div className="flex-1 flex flex-col min-h-0">
-            <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-3">Step 3 执行与预览</div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-[var(--color-primary)] mb-3">Step 3 执行与预览</div>
             
             {/* 动态预览窗口 */}
             <div className="flex-1 min-h-[160px] max-h-[200px] mb-4 bg-zinc-950 rounded-xl p-4 border border-zinc-800 flex flex-col overflow-hidden relative shadow-inner">
@@ -378,7 +386,7 @@ export default function MaterialUploader({
                       </span>
                     )}
                   </div>
-                  <div className="absolute bottom-0 left-0 right-0 h-4 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
+                  <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-zinc-950 to-transparent pointer-events-none" />
                 </div>
               ) : (
                 // 默认提示
@@ -393,29 +401,29 @@ export default function MaterialUploader({
           <button
             onClick={handleRunWorkflow}
             disabled={selectedFiles.length === 0 || status === 'running'}
-            className={`w-full px-5 py-3 rounded-xl text-xs font-black tracking-widest uppercase transition-all flex items-center justify-center ${
+            className={`w-full px-5 py-3.5 rounded-xl text-xs font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2 ${
               selectedFiles.length === 0 || status === 'running'
-                ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                : 'bg-[#FF5722] text-white hover:bg-[#E64A19] cursor-pointer'
+                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:scale-[0.98] active:translate-y-[1px] cursor-pointer shadow-md hover:shadow-lg'
             }`}
           >
             {status === 'running' ? (
-              <><Loader2 className="w-4 h-4 mr-2 animate-spin" />处理中...</>
+              <><Loader2 className="w-4 h-4 animate-spin" />处理中...</>
             ) : status === 'success' ? (
-              <><CheckCircle2 className="w-4 h-4 mr-2" />再次执行</>
+              <><CheckCircle2 className="w-4 h-4" />再次执行</>
             ) : (
-              <><Zap className="w-4 h-4 mr-2" />开始上传并提纯</>
+              <><Zap className="w-4 h-4" />开始上传并提纯</>
             )}
           </button>
         </section>
       </div>
 
       {/* 底部详细进度日志区 */}
-      <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-5">
+      <div className="rounded-[var(--radius-xl)] bg-[var(--color-surface-mid)] border border-[var(--color-border)] p-5">
         <div className="flex items-center justify-between gap-4 mb-3">
           <div>
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">当前进度</div>
-            <div className="text-sm font-bold text-[#202124] truncate max-w-[280px]">
+            <div className="text-sm font-bold text-[var(--color-surface-dark)] truncate max-w-[280px]">
               {currentFileName || '等待材料...'}
             </div>
           </div>
@@ -425,7 +433,7 @@ export default function MaterialUploader({
               : status === 'error'
                 ? 'bg-red-100 text-red-650'
                 : status === 'running'
-                  ? 'bg-[#FF5722]/10 text-[#FF5722]'
+                  ? 'bg-[var(--color-primary-light)] text-[var(--color-primary)]'
                   : 'bg-gray-150 text-gray-400'
           }`}
           >
@@ -433,9 +441,10 @@ export default function MaterialUploader({
           </span>
         </div>
 
-        <div className="h-2 bg-gray-250 rounded-full overflow-hidden mb-3">
+        {/* 进度条 — 加粗 + 圆角 + 内阴影 */}
+        <div className="h-3 bg-zinc-200 rounded-xl overflow-hidden mb-3 shadow-[inset_0_1px_3px_rgba(0,0,0,0.15)]">
           <div
-            className="h-full bg-gradient-to-r from-[#FF5722] to-amber-400 rounded-full transition-all duration-500"
+            className="h-full bg-gradient-to-r from-[var(--color-primary)] to-amber-400 rounded-xl transition-all duration-700 ease-out"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -443,14 +452,14 @@ export default function MaterialUploader({
 
         <button
           onClick={() => setShowLogs(prev => !prev)}
-          className="mt-4 flex items-center text-[11px] font-black uppercase tracking-widest text-gray-450 hover:text-[#202124] transition-colors"
+          className="mt-4 flex items-center text-[11px] font-black uppercase tracking-widest text-gray-450 hover:text-[var(--color-surface-dark)] transition-colors cursor-pointer"
         >
           {showLogs ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
           查看提纯流水线详细日志
         </button>
 
         {showLogs && (
-          <div className="mt-3 bg-[#202124] text-gray-300 rounded-xl p-4 max-h-52 overflow-y-auto text-[11px] font-mono space-y-1">
+          <div className="mt-3 bg-zinc-900 text-zinc-300 rounded-xl p-4 max-h-52 overflow-y-auto text-[11px] font-mono space-y-1 shadow-inner custom-scrollbar">
             {logs.length > 0 ? logs.map((log, index) => <div key={`${log}-${index}`}>{log}</div>) : <div>等待任务启动...</div>}
           </div>
         )}

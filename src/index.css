@@ -3,9 +3,28 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-brand: #FF5722;
-  --color-brand-hover: #E64A19;
-  --color-brand-light: #FFCCBC;
+  --color-brand: oklch(65% 0.22 50);        /* 深橙 */
+  --color-brand-hover: oklch(60% 0.22 50);  /* 更深 */
+  --color-brand-light: oklch(90% 0.12 50);  /* 浅 25% */
+  --color-brand-subtle: oklch(95% 0.06 50); /* 背景用 */
+  
+  /* 中性色板 */
+  --color-canvas: oklch(98% 0 0);
+  --color-surface: oklch(100% 0 0);
+  --color-ink-primary: oklch(20% 0 0);
+  --color-ink-secondary: oklch(50% 0 0);
+  --color-ink-muted: oklch(70% 0 0);
+  --color-border: oklch(88% 0 0);
+  
+  /* 功能色 */
+  --color-success: oklch(70% 0.18 145);
+  --color-warning: oklch(80% 0.16 85);
+  --color-danger: oklch(60% 0.20 25);
+  --color-info: oklch(65% 0.15 260);
+  
+  /* 轨道色 */
+  --color-track-orange: oklch(65% 0.22 50);
+  --color-track-indigo: oklch(55% 0.18 270);
   
   --font-sans: 'Outfit', 'Google Sans', 'Product Sans', Roboto, ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
@@ -169,4 +188,114 @@ details[open] summary ~ * {
 .admin-glow-soft {
   background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
   box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.01), 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+:root {
+  /* Legacy token mapping for existing components */
+  --color-primary: var(--color-brand);
+  --color-primary-hover: var(--color-brand-hover);
+  --color-primary-light: var(--color-brand-light);
+  --color-surface-dark: var(--color-ink-primary);
+  --color-surface-mid: var(--color-canvas);
+  --radius-sm: 0.5rem;    /* 8px */
+  --radius-md: 1rem;      /* 16px */
+  --radius-lg: 1.5rem;   /* 24px */
+  --radius-xl: 2rem;       /* 32px */
+  --shadow-card: 0 4px 24px -8px rgba(0,0,0,0.06);
+  --shadow-hover: 0 12px 40px -12px rgba(0,0,0,0.12);
+}
+
+/* === 排版系统 === */
+.font-display {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.font-body {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  line-height: 1.65;
+}
+
+.text-display-xl { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.04em; }
+.text-display    { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 800; letter-spacing: -0.03em; }
+.text-heading    { font-size: 1.125rem;  font-weight: 700; letter-spacing: -0.02em; } /* 18px */
+.text-subhead    { font-size: 0.875rem;  font-weight: 600; letter-spacing: 0; }        /* 14px */
+.text-body       { font-size: 0.875rem;  font-weight: 400; letter-spacing: 0; }        /* 14px */
+.text-caption    { font-size: 0.75rem;   font-weight: 500; letter-spacing: 0.02em; }   /* 12px */
+.text-micro      { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; } /* 11px */
+.text-label      { font-size: 0.625rem;  font-weight: 700; letter-spacing: 0.15em; } /* 10px */
+
+/* === 间距节奏 (8pt Grid) === */
+.space-section { padding: 4rem 0; }
+.space-element { padding: 1.5rem 0; }
+.space-tight { padding: 0.75rem 0; }
+
+/* === Bento Grid 布局 === */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.5rem;
+}
+.bento-card {
+  background: var(--color-surface);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 1.5rem;
+  padding: 1.75rem;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bento-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+/* === 物理按压反馈 === */
+.btn-press:active {
+  transform: scale(0.97) translateY(1px);
+  transition: transform 0.1s ease-out;
+}
+
+/* === 骨架屏加载态 === */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* === Hover 翻译揭示 — 从"不可见"改为"淡入" === */
+.reveal-translation {
+  position: relative;
+  min-height: 2rem;
+}
+.reveal-translation .hint {
+  font-size: 0.6875rem; /* 11px */
+  color: var(--color-ink-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: opacity 0.2s ease;
+}
+.reveal-translation .translation {
+  font-size: 0.75rem; /* 12px */
+  color: var(--color-info);
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.group:hover .reveal-translation .hint { opacity: 0; }
+.group:hover .reveal-translation .translation {
+  opacity: 1;
+  transform: translateY(0);
 }

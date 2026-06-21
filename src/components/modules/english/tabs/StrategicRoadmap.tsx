@@ -55,7 +55,7 @@ export default function StrategicRoadmap({
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between border-b border-slate-50 pb-4">
         <div className="flex items-center gap-2.5">
-          <div className="w-1.5 h-4 bg-gradient-to-b from-[#FF5722] to-orange-400 rounded-full" />
+          <div className="w-1.5 h-4 bg-[var(--color-brand)] rounded-full" />
           <span className="text-xs uppercase tracking-[0.15em] font-black text-slate-800">
             战略路线图
           </span>
@@ -73,15 +73,15 @@ export default function StrategicRoadmap({
 
         <div className="absolute top-[43px] left-10 right-10 h-[3px] rounded-full overflow-hidden">
           <div
-            className="h-full bg-gradient-to-r from-orange-500 via-orange-400 to-indigo-500 transition-all duration-500 ease-out"
+            className="h-full bg-[var(--color-brand)] transition-all duration-500 ease-out"
             style={{ width: `${timelineFillPercent}%` }}
           />
         </div>
 
         <div className="flex justify-between items-start relative z-10">
           <div className="flex flex-col items-center">
-            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center border-2 border-orange-500 shadow-sm shadow-orange-100 mb-2.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-orange-500 animate-pulse" />
+            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center border-2 border-[var(--color-brand)] shadow-[0_2px_8px_rgba(0,0,0,0.05)] mb-2.5">
+              <div className="w-2.5 h-2.5 rounded-full bg-[var(--color-brand)] animate-pulse" />
             </div>
             <span className="text-[11px] font-black text-slate-800 tracking-wider">0月</span>
             <span className="text-[9px] text-slate-400 font-semibold mt-0.5">立项启动</span>
@@ -90,11 +90,11 @@ export default function StrategicRoadmap({
           <div className="flex flex-col items-center">
             <div className={`w-6 h-6 rounded-full bg-white flex items-center justify-center border-2 transition-all duration-300 mb-2.5 ${
               stage === 'business' || stage === 'all'
-                ? 'border-orange-500 shadow-sm shadow-orange-100'
+                ? 'border-[var(--color-brand)] shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
                 : 'border-slate-300'
             }`}>
               <div className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                stage === 'business' || stage === 'all' ? 'bg-orange-500' : 'bg-slate-300'
+                stage === 'business' || stage === 'all' ? 'bg-[var(--color-brand)]' : 'bg-slate-300'
               }`} />
             </div>
             <span className={`text-[11px] font-black tracking-wider transition-colors duration-300 ${
@@ -106,11 +106,11 @@ export default function StrategicRoadmap({
           <div className="flex flex-col items-center">
             <div className={`w-6 h-6 rounded-full bg-white flex items-center justify-center border-2 transition-all duration-300 mb-2.5 ${
               stage === 'all'
-                ? 'border-indigo-500 shadow-sm shadow-indigo-100'
+                ? 'border-[var(--color-accent)] shadow-[0_2px_8px_rgba(0,0,0,0.05)]'
                 : 'border-slate-300'
             }`}>
               <div className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                stage === 'all' ? 'bg-indigo-500' : 'bg-slate-300'
+                stage === 'all' ? 'bg-[var(--color-accent)]' : 'bg-slate-300'
               }`} />
             </div>
             <span className={`text-[11px] font-black tracking-wider transition-colors duration-300 ${
@@ -133,7 +133,7 @@ export default function StrategicRoadmap({
             </div>
             <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all duration-500 ${stage === 'business' ? 'bg-orange-500' : 'bg-indigo-500'}`}
+                className={`h-full rounded-full transition-all duration-500 ${stage === 'business' ? 'bg-[var(--color-brand)]' : 'bg-[var(--color-accent)]'}`}
                 style={{ width: `${Math.max(8, activeProgressRatio * 100)}%` }}
               />
             </div>
@@ -157,19 +157,19 @@ export default function StrategicRoadmap({
             }}
             className={`group text-left p-6 rounded-2xl transition-all duration-300 cursor-pointer outline-none relative overflow-hidden border ${
               stage === 'business'
-                ? 'bg-gradient-to-br from-orange-50/40 via-white to-white border-orange-500/80 shadow-[0_12px_24px_rgba(255,87,34,0.06)]'
-                : 'bg-white hover:bg-slate-50/50 border-slate-100 hover:border-slate-200 hover:shadow-sm'
+                ? 'bg-slate-50 border-[var(--color-brand)] shadow-sm'
+                : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200'
             }`}
           >
             {stage === 'business' && (
-              <span className="absolute top-0 left-0 w-1.5 h-full bg-orange-500" />
+              <span className="absolute top-0 left-0 w-1.5 h-full bg-[var(--color-brand)]" />
             )}
 
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xl filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300">🎯</span>
                 <span className={`text-xs font-black uppercase tracking-wider transition-colors duration-300 ${
-                  stage === 'business' ? 'text-[#FF5722]' : 'text-slate-700'
+                  stage === 'business' ? 'text-[var(--color-brand)]' : 'text-slate-700'
                 }`}>
                   政务集中突破期
                 </span>
@@ -177,7 +177,7 @@ export default function StrategicRoadmap({
 
               <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 ${
                 stage === 'business'
-                  ? 'bg-orange-500 text-white scale-100'
+                  ? 'bg-[var(--color-brand)] text-white scale-100'
                   : 'border border-slate-200 text-transparent scale-90 group-hover:border-slate-300'
               }`}>
                 <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -188,7 +188,7 @@ export default function StrategicRoadmap({
               <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                 <span className="font-bold text-slate-800 mr-1.5">0-6个月</span> · 集中攻克
                 <span className={`font-bold ml-1.5 transition-colors ${
-                  stage === 'business' ? 'text-[#FF5722]' : 'text-slate-800'
+                  stage === 'business' ? 'text-[var(--color-brand)]' : 'text-slate-800'
                 }`}>10个</span> 核心商务场景
               </p>
               <div className="flex items-center justify-between text-[10px] font-medium text-slate-500">
@@ -197,7 +197,7 @@ export default function StrategicRoadmap({
               </div>
               <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-orange-500 transition-all duration-500"
+                  className="h-full rounded-full bg-[var(--color-brand)] transition-all duration-500"
                   style={{ width: `${Math.max(6, businessProgressRatio * 100)}%` }}
                 />
               </div>
@@ -205,7 +205,7 @@ export default function StrategicRoadmap({
                 {businessExamples.map(scene => (
                   <span
                     key={scene}
-                    className="px-2.5 py-1 rounded-full bg-orange-50 text-[10px] font-bold text-orange-700 border border-orange-100"
+                    className="px-2.5 py-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200"
                   >
                     {scene}
                   </span>
@@ -226,19 +226,19 @@ export default function StrategicRoadmap({
             }}
             className={`group text-left p-6 rounded-2xl transition-all duration-300 cursor-pointer outline-none relative overflow-hidden border ${
               stage === 'all'
-                ? 'bg-gradient-to-br from-indigo-50/40 via-white to-white border-indigo-500/80 shadow-[0_12px_24px_rgba(99,102,241,0.06)]'
-                : 'bg-white hover:bg-slate-50/50 border-slate-100 hover:border-slate-200 hover:shadow-sm'
+                ? 'bg-slate-50 border-[var(--color-accent)] shadow-sm'
+                : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200'
             }`}
           >
             {stage === 'all' && (
-              <span className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500" />
+              <span className="absolute top-0 left-0 w-1.5 h-full bg-[var(--color-accent)]" />
             )}
 
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xl filter drop-shadow-sm group-hover:scale-110 transition-transform duration-300">🌐</span>
                 <span className={`text-xs font-black uppercase tracking-wider transition-colors duration-300 ${
-                  stage === 'all' ? 'text-indigo-600' : 'text-slate-700'
+                  stage === 'all' ? 'text-[var(--color-accent)]' : 'text-slate-700'
                 }`}>
                   全场景拓展期
                 </span>
@@ -246,7 +246,7 @@ export default function StrategicRoadmap({
 
               <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-300 ${
                 stage === 'all'
-                  ? 'bg-indigo-500 text-white scale-100'
+                  ? 'bg-[var(--color-accent)] text-white scale-100'
                   : 'border border-slate-200 text-transparent scale-90 group-hover:border-slate-300'
               }`}>
                 <CheckCircle2 className="w-3.5 h-3.5 stroke-[2.5]" />
@@ -257,7 +257,7 @@ export default function StrategicRoadmap({
               <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
                 <span className="font-bold text-slate-800 mr-1.5">0-12个月</span> · 覆盖
                 <span className={`font-bold ml-1.5 transition-colors ${
-                  stage === 'all' ? 'text-indigo-500' : 'text-slate-800'
+                  stage === 'all' ? 'text-[var(--color-accent)]' : 'text-slate-800'
                 }`}>16个</span> 场景（含政务10场景）
               </p>
               <div className="flex items-center justify-between text-[10px] font-medium text-slate-500">
@@ -266,7 +266,7 @@ export default function StrategicRoadmap({
               </div>
               <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div
-                  className="h-full rounded-full bg-indigo-500 transition-all duration-500"
+                  className="h-full rounded-full bg-[var(--color-accent)] transition-all duration-500"
                   style={{ width: `${Math.max(6, allProgressRatio * 100)}%` }}
                 />
               </div>
@@ -274,7 +274,7 @@ export default function StrategicRoadmap({
                 {allExamples.map(scene => (
                   <span
                     key={scene}
-                    className="px-2.5 py-1 rounded-full bg-indigo-50 text-[10px] font-bold text-indigo-700 border border-indigo-100"
+                    className="px-2.5 py-1 rounded-full bg-slate-100 text-[10px] font-bold text-slate-600 border border-slate-200"
                   >
                     {scene}
                   </span>

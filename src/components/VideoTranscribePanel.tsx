@@ -275,13 +275,13 @@ export default function VideoTranscribePanel({
       {/* 语言选择栏 */}
       <div className="flex flex-col gap-1.5">
         <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center gap-1">
-          <Languages className="w-3.5 h-3.5 text-[#FF5722]" />
+          <Languages className="w-3.5 h-3.5 text-[var(--color-primary)]" />
           视频主语言
         </label>
         <select
           value={language}
           onChange={(e) => setLanguage(e.target.value)}
-          className="w-full px-3 py-2 bg-[#F8F9FA] border border-gray-200 rounded-xl text-xs transition-all focus:border-[#FF5722] focus:bg-white focus:outline-none"
+          className="w-full px-3 py-2 bg-[var(--color-surface-mid)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-xs transition-all focus:border-[var(--color-primary)] focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_var(--color-primary-light)]"
           disabled={isSubmitting}
         >
           <option value="auto">自动识别 (Auto-Detect)</option>
@@ -310,7 +310,7 @@ export default function VideoTranscribePanel({
               setSelectedFile(null); // 清理拖拽文件以保持互斥
             }}
             placeholder="粘贴 MP4 视频直链地址 (如 https://example.com/movie.mp4)"
-            className="w-full px-4 py-3 bg-[#F8F9FA] border border-gray-200 rounded-2xl text-xs transition-all focus:border-[#FF5722] focus:bg-white focus:outline-none"
+            className="w-full px-4 py-3 bg-[var(--color-surface-mid)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-xs transition-all focus:border-[var(--color-primary)] focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_var(--color-primary-light)]"
             disabled={isSubmitting}
           />
         </div>
@@ -329,12 +329,12 @@ export default function VideoTranscribePanel({
           onDragLeave={handleDrag}
           onDrop={handleDrop}
           onClick={() => !isSubmitting && fileInputRef.current?.click()}
-          className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all ${
+          className={`group border-2 border-dashed rounded-[var(--radius-md)] p-6 text-center cursor-pointer transition-all ${
             isDragActive 
-              ? 'border-[#FF5722] bg-[#FF5722]/5' 
+              ? 'border-[var(--color-primary)] bg-[var(--color-primary-light)]' 
               : selectedFile 
                 ? 'border-green-400 bg-green-50/20' 
-                : 'border-gray-200 hover:border-gray-300 bg-[#F8F9FA]'
+                : 'border-[var(--color-border)] hover:border-[var(--color-primary)] bg-[var(--color-surface-mid)]'
           } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           <input
@@ -349,14 +349,14 @@ export default function VideoTranscribePanel({
           {selectedFile ? (
             <div className="flex flex-col items-center gap-2">
               <FileVideo className="w-10 h-10 text-green-500" />
-              <p className="text-xs font-bold text-gray-700 truncate max-w-[250px]">{selectedFile.name}</p>
+              <p className="text-xs font-bold text-[var(--color-surface-dark)] truncate max-w-[250px]">{selectedFile.name}</p>
               <p className="text-[10px] text-gray-400">
                 文件大小: {(selectedFile.size / (1024 * 1024)).toFixed(2)} MB (建议不超过 1G)
               </p>
             </div>
           ) : (
             <div className="flex flex-col items-center gap-2">
-              <UploadCloud className={`w-10 h-10 ${isDragActive ? 'text-[#FF5722]' : 'text-gray-400'}`} />
+              <UploadCloud className={`w-10 h-10 transition-transform group-hover:scale-110 ${isDragActive ? 'text-[var(--color-primary)]' : 'text-gray-400 group-hover:text-[var(--color-primary)]'}`} />
               <p className="text-xs font-bold text-gray-600">拖拽本地视频文件到这里</p>
               <p className="text-[10px] text-gray-400">或点击此处浏览选择文件</p>
             </div>
@@ -373,8 +373,8 @@ export default function VideoTranscribePanel({
       )}
 
       {submitStatus && (
-        <div className="p-3 bg-orange-50 text-orange-700 border border-orange-100 rounded-xl text-xs flex items-center gap-2 animate-pulse">
-          <Sparkles className="w-4 h-4 shrink-0 animate-spin text-[#FF5722]" />
+        <div className="p-3 bg-orange-50 text-orange-700 border border-orange-100 rounded-[var(--radius-sm)] text-xs flex items-center gap-2 animate-pulse">
+          <Sparkles className="w-4 h-4 shrink-0 animate-spin text-[var(--color-primary)]" />
           <span>{submitStatus}</span>
         </div>
       )}
@@ -383,7 +383,7 @@ export default function VideoTranscribePanel({
       <button
         onClick={handleSubmit}
         disabled={isSubmitting || (!videoUrl.trim() && !selectedFile)}
-        className="w-full flex items-center justify-center gap-2 py-3 bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-2xl text-xs font-black tracking-widest uppercase transition-all shadow-md disabled:opacity-40 disabled:hover:bg-[#FF5722] cursor-pointer"
+        className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-[var(--radius-md)] text-xs font-black tracking-widest uppercase transition-all shadow-md active:scale-[0.98] active:translate-y-[1px] disabled:opacity-40 disabled:hover:bg-[var(--color-primary)] cursor-pointer"
       >
         <Play className="w-4 h-4 fill-current" />
         开始转写并提纯
