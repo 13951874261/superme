@@ -841,16 +841,72 @@ export async function runListenMaterialGenerator(
     body: JSON.stringify({
       inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration }),
       query: endpoint === '/chat-messages' ? "请执行听力材料生成任务" : "",
-      response_mode: 'blocking',
+      response_mode: 'streaming',
       user: userId,
     }),
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '生成听力材料失败');
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.message || errData?.error || `生成听力材料失败 (HTTP ${res.status})`);
+  }
 
-  // Completion 结果在 data.answer
-  return String(data?.answer || '').trim();
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('流式读取失败，当前浏览器不支持。');
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalAnswer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    let lineEnd = buffer.indexOf('\n');
+    while (lineEnd !== -1) {
+      const line = buffer.substring(0, lineEnd).trim();
+      buffer = buffer.substring(lineEnd + 1);
+
+      if (line.startsWith('data: ')) {
+        const dataStr = line.slice(6).trim();
+        if (dataStr === '[DONE]') break;
+
+        try {
+          const parsed = JSON.parse(dataStr);
+          // 兼容普通模型生成、工作流文本块输出、以及工作流最终完成节点
+          if (parsed.event === 'message') {
+            finalAnswer += parsed.answer ?? '';
+          } else if (parsed.event === 'text_chunk' && parsed.data?.text) {
+            finalAnswer += parsed.data.text;
+          } else if (parsed.event === 'workflow_finished' && !finalAnswer && parsed.data?.outputs) {
+             // 作为兜底，如果没收到任何流片段，提取工作流配置的输出结果
+             const out = parsed.data.outputs;
+             finalAnswer = out.result ?? out.text ?? out.answer ?? finalAnswer;
+          }
+        } catch (e) {
+          // 忽略数据块截断或非JSON格式导致的临时错误
+        }
+      }
+      lineEnd = buffer.indexOf('\n');
+    }
+  }
+
+  // 兜底缓冲残余
+  if (buffer.trim().startsWith('data: ')) {
+    try {
+      const parsed = JSON.parse(buffer.trim().slice(6).trim());
+      if (parsed.event === 'message') finalAnswer += parsed.answer ?? '';
+      else if (parsed.event === 'text_chunk' && parsed.data?.text) finalAnswer += parsed.data.text;
+    } catch (e) {}
+  }
+
+  if (!finalAnswer) {
+    throw new Error("后台没有返回任何听力材料数据，请检查 Dify 应用配置。");
+  }
+
+  return finalAnswer.trim();
 }
 
 export interface ImpromptuSpeechEvaluationResult {
