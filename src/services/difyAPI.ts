@@ -840,7 +840,7 @@ export async function runListenMaterialGenerator(
     },
     body: JSON.stringify({
       inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration }),
-      query: "",
+      query: endpoint === '/chat-messages' ? "请执行听力材料生成任务" : "",
       response_mode: 'blocking',
       user: userId,
     }),
