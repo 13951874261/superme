@@ -362,3 +362,47 @@ export async function batchAddWords(
     body: JSON.stringify(items),
   });
 }
+
+// ============================================================
+// 字典查询请求去重 & 并发限制（页面初始请求过载优化）
+// ============================================================
+
+/** 请求缓存：相同参数只保留一个 Promise */
+const requestCache = new Map<string, Promise<DictResult>>();
+
+/** 生成缓存键 */
+export function getCacheKey(params: DictQueryParams): string {
+  return `${params.dictType}:${(params.word || '').toLowerCase().trim()}`;
+}
+
+/** 带缓存的单次查询（相同 word+dictType 只发一次请求） */
+export async function queryDictionaryWithCache(params: DictQueryParams): Promise<DictResult> {
+  const key = getCacheKey(params);
+  if (requestCache.has(key)) return requestCache.get(key)!;
+  const promise = queryDictionary(params).finally(() => requestCache.delete(key));
+  requestCache.set(key, promise);
+  return promise;
+}
+
+/** 并发限制器工厂：限制同时进行的请求数 */
+export function createConcurrencyLimiter(maxConcurrent: number = 3) {
+  const queue: Array<() => Promise<void>> = [];
+  let active = 0;
+
+  async function run() {
+    if (queue.length === 0) return;
+    active++;
+    const task = queue.shift()!;
+    try {
+      await task();
+    } finally {
+      active--;
+      run();
+    }
+  }
+
+  return function enqueue(task: () => Promise<void>) {
+    queue.push(task);
+    if (active < maxConcurrent) run();
+  };
+}

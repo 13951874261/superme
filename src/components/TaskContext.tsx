@@ -35,6 +35,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const activePolls = useRef<Set<string>>(new Set());
+  const lastGlobalPollTimeRef = useRef<number>(0); // 全局轮询节流时间戳 ref
 
   const fetchTasks = async () => {
     try {
@@ -72,6 +73,13 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     activePolls.current.add(id);
 
     const interval = setInterval(async () => {
+      // 节流：确保全局轮询之间有一定间隔，避免短时间内并发过多请求
+      const now = Date.now();
+      if (now - lastGlobalPollTimeRef.current < 1000) {
+        return;
+      }
+      lastGlobalPollTimeRef.current = now;
+
       try {
         const response = await fetch(`${API_BASE}/api/tasks/${id}`);
         if (!response.ok) {
@@ -119,7 +127,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           )
         );
       }
-    }, 2000);
+    }, 5000);
   };
 
   // 当前进行中的任务数

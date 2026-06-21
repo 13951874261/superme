@@ -173,24 +173,30 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // 延迟加载自定义主题（避免页面初始请求过载）
   useEffect(() => {
-    refreshCustomThemes();
+    const timer = setTimeout(() => {
+      refreshCustomThemes();
+    }, 1200);
+    return () => clearTimeout(timer);
   }, []);
 
-  // 加载后端历史通关主题列表（用于路线图等真实进度）
+  // 加载后端历史通关主题列表（用于路线图等真实进度，延迟执行避免初始请求过载）
   useEffect(() => {
     let cancelled = false;
-    void (async () => {
-      try {
-        const res = await getMasteredThemes();
-        if (!cancelled && res.success && Array.isArray(res.masteredThemes)) {
-          setMasteredThemes(res.masteredThemes);
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await getMasteredThemes();
+          if (!cancelled && res.success && Array.isArray(res.masteredThemes)) {
+            setMasteredThemes(res.masteredThemes);
+          }
+        } catch {
+          // ignore — road map still works with local data
         }
-      } catch {
-        // ignore — road map still works with local data
-      }
-    })();
-    return () => { cancelled = true; };
+      })();
+    }, 1200);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
   useEffect(() => {
@@ -342,7 +348,10 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   }, [pronunciationNotes, grammarNotes, sessionId]);
 
   useEffect(() => {
-    void setThemeFocus({ theme }).catch(() => {});
+    const timer = setTimeout(() => {
+      void setThemeFocus({ theme }).catch(() => {});
+    }, 500);
+    return () => clearTimeout(timer);
   }, [theme]);
 
   const handleMarkEmailComplete = async (t: string) => {

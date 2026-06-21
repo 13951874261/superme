@@ -21,15 +21,24 @@ Set-Location $ProjectRoot
 
 # 1. Detect code changes
 Write-Host "========== Step 1: Scan Workspace Changes ==========" -ForegroundColor Cyan
-$gitStatus = git status --porcelain
-$changedFiles = $gitStatus | ForEach-Object { $_ -replace '^...|\s+$', '' }
+$branchName = (git branch --show-current)
+$diffFiles = @()
+try {
+    $upstreamExists = git ls-remote --heads origin $branchName 2>$null
+    if ($upstreamExists) {
+        $diffFiles = git diff --name-only "origin/$branchName...HEAD" 2>$null
+    }
+} catch {}
+
+$statusFiles = git status --porcelain | ForEach-Object { $_ -replace '^...|\s+$', '' }
+$changedFiles = @($diffFiles) + @($statusFiles) | Select-Object -Unique | Where-Object { $_ -ne '' }
 
 $needFrontendDeploy = $false
 $needBackendDeploy = $false
 $needNginxDeploy = $false
 
 if ($changedFiles.Count -eq 0) {
-    Write-Host "No unstaged changes. Checking previous commit changes..." -ForegroundColor Yellow
+    Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
     $changedFiles = git diff --name-only HEAD~1 HEAD
 }
 
@@ -50,14 +59,10 @@ foreach ($file in $changedFiles) {
 }
 
 if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
-    if ($changedFiles) {
-        Write-Host "Changes detected only in non-deployable files (e.g. yml). Skipping server deployment." -ForegroundColor Magenta
-    } else {
-        Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
-        $needFrontendDeploy = $true
-        $needBackendDeploy = $true
-        $needNginxDeploy = $true
-    }
+    Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
+    $needFrontendDeploy = $true
+    $needBackendDeploy = $true
+    $needNginxDeploy = $true
 }
 
 Write-Host "[Analysis Results]" -ForegroundColor DarkCyan
@@ -141,13 +146,6 @@ try {
         foreach ($file in $changedFiles) {
             if ($file -match "^vocab-server/") {
                 $relativePath = $file -replace '^vocab-server/', ''
-                
-                # 黑名单过滤：跳过数据库文件和环境变量配置
-                if ($relativePath -match "\.(db|sqlite|db-journal|db-shm|db-wal)$" -or $relativePath -match "^\.env") {
-                    Write-Host "     Skipping sensitive file: $relativePath" -ForegroundColor Yellow
-                    continue
-                }
-
                 $localFile = "$ProjectRoot\vocab-server\$relativePath".Replace('/', '\')
                 if (Test-Path $localFile -PathType Leaf) {
                     if ($relativePath.Contains('/')) {

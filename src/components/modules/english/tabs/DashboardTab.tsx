@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
@@ -9,7 +9,7 @@ import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
 import { triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
-import { addWord, getAllWords } from '../../../../services/vocabAPI';
+import { addWord, getAllWords, batchAddWords, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
 import { VOICE_OPTIONS } from '../../../../config/voices';
@@ -202,7 +202,9 @@ export default function DashboardTab() {
   // 缓存今日提纯词汇的音标和释义详情
   const [vocabDetailsMap, setVocabDetailsMap] = useState<Record<string, any>>({});
   const [asyncMeanings, setAsyncMeanings] = useState<Record<string, { meaning: string; phonetic?: string }>>({});
-  const [pendingTranslations, setPendingTranslations] = useState<Set<string>>(new Set());
+
+  /** 使用 ref 跟踪 pending 翻译请求（同步更新，避免 React 批处理导致的重复请求） */
+  const pendingTranslationsRef = useRef<Set<string>>(new Set());
 
   // 过滤明显的占位词和无效文本
   const getDisplayMeaning = (text?: string) => {
@@ -216,17 +218,12 @@ export default function DashboardTab() {
   // 自动调用英汉双向译制翻译接口补齐释义
   const fetchBilingualTranslation = async (text: string) => {
     const keyStr = text.toLowerCase().trim();
-    if (!keyStr || pendingTranslations.has(keyStr) || asyncMeanings[keyStr]) return;
+    if (!keyStr || pendingTranslationsRef.current.has(keyStr) || asyncMeanings[keyStr]) return;
 
-    setPendingTranslations(prev => {
-      const next = new Set(prev);
-      next.add(keyStr);
-      return next;
-    });
+    pendingTranslationsRef.current.add(keyStr);
 
     try {
-      const { queryDictionary } = await import('../../../../services/vocabAPI');
-      const res = await queryDictionary({
+      const res = await queryDictionaryWithCache({
         word: text,
         dictType: 'en_zh_bidirectional', // 复用英汉双向译制类型
       });
@@ -258,11 +255,7 @@ export default function DashboardTab() {
     } catch (err) {
       // 自动翻译异常静默降级，不污染控制台
     } finally {
-      setPendingTranslations(prev => {
-        const next = new Set(prev);
-        next.delete(keyStr);
-        return next;
-      });
+      pendingTranslationsRef.current.delete(keyStr);
     }
   };
 
@@ -270,22 +263,32 @@ export default function DashboardTab() {
     try {
       const allWords = await getAllWords();
       const detailsMap: Record<string, any> = {};
+
+      const extractedKeys = new Set([
+        ...extractedWords.map(w => w.toLowerCase().trim()),
+        ...extractedPhrases.map(p => p.toLowerCase().trim()),
+        ...extractedSentences.map(s => s.toLowerCase().trim())
+      ]);
+
       allWords.forEach((item) => {
         if (item.word) {
-          let payload = item.payload;
-          if (typeof payload === 'string') {
-            try {
-              payload = JSON.parse(payload);
-            } catch {
-              payload = {};
+          const key = item.word.toLowerCase().trim();
+          if (extractedKeys.has(key)) {
+            let payload = item.payload;
+            if (typeof payload === 'string') {
+              try {
+                payload = JSON.parse(payload);
+              } catch {
+                payload = {};
+              }
             }
+            detailsMap[key] = {
+              phonetic: payload?.phonetic || '',
+              meaning: payload?.meaning || '',
+              definition_en: payload?.definition_en || '',
+              business_note: payload?.business_note || '',
+            };
           }
-          detailsMap[item.word.toLowerCase().trim()] = {
-            phonetic: payload?.phonetic || '',
-            meaning: payload?.meaning || '',
-            definition_en: payload?.definition_en || '',
-            business_note: payload?.business_note || '',
-          };
         }
       });
       setVocabDetailsMap(detailsMap);
@@ -294,11 +297,124 @@ export default function DashboardTab() {
     }
   };
 
+  // 1. 批量翻译与批量落库 useEffect (优化初始页面加载 N+1 请求过载)
+  useEffect(() => {
+    let active = true;
+    const queryLimiter = createConcurrencyLimiter(3);
+
+    const translateAndBatchSave = async () => {
+      // 收集待翻译的生词、短语、句型
+      const allTextItems = [
+        ...extractedWords.map(w => w.trim()),
+        ...extractedPhrases.map(p => p.trim()),
+        ...extractedSentences.map(s => s.trim())
+      ].filter(Boolean);
+
+      const uniqueWords = [...new Set(allTextItems)];
+
+      // 过滤出未翻译的词汇
+      const toTranslate = uniqueWords.filter(word => {
+        const key = word.toLowerCase().trim();
+        return !vocabDetailsMap[key] && !asyncMeanings[key] && !pendingTranslationsRef.current.has(key);
+      });
+
+      if (toTranslate.length === 0) return;
+
+      const batchWordsToSave: Array<{
+        word: string;
+        category?: 'business' | 'general';
+        dictType: string;
+        payload: any;
+      }> = [];
+
+      let completedCount = 0;
+      const totalToTranslate = toTranslate.length;
+
+      toTranslate.forEach((word) => {
+        const key = word.toLowerCase().trim();
+        pendingTranslationsRef.current.add(key);
+
+        queryLimiter(async () => {
+          try {
+            const res = await queryDictionaryWithCache({
+              word,
+              dictType: 'en_zh_bidirectional',
+            });
+            if (!active) return;
+            if (res.ok && res.payload) {
+              const payload = res.payload as any;
+              const mainTrans = payload.translation_main || payload.meaning_zh || payload.meaning || '';
+              const phone = payload.phonetic || '';
+              if (mainTrans) {
+                // 更新前端缓存
+                setAsyncMeanings(prev => ({
+                  ...prev,
+                  [key]: { meaning: mainTrans, phonetic: phone }
+                }));
+
+                // 区分生词、短语还是句型
+                let dictType = 'en_zh_bidirectional';
+                if (extractedPhrases.includes(word)) {
+                  dictType = 'ai_phrase';
+                } else if (extractedSentences.includes(word)) {
+                  dictType = 'ai_sentence';
+                } else if (extractedWords.includes(word)) {
+                  dictType = 'ai_extracted';
+                }
+
+                batchWordsToSave.push({
+                  word,
+                  dictType,
+                  category: 'business',
+                  payload: {
+                    meaning: mainTrans,
+                    phonetic: phone,
+                    translation_main: mainTrans,
+                    source: 'auto_translation_batch',
+                    topic: theme
+                  }
+                });
+              }
+            }
+          } catch (err) {
+            console.warn(`Failed to translate "${word}":`, err);
+          } finally {
+            pendingTranslationsRef.current.delete(key);
+            completedCount++;
+
+            // 所有异步请求处理完后触发批量落库
+            if (completedCount === totalToTranslate && batchWordsToSave.length > 0 && active) {
+              try {
+                console.log(`[DashboardTab] Batch saving ${batchWordsToSave.length} words to SQLite...`);
+                await batchAddWords(batchWordsToSave);
+                window.dispatchEvent(new Event('vocab-updated'));
+              } catch (batchErr) {
+                console.error('Failed to batch save translated words:', batchErr);
+              }
+            }
+          }
+        });
+      });
+    };
+
+    translateAndBatchSave();
+
+    return () => {
+      active = false;
+    };
+  }, [extractedWords, extractedPhrases, extractedSentences, vocabDetailsMap]);
+
+  // 2. 加载词汇详情与监听 vocab-updated 事件的 useEffect
   useEffect(() => {
     if (extractedWords.length > 0) {
       loadVocabDetails();
     }
-  }, [extractedWords]);
+    const handleUpdate = () => {
+      loadVocabDetails();
+    };
+    window.addEventListener('vocab-updated', handleUpdate);
+    return () => window.removeEventListener('vocab-updated', handleUpdate);
+  }, [extractedWords, extractedPhrases, extractedSentences]);
 
   // 一键将提纯出来的生词或短语手动加入生词本
   const handleAddWordToVocab = async (text: string, isPhrase: boolean = false) => {
@@ -316,11 +432,10 @@ export default function DashboardTab() {
       let meaning = asyncMeanings[cleanKey]?.meaning || '';
       let phonetic = asyncMeanings[cleanKey]?.phonetic || '';
 
-      // 若释义未在缓存中，则尝试调用英汉双向译制接口快速补齐
+      // 若释义未在缓存中，则尝试调用英汉双向译制接口快速补齐（使用缓存版本避免重复请求）
       if (!meaning) {
         try {
-          const { queryDictionary } = await import('../../../../services/vocabAPI');
-          const res = await queryDictionary({
+          const res = await queryDictionaryWithCache({
             word: cleanText,
             dictType: 'en_zh_bidirectional',
           });
@@ -358,7 +473,7 @@ export default function DashboardTab() {
     }
   };
 
-  // 加载每日配额状态
+  // 加载每日配额状态（延迟执行，避免初始请求过载）
   const loadQuotaStatus = async () => {
     try {
       const { getDailyQuotaStatus } = await import('../../../../services/difyAPI');
@@ -370,7 +485,10 @@ export default function DashboardTab() {
   };
 
   useEffect(() => {
-    loadQuotaStatus();
+    const timer = setTimeout(() => {
+      loadQuotaStatus();
+    }, 1500);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleAutoGenerate = async () => {
