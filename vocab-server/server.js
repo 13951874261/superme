@@ -2115,7 +2115,10 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           if (parsed.sentences && Array.isArray(parsed.sentences)) {
             extractedItems.push(...parsed.sentences.map(s => {
               if (typeof s === 'string') return { word: s, is_sentence: true };
-              if (typeof s === 'object' && s !== null) return { ...s, is_sentence: true };
+              if (typeof s === 'object' && s !== null) {
+                if (s.sentence && !s.word) s.word = s.sentence;
+                return { ...s, is_sentence: true };
+              }
               return s;
             }));
           }
@@ -2152,7 +2155,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
 
         if (dictType === 'ai_sentence') {
-          sentencesToReturn.push(cleanStr);
+          sentencesToReturn.push(isObject ? item : cleanStr);
         } else if (dictType === 'ai_phrase') {
           phrasesToReturn.push(isObject ? item : cleanStr);
         } else {
@@ -2633,6 +2636,16 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         if (parsed.phrases && Array.isArray(parsed.phrases)) {
           parsedPhrases = parsed.phrases;
         }
+        if (parsed.sentences && Array.isArray(parsed.sentences)) {
+          parsedVocab.push(...parsed.sentences.map(s => {
+            if (typeof s === 'string') return { word: s, is_sentence: true };
+            if (typeof s === 'object' && s !== null) {
+              if (s.sentence && !s.word) s.word = s.sentence;
+              return { ...s, is_sentence: true };
+            }
+            return s;
+          }));
+        }
       } catch(e) {
         console.error("[Daily Extract] Failed to parse vocab JSON:", e);
       }
@@ -2649,7 +2662,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           meaning: payload.meaning || payload.zh_meaning || item.meaning || item.zh_meaning || '',
           definition_en: payload.definition_en || payload.definitionEn || item.definition_en || item.definitionEn || '',
           business_note: payload.business_note || payload.businessNote || item.business_note || item.businessNote || '',
-          examples: payload.examples || item.examples || []
+          examples: payload.examples || item.examples || [],
+          is_sentence: item.is_sentence || false
         };
       }
       return { word: String(item) };
@@ -2659,6 +2673,9 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     for (const item of vocabList) {
       if (item && Array.isArray(item.examples)) {
         sentenceList.push(...item.examples);
+      }
+      if (item.is_sentence) {
+        sentenceList.push(item.word);
       }
     }
 
