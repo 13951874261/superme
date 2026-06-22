@@ -1,12 +1,13 @@
 import React from 'react';
 import { AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
 import { StatusBadge } from '../ui/Badge/StatusBadge';
+import { GhostButton } from '../ui/Button/GhostButton';
 
 export interface ThemeGatewayProps {
   theme: string;
   setTheme: (theme: string) => void;
-  themeSwitchError: string | null;
-  setThemeSwitchError: (error: string | null) => void;
+  themeSwitchError: React.ReactNode | null;
+  setThemeSwitchError: (error: React.ReactNode | null) => void;
   runMasteryGate: () => Promise<boolean>;
   masteryData: any;
   customThemes: any[];
@@ -49,8 +50,8 @@ export function ThemeGateway({
         <div className="flex items-start gap-3 mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
           <div className="flex-1">
-            <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1">🚫 跨国高管拦截指令</p>
-            <p className="text-xs font-medium leading-relaxed whitespace-pre-line">{themeSwitchError}</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-2">跨国高管拦截指令</p>
+            <div className="text-xs font-medium leading-relaxed">{themeSwitchError}</div>
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); setThemeSwitchError(null); }}
@@ -121,22 +122,23 @@ export function ThemeGateway({
                  setIsDeletingTheme(false);
               }
             }}
-            className="bg-red-50 hover:bg-red-100 text-red-600 p-3 rounded-xl border border-red-200 transition-all cursor-pointer disabled:opacity-50"
+            className="text-red-500 hover:text-red-700 p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             title="删除当前自定义场景"
           >
-            {isDeletingTheme ? <Loader2 className="w-5 h-5 animate-spin" /> : <Trash2 className="w-5 h-5" />}
+            {isDeletingTheme ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
           </button>
         )}
 
-        <button
+        <GhostButton
           onClick={() => {
             console.log('[ThemeGateway] Opening CustomThemeModal');
             setIsCustomThemeModalOpen(true);
           }}
-          className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-3 rounded-xl border border-indigo-200 transition-all font-bold text-xs uppercase tracking-wider cursor-pointer whitespace-nowrap btn-press"
+          className="flex items-center gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
         >
-          <Plus className="w-4 h-4" /> 自定义
-        </button>
+          <Plus className="w-4 h-4" />
+          <span className="text-xs font-bold uppercase tracking-wider">自定义</span>
+        </GhostButton>
 
         {/* 使用新的 StatusBadge 替换硬编码红色区块，解决 P0-1 问题 */}
         <StatusBadge 

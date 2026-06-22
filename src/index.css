@@ -299,3 +299,75 @@ details[open] summary ~ * {
   opacity: 1;
   transform: translateY(0);
 }
+
+/* === SOP 指南专用卡片变体 === */
+.card-sop {
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--color-indigo-50) 40%, var(--color-surface)) 0%,
+    var(--color-surface) 100%
+  );
+  border-left: 4px solid oklch(65% 0.18 270 / 0.6);
+  border-radius: 0 1.5rem 1.5rem 0;
+}
+
+/* === 状态图标 SVG 替代 emoji === */
+.status-ok   { color: oklch(70% 0.18 145); }  /* success green */
+.status-warn  { color: oklch(80% 0.16 85); }   /* warning amber */
+.status-fail  { color: oklch(60% 0.20 25); }   /* danger red   */
+.status-muted { color: oklch(70% 0 0); }        /* ink-muted   */
+
+/* === 移动端呼吸感增强 === */
+@media (max-width: 767px) {
+  .bento-card {
+    padding: 1.25rem;      /* 移动端缩小 padding */
+    border-radius: 1.25rem; /* 移动端缩小圆角 */
+    margin-bottom: 0.75rem;  /* 卡片间增加垂直间距 */
+  }
+
+  .space-y-section > * + * {
+    margin-top: 1.5rem;     /* 区块间强制呼吸间距 */
+  }
+}
+
+/* === Eyebrow 标签系统 === */
+.eyebrow {
+  font-size: 0.625rem;       /* 10px */
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+/* === Utility 区域专用样式（低密度） === */
+.utility-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  color: var(--color-ink-secondary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.utility-item:hover {
+  background: var(--color-canvas);
+  color: var(--color-ink-primary);
+}
+.utility-item .icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.utility-item:hover .icon {
+  opacity: 1;
+}
+.utility-badge {
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: var(--color-ink-muted);
+  background: var(--color-canvas);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}

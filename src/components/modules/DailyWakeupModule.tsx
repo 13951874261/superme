@@ -151,7 +151,7 @@ export default function DailyWakeupModule() {
       return (
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 animate-fade-in relative z-20">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          ✨ 唤醒打卡已完成
+          唤醒打卡已完成
         </div>
       );
     }
@@ -160,14 +160,14 @@ export default function DailyWakeupModule() {
       return (
         <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse relative z-20">
           <Clock3 className="w-3.5 h-3.5" />
-          ⏱️ 唤醒打卡计时中
+          唤醒打卡计时中
         </div>
       );
     }
     
     return (
       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-[#FF5722]/10 text-[#FF5722] border border-[#FF5722]/20 relative z-20">
-        <span>🔥 主题研习第 {days} 天</span>
+        <span>主题研习第 {days} 天</span>
       </div>
     );
   }, [todaySession, stayStats, running]);
@@ -263,11 +263,11 @@ export default function DailyWakeupModule() {
                     </span>
                   ) : todaySession && todaySession.totalMinutes > 0 ? (
                     <span className="text-emerald-400 flex items-center gap-1">
-                      ✅ 已打卡 ({todaySession.totalMinutes} 分钟)
+                      <CheckCircle2 className="w-4 h-4" /> 已打卡 ({todaySession.totalMinutes} 分钟)
                     </span>
                   ) : (
                     <span className="text-gray-400 flex items-center gap-1">
-                      💤 未打卡
+                      未打卡
                     </span>
                   )}
                 </div>

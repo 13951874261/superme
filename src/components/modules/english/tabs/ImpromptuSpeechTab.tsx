@@ -512,15 +512,15 @@ export default function ImpromptuSpeechTab() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>3 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</p>
             </div>
           </div>
@@ -917,7 +917,7 @@ export default function ImpromptuSpeechTab() {
                     key={i}
                     className="text-xs text-amber-900 bg-white border border-amber-100/85 rounded-full px-3.5 py-1.5 shadow-[0_1px_2px_rgba(245,158,11,0.02)] font-semibold select-none hover:-translate-y-0.5 hover:shadow-md hover:border-amber-400 hover:text-amber-700 transition-all duration-300 transform cursor-default flex items-center gap-1.5"
                   >
-                    <span>💡</span>
+                    <span></span>
                     <span>{tip}</span>
                   </span>
                 ))}
@@ -1007,7 +1007,7 @@ export default function ImpromptuSpeechTab() {
 
                 {evalResult.score < 8 && (
                   <div className="mt-6 inline-flex items-center gap-2 bg-red-100/80 text-red-700 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-200/50 self-start">
-                    ⚠️ 未达标 (8分及格线) — 请重置开启新一轮挑战
+                    未达标 (8分及格线) — 请重置开启新一轮挑战
                   </div>
                 )}
               </div>

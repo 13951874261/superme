@@ -265,7 +265,7 @@ export function IntelBriefing({
                   }}
                   className="w-full py-2 bg-indigo-50/60 hover:bg-indigo-100/80 text-[var(--color-brand)] font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all border border-indigo-100/40 cursor-pointer btn-press"
                 >
-                  💡 随机加载商业研读示例
+                   随机加载商业研读示例
                 </button>
               </div>
             </div>

@@ -925,7 +925,7 @@ export default function SpeakModule() {
                 <div className="text-lg font-black font-mono text-slate-800 flex items-center gap-1.5">
                   <span>{Math.floor(timeLeft / 60)}:{(timeLeft % 60).toString().padStart(2, '0')}</span>
                   {timeLeft <= 10 && timeLeft > 0 && (
-                    <span className="text-rose-500 text-xs animate-ping font-sans">⚠️ 紧张!</span>
+                    <span className="text-rose-500 text-xs animate-ping font-sans">[紧张]</span>
                   )}
                 </div>
               </div>

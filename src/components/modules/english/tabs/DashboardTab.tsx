@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus } from 'lucide-react';
+import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
 import StrategicRoadmap from './StrategicRoadmap';
 import CustomThemeModal from './CustomThemeModal';
@@ -81,17 +81,24 @@ export default function DashboardTab() {
     const oralOk = m.oralCount >= 10;
     const writeOk = m.maxWriteScore >= 8;
     const emailOk = !!m.emailCompleted;
-    const mark = (ok: boolean) => (ok ? '✅ 已达标' : '⚠️ 未达标');
-    return [
-      `当前阵地【${currentTheme}】尚未被攻克！`,
-      '',
-      '通关三件套：',
-      `• 沉浸式口语沙盘：${m.oralCount}/10 轮 ${mark(oralOk)}`,
-      `• L3 书面最高分：${m.maxWriteScore}/8 分 ${mark(writeOk)}`,
-      `• 邮件闭环：${emailOk ? '已完成' : '未完成'} ${mark(emailOk)}`,
-      '',
-      '三项全部达标后才可切换主题或阶段。',
-    ].join('\n');
+    const mark = (ok: boolean) => ok ? (
+      <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" weight="fill" />已达标</span>
+    ) : (
+      <span className="inline-flex items-center gap-1 text-amber-500"><WarningCircle className="w-4 h-4" weight="fill" />未达标</span>
+    );
+    
+    return (
+      <div className="space-y-3">
+        <p className="font-bold text-slate-800 text-sm">当前阵地【{currentTheme}】尚未被攻克！</p>
+        <div className="space-y-2 text-sm text-slate-600">
+          <p className="font-semibold">通关三件套：</p>
+          <div className="flex items-center gap-2">• 沉浸式口语沙盘：{m.oralCount}/10 轮 {mark(oralOk)}</div>
+          <div className="flex items-center gap-2">• L3 书面最高分：{m.maxWriteScore}/8 分 {mark(writeOk)}</div>
+          <div className="flex items-center gap-2">• 邮件闭环：{emailOk ? '已完成' : '未完成'} {mark(emailOk)}</div>
+        </div>
+        <p className="text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">三项全部达标后才可切换主题或阶段。</p>
+      </div>
+    );
   };
 
   // 公共主题锁定校验：返回 true 表示放行，false 表示已被锁定（错误信息已写入）
@@ -635,19 +642,20 @@ export default function DashboardTab() {
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP */}
-      <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-4 flex flex-col gap-3 shrink-0 shadow-sm transition-all duration-300">
+      <div className="card-sop p-5 flex flex-col gap-4 shrink-0 shadow-sm transition-all duration-300">
         <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsSopExpanded(!isSopExpanded)}>
           <div className="flex items-center gap-3">
             <div className="bg-indigo-600 text-white p-2 rounded-lg shadow-md">
                <Target className="w-4 h-4" />
             </div>
             <div className="text-left">
-              <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 leading-tight">战术使用指南 // Tactical SOP</h5>
-              <p className="text-[10px] text-indigo-800/80 font-medium mt-0.5">点击展开/收起模块使用说明</p>
+              <h5 className="eyebrow text-indigo-900/80">战术使用指南 // Tactical SOP</h5>
+              <p className="text-[10px] text-indigo-800/60 font-medium mt-0.5">点击展开/收起模块使用说明</p>
             </div>
           </div>
-          <button className="text-indigo-500 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors text-xs font-bold">
-            {isSopExpanded ? '收起指南 ∧' : '展开指南 ∨'}
+          <button className="flex items-center gap-1 text-indigo-500 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors text-xs font-bold">
+            {isSopExpanded ? '收起指南' : '展开指南'}
+            {isSopExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
         </div>
 

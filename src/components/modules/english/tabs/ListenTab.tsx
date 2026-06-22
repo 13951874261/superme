@@ -114,15 +114,15 @@ export default function ListenTab() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>盲听截获的高管音频，在下方草稿区速记关键意图。完成后点击“解码潜台词”请求 Dify 分析您的听辨误差。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 双维解析。不仅比对物理听力误差（Accuracy），更深层扒出讲话者背后的“伪装层”与“权力场”。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【听觉撕网】它提取的“截获黑话”将反向丰富您的全局词库，培养在真实高压会议中“听音辨意”的肌肉记忆。</p>
             </div>
           </div>
@@ -313,7 +313,7 @@ export default function ListenTab() {
                 disabled={isListenLoading || listenResult !== null}
                 className="w-full relative z-10 bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer shadow-lg ripple"
               >
-                {isListenLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在解码潜台词...</> : (listenResult ? '✅ 潜台词已解码 (见右侧)' : '🧠 请求 Dify 侧写此段原文')}
+                {isListenLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在解码潜台词...</> : (listenResult ? <span className="flex items-center"><Target className="w-4 h-4 mr-2" /> 潜台词已解码 (见右侧)</span> : <span className="flex items-center"><Zap className="w-4 h-4 mr-2" /> 请求 Dify 侧写此段原文</span>)}
               </button>
             </div>
           </div>
@@ -334,7 +334,7 @@ export default function ListenTab() {
               onClick={() => setIsTextVisible(true)}
               className="w-full bg-gray-100 text-gray-500 py-3 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-gray-200 transition-colors flex items-center justify-center cursor-pointer ripple"
             >
-              👀 盲打完成，揭晓上方原文进行比对
+              <Eye className="w-4 h-4 mr-2" /> 盲打完成，揭晓上方原文进行比对
             </button>
           </div>
         </div>
@@ -382,7 +382,7 @@ export default function ListenTab() {
                         <span className="text-sm font-bold text-emerald-600">{err.actual_words}</span>
                       </div>
                       <div className="mt-2 bg-gray-50 p-2.5 rounded-lg text-xs text-gray-600 font-medium">
-                        💡 {err.reason}
+                         {err.reason}
                       </div>
                     </div>
                   ))}

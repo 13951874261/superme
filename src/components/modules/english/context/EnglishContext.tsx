@@ -1,4 +1,4 @@
-﻿import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
+import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, CustomTheme } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
@@ -63,8 +63,8 @@ interface EnglishContextType {
   setTheme: React.Dispatch<React.SetStateAction<string>>;
   masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean };
   setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean }>>;
-  themeSwitchError: string | null;
-  setThemeSwitchError: React.Dispatch<React.SetStateAction<string | null>>;
+  themeSwitchError: React.ReactNode | null;
+  setThemeSwitchError: React.Dispatch<React.SetStateAction<React.ReactNode | null>>;
   sessionId: string | null;
   inlineNotice: { text: string; tone: 'success' | 'error' | 'info' } | null;
   noticeAnchor: 'review' | 'oral' | 'listen' | 'eval' | 'dashboard' | null;
@@ -158,7 +158,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     (window as any).__setMasteryData = setMasteryData;
   }, [setMasteryData]);
-  const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
+  const [themeSwitchError, setThemeSwitchError] = useState<React.ReactNode | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
 

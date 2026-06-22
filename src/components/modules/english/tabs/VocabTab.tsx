@@ -202,15 +202,15 @@ export default function VocabTab() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>阅读左侧抽取的弹药（含发音/例句），在右侧输入框结合当前【战略阶段/主题】强制造句，并提交评估。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 军控级双重校验（语法精确度 + 商务权力分寸），达到 3 分及格线方可打入 SM-2 记忆算法底座。满分将触发烟花特效。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
-              <span className="text-amber-500 mt-0.5">💡</span>
+              <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【弹药提纯】上承 Dashboard 的全自动长文提取，下启 Oral/Write，为您在高压沙盘与实战邮件中提供职场黑话储备。</p>
             </div>
           </div>

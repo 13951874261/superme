@@ -724,7 +724,7 @@ export default function EntertainmentModule() {
                         {blackjackCoaching}
                       </div>
                       <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-lg text-[11px] text-zinc-500 space-y-2">
-                        <span className="font-bold text-zinc-700 block">💡 阶层博弈论要旨：</span>
+                        <span className="font-bold text-zinc-700 block"> 阶层博弈论要旨：</span>
                         <p>1. <strong>不要凭直觉下注</strong>。高层决策者只相信数学期望，拒绝赌徒心理。</p>
                         <p>2. <strong>防守即是进攻</strong>。在庄家明牌软弱时，将压力彻底抛给系统（庄家），让时间成为盟友。</p>
                         <p>3. <strong>风险敞口控制</strong>。在己方没有至少 55% 期望优势时，绝不随意放大下注筹码或双倍敞口。</p>

@@ -119,6 +119,7 @@ export default function Sidebar({
   const [isEditingCareer, setIsEditingCareer] = useState(false);
   const [careerEditData, setCareerEditData] = useState({ ...careerPath });
   const [showConfetti, setShowConfetti] = useState(false);
+  const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
 
   // 月度日历计算逻辑与辅助函数
   const getDaysInMonth = (year: number, month: number) => {
@@ -524,38 +525,54 @@ export default function Sidebar({
           <ChatModule />
         </div>
 
-        {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}
-        <DictionaryPanel />
+        {/* Utility Tools Toggle */}
+        <div className="mt-auto px-5 xl:px-6 py-4 border-t border-slate-100 bg-white/50 backdrop-blur-sm shrink-0">
+          <button 
+            onClick={() => {
+              playPageTurn();
+              setIsUtilitiesOpen(!isUtilitiesOpen);
+            }}
+            className="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-[var(--color-brand)] transition-colors cursor-pointer outline-none"
+          >
+            <span>Utility Tools</span>
+            {isUtilitiesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          
+          <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isUtilitiesOpen ? 'max-h-[800px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div className="space-y-4 pb-2">
+              {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}
+              <DictionaryPanel />
 
-        {/* 4. 艾宾浩斯生词本 */}
-        <VocabularyBook />
+              {/* 4. 艾宾浩斯生词本 */}
+              <VocabularyBook />
 
-        {/* 5. 每周一聊 (WeeklyChatModule) */}
-        {setActiveModule && (
-          <div className="px-5 xl:px-6 py-4 border-t border-gray-200/50 bg-zinc-50/40 mt-auto shrink-0">
-            <button
-              onClick={() => {
-                if (isLocked) {
-                  if (onLockTrigger) onLockTrigger();
-                } else {
-                  playClick();
-                  setActiveModule('weekly');
-                }
-              }}
-              className={`w-full flex items-center justify-between p-3.5 rounded-xl border transition-all cursor-pointer shadow-sm ${
-                activeModule === 'weekly'
-                  ? 'bg-zinc-900 border-zinc-950 text-white font-bold'
-                  : 'bg-white border-gray-100 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-900 hover:border-gray-255'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Lock className="w-4 h-4" />
-                <span className="text-xs font-bold tracking-wider">每周一聊 (树洞与进化)</span>
-              </div>
-              <ChevronRight className="w-3.5 h-3.5 opacity-60" />
-            </button>
+              {/* 5. 每周一聊 (WeeklyChatModule) */}
+              {setActiveModule && (
+                <button
+                  onClick={() => {
+                    if (isLocked) {
+                      if (onLockTrigger) onLockTrigger();
+                    } else {
+                      playClick();
+                      setActiveModule('weekly');
+                    }
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border border-dashed transition-all cursor-pointer outline-none ${
+                    activeModule === 'weekly'
+                      ? 'bg-slate-50 border-[var(--color-brand)] text-[var(--color-brand)] font-bold shadow-sm'
+                      : 'bg-transparent border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-3.5 h-3.5" />
+                    <span className="text-[11px] font-bold tracking-widest">每周一聊</span>
+                  </div>
+                  <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+                </button>
+              )}
+            </div>
           </div>
-        )}
+        </div>
 
         </div>
       </div>

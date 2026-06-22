@@ -826,7 +826,7 @@ export default function ReadModule() {
           <div className="relative w-full mb-2">
             {errorMsg && (
               <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black tracking-wider shadow-lg z-10 flex items-center gap-2 animate-bounce">
-                <span>⚠️</span> {errorMsg}
+                <span>[错误]</span> {errorMsg}
                 <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-red-500 rotate-45"></div>
               </div>
             )}

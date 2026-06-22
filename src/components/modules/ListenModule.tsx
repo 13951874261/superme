@@ -162,7 +162,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       setCurrentScenario(scenario);
     } catch (error) {
       console.error(error);
-      setCurrentScenario(`⚠️ 获取考题失败: ${error instanceof Error ? error.message : '未知错误'}\n（请确保在环境配置中加入了 VITE_DIFY_INSIGHT_GEN_KEY）`);
+      setCurrentScenario(`获取考题失败: ${error instanceof Error ? error.message : '未知错误'}\n（请确保在环境配置中加入了 VITE_DIFY_INSIGHT_GEN_KEY）`);
     } finally {
       setIsLoadingScenario(false);
     }
@@ -421,7 +421,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
 
     } catch (error) {
       console.error(error);
-      setFeedback(`### ⚠️ 解析失败\n与导师系统连接中断，请检查网络。\n\n**详情**: ${error instanceof Error ? error.message : '未知错误'}`);
+      setFeedback(`### 解析失败\n与导师系统连接中断，请检查网络。\n\n**详情**: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setIsSubmitting(false);
     }
