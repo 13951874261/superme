@@ -119,7 +119,8 @@ export async function runListeningEngine(userInput: string, standardText: string
 }
 
 /**
- * 调用 Dify 的 /text-to-audio 获取高保真 MP3 音频流
+ * 调用 /api/tts/speech 获取高保真 MP3 音频流
+ * 短文本同步返回 audioUrl；长文本自动进入异步轮询模式
  */
 export async function fetchDifyTTS(text: string, userId = 'default-user'): Promise<string> {
   const response = await fetch('/api/tts/speech', {
@@ -134,12 +135,46 @@ export async function fetchDifyTTS(text: string, userId = 'default-user'): Promi
   });
 
   if (!response.ok) throw new Error('生成高保真音频失败');
-  
+
   const data = await response.json();
-  if (!data.success || !data.audioUrl) {
-    throw new Error('TTS 未返回有效音频 URL');
+
+  // 短文本：直接返回音频 URL
+  if (data.audioUrl) return data.audioUrl;
+
+  // 长文本：进入异步轮询
+  if (data.taskId) {
+    return pollTtsTask(data.taskId);
   }
-  return data.audioUrl;
+
+  throw new Error('TTS 未返回有效音频 URL 或任务 ID');
+}
+
+/**
+ * 轮询异步 TTS 任务状态，最长等待 15 分钟
+ * 每 5 秒检查一次，直到任务完成或失败
+ */
+async function pollTtsTask(taskId: string): Promise<string> {
+  const MAX_ATTEMPTS = 180; // 180 × 5s = 15 分钟
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    await new Promise(r => setTimeout(r, 5000));
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`);
+      if (!res.ok) continue;
+      const task = await res.json();
+
+      if (task.status === 'completed' && task.result?.audioUrl) {
+        return task.result.audioUrl;
+      }
+      if (task.status === 'failed') {
+        throw new Error(`长音频合成失败: ${task.error || '未知错误'}`);
+      }
+      // pending / running 状态继续等待
+    } catch {
+      // 网络异常，继续重试
+      continue;
+    }
+  }
+  throw new Error('长音频合成超时（已等待 15 分钟）');
 }
 
 /**
