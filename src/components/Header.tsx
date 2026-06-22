@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
 import { useTask } from './TaskContext';
@@ -87,90 +88,98 @@ export default function Header() {
               </span>
             </button>
 
-            {showVoiceDropdown && (
-              <div className="absolute left-1/2 -translate-x-1/2 xl:left-auto xl:translate-x-0 xl:right-0 top-full mt-2.5 z-50 w-96 bg-white border border-gray-100 rounded-2xl shadow-[0_10px_35px_rgba(0,0,0,0.08)] overflow-hidden text-left animate-[fadeIn_0.15s_ease-out]">
-                {/* Dropdown Header */}
-                <div className="p-4 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-indigo-500" />
-                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-wider">声线控制中心 (Voice Center)</span>
-                  </div>
-                  <button
-                    onClick={() => setShowVoiceDropdown(false)}
-                    className="text-xs text-gray-400 hover:text-gray-600 cursor-pointer font-bold"
-                  >
-                    关闭
-                  </button>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex border-b border-gray-100 bg-gray-50/50 p-1 gap-1">
-                  {(['all', 'US', 'UK', 'other'] as const).map((tab) => (
+            <AnimatePresence>
+              {showVoiceDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                  className="absolute left-1/2 -translate-x-1/2 xl:left-auto xl:translate-x-0 xl:right-0 top-full mt-2.5 z-50 w-96 bg-white/90 backdrop-blur-2xl border border-[var(--color-border)] rounded-2xl shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] overflow-hidden text-left"
+                >
+                  {/* Dropdown Header */}
+                  <div className="p-4 bg-gray-50/40 border-b border-gray-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Globe className="w-4 h-4 text-[var(--color-brand)]" />
+                      <span className="text-[11px] font-black text-[var(--color-ink-primary)] tracking-wide">声线控制中心</span>
+                    </div>
                     <button
-                      key={tab}
-                      type="button"
-                      onClick={() => setActiveVoiceTab(tab)}
-                      className={`flex-1 text-center py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition-all ${
-                        activeVoiceTab === tab
-                          ? 'bg-white text-indigo-600 shadow-sm'
-                          : 'text-gray-400 hover:bg-gray-100 hover:text-gray-750'
-                      }`}
+                      onClick={() => setShowVoiceDropdown(false)}
+                      className="text-xs text-[var(--color-ink-muted)] hover:text-[var(--color-ink-primary)] cursor-pointer font-bold transition-colors"
                     >
-                      {tab === 'all' ? '全部' : tab === 'US' ? '美音' : tab === 'UK' ? '英音' : '其他'}
+                      关闭
                     </button>
-                  ))}
-                </div>
+                  </div>
 
-                {/* Voice List */}
-                <div className="max-h-72 overflow-y-auto p-2.5 space-y-1">
-                  {VOICE_OPTIONS.filter((voice) => {
-                    if (activeVoiceTab === 'US') return voice.id.includes('en-US');
-                    if (activeVoiceTab === 'UK') return voice.id.includes('en-GB');
-                    if (activeVoiceTab === 'other') return !voice.id.includes('en-US') && !voice.id.includes('en-GB');
-                    return true;
-                  }).map((voice) => {
-                    const isSelected = voice.id === selectedVoice;
-                    return (
-                      <div
-                        key={voice.id}
-                        onClick={() => handleSelectVoice(voice.id)}
-                        className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-all border ${
-                          isSelected
-                            ? 'bg-indigo-50/70 border-indigo-100 text-indigo-750 font-bold shadow-sm'
-                            : voice.highlight
-                              ? 'bg-red-50/30 border-red-100/50 text-red-500 hover:bg-red-50/50 hover:border-red-100'
-                              : 'bg-transparent border-transparent hover:bg-gray-50 text-slate-755'
+                  {/* Tabs */}
+                  <div className="flex border-b border-gray-100 bg-gray-50/50 p-1 gap-1">
+                    {(['all', 'US', 'UK', 'other'] as const).map((tab) => (
+                      <button
+                        key={tab}
+                        type="button"
+                        onClick={() => setActiveVoiceTab(tab)}
+                        className={`flex-1 text-center py-1.5 text-[10px] font-bold rounded-lg cursor-pointer transition-all ${
+                          activeVoiceTab === tab
+                            ? 'bg-white text-[var(--color-brand)] shadow-sm'
+                            : 'text-[var(--color-ink-muted)] hover:bg-white/50 hover:text-[var(--color-ink-secondary)]'
                         }`}
                       >
-                        <div className="flex items-center gap-2">
-                          <div className="flex flex-col">
-                            <span className={`text-xs ${isSelected ? 'font-black' : 'font-semibold'} ${voice.highlight ? 'text-red-500 font-bold' : ''}`}>
-                              {voice.name}
-                              {voice.highlight && <span className="ml-1 text-[8px] bg-red-100 text-red-600 px-1 py-0.5 rounded uppercase font-black">Ana</span>}
-                            </span>
-                            <span className="text-[9px] text-gray-400 font-medium">
-                              {voice.country} · {voice.gender === 'F' ? '女' : '男'}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        <button
-                          onClick={(e) => handlePreviewVoice(e, voice.id, voice.name)}
-                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                        {tab === 'all' ? '全部' : tab === 'US' ? '美音' : tab === 'UK' ? '英音' : '其他'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Voice List */}
+                  <div className="max-h-72 overflow-y-auto p-2.5 space-y-1">
+                    {VOICE_OPTIONS.filter((voice) => {
+                      if (activeVoiceTab === 'US') return voice.id.includes('en-US');
+                      if (activeVoiceTab === 'UK') return voice.id.includes('en-GB');
+                      if (activeVoiceTab === 'other') return !voice.id.includes('en-US') && !voice.id.includes('en-GB');
+                      return true;
+                    }).map((voice) => {
+                      const isSelected = voice.id === selectedVoice;
+                      return (
+                        <div
+                          key={voice.id}
+                          onClick={() => handleSelectVoice(voice.id)}
+                          className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer transition-colors border ${
                             isSelected
-                              ? 'bg-indigo-600 border-indigo-600 text-white hover:bg-indigo-700'
-                              : 'bg-white border-gray-200 text-gray-400 hover:text-indigo-650 hover:border-indigo-200'
+                              ? 'bg-[var(--color-brand-subtle)] border-transparent text-[var(--color-brand)]'
+                              : voice.highlight
+                                ? 'bg-red-50/30 border-red-100/50 text-red-500 hover:bg-red-50/50 hover:border-red-100'
+                                : 'bg-transparent border-transparent hover:bg-gray-50/80 text-[var(--color-ink-secondary)]'
                           }`}
-                          title="试听发音"
                         >
-                          <span className="text-[9px] font-bold block leading-none px-1">试听</span>
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-col">
+                              <span className={`text-xs ${isSelected ? 'font-black' : 'font-semibold'} ${voice.highlight ? 'text-red-500 font-bold' : ''}`}>
+                                {voice.name}
+                                {voice.highlight && <span className="ml-1 text-[8px] bg-red-100 text-red-600 px-1 py-0.5 rounded uppercase font-black">Ana</span>}
+                              </span>
+                              <span className="text-[9px] opacity-70 font-medium">
+                                {voice.country} · {voice.gender === 'F' ? '女' : '男'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <button
+                            onClick={(e) => handlePreviewVoice(e, voice.id, voice.name)}
+                            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                              isSelected
+                                ? 'bg-[var(--color-brand)] border-[var(--color-brand)] text-white hover:bg-[var(--color-brand-hover)]'
+                                : 'bg-white border-gray-200 text-gray-400 hover:text-[var(--color-brand)] hover:border-[var(--color-brand-light)]'
+                            }`}
+                            title="试听发音"
+                          >
+                            <span className="text-[9px] font-bold block leading-none px-1">试听</span>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* 提纯任务中心 */}

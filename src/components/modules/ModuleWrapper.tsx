@@ -25,45 +25,35 @@ export default function ModuleWrapper({
   const [main, sub] = title.split('｜').map(s => s.trim());
 
   return (
-    <section id={id} className={`w-full flex flex-col ${compact ? 'mb-6' : 'mb-10'}`}>
-      <div className="flex items-center space-x-4 mb-4 p-4 md:p-5 rounded-2xl bg-white border border-slate-100/80 shadow-[0_4px_20px_rgba(0,0,0,0.015)] relative overflow-hidden">
-        {/* 背景微装饰 */}
-        <div className={`absolute -right-10 -top-10 ${compact ? 'w-28 h-28' : 'w-40 h-40'} bg-gradient-to-br from-[#FF5722]/5 to-transparent rounded-full blur-2xl pointer-events-none`} />
-        
-        <div className={`
-          rounded-full bg-white flex items-center justify-center text-[#FF5722] shadow-[0_8px_30px_rgba(0,0,0,0.04)] border border-gray-100 flex-shrink-0 relative z-10
-          ${compact ? 'w-12 h-12 [&_svg]:!w-6 [&_svg]:!h-6' : 'w-16 h-16 [&_svg]:!w-8 [&_svg]:!h-8'}
-        `}>
-          {icon}
+    <section id={id} className={`w-full flex flex-col ${compact ? 'mb-8' : 'mb-14'}`}>
+      {/* 标题包装：去边框，去阴影，改用纯粹的高级排版排布 */}
+      <div className="flex flex-col gap-2 mb-6 px-1">
+        <div className="flex items-center gap-3">
+          {/* 统一图标容器：浅色微妙底 + 小圆角 + 品牌色 */}
+          <div className="w-10 h-10 rounded-xl bg-[var(--color-brand-subtle)] flex items-center justify-center text-[var(--color-brand)]">
+            {icon}
+          </div>
+          <div className="flex items-baseline gap-3 flex-wrap">
+            <h2 className="font-display text-2xl font-black text-[var(--color-ink-primary)] tracking-tight">
+              {main}
+            </h2>
+            {badge}
+          </div>
         </div>
-        
-        <div className="flex flex-col flex-1 relative z-10">
-           <div className="flex flex-wrap items-center justify-between gap-4 w-full">
-             <h2 className={`
-               font-black text-[#202124] tracking-tight 
-               ${compact ? 'text-xl md:text-2xl lg:text-3xl' : 'text-3xl md:text-4xl lg:text-5xl'}
-             `}>
-               {main}
-             </h2>
-             {badge}
-           </div>
-           
-           {sub && (
-             <span className={`
-               inline-block self-start 
-               ${compact ? 'mt-1.5' : 'mt-3'} 
-               px-3.5 py-1 text-xs md:text-sm font-extrabold tracking-wide uppercase text-[#FF5722] bg-[#FF5722]/5 border border-[#FF5722]/10 rounded-xl
-             `}>
-               {sub}
-             </span>
-           )}
-           
-           {description && (
-             <div className="mt-2.5 bg-[#FF5722]/[0.02] border border-[#FF5722]/10 rounded-2xl px-4 py-2">
-               <p className="text-xs text-gray-650 font-bold leading-relaxed tracking-wide">{description}</p>
-             </div>
-           )}
-        </div>
+
+        {sub && (
+          <span className="text-xs font-bold tracking-wide uppercase text-[var(--color-brand)]">
+            {sub}
+          </span>
+        )}
+
+        {description && (
+          <div className="mt-1 max-w-[70ch]">
+            <p className="text-[13px] text-[var(--color-ink-secondary)] leading-relaxed">
+              {description}
+            </p>
+          </div>
+        )}
       </div>
       
       {isOpen && (

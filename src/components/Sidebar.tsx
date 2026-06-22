@@ -243,21 +243,21 @@ export default function Sidebar({
              {/* 月度日历 (Monthly Calendar) */}
              <div>
                <div 
-                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-500 font-bold uppercase tracking-widest hover:text-[#FF5722] transition-colors mb-3"
+                 className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-brand)] transition-colors mb-3 active:scale-95"
                  onClick={() => { setIsCalendarOpen(!isCalendarOpen); playPageTurn(); }}
                >
-                 <span className="tracking-widest">Monthly Calendar</span>
+                 <span>Monthly Calendar</span>
                  {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
                </div>
                
                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCalendarOpen ? 'max-h-[320px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="bg-gradient-to-br from-white to-zinc-50/80 border border-zinc-200/60 rounded-xl p-3.5 shadow-[0_2px_12px_rgba(24,24,27,0.03)]">
+                 <div className="haptic-card p-3.5">
                    {/* 顶部年月切换 */}
                    <div className="flex justify-between items-center mb-3">
                      <button onClick={handlePrevMonth} className="p-1 hover:bg-slate-100 rounded-full transition-all cursor-pointer">
                        <ChevronLeft className="w-4 h-4 text-slate-500 hover:text-slate-800" strokeWidth={2.5} />
                      </button>
-                     <span className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono tabular-nums">
+                     <span className="text-xs font-bold text-[var(--color-ink-primary)] font-mono tabular-nums">
                        {viewYear}.{String(viewMonth + 1).padStart(2, '0')}
                      </span>
                      <button onClick={handleNextMonth} className="p-1 hover:bg-slate-100 rounded-full transition-all cursor-pointer">
@@ -266,7 +266,7 @@ export default function Sidebar({
                    </div>
 
                    {/* 星期表头 */}
-                   <div className="grid grid-cols-7 gap-1 mb-2 text-[9px] font-bold text-slate-400 text-center tracking-widest">
+                   <div className="grid grid-cols-7 gap-1 mb-2 text-[9px] font-bold text-[var(--color-ink-muted)] text-center">
                      <span>一</span>
                      <span>二</span>
                      <span>三</span>
@@ -322,7 +322,7 @@ export default function Sidebar({
              {/* 习惯矩阵 (Habit Tracker) */}
              <div className="mt-8 border-t border-zinc-200/60 pt-6">
                <div 
-                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
+                 className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-ink-primary)] transition-colors mb-4 active:scale-95"
                  onClick={() => { setIsHabitOpen(!isHabitOpen); playPageTurn(); }}
                >
                  <span>Habit Matrix</span>
@@ -342,10 +342,10 @@ export default function Sidebar({
                         whileTap={{ scale: 0.98 }}
                         transition={GLOBAL_SPRING}
                         key={key} 
-                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer border transition-all duration-300 group ${
+                        className={`flex items-center gap-3 p-3 cursor-pointer transition-all duration-300 group haptic-card ${
                           habits[key as keyof typeof habits]
-                            ? 'bg-gradient-to-br from-white to-orange-50/20 border-orange-200/80 shadow-[0_2px_8px_rgba(255,87,34,0.03)]'
-                            : 'bg-gradient-to-br from-white to-zinc-50/50 border-zinc-200/60 hover:border-zinc-300 hover:shadow-[0_4px_12px_rgba(24,24,27,0.02)]'
+                            ? '!bg-[var(--color-brand-subtle)] !border-[var(--color-brand-light)]'
+                            : ''
                         }`}
                       >
                         <input 
@@ -366,10 +366,10 @@ export default function Sidebar({
              {/* 职业发展跟踪表 (Career Progression Tracker) */}
              <div className="mt-6 border-t border-zinc-200/60 pt-6">
                <div 
-                 className="flex justify-between items-center cursor-pointer text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-4 hover:text-gray-700 transition-colors"
+                 className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-ink-primary)] transition-colors mb-4 active:scale-95"
                  onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
                >
-                 <span className="tracking-widest">Career Progression</span>
+                 <span>Career Progression</span>
                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                    {!isEditingCareer && (
                      <button 
@@ -389,7 +389,7 @@ export default function Sidebar({
                </div>
                
                <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCareerOpen ? 'max-h-[380px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                 <div className="p-4 bg-gradient-to-br from-white to-zinc-50/80 border border-zinc-200/60 rounded-xl shadow-[0_2px_12px_rgba(24,24,27,0.03)] my-1 relative overflow-hidden">
+                 <div className="p-4 haptic-card my-1 relative overflow-hidden">
                    <AnimatePresence mode="wait">
                      {!isEditingCareer ? (
                        <motion.div

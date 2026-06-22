@@ -2141,15 +2141,15 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         if (!cleanStr) continue;
 
         let dictType = 'ai_extracted';
-        if (isObject && item.is_sentence) {
+        const isSentenceHeuristic = cleanStr.length > 30 && (/[.!?。！？]$/.test(cleanStr) || cleanStr.split(' ').length >= 5);
+
+        if ((isObject && item.is_sentence) || isSentenceHeuristic) {
           dictType = 'ai_sentence';
         } else if (isObject && item.is_phrase !== undefined) {
           dictType = item.is_phrase ? 'ai_phrase' : 'ai_extracted';
         } else {
           // 启发式判断
-          if (cleanStr.length > 40 || /[.!?。！？]$/.test(cleanStr)) {
-            dictType = 'ai_sentence';
-          } else if (cleanStr.includes(' ')) {
+          if (cleanStr.includes(' ')) {
             dictType = 'ai_phrase';
           }
         }
@@ -2674,8 +2674,12 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       if (item && Array.isArray(item.examples)) {
         sentenceList.push(...item.examples);
       }
-      if (item.is_sentence) {
+      const w = item.word ? item.word.trim() : '';
+      const isSentenceHeuristic = w.length > 30 && (/[.!?。！？]$/.test(w) || w.split(' ').length >= 5);
+      
+      if (item.is_sentence || isSentenceHeuristic) {
         sentenceList.push(item.word);
+        item.is_sentence = true; // Mark as sentence so it doesn't go to wordsToStore
       }
     }
 
@@ -2685,10 +2689,12 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       for (const p of rawPhrases) {
         const text = typeof p === 'string' ? p : (p.phrase || p.phrase_text || p.sentence || p.text || "");
         if (text) {
-           if (/[.!?]$/.test(text.trim()) || text.trim().length > 40) {
-             sentenceList.push(text.trim());
+           const cleanText = text.trim();
+           const isSentenceHeuristic = cleanText.length > 30 && (/[.!?。！？]$/.test(cleanText) || cleanText.split(' ').length >= 5);
+           if (isSentenceHeuristic || p.is_sentence) {
+             sentenceList.push(cleanText);
            } else {
-             phraseList.push(text.trim());
+             phraseList.push(cleanText);
            }
         }
       }
@@ -2697,7 +2703,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     const uniquePhraseList = [...new Set(phraseList)].filter(s => s);
     const uniqueSentenceList = [...new Set(sentenceList)].filter(s => s);
 
-    const wordsToStore = vocabList.slice(0, wordsLeft);
+    const wordsToStore = vocabList.filter(v => !v.is_sentence).slice(0, wordsLeft);
     const phrasesToStore = uniquePhraseList.slice(0, phrasesLeft);
 
     let wordsAddedCount = 0;

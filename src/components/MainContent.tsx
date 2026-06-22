@@ -103,12 +103,12 @@ export default function MainContent({
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id as ModuleType)}
-                className={`flex items-center gap-1.5 px-5 py-2.5 rounded-t-xl font-black text-xs tracking-widest uppercase transition-all duration-300 relative ${
+                className={`flex items-center gap-1.5 px-5 py-2.5 rounded-t-xl font-bold text-sm transition-all duration-200 cursor-pointer active:scale-95 active:translate-y-[1px] relative ${
                   isActive
-                    ? 'bg-white text-[#202124] border-t-2 border-[#FF5722] shadow-[0_-4px_10px_rgba(0,0,0,0.02)] scale-105 transform origin-bottom z-10'
+                    ? 'bg-white text-[var(--color-ink-primary)] border-t-2 border-[var(--color-brand)] shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10'
                     : isTabLocked
-                    ? 'bg-transparent text-gray-300 hover:text-red-400 cursor-not-allowed'
-                    : 'bg-transparent text-gray-400 hover:text-gray-700 hover:bg-white/50'
+                    ? 'bg-transparent text-[var(--color-ink-muted)] opacity-50 hover:text-red-400 cursor-not-allowed'
+                    : 'bg-transparent text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)] hover:bg-white/50'
                 }`}
               >
                 {isTabLocked ? <Lock className="w-3.5 h-3.5 text-gray-300" /> : tab.icon}
