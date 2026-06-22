@@ -3227,6 +3227,24 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 });
 
 // 兜底 404
+// 异步并发限制器，控制并发请求数
+async function limitConcurrentTasks(tasks, limit) {
+  const results = [];
+  const executing = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const p = Promise.resolve().then(() => tasks[i](i));
+    results.push(p);
+    if (limit <= tasks.length) {
+      const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+      executing.push(e);
+      if (executing.length >= limit) {
+        await Promise.race(executing);
+      }
+    }
+  }
+  return Promise.all(results);
+}
+
 // TTS 语音合成接口
 app.post('/api/tts/speech', async (req, res) => {
   try {
@@ -3259,16 +3277,21 @@ app.post('/api/tts/speech', async (req, res) => {
       ttsVoice = finalModel.split('/')[1];
     }
 
+    // 【优化1】前置文本清洗：过滤所有可能导致上游语音合成模型报错的 Emoji 符号
+    const cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
+
     // 智能切分文本 (按句号或换行等，每块不超过 3000 字符)
     const MAX_CHUNK_LENGTH = 3000;
     const textChunks = [];
     let currentChunk = '';
-    const sentences = input.match(/[^.!?\n]+[.!?\n]+/g) || [input];
+    const sentences = cleanInput.match(/[^.!?\n]+[.!?\n]+/g) || [cleanInput];
     for (const sentence of sentences) {
       if ((currentChunk + sentence).length > MAX_CHUNK_LENGTH) {
         if (currentChunk.trim().length > 0) textChunks.push(currentChunk.trim());
         currentChunk = sentence;
-      } else currentChunk += sentence;
+      } else {
+        currentChunk += sentence;
+      }
     }
     if (currentChunk.trim().length > 0) textChunks.push(currentChunk.trim());
 
@@ -3283,32 +3306,61 @@ app.post('/api/tts/speech', async (req, res) => {
        if (temp.length > 0) finalChunks.push(temp);
     }
 
-    const audioBuffers = [];
-    let lastError = null;
+    if (finalChunks.length === 0) {
+      return res.status(400).json({ error: 'No valid content to synthesize after cleaning text' });
+    }
 
-    for (let i = 0; i < finalChunks.length; i++) {
-      const chunkText = finalChunks[i];
-      let chunkBuffer = null;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          const req = { model: finalModel, input: chunkText };
-          if (ttsVoice) req.voice = ttsVoice;
-          const res = await fetch('https://9router.234124123.xyz/v1/audio/speech', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313' },
-            body: JSON.stringify(req)
-          });
-          if (res.ok) {
-            chunkBuffer = Buffer.from(await res.arrayBuffer());
-            break;
-          } else {
-            lastError = new Error(await res.text().catch(()=>''));
+    // 【优化2】组装并发任务队列，设置并发上限为 3 组
+    const tasks = finalChunks.map((chunkText, idx) => {
+      return async () => {
+        let chunkBuffer = null;
+        let lastError = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            const reqPayload = { model: finalModel, input: chunkText };
+            if (ttsVoice) reqPayload.voice = ttsVoice;
+            
+            // 引用环境变量，带 Fallback 保底
+            const apiUrl = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
+            const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+
+            const apiRes = await fetch(apiUrl, {
+              method: 'POST',
+              headers: { 
+                'Content-Type': 'application/json', 
+                'Authorization': `Bearer ${apiKey}` 
+              },
+              body: JSON.stringify(reqPayload)
+            });
+            if (apiRes.ok) {
+              chunkBuffer = Buffer.from(await apiRes.arrayBuffer());
+              break;
+            } else {
+              lastError = new Error(await apiRes.text().catch(() => 'Upstream server error'));
+            }
+          } catch (err) { 
+            lastError = err; 
           }
-        } catch (err) { lastError = err; }
-        if (attempt < 3) await new Promise(r => setTimeout(r, 500));
-      }
-      if (!chunkBuffer) return res.status(500).json({ error: `TTS failed at chunk ${i+1}` });
-      audioBuffers.push(chunkBuffer);
+          if (attempt < 3) {
+            await new Promise(r => setTimeout(r, 500));
+          }
+        }
+        
+        // 【优化3】增强错误感知，带出详细错误详情
+        if (!chunkBuffer) {
+          throw new Error(`Chunk ${idx + 1} failed: ${lastError ? lastError.message : 'Timeout/Network issue'}`);
+        }
+        return chunkBuffer;
+      };
+    });
+
+    let audioBuffers;
+    try {
+      // 限制 3 组并发调度
+      audioBuffers = await limitConcurrentTasks(tasks, 3);
+    } catch (err) {
+      console.error('[TTS] Parallel synthesis failed:', err);
+      return res.status(500).json({ error: `TTS failed: ${err.message}` });
     }
 
     // 保存到 MD5 缓存路径
