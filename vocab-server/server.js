@@ -2129,6 +2129,16 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
+      // 在解析 extractedItems 时，如果 item 有 category 字段，直接使用
+      for (const item of extractedItems) {
+        if (typeof item === 'object' && item !== null) {
+          // ✅ 优先信任工作流返回的 category（但仍需后端二次验证）
+          if (item.category === 'word') item.is_phrase = false;
+          else if (item.category === 'phrase') item.is_phrase = true;
+          else if (item.category === 'sentence') item.is_sentence = true;
+        }
+      }
+
       let wordsToReturn = [];
       let phrasesToReturn = [];
       let sentencesToReturn = [];
@@ -2171,6 +2181,46 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         logs: [`[后台] 成功抽提出 ${vocabToInsert.length} 个词汇与短语，以及 ${sentencesToReturn.length} 个高频句型，开始写入 SQLite 本地生词本...`]
       });
 
+      /**
+       * 计算英文单词数量（去除标点后按空格分割）
+       * @param {string} str - 原始字符串
+       * @returns {number} 单词数量
+       */
+      function countWords(str) {
+        if (!str || typeof str !== 'string') return 0;
+        return str
+          .trim()
+          .replace(/[.!?,;:'"()[\]{}]/g, '')   // 去除常见标点
+          .split(/\s+/)                           // 按空白字符分割
+          .filter(w => w.length > 0)             // 过滤空字符串
+          .length;
+      }
+
+      /**
+       * 根据单词数量强制分类词汇类型
+       * - 生词（ai_extracted）：仅 1 个英文单词
+       * - 短语（ai_phrase）：≥2 个单词，且不以标点结尾
+       * - 句型（ai_sentence）：以 . ! ? 结尾，或 ≥5 个单词且含标点
+       *
+       * @param {string} wordStr - 原始词条字符串
+       * @returns {'ai_extracted'|'ai_phrase'|'ai_sentence'}
+       */
+      function classifyByWordCount(wordStr) {
+        const trimmed = String(wordStr || '').trim();
+        if (!trimmed) return 'ai_extracted';
+
+        const wc = countWords(trimmed);
+        const endsWithPunctuation = /[.!?]$/.test(trimmed);
+
+        if (wc >= 5 && endsWithPunctuation) {
+          return 'ai_sentence';
+        } else if (wc >= 2 && !endsWithPunctuation) {
+          return 'ai_phrase';
+        } else {
+          return 'ai_extracted';
+        }
+      }
+
       // 写入 SQLite
       let addedCount = 0;
       const now = Date.now();
@@ -2179,8 +2229,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
         if (!wordStr) continue;
 
-        // 提取 dict_type
-        const dictType = phrasesToReturn.includes(item) ? 'ai_phrase' : 'ai_extracted';
+        // ✅ 强制基于单词数重新分类，不依赖工作流原始分类
+        const dictType = classifyByWordCount(wordStr);
 
         // 提取 payload
         let payload = { source: 'Material Upload' };
