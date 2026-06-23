@@ -5,7 +5,10 @@
 
 param(
     [switch]$UseSystemSSH,
-    [string]$CommitMessage = ""
+    [string]$CommitMessage = "",
+    [switch]$Force,
+    [switch]$FrontendOnly,
+    [switch]$BackendOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,48 +24,62 @@ Set-Location $ProjectRoot
 
 # 1. Detect code changes
 Write-Host "========== Step 1: Scan Workspace Changes ==========" -ForegroundColor Cyan
-$branchName = (git branch --show-current)
-$diffFiles = @()
-try {
-    $upstreamExists = git ls-remote --heads origin $branchName 2>$null
-    if ($upstreamExists) {
-        $diffFiles = git diff --name-only "origin/$branchName...HEAD" 2>$null
-    }
-} catch {}
-
-$statusFiles = git status --porcelain | ForEach-Object { $_ -replace '^...|\s+$', '' }
-$changedFiles = @($diffFiles) + @($statusFiles) | Select-Object -Unique | Where-Object { $_ -ne '' }
 
 $needFrontendDeploy = $false
 $needBackendDeploy = $false
 $needNginxDeploy = $false
 
-if ($changedFiles.Count -eq 0) {
-    Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
-    $changedFiles = git diff --name-only HEAD~1 HEAD
-}
-
-foreach ($file in $changedFiles) {
-    if ($file -match "^src/" -or $file -match "^public/" -or $file -match "index\.html$" -or $file -match "vite\.config\.ts$" -or $file -match "tsconfig\.json$") {
-        $needFrontendDeploy = $true
-    }
-    if ($file -match "^vocab-server/") {
-        $needBackendDeploy = $true
-    }
-    if ($file -match "app\.liujingzhuwo\.site") {
-        $needNginxDeploy = $true
-    }
-    if ($file -match "^package\.json$") {
-        $needFrontendDeploy = $true
-        $needBackendDeploy = $true
-    }
-}
-
-if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
-    Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
+if ($Force) {
+    Write-Host "Force switch is active. Enabling full deployment!" -ForegroundColor Magenta
     $needFrontendDeploy = $true
     $needBackendDeploy = $true
     $needNginxDeploy = $true
+} elseif ($FrontendOnly) {
+    Write-Host "FrontendOnly switch is active. Deploying frontend only!" -ForegroundColor Magenta
+    $needFrontendDeploy = $true
+} elseif ($BackendOnly) {
+    Write-Host "BackendOnly switch is active. Deploying backend only!" -ForegroundColor Magenta
+    $needBackendDeploy = $true
+} else {
+    $branchName = (git branch --show-current)
+    $diffFiles = @()
+    try {
+        $upstreamExists = git ls-remote --heads origin $branchName 2>$null
+        if ($upstreamExists) {
+            $diffFiles = git diff --name-only "origin/$branchName...HEAD" 2>$null
+        }
+    } catch {}
+
+    $statusFiles = git status --porcelain | ForEach-Object { $_ -replace '^...|\s+$', '' }
+    $changedFiles = @($diffFiles) + @($statusFiles) | Select-Object -Unique | Where-Object { $_ -ne '' }
+
+    if ($changedFiles.Count -eq 0) {
+        Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
+        $changedFiles = git diff --name-only HEAD~1 HEAD
+    }
+
+    foreach ($file in $changedFiles) {
+        if ($file -match "^src/" -or $file -match "^public/" -or $file -match "index\.html$" -or $file -match "vite\.config\.ts$" -or $file -match "tsconfig\.json$") {
+            $needFrontendDeploy = $true
+        }
+        if ($file -match "^vocab-server/") {
+            $needBackendDeploy = $true
+        }
+        if ($file -match "app\.liujingzhuwo\.site") {
+            $needNginxDeploy = $true
+        }
+        if ($file -match "^package\.json$") {
+            $needFrontendDeploy = $true
+            $needBackendDeploy = $true
+        }
+    }
+
+    if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
+        Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
+        $needFrontendDeploy = $true
+        $needBackendDeploy = $true
+        $needNginxDeploy = $true
+    }
 }
 
 Write-Host "[Analysis Results]" -ForegroundColor DarkCyan

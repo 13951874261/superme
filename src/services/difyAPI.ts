@@ -866,31 +866,47 @@ export async function runListenMaterialGenerator(
           const dataStr = line.slice(6).trim();
           if (dataStr === '[DONE]') break;
 
-          try {
-            const parsed = JSON.parse(dataStr);
+            try {
+              const parsed = JSON.parse(dataStr);
 
-            // 逐字增量块
-            if (parsed.event === 'text_chunk' && parsed.data?.text) {
-              finalAnswer += parsed.data.text;
-            }
-            // message 事件中携带的当前 answer
-            if (parsed.event === 'message' && parsed.answer) {
-              finalAnswer = parsed.answer;
-            }
-            // message_end 是最终事件，outputs.answer 为完整内容
-            if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
-              finalAnswer = parsed.data.outputs.answer;
-            }
-            // 兜底：无论什么事件类型，只要包含 answer 字段就收集
-            if (parsed.answer && parsed.answer !== finalAnswer) {
-              finalAnswer = parsed.answer;
-            }
-            // 兜底：从 data.outputs 中提取任何字符串字段
-            if (!finalAnswer && parsed.data?.outputs) {
-              const out = parsed.data.outputs;
-              finalAnswer = out.answer ?? out.result ?? out.text ?? out.content ?? '';
-            }
-          } catch (_) {}
+              // 1. 最核心的兜底：任何 SSE 事件只要顶层有 answer 字段，立刻捕获
+              if (parsed.answer && typeof parsed.answer === 'string' && parsed.answer.trim()) {
+                finalAnswer = parsed.answer;
+              }
+
+              // 2. 兼容 Chatflow 的 message 事件
+              if (parsed.event === 'message' && parsed.answer) {
+                finalAnswer = parsed.answer;
+              }
+
+              // 3. 兼容 Chatflow 的 message_end 事件（最终完整内容）
+              if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
+                finalAnswer = parsed.data.outputs.answer;
+              }
+
+              // 4. 兼容 Workflow 的 workflow_finished 事件
+              if (parsed.event === 'workflow_finished' && parsed.data?.outputs) {
+                const out = parsed.data.outputs;
+                finalAnswer = out.answer ?? out.result ?? out.text ?? out.content ?? out.listening_material_preview ?? '';
+              }
+
+              // 5. 兼容 text_chunk 事件
+              if (parsed.event === 'text_chunk' && parsed.data?.text) {
+                finalAnswer += parsed.data.text;
+              }
+
+              // 6. 终极兜底：从 data.outputs 中提取任何非空字符串字段
+              if (!finalAnswer && parsed.data?.outputs) {
+                const out = parsed.data.outputs;
+                for (const key of Object.keys(out)) {
+                  const val = out[key];
+                  if (typeof val === 'string' && val.trim()) {
+                    finalAnswer = val;
+                    break;
+                  }
+                }
+              }
+            } catch (_) {}
         }
         lineEnd = buffer.indexOf('\n');
       }
