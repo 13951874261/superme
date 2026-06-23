@@ -820,20 +820,21 @@ export async function runListenMaterialGenerator(
   userId = 'default-user'
 ): Promise<string> {
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
-  const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 6);
+  const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 10);
 
-  // ── 长音频：Chatflow (advanced-chat) 应用，走 /chat-messages 阻塞模式 ──
+  // ── 长音频：Chatflow (advanced-chat) 应用，走 SSE streaming 模式（防止 524 超时） ──
   if (isLong) {
     const apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
 
+    // 使用 streaming 模式：Dify 会持续推送 SSE 数据块，保持连接活跃，不会触发 Nginx/Cloudflare 524 超时
     const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         inputs: injectUserProfile({ theme, cefr_level: cefrLevel, genre }),
         query: 'generate',
-        response_mode: 'blocking',
+        response_mode: 'streaming',
         user: userId,
       }),
     });
@@ -843,11 +844,51 @@ export async function runListenMaterialGenerator(
       throw new Error(err?.message || err?.error || `生成长文听力失败 (HTTP ${res.status})`);
     }
 
-    const data = await res.json();
-    // Chatflow 的直接回复节点在 blocking 模式下，内容返回在 answer 字段中
-    const result = data?.answer || data?.data?.outputs?.result || '';
-    if (!result) throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
-    return (result as string).trim();
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('流式读取失败，当前浏览器不支持。');
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalAnswer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      let lineEnd = buffer.indexOf('\n');
+      while (lineEnd !== -1) {
+        const line = buffer.substring(0, lineEnd).trim();
+        buffer = buffer.substring(lineEnd + 1);
+
+        if (line.startsWith('data: ')) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === '[DONE]') break;
+
+          try {
+            const parsed = JSON.parse(dataStr);
+
+            // 逐字增量块
+            if (parsed.event === 'text_chunk' && parsed.data?.text) {
+              finalAnswer += parsed.data.text;
+            }
+            // message 事件中携带的当前 answer
+            if (parsed.event === 'message' && parsed.answer) {
+              finalAnswer = parsed.answer;
+            }
+            // message_end 是最终事件，outputs.answer 为完整内容
+            if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
+              finalAnswer = parsed.data.outputs.answer;
+            }
+          } catch (_) {}
+        }
+        lineEnd = buffer.indexOf('\n');
+      }
+    }
+
+    if (!finalAnswer.trim()) throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
+    return finalAnswer.trim();
   }
 
   // ── 短听力：Completion 应用，走 /completion-messages 流式模式 ──
