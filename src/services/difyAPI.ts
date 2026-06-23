@@ -822,16 +822,17 @@ export async function runListenMaterialGenerator(
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
 
-  // ── 长音频：Workflow 应用，走 /workflows/run 阻塞模式，直接取 outputs ──
+  // ── 长音频：Chatflow (advanced-chat) 应用，走 /chat-messages 阻塞模式 ──
   if (isLong) {
     const apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
 
-    const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: injectUserProfile({ topic: theme, genre, difficulty: cefrLevel, duration: durationParam, category: genre, audio_source: 'tts', voice: 'alloy' }),
+        inputs: injectUserProfile({ theme, cefr_level: cefrLevel, genre }),
+        query: 'generate',
         response_mode: 'blocking',
         user: userId,
       }),
@@ -843,10 +844,8 @@ export async function runListenMaterialGenerator(
     }
 
     const data = await res.json();
-    const out = data?.data?.outputs ?? {};
-    // 按工作流 end 节点真实输出字段名取值，并作全量兜底
-    const result = out.listening_material_preview ?? out.result ?? out.text ?? out.answer
-      ?? Object.values(out).find((v): v is string => typeof v === 'string' && v.length > 20);
+    // Chatflow 的直接回复节点在 blocking 模式下，内容返回在 answer 字段中
+    const result = data?.answer || data?.data?.outputs?.result || '';
     if (!result) throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
     return (result as string).trim();
   }
