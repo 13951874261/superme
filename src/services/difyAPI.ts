@@ -813,40 +813,53 @@ export async function getDueVocabulary(userId = 'default-user') {
 }
 
 export async function runListenMaterialGenerator(
-  theme: string, 
+  theme: string,
   genre: 'news' | 'meeting' | 'podcast',
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1',
   duration: number | 'short' | 'long',
   userId = 'default-user'
 ): Promise<string> {
-  let apiKey: string;
-  let endpoint = '/completion-messages';
-
-  // 智能路由：大于等于 5 分钟走长文本引擎，否则走短听力生成器
+  const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
 
+  // ── 长音频：Workflow 应用，走 /workflows/run 阻塞模式，直接取 outputs ──
   if (isLong) {
-    apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
+    const apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
     if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
-    // 长听力应用（advanced-chat）使用 /chat-messages 接口
-    endpoint = '/chat-messages';
-  } else {
-    apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
-    if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成听力材料。');
+
+    const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputs: injectUserProfile({ topic: theme, genre, difficulty: cefrLevel, duration: durationParam, category: genre, audio_source: 'tts', voice: 'alloy' }),
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err?.message || err?.error || `生成长文听力失败 (HTTP ${res.status})`);
+    }
+
+    const data = await res.json();
+    const out = data?.data?.outputs ?? {};
+    // 按工作流 end 节点真实输出字段名取值，并作全量兜底
+    const result = out.listening_material_preview ?? out.result ?? out.text ?? out.answer
+      ?? Object.values(out).find((v): v is string => typeof v === 'string' && v.length > 20);
+    if (!result) throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
+    return (result as string).trim();
   }
 
-  // 对大模型更友好的动态提示词拼装
-  const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
+  // ── 短听力：Completion 应用，走 /completion-messages 流式模式 ──
+  const apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成听力材料。');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}${endpoint}`, {
+  const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration: durationParam }),
-      query: endpoint === '/chat-messages' ? "请执行听力材料生成任务" : "",
       response_mode: 'streaming',
       user: userId,
     }),
@@ -889,7 +902,8 @@ export async function runListenMaterialGenerator(
           } else if (parsed.event === 'workflow_finished' && !finalAnswer && parsed.data?.outputs) {
              // 作为兜底，如果没收到任何流片段，提取工作流配置的输出结果
              const out = parsed.data.outputs;
-             finalAnswer = out.result ?? out.text ?? out.answer ?? finalAnswer;
+             finalAnswer = out.listening_material_preview ?? out.result ?? out.text ?? out.answer
+               ?? Object.values(out).find((v): v is string => typeof v === 'string' && v.length > 20) ?? '';
           }
         } catch (e) {
           // 忽略数据块截断或非JSON格式导致的临时错误

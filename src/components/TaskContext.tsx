@@ -113,18 +113,35 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               if (data.result && (data.result.article || data.result.words)) {
                 const result = data.result;
                 const taskName = data.name || data.taskName || '未命名材料';
-                
+
                 // 写入 Dashboard 专用的 localStorage 键
                 localStorage.setItem('super_agent_last_generated_article', result.article || '');
                 localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words || []));
                 localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases || []));
                 localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences || []));
-                
-                // 记录当前情报源的名称，用于 UI 侧的重新设计展示
                 localStorage.setItem('super_agent_intel_source', `材料提纯: ${taskName}`);
 
-                // 分发自定义全局事件，通知 DashboardTab 页面重新读取 localStorage
+                // 通知 DashboardTab 刷新 + 触发 onExtractionSuccess 回调（含 toast + 音效）
                 window.dispatchEvent(new CustomEvent('intel-data-refreshed'));
+                window.dispatchEvent(new CustomEvent('extraction-success', {
+                  detail: {
+                    article: result.article || '',
+                    words: result.words || [],
+                    phrases: result.phrases || [],
+                    sentences: result.sentences || [],
+                  }
+                }));
+              }
+
+              // 视频转写完成后自动导入并提纯（跳过手动点击"导入并提纯"）
+              if (data.type === 'video' && data.result?.content) {
+                window.dispatchEvent(new CustomEvent('import-virtual-material', {
+                  detail: {
+                    name: data.result.name,
+                    content: data.result.content,
+                    mimeType: data.result.mimeType,
+                  }
+                }));
               }
             }
           }

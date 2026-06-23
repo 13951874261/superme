@@ -112,8 +112,10 @@ export default function MaterialUploader({
     setCurrentStep(`已加载网页提取材料：${virtualFile.name}`);
     setLogs([
       `${nowLabel()} 网页数据抓取并过滤成功`,
-      `${nowLabel()} 虚拟材料就绪，点击 Step 3 即可执行 Dify 提纯入库`
+      `${nowLabel()} 自动触发 Dify 提纯入库...`,
     ]);
+    // 自动触发提纯（与视频转写"导入并提纯"路径对齐）
+    runExtractionForFiles([file]);
   };
 
   // 视频异步转写任务创建成功回调
@@ -127,11 +129,11 @@ export default function MaterialUploader({
       logs: [`[${new Date().toISOString()}] 任务已在后台建立，正在排队排期...`],
     });
 
-    setCurrentStep('已异步发起视频转写。请在顶栏「提纯任务中心」追踪完成状态。');
+    setCurrentStep('已异步发起视频转写。完成后将自动导入并提纯，可在顶栏「提纯任务中心」追踪进度。');
     setLogs([
       `${nowLabel()} 后台转写任务建立成功，TaskId: ${taskId}`,
       `${nowLabel()} 进程将在服务器异步执行，无需在本页面等待。`,
-      `${nowLabel()} 视频处理完毕后可从「任务中心」一键导入进行 Dify 最终提纯。`
+      `${nowLabel()} 视频处理完毕后，将自动导入并触发 Dify 提纯。`,
     ]);
   };
 

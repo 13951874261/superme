@@ -223,6 +223,30 @@ export default function DashboardTab() {
     return () => window.removeEventListener('intel-data-refreshed', handleIntelRefresh);
   }, []);
 
+  // 监听 extraction-success 事件，触发提纯完成后的即时 UI 更新（toast + 音效）
+  useEffect(() => {
+    const handleExtractionSuccess = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.article) {
+        setGeneratedArticle(detail.article);
+      }
+      if (detail?.words) {
+        setExtractedWords(detail.words);
+      }
+      if (detail?.phrases) {
+        setExtractedPhrases(detail.phrases);
+      }
+      if (detail?.sentences) {
+        setExtractedSentences(detail.sentences);
+      }
+      // 触发批量翻译和落库
+      handleIntelRefresh();
+    };
+
+    window.addEventListener('extraction-success', handleExtractionSuccess);
+    return () => window.removeEventListener('extraction-success', handleExtractionSuccess);
+  }, []);
+
   const currentVoiceName = (() => {
     if (typeof selectedVoice !== 'string') return 'Libby';
     const match = selectedVoice.match(/en-[A-Z]{2}-([A-Za-z0-9]+)Neural/);
