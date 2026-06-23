@@ -881,6 +881,15 @@ export async function runListenMaterialGenerator(
             if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
               finalAnswer = parsed.data.outputs.answer;
             }
+            // 兜底：无论什么事件类型，只要包含 answer 字段就收集
+            if (parsed.answer && parsed.answer !== finalAnswer) {
+              finalAnswer = parsed.answer;
+            }
+            // 兜底：从 data.outputs 中提取任何字符串字段
+            if (!finalAnswer && parsed.data?.outputs) {
+              const out = parsed.data.outputs;
+              finalAnswer = out.answer ?? out.result ?? out.text ?? out.content ?? '';
+            }
           } catch (_) {}
         }
         lineEnd = buffer.indexOf('\n');
