@@ -820,7 +820,7 @@ export async function runListenMaterialGenerator(
   userId = 'default-user'
 ): Promise<string> {
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
-  const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
+  const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 6);
 
   // ── 长音频：Chatflow (advanced-chat) 应用，走 /chat-messages 阻塞模式 ──
   if (isLong) {

@@ -29,7 +29,7 @@ export default function ListenTab() {
   const [highlightedWord, setHighlightedWord] = useState('');
   const [listenGenre, setListenGenre] = useState<'news' | 'meeting' | 'podcast'>('meeting');
   const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
-  const [listenDuration, setListenDuration] = useState<number>(30);
+  const [listenDuration, setListenDuration] = useState<number>(5);
   const [isFullscreenText, setIsFullscreenText] = useState(false);
   const [isAddingHighlight, setIsAddingHighlight] = useState(false);
 
@@ -163,7 +163,7 @@ export default function ListenTab() {
                   <input
                     type="range"
                     min="1"
-                    max="100"
+                    max="15"
                     value={listenDuration}
                     onChange={(e) => setListenDuration(Number(e.target.value))}
                     className="w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
