@@ -154,7 +154,7 @@ export async function fetchDifyTTS(text: string, userId = 'default-user'): Promi
  * 每 5 秒检查一次，直到任务完成或失败
  */
 async function pollTtsTask(taskId: string): Promise<string> {
-  const MAX_ATTEMPTS = 180; // 180 × 5s = 15 分钟
+  const MAX_ATTEMPTS = 360; // 360 × 5s = 30 分钟，容纳超长音频
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     await new Promise(r => setTimeout(r, 5000));
     try {

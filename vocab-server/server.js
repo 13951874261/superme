@@ -3344,24 +3344,40 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   // 构建并发任务，指数退避重试避开上游 Rate Limit
   const tasks = chunks.map((chunkText, idx) => async () => {
     let lastErr;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    // 增加至 5 次重试机会，避开高峰上限
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const controller = new AbortController();
+      // 限制单次分块请求 60 秒必须返回，超时硬性取消防止挂起卡死
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
       try {
         const body = { model: finalModel, input: chunkText };
         if (ttsVoice) body.voice = ttsVoice;
+
         const r = await fetch(apiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify(body)
+          body: JSON.stringify(body),
+          signal: controller.signal
         });
+
+        clearTimeout(timeoutId);
+
         if (r.ok) {
           pendingMap.set(idx, Buffer.from(await r.arrayBuffer()));
           flush();
           return;
         }
         lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(() => '')}`);
-      } catch (e) { lastErr = e; }
-      // 指数退避 + 随机抖动（防 429）
-      if (attempt < 3) await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 500 + Math.random() * 200));
+      } catch (e) {
+        clearTimeout(timeoutId);
+        lastErr = e;
+      }
+
+      // 优化指数退避加随机抖动算法 (2s, 4s, 8s, 16s) 减缓上游并发压力
+      if (attempt < 5) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 500);
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
     throw new Error(`分块 ${idx + 1}/${total} 失败: ${lastErr?.message}`);
   });

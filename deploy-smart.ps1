@@ -8,7 +8,8 @@ param(
     [string]$CommitMessage = "",
     [switch]$Force,
     [switch]$FrontendOnly,
-    [switch]$BackendOnly
+    [switch]$BackendOnly,
+    [string]$SSHPassword
 )
 
 $ErrorActionPreference = 'Stop'
@@ -95,9 +96,14 @@ $UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink) -and (-not $UseSystemSSH)
 
 if ($UsePuTTY) {
     Write-Host "PuTTY found. Enabling auto-password mode (leave empty if using SSH key/Pageant)." -ForegroundColor Green
-    $Password = Read-Host 'Enter SSH password' -AsSecureString
-    $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
-    $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto($PasswordPtr)
+    $PasswordPtr = [IntPtr]::Zero
+    if ($SSHPassword) {
+        $PlainPassword = $SSHPassword
+    } else {
+        $Password = Read-Host 'Enter SSH password' -AsSecureString
+        $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
+        $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto($PasswordPtr)
+    }
 } else {
     Write-Host "Using system ssh/scp. You may need to enter password or use local SSH keys." -ForegroundColor Yellow
 }
