@@ -3266,23 +3266,6 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 });
 
 // 兜底 404
-// 异步并发限制器，控制并发请求数
-async function limitConcurrentTasks(tasks, limit) {
-  const results = [];
-  const executing = [];
-  for (let i = 0; i < tasks.length; i++) {
-    const p = Promise.resolve().then(() => tasks[i](i));
-    results.push(p);
-    if (limit <= tasks.length) {
-      const e = p.then(() => executing.splice(executing.indexOf(e), 1));
-      executing.push(e);
-      if (executing.length >= limit) {
-        await Promise.race(executing);
-      }
-    }
-  }
-  return Promise.all(results);
-}
 
 /**
  * 核心：分块合成并按序追加写入磁盘（流式写入，避免大内存峰值）
@@ -3320,6 +3303,42 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   if (!chunks.length) throw new Error('No valid content to synthesize');
 
   const total = chunks.length;
+
+  // ========== 优化分块处理逻辑 ==========
+  // 1. 改为单线顺序合成，大幅降低上游服务429概率
+  // 2. 增加单块独立存储支持断点续传与增量重试
+  // 3. 提升超时保护到 120s
+  // 4. 重试次数从 5 提升到 8 次
+  const chunkCacheDir = audioPath + '.chunks';
+  if (!fs.existsSync(chunkCacheDir)) {
+    fs.mkdirSync(chunkCacheDir, { recursive: true });
+  }
+
+  const getChunkPath = (idx) => path.join(chunkCacheDir, `chunk_${idx}.mp3`);
+
+  // 检查哪些块已经合成成功（断点续传）
+  const completedChunks = [];
+  for (let idx = 0; idx < total; idx++) {
+    const chunkPath = getChunkPath(idx);
+    if (fs.existsSync(chunkPath) && fs.statSync(chunkPath).size > 0) {
+      completedChunks.push(idx);
+    }
+  }
+
+  // 如果所有块都已完成，直接合并（从缓存恢复）
+  if (completedChunks.length === total) {
+    fs.writeFileSync(audioPath, Buffer.alloc(0));
+    for (let idx = 0; idx < total; idx++) {
+      fs.appendFileSync(audioPath, fs.readFileSync(getChunkPath(idx)));
+    }
+    // 清理缓存目录
+    fs.rmSync(chunkCacheDir, { recursive: true, force: true });
+    if (taskQueue && taskId) {
+      taskQueue.updateTask(taskId, { progress: 100, logs: ['全部片段已完成（从缓存恢复）'] });
+    }
+    return;
+  }
+
   // 初始化目标文件（清空旧文件）
   fs.writeFileSync(audioPath, Buffer.alloc(0));
 
@@ -3329,7 +3348,11 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 
   const flush = () => {
     while (pendingMap.has(nextWrite)) {
-      fs.appendFileSync(audioPath, pendingMap.get(nextWrite));
+      const chunkData = pendingMap.get(nextWrite);
+      // 写入主文件
+      fs.appendFileSync(audioPath, chunkData);
+      // 写入独立分块文件用于断点续传
+      fs.writeFileSync(getChunkPath(nextWrite), chunkData);
       pendingMap.delete(nextWrite);
       nextWrite++;
       if (taskQueue && taskId) {
@@ -3341,14 +3364,28 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     }
   };
 
-  // 构建并发任务，指数退避重试避开上游 Rate Limit
-  const tasks = chunks.map((chunkText, idx) => async () => {
+  // 单线顺序处理
+  for (let idx = 0; idx < total; idx++) {
+    // 检查缓存
+    if (completedChunks.includes(idx)) {
+      if (fs.existsSync(getChunkPath(idx))) {
+        pendingMap.set(idx, fs.readFileSync(getChunkPath(idx)));
+        flush();
+      }
+      if (taskQueue && taskId) {
+        taskQueue.updateTask(taskId, { logs: [`分块 ${idx + 1}/${total} 从缓存恢复`] });
+      }
+      continue;
+    }
+
+    const chunkText = chunks[idx];
     let lastErr;
-    // 增加至 5 次重试机会，避开高峰上限
-    for (let attempt = 1; attempt <= 5; attempt++) {
+
+    // 8次重试
+    for (let attempt = 1; attempt <= 8; attempt++) {
       const controller = new AbortController();
-      // 限制单次分块请求 60 秒必须返回，超时硬性取消防止挂起卡死
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      // 单块超时提升到 120s 适应高负载情况
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
       try {
         const body = { model: finalModel, input: chunkText };
         if (ttsVoice) body.voice = ttsVoice;
@@ -3363,9 +3400,11 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         clearTimeout(timeoutId);
 
         if (r.ok) {
-          pendingMap.set(idx, Buffer.from(await r.arrayBuffer()));
+          const chunkData = Buffer.from(await r.arrayBuffer());
+          pendingMap.set(idx, chunkData);
           flush();
-          return;
+          lastErr = null;
+          break; // 合成成功，跳出重试
         }
         lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(() => '')}`);
       } catch (e) {
@@ -3373,17 +3412,27 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         lastErr = e;
       }
 
-      // 优化指数退避加随机抖动算法 (2s, 4s, 8s, 16s) 减缓上游并发压力
-      if (attempt < 5) {
-        const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 500);
+      // 优化退避与随机抖动
+      if (attempt < 8) {
+        const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000);
+        if (taskQueue && taskId) {
+          taskQueue.updateTask(taskId, {
+            logs: [`分块 ${idx + 1}/${total} 第${attempt}次失败，${Math.round(delay/1000)}秒后重试...`]
+          });
+        }
         await new Promise(r => setTimeout(r, delay));
       }
     }
-    throw new Error(`分块 ${idx + 1}/${total} 失败: ${lastErr?.message}`);
-  });
 
-  await limitConcurrentTasks(tasks, 3);
-  flush(); // 确保最后的缓冲都写盘
+    if (lastErr) {
+      // 合成失败清理缓存目录
+      fs.rmSync(chunkCacheDir, { recursive: true, force: true });
+      throw new Error(`分块 ${idx + 1}/${total} 合成失败: ${lastErr?.message}`);
+    }
+  }
+
+  // 清理缓存目录
+  fs.rmSync(chunkCacheDir, { recursive: true, force: true });
 }
 
 // TTS 长文本合成并发锁（防止多请求同时合成导致 OOM 进程崩溃）

@@ -174,7 +174,7 @@ async function pollTtsTask(taskId: string): Promise<string> {
       continue;
     }
   }
-  throw new Error('长音频合成超时（已等待 15 分钟）');
+  throw new Error('长音频合成超时（已等待 30 分钟，请稍后重试）');
 }
 
 /**
