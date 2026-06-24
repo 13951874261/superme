@@ -3386,6 +3386,9 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   flush(); // 确保最后的缓冲都写盘
 }
 
+// TTS 长文本合成并发锁（防止多请求同时合成导致 OOM 进程崩溃）
+let ttsLongLock = false;
+
 // TTS 语音合成接口（短文本同步 / 长文本异步双通道）
 app.post('/api/tts/speech', async (req, res) => {
   try {
@@ -3409,10 +3412,24 @@ app.post('/api/tts/speech', async (req, res) => {
 
     // 长文本（≥3000字符，约5分钟以上）走异步任务队列，立即返回 taskId 防止 HTTP 超时
     if (cleanInput.length >= 3000) {
+      // 保险①：长文本合成互斥锁，防止并发崩溃
+      if (ttsLongLock) {
+        return res.status(429).json({ error: '当前有音频正在合成中，请稍后再试（预计 3~10 分钟）' });
+      }
+      ttsLongLock = true;
+
       const taskQueue = require('./services/taskQueue');
       const task = taskQueue.createTask('tts', `高保真音频合成 (${cleanInput.length}字符)`);
-      res.json({ success: true, taskId: task.id, status: 'pending', audioUrl: null });
 
+      // 保险②：独立 try/catch 包裹 res.json，确保即使前端断开也捕获错误
+      try {
+        res.json({ success: true, taskId: task.id, status: 'pending', audioUrl: null });
+      } catch (e) {
+        ttsLongLock = false;
+        return; // 客户端已断开
+      }
+
+      // 保险③：setImmediate 隔离异常，防止崩溃影响 Express 主线程
       setImmediate(async () => {
         try {
           taskQueue.updateTask(task.id, { status: 'running', logs: [`开始异步合成，总字符: ${cleanInput.length}`] });
@@ -3425,14 +3442,24 @@ app.post('/api/tts/speech', async (req, res) => {
         } catch (err) {
           console.error('[TTS Async] Failed:', err);
           taskQueue.updateTask(task.id, { status: 'failed', error: err.message });
+        } finally {
+          ttsLongLock = false;
         }
       });
       return;
     }
 
-    // 短文本同步合成
-    await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath);
-    res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
+    // 短文本同步合成（同样加 120 秒硬性超时）
+    const ctrl = new AbortController();
+    const tmo = setTimeout(() => { ctrl.abort(); }, 120000);
+    try {
+      await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, null, ctrl.signal);
+      clearTimeout(tmo);
+      res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
+    } catch (e) {
+      clearTimeout(tmo);
+      throw e;
+    }
 
   } catch (error) {
     console.error('[TTS] Error:', error);

@@ -18,7 +18,7 @@ $ProjectRoot = 'D:\cursor\work\super-agent'
 $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
-$HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfE'
+$HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfF'
 $HostKeyOptions = if ($HostKey) { @("-hostkey", $HostKey) } else { @() }
 
 Set-Location $ProjectRoot
