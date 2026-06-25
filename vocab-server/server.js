@@ -372,6 +372,47 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
 }
 
 // ==========================================
+// 听力模块：动态截获剧本生成引擎代理
+// ==========================================
+app.post('/api/listen/generate-material', async (req, res) => {
+  try {
+    const { inputs, userId = 'default-user' } = req.body;
+    const apiKey = process.env.DIFY_LISTEN_GEN_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: '后端未配置 DIFY_LISTEN_GEN_API_KEY' });
+    }
+    const difyUrl = `${process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'}/completion-messages`;
+    
+    const response = await fetch(difyUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: inputs || {},
+        response_mode: 'blocking',
+        user: userId,
+      })
+    });
+    
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      return res.status(response.status).json({ success: false, error: data.message || data.error || 'Dify API Error' });
+    }
+    
+    if (!data.answer) {
+      return res.status(500).json({ success: false, error: '后台没有返回任何听力材料数据，请检查 Dify 应用配置。' });
+    }
+    
+    res.json({ success: true, answer: data.answer });
+  } catch (error) {
+    console.error('generate-material error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
 // 长音频 API
 // ==========================================
 

@@ -938,82 +938,26 @@ export async function runListenMaterialGenerator(
     return finalAnswer.trim();
   }
 
-  // ── 短听力：Completion 应用，走 /completion-messages 流式模式 ──
-  const apiKey = import.meta.env.VITE_DIFY_LISTEN_GEN_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_GEN_API_KEY，无法生成听力材料。');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
+  // ── 短听力：已迁移为 Node.js 代理调用 ──
+  const res = await fetch('/api/listen/generate-material', {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration: durationParam }),
-      response_mode: 'streaming',
-      user: userId,
+      userId,
     }),
   });
 
-  if (!res.ok) {
-    const errData = await res.json().catch(() => ({}));
-    throw new Error(errData?.message || errData?.error || `生成听力材料失败 (HTTP ${res.status})`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data.error || data.message || `生成听力材料失败 (HTTP ${res.status})`);
   }
 
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error('流式读取失败，当前浏览器不支持。');
-
-  const decoder = new TextDecoder();
-  let buffer = "";
-  let finalAnswer = "";
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-
-    let lineEnd = buffer.indexOf('\n');
-    while (lineEnd !== -1) {
-      const line = buffer.substring(0, lineEnd).trim();
-      buffer = buffer.substring(lineEnd + 1);
-
-      if (line.startsWith('data: ')) {
-        const dataStr = line.slice(6).trim();
-        if (dataStr === '[DONE]') break;
-
-        try {
-          const parsed = JSON.parse(dataStr);
-          // 兼容普通模型生成、工作流文本块输出、以及工作流最终完成节点
-          if (parsed.event === 'message') {
-            finalAnswer += parsed.answer ?? '';
-          } else if (parsed.event === 'text_chunk' && parsed.data?.text) {
-            finalAnswer += parsed.data.text;
-          } else if (parsed.event === 'workflow_finished' && !finalAnswer && parsed.data?.outputs) {
-             // 作为兜底，如果没收到任何流片段，提取工作流配置的输出结果
-             const out = parsed.data.outputs;
-             finalAnswer = out.listening_material_preview ?? out.result ?? out.text ?? out.answer
-               ?? Object.values(out).find((v): v is string => typeof v === 'string' && v.length > 20) ?? '';
-          }
-        } catch (e) {
-          // 忽略数据块截断或非JSON格式导致的临时错误
-        }
-      }
-      lineEnd = buffer.indexOf('\n');
-    }
-  }
-
-  // 兜底缓冲残余
-  if (buffer.trim().startsWith('data: ')) {
-    try {
-      const parsed = JSON.parse(buffer.trim().slice(6).trim());
-      if (parsed.event === 'message') finalAnswer += parsed.answer ?? '';
-      else if (parsed.event === 'text_chunk' && parsed.data?.text) finalAnswer += parsed.data.text;
-    } catch (e) {}
-  }
-
-  if (!finalAnswer) {
+  if (!data.answer) {
     throw new Error("后台没有返回任何听力材料数据，请检查 Dify 应用配置。");
   }
 
-  return finalAnswer.trim();
+  return data.answer.trim();
 }
 
 export interface ImpromptuSpeechEvaluationResult {

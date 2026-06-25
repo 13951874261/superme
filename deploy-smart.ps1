@@ -60,7 +60,7 @@ if ($Force) {
     }
 
     foreach ($file in $changedFiles) {
-        if ($file -match "^src/" -or $file -match "^public/" -or $file -match "index\.html$" -or $file -match "vite\.config\.ts$" -or $file -match "tsconfig\.json$") {
+        if ($file -match "^src/" -or $file -match "^public/" -or $file -match "index\.html$" -or $file -match "vite\.config\.ts$" -or $file -match "tsconfig\.json$" -or $file -match "^\.env") {
             $needFrontendDeploy = $true
         }
         if ($file -match "^vocab-server/") {
