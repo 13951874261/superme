@@ -2,8 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
-import { runListeningEngine, fetchDifyTTS } from '../../../../services/listeningAPI';
+import { runListeningEngine } from '../../../../services/listeningAPI';
 import { submitReview, addWord } from '../../../../services/vocabAPI';
+import { useTask } from '../../../../components/TaskContext';
 
 export default function ListenTab() {
   const {
@@ -32,6 +33,9 @@ export default function ListenTab() {
   const [listenDuration, setListenDuration] = useState<number>(15);
   const [isFullscreenText, setIsFullscreenText] = useState(false);
   const [isAddingHighlight, setIsAddingHighlight] = useState(false);
+  const [curTtsTaskId, setCurTtsTaskId] = useState<string | null>(null);
+  const [isAudioGenerating, setIsAudioGenerating] = useState(false);
+  const [hasPlayed, setHasPlayed] = useState(false);
 
 
   const [globalRateMultiplier, setGlobalRateMultiplier] = useState(
@@ -52,25 +56,73 @@ export default function ListenTab() {
     }
   }, [playbackRate, globalRateMultiplier]);
 
+  // 接入全局任务中心轮询
+  const { tasks, addTask } = useTask();
+
+  useEffect(() => {
+    if (!curTtsTaskId) return;
+    const task = tasks.find(t => t.id === curTtsTaskId);
+    if (!task) return;
+    if (task.status === 'completed' && task.result?.audioUrl) {
+      setListenAudioUrl(task.result.audioUrl);
+      setCurTtsTaskId(null);
+      setIsAudioGenerating(false);
+      showNotice('listen', '🎉 高保真音频后台合成成功！已为您加载播放。', 'success');
+      setHasPlayed(true);
+      setTimeout(() => {
+        audioRef.current?.play().catch(() => {
+          setHasPlayed(false); // 自动播放被拦截时显示引导闪烁
+        });
+      }, 100);
+    } else if (task.status === 'failed') {
+      setCurTtsTaskId(null);
+      setIsAudioGenerating(false);
+      showNotice('listen', `音频合成失败: ${task.error || '未知错误'}. 降级使用本地 TTS。`, 'error');
+    }
+  }, [tasks, curTtsTaskId]);
+
   const generateListenMaterial = async (targetTheme: string) => {
     setIsListenMaterialLoading(true);
     setListenResult(null);
     setListenInput('');
     setIsTextVisible(false);
     setListenAudioUrl(null);
+    setCurTtsTaskId(null);
+    setIsAudioGenerating(false);
     setListenMaterialTheme(targetTheme);
-    
+    setHasPlayed(false);
+
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
       const script = await runListenMaterialGenerator(targetTheme, listenGenre, listenCefr, listenDuration);
       setListenMaterial(script);
-      
+
+      // 异步音频生成（默认路径）
+      const { fetchDifyTTS } = await import('../../../../services/listeningAPI');
+      setIsAudioGenerating(true);
       try {
-        const audioUrl = await fetchDifyTTS(script);
-        setListenAudioUrl(audioUrl);
+        const ttsRes = await fetchDifyTTS(script, { isAsync: true });
+        if (ttsRes.audioUrl) {
+          // 缓存命中，直接使用
+          setListenAudioUrl(ttsRes.audioUrl);
+          setIsAudioGenerating(false);
+        } else if (ttsRes.taskId) {
+          // 注册到全局任务中心
+          addTask({
+            id: ttsRes.taskId,
+            type: 'tts',
+            name: `精听音频: ${targetTheme}`,
+            status: 'pending',
+            progress: 0,
+            logs: ['音频已提交合成队列...'],
+          });
+          setCurTtsTaskId(ttsRes.taskId);
+          showNotice('listen', '高保真音频正在后台合成，可继续练习，完成后将自动加载', 'info');
+        }
       } catch (audioErr) {
-        console.error('音频生成失败，将使用浏览器原生 TTS 兜底', audioErr);
-        showNotice('listen', '高保真音频生成失败，将使用原生发音', 'error');
+        setIsAudioGenerating(false);
+        console.error('音频生成失败', audioErr);
+        showNotice('listen', '高保真音频生成失败，将使用浏览器原生发音', 'error');
       }
     } catch (err) {
       console.error(err);
@@ -104,6 +156,20 @@ export default function ListenTab() {
 
   return (
     <div className="flex flex-col gap-6 h-[85vh] overflow-y-auto pr-2 pb-6 custom-scrollbar scroll-bottom-glow" style={{ scrollbarWidth: 'thin', scrollbarColor: '#FF5722 #f5f5f5' }}>
+      <style>{`
+        @keyframes slideDownPulse {
+          0% { transform: translate(-50%, -10px); opacity: 0; }
+          70% { transform: translate(-50%, 2px); }
+          100% { transform: translate(-50%, 0); opacity: 1; }
+        }
+        @keyframes softPulse {
+          0%, 100% { transform: scale(1); filter: drop-shadow(0 0 2px rgba(255,87,34,0.4)); }
+          50% { transform: scale(1.05); filter: drop-shadow(0 0 8px rgba(255,87,34,0.8)); }
+        }
+        .animate-soft-pulse {
+          animation: softPulse 2s infinite ease-in-out;
+        }
+      `}</style>
       <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm animate-[fadeIn_0.3s_ease-out]">
         <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
            <Headphones className="w-5 h-5" />
@@ -185,6 +251,30 @@ export default function ListenTab() {
                   <Loader2 className="w-6 h-6 animate-spin" />
                   <span className="text-xs font-black uppercase tracking-widest">拦截解码中...</span>
                 </div>
+              ) : isAudioGenerating ? (
+                <div className="flex flex-col gap-3 w-full p-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 text-[#FF5722] animate-spin" />
+                      <span className="text-xs font-bold text-gray-200">🎧 核心音频合成中...</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-[#FF5722] font-bold">
+                      {tasks.find(t => t.id === curTtsTaskId)?.progress ?? 0}%
+                    </span>
+                  </div>
+                  
+                  {/* 渐变色流式进度条 */}
+                  <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-gradient-to-r from-[#FF5722] to-[#ff8a65] transition-all duration-500 ease-out"
+                      style={{ width: `${tasks.find(t => t.id === curTtsTaskId)?.progress ?? 0}%` }}
+                    />
+                  </div>
+                  
+                  <p className="text-[10px] text-gray-400 leading-relaxed">
+                    系统正在使用 Microsoft Edge TTS 为您生成高阶商务语料，您可继续阅读原文或进行草稿速记，合成完毕后将自动播放。
+                  </p>
+                </div>
               ) : (
                 <>
                   {listenAudioUrl && (
@@ -200,6 +290,7 @@ export default function ListenTab() {
                   )}
                   <button 
                     onClick={() => {
+                      setHasPlayed(true);
                       if (audioRef.current) {
                         if (isPlaying) {
                           audioRef.current.pause();
@@ -210,7 +301,7 @@ export default function ListenTab() {
                         speakEnglish(listenMaterial, playbackRate);
                       }
                     }} 
-                    className={`text-white hover:text-[#FF5722] transition-colors cursor-pointer shrink-0 rounded-full transition-all duration-300 ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : ''}`} 
+                    className={`text-white hover:text-[#FF5722] transition-colors cursor-pointer shrink-0 rounded-full transition-all duration-300 ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : (listenAudioUrl && !hasPlayed ? 'animate-soft-pulse text-[#FF5722]' : '')}`} 
                     title={isPlaying ? "暂停" : "播放截获音频"}
                   >
                     {isPlaying ? <PauseCircle className="w-10 h-10" /> : <PlayCircle className="w-10 h-10" />}
@@ -304,7 +395,7 @@ export default function ListenTab() {
             </div>
             <div className="relative">
               {inlineNotice && noticeAnchor === 'listen' && (
-                <div className={`absolute left-1/2 -translate-x-1/2 -top-3 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
+                <div className={`absolute left-1/2 -translate-x-1/2 -top-5 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap transform -translate-y-2 animate-[slideDownPulse_0.35s_ease-out_forwards] ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
                   {inlineNotice.text}
                 </div>
               )}

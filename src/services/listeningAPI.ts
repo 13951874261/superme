@@ -118,11 +118,19 @@ export async function runListeningEngine(userInput: string, standardText: string
   }
 }
 
+export interface TtsResponse {
+  success?: boolean;
+  audioUrl?: string;  // 缓存命中或直接返回的URL
+  taskId?: string;    // 异步任务ID
+  status?: string;    // 任务状态
+  error?: string;     // 错误信息
+}
+
 /**
  * 调用 /api/tts/speech 获取高保真 MP3 音频流
  * 短文本同步返回 audioUrl；长文本自动进入异步轮询模式
  */
-export async function fetchDifyTTS(text: string, userId = 'default-user'): Promise<string> {
+export async function fetchDifyTTS(text: string, options: { isAsync?: boolean } = {}): Promise<TtsResponse> {
   const response = await fetch('/api/tts/speech', {
     method: 'POST',
     headers: {
@@ -130,30 +138,22 @@ export async function fetchDifyTTS(text: string, userId = 'default-user'): Promi
     },
     body: JSON.stringify({
       input: text,
-      model: 'edge-tts/' + (localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural')
+      model: 'edge-tts/' + (localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural'),
+      isAsync: options.isAsync ?? true,  // 默认异步
     }),
   });
 
   if (!response.ok) throw new Error('生成高保真音频失败');
 
   const data = await response.json();
-
-  // 短文本：直接返回音频 URL
-  if (data.audioUrl) return data.audioUrl;
-
-  // 长文本：进入异步轮询
-  if (data.taskId) {
-    return pollTtsTask(data.taskId);
-  }
-
-  throw new Error('TTS 未返回有效音频 URL 或任务 ID');
+  return data;
 }
 
 /**
- * 轮询异步 TTS 任务状态，最长等待 15 分钟
+ * 轮询异步 TTS 任务状态，最长等待 30 分钟
  * 每 5 秒检查一次，直到任务完成或失败
  */
-async function pollTtsTask(taskId: string): Promise<string> {
+export async function pollTtsTask(taskId: string): Promise<string> {
   const MAX_ATTEMPTS = 360; // 360 × 5s = 30 分钟，容纳超长音频
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     await new Promise(r => setTimeout(r, 5000));
@@ -166,7 +166,7 @@ async function pollTtsTask(taskId: string): Promise<string> {
         return task.result.audioUrl;
       }
       if (task.status === 'failed') {
-        throw new Error(`长音频合成失败: ${task.error || '未知错误'}`);
+        throw new Error(`音频合成失败: ${task.error || '未知错误'}`);
       }
       // pending / running 状态继续等待
     } catch {
@@ -174,7 +174,7 @@ async function pollTtsTask(taskId: string): Promise<string> {
       continue;
     }
   }
-  throw new Error('长音频合成超时（已等待 30 分钟，请稍后重试）');
+  throw new Error('音频合成超时（已等待 30 分钟，请稍后重试）');
 }
 
 /**

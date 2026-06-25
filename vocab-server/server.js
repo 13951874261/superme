@@ -3441,7 +3441,7 @@ let ttsLongLock = false;
 // TTS 语音合成接口（短文本同步 / 长文本异步双通道）
 app.post('/api/tts/speech', async (req, res) => {
   try {
-    const { input, model = 'edge-tts/en-US-EmmaNeural' } = req.body;
+    const { input, model = 'edge-tts/en-US-EmmaNeural', isAsync } = req.body;
     if (!input) return res.status(400).json({ error: 'Missing input text' });
 
     const finalModel = model || 'edge-tts/en-US-EmmaNeural';
@@ -3459,8 +3459,9 @@ app.post('/api/tts/speech', async (req, res) => {
       return res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
     }
 
-    // 长文本（≥3000字符，约5分钟以上）走异步任务队列，立即返回 taskId 防止 HTTP 超时
-    if (cleanInput.length >= 3000) {
+    // 异步合成：用户显式请求异步 OR 文本≥3000字符，立即返回 taskId 防止 HTTP 超时
+    const isAsyncMode = isAsync === true || cleanInput.length >= 3000;
+    if (isAsyncMode) {
       // 保险①：长文本合成互斥锁，防止并发崩溃
       if (ttsLongLock) {
         return res.status(429).json({ error: '当前有音频正在合成中，请稍后再试（预计 3~10 分钟）' });
@@ -3496,18 +3497,19 @@ app.post('/api/tts/speech', async (req, res) => {
         }
       });
       return;
-    }
-
-    // 短文本同步合成（同样加 120 秒硬性超时）
-    const ctrl = new AbortController();
-    const tmo = setTimeout(() => { ctrl.abort(); }, 120000);
-    try {
-      await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, null, ctrl.signal);
-      clearTimeout(tmo);
-      res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
-    } catch (e) {
-      clearTimeout(tmo);
-      throw e;
+    } else {
+      // 短文本同步合成（同样加 120 秒硬性超时）
+      // 仅在用户未请求异步且文本较短时执行
+      const ctrl = new AbortController();
+      const tmo = setTimeout(() => { ctrl.abort(); }, 120000);
+      try {
+        await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, null, ctrl.signal);
+        clearTimeout(tmo);
+        res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
+      } catch (e) {
+        clearTimeout(tmo);
+        throw e;
+      }
     }
 
   } catch (error) {
