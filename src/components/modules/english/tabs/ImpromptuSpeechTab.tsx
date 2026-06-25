@@ -452,6 +452,13 @@ export default function ImpromptuSpeechTab() {
         setImpromptuPassed(true);
         setShowConfetti(true);
         showNotice('oral', '🎖 即兴演讲达标！通关门槛已解锁', 'success');
+
+        // 【I-3 新增】联动 XP 积分
+        const currentXp = parseInt(localStorage.getItem('oral_sandbox_xp') || '0', 10);
+        const newXp = currentXp + 20;
+        localStorage.setItem('oral_sandbox_xp', String(newXp));
+        // 派发全局事件，通知 OralWarRoom 刷新 XP
+        window.dispatchEvent(new CustomEvent('xp-updated', { detail: { xp: newXp } }));
       } else {
         playError();
         showNotice('oral', `得分 ${score.toFixed(1)}/10，未达 8 分，请再练习`, 'error');
@@ -493,6 +500,12 @@ export default function ImpromptuSpeechTab() {
 
   return (
     <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out] relative">
+      <style>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
 
       {inlineNotice && noticeAnchor === 'oral' && (
@@ -726,11 +739,11 @@ export default function ImpromptuSpeechTab() {
                 思维导图
               </h5>
               <div className="flex flex-col md:flex-row md:items-center gap-4 flex-wrap">
-                <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-full text-xs font-black shadow-[0_3px_10px_rgba(245,158,11,0.2)] select-none shrink-0 self-start md:self-center">
+                <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-full text-xs font-black shadow-[0_3px_10px_rgba(245,158,11,0.2)] select-none shrink-0 self-start md:self-center animate-[spin-slow_30s_linear_infinite]">
                   {prompterResult.mindmap.center}
                 </span>
                 {prompterResult.mindmap.branches.map((branch, i) => (
-                  <div key={i} className="flex flex-col md:flex-row md:items-center gap-3">
+                  <div key={i} className="flex flex-col md:flex-row md:items-center gap-3 animate-[spin-slow_30s_linear_infinite]" style={{ animationDelay: `${i * 0.5}s` }}>
                     <div className="flex items-center justify-center pl-1 md:pl-0">
                       <span className="text-amber-500/60 md:hidden font-bold text-xs py-1">↓</span>
                       <ArrowRight className="w-4 h-4 text-amber-500/60 animate-pulse hidden md:inline shrink-0" />
@@ -965,7 +978,7 @@ export default function ImpromptuSpeechTab() {
                 {evalResult.audio_features && (
                   <div className="col-span-2 bg-amber-50/50 rounded-2xl p-3 border border-amber-200">
                     <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-2">音频特征</div>
-                    <div className="flex gap-3 text-[10px]">
+                    <div className="flex flex-wrap gap-3 text-[10px]">
                       <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
                         语速: {evalResult.audio_features.estimated_pace}
                       </span>
@@ -975,6 +988,36 @@ export default function ImpromptuSpeechTab() {
                       <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
                         自信度: {evalResult.audio_features.estimated_confidence}
                       </span>
+                    </div>
+                    {/* 下一步行动建议：根据音频特征弱点生成 */}
+                    <div className="mt-3 pt-2 border-t border-amber-100">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-1.5">定向深化建议</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(evalResult.audio_features.estimated_pace && evalResult.audio_features.estimated_pace < 130
+                          ? ['语速偏慢，建议跟读 AI 示范音频，每天练习 5 分钟提速']
+                          : []
+                        ).map((tip, ti) => (
+                          <span key={ti} className="bg-amber-200/40 text-amber-800 text-[9px] font-bold px-2 py-1 rounded-lg border border-amber-200/50">
+                            {tip}
+                          </span>
+                        ))}
+                        {(evalResult.audio_features.estimated_clarity && evalResult.audio_features.estimated_clarity < 7
+                          ? ['清晰度偏低，建议对着镜子练习，注意每个辅音结尾']
+                          : []
+                        ).map((tip, ti) => (
+                          <span key={`clarity-${ti}`} className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-emerald-200/50">
+                            {tip}
+                          </span>
+                        ))}
+                        {(evalResult.audio_features.estimated_confidence && evalResult.audio_features.estimated_confidence < 6
+                          ? ['自信度不足，建议录音后回听，重点标注不自信处并跟读']
+                          : []
+                        ).map((tip, ti) => (
+                          <span key={`conf-${ti}`} className="bg-violet-50 text-violet-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-violet-200/50">
+                            {tip}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 )}

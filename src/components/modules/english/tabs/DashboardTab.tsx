@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus, ChevronUp, ChevronDown } from 'lucide-react';
+import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus, ChevronUp, ChevronDown, AlertCircle } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
 import StrategicRoadmap from './StrategicRoadmap';
 import CustomThemeModal from './CustomThemeModal';
@@ -82,9 +82,9 @@ export default function DashboardTab() {
     const writeOk = m.maxWriteScore >= 8;
     const emailOk = !!m.emailCompleted;
     const mark = (ok: boolean) => ok ? (
-      <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" weight="fill" />已达标</span>
+      <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" />已达标</span>
     ) : (
-      <span className="inline-flex items-center gap-1 text-amber-500"><WarningCircle className="w-4 h-4" weight="fill" />未达标</span>
+      <span className="inline-flex items-center gap-1 text-amber-500"><AlertCircle className="w-4 h-4" />未达标</span>
     );
     
     return (
@@ -210,6 +210,7 @@ export default function DashboardTab() {
     return () => window.removeEventListener('global-voice-changed', handleVoiceChange);
   }, []);
 
+  // 监听 intel-data-refreshed 事件，触发情报面板即时更新
   useEffect(() => {
     const handleIntelRefresh = () => {
       setGeneratedArticle(localStorage.getItem('super_agent_last_generated_article') || '');
@@ -221,6 +222,14 @@ export default function DashboardTab() {
 
     window.addEventListener('intel-data-refreshed', handleIntelRefresh);
     return () => window.removeEventListener('intel-data-refreshed', handleIntelRefresh);
+  }, []);
+
+  const refreshIntelData = useCallback(() => {
+    setGeneratedArticle(localStorage.getItem('super_agent_last_generated_article') || '');
+    setExtractedWords(JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]'));
+    setExtractedPhrases(JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]'));
+    setExtractedSentences(JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]'));
+    setIntelSource(localStorage.getItem('super_agent_intel_source') || '每日系统生成');
   }, []);
 
   // 监听 extraction-success 事件，触发提纯完成后的即时 UI 更新（toast + 音效）
@@ -240,7 +249,7 @@ export default function DashboardTab() {
         setExtractedSentences(detail.sentences);
       }
       // 触发批量翻译和落库
-      handleIntelRefresh();
+      refreshIntelData();
     };
 
     window.addEventListener('extraction-success', handleExtractionSuccess);
@@ -556,7 +565,7 @@ export default function DashboardTab() {
       // 尝试生成一段引导语料（若工作流可用），否则跳过
       try {
         const listenGenre = genre === 'reading' ? 'meeting' : genre;
-        script = await runListenMaterialGenerator(theme, listenGenre, cefrLevel);
+        script = await runListenMaterialGenerator(theme, listenGenre, cefrLevel, 'short', 'default-user');
       } catch {
         script = '';
       }
@@ -713,7 +722,9 @@ export default function DashboardTab() {
           stage={stage}
           refreshCustomThemes={refreshCustomThemes}
           showNotice={showNotice}
-          setThemeFocus={setThemeFocus}
+          setThemeFocus={async (params) => {
+            await setThemeFocus(params).catch(() => {});
+          }}
           deleteCustomTheme={async (id) => {
              const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
              return deleteCustomTheme(id);

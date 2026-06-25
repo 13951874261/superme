@@ -140,6 +140,10 @@ try {
     # 3. Frontend Deployment
     if ($needFrontendDeploy) {
         Write-Host "========== Step 2: Frontend Build and Sync ==========" -ForegroundColor Cyan
+        Write-Host "  -> pnpm install" -ForegroundColor DarkCyan
+        pnpm install
+        if ($LASTEXITCODE -ne 0) { throw 'Frontend dependencies installation failed' }
+
         Write-Host "  -> pnpm build" -ForegroundColor DarkCyan
         pnpm build
         if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }

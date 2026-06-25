@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { runEnglishWriteReview } from '../../../../services/difyAPI';
+import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceTaskType, WriteGovernanceResult } from '../../../../services/difyAPI';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
 import { playClick, playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
 import { Copy, Check, Upload, Trash2, BookOpen, Layers, Zap } from 'lucide-react';
@@ -195,7 +195,7 @@ export default function WriteTab() {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
       const moduleName = WRITE_MODULES.find(m => m.id === activeModule)?.label || theme;
       const promptTheme = `【任务生成模式】请针对主题“${theme}” and 写作训练维度“${moduleName}”，生成一封极具突破性、需要高管站位来破局回复的商业邮件或公文写作任务。只输出任务正文。`;
-      const result = await runListenMaterialGenerator(promptTheme);
+      const result = await runListenMaterialGenerator(promptTheme, 'meeting', 'B2', 'short');
       setChallengeText(result);
       setWriteIntent(`回应此 ${moduleName} 挑战任务，妥善解决其中关于 ${theme} 的问题`);
       playSuccess();
@@ -225,6 +225,21 @@ export default function WriteTab() {
 ${activeModule === 'limit_challenge' ? `【极限挑战参数】: ${limitChallengeType === 'expand' ? '充分延展论点' : `压缩至 ${limitChallengeType.split('_')[1]} 字`}` : ''}
 ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的草稿与上述卓越文本的格式、站位、分寸进行找差与对比，并在 L2/L3 中详细指出)` : ''}
 `.trim();
+
+    // 【Write Governance 集成】根据模块类型选择 Governance 或通用评测
+    let governanceResult: WriteGovernanceResult | null = null;
+    if (activeModule === 'gov_write') {
+      // 体制内公文写作 → 走 Governance 文治系统
+      try {
+        governanceResult = await runWriteGovernanceReview({
+          taskType: 'document_correction',
+          originalText: writingText,
+          additionalParams: writeIntent || '',
+        });
+      } catch (govErr) {
+        console.warn('[WriteGovernance] Governance 调用失败，降级到通用评测:', govErr);
+      }
+    }
 
     try {
       const raw = (await runEnglishWriteReview(writingText, finalIntent, theme)) as any;
@@ -287,7 +302,30 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
           rawResponse: JSON.stringify(raw).slice(0, 12000),
         });
       }
-      
+
+      // 【Write Governance 集成】将 Governance 结果也持久化
+      if (governanceResult) {
+        try {
+          const att2 = await createTrainingAttempt({
+            sessionId,
+            userId: 'default-user',
+            moduleType: 'write',
+            sceneType: theme,
+            caseText: writingText.slice(0, 4000),
+            userAnswer: {
+              writeLevel: 'Governance',
+              theme,
+              mailIntent: JSON.stringify(governanceResult).slice(0, 5000),
+            },
+            durationSeconds: 0,
+            score: 10, // Governance 不打分，用 10 表示完成
+            resultJson: JSON.stringify(governanceResult).slice(0, 12000),
+          });
+        } catch (gErr) {
+          console.warn('[WriteGovernance] 持久化 Governance 结果失败:', gErr);
+        }
+      }
+
       if (l3Score >= 8) {
         playSuccess(); // 翻纸屑声与纸张翻页声结合
         setShowConfetti(true);
@@ -595,8 +633,13 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
                 onAdopt={() => {
                   if (reviewResult?.optimized_version) {
                     setWritingText(reviewResult.optimized_version);
-                    showNotice('review', '采纳改写方案成功', 'success');
+                    showNotice('review', '已采纳，正在重新评分...', 'info');
                     playSuccess();
+                    // 采纳后自动重新触发 L3 评分
+                    setTimeout(() => {
+                      setWriteIntent(prev => `${prev || ''} [已采纳AI优化版本]`);
+                      handleReview();
+                    }, 300);
                   }
                 }}
                 onCopy={async () => {

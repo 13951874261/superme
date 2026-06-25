@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookPlus, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users, Trophy } from 'lucide-react';
+import { AlertTriangle, BookPlus, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users, Trophy, BookOpen } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
 import { sendOralChatMessage } from '../../services/difyAPI';
@@ -137,6 +137,44 @@ export default function OralWarRoom({
   useEffect(() => {
     localStorage.setItem('oral_combat_points', String(combatPoints));
   }, [combatPoints]);
+
+  // ── 弱点日志与 XP 联动状态 ────────────────────────────────────
+  const [weaknessLog, setWeaknessLog] = useState<Array<{ scene: string; flaw: string; timestamp: number }>>(() => {
+    try {
+      const logs = localStorage.getItem('user_weakness_log');
+      return logs ? JSON.parse(logs) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // 监听来自其他标签页的 XP 更新事件
+  useEffect(() => {
+    const handleXpUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && typeof customEvent.detail.xp === 'number') {
+        setCombatPoints(customEvent.detail.xp);
+      }
+    };
+    window.addEventListener('xp-updated', handleXpUpdated);
+    return () => window.removeEventListener('xp-updated', handleXpUpdated);
+  }, []);
+
+  // 监听弱点日志更新事件
+  useEffect(() => {
+    const handleWeaknessUpdated = () => {
+      try {
+        const logs = localStorage.getItem('user_weakness_log');
+        if (logs) {
+          setWeaknessLog(JSON.parse(logs));
+        }
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener('weakness-updated', handleWeaknessUpdated);
+    return () => window.removeEventListener('weakness-updated', handleWeaknessUpdated);
+  }, []);
 
   // ── 划线取词入库 state ────────────────────────────────────
   const [highlightedWord, setHighlightedWord] = useState('');
@@ -378,6 +416,21 @@ export default function OralWarRoom({
         
         if (successFromAI || successFromUserKeywords) {
           setCombatPoints(prev => prev + 50);
+          // 【D-2 新增】XP 成功后，将本次破绽类型追加到用户画像
+          if (parsed?.flaw_point) {
+            try {
+              const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
+              existingWeaknesses.push({
+                scene: activeScene.title,
+                flaw: safeText(parsed.flaw_point),
+                timestamp: Date.now(),
+              });
+              localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
+              setWeaknessLog(existingWeaknesses);
+              // 派发全局事件通知其他标签页
+              window.dispatchEvent(new Event('weakness-updated'));
+            } catch {}
+          }
           setShowGoldGlow(true);
           setShowConfetti(true);
           playSuccess();
@@ -392,6 +445,22 @@ export default function OralWarRoom({
       }
 
       if (parsed?.flaw_point) {
+        // 【D-2 新增】检测到破绽时，立即将弱点追加到用户画像（供下次 Dify 调用使用）
+        try {
+          const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
+          const flawText = safeText(parsed.flaw_point);
+          const alreadyLogged = existingWeaknesses.some((w: { flaw: string }) => w.flaw === flawText);
+          if (!alreadyLogged) {
+            existingWeaknesses.push({
+              scene: activeScene.title,
+              flaw: flawText,
+              timestamp: Date.now(),
+            });
+            localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
+            setWeaknessLog(existingWeaknesses);
+            window.dispatchEvent(new Event('weakness-updated'));
+          }
+        } catch {}
         setIsLoopholePlanted(true);
         if (wasLoopholeActive && !evaluatedSuccess) {
           setLastNotice('上轮未成功指出破绽。 侦测到对手新发言存在逻辑漏洞！请重新进行针对性反击。');
@@ -664,6 +733,57 @@ export default function OralWarRoom({
                   )}
                 </div>
               ))
+            )}
+            {/* CORNELL SUMMARY 复盘区 */}
+            {weaknessLog.length > 0 && (
+              <div className="mt-8 pt-6 border-t-2 border-dashed border-amber-200 animate-[fadeIn_0.3s_ease-out] w-full">
+                <div className="flex items-center gap-2 mb-4">
+                  <BookOpen className="w-5 h-5 text-amber-500" />
+                  <span className="text-xs font-black uppercase tracking-widest text-amber-600">
+                    CORNELL 复盘与弱点扫描 // Cornell Summary
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* 左栏：弱点扫描 */}
+                  <div className="bg-amber-50/40 rounded-2xl p-5 border border-amber-200/60 shadow-[0_4px_12px_rgba(245,158,11,0.03)] flex flex-col gap-3">
+                    <h6 className="text-[10px] font-black uppercase tracking-widest text-amber-700 pb-1.5 border-b border-amber-200/30">
+                      弱点扫描 (Weakness Scan)
+                    </h6>
+                    <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
+                      {weaknessLog.slice(-5).map((entry, idx) => (
+                        <div key={idx} className="bg-white/70 border border-amber-100 rounded-xl p-3 shadow-[0_2px_6px_rgba(0,0,0,0.01)]">
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                              {entry.scene.split('：')[0]}
+                            </span>
+                            <span className="text-[8px] text-gray-400 font-mono">
+                              {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-xs font-bold text-gray-700 leading-normal">
+                            {entry.flaw}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 右栏：定向深化建议 */}
+                  <div className="bg-emerald-50/40 rounded-2xl p-5 border border-emerald-200/60 shadow-[0_4px_12px_rgba(16,185,129,0.03)] flex flex-col gap-3">
+                    <h6 className="text-[10px] font-black uppercase tracking-widest text-emerald-700 pb-1.5 border-b border-emerald-200/30">
+                      定向深化建议 (Deepening Suggestions)
+                    </h6>
+                    <div className="space-y-3 text-xs text-emerald-800 leading-relaxed font-medium">
+                      <p>根据您的对战记录，建议在后续发言中：</p>
+                      <ul className="list-disc pl-4 space-y-1.5 text-emerald-950 font-bold">
+                        <li><strong>主攻漏洞反击：</strong> 针对 AI 露出的 flaw_point（例如因果谬误、偷换概念），直接使用“What makes you link A to B?”等精准反问。</li>
+                        <li><strong>合理控制分寸：</strong> 对抗尖锐提问时，使用“That is a valid concern, however...”等让步衔接。</li>
+                        <li><strong>吸收高管用语：</strong> 注意在右侧多维反馈中标记的新词汇，并尽快划词入库。</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
             <div ref={bottomRef} />
           </div>

@@ -596,10 +596,21 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
 
 export async function sendOralChatMessage(query: string, conversationId: string | null = null, userId = 'default-user') {
   const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_ORAL_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY');
+
+  // 【D-1 新增】从 localStorage 读取会话上下文
+  const savedConversation = localStorage.getItem('oral_conversation_context');
+  const conversationContext = savedConversation ? JSON.parse(savedConversation) : null;
+
+  // 【D-1 新增】注入用户画像弱点
+  const profile = getUserCurrentProfile();
 
   const body = {
-    inputs: injectUserProfile({}),
+    // 【D-1 修改】inputs 中包含持久化会话变量和用户画像
+    inputs: injectUserProfile({
+      ...(conversationContext || {}),
+      user_weakness_profile: profile || '',
+    }),
     query,
     response_mode: 'blocking' as const,
     user: userId,
@@ -617,6 +628,17 @@ export async function sendOralChatMessage(query: string, conversationId: string 
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.message || data.error || 'Dify Chat API 请求失败');
+
+  // 【D-1 新增】将本次对话内容持久化到 localStorage，供下次调用使用
+  if (data.conversation_id) {
+    const updatedContext = {
+      ...(conversationContext || {}),
+      last_conversation_id: data.conversation_id,
+      last_round_at: Date.now(),
+    };
+    localStorage.setItem('oral_conversation_context', JSON.stringify(updatedContext));
+  }
+
   return data;
 }
 
@@ -1039,6 +1061,153 @@ export async function runImpromptuSpeechEvaluation(
   } catch (e) {
     console.error('解析即兴演讲评测结果失败:', e, data);
     throw new Error('AI 返回口语评估数据格式异常');
+  }
+}
+
+// ── 文治系统 Governance 工作流接口 ──────────────────────────────────
+
+/** 文治系统 task_type 枚举 */
+export type WriteGovernanceTaskType = 'document_correction' | 'business_writing' | 'value_proposal';
+
+/** 文治系统返回结果（按 task_type 映射不同字段） */
+export interface WriteGovernanceResult {
+  taskType: WriteGovernanceTaskType;
+  /** task_type=document_correction 时返回 */
+  level_1?: string;
+  level_2?: string;
+  level_3?: string;
+  /** task_type=business_writing 时返回 */
+  tone_evaluation?: string;
+  compressed_text?: string;
+  skill_point?: string;
+  /** task_type=value_proposal 时返回 */
+  admin_flaws?: string;
+  value_extraction?: string;
+  business_proposal?: string;
+  /** 原始 JSON（用于解析 L3 分数） */
+  rawJson?: string;
+}
+
+/** 调用文治系统 Governance Dify workflow */
+export async function runWriteGovernanceReview(params: {
+  taskType: WriteGovernanceTaskType;
+  originalText: string;
+  additionalParams?: string;
+}): Promise<WriteGovernanceResult> {
+  const apiKey = import.meta.env.VITE_DIFY_WRITE_GOVERNANCE_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_WRITE_GOVERNANCE_API_KEY');
+  const userId = 'default-user';
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: injectUserProfile({
+        task_type: params.taskType,
+        original_text: params.originalText,
+        additional_params: params.additionalParams || '',
+      }),
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '文治系统调用失败');
+
+  interceptOutputText(data);
+
+  try {
+    // 从 Dify workflow 输出中提取 analysis_result 字段
+    const rawResult = data?.data?.outputs?.analysis_result ?? data?.answer ?? '';
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```$/gm, '').trim();
+
+    const parsed = JSON.parse(cleanJson) as Record<string, unknown>;
+
+    const result: WriteGovernanceResult = {
+      taskType: params.taskType,
+      rawJson: cleanJson,
+    };
+
+    if (params.taskType === 'document_correction') {
+      result.level_1 = String(parsed.level_1 || '');
+      result.level_2 = String(parsed.level_2 || '');
+      result.level_3 = String(parsed.level_3 || '');
+    } else if (params.taskType === 'business_writing') {
+      result.tone_evaluation = String(parsed.tone_evaluation || '');
+      result.compressed_text = String(parsed.compressed_text || '');
+      result.skill_point = String(parsed.skill_point || '');
+    } else if (params.taskType === 'value_proposal') {
+      result.admin_flaws = String(parsed.admin_flaws || '');
+      result.value_extraction = String(parsed.value_extraction || '');
+      result.business_proposal = String(parsed.business_proposal || '');
+    }
+
+    return result;
+  } catch (e) {
+    console.error('解析文治系统结果失败:', e, data);
+    throw new Error('文治系统返回数据格式异常');
+  }
+}
+
+// ── 即兴演讲范文生成接口 ────────────────────────────────────────
+
+export interface ImpromptuExemplarResult {
+  exemplar_text: string;
+  cultural_notes: string;
+  key_phrases: string[];
+}
+
+export async function generateImpromptuExemplar(params: {
+  topic: string;
+  scenario?: string;
+}): Promise<ImpromptuExemplarResult> {
+  const apiKey = import.meta.env.VITE_DIFY_IMPROMPTU_PROMPTER_API_KEY;
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_IMPROMPTU_PROMPTER_API_KEY');
+  const userId = 'default-user';
+
+  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: injectUserProfile({
+        topic: params.topic,
+        scenario: params.scenario || '',
+      }),
+      response_mode: 'blocking',
+      user: userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || '范文生成失败');
+
+  interceptOutputText(data);
+
+  try {
+    const rawResult = data?.data?.outputs?.exemplar_text ?? data?.data?.outputs?.result ?? data?.answer ?? '';
+    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```$/gm, '').trim();
+    const parsed = JSON.parse(cleanJson) as Record<string, unknown>;
+
+    return {
+      exemplar_text: String(parsed.exemplar_text || parsed.exemplar || parsed.text || rawResult),
+      cultural_notes: String(parsed.cultural_notes || parsed.cultural || ''),
+      key_phrases: Array.isArray(parsed.key_phrases) ? parsed.key_phrases.map(String) : [],
+    };
+  } catch (e) {
+    // 降级：直接返回原始文本
+    const rawResult = data?.data?.outputs?.exemplar_text ?? data?.data?.outputs?.result ?? data?.answer ?? '';
+    return {
+      exemplar_text: String(rawResult),
+      cultural_notes: '',
+      key_phrases: [],
+    };
   }
 }
 
