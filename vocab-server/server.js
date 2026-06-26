@@ -30,7 +30,9 @@ if (!fs.existsSync(tempAudioDir)) {
     console.error('[TTS Cache] Failed to clean temporary audio cache on startup:', err);
   }
 }
-app.use('/api/temp_audio', express.static(tempAudioDir));
+app.use('/api/temp_audio', express.static(tempAudioDir, {
+  setHeaders: (res) => res.setHeader('Content-Type', 'audio/mpeg')
+}));
 
 // 静态文件服务：长音频文件
 const longAudioDir = path.join(__dirname, 'public', 'long_audio');
@@ -3681,6 +3683,51 @@ app.post('/api/tts/speech', async (req, res) => {
       code: 'TTS_INTERNAL_ERROR',
       message: error.message || '语音合成内部错误'
     });
+  }
+});
+
+// ==========================================
+// TTS 任务状态查询（专用接口，比 /api/tasks/:id 更轻量）
+// ==========================================
+app.get('/api/tts/task/:id', (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    const task = taskQueue.getTask(req.params.id);
+    if (!task) {
+      return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+    }
+
+    // 已完成：返回音频 URL
+    if (task.status === 'completed' && task.result?.audioUrl) {
+      return res.json({
+        success: true,
+        status: 'completed',
+        progress: 100,
+        audioUrl: task.result.audioUrl,
+        logs: task.logs
+      });
+    }
+
+    // 失败：返回错误信息
+    if (task.status === 'failed') {
+      return res.json({
+        success: true,
+        status: 'failed',
+        error: task.error || '未知错误',
+        logs: task.logs
+      });
+    }
+
+    // 运行中 / 待处理：返回进度
+    res.json({
+      success: true,
+      status: task.status,
+      progress: task.progress || 0,
+      logs: task.logs
+    });
+  } catch (error) {
+    console.error('[TTS Task Status] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

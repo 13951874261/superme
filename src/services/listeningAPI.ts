@@ -157,20 +157,20 @@ export async function fetchDifyTTS(text: string, options: { isAsync?: boolean } 
 }
 
 /**
- * 轮询异步 TTS 任务状态，最长等待 30 分钟
- * 每 5 秒检查一次，直到任务完成或失败
+ * 轮询 TTS 任务状态，最长等待 30 分钟
+ * 每 2 秒检查一次，直到任务完成或失败
  */
 export async function pollTtsTask(taskId: string): Promise<string> {
   const MAX_ATTEMPTS = 360; // 360 × 5s = 30 分钟，容纳超长音频
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
     await new Promise(r => setTimeout(r, 5000));
     try {
-      const res = await fetch(`/api/tasks/${taskId}`);
+      const res = await fetch(`/api/tts/task/${taskId}`);
       if (!res.ok) continue;
       const task = await res.json();
 
-      if (task.status === 'completed' && task.result?.audioUrl) {
-        return task.result.audioUrl;
+      if (task.status === 'completed' && task.audioUrl) {
+        return task.audioUrl;
       }
       if (task.status === 'failed') {
         throw new Error(`音频合成失败: ${task.error || '未知错误'}`);
