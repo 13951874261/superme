@@ -11,14 +11,14 @@ export function playSound(src: string) {
 }
 
 // 纸张翻页声（加入词库、划线）
-export const playPageTurn = () => playSound('/assets/sounds/page-turn.mp3');
+export const playPageTurn = () => playSound('/assets/sounds/page-turn.wav');
 
 // 水滴声（确认、通关）
 export const playDrop = () => playSound('/assets/sounds/drop.wav');
 
 // 成功/错误声
-export const playSuccess = () => playSound('/assets/sounds/success.mp3');
-export const playError = () => playSound('/assets/sounds/error.mp3');
+export const playSuccess = () => playSound('/assets/sounds/success.wav');
+export const playError = () => playSound('/assets/sounds/error.wav');
 
 // 兼容老音效函数映射，使用新版高质量音频文件替代
 export const playClick = () => playDrop();
