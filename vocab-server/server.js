@@ -72,11 +72,12 @@ db.prepare(`
     word TEXT NOT NULL,
     dict_type TEXT,
     category TEXT DEFAULT 'business',
+    scene_type TEXT DEFAULT 'business',
     payload TEXT,
     added_at INTEGER,
     repetitions INTEGER DEFAULT 0,
     ease_factor REAL DEFAULT 2.5,
-    interval_days INTEGER DEFAULT 0,
+    interval_days INTEGER DEFAULT 1,
     next_review_date INTEGER,
     last_review_date INTEGER,
     review_history TEXT DEFAULT '[]'
@@ -90,6 +91,23 @@ try {
 } catch (err) {
   // 字段已存在，忽略
 }
+
+try {
+  db.prepare("ALTER TABLE vocabulary ADD COLUMN scene_type TEXT DEFAULT 'business'").run();
+  console.log('Migration: Added scene_type column to vocabulary table.');
+} catch (err) {}
+
+try {
+  db.prepare("ALTER TABLE vocabulary ADD COLUMN repetitions INTEGER DEFAULT 0").run();
+} catch (err) {}
+
+try {
+  db.prepare("ALTER TABLE vocabulary ADD COLUMN ease_factor REAL DEFAULT 2.5").run();
+} catch (err) {}
+
+try {
+  db.prepare("ALTER TABLE vocabulary ADD COLUMN interval_days INTEGER DEFAULT 1").run();
+} catch (err) {}
 
 // 自动迁移：新增 memory_aids 字段
 try {
@@ -231,28 +249,27 @@ db.prepare(`
 // SM-2 间隔重复算法
 // ==========================================
 function calculateNextReview(quality, repetitions, easeFactor, interval) {
-  let newRepetitions = repetitions;
-  let newInterval = interval;
-  let newEaseFactor = easeFactor;
+  // 初始化容错
+  if (!easeFactor) easeFactor = 2.5;
+  if (!interval) interval = 1;
 
+  // 质量 >= 3 表示记忆成功
   if (quality >= 3) {
-    if (repetitions === 0) {
-      newInterval = 1;
-    } else if (repetitions === 1) {
-      newInterval = 6;
-    } else {
-      newInterval = Math.round(interval * easeFactor);
-    }
-    newRepetitions += 1;
+    if (repetitions === 0) interval = 1;
+    else if (repetitions === 1) interval = 6;
+    else interval = Math.round(interval * easeFactor);
+
+    repetitions += 1;
   } else {
-    newRepetitions = 0;
-    newInterval = 1;
+    repetitions = 0;
+    interval = 1;
   }
 
-  newEaseFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-  if (newEaseFactor < 1.3) newEaseFactor = 1.3;
+  // 计算新的易度系数（ease factor）
+  easeFactor = easeFactor + (0.1 - (5 - quality) * (0.02 + (5 - quality) * 0.008));
+  if (easeFactor < 1.3) easeFactor = 1.3; // 下限
 
-  return { repetitions: newRepetitions, easeFactor: newEaseFactor, interval: newInterval };
+  return { repetitions, easeFactor, interval };
 }
 
 const DEFAULT_IMAGE_GEN_MODELS = [
@@ -495,8 +512,11 @@ app.get('/api/vocab/review', (req, res) => {
 // 添加词汇
 app.post('/api/vocab/add', (req, res) => {
   try {
-    const { word, dictType, category = 'business', payload } = req.body;
+    const { word, dictType, category, scene_type = 'business', payload } = req.body;
     
+    // 如果没有指定 category，则通过 scene_type 推断
+    const actualCategory = category || (scene_type === 'general' ? 'general' : 'business');
+
     // 查重
     const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
     if (existing) {
@@ -507,9 +527,9 @@ app.post('/api/vocab/add', (req, res) => {
     const now = Date.now();
     
     db.prepare(`
-      INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, word, dictType, category, JSON.stringify(payload || {}), now, now, '[]');
+      INSERT INTO vocabulary (id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, word, dictType, actualCategory, scene_type, JSON.stringify(payload || {}), now, now, '[]', 0, 1, 2.5);
     
     res.json({ success: true, id, message: '存入成功' });
   } catch (error) {
@@ -540,21 +560,23 @@ app.post('/api/vocab/batch-add', (req, res) => {
           || item.dictType === 'ai_sentence' || item.dict_type === 'ai_sentence'
           || (item.payload && item.payload.partOfSpeech === 'sentence');
         const dictType = item.dictType || item.dict_type || (isSentence ? 'ai_sentence' : (isPhrase ? 'ai_phrase' : 'ai_extracted'));
-        const category = item.category || 'business';
+        const scene_type = item.scene_type || 'business';
+        const category = item.category || (scene_type === 'general' ? 'general' : 'business');
         const payload = item.payload || {};
 
         const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
         if (!existing) {
           const id = crypto.randomUUID();
           db.prepare(`
-            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, word, dictType, category, JSON.stringify(payload), now, now, '[]');
+            INSERT INTO vocabulary (id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, word, dictType, category, scene_type, JSON.stringify(payload), now, now, '[]', 0, 1, 2.5);
           addedCount++;
         } else {
-          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
+          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, scene_type = ?, payload = ? WHERE id = ?').run(
             dictType,
             category,
+            scene_type,
             JSON.stringify(payload),
             existing.id
           );
@@ -568,6 +590,18 @@ app.post('/api/vocab/batch-add', (req, res) => {
   } catch (error) {
     console.error('Batch Add Error:', error);
     res.status(500).json({ success: false, error: 'Database error on batch add' });
+  }
+});
+
+// 迁移词汇分区
+app.put('/api/vocab/move/:id', (req, res) => {
+  try {
+    const id = req.params.id;
+    const { category } = req.body;
+    db.prepare('UPDATE vocabulary SET category = ? WHERE id = ?').run(category, id);
+    res.json({ success: true, message: '迁移成功' });
+  } catch (error) {
+    res.status(500).json({ error: 'Database error' });
   }
 });
 

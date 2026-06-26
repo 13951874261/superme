@@ -15,6 +15,7 @@ import LoginPage from './components/LoginPage';
 import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
 import GlobalSettingsPanel from './components/GlobalSettingsPanel';
+import { ToastProvider } from './components/Toast';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -63,7 +64,7 @@ function AppContent() {
   const [rightPanelTab, setRightPanelTab] = useState<'assistant' | 'context'>('assistant');
   const [highlightedWordData, setHighlightedWordData] = useState<any>(null);
 
-  const { theme, masteryData } = useEnglishContext();
+  const { theme, masteryData, pendingSentenceDebt, setActiveTab } = useEnglishContext();
   const [isLockModalOpen, setIsLockModalOpen] = useState(false);
 
   const [bgEnabled, setBgEnabled] = useState(
@@ -95,18 +96,22 @@ function AppContent() {
     return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
   }, []);
 
-  const isLocked = isInterceptorEnabled && !masteryData._isInitial && (
+  const isLocked = (isInterceptorEnabled && !masteryData._isInitial && (
     masteryData.oralCount < 10 ||
     masteryData.maxWriteScore < 8 ||
     !masteryData.emailCompleted
-  );
+  )) || !!pendingSentenceDebt;
 
   // 当触发控制论强制锁定且当前不在英语引擎时，强行重定向至英语引擎
+  // 如果是因为债务被锁定，还要确保切回 vocab tab
   useEffect(() => {
     if (isLocked && activeModule !== 'english') {
       setActiveModule('english');
     }
-  }, [isLocked, activeModule]);
+    if (pendingSentenceDebt && activeModule === 'english') {
+      setActiveTab('vocab');
+    }
+  }, [isLocked, activeModule, pendingSentenceDebt, setActiveTab]);
 
   useEffect(() => {
     // 监听全局事件，用于呼出右侧面板
@@ -156,6 +161,23 @@ function AppContent() {
 
   return (
     <div className={`text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722] relative w-full transition-colors duration-300 ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
+      <ToastProvider />
+      
+      {/* 词汇债务横幅 */}
+      <AnimatePresence>
+        {pendingSentenceDebt && (
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="absolute top-0 left-0 w-full z-50 bg-[#FF5722] text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-bold shadow-md shadow-[#FF5722]/20 tracking-wider"
+          >
+            <span className="animate-pulse">⚠️</span>
+            <span>词汇债务警告：您尚未完成 [ {pendingSentenceDebt} ] 的造句闭环，沙盘/写作权限已暂时锁定。</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <BackgroundOverlay />
       <TextHighlighter />
       
@@ -207,6 +229,7 @@ function AppContent() {
         oralCount={masteryData.oralCount}
         maxWriteScore={masteryData.maxWriteScore}
         emailCompleted={masteryData.emailCompleted}
+        pendingSentenceDebt={pendingSentenceDebt}
       />
 
       {/* 项目答疑右下角悬浮按钮 */}

@@ -5,7 +5,7 @@ import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
 import { submitReview, getAllWords, getReviewWords } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
-import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
+import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
 import CustomCardModal from '../../../CustomCardModal';
 import MemoryAidPanel from '../../../MemoryAidPanel';
 import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
@@ -66,7 +66,8 @@ export default function VocabTab() {
     sentenceInput, setSentenceInput,
     isEvaluating, setIsEvaluating,
     loadingDueWords, setLoadingDueWords,
-    inlineNotice, noticeAnchor, showNotice
+    inlineNotice, noticeAnchor, showNotice,
+    pendingSentenceDebt, setPendingSentenceDebt
   } = useEnglishContext();
 
   const [evalResult, setEvalResult] = useState<{ quality: number; feedback: string } | null>(null);
@@ -76,6 +77,11 @@ export default function VocabTab() {
   const [onlyCurrentTheme, setOnlyCurrentTheme] = useState(() => {
     return localStorage.getItem('only_current_theme') !== 'false';
   });
+
+  // Anki 闪卡拼写状态
+  const [isFlipped, setIsFlipped] = useState(false);
+  const [spellInput, setSpellInput] = useState('');
+  const [isSpellError, setIsSpellError] = useState(false);
 
   const reloadVocab = useCallback(async () => {
     setLoadingDueWords(true);
@@ -92,6 +98,8 @@ export default function VocabTab() {
       setCurrentWordIdx(0);
       setSentenceInput('');
       setEvalResult(null);
+      setIsFlipped(false);
+      setSpellInput('');
     } catch {
       const allData = await getAllWords().catch(() => []);
       setDueWords(allData);
@@ -105,7 +113,7 @@ export default function VocabTab() {
     if (activeTab === 'vocab') {
       reloadVocab();
     }
-  }, [activeTab, reloadVocab]);
+  }, [activeTab, vocabZone, reloadVocab]);
 
   // 当切换到 vocab 页面或全局切换 theme 时，默认强制将 onlyCurrentTheme 设为 true
   useEffect(() => {
@@ -120,6 +128,8 @@ export default function VocabTab() {
     setCurrentWordIdx(0);
     setSentenceInput('');
     setEvalResult(null);
+    setIsFlipped(false);
+    setSpellInput('');
   }, [theme, setCurrentWordIdx, setSentenceInput]);
 
   // 监听全局 vocab-updated 事件
@@ -143,7 +153,7 @@ export default function VocabTab() {
       const cat = w.category;
       let matchesZone = true;
       if (cat) {
-        matchesZone = vocabZone === 'business' ? cat !== 'general' : cat === 'general';
+        matchesZone = vocabZone === 'business' ? cat === 'business' : cat === 'general';
       }
       if (!matchesZone) return false;
 
@@ -160,6 +170,35 @@ export default function VocabTab() {
   // 适配词典视图所需的 payload 结构
   const adaptedWord = useMemo(() => adaptWordPayload(currentWord), [currentWord]);
 
+  // 提取用于拼写考核的例句及释义
+  const spellChallengeData = useMemo(() => {
+    if (!currentWord || !adaptedWord || !adaptedWord.payload) return { meaning: '', maskedSentence: '' };
+    const p = adaptedWord.payload;
+    const meaning = p.meaning_zh || currentWord.payload?.meaning || '请根据例句拼写';
+    let example = '';
+    if (p.scenarios && p.scenarios.length > 0) {
+      example = p.scenarios[0].example_en;
+    } else if (p.example_sentences && p.example_sentences.length > 0) {
+      example = p.example_sentences[0];
+    }
+    const regex = new RegExp(currentWord.word, 'gi');
+    const maskedSentence = example ? example.replace(regex, '_________') : 'No example available.';
+    return { meaning, maskedSentence };
+  }, [currentWord, adaptedWord]);
+
+  const handleSpellCheck = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (spellInput.trim().toLowerCase() === currentWord.word.toLowerCase()) {
+         playPageTurn();
+         setIsFlipped(true);
+      } else {
+         playError();
+         setIsSpellError(true);
+         setTimeout(() => setIsSpellError(false), 500);
+      }
+    }
+  };
+
   const handleEvaluate = async () => {
     if (!currentWord || !sentenceInput.trim()) return;
     setIsEvaluating(true);
@@ -171,6 +210,7 @@ export default function VocabTab() {
       setEvalResult({ feedback: result.feedback, quality });
 
       if (quality >= 3) {
+        setPendingSentenceDebt(null);
         playSuccess();
         if (quality === 5) setShowConfetti(true);
         await submitReview(currentWord.id, quality);
@@ -298,28 +338,59 @@ export default function VocabTab() {
                   <span className="inline-block px-3 py-1 bg-slate-150 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-md border border-slate-200">Target Acquisition</span>
                   <span className="ml-3 text-xs font-black text-gray-500 uppercase tracking-widest">[ {currentWordIdx + 1} / {filteredWords.length} ]</span>
                 </div>
-                <SpeakButton text={currentWord.word} title={`播放 ${currentWord.word}`} className="w-8 h-8 bg-slate-100 text-slate-600 hover:bg-[#FF5722] hover:text-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0" iconClassName="w-4 h-4" />
+                {isFlipped && (
+                  <SpeakButton text={currentWord.word} title={`播放 ${currentWord.word}`} className="w-8 h-8 bg-slate-100 text-slate-600 hover:bg-[#FF5722] hover:text-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0" iconClassName="w-4 h-4" />
+                )}
               </div>
 
-              {/* 1. 核心词典视图渲染 */}
-              {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
-              {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
-              {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+              {!isFlipped ? (
+                <div className="flex flex-col items-center justify-center py-10 space-y-8 animate-[fadeIn_0.3s_ease-out]">
+                  <div className="text-center space-y-4">
+                    <h3 className="text-2xl font-black text-[#202124] tracking-wider">{spellChallengeData.meaning}</h3>
+                    <p className="text-sm text-gray-500 font-medium max-w-lg mx-auto italic">
+                      "{spellChallengeData.maskedSentence}"
+                    </p>
+                  </div>
+                  <div className="w-full max-w-sm relative">
+                    <input 
+                      type="text" 
+                      value={spellInput}
+                      onChange={(e) => setSpellInput(e.target.value)}
+                      onKeyDown={handleSpellCheck}
+                      placeholder="Type the word and press Enter..."
+                      className={`w-full bg-white border-2 rounded-xl px-5 py-4 text-center text-lg font-bold tracking-widest outline-none transition-all shadow-inner ${
+                        isSpellError ? 'border-red-400 bg-red-50 text-red-600 animate-[shake_0.4s_ease-in-out]' : 'border-slate-200 focus:border-[#FF5722] text-[#202124]'
+                      }`}
+                      autoFocus
+                    />
+                    <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest text-center mt-3">
+                      Press <span className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded">Enter</span> to check
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="animate-[fadeIn_0.4s_ease-out]">
+                  {/* 1. 核心词典视图渲染 */}
+                  {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
+                  {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
+                  {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
 
-              {/* 2. 生词记忆辅助面板 */}
-              <div className="border-t border-slate-100 pt-6">
-                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
-                  <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
-                  生词记忆辅助
-                </h4>
-                <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
-              </div>
+                  {/* 2. 生词记忆辅助面板 */}
+                  <div className="border-t border-slate-100 pt-6 mt-6">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
+                      <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
+                      生词记忆辅助
+                    </h4>
+                    <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* ================= 下方区域：强制闭环造句与评估 ================= */}
           <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
-            <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-all ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
+            <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-all ${!isFlipped ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''} ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
 
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <label className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-2">
@@ -368,6 +439,8 @@ export default function VocabTab() {
                       setEvalResult(null);
                       setSentenceInput('');
                       setCurrentWordIdx((p) => p + 1);
+                      setIsFlipped(false);
+                      setSpellInput('');
                     }}
                     className="w-full bg-[#FF5722] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-all cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200 flex justify-center items-center"
                   >
@@ -384,9 +457,12 @@ export default function VocabTab() {
                     </button>
                     <button
                       onClick={() => {
+                        setPendingSentenceDebt(currentWord.word);
                         setEvalResult(null);
                         setSentenceInput('');
                         setCurrentWordIdx((p) => p + 1);
+                        setIsFlipped(false);
+                        setSpellInput('');
                       }}
                       className="px-6 bg-red-50 text-red-500 py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-red-100 transition-all cursor-pointer border border-red-200 active:scale-[0.98]"
                     >

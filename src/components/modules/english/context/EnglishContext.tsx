@@ -142,6 +142,8 @@ interface EnglishContextType {
   customThemes: CustomTheme[];
   setCustomThemes: React.Dispatch<React.SetStateAction<CustomTheme[]>>;
   refreshCustomThemes: () => Promise<void>;
+  pendingSentenceDebt: string | null;
+  setPendingSentenceDebt: React.Dispatch<React.SetStateAction<string | null>>;
 }
 
 const EnglishContext = createContext<EnglishContextType | undefined>(undefined);
@@ -161,6 +163,18 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [themeSwitchError, setThemeSwitchError] = useState<React.ReactNode | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+
+  const [pendingSentenceDebt, setPendingSentenceDebt] = useState<string | null>(() => {
+    return localStorage.getItem('super_agent_pending_debt') || null;
+  });
+
+  useEffect(() => {
+    if (pendingSentenceDebt) {
+      localStorage.setItem('super_agent_pending_debt', pendingSentenceDebt);
+    } else {
+      localStorage.removeItem('super_agent_pending_debt');
+    }
+  }, [pendingSentenceDebt]);
 
   const refreshCustomThemes = async () => {
     try {
@@ -409,6 +423,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         reviewResult, setReviewResult,
         customThemes, setCustomThemes,
         refreshCustomThemes,
+        pendingSentenceDebt, setPendingSentenceDebt,
       }}
     >
       {children}

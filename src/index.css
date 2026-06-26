@@ -3,30 +3,30 @@
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-brand: oklch(65% 0.22 50);        /* æ·±æ©™ */
-  --color-brand-hover: oklch(60% 0.22 50);  /* æ›´æ·± */
-  --color-brand-light: oklch(90% 0.12 50);  /* æµ… 25% */
-  --color-brand-subtle: oklch(95% 0.06 50); /* èƒŒæ™¯ç”¨ */
+  --color-brand: #202124;
+  --color-brand-light: #3A3B3C;
+  --color-brand-dark: #0F1115;
+  --color-accent: #FF5722;
   
-  /* ä¸­æ€§è‰²æ¿ */
+  /* ä¸­æ€§è‰² */
   --color-canvas: oklch(98% 0 0);
   --color-surface: oklch(100% 0 0);
-  --color-ink-primary: oklch(20% 0 0);
-  --color-ink-secondary: oklch(50% 0 0);
-  --color-ink-muted: oklch(70% 0 0);
-  --color-border: oklch(88% 0 0);
+  --color-ink-primary: #202124;
+  --color-ink-secondary: #5F6368;
+  --color-ink-muted: #9AA0A6;
+  --color-border: #E8EAED;
   
-  /* åŠŸèƒ½è‰² */
-  --color-success: oklch(70% 0.18 145);
-  --color-warning: oklch(80% 0.16 85);
-  --color-danger: oklch(60% 0.20 25);
-  --color-info: oklch(65% 0.15 260);
+  /* åŠŸèƒ½ï¿½?*/
+  --color-success: #34A853;
+  --color-warning: #FBBC05;
+  --color-danger: #EA4335;
+  --color-info: #4285F4;
   
-  /* è½¨é“è‰² */
-  --color-track-orange: oklch(65% 0.22 50);
-  --color-track-indigo: oklch(55% 0.18 270);
+  /* è½¨é“ï¿½?*/
+  --color-track-orange: #FF5722;
+  --color-track-indigo: #4285F4;
   
-  --font-sans: 'Outfit', 'Google Sans', 'Product Sans', Roboto, ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -300,7 +300,7 @@ details[open] summary ~ * {
   transform: translateY(0);
 }
 
-/* === SOP Ö¸ÄÏ×¨ÓÃ¿¨Æ¬±äÌå === */
+/* === SOP Ö¸ï¿½ï¿½×¨ï¿½Ã¿ï¿½Æ¬ï¿½ï¿½ï¿½ï¿½ === */
 .card-sop {
   background: linear-gradient(135deg,
     color-mix(in oklch, var(--color-indigo-50) 40%, var(--color-surface)) 0%,
@@ -310,26 +310,26 @@ details[open] summary ~ * {
   border-radius: 0 1.5rem 1.5rem 0;
 }
 
-/* === ×´Ì¬Í¼±ê SVG Ìæ´ú emoji === */
+/* === ×´Ì¬Í¼ï¿½ï¿½ SVG ï¿½ï¿½ï¿½ emoji === */
 .status-ok   { color: oklch(70% 0.18 145); }  /* success green */
 .status-warn  { color: oklch(80% 0.16 85); }   /* warning amber */
 .status-fail  { color: oklch(60% 0.20 25); }   /* danger red   */
 .status-muted { color: oklch(70% 0 0); }        /* ink-muted   */
 
-/* === ÒÆ¶¯¶ËºôÎü¸ÐÔöÇ¿ === */
+/* === ï¿½Æ¶ï¿½ï¿½Ëºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ === */
 @media (max-width: 767px) {
   .bento-card {
-    padding: 1.25rem;      /* ÒÆ¶¯¶ËËõÐ¡ padding */
-    border-radius: 1.25rem; /* ÒÆ¶¯¶ËËõÐ¡Ô²½Ç */
-    margin-bottom: 0.75rem;  /* ¿¨Æ¬¼äÔö¼Ó´¹Ö±¼ä¾à */
+    padding: 1.25rem;      /* ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ï¿½Ð¡ padding */
+    border-radius: 1.25rem; /* ï¿½Æ¶ï¿½ï¿½ï¿½ï¿½ï¿½Ð¡Ô²ï¿½ï¿½ */
+    margin-bottom: 0.75rem;  /* ï¿½ï¿½Æ¬ï¿½ï¿½ï¿½ï¿½ï¿½Ó´ï¿½Ö±ï¿½ï¿½ï¿½ */
   }
 
   .space-y-section > * + * {
-    margin-top: 1.5rem;     /* Çø¿é¼äÇ¿ÖÆºôÎü¼ä¾à */
+    margin-top: 1.5rem;     /* ï¿½ï¿½ï¿½ï¿½ï¿½Ç¿ï¿½Æºï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
   }
 }
 
-/* === Eyebrow ±êÇ©ÏµÍ³ === */
+/* === Eyebrow ï¿½ï¿½Ç©ÏµÍ³ === */
 .eyebrow {
   font-size: 0.625rem;       /* 10px */
   font-weight: 700;
@@ -338,7 +338,7 @@ details[open] summary ~ * {
   color: var(--color-ink-muted);
 }
 
-/* === Utility ÇøÓò×¨ÓÃÑùÊ½£¨µÍÃÜ¶È£© === */
+/* === Utility ï¿½ï¿½ï¿½ï¿½×¨ï¿½ï¿½ï¿½ï¿½Ê½ï¿½ï¿½ï¿½ï¿½ï¿½Ü¶È£ï¿½ === */
 .utility-item {
   display: flex;
   align-items: center;
@@ -372,7 +372,7 @@ details[open] summary ~ * {
   border-radius: 9999px;
 }
 
-/* ¼«ÑÅË«¿òÏß Bezel ¿¨Æ¬ÌåÏµ */
+/* ï¿½ï¿½ï¿½ï¿½Ë«ï¿½ï¿½ï¿½ï¿½ Bezel ï¿½ï¿½Æ¬ï¿½ï¿½Ïµ */
 .haptic-card {
   background: var(--color-surface);
   border: 1px solid rgba(0, 0, 0, 0.04);
@@ -393,7 +393,7 @@ details[open] summary ~ * {
     0 16px 40px rgba(0, 0, 0, 0.02);
 }
 
-/* ²£Á§ÄâÌ¬ web ±Æ½ü·½°¸£ºÓÃÓÚÐü¸¡×é¼þ */
+/* ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì¬ web ï¿½Æ½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 .liquid-glass-approx {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(20px) saturate(190%);

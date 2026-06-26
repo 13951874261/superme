@@ -186,6 +186,18 @@ try {
                 }
             }
         }
+
+        $runFixOldVocab = $false
+        foreach ($file in $changedFiles) {
+            if ($file -match "vocab-server/scripts/fix_old_vocab.cjs") {
+                $runFixOldVocab = $true
+            }
+        }
+
+        if ($runFixOldVocab) {
+            Write-Host "  -> Running database fix script: fix_old_vocab.cjs" -ForegroundColor DarkCyan
+            Invoke-RemoteCommand "node $RemoteApiRoot/scripts/fix_old_vocab.cjs"
+        }
         if ($changedFiles -match "vocab-server/package.json") {
             Write-Host "  -> Installing backend dependencies" -ForegroundColor DarkCyan
             Invoke-RemoteCommand "cd $RemoteApiRoot && npm install"

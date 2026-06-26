@@ -10,6 +10,7 @@ interface CyberneticLockModalProps {
   oralCount: number;
   maxWriteScore: number;
   emailCompleted: boolean;
+  pendingSentenceDebt?: string | null;
 }
 
 export default function CyberneticLockModal({
@@ -18,7 +19,8 @@ export default function CyberneticLockModal({
   theme,
   oralCount,
   maxWriteScore,
-  emailCompleted
+  emailCompleted,
+  pendingSentenceDebt
 }: CyberneticLockModalProps) {
 
   useEffect(() => {
@@ -68,10 +70,17 @@ export default function CyberneticLockModal({
               Theme Target Achievement Requirement
             </span>
 
-            <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
-              根据学习规约，当前主题的核心板块指标达成前，其他高级探索模块已锁定。
-              请先在<strong className="text-slate-900 mx-1">英语引擎</strong>中完成每日口语、写作和邮件的指标闭环。
-            </p>
+            {pendingSentenceDebt ? (
+              <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
+                系统检测到您有尚未结清的<strong className="text-red-500 mx-1">词汇造句债务</strong>：【{pendingSentenceDebt}】。
+                为防止认知断层，必须先完成该生词的强制造句考核，方可解锁高级模块。
+              </p>
+            ) : (
+              <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
+                根据学习规约，当前主题的核心板块指标达成前，其他高级探索模块已锁定。
+                请先在<strong className="text-slate-900 mx-1">英语引擎</strong>中完成每日口语、写作和邮件的指标闭环。
+              </p>
+            )}
 
             {/* Current Theme Info with Admin Style */}
             <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 text-left mb-6">

@@ -7,6 +7,7 @@ import CustomThemeModal from './CustomThemeModal';
 import { ThemeGateway } from './dashboard/ThemeGateway';
 import { ArsenalPanel } from './dashboard/ArsenalPanel';
 import { IntelBriefing } from './dashboard/IntelBriefing';
+import { DailyBriefingCard } from './dashboard/DailyBriefingCard';
 import { ImmersiveReader } from './dashboard/ImmersiveReader';
 import { SOPGuide } from './dashboard/SOPGuide';
 import { StayAnalysisPanel } from './dashboard/StayAnalysisPanel';
@@ -757,6 +758,14 @@ export default function DashboardTab() {
             {inlineNotice.text}
           </div>
         )}
+
+        {/* === 新增：今日战区简报 (Daily Briefing) === */}
+        <DailyBriefingCard 
+           quotaStatus={quotaStatus}
+           generatedArticle={generatedArticle}
+           extractedWordsCount={extractedWords.length}
+           extractedPhrasesCount={extractedPhrases.length}
+        />
 
         <IntelBriefing 
           generatedArticle={generatedArticle}

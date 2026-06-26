@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { BookOpen, X, Loader2 } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
 import { addWord } from '../../../../../services/vocabAPI';
-import { playSuccess, playError } from '../../../../../utils/soundEffects';
+import { playSuccess, playError, playPageTurn } from '../../../../../utils/soundEffects';
 
 export interface ImmersiveReaderProps {
   isOpen: boolean;
@@ -201,12 +201,13 @@ export function ImmersiveReader({
           <button
             disabled={isAddingSelected}
             onClick={async () => {
+              playPageTurn();
               setIsAddingSelected(true);
               try {
                 await addWord({
                   word: selectedWord,
                   dictType: 'immersive-highlight',
-                  category: 'business',
+                  scene_type: theme === '日常场景' || theme.includes('日常') ? 'general' : 'business',
                   payload: { source: 'immersive_reading', theme }
                 });
                 showNotice('dashboard', `“${selectedWord}” 已成功加入生词本`, 'success');

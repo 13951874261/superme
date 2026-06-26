@@ -4,6 +4,8 @@
  */
 
 import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+import { playError } from '../utils/soundEffects';
+import { showToast } from '../components/Toast';
 
 const API_BASE = '/api/vocab';
 
@@ -133,17 +135,23 @@ export interface DictResult {
 
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `HTTP ${res.status}`);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    interceptOutputText(data);
+    return data;
+  } catch (err: any) {
+    playError();
+    showToast({ message: err.message, type: 'error' });
+    throw err;
   }
-  const data = await res.json();
-  interceptOutputText(data);
-  return data;
 }
 
 /** 获取统计：总词数 + 今日待复习数 */
@@ -166,6 +174,7 @@ export async function addWord(params: {
   word: string;
   dictType: string;
   category?: 'business' | 'general';
+  scene_type?: string;
   payload: any;
 }): Promise<{ success: boolean; id?: string; message: string }> {
   return request('/add', {

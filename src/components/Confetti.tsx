@@ -90,3 +90,11 @@ export default function Confetti({ duration = 3000, onComplete }: ConfettiProps)
   );
 }
 
+export const showConfetti = () => {
+  confetti({
+    particleCount: 120,
+    spread: 70,
+    origin: { y: 0.6 },
+    colors: ['#202124', '#FF5722', '#FFFFFF'],
+  });
+};
