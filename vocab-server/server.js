@@ -3786,9 +3786,16 @@ app.post('/api/tts/speech', async (req, res) => {
     const audioPath = path.join(__dirname, 'public', 'temp_audio', cacheFilename);
     const audioUrl = '/api/temp_audio/' + cacheFilename;
 
-    // 命中缓存直接返回（跳过 0 字节损坏文件）
+    // 命中缓存直接返回（跳过 0 字节损坏文件或过期文件）
     if (isValidCachedAudio(audioPath)) {
-      return res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
+      const stat = fs.statSync(audioPath);
+      const now = Date.now();
+      // 文件已过期（超过 24h）则重新生成
+      if (now - stat.mtimeMs > TEMP_AUDIO_MAX_AGE_MS) {
+        fs.unlinkSync(audioPath);
+      } else {
+        return res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
+      }
     }
     removeInvalidCachedAudio(audioPath);
 
