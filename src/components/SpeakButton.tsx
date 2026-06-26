@@ -29,8 +29,8 @@ function splitIntoSentences(text: string): string[] {
     .filter(Boolean);
 }
 
-// 播放音频缓存
-const audioCache = new Map<string, HTMLAudioElement>();
+// 播放音频缓存（缓存 URL 字符串，避免复用已失效的 Audio 对象导致 416 错误）
+const audioCache = new Map<string, string>();
 // 当前正在播放的音频实例
 let currentAudio: HTMLAudioElement | null = null;
 // 当前处于播放状态的内容
@@ -69,8 +69,8 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
   const fetchAudioForSentence = async (idx: number): Promise<HTMLAudioElement> => {
     const sText = sentences[idx];
     const cacheKey = `${model}_${sText}`;
-    let audio = audioCache.get(cacheKey);
-    if (!audio) {
+    let cachedUrl = audioCache.get(cacheKey);
+    if (!cachedUrl) {
       const response = await fetch('/api/tts/speech', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -83,10 +83,10 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
       if (!resJson.success || !resJson.audioUrl) {
         throw new Error('Invalid TTS response');
       }
-      audio = new Audio(resJson.audioUrl);
-      audioCache.set(cacheKey, audio);
+      cachedUrl = resJson.audioUrl;
+      audioCache.set(cacheKey, cachedUrl);
     }
-    return audio;
+    return new Audio(cachedUrl);
   };
 
   const prefetchNext = (idx: number) => {
@@ -230,8 +230,8 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
     dispatchTtsState(content, 'loading');
     
     try {
-      let audio = audioCache.get(cacheKey);
-      if (!audio) {
+      let cachedUrl = audioCache.get(cacheKey);
+      if (!cachedUrl) {
         const response = await fetch('/api/tts/speech', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -240,10 +240,11 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
         if (!response.ok) throw new Error('TTS Request failed');
         const resJson = await response.json();
         if (!resJson.success || !resJson.audioUrl) throw new Error('Invalid URL');
-        audio = new Audio(resJson.audioUrl);
-        audioCache.set(cacheKey, audio);
+        cachedUrl = resJson.audioUrl;
+        audioCache.set(cacheKey, cachedUrl);
       }
-      
+      const audio = new Audio(cachedUrl);
+
       const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
       audio.playbackRate = rate * globalRateMultiplier;
       currentAudio = audio;

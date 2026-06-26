@@ -15,21 +15,46 @@ app.use(bodyParser.json({ limit: '50mb' }));
 
 // 静态文件服务：临时音频文件
 const tempAudioDir = path.join(__dirname, 'public', 'temp_audio');
+const TEMP_AUDIO_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+function cleanExpiredTempAudioFiles() {
+  const files = fs.readdirSync(tempAudioDir);
+  const now = Date.now();
+  let cleaned = 0;
+  for (const file of files) {
+    if (!file.endsWith('.mp3')) continue;
+    const filePath = path.join(tempAudioDir, file);
+    try {
+      const stat = fs.statSync(filePath);
+      if (now - stat.mtimeMs > TEMP_AUDIO_MAX_AGE_MS) {
+        fs.unlinkSync(filePath);
+        cleaned++;
+      }
+    } catch { /* ignore individual file errors */ }
+  }
+  return cleaned;
+}
+
 if (!fs.existsSync(tempAudioDir)) {
   fs.mkdirSync(tempAudioDir, { recursive: true });
 } else {
   try {
-    const files = fs.readdirSync(tempAudioDir);
-    for (const file of files) {
-      if (file.endsWith('.mp3')) {
-        fs.unlinkSync(path.join(tempAudioDir, file));
-      }
-    }
-    console.log('[TTS Cache] Cleaned temporary audio cache on startup.');
+    const cleaned = cleanExpiredTempAudioFiles();
+    console.log(`[TTS Cache] Startup clean: removed ${cleaned} expired audio files.`);
   } catch (err) {
     console.error('[TTS Cache] Failed to clean temporary audio cache on startup:', err);
   }
 }
+
+setInterval(() => {
+  try {
+    const cleaned = cleanExpiredTempAudioFiles();
+    if (cleaned > 0) console.log(`[TTS Cache] Periodic clean: removed ${cleaned} expired audio files.`);
+  } catch (err) {
+    console.error('[TTS Cache] Periodic clean failed:', err);
+  }
+}, 60 * 60 * 1000);
+
 app.use('/api/temp_audio', express.static(tempAudioDir, {
   setHeaders: (res) => res.setHeader('Content-Type', 'audio/mpeg')
 }));
