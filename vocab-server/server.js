@@ -3343,17 +3343,62 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 // 兜底 404
 
 /**
+ * TTS 网关错误（外部 TTS 服务不可达时抛出）
+ */
+class TtsGatewayError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'TtsGatewayError';
+    this.code = 'TTS_GATEWAY_ERROR';
+  }
+}
+
+/**
+ * 备用 TTS：使用 edge-tts 本地合成单块文本
+ * @param {string} text 文本
+ * @param {string} voice 声音名称
+ * @param {AbortSignal|null} signal
+ * @returns {Promise<Buffer>} MP3 数据
+ */
+async function synthesizeWithEdgeTTS(text, voice, signal = null) {
+  const { execFile } = require('child_process');
+  const tmpFile = path.join(require('os').tmpdir(), `edge_tts_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+  return new Promise((resolve, reject) => {
+    const args = ['--voice', voice, '--text', text, '--write-media', tmpFile];
+    const proc = execFile('edge-tts', args, { timeout: 60000 }, (err) => {
+      if (err) return reject(new Error(`edge-tts failed: ${err.message}`));
+      try {
+        const data = fs.readFileSync(tmpFile);
+        fs.unlinkSync(tmpFile);
+        resolve(data);
+      } catch (readErr) {
+        reject(new Error(`读取备用音频失败: ${readErr.message}`));
+      }
+    });
+    // 如果外部 signal 中止，则杀死子进程
+    if (signal) {
+      signal.addEventListener('abort', () => {
+        proc.kill();
+        reject(new Error('Edge TTS aborted'));
+      }, { once: true });
+    }
+  });
+}
+
+/**
  * 核心：分块合成并按序追加写入磁盘（流式写入，避免大内存峰值）
  * @param {string} cleanInput 已清洗文本
  * @param {string} finalModel TTS 模型
  * @param {string} audioPath 目标 mp3 文件路径
  * @param {string|null} taskId 异步任务ID，传入则更新进度
+ * @param {AbortSignal|null} signal 可选的 AbortSignal
  */
-async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId = null) {
+async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId = null, signal = null) {
   const taskQueue = taskId ? require('./services/taskQueue') : null;
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
   const apiUrl = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
   const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+  const gatewayFailed = { value: false }; // 标记是否已触发降级
 
   // 切分文本，每块上限 2000 字符（低于上游硬限制，留有余量）
   const MAX_CHUNK = 2000;
@@ -3456,10 +3501,9 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     const chunkText = chunks[idx];
     let lastErr;
 
-    // 8次重试
+    // 8次重试，含备用 TTS 降级
     for (let attempt = 1; attempt <= 8; attempt++) {
       const controller = new AbortController();
-      // 单块超时提升到 120s 适应高负载情况
       const timeoutId = setTimeout(() => controller.abort(), 120000);
       try {
         const body = { model: finalModel, input: chunkText };
@@ -3481,6 +3525,30 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           lastErr = null;
           break; // 合成成功，跳出重试
         }
+
+        // 502/504 网关错误 -> 降级到 Edge TTS 本地合成
+        if (r.status === 502 || r.status === 504) {
+          console.warn(`[TTS] Gateway error ${r.status}, trying fallback...`);
+          if (taskQueue && taskId) {
+            taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 网关错误 ${r.status}，尝试备用合成...`] });
+          }
+          try {
+            const fallbackResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
+            pendingMap.set(idx, fallbackResult);
+            flush();
+            lastErr = null;
+            gatewayFailed.value = true;
+            break;
+          } catch (fallbackErr) {
+            console.error('[TTS] Fallback failed:', fallbackErr.message);
+            if (taskQueue && taskId) {
+              taskQueue.updateTask(taskId, { logs: [`备用合成失败: ${fallbackErr.message}`] });
+            }
+            lastErr = new TtsGatewayError(`主服务 ${r.status}，备用合成也失败: ${fallbackErr.message}`);
+            continue;
+          }
+        }
+
         lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(() => '')}`);
       } catch (e) {
         clearTimeout(timeoutId);
@@ -3539,7 +3607,11 @@ app.post('/api/tts/speech', async (req, res) => {
     if (isAsyncMode) {
       // 保险①：长文本合成互斥锁，防止并发崩溃
       if (ttsLongLock) {
-        return res.status(429).json({ error: '当前有音频正在合成中，请稍后再试（预计 3~10 分钟）' });
+        return res.status(429).json({
+          success: false,
+          code: 'TTS_LOCKED',
+          message: '当前有音频正在合成中，请稍后再试（预计 3~10 分钟）'
+        });
       }
       ttsLongLock = true;
 
@@ -3589,7 +3661,26 @@ app.post('/api/tts/speech', async (req, res) => {
 
   } catch (error) {
     console.error('[TTS] Error:', error);
-    res.status(500).json({ error: error.message });
+    // 统一错误响应结构
+    if (error instanceof TtsGatewayError) {
+      return res.status(502).json({
+        success: false,
+        code: error.code,
+        message: '语音合成服务暂不可用，请稍后重试'
+      });
+    }
+    if (error.message && error.message.includes('当前有音频正在合成')) {
+      return res.status(429).json({
+        success: false,
+        code: 'TTS_LOCKED',
+        message: error.message
+      });
+    }
+    res.status(500).json({
+      success: false,
+      code: 'TTS_INTERNAL_ERROR',
+      message: error.message || '语音合成内部错误'
+    });
   }
 });
 
@@ -3888,6 +3979,19 @@ app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) =>
 });
 
 app.use((req, res) => res.status(404).json({ error: "Endpoint not found" }));
+
+// ==========================================
+// 全局异常处理器：确保 TTS 锁在任何异常下释放
+// ==========================================
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[Unhandled Rejection]', reason);
+  ttsLongLock = false;
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[Uncaught Exception]', err);
+  ttsLongLock = false;
+});
 
 app.listen(PORT, () => {
   console.log(`Real Vocab Server running on port ${PORT}`);

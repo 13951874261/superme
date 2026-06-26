@@ -143,7 +143,14 @@ export async function fetchDifyTTS(text: string, options: { isAsync?: boolean } 
     }),
   });
 
-  if (!response.ok) throw new Error('生成高保真音频失败');
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => null);
+    const code = errorData?.code || 'TTS_REQUEST_FAILED';
+    const message = errorData?.message || '生成高保真音频失败';
+    const err: any = new Error(message);
+    err.code = code;
+    throw err;
+  }
 
   const data = await response.json();
   return data;

@@ -77,7 +77,12 @@ export default function ListenTab() {
     } else if (task.status === 'failed') {
       setCurTtsTaskId(null);
       setIsAudioGenerating(false);
-      showNotice('listen', `音频合成失败: ${task.error || '未知错误'}. 降级使用本地 TTS。`, 'error');
+      const errMsg = task.error || '未知错误';
+      if (errMsg.includes('网关') || errMsg.includes('502') || errMsg.includes('GatewayError')) {
+        showNotice('listen', `语音合成服务异常（网关错误），已降级使用本地 TTS。`, 'error');
+      } else {
+        showNotice('listen', `音频合成失败: ${errMsg}. 降级使用本地 TTS。`, 'error');
+      }
     }
   }, [tasks, curTtsTaskId]);
 
@@ -119,10 +124,17 @@ export default function ListenTab() {
           setCurTtsTaskId(ttsRes.taskId);
           showNotice('listen', '高保真音频正在后台合成，可继续练习，完成后将自动加载', 'info');
         }
-      } catch (audioErr) {
+      } catch (audioErr: any) {
         setIsAudioGenerating(false);
         console.error('音频生成失败', audioErr);
-        showNotice('listen', '高保真音频生成失败，将使用浏览器原生发音', 'error');
+        const errCode = audioErr?.code || audioErr?.name;
+        if (errCode === 'TTS_GATEWAY_ERROR') {
+          showNotice('listen', '语音合成服务暂不可用（网关异常），将使用浏览器原生发音', 'error');
+        } else if (errCode === 'TTS_LOCKED') {
+          showNotice('listen', '当前音频任务已满，请稍后再试', 'warning');
+        } else {
+          showNotice('listen', `高保真音频生成失败，将使用浏览器原生发音`, 'error');
+        }
       }
     } catch (err) {
       console.error(err);
