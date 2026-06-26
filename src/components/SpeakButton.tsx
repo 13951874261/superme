@@ -54,6 +54,56 @@ function dispatchTtsError(content: string) {
   window.dispatchEvent(new CustomEvent('tts-error', { detail: { content } }));
 }
 
+async function checkAudioFileExists(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    if (!response.ok) return false;
+    const len = response.headers.get('Content-Length');
+    return len !== null && parseInt(len, 10) > 0;
+  } catch (error) {
+    console.error('Error checking audio file existence:', error);
+    return false;
+  }
+}
+
+async function resolveTtsAudioUrl(
+  text: string,
+  model: string,
+  cacheKey: string,
+  forceRefresh = false
+): Promise<string> {
+  if (!forceRefresh) {
+    const cached = audioCache.get(cacheKey);
+    if (cached && await checkAudioFileExists(cached)) {
+      return cached;
+    }
+    if (cached) audioCache.delete(cacheKey);
+  } else {
+    audioCache.delete(cacheKey);
+  }
+
+  const response = await fetch('/api/tts/speech', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ input: text, model })
+  });
+  if (!response.ok) {
+    throw new Error('TTS Request failed: ' + response.statusText);
+  }
+  const resJson = await response.json();
+  if (!resJson.success || !resJson.audioUrl) {
+    throw new Error('Invalid TTS response');
+  }
+
+  const audioUrl = resJson.audioUrl as string;
+  if (!(await checkAudioFileExists(audioUrl))) {
+    throw new Error('Audio file not found or empty');
+  }
+
+  audioCache.set(cacheKey, audioUrl);
+  return audioUrl;
+}
+
 // 流式句子队列播放器：实现“边听边预加载”极速体验
 async function playSentenceQueue(sentences: string[], rate: number, content: string) {
   const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
@@ -66,27 +116,11 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
   };
   activeQueue = myQueue;
 
-  const fetchAudioForSentence = async (idx: number): Promise<HTMLAudioElement> => {
+  const fetchAudioForSentence = async (idx: number, forceRefresh = false): Promise<HTMLAudioElement> => {
     const sText = sentences[idx];
     const cacheKey = `${model}_${sText}`;
-    let cachedUrl = audioCache.get(cacheKey);
-    if (!cachedUrl) {
-      const response = await fetch('/api/tts/speech', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ input: sText, model })
-      });
-      if (!response.ok) {
-        throw new Error('TTS Request failed: ' + response.statusText);
-      }
-      const resJson = await response.json();
-      if (!resJson.success || !resJson.audioUrl) {
-        throw new Error('Invalid TTS response');
-      }
-      cachedUrl = resJson.audioUrl;
-      audioCache.set(cacheKey, cachedUrl);
-    }
-    return new Audio(cachedUrl);
+    const audioUrl = await resolveTtsAudioUrl(sText, model, cacheKey, forceRefresh);
+    return new Audio(audioUrl);
   };
 
   const prefetchNext = (idx: number) => {
@@ -107,9 +141,15 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
     try {
       // 预加载后面的句子
       prefetchNext(i);
-      
-      // 获取当前句子的音频
-      const audio = await fetchAudioForSentence(i);
+
+      const cacheKey = `${model}_${sentences[i]}`;
+      let audio: HTMLAudioElement;
+      try {
+        audio = await fetchAudioForSentence(i);
+      } catch (fetchErr) {
+        audioCache.delete(cacheKey);
+        audio = await fetchAudioForSentence(i, true);
+      }
       if (myQueue.isCancelled) return;
 
       const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
@@ -127,6 +167,7 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
         const onError = (e: any) => {
           audio.removeEventListener('ended', onEnded);
           audio.removeEventListener('error', onError);
+          audioCache.delete(cacheKey);
           reject(e);
         };
         audio.addEventListener('ended', onEnded);
@@ -155,6 +196,7 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
     } catch (err) {
       console.error(`Queue playback failed at sentence ${i}:`, err);
       dispatchTtsError(content);
+      audioCache.delete(`${model}_${sentences[i]}`);
       // 降级：剩余未读部分使用浏览器原生合成器一次性播放
       if ('speechSynthesis' in window) {
         const remainingText = sentences.slice(i).join(' ');
@@ -230,34 +272,31 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
     dispatchTtsState(content, 'loading');
     
     try {
-      let cachedUrl = audioCache.get(cacheKey);
-      if (!cachedUrl) {
-        const response = await fetch('/api/tts/speech', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ input: content, model })
-        });
-        if (!response.ok) throw new Error('TTS Request failed');
-        const resJson = await response.json();
-        if (!resJson.success || !resJson.audioUrl) throw new Error('Invalid URL');
-        cachedUrl = resJson.audioUrl;
-        audioCache.set(cacheKey, cachedUrl);
+      let audioUrl: string;
+      try {
+        audioUrl = await resolveTtsAudioUrl(content, model, cacheKey);
+      } catch (fetchErr) {
+        audioUrl = await resolveTtsAudioUrl(content, model, cacheKey, true);
       }
-      const audio = new Audio(cachedUrl);
+      const audio = new Audio(audioUrl);
 
       const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
       audio.playbackRate = rate * globalRateMultiplier;
       currentAudio = audio;
       dispatchTtsState(content, 'playing');
-      window.dispatchEvent(new CustomEvent('tts-sentence-progress', { detail: { content, index: 0, sentence: sentences[0] || content } }));      
+      window.dispatchEvent(new CustomEvent('tts-sentence-progress', { detail: { content, index: 0, sentence: sentences[0] || content } }));
       await new Promise<void>((resolve, reject) => {
-        audio!.onended = () => resolve();
-        audio!.onerror = (e) => reject(e);
-        audio!.play().catch(reject);
+        audio.onended = () => resolve();
+        audio.onerror = (e) => {
+          audioCache.delete(cacheKey);
+          reject(e);
+        };
+        audio.play().catch(reject);
       });
     } catch (error) {
       console.error('Single TTS playback failed:', error);
       dispatchTtsError(content);
+      audioCache.delete(cacheKey);
       if ('speechSynthesis' in window) {
         window.speechSynthesis.cancel();
         const utterance = new SpeechSynthesisUtterance(content);

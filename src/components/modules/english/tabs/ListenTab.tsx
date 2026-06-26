@@ -138,7 +138,8 @@ export default function ListenTab() {
       }
     } catch (err) {
       console.error(err);
-      showNotice('listen', '剧本生成失败，请检查配置', 'error');
+      const msg = err instanceof Error ? err.message : '剧本生成失败，请检查配置';
+      showNotice('listen', msg, 'error');
     } finally {
       setIsListenMaterialLoading(false);
     }
@@ -298,6 +299,13 @@ export default function ListenTab() {
                       onEnded={() => setIsPlaying(false)}
                       onPlay={() => setIsPlaying(true)}
                       onPause={() => setIsPlaying(false)}
+                      onError={() => {
+                        setListenAudioUrl(null);
+                        setDuration(0);
+                        setCurrentTime(0);
+                        showNotice('listen', '音频缓存已损坏，已切换为逐句朗读', 'warning');
+                        void speakEnglish(listenMaterial, playbackRate);
+                      }}
                     />
                   )}
                   <button 

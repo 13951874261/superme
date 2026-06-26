@@ -17,6 +17,22 @@ app.use(bodyParser.json({ limit: '50mb' }));
 const tempAudioDir = path.join(__dirname, 'public', 'temp_audio');
 const TEMP_AUDIO_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
+function isValidCachedAudio(filePath) {
+  try {
+    return fs.existsSync(filePath) && fs.statSync(filePath).size > 0;
+  } catch {
+    return false;
+  }
+}
+
+function removeInvalidCachedAudio(filePath) {
+  try {
+    if (fs.existsSync(filePath) && fs.statSync(filePath).size === 0) {
+      fs.unlinkSync(filePath);
+    }
+  } catch { /* ignore */ }
+}
+
 function cleanExpiredTempAudioFiles() {
   const files = fs.readdirSync(tempAudioDir);
   const now = Date.now();
@@ -26,7 +42,7 @@ function cleanExpiredTempAudioFiles() {
     const filePath = path.join(tempAudioDir, file);
     try {
       const stat = fs.statSync(filePath);
-      if (now - stat.mtimeMs > TEMP_AUDIO_MAX_AGE_MS) {
+      if (stat.size === 0 || now - stat.mtimeMs > TEMP_AUDIO_MAX_AGE_MS) {
         fs.unlinkSync(filePath);
         cleaned++;
       }
@@ -418,6 +434,75 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
 // ==========================================
 // 听力模块：动态截获剧本生成引擎代理
 // ==========================================
+
+/** 从 Dify chat-messages SSE 流中收集完整 answer */
+async function collectDifyStreamingAnswer(wfResponse) {
+  let finalAnswer = '';
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  const processLine = (line) => {
+    if (!line.startsWith('data: ')) return;
+    const dataStr = line.slice(6).trim();
+    if (dataStr === '[DONE]') return;
+    try {
+      const parsed = JSON.parse(dataStr);
+      if (parsed.answer && typeof parsed.answer === 'string' && parsed.answer.trim()) {
+        finalAnswer = parsed.answer;
+      }
+      if (parsed.event === 'message' && parsed.answer) {
+        finalAnswer = parsed.answer;
+      }
+      if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
+        finalAnswer = parsed.data.outputs.answer;
+      }
+      if (parsed.event === 'workflow_finished' && parsed.data?.outputs) {
+        const out = parsed.data.outputs;
+        finalAnswer = out.answer ?? out.result ?? out.text ?? out.content ?? out.listening_material_preview ?? finalAnswer;
+      }
+      if (parsed.event === 'text_chunk' && parsed.data?.text) {
+        finalAnswer += parsed.data.text;
+      }
+      if (!finalAnswer && parsed.data?.outputs) {
+        for (const key of Object.keys(parsed.data.outputs)) {
+          const val = parsed.data.outputs[key];
+          if (typeof val === 'string' && val.trim()) {
+            finalAnswer = val;
+            break;
+          }
+        }
+      }
+    } catch (_) {}
+  };
+
+  const parseChunk = (text) => {
+    buffer += text;
+    let lineEnd = buffer.indexOf('\n');
+    while (lineEnd !== -1) {
+      processLine(buffer.substring(0, lineEnd).trim());
+      buffer = buffer.substring(lineEnd + 1);
+      lineEnd = buffer.indexOf('\n');
+    }
+  };
+
+  if (!wfResponse.body) return finalAnswer.trim();
+
+  if (typeof wfResponse.body.getReader === 'function') {
+    const reader = wfResponse.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parseChunk(decoder.decode(value, { stream: true }));
+    }
+  } else {
+    for await (const chunk of wfResponse.body) {
+      parseChunk(decoder.decode(chunk, { stream: true }));
+    }
+  }
+
+  return finalAnswer.trim();
+}
+
 app.post('/api/listen/generate-material', async (req, res) => {
   try {
     const { inputs, userId = 'default-user' } = req.body;
@@ -453,6 +538,66 @@ app.post('/api/listen/generate-material', async (req, res) => {
   } catch (error) {
     console.error('generate-material error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 长文听力（≥5 分钟）：后端 SSE 代理，避免浏览器直连 Dify 时 HTTP/2 断连导致卡死
+app.post('/api/listen/generate-material-long', async (req, res) => {
+  try {
+    const { inputs, userId = 'default-user' } = req.body;
+    const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
+      || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
+      || process.env.DIFY_LISTEN_GEN_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ success: false, error: '后端未配置 DIFY_LONG_AUDIO_API_KEY' });
+    }
+
+    const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const fetchController = new AbortController();
+    const fetchTimeout = setTimeout(() => fetchController.abort(), 15 * 60 * 1000);
+
+    let wfResponse;
+    try {
+      wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: fetchController.signal,
+        body: JSON.stringify({
+          inputs: inputs || {},
+          query: 'generate',
+          response_mode: 'streaming',
+          user: userId,
+        }),
+      });
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
+
+    if (!wfResponse.ok) {
+      const errText = await wfResponse.text().catch(() => '');
+      let errMsg = errText || 'Dify API Error';
+      try {
+        const parsed = JSON.parse(errText);
+        errMsg = parsed.message || parsed.error || errMsg;
+      } catch (_) {}
+      return res.status(wfResponse.status).json({ success: false, error: errMsg });
+    }
+
+    const answer = await collectDifyStreamingAnswer(wfResponse);
+    if (!answer) {
+      return res.status(500).json({ success: false, error: '后台没有返回任何听力材料数据，请检查 Dify 应用配置。' });
+    }
+
+    res.json({ success: true, answer });
+  } catch (error) {
+    console.error('generate-material-long error:', error);
+    const msg = error.name === 'AbortError'
+      ? '生成长文听力超时（15 分钟），请缩短时长后重试'
+      : error.message;
+    res.status(500).json({ success: false, error: msg });
   }
 });
 
@@ -3421,6 +3566,8 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
  * @param {AbortSignal|null} signal 可选的 AbortSignal
  */
 async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId = null, signal = null) {
+  const chunkCacheDir = audioPath + '.chunks';
+  try {
   const taskQueue = taskId ? require('./services/taskQueue') : null;
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
   const apiUrl = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
@@ -3456,7 +3603,6 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   // 2. 增加单块独立存储支持断点续传与增量重试
   // 3. 提升超时保护到 120s
   // 4. 重试次数从 5 提升到 8 次
-  const chunkCacheDir = audioPath + '.chunks';
   if (!fs.existsSync(chunkCacheDir)) {
     fs.mkdirSync(chunkCacheDir, { recursive: true });
   }
@@ -3482,6 +3628,9 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     fs.rmSync(chunkCacheDir, { recursive: true, force: true });
     if (taskQueue && taskId) {
       taskQueue.updateTask(taskId, { progress: 100, logs: ['全部片段已完成（从缓存恢复）'] });
+    }
+    if (!isValidCachedAudio(audioPath)) {
+      throw new Error('从缓存合并后音频文件无效（0 字节）');
     }
     return;
   }
@@ -3603,6 +3752,19 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 
   // 清理缓存目录
   fs.rmSync(chunkCacheDir, { recursive: true, force: true });
+
+  if (!isValidCachedAudio(audioPath)) {
+    throw new Error('合成完成但音频文件无效（0 字节）');
+  }
+  } catch (err) {
+    removeInvalidCachedAudio(audioPath);
+    try {
+      if (fs.existsSync(chunkCacheDir)) {
+        fs.rmSync(chunkCacheDir, { recursive: true, force: true });
+      }
+    } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 // TTS 长文本合成并发锁（防止多请求同时合成导致 OOM 进程崩溃）
@@ -3624,10 +3786,11 @@ app.post('/api/tts/speech', async (req, res) => {
     const audioPath = path.join(__dirname, 'public', 'temp_audio', cacheFilename);
     const audioUrl = '/api/temp_audio/' + cacheFilename;
 
-    // 命中缓存直接返回
-    if (fs.existsSync(audioPath)) {
+    // 命中缓存直接返回（跳过 0 字节损坏文件）
+    if (isValidCachedAudio(audioPath)) {
       return res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
     }
+    removeInvalidCachedAudio(audioPath);
 
     // 异步合成：用户显式请求异步 OR 文本≥3000字符，立即返回 taskId 防止 HTTP 超时
     const isAsyncMode = isAsync === true || cleanInput.length >= 3000;

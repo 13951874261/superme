@@ -844,98 +844,28 @@ export async function runListenMaterialGenerator(
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
 
-  // ── 长音频：Chatflow (advanced-chat) 应用，走 SSE streaming 模式（防止 524 超时） ──
+  // ── 长音频（≥5 分钟）：走后端 SSE 代理，避免浏览器直连 Dify 时 HTTP/2 断连 ──
   if (isLong) {
-    const apiKey = import.meta.env.VITE_DIFY_LONG_AUDIO_API_KEY;
-    if (!apiKey) throw new Error('未配置 VITE_DIFY_LONG_AUDIO_API_KEY，无法生成长文听力。');
-
-    // 使用 streaming 模式：Dify 会持续推送 SSE 数据块，保持连接活跃，不会触发 Nginx/Cloudflare 524 超时
-    const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
+    const res = await fetch('/api/listen/generate-material-long', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: injectUserProfile({ theme, cefr_level: cefrLevel, genre }),
-        query: 'generate',
-        response_mode: 'streaming',
-        user: userId,
+        inputs: injectUserProfile({ theme, cefr_level: cefrLevel, genre, duration: durationParam }),
+        userId,
       }),
+      signal: AbortSignal.timeout(15 * 60 * 1000),
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err?.message || err?.error || `生成长文听力失败 (HTTP ${res.status})`);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || `生成长文听力失败 (HTTP ${res.status})`);
     }
 
-    const reader = res.body?.getReader();
-    if (!reader) throw new Error('流式读取失败，当前浏览器不支持。');
-
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let finalAnswer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-
-      let lineEnd = buffer.indexOf('\n');
-      while (lineEnd !== -1) {
-        const line = buffer.substring(0, lineEnd).trim();
-        buffer = buffer.substring(lineEnd + 1);
-
-        if (line.startsWith('data: ')) {
-          const dataStr = line.slice(6).trim();
-          if (dataStr === '[DONE]') break;
-
-            try {
-              const parsed = JSON.parse(dataStr);
-
-              // 1. 最核心的兜底：任何 SSE 事件只要顶层有 answer 字段，立刻捕获
-              if (parsed.answer && typeof parsed.answer === 'string' && parsed.answer.trim()) {
-                finalAnswer = parsed.answer;
-              }
-
-              // 2. 兼容 Chatflow 的 message 事件
-              if (parsed.event === 'message' && parsed.answer) {
-                finalAnswer = parsed.answer;
-              }
-
-              // 3. 兼容 Chatflow 的 message_end 事件（最终完整内容）
-              if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
-                finalAnswer = parsed.data.outputs.answer;
-              }
-
-              // 4. 兼容 Workflow 的 workflow_finished 事件
-              if (parsed.event === 'workflow_finished' && parsed.data?.outputs) {
-                const out = parsed.data.outputs;
-                finalAnswer = out.answer ?? out.result ?? out.text ?? out.content ?? out.listening_material_preview ?? '';
-              }
-
-              // 5. 兼容 text_chunk 事件
-              if (parsed.event === 'text_chunk' && parsed.data?.text) {
-                finalAnswer += parsed.data.text;
-              }
-
-              // 6. 终极兜底：从 data.outputs 中提取任何非空字符串字段
-              if (!finalAnswer && parsed.data?.outputs) {
-                const out = parsed.data.outputs;
-                for (const key of Object.keys(out)) {
-                  const val = out[key];
-                  if (typeof val === 'string' && val.trim()) {
-                    finalAnswer = val;
-                    break;
-                  }
-                }
-              }
-            } catch (_) {}
-        }
-        lineEnd = buffer.indexOf('\n');
-      }
+    if (!data.answer) {
+      throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
     }
 
-    if (!finalAnswer.trim()) throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
-    return finalAnswer.trim();
+    return data.answer.trim();
   }
 
   // ── 短听力：已迁移为 Node.js 代理调用 ──
