@@ -1,4 +1,4 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 
 async function test() {
@@ -11,9 +11,9 @@ async function test() {
   formData.append('model', 'openai/whisper-1');
   formData.append('response_format', 'json');
   
-  console.log('Sending request to https://9router.234124123.xyz/v1/audio/transcriptions ...');
+  console.log('Sending request to https://23.95.214.232/v1/audio/transcriptions ...');
   try {
-    const response = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
+    const response = await fetch('https://23.95.214.232/v1/audio/transcriptions', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
