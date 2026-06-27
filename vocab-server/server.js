@@ -3526,18 +3526,34 @@ class TtsGatewayError extends Error {
 }
 
 /**
- * ????? TTS?????? edge-tts ?????????????????????
- * @param {string} text ??????
- * @param {string} voice ??????
+ * 解析 edge-tts 可执行命令（支持 EDGE_TTS_BIN、~/.local/bin、python3 -m edge_tts）
+ */
+function getEdgeTtsCommand() {
+  if (process.env.EDGE_TTS_BIN) {
+    const parts = process.env.EDGE_TTS_BIN.trim().split(/\s+/);
+    return { command: parts[0], prefixArgs: parts.slice(1) };
+  }
+  const localBin = path.join(process.env.HOME || '/home/ubuntu', '.local/bin/edge-tts');
+  if (fs.existsSync(localBin)) {
+    return { command: localBin, prefixArgs: [] };
+  }
+  return { command: 'python3', prefixArgs: ['-m', 'edge_tts'] };
+}
+
+/**
+ * 本地 Edge TTS：调用 edge-tts CLI 或 python3 -m edge_tts 生成 MP3
+ * @param {string} text 待合成文本
+ * @param {string} voice 语音名
  * @param {AbortSignal|null} signal
- * @returns {Promise<Buffer>} MP3 ????
+ * @returns {Promise<Buffer>} MP3 数据
  */
 async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   const { execFile } = require('child_process');
+  const { command, prefixArgs } = getEdgeTtsCommand();
   const tmpFile = path.join(require('os').tmpdir(), `edge_tts_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
   return new Promise((resolve, reject) => {
-    const args = ['--voice', voice, '--text', text, '--write-media', tmpFile];
-    const proc = execFile('edge-tts', args, { timeout: 60000 }, (err) => {
+    const args = [...prefixArgs, '--voice', voice, '--text', text, '--write-media', tmpFile];
+    const proc = execFile(command, args, { timeout: 60000 }, (err) => {
       if (err) return reject(new Error(`edge-tts failed: ${err.message}`));
       try {
         const data = fs.readFileSync(tmpFile);
@@ -3656,7 +3672,8 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   const ttsUpstreamUrls = getTtsUpstreamUrls();
   const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
-  const gatewayFailed = { value: false }; // ???????????????
+  const gatewayFailed = { value: false }; // 标记是否走了本地 fallback
+  const preferEdgeTts = finalModel.startsWith('edge-tts/');
 
   // ?????????????????????? 2000 ??????????????????????????????????
   const MAX_CHUNK = 2000;
@@ -3766,6 +3783,21 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
       try {
+        if (preferEdgeTts) {
+          try {
+            const edgeResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
+            pendingMap.set(idx, edgeResult);
+            flush();
+            lastErr = null;
+            break;
+          } catch (edgeErr) {
+            console.warn('[TTS] edge-tts primary failed, trying upstream:', edgeErr.message);
+            if (taskQueue && taskId) {
+              taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 本地 edge-tts 失败，尝试上游网关...`] });
+            }
+          }
+        }
+
         const body = { model: finalModel, input: chunkText };
 
         let r = null;

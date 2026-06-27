@@ -217,6 +217,13 @@ try {
             Write-Host "  -> Installing backend dependencies" -ForegroundColor DarkCyan
             Invoke-RemoteCommand "cd $RemoteApiRoot && npm install"
         }
+
+        $edgeTtsInstall = "$ProjectRoot\scripts\install-edge-tts-server.sh"
+        if (Test-Path $edgeTtsInstall -PathType Leaf) {
+            Write-Host "  -> Ensuring edge-tts is installed on server" -ForegroundColor DarkCyan
+            Send-File $edgeTtsInstall "/tmp/install-edge-tts-server.sh"
+            Invoke-RemoteCommand "chmod +x /tmp/install-edge-tts-server.sh && bash /tmp/install-edge-tts-server.sh"
+        }
         
         if ($changedFiles -match "super-agent-vocab.service") {
             Send-File "$ProjectRoot\scratch\super-agent-vocab.service" "/tmp/super-agent-vocab.service"
