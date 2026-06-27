@@ -149,7 +149,7 @@ details[open] summary ~ * {
   background: rgba(255, 87, 34, 0.6);
 }
 
-/* Ripple effect */
+/* Ripple effect - 平滑扩散 */
 .ripple {
   position: relative;
   overflow: hidden;
@@ -164,11 +164,91 @@ details[open] summary ~ * {
   background: rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  transition: width 0.4s ease-out, height 0.4s ease-out;
+  opacity: 0;
+  transition: width 0.5s var(--ease-premium),
+              height 0.5s var(--ease-premium),
+              opacity 0.3s ease;
 }
 .ripple:active::after {
-  width: 250%;
-  height: 250%;
+  width: 300%;
+  height: 300%;
+  opacity: 1;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes iconSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-icon-spin {
+  animation: iconSpin 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 87, 34, 0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+.interactive-card {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
 }
 
 /* 极雅行政卡片风格：采用极致静雅的微投影和柔和的灰白过渡光效，去霓虹/去粒子 */
@@ -192,6 +272,7 @@ details[open] summary ~ * {
 
 :root {
   /* Legacy token mapping for existing components */
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
   --color-primary: var(--color-brand);
   --color-primary-hover: var(--color-brand-hover);
   --color-primary-light: var(--color-brand-light);

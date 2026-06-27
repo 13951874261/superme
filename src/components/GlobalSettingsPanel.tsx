@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, ZapOff, Activity, Lock, Unlock, Image } from 'lucide-react';
-import { playScan } from '../utils/soundEffects';
+import { playClick, playSwitch, playReveal, playDrag, playValidatePass, playValidateFail, setGlobalVolume } from '../utils/soundEffects';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 
 export type GlobalDifficulty = 'standard' | 'hardcore';
@@ -37,21 +37,31 @@ export default function GlobalSettingsPanel() {
   const [pwdError, setPwdError] = useState('');
   const [pwdSuccess, setPwdSuccess] = useState('');
 
+  const [soundEnabled, setSoundEnabled] = useState<boolean>(
+    localStorage.getItem('super_agent_sound_enabled') !== 'false'
+  );
+  const [soundVolume, setSoundVolume] = useState<number>(
+    parseFloat(localStorage.getItem('super_agent_sound_volume') || '0.5')
+  );
+
   const handleSavePassword = () => {
     const currentPassword = localStorage.getItem('super_agent_lock_password') || '1';
     if (oldPassword !== currentPassword) {
       setPwdError('原密码输入不正确');
       setPwdSuccess('');
+      playValidateFail();
       return;
     }
     if (!newPassword) {
       setPwdError('新密码不能为空');
       setPwdSuccess('');
+      playValidateFail();
       return;
     }
     if (newPassword !== confirmPassword) {
       setPwdError('两次输入的新密码不一致');
       setPwdSuccess('');
+      playValidateFail();
       return;
     }
     localStorage.setItem('super_agent_lock_password', newPassword);
@@ -60,6 +70,7 @@ export default function GlobalSettingsPanel() {
     setOldPassword('');
     setNewPassword('');
     setConfirmPassword('');
+    playValidatePass();
     setTimeout(() => setPwdSuccess(''), 3000);
   };
 
@@ -81,6 +92,13 @@ export default function GlobalSettingsPanel() {
     localStorage.setItem('super_agent_bg_opacity', String(bgOpacity));
     window.dispatchEvent(new Event('global-settings-changed'));
   }, [rate, difficulty, isInterceptorEnabled, bgEnabled, bgIndex, bgBlur, bgOpacity]);
+
+  useEffect(() => {
+    localStorage.setItem('super_agent_sound_enabled', String(soundEnabled));
+    localStorage.setItem('super_agent_sound_volume', String(soundVolume));
+    setGlobalVolume(soundVolume);
+    window.dispatchEvent(new Event('global-sound-changed'));
+  }, [soundEnabled, soundVolume]);
 
   return (
     <div className="fixed bottom-6 right-6 z-[100] flex flex-col items-end">
@@ -104,7 +122,7 @@ export default function GlobalSettingsPanel() {
                 max="2.0"
                 step="0.1"
                 value={rate}
-                onChange={(e) => { setRate(Number(e.target.value)); playScan(); }}
+                onChange={(e) => { setRate(Number(e.target.value)); playDrag(); }}
                 className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
               />
             </div>
@@ -116,21 +134,21 @@ export default function GlobalSettingsPanel() {
               <div className="flex bg-gray-800 p-1 rounded-xl">
                 <button
                   type="button"
-                  onClick={() => { saveUserCurrentProfile('英国 (UK)'); playScan(); }}
+                  onClick={() => { saveUserCurrentProfile('英国 (UK)'); playSwitch(); }}
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '英国 (UK)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   英国 (UK)
                 </button>
                 <button
                   type="button"
-                  onClick={() => { saveUserCurrentProfile('美国 (US)'); playScan(); }}
+                  onClick={() => { saveUserCurrentProfile('美国 (US)'); playSwitch(); }}
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '美国 (US)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   美国 (US)
                 </button>
                 <button
                   type="button"
-                  onClick={() => { saveUserCurrentProfile(''); playScan(); }}
+                  onClick={() => { saveUserCurrentProfile(''); playSwitch(); }}
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!profile ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   默认
@@ -144,13 +162,13 @@ export default function GlobalSettingsPanel() {
                </label>
                <div className="flex bg-gray-800 p-1 rounded-xl">
                  <button
-                   onClick={() => { setDifficulty('standard'); playScan(); }}
+                   onClick={() => { setDifficulty('standard'); playSwitch(); }}
                    className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${difficulty === 'standard' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                  >
                    <ZapOff className="w-3 h-3 mr-1" /> 标准
                  </button>
                  <button
-                   onClick={() => { setDifficulty('hardcore'); playScan(); }}
+                   onClick={() => { setDifficulty('hardcore'); playSwitch(); }}
                    className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${difficulty === 'hardcore' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'text-gray-400 hover:text-white'}`}
                  >
                    <Zap className="w-3 h-3 mr-1" /> 极限
@@ -164,13 +182,13 @@ export default function GlobalSettingsPanel() {
                 </label>
                 <div className="flex bg-gray-800 p-1 rounded-xl">
                   <button
-                    onClick={() => { setIsInterceptorEnabled(true); playScan(); }}
+                    onClick={() => { setIsInterceptorEnabled(true); playSwitch(); }}
                     className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${isInterceptorEnabled ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                   >
                     <Lock className="w-3 h-3 mr-1" /> 启用
                   </button>
                   <button
-                    onClick={() => { setIsInterceptorEnabled(false); playScan(); }}
+                    onClick={() => { setIsInterceptorEnabled(false); playSwitch(); }}
                     className={`flex-1 flex items-center justify-center py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!isInterceptorEnabled ? 'bg-green-600 text-white shadow-[0_0_15px_rgba(22,163,74,0.5)]' : 'text-gray-400 hover:text-white'}`}
                   >
                     <Unlock className="w-3 h-3 mr-1" /> 禁用
@@ -182,7 +200,7 @@ export default function GlobalSettingsPanel() {
               <div className="border-t border-gray-800 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsBgSectionOpen(!isBgSectionOpen); playScan(); }}
+                  onClick={() => { setIsBgSectionOpen(!isBgSectionOpen); playReveal(); }}
                   className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors py-1 cursor-pointer"
                 >
                   <span className="flex items-center gap-1.5"><Image className="w-3.5 h-3.5" /> 网页背景图管理</span>
@@ -198,14 +216,14 @@ export default function GlobalSettingsPanel() {
                       <div className="flex bg-gray-800 p-1 rounded-xl">
                         <button
                           type="button"
-                          onClick={() => { setBgEnabled(true); playScan(); }}
+                          onClick={() => { setBgEnabled(true); playSwitch(); }}
                           className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${bgEnabled ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                         >
                           开启
                         </button>
                         <button
                           type="button"
-                          onClick={() => { setBgEnabled(false); playScan(); }}
+                          onClick={() => { setBgEnabled(false); playSwitch(); }}
                           className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all cursor-pointer ${!bgEnabled ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
                         >
                           关闭
@@ -226,7 +244,7 @@ export default function GlobalSettingsPanel() {
                                 <button
                                   key={index}
                                   type="button"
-                                  onClick={() => { setBgIndex(index); playScan(); }}
+                                  onClick={() => { setBgIndex(index); playClick(); }}
                                   style={{
                                     backgroundImage: `url(/images/backgrounds/bg-${index + 1}.jpg)`,
                                     backgroundSize: 'cover',
@@ -261,7 +279,7 @@ export default function GlobalSettingsPanel() {
                             max="24"
                             step="1"
                             value={bgBlur}
-                            onChange={(e) => { setBgBlur(Number(e.target.value)); }}
+                            onChange={(e) => { setBgBlur(Number(e.target.value)); playDrag(); }}
                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
                           />
                         </div>
@@ -277,7 +295,7 @@ export default function GlobalSettingsPanel() {
                             max="0.90"
                             step="0.05"
                             value={bgOpacity}
-                            onChange={(e) => { setBgOpacity(Number(e.target.value)); }}
+                            onChange={(e) => { setBgOpacity(Number(e.target.value)); playDrag(); }}
                             className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
                           />
                         </div>
@@ -287,11 +305,44 @@ export default function GlobalSettingsPanel() {
                 )}
               </div>
 
+              {/* 音效设置 */}
+              <div className="border-t border-gray-800 pt-4">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">
+                  音效设置
+                </h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-300">启用音效</span>
+                    <button
+                      type="button"
+                      onClick={() => { setSoundEnabled(!soundEnabled); playClick(); }}
+                      className={`relative w-10 h-5 rounded-full transition-colors ${soundEnabled ? 'bg-[#FF5722]' : 'bg-gray-600'}`}
+                    >
+                      <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${soundEnabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-gray-300">音量</span>
+                    <span className="text-[11px] text-[#FF5722]">{Math.round(soundVolume * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={soundVolume}
+                    onChange={(e) => { setSoundVolume(parseFloat(e.target.value)); playDrag(); }}
+                    disabled={!soundEnabled}
+                    className="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-[#FF5722] disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
               {/* 修改系统解锁密码折叠项 */}
               <div className="border-t border-gray-800 pt-4">
                 <button
                   type="button"
-                  onClick={() => { setIsPasswordSectionOpen(!isPasswordSectionOpen); playScan(); }}
+                  onClick={() => { setIsPasswordSectionOpen(!isPasswordSectionOpen); playReveal(); }}
                   className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors py-1 cursor-pointer"
                 >
                   <span>修改系统密码</span>
@@ -331,7 +382,7 @@ export default function GlobalSettingsPanel() {
                     
                     <button
                       type="button"
-                      onClick={() => { handleSavePassword(); playScan(); }}
+                      onClick={() => { handleSavePassword(); }}
                       className="w-full py-2 bg-[#FF5722] hover:bg-[#ff6a3c] text-[10px] font-black uppercase tracking-widest text-white rounded-lg transition-colors cursor-pointer"
                     >
                       保存密码
@@ -344,7 +395,7 @@ export default function GlobalSettingsPanel() {
       )}
 
       <button
-        onClick={() => { setIsOpen(!isOpen); playScan(); }}
+        onClick={() => { setIsOpen(!isOpen); playReveal(); }}
         className={`w-12 h-12 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 hover:scale-110 ${isOpen ? 'bg-[#FF5722] text-white' : 'bg-[#202124] text-gray-400 hover:text-white'}`}
         title="全局参数控制台"
       >

@@ -6,7 +6,7 @@ import MemoryAidPanel from './MemoryAidPanel';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
-import { playClick, playPageTurn } from '../utils/soundEffects';
+import { playClick, playReveal, playSwitch } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 
 interface RightPanelProps {
@@ -103,13 +103,13 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
   // 监听打开状态触发纸张翻页音效
   useEffect(() => {
     if (isOpen) {
-      playPageTurn();
+      playReveal();
     }
   }, [isOpen]);
 
   const handleTabChange = (tab: 'assistant' | 'context') => {
     if (activeTab !== tab) {
-      playPageTurn(); // 切换 Tab 时触发纸张翻页音效
+      playSwitch(); // 切换 Tab
       setActiveTab(tab);
     }
   };

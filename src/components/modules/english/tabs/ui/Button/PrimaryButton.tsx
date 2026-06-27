@@ -17,7 +17,7 @@ export function PrimaryButton({ children, className = '', icon, disabled = false
       disabled={disabled}
       onClick={onClick}
       title={title}
-      className={`relative flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all duration-300 btn-press ${
+      className={`relative flex items-center justify-center gap-2 px-6 py-3 rounded-2xl font-black text-xs uppercase tracking-widest text-white transition-all duration-300 btn-press ripple ${
         disabled
           ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
           : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] shadow-[0_4px_12px_rgba(232,93,4,0.2)]'

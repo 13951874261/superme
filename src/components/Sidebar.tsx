@@ -6,7 +6,7 @@ import DictionaryPanel from './DictionaryPanel';
 import VocabularyBook from './VocabularyBook';
 import Confetti from './Confetti';
 import { formatDateShort, getRecentDates, getTodayDateDot } from '../utils/date';
-import { playClick, playPageTurn } from '../utils/soundEffects';
+import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 
 
@@ -212,7 +212,7 @@ export default function Sidebar({
     <aside className={`bg-gradient-to-br ${bgEnabled ? 'from-white/70 to-zinc-50/30' : 'from-white to-zinc-50/50'} backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
       <button 
         onClick={() => {
-          playPageTurn();
+          playReveal();
           toggleSidebar();
         }} 
         className="absolute -right-5 top-12 bg-white text-gray-500 p-2 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:text-[#FF5722] hover:shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-40 transition-all duration-300"
@@ -244,7 +244,7 @@ export default function Sidebar({
              <div>
                <div 
                  className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-brand)] transition-colors mb-3 active:scale-95"
-                 onClick={() => { setIsCalendarOpen(!isCalendarOpen); playPageTurn(); }}
+                 onClick={() => { setIsCalendarOpen(!isCalendarOpen); playReveal(); }}
                >
                  <span>Monthly Calendar</span>
                  {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
@@ -323,7 +323,7 @@ export default function Sidebar({
              <div className="mt-8 border-t border-zinc-200/60 pt-6">
                <div 
                  className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-ink-primary)] transition-colors mb-4 active:scale-95"
-                 onClick={() => { setIsHabitOpen(!isHabitOpen); playPageTurn(); }}
+                 onClick={() => { setIsHabitOpen(!isHabitOpen); playReveal(); }}
                >
                  <span>Habit Matrix</span>
                  {isHabitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
@@ -367,14 +367,14 @@ export default function Sidebar({
              <div className="mt-6 border-t border-zinc-200/60 pt-6">
                <div 
                  className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-ink-primary)] transition-colors mb-4 active:scale-95"
-                 onClick={() => { setIsCareerOpen(!isCareerOpen); playPageTurn(); }}
+                 onClick={() => { setIsCareerOpen(!isCareerOpen); playReveal(); }}
                >
                  <span>Career Progression</span>
                  <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                    {!isEditingCareer && (
                      <button 
                        onClick={() => {
-                         playPageTurn();
+                         playClick();
                          setCareerEditData({ ...careerPath });
                          setIsEditingCareer(true);
                        }}
@@ -474,7 +474,7 @@ export default function Sidebar({
                                  const val = Number(e.target.value);
                                  if (val !== careerEditData.progress) {
                                    setCareerEditData({ ...careerEditData, progress: val });
-                                   playClick(); // 拖动滑块实时播放微弱水滴声
+                                   playDrag(); // 拖动滑块
                                  }
                                }}
                                className="w-full h-1 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
@@ -529,7 +529,7 @@ export default function Sidebar({
         <div className="mt-auto px-5 xl:px-6 py-4 border-t border-slate-100 bg-white/50 backdrop-blur-sm shrink-0">
           <button 
             onClick={() => {
-              playPageTurn();
+              playReveal();
               setIsUtilitiesOpen(!isUtilitiesOpen);
             }}
             className="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-[var(--color-brand)] transition-colors cursor-pointer outline-none"

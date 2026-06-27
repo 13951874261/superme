@@ -11,6 +11,7 @@ import ImpromptuSpeechTab from './english/tabs/ImpromptuSpeechTab';
 import { checkThemeMastery } from '../../services/trainingAPI';
 import ThemeMasteryOverlay from '../ThemeMasteryOverlay';
 import DailyErrorVocabularyModule from './DailyErrorVocabularyModule';
+import { playSwitch } from '../../utils/soundEffects';
 
 const SUB_TABS = [
   { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
@@ -37,7 +38,11 @@ function EnglishModuleContent() {
         {SUB_TABS.map(tab => (
           <button
             key={tab.id}
-            onClick={(e) => { e.stopPropagation(); setActiveTab(tab.id as EnglishTab); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (activeTab !== tab.id) playSwitch();
+              setActiveTab(tab.id as EnglishTab);
+            }}
             className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-black text-xs tracking-widest uppercase transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.02] active:scale-[0.98] ${
               activeTab === tab.id 
                 ? 'bg-[var(--color-brand)] text-white shadow-[0_4px_12px_rgba(0,0,0,0.12)] border border-[var(--color-brand)]' 
@@ -49,7 +54,7 @@ function EnglishModuleContent() {
         ))}
       </div>
 
-      <div className="animate-[fadeIn_0.3s_ease-out]">
+      <div className="animate-fade-in-scale">
         {activeTab === 'dashboard' && <DashboardTab />}
         {activeTab === 'vocab' && <VocabTab />}
         {activeTab === 'listen' && <ListenTab />}
