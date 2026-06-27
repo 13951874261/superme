@@ -3561,12 +3561,12 @@ const https = require('https');
 const http = require('http');
 
 function getTtsUpstreamUrls() {
-  const primary = process.env.TTS_API_URL || 'https://23.95.214.232/v1/audio/speech';
-  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://9router.234124123.xyz/v1/audio/speech';
+  const primary = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
+  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://23.95.214.232/v1/audio/speech';
   return [...new Set([primary, fallback].filter(Boolean))];
 }
 
-function postTtsUpstream(apiUrl, apiKey, body, signal) {
+function postTtsUpstream(apiUrl, apiKey, body, signal, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     let parsedUrl;
     try {
@@ -3598,6 +3598,14 @@ function postTtsUpstream(apiUrl, apiKey, body, signal) {
     };
 
     const req = transport.request(reqOptions, (res) => {
+      if ([301, 302, 307, 308].includes(res.statusCode) && res.headers.location && redirectCount < 5) {
+        const nextUrl = new URL(res.headers.location, apiUrl).href;
+        if (nextUrl !== apiUrl) {
+          res.resume();
+          postTtsUpstream(nextUrl, apiKey, body, signal, redirectCount + 1).then(resolve, reject);
+          return;
+        }
+      }
       const chunks = [];
       res.on('data', (chunk) => chunks.push(chunk));
       res.on('end', () => {

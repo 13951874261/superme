@@ -165,6 +165,11 @@ try {
         Write-Host ""
         Write-Host "========== Step 3: Backend Sync and Restart ==========" -ForegroundColor Cyan
         
+        if (-not $changedFiles -or @($changedFiles).Count -eq 0) {
+            $changedFiles = @('vocab-server/server.js')
+            Write-Host "  -> No changed-file list; defaulting to vocab-server/server.js" -ForegroundColor Yellow
+        }
+
         Write-Host "  -> Backup server.js on remote" -ForegroundColor DarkCyan
         $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
         Invoke-RemoteCommand "cp $RemoteApiRoot/server.js $RemoteApiRoot/server.js.bak-$timestamp"
