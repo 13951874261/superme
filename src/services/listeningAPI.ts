@@ -103,7 +103,11 @@ export async function runListeningEngine(userInput: string, standardText: string
     }),
   });
 
-  if (!response.ok) throw new Error('比对引擎运行失败');
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    const errMsg = errData?.message || errData?.error || `比对引擎运行失败 (HTTP ${response.status})`;
+    throw new Error(errMsg);
+  }
   const data = await response.json();
   
   // 工作流节点输出的变量名为 result，内容为 JSON 字符串，需要解析

@@ -98,13 +98,13 @@ workflow:
         type: start
         variables:
         - label: user_input
-          max_length: 10000
+          max_length: 50000
           options: []
           required: true
           type: paragraph
           variable: user_input
         - label: standard_text
-          max_length: 10000
+          max_length: 50000
           options: []
           required: true
           type: paragraph

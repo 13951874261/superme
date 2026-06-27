@@ -161,7 +161,8 @@ export default function ListenTab() {
       const result = await runListeningEngine(listenInput, listenMaterial, theme);
       setListenResult(result);
     } catch (e) {
-      showNotice('listen', '听辨解析失败，请检查网络或 API 配置。', 'error');
+      const msg = e instanceof Error ? e.message : '听辨解析失败';
+      showNotice('listen', `解析失败：${msg}`, 'error');
     } finally {
       setIsListenLoading(false);
     }
