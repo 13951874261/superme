@@ -3557,27 +3557,72 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   });
 }
 
-const { Agent: TtsUndiciAgent } = require('node:undici');
+const https = require('https');
+const http = require('http');
 
-/** IP 直连 HTTPS 时证书域名不匹配，Node fetch 会报 fetch failed */
-function buildTtsUpstreamFetchOptions(apiUrl, apiKey, body, signal) {
-  const options = {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-    body: JSON.stringify(body),
-    signal
-  };
-  const forceInsecure = process.env.TTS_INSECURE_TLS === '1' || process.env.TTS_INSECURE_TLS === 'true';
-  let needsInsecureTls = forceInsecure;
-  if (!needsInsecureTls) {
+function getTtsUpstreamUrls() {
+  const primary = process.env.TTS_API_URL || 'https://23.95.214.232/v1/audio/speech';
+  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://9router.234124123.xyz/v1/audio/speech';
+  return [...new Set([primary, fallback].filter(Boolean))];
+}
+
+function postTtsUpstream(apiUrl, apiKey, body, signal) {
+  return new Promise((resolve, reject) => {
+    let parsedUrl;
     try {
-      needsInsecureTls = /^\d{1,3}(\.\d{1,3}){3}$/.test(new URL(apiUrl).hostname);
-    } catch { /* ignore */ }
-  }
-  if (needsInsecureTls) {
-    options.dispatcher = new TtsUndiciAgent({ connect: { rejectUnauthorized: false } });
-  }
-  return options;
+      parsedUrl = new URL(apiUrl);
+    } catch (err) {
+      reject(err);
+      return;
+    }
+
+    const payload = JSON.stringify(body);
+    const isHttps = parsedUrl.protocol === 'https:';
+    const transport = isHttps ? https : http;
+    const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(parsedUrl.hostname);
+    const insecureTls = process.env.TTS_INSECURE_TLS === '1'
+      || process.env.TTS_INSECURE_TLS === 'true'
+      || isIpHost;
+
+    const reqOptions = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (isHttps ? 443 : 80),
+      path: parsedUrl.pathname + parsedUrl.search,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Length': Buffer.byteLength(payload),
+      },
+      ...(isHttps && insecureTls ? { rejectUnauthorized: false } : {}),
+    };
+
+    const req = transport.request(reqOptions, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        resolve({
+          ok: res.statusCode >= 200 && res.statusCode < 300,
+          status: res.statusCode,
+          buffer: Buffer.concat(chunks),
+        });
+      });
+    });
+
+    req.on('error', reject);
+    req.setTimeout(120000, () => req.destroy(new Error('TTS upstream timeout')));
+
+    if (signal) {
+      if (signal.aborted) {
+        req.destroy(new Error('aborted'));
+        return;
+      }
+      signal.addEventListener('abort', () => req.destroy(new Error('aborted')), { once: true });
+    }
+
+    req.write(payload);
+    req.end();
+  });
 }
 
 function formatTtsFetchError(err) {
@@ -3600,7 +3645,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   const maxAttempts = taskId ? 8 : 2;
   try {
   const taskQueue = taskId ? require('./services/taskQueue') : null;
-  const apiUrl = process.env.TTS_API_URL || 'https://23.95.214.232/v1/audio/speech';
+  const ttsUpstreamUrls = getTtsUpstreamUrls();
   const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
   const gatewayFailed = { value: false }; // ???????????????
@@ -3715,7 +3760,29 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
       try {
         const body = { model: finalModel, input: chunkText };
 
-        const r = await fetch(apiUrl, buildTtsUpstreamFetchOptions(apiUrl, apiKey, body, controller.signal));
+        let r = null;
+        let upstreamErr = null;
+        for (const apiUrl of ttsUpstreamUrls) {
+          try {
+            const upstreamRes = await postTtsUpstream(apiUrl, apiKey, body, controller.signal);
+            r = {
+              ok: upstreamRes.ok,
+              status: upstreamRes.status,
+              arrayBuffer: async () => upstreamRes.buffer,
+              text: async () => upstreamRes.buffer.toString('utf8'),
+            };
+            if (upstreamRes.ok || upstreamRes.status === 502 || upstreamRes.status === 504) {
+              break;
+            }
+            upstreamErr = new Error(`HTTP ${upstreamRes.status}: ${upstreamRes.buffer.toString('utf8').slice(0, 200)}`);
+          } catch (err) {
+            upstreamErr = err;
+            console.warn(`[TTS] Upstream failed (${apiUrl}):`, formatTtsFetchError(err));
+          }
+        }
+        if (!r) {
+          throw upstreamErr || new Error('All TTS upstream URLs failed');
+        }
 
         clearTimeout(timeoutId);
 
