@@ -3557,6 +3557,36 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   });
 }
 
+const { Agent: TtsUndiciAgent } = require('node:undici');
+
+/** IP 直连 HTTPS 时证书域名不匹配，Node fetch 会报 fetch failed */
+function buildTtsUpstreamFetchOptions(apiUrl, apiKey, body, signal) {
+  const options = {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify(body),
+    signal
+  };
+  const forceInsecure = process.env.TTS_INSECURE_TLS === '1' || process.env.TTS_INSECURE_TLS === 'true';
+  let needsInsecureTls = forceInsecure;
+  if (!needsInsecureTls) {
+    try {
+      needsInsecureTls = /^\d{1,3}(\.\d{1,3}){3}$/.test(new URL(apiUrl).hostname);
+    } catch { /* ignore */ }
+  }
+  if (needsInsecureTls) {
+    options.dispatcher = new TtsUndiciAgent({ connect: { rejectUnauthorized: false } });
+  }
+  return options;
+}
+
+function formatTtsFetchError(err) {
+  const cause = err && err.cause;
+  const code = (cause && cause.code) || (err && err.code);
+  const msg = (cause && cause.message) || (err && err.message) || 'fetch failed';
+  return code ? `${msg} (${code})` : msg;
+}
+
 /**
  * ??????????????????????????????????????????????????????????????
  * @param {string} cleanInput ???????????
@@ -3685,12 +3715,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
       try {
         const body = { model: finalModel, input: chunkText };
 
-        const r = await fetch(apiUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-          body: JSON.stringify(body),
-          signal: controller.signal
-        });
+        const r = await fetch(apiUrl, buildTtsUpstreamFetchOptions(apiUrl, apiKey, body, controller.signal));
 
         clearTimeout(timeoutId);
 
@@ -3728,7 +3753,8 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(() => '')}`);
       } catch (e) {
         clearTimeout(timeoutId);
-        lastErr = e;
+        console.error('[TTS] Upstream fetch failed:', formatTtsFetchError(e));
+        lastErr = new Error(formatTtsFetchError(e));
       }
 
       // ???????????????????????
