@@ -1,16 +1,21 @@
 # ============================================================
-# 本轮增量部署：多角色口语沙盘 (OralWarRoom + difyAPI + yml v8)
-# 手动执行，不含 git commit/push
+# Manual incremental deploy (no git commit/push)
+# Default: system ssh/scp (more stable than PuTTY on Windows)
 # ============================================================
-# 用法：
+# Recommended:
 #   powershell -ExecutionPolicy Bypass -File "D:\cursor\work\super-agent\deploy-oral-sandbox-round.ps1"
-# 使用系统 SSH（非 PuTTY）：
-#   powershell -ExecutionPolicy Bypass -File "D:\cursor\work\super-agent\deploy-oral-sandbox-round.ps1" -UseSystemSSH
+# Force PuTTY:
+#   powershell -ExecutionPolicy Bypass -File "D:\cursor\work\super-agent\deploy-oral-sandbox-round.ps1" -UsePuTTY
+# Include yml v8:
+#   powershell -ExecutionPolicy Bypass -File "D:\cursor\work\super-agent\deploy-oral-sandbox-round.ps1" -IncludeYml
 # ============================================================
 
 param(
+    [switch]$UsePuTTY,
     [switch]$UseSystemSSH,
-    [string]$SSHPassword
+    [switch]$IncludeYml,
+    [string]$SSHPassword,
+    [int]$MaxRetries = 3
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,23 +24,29 @@ $ProjectRoot = 'D:\cursor\work\super-agent'
 $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfE'
-$HostKeyOptions = if ($HostKey) { @("-hostkey", $HostKey) } else { @() }
+$HostKeyOptions = if ($HostKey) { @('-hostkey', $HostKey) } else { @() }
+$SshOpts = @('-o', 'ServerAliveInterval=30', '-o', 'ServerAliveCountMax=3', '-o', 'ConnectTimeout=25', '-o', 'StrictHostKeyChecking=accept-new')
 
 Set-Location $ProjectRoot
 
-Write-Host "========== 本轮变更文件 ==========" -ForegroundColor Cyan
-Write-Host "  src/components/modules/OralWarRoom.tsx"
-Write-Host "  src/services/difyAPI.ts"
-Write-Host "  yml/English_Oral_Sandbox (8).yml"
-Write-Host ""
+Write-Host '========== Changes this round ==========' -ForegroundColor Cyan
+Write-Host '  [frontend] src/components/modules/OralWarRoom.tsx'
+if ($IncludeYml) {
+    Write-Host '  [yml] yml/English_Oral_Sandbox (8).yml'
+}
+Write-Host ''
 
-# SSH/SCP 工具选择
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
-$UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink) -and (-not $UseSystemSSH)
+$HasPuTTY = ($null -ne $Pscp) -and ($null -ne $Plink)
+$UsePuTTYMode = $UsePuTTY -and $HasPuTTY -and (-not $UseSystemSSH)
 
-if ($UsePuTTY) {
-    Write-Host "使用 PuTTY (pscp/plink)" -ForegroundColor Green
+if (-not $UsePuTTYMode) {
+    Write-Host 'Using system ssh/scp (recommended)' -ForegroundColor Green
+    $null = Get-Command ssh -ErrorAction Stop
+    $null = Get-Command scp -ErrorAction Stop
+} else {
+    Write-Host 'Using PuTTY plink/pscp' -ForegroundColor Yellow
     $PasswordPtr = [IntPtr]::Zero
     if ($SSHPassword) {
         $PlainPassword = $SSHPassword
@@ -44,49 +55,78 @@ if ($UsePuTTY) {
         $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
         $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto($PasswordPtr)
     }
-} else {
-    Write-Host "使用系统 ssh/scp" -ForegroundColor Yellow
+}
+
+function Invoke-WithRetry {
+    param(
+        [string]$Label,
+        [scriptblock]$Action
+    )
+    for ($i = 1; $i -le $MaxRetries; $i++) {
+        try {
+            & $Action
+            if ($LASTEXITCODE -ne 0) { throw "exit code $LASTEXITCODE" }
+            return
+        } catch {
+            $msg = $_.Exception.Message
+            Write-Host "  [$Label] attempt $i/$MaxRetries failed: $msg" -ForegroundColor Yellow
+            if ($i -eq $MaxRetries) {
+                throw "[$Label] failed after $MaxRetries attempts. Try: ssh $ServerHost echo ok"
+            }
+            Start-Sleep -Seconds (2 * $i)
+        }
+    }
 }
 
 function Invoke-RemoteCommand {
     param([string]$Command)
-    if ($UsePuTTY) {
-        if ($PlainPassword) {
-            & $Plink @HostKeyOptions -pw $PlainPassword -batch $ServerHost $Command
+    Invoke-WithRetry -Label 'ssh' -Action {
+        if ($UsePuTTYMode) {
+            if ($PlainPassword) {
+                & $Plink @HostKeyOptions -ssh -batch -pw $PlainPassword $ServerHost $Command
+            } else {
+                & $Plink @HostKeyOptions -ssh -batch $ServerHost $Command
+            }
         } else {
-            & $Plink @HostKeyOptions -batch $ServerHost $Command
+            & ssh @SshOpts $ServerHost $Command
         }
-    } else {
-        ssh $ServerHost $Command
     }
-    if ($LASTEXITCODE -ne 0) { throw "远程命令失败: $Command" }
 }
 
 function Send-File {
     param([string]$Source, [string]$Destination)
-    if ($UsePuTTY) {
-        if ($PlainPassword) {
-            & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source "${ServerHost}:$Destination"
+    Invoke-WithRetry -Label "scp $Source" -Action {
+        if ($UsePuTTYMode) {
+            if ($PlainPassword) {
+                & $Pscp -r @HostKeyOptions -batch -pw $PlainPassword $Source "${ServerHost}:$Destination"
+            } else {
+                & $Pscp -r @HostKeyOptions -batch $Source "${ServerHost}:$Destination"
+            }
         } else {
-            & $Pscp -r @HostKeyOptions -batch $Source "${ServerHost}:$Destination"
+            & scp @SshOpts -r $Source "${ServerHost}:$Destination"
         }
-    } else {
-        scp -r $Source "${ServerHost}:$Destination"
     }
-    if ($LASTEXITCODE -ne 0) { throw "上传失败: $Source -> $Destination" }
 }
 
 try {
-    # ── Step 1: 前端构建 ──
-    Write-Host "========== Step 1: 前端构建 ==========" -ForegroundColor Cyan
-    pnpm install
-    if ($LASTEXITCODE -ne 0) { throw 'pnpm install 失败' }
-    pnpm build
-    if ($LASTEXITCODE -ne 0) { throw 'pnpm build 失败' }
+    Write-Host '========== Step 0: SSH connectivity test ==========' -ForegroundColor Cyan
+    Invoke-RemoteCommand 'echo deploy-ok'
+    Write-Host '  SSH OK' -ForegroundColor Green
 
-    # ── Step 2: 上传 dist ──
-    Write-Host "========== Step 2: 上传前端 dist ==========" -ForegroundColor Cyan
-    Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds $RemoteWebRoot/dist/assets $RemoteWebRoot/yml"
+    Write-Host '========== Step 1: Frontend build ==========' -ForegroundColor Cyan
+    pnpm install
+    if ($LASTEXITCODE -ne 0) { throw 'pnpm install failed' }
+    pnpm build
+    if ($LASTEXITCODE -ne 0) { throw 'pnpm build failed' }
+
+    Write-Host '========== Step 2: Upload dist ==========' -ForegroundColor Cyan
+    Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist"
+    Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/assets"
+    Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds"
+    if ($IncludeYml) {
+        Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/yml"
+    }
+
     Send-File "$ProjectRoot\dist\index.html" "$RemoteWebRoot/dist/"
     if (Test-Path "$ProjectRoot\dist\assets") {
         Send-File "$ProjectRoot\dist\assets" "$RemoteWebRoot/dist/"
@@ -95,32 +135,41 @@ try {
         Send-File "$ProjectRoot\dist\images" "$RemoteWebRoot/dist/"
     }
 
-    # ── Step 3: 上传 yml v8（服务器备份，Dify 已在控制台导入） ──
-    Write-Host "========== Step 3: 上传 Dify 工作流 yml ==========" -ForegroundColor Cyan
-    $ymlFile = "$ProjectRoot\yml\English_Oral_Sandbox (8).yml"
-    if (-not (Test-Path $ymlFile)) { throw "找不到 $ymlFile" }
-    Send-File $ymlFile "$RemoteWebRoot/yml/English_Oral_Sandbox_v8.yml"
+    if ($IncludeYml) {
+        Write-Host '========== Step 3: Upload yml v8 ==========' -ForegroundColor Cyan
+        $ymlFile = "$ProjectRoot\yml\English_Oral_Sandbox (8).yml"
+        if (-not (Test-Path $ymlFile)) { throw "Missing file: $ymlFile" }
+        Send-File $ymlFile "$RemoteWebRoot/yml/English_Oral_Sandbox_v8.yml"
+    }
 
-    # ── Step 4: 重载 Nginx ──
-    Write-Host "========== Step 4: 重载 Nginx ==========" -ForegroundColor Cyan
-    Invoke-RemoteCommand "sudo nginx -t && sudo systemctl reload nginx"
+    $nginxStep = if ($IncludeYml) { '4' } else { '3' }
+    Write-Host "========== Step $nginxStep : Reload Nginx ==========" -ForegroundColor Cyan
+    Invoke-RemoteCommand 'sudo nginx -t && sudo systemctl reload nginx'
 
-    # ── Step 5: 健康检查 ──
-    Write-Host "========== Step 5: 服务状态 ==========" -ForegroundColor Cyan
-    Invoke-RemoteCommand "curl -s http://127.0.0.1:3001/api/vocab/health || true"
-    Write-Host ""
-    Write-Host "=====================================================" -ForegroundColor Green
-    Write-Host " 部署完成！" -ForegroundColor Green
-    Write-Host " 前端: https://app.liujingzhuwo.site/" -ForegroundColor Green
-    Write-Host " yml  : $RemoteWebRoot/yml/English_Oral_Sandbox_v8.yml" -ForegroundColor Green
-    Write-Host " 请 Ctrl+Shift+R 强制刷新浏览器" -ForegroundColor Green
-    Write-Host "=====================================================" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "注意: Dify v8 工作流需在 Dify 控制台手动发布；" -ForegroundColor Yellow
-    Write-Host "      前端 VITE_DIFY_ORAL_API_KEY 需指向已发布应用的 API Key。" -ForegroundColor Yellow
+    Write-Host '========== Health check ==========' -ForegroundColor Cyan
+    Invoke-RemoteCommand 'curl -s -o /dev/null -w "HTTP %{http_code}" http://127.0.0.1:3001/api/vocab/stats || true'
+
+    Write-Host ''
+    Write-Host '=====================================================' -ForegroundColor Green
+    Write-Host ' Deploy done' -ForegroundColor Green
+    Write-Host ' https://app.liujingzhuwo.site/' -ForegroundColor Green
+    Write-Host ' Hard refresh: Ctrl+Shift+R' -ForegroundColor Green
+    Write-Host '=====================================================' -ForegroundColor Green
+}
+catch {
+    Write-Host ''
+    Write-Host 'DEPLOY FAILED' -ForegroundColor Red
+    Write-Host $_.Exception.Message -ForegroundColor Red
+    Write-Host ''
+    Write-Host 'Troubleshooting:' -ForegroundColor Yellow
+    Write-Host "  1. Test SSH manually:  ssh $ServerHost echo ok"
+    Write-Host '  2. Re-run this script (default uses system ssh, not PuTTY)'
+    Write-Host '  3. If using password auth, ensure server allows SSH from your IP'
+    Write-Host '  4. Check cloud security group allows port 22'
+    exit 1
 }
 finally {
-    if ($UsePuTTY -and $PasswordPtr -ne [IntPtr]::Zero) {
+    if ($UsePuTTYMode -and $PasswordPtr -ne [IntPtr]::Zero) {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($PasswordPtr)
     }
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookPlus, ChevronDown, ChevronUp, Clock, Copy, Globe, Mic, MicOff, Send, ShieldAlert, Star, Target, Users, Trophy, BookOpen } from 'lucide-react';
+import { AlertTriangle, BookPlus, ChevronDown, ChevronUp, Clock, Copy, Globe, Mic, MicOff, Send, ShieldAlert, Star, Target, Users, Trophy } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
 import { sendOralChatMessage, type ParsedAiResponse, type OralChatContext } from '../../services/difyAPI';
@@ -425,8 +425,9 @@ export default function OralWarRoom({
   const [showGoldGlow, setShowGoldGlow] = useState(false);
   const [isLoopholePlanted, setIsLoopholePlanted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
-  const [briefCollapsed, setBriefCollapsed] = useState(false);
+  const [briefCollapsed, setBriefCollapsed] = useState(true);
   const [feedbackExpanded, setFeedbackExpanded] = useState(false);
+  const [showIntelDetails, setShowIntelDetails] = useState(false);
   const [latestFeedback, setLatestFeedback] = useState<ParsedAiResponse | null>(null);
   const [flawTemplates, setFlawTemplates] = useState<string[]>([]);
   const [currentFlawType, setCurrentFlawType] = useState('');
@@ -903,6 +904,20 @@ export default function OralWarRoom({
   // 键盘发送：读取当前 inputText state
   const handleSend = () => handleSendWithText(inputText);
 
+  const latestExchange = useMemo(() => {
+    const aiMessages = messages.filter(m => m.role === 'ai');
+    const userMessages = messages.filter(m => m.role === 'user');
+    const lastAi = aiMessages[aiMessages.length - 1];
+    const lastUser = userMessages[userMessages.length - 1];
+    return {
+      aiDialogue: lastAi?.parsed ? safeText(lastAi.parsed.dialogue) : '',
+      aiSpeaker: lastAi?.parsed ? safeText(lastAi.parsed.current_speaker) : '',
+      roleAddress: lastAi?.parsed ? safeText(lastAi.parsed.role_address) : '',
+      userText: lastUser?.content || '',
+      turnCount: messages.length,
+    };
+  }, [messages]);
+
   const content = (
     <div className="bg-[#f8f9fa] rounded-[2rem] xl:rounded-[2.5rem] p-3 sm:p-4 md:p-6 border border-gray-100 shadow-sm relative">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
@@ -1050,349 +1065,237 @@ export default function OralWarRoom({
           </div>
         </aside>
 
-        <section className="2xl:col-span-8 flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden h-[680px] sm:h-[720px] 2xl:h-full">
-          <div className="p-5 border-b border-gray-100 bg-[#f8f9fa] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <section className="2xl:col-span-8 flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))]">
+          <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-[#f8f9fa] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-1">对抗通信通道</div>
-              <h4 className="text-lg font-black text-[#202124]">实时解析 AI 破绽并引导反击</h4>
+              <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-0.5">对抗通信通道</div>
+              <h4 className="text-base font-black text-[#202124]">对话主线 · 实时掌控</h4>
             </div>
-            <div className="flex items-center gap-3 self-end sm:self-auto">
-              <div 
-                className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-white font-black text-xs tracking-widest shadow-md transition-all duration-300 ${
-                  showGoldGlow 
-                    ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 ring-4 ring-yellow-300 scale-110 animate-bounce shadow-[0_0_25px_rgba(234,179,8,0.8)]' 
+            <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap justify-end">
+              <button
+                type="button"
+                onClick={() => setBriefCollapsed(v => !v)}
+                className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[#FF5722] cursor-pointer"
+              >
+                {briefCollapsed ? '战术简报' : '收起简报'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowIntelDetails(v => !v)}
+                className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border cursor-pointer ${
+                  showIntelDetails ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-600 hover:border-violet-300'
+                }`}
+              >
+                {showIntelDetails ? '收起分析' : '展开分析'}
+              </button>
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white font-black text-[10px] tracking-widest shadow-md transition-all ${
+                  showGoldGlow
+                    ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 ring-2 ring-yellow-300 scale-105'
                     : 'bg-slate-900 border border-slate-800'
                 }`}
               >
-                <Trophy className="w-3.5 h-3.5 text-yellow-405" />
-                <span>逻辑反击积分: {combatPoints} XP</span>
+                <Trophy className="w-3 h-3" />
+                <span>{combatPoints} XP</span>
               </div>
-              <div className="text-[11px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-3 py-2 border border-gray-200">
-                {isSending ? '对手推演中' : '待命'}
+              <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-2.5 py-1.5 border border-gray-200">
+                {isSending ? '推演中' : '待命'}
               </div>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gradient-to-b from-white to-[#f8f9fa]">
-            {/* 战术简报卡片 */}
-            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setBriefCollapsed(v => !v)}
-                className="w-full flex items-center justify-between px-4 py-3 bg-[#202124] text-white cursor-pointer"
-              >
-                <span className="text-[10px] font-black uppercase tracking-widest">📋 战术简报 TACTICAL BRIEF</span>
-                {briefCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
-              </button>
-              {!briefCollapsed && (
-                <div className="p-4 space-y-2 text-xs">
-                  <div><span className="font-black text-gray-400">【场景名称】</span> <span className="font-bold text-[#202124]">{activeScene.shortTitle}</span></div>
-                  <div><span className="font-black text-gray-400">【角色列表】</span> <span className="text-gray-700">{activeScene.roleList}</span></div>
-                  <div><span className="font-black text-gray-400">【背景信息】</span> <span className="text-gray-700">{activeScene.desc}</span></div>
-                  <div className="flex flex-wrap gap-1.5 items-center">
-                    <span className="font-black text-gray-400">【冲突点】</span>
-                    {activeScene.conflicts.map(c => (
-                      <span key={c} className="px-2 py-0.5 rounded-full bg-[#FF5722]/10 text-[#FF5722] text-[10px] font-black">{c}</span>
-                    ))}
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <span className="font-black text-gray-400 shrink-0">【对话启动】</span>
-                    <button type="button" onClick={() => setInputText(activeScene.openingLine)} className="text-left text-violet-700 italic hover:text-[#FF5722] transition-colors cursor-pointer">
-                      &ldquo;{activeScene.openingLine}&rdquo;
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-gray-400">【难度评级】</span>
-                    {renderStars(currentDifficulty ?? activeScene.level)}
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-violet-500 to-[#FF5722] text-white">
-                      Level {currentDifficulty ?? activeScene.level}
-                    </span>
-                  </div>
-                  <div><span className="font-black text-gray-400">【跨文化信号】</span> <span className="text-purple-800">{activeScene.culturalContext.slice(0, 100)}</span></div>
-                </div>
+          {/* 固定对话主线 — 始终可见，无需滚动 */}
+          <div className="shrink-0 border-b border-gray-200 bg-gradient-to-br from-[#202124] via-slate-900 to-[#2a2a2e] text-white px-4 py-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span className="text-[9px] font-black uppercase tracking-widest text-[#FF5722]">
+                对话主线 LIVE · 第 {Math.max(1, Math.ceil(latestExchange.turnCount / 2))} 轮
+              </span>
+              {latestExchange.aiDialogue && (
+                <SpeakButton text={latestExchange.aiDialogue} title="播放当前 AI 发言" />
               )}
             </div>
-
-            {messages.length === 0 ? (
-              <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-gray-400 text-center px-6">
-                <ShieldAlert className="w-12 h-12 mb-4 opacity-20 animate-pulse" />
-                <p className="text-sm font-medium">{isSending ? '对手角色正在开场...' : '等待 AI 角色率先开口，随后进行口答反击。'}</p>
+            {latestExchange.aiDialogue ? (
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {latestExchange.aiSpeaker && (
+                    <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-white/10 text-emerald-300">
+                      {latestExchange.aiSpeaker}
+                    </span>
+                  )}
+                  {latestExchange.roleAddress && (
+                    <span className="text-[10px] font-bold text-violet-300">→ {latestExchange.roleAddress}</span>
+                  )}
+                </div>
+                <p
+                  className="text-base sm:text-lg font-medium italic leading-relaxed text-white/95 select-text cursor-text"
+                  onMouseUp={handleDialogueMouseUp}
+                >
+                  &ldquo;{latestExchange.aiDialogue}&rdquo;
+                </p>
               </div>
+            ) : (
+              <p className="text-sm text-gray-400 italic">
+                {isSending ? '对手角色正在开场...' : '等待 AI 率先开口...'}
+              </p>
+            )}
+            {latestExchange.userText && (
+              <div className="mt-3 pt-3 border-t border-white/10">
+                <span className="text-[9px] font-black uppercase tracking-widest text-gray-500">你的上一句</span>
+                <p className="text-sm text-gray-300 leading-relaxed mt-1">{latestExchange.userText}</p>
+              </div>
+            )}
+          </div>
+
+          {/* 战术简报 — 折叠时不占空间 */}
+          {!briefCollapsed && (
+            <div className="shrink-0 max-h-[140px] overflow-y-auto border-b border-gray-100 bg-white px-4 py-3 text-xs space-y-1.5">
+              <div><span className="font-black text-gray-400">场景 </span><span className="font-bold">{activeScene.shortTitle}</span></div>
+              <div className="line-clamp-2"><span className="font-black text-gray-400">角色 </span>{activeScene.roleList}</div>
+              <div className="flex flex-wrap gap-1 items-center">
+                <span className="font-black text-gray-400">冲突 </span>
+                {activeScene.conflicts.map(c => (
+                  <span key={c} className="px-1.5 py-0.5 rounded-full bg-[#FF5722]/10 text-[#FF5722] text-[9px] font-black">{c}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 对话历史 — 紧凑时间线，分析详情按需展开 */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 bg-gradient-to-b from-white to-[#f8f9fa]">
+            {messages.length === 0 ? (
+              <p className="text-center text-xs text-gray-400 py-4">历史记录将显示于此</p>
             ) : (
               messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   {msg.role === 'user' ? (
-                    <div className="max-w-[82%] rounded-3xl rounded-tr-md bg-[#202124] text-white px-5 py-4 shadow-md">
-                      <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">你</div>
+                    <div className="max-w-[88%] rounded-2xl rounded-tr-sm bg-[#202124] text-white px-3 py-2 shadow-sm">
                       <p className="text-sm leading-relaxed">{msg.content}</p>
                     </div>
                   ) : (
-                    <div className="w-full max-w-[92%] rounded-3xl rounded-tl-md bg-white border border-gray-100 px-5 py-4 shadow-sm">
+                    <div className="w-full max-w-[92%] rounded-2xl rounded-tl-sm bg-white border border-gray-100 px-3 py-2 shadow-sm">
                       {msg.parsed ? (
                         <>
-                          <div className="flex flex-wrap items-center gap-2 mb-3">
+                          <div className="flex items-center gap-2 mb-1">
                             {(() => {
                               const speaker = safeText(msg.parsed.current_speaker);
                               const style = getSpeakerStyle(speaker, activeScene);
-                              const isJoint = safeText(msg.parsed.joint_pressure) === 'true' || style === 'joint';
                               return (
-                                <span className={`inline-flex items-center gap-1 rounded-full text-[10px] font-black uppercase tracking-widest px-3 py-1 ${SPEAKER_STYLE_CLASS[isJoint ? 'joint' : style]}`}>
-                                  {speaker} {isJoint ? '(联合施压)' : style === 'blocker' ? '(阻力方)' : style === 'ally' ? '(盟友)' : ''}
+                                <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${SPEAKER_STYLE_CLASS[style]}`}>
+                                  {speaker}
                                 </span>
                               );
                             })()}
-                            {msg.parsed.role_address && (
-                              <span className="text-[10px] font-bold text-violet-600 bg-violet-50 inline-block px-2 py-0.5 rounded-full">
-                                🎯 本轮面向: {safeText(msg.parsed.role_address)}
-                              </span>
-                            )}
+                            <SpeakButton text={safeText(msg.parsed.dialogue)} title="播放" />
                           </div>
-
-                          <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 mb-3">
-                            <div className="flex items-center justify-between gap-3 mb-2">
-                              <p className="text-[11px] font-black uppercase tracking-widest text-gray-400">Dialogue</p>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded-full">
-划
-选
-词
-汇
-可
-入
-库
-</span>
-                                <SpeakButton text={safeText(msg.parsed.dialogue)} title="播放 AI 英文发言" />
-                              </div>
-                            </div>
-                            <p
-                              className="text-sm leading-relaxed text-[#202124] italic select-text cursor-text"
-                              onMouseUp={handleDialogueMouseUp}
-                            >
-“{safeText(msg.parsed.dialogue)}”
-</p>
-                          </div>
-
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div className="rounded-2xl bg-blue-50 border border-blue-100 p-4">
-                              <div className="text-[10px] font-black uppercase tracking-widest text-blue-600 mb-2">Hidden Intent</div>
-                              <p className="text-sm text-blue-900 leading-relaxed">{safeText(msg.parsed.hidden_intent)}</p>
-                            </div>
-                            <div className="rounded-2xl bg-red-50 border border-red-100 p-4">
-                              <div className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-2">发现破绽</div>
-                              <p className="text-sm text-red-900 leading-relaxed">{safeText(msg.parsed.flaw_point || '未识别到破绽')}</p>
-                            </div>
-                          </div>
-
-                          {msg.parsed.cultural_signal && safeText(msg.parsed.cultural_signal) && (
-                            <div className="mt-2 text-[10px] font-bold text-purple-700 bg-purple-50 inline-block px-2 py-0.5 rounded-full">
-                              🌐 跨文化信号: {safeText(msg.parsed.cultural_signal)}
-                            </div>
-                          )}
-
-                          {msg.parsed.difficulty_rating && (
-                            <div className="mt-3 flex items-center gap-2">
-                              <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">难度评级</span>
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-violet-500 to-[#FF5722] text-white">
-                                Level {safeText(msg.parsed.difficulty_rating)}
-                              </span>
-                            </div>
-                          )}
-
-                          {parseBranchList(msg.parsed.branch_suggestions).length > 0 && (
-                            <div className="mt-3">
-                              <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1.5">后续分支走向</div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {parseBranchList(msg.parsed.branch_suggestions).map((b, i) => (
-                                  <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setInputText(b)}
-                                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 border border-gray-200 text-gray-600 hover:border-[#FF5722] hover:text-[#FF5722] transition-all cursor-pointer"
-                                  >
-                                    → {b}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {(() => {
-                            const feedbacks = [
-                              { key: 'feedback_pronunciation', label: '发音与语调', color: 'blue', fallback: msg.parsed.evaluation },
-                              { key: 'feedback_vocab', label: '高阶用语', color: 'purple', fallback: null },
-                              { key: 'feedback_role_switch', label: '角色切换', color: 'amber', fallback: null },
-                              { key: 'feedback_strategy', label: '谈判策略', color: 'rose', fallback: null },
-                            ];
-                            const validFeedbacks = feedbacks.map(f => ({ ...f, val: safeText((msg.parsed as any)[f.key] || f.fallback || '') })).filter(f => f.val);
-                            
-                            if (validFeedbacks.length === 0) return null;
-
-                            return (
-                              <div className="mt-3 rounded-2xl bg-emerald-50 border border-emerald-100 p-4">
-                                <div className="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-3">AI 多维反馈 // Multi-Dimensional Feedback</div>
-                                <div className="grid grid-cols-2 gap-2">
-                                  {validFeedbacks.map(({ key, label, color, val }) => (
-                                    <div key={key} className={`rounded-xl bg-${color}-50 border border-${color}-100 p-3`}>
-                                      <div className={`text-[9px] font-black uppercase tracking-widest text-${color}-600 mb-1`}>{label}</div>
-                                      <p className={`text-xs text-${color}-900 leading-relaxed`}>{val}</p>
-                                    </div>
+                          <p
+                            className="text-sm leading-relaxed text-[#202124] italic select-text cursor-text"
+                            onMouseUp={handleDialogueMouseUp}
+                          >
+                            &ldquo;{safeText(msg.parsed.dialogue)}&rdquo;
+                          </p>
+                          {showIntelDetails && (
+                            <div className="mt-2 pt-2 border-t border-gray-100 space-y-2 text-xs">
+                              <p className="text-blue-800"><span className="font-black text-blue-600">意图 </span>{safeText(msg.parsed.hidden_intent)}</p>
+                              {safeText(msg.parsed.flaw_point) && safeText(msg.parsed.flaw_point) !== '未识别到破绽' && (
+                                <p className="text-red-800"><span className="font-black text-red-600">破绽 </span>{safeText(msg.parsed.flaw_point)}</p>
+                              )}
+                              {parseBranchList(msg.parsed.branch_suggestions).length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {parseBranchList(msg.parsed.branch_suggestions).map((b, i) => (
+                                    <button key={i} type="button" onClick={() => setInputText(b)} className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-50 border border-gray-200 hover:border-[#FF5722] cursor-pointer">
+                                      → {b}
+                                    </button>
                                   ))}
                                 </div>
-                              </div>
-                            );
-                          })()}
+                              )}
+                            </div>
+                          )}
                         </>
                       ) : (
-                        <>
-                          <div className="flex items-center gap-2 mb-3">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-[#202124] text-white text-[10px] font-black uppercase tracking-widest px-3 py-1">
-                              AI
-                            </span>
-                            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-widest px-3 py-1">
-                              <AlertTriangle className="w-3 h-3" /> 解析失败
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                        </>
+                        <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.content}</p>
                       )}
                     </div>
                   )}
                 </div>
               ))
             )}
-            {/* CORNELL SUMMARY 复盘区 */}
-            {weaknessLog.length > 0 && (
-              <div className="mt-8 pt-6 border-t-2 border-dashed border-amber-200 animate-[fadeIn_0.3s_ease-out] w-full">
-                <div className="flex items-center gap-2 mb-4">
-                  <BookOpen className="w-5 h-5 text-amber-500" />
-                  <span className="text-xs font-black uppercase tracking-widest text-amber-600">
-                    CORNELL 复盘与弱点扫描 // Cornell Summary
-                  </span>
+            {showIntelDetails && weaknessLog.length > 0 && (
+              <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50/30 p-3">
+                <summary className="text-[10px] font-black uppercase tracking-widest text-amber-700 cursor-pointer">CORNELL 复盘 ({weaknessLog.length})</summary>
+                <div className="mt-2 space-y-2 max-h-[120px] overflow-y-auto">
+                  {weaknessLog.slice(-3).map((entry, idx) => (
+                    <p key={idx} className="text-xs text-gray-700">{entry.flaw}</p>
+                  ))}
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* 左栏：弱点扫描 */}
-                  <div className="bg-amber-50/40 rounded-2xl p-5 border border-amber-200/60 shadow-[0_4px_12px_rgba(245,158,11,0.03)] flex flex-col gap-3">
-                    <h6 className="text-[10px] font-black uppercase tracking-widest text-amber-700 pb-1.5 border-b border-amber-200/30">
-                      弱点扫描 (Weakness Scan)
-                    </h6>
-                    <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
-                      {weaknessLog.slice(-5).map((entry, idx) => (
-                        <div key={idx} className="bg-white/70 border border-amber-100 rounded-xl p-3 shadow-[0_2px_6px_rgba(0,0,0,0.01)]">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                              {entry.scene.split('：')[0]}
-                            </span>
-                            <span className="text-[8px] text-gray-400 font-mono">
-                              {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <p className="text-xs font-bold text-gray-700 leading-normal">
-                            {entry.flaw}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 右栏：定向深化建议 */}
-                  <div className="bg-emerald-50/40 rounded-2xl p-5 border border-emerald-200/60 shadow-[0_4px_12px_rgba(16,185,129,0.03)] flex flex-col gap-3">
-                    <h6 className="text-[10px] font-black uppercase tracking-widest text-emerald-700 pb-1.5 border-b border-emerald-200/30">
-                      定向深化建议 (Deepening Suggestions)
-                    </h6>
-                    <div className="space-y-3 text-xs text-emerald-800 leading-relaxed font-medium">
-                      <p>根据您的对战记录，建议在后续发言中：</p>
-                      <ul className="list-disc pl-4 space-y-1.5 text-emerald-950 font-bold">
-                        <li><strong>主攻漏洞反击：</strong> 针对 AI 露出的 flaw_point（例如因果谬误、偷换概念），直接使用“What makes you link A to B?”等精准反问。</li>
-                        <li><strong>合理控制分寸：</strong> 对抗尖锐提问时，使用“That is a valid concern, however...”等让步衔接。</li>
-                        <li><strong>吸收高管用语：</strong> 注意在右侧多维反馈中标记的新词汇，并尽快划词入库。</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              </details>
             )}
             <div ref={bottomRef} />
           </div>
 
-          <div className="border-t border-gray-100 p-5 bg-white">
-            {/* 多维反馈面板（固定于输入区上方） */}
+          <div className="shrink-0 border-t border-gray-100 p-4 bg-white">
+            {/* 多维反馈 — 默认单行进度条，点击展开详情 */}
             {latestFeedback && (latestFeedback.feedback_pronunciation || latestFeedback.feedback_vocab || latestFeedback.feedback_role_switch || latestFeedback.feedback_strategy) && (
-              <div className="mb-3 rounded-2xl bg-slate-50 border border-slate-200 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => setFeedbackExpanded(v => !v)}
-                  className="w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer hover:bg-slate-100 transition-colors"
-                >
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">AI 多维反馈</span>
-                  {feedbackExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
-                </button>
-                <div className="px-4 pb-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFeedbackExpanded(v => !v)}
+                className="w-full mb-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-left cursor-pointer hover:bg-slate-100 transition-colors"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">AI 反馈</span>
+                  {feedbackExpanded ? <ChevronUp className="w-3 h-3 text-gray-400" /> : <ChevronDown className="w-3 h-3 text-gray-400" />}
+                </div>
+                <div className="flex gap-2">
                   {[
-                    { key: 'feedback_pronunciation', label: '发音准确度' },
-                    { key: 'feedback_vocab', label: '用语准确性' },
-                    { key: 'feedback_role_switch', label: '角色切换' },
-                    { key: 'feedback_strategy', label: '谈判策略' },
+                    { key: 'feedback_pronunciation', label: '发音' },
+                    { key: 'feedback_vocab', label: '用语' },
+                    { key: 'feedback_role_switch', label: '切换' },
+                    { key: 'feedback_strategy', label: '策略' },
                   ].map(({ key, label }) => {
                     const val = safeText((latestFeedback as Record<string, unknown>)[key]);
                     if (!val) return null;
                     const pctMatch = val.match(/(\d{1,3})\s*%/);
                     const pct = pctMatch ? Math.min(100, Number(pctMatch[1])) : 70;
                     return (
-                      <div key={key} className="flex-1 min-w-[140px]">
-                        <div className="text-[9px] font-bold text-gray-500 mb-1">{label}</div>
-                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div key={key} className="flex-1 min-w-0">
+                        <div className="text-[8px] font-bold text-gray-400 truncate">{label}</div>
+                        <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
                           <div className="h-full bg-[#FF5722] rounded-full" style={{ width: `${pct}%` }} />
                         </div>
-                        {feedbackExpanded && <p className="text-[10px] text-gray-600 mt-1 leading-relaxed">{val}</p>}
                       </div>
                     );
                   })}
                 </div>
-              </div>
+                {feedbackExpanded && (
+                  <div className="mt-2 pt-2 border-t border-slate-200 space-y-1 text-[10px] text-gray-600">
+                    {['feedback_pronunciation', 'feedback_vocab', 'feedback_role_switch', 'feedback_strategy'].map(key => {
+                      const val = safeText((latestFeedback as Record<string, unknown>)[key]);
+                      return val ? <p key={key}>{val}</p> : null;
+                    })}
+                  </div>
+                )}
+              </button>
             )}
 
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
               <div className="text-sm font-bold text-[#202124]">{lastNotice}</div>
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">当前局势：{activeScene.conflicts.join(' / ')}</div>
             </div>
             {isLoopholePlanted && (
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl p-4 text-amber-900 shadow-md animate-pulse mb-3">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                  <div className="flex-1">
-                    <h5 className="text-xs font-black uppercase tracking-widest text-amber-800 mb-2">⚠️ 侦测到逻辑破绽！请用英语精准反击</h5>
-                    {currentFlawType && (
-                      <p className="text-xs font-bold mb-1">🔍 破绽类型: {currentFlawType}</p>
-                    )}
-                    {currentFlawClaim && (
-                      <p className="text-xs mb-2 opacity-80">💬 对手声称: {currentFlawClaim.slice(0, 120)}{currentFlawClaim.length > 120 ? '...' : ''}</p>
-                    )}
-                    <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1.5">🎯 推荐反击句式</div>
-                    <div className="space-y-1.5">
-                      {flawTemplates.map((t, i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setInputText(t)}
-                            className="flex-1 text-left text-xs font-semibold italic bg-white/60 rounded-lg px-3 py-1.5 hover:bg-white transition-colors cursor-pointer"
-                          >
-                            {t}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { void navigator.clipboard.writeText(t); }}
-                            className="p-1.5 rounded-lg bg-white/80 hover:bg-white text-amber-700 cursor-pointer"
-                            title="复制"
-                          >
-                            <Copy className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
+              <details className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-xl mb-2 open:p-3">
+                <summary className="px-3 py-2 text-xs font-black uppercase tracking-widest text-amber-800 cursor-pointer list-none flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                  侦测到逻辑破绽 — 点击展开反击句式
+                </summary>
+                <div className="px-3 pb-3 space-y-1.5">
+                  {currentFlawType && <p className="text-xs font-bold">类型: {currentFlawType}</p>}
+                  {flawTemplates.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <button type="button" onClick={() => setInputText(t)} className="flex-1 text-left text-xs italic bg-white/60 rounded-lg px-2 py-1 hover:bg-white cursor-pointer">{t}</button>
+                      <button type="button" onClick={() => { void navigator.clipboard.writeText(t); }} className="p-1 rounded bg-white/80 cursor-pointer"><Copy className="w-3 h-3" /></button>
                     </div>
-                    <p className="text-[10px] font-black text-amber-600 mt-2">成功反击: +50 XP 🏆</p>
-                  </div>
+                  ))}
                 </div>
-              </div>
+              </details>
             )}
             <div className="relative flex flex-col">
               {/* 高压 10 秒倒计时 */}
@@ -1405,7 +1308,7 @@ export default function OralWarRoom({
                 </div>
               )}
               <textarea
-                rows={3}
+                rows={2}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => {
