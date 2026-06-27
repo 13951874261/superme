@@ -149,10 +149,14 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
 
         Write-Host "  -> Uploading frontend artifacts" -ForegroundColor DarkCyan
-        Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds"
+        Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds $RemoteWebRoot/dist/assets"
         Send-File "$ProjectRoot\dist\index.html" "$RemoteWebRoot/dist/"
-        Send-File "$ProjectRoot\dist\images" "$RemoteWebRoot/dist/"
-        Send-File "$ProjectRoot\dist\*" "$RemoteWebRoot/dist/"
+        if (Test-Path "$ProjectRoot\dist\assets") {
+            Send-File "$ProjectRoot\dist\assets" "$RemoteWebRoot/dist/"
+        }
+        if (Test-Path "$ProjectRoot\dist\images") {
+            Send-File "$ProjectRoot\dist\images" "$RemoteWebRoot/dist/"
+        }
         
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "sudo nginx -t && sudo systemctl reload nginx"
@@ -190,6 +194,12 @@ try {
                     Send-File $localFile "$RemoteApiRoot/$relativePath"
                 }
             }
+        }
+
+        $envFile = "$ProjectRoot\vocab-server\.env"
+        if (Test-Path $envFile -PathType Leaf) {
+            Write-Host "     Uploading: .env"
+            Send-File $envFile "$RemoteApiRoot/.env"
         }
 
         $runFixOldVocab = $false

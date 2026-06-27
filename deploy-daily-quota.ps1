@@ -14,7 +14,7 @@ $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
 $HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfF'
-$HostKeyOptions = @()
+$HostKeyOptions = if ($HostKey) { @('-hostkey', $HostKey) } else { @() }
 
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
@@ -39,7 +39,7 @@ function Invoke-RemoteCommand {
 
 function Send-File {
     param([string]$Source, [string]$Destination)
-    & $Pscp @HostKeyOptions -pw $PlainPassword -batch $Source $Destination
+    & $Pscp -r @HostKeyOptions -pw $PlainPassword -batch $Source $Destination
     if ($LASTEXITCODE -ne 0) {
         throw "File upload failed: $Source -> $Destination"
     }
@@ -57,11 +57,14 @@ try {
 
     Write-Host ''
     Write-Host '==========  Step 2: Uploading Frontend Static Assets ==========' -ForegroundColor Cyan
-    # Upload index.html
-    Send-File "$ProjectRoot\dist\index.html" "${ServerHost}:$RemoteWebRoot/dist/index.html"
-
-    # Upload other assets
-    Send-File "$ProjectRoot\dist\*" "${ServerHost}:$RemoteWebRoot/dist/"
+    Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds $RemoteWebRoot/dist/assets"
+    Send-File "$ProjectRoot\dist\index.html" "${ServerHost}:$RemoteWebRoot/dist/"
+    if (Test-Path "$ProjectRoot\dist\assets") {
+        Send-File "$ProjectRoot\dist\assets" "${ServerHost}:$RemoteWebRoot/dist/"
+    }
+    if (Test-Path "$ProjectRoot\dist\images") {
+        Send-File "$ProjectRoot\dist\images" "${ServerHost}:$RemoteWebRoot/dist/"
+    }
 
     Write-Host ''
     Write-Host '==========  Step 3: Backing up old server.js ==========' -ForegroundColor Cyan
