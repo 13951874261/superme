@@ -1,6 +1,7 @@
 import { ComparisonResult } from '../types/listening';
 import { transcribeAudioWithWhisper } from './difyAPI';
 import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+import { buildTtsModel, requestTtsSpeech, type TtsSpeechResult } from './ttsAPI';
 
 // 优先从 localStorage 获取密钥，实现本地优先管理
 const getApiKey = (keyName: string) => localStorage.getItem(keyName) || import.meta.env[`VITE_${keyName}`];
@@ -118,42 +119,17 @@ export async function runListeningEngine(userInput: string, standardText: string
   }
 }
 
-export interface TtsResponse {
-  success?: boolean;
-  audioUrl?: string;  // 缓存命中或直接返回的URL
-  taskId?: string;    // 异步任务ID
-  status?: string;    // 任务状态
-  error?: string;     // 错误信息
-}
+export type TtsResponse = TtsSpeechResult;
 
 /**
  * 调用 /api/tts/speech 获取高保真 MP3 音频流
  * 短文本同步返回 audioUrl；长文本自动进入异步轮询模式
  */
 export async function fetchDifyTTS(text: string, options: { isAsync?: boolean } = {}): Promise<TtsResponse> {
-  const response = await fetch('/api/tts/speech', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      input: text,
-      model: 'edge-tts/' + (localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural'),
-      isAsync: options.isAsync ?? true,  // 默认异步
-    }),
+  return requestTtsSpeech(text, {
+    model: buildTtsModel(),
+    isAsync: options.isAsync ?? true,
   });
-
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    const code = errorData?.code || 'TTS_REQUEST_FAILED';
-    const message = errorData?.message || '生成高保真音频失败';
-    const err: any = new Error(message);
-    err.code = code;
-    throw err;
-  }
-
-  const data = await response.json();
-  return data;
 }
 
 /**

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Volume2, Loader2, Pause } from 'lucide-react';
+import { buildTtsModel, getGlobalVoiceId, requestTtsSpeech } from '../services/ttsAPI';
 
 interface SpeakButtonProps {
   text?: unknown;
@@ -82,15 +83,7 @@ async function resolveTtsAudioUrl(
     audioCache.delete(cacheKey);
   }
 
-  const response = await fetch('/api/tts/speech', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ input: text, model })
-  });
-  if (!response.ok) {
-    throw new Error('TTS Request failed: ' + response.statusText);
-  }
-  const resJson = await response.json();
+  const resJson = await requestTtsSpeech(text, { model });
   if (!resJson.success || !resJson.audioUrl) {
     throw new Error('Invalid TTS response');
   }
@@ -106,8 +99,8 @@ async function resolveTtsAudioUrl(
 
 // 流式句子队列播放器：实现“边听边预加载”极速体验
 async function playSentenceQueue(sentences: string[], rate: number, content: string) {
-  const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
-  const model = `edge-tts/${voiceCode}`;
+  const voiceCode = getGlobalVoiceId();
+  const model = buildTtsModel(voiceCode);
   const myQueue = {
     sentences,
     index: 0,
@@ -221,8 +214,8 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
   const content = normalizeSpeakText(text);
   if (!content) return false;
 
-  const voiceCode = localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
-  const model = `edge-tts/${voiceCode}`;
+  const voiceCode = getGlobalVoiceId();
+  const model = buildTtsModel(voiceCode);
 
   // Toggle 功能：如果是相同内容正在播放，再次点击则停止播放
   if (currentPlayingContent === content) {

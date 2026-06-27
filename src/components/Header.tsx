@@ -5,12 +5,16 @@ import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
 import { useTask } from './TaskContext';
 
+const PREVIEW_TEXT_PREFIX = 'Hi! I am ';
+
 export default function Header() {
   const [selectedVoice, setSelectedVoice] = useState<string>(() => {
     return localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
   });
   const [showVoiceDropdown, setShowVoiceDropdown] = useState(false);
   const [activeVoiceTab, setActiveVoiceTab] = useState<'all' | 'US' | 'UK' | 'other'>('all');
+  const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
+  const [previewErrorVoiceId, setPreviewErrorVoiceId] = useState<string | null>(null);
   const { pendingCount, setIsOpen } = useTask();
 
   useEffect(() => {
@@ -25,6 +29,38 @@ export default function Header() {
     };
   }, []);
 
+  useEffect(() => {
+    let errorTimer: ReturnType<typeof setTimeout>;
+
+    const handlePreviewTtsState = (e: Event) => {
+      const { content, state } = (e as CustomEvent).detail;
+      if (typeof content !== 'string' || !content.startsWith(PREVIEW_TEXT_PREFIX)) return;
+      if (state === 'loading') {
+        setPreviewErrorVoiceId(null);
+      } else if (state === 'stopped') {
+        setPreviewingVoiceId(null);
+      }
+    };
+
+    const handlePreviewTtsError = (e: Event) => {
+      const { content } = (e as CustomEvent).detail;
+      if (typeof content !== 'string' || !content.startsWith(PREVIEW_TEXT_PREFIX)) return;
+      setPreviewingVoiceId((current) => {
+        if (current) setPreviewErrorVoiceId(current);
+        return null;
+      });
+      errorTimer = setTimeout(() => setPreviewErrorVoiceId(null), 2000);
+    };
+
+    window.addEventListener('tts-state', handlePreviewTtsState);
+    window.addEventListener('tts-error', handlePreviewTtsError);
+    return () => {
+      window.removeEventListener('tts-state', handlePreviewTtsState);
+      window.removeEventListener('tts-error', handlePreviewTtsError);
+      if (errorTimer) clearTimeout(errorTimer);
+    };
+  }, []);
+
   const handleSelectVoice = (voiceId: string) => {
     setSelectedVoice(voiceId);
     localStorage.setItem('super_agent_default_voice', voiceId);
@@ -35,13 +71,23 @@ export default function Header() {
   const handlePreviewVoice = async (e: React.MouseEvent, voiceId: string, name: string) => {
     e.preventDefault();
     e.stopPropagation();
+    const previewText = `${PREVIEW_TEXT_PREFIX}${name}, presenting my accent for your learning.`;
     const originalVoice = localStorage.getItem('super_agent_default_voice');
+    setPreviewingVoiceId(voiceId);
+    setPreviewErrorVoiceId(null);
     localStorage.setItem('super_agent_default_voice', voiceId);
-    await speakEnglish(`Hi! I am ${name}, presenting my accent for your learning.`, 0.95);
-    if (originalVoice) {
-      localStorage.setItem('super_agent_default_voice', originalVoice);
-    } else {
-      localStorage.removeItem('super_agent_default_voice');
+    try {
+      await speakEnglish(previewText, 0.95);
+    } catch {
+      setPreviewingVoiceId(null);
+      setPreviewErrorVoiceId(voiceId);
+      setTimeout(() => setPreviewErrorVoiceId(null), 2000);
+    } finally {
+      if (originalVoice) {
+        localStorage.setItem('super_agent_default_voice', originalVoice);
+      } else {
+        localStorage.removeItem('super_agent_default_voice');
+      }
     }
   };
 
@@ -164,14 +210,23 @@ export default function Header() {
                           
                           <button
                             onClick={(e) => handlePreviewVoice(e, voice.id, voice.name)}
+                            disabled={previewingVoiceId === voice.id}
                             className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                              isSelected
+                              previewErrorVoiceId === voice.id
+                                ? 'bg-red-50 border-red-300 text-red-500'
+                                : isSelected
                                 ? 'bg-[var(--color-brand)] border-[var(--color-brand)] text-white hover:bg-[var(--color-brand-hover)]'
                                 : 'bg-white border-gray-200 text-gray-400 hover:text-[var(--color-brand)] hover:border-[var(--color-brand-light)]'
-                            }`}
-                            title="试听发音"
+                            } ${previewingVoiceId === voice.id ? 'opacity-80 cursor-wait' : ''}`}
+                            title={previewErrorVoiceId === voice.id ? '试听失败' : '试听发音'}
                           >
-                            <span className="text-[9px] font-bold block leading-none px-1">试听</span>
+                            {previewingVoiceId === voice.id ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : previewErrorVoiceId === voice.id ? (
+                              <span className="text-[9px] font-bold block leading-none px-1">失败</span>
+                            ) : (
+                              <span className="text-[9px] font-bold block leading-none px-1">试听</span>
+                            )}
                           </button>
                         </div>
                       );
