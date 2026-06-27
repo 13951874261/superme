@@ -1,79 +1,381 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BookPlus, Clock, Globe, Mic, MicOff, Send, ShieldAlert, Target, Users, Trophy, BookOpen } from 'lucide-react';
+import { AlertTriangle, BookPlus, ChevronDown, ChevronUp, Clock, Copy, Globe, Mic, MicOff, Send, ShieldAlert, Star, Target, Users, Trophy, BookOpen } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
-import { sendOralChatMessage } from '../../services/difyAPI';
+import { sendOralChatMessage, type ParsedAiResponse, type OralChatContext } from '../../services/difyAPI';
 import { createTrainingAttempt } from '../../services/trainingAPI';
 import { addWord } from '../../services/vocabAPI';
 import Confetti from '../Confetti';
 import { playSuccess, playError } from '../../utils/soundEffects';
 
-// === 5 大高压场景字典 ===
-const SCENE_DATABASE = [
+interface SceneRole {
+  name: string;
+  label: string;
+  desc: string;
+}
+
+interface SceneEntry {
+  id: string;
+  title: string;
+  shortTitle: string;
+  tier: '初阶' | '高阶' | '跨文化' | '定制';
+  level: 4 | 5;
+  desc: string;
+  roleList: string;
+  allies: SceneRole[];
+  blockers: SceneRole[];
+  neutrals: SceneRole[];
+  conflicts: string[];
+  culturalContext: string;
+  openingLine: string;
+}
+
+// === 多角色沙盘场景库（12+ 场景） ===
+const SCENE_DATABASE: SceneEntry[] = [
+  // ── 初阶多角色（三方博弈） ──
+  {
+    id: 'scene-begin-1',
+    title: '初阶：项目延期说明会',
+    shortTitle: '项目延期说明会',
+    tier: '初阶',
+    level: 4,
+    desc: '客户要求赔偿，上级要求保关系；需在两方之间平衡语气并提出折中方案。',
+    roleList: '我(项目负责人) + 外籍总监 + 客户代表',
+    allies: [{ name: '外籍总监', label: '盟友', desc: '倾向保关系，暗示可内部消化' }],
+    blockers: [{ name: '客户代表', label: '阻力', desc: '要求书面赔偿与 SLA 惩罚条款' }],
+    neutrals: [{ name: '项目监理', label: '中立', desc: '只陈述客观延期原因' }],
+    conflicts: ['赔偿条款', '关系维护'],
+    culturalContext: 'Direct communication expected from client side. 对上级用委婉汇报，对客户需明确底线。',
+    openingLine: "We've been waiting forty minutes. Before we discuss recovery plans, I need clarity on who bears the penalty clause.",
+  },
+  {
+    id: 'scene-begin-2',
+    title: '初阶：跨部门资源争夺',
+    shortTitle: '跨部门资源争夺',
+    tier: '初阶',
+    level: 4,
+    desc: '财务控成本，风控收紧额度；识别盟友并用数据说服。',
+    roleList: '我(信贷部) + 财务总监 + 风控总监',
+    allies: [{ name: '业务副总', label: '盟友', desc: '支持适度放量以保 KPI' }],
+    blockers: [{ name: '财务总监', label: '阻力', desc: '严控成本，要求砍 30% 预算' }, { name: '风控总监', label: '阻力', desc: '收紧授信额度与担保要求' }],
+    neutrals: [],
+    conflicts: ['预算削减', '授信额度'],
+    culturalContext: 'Hierarchy 明显，需先尊重职能边界再提出数据论证。',
+    openingLine: 'Finance and Risk have conflicting numbers on this portfolio. Walk us through why your team deserves the headroom.',
+  },
+  {
+    id: 'scene-begin-3',
+    title: '初阶：新政策宣贯答疑',
+    shortTitle: '新政策宣贯答疑',
+    tier: '初阶',
+    level: 4,
+    desc: '两位下属分别担心执行难与考核变；回应不同顾虑并保持政策一致性。',
+    roleList: '我(宣讲人) + 业务线A下属 + 业务线B下属',
+    allies: [{ name: '业务线A', label: '盟友', desc: '愿意试点，需资源支持' }],
+    blockers: [{ name: '业务线B', label: '阻力', desc: '担心考核指标突变影响团队士气' }],
+    neutrals: [],
+    conflicts: ['执行难度', '考核调整'],
+    culturalContext: '下属期待 Direct 回答但需保留 Hierarchy 分寸，避免公开否定政策。',
+    openingLine: "The new KPI framework sounds ambitious on paper, but my team can't see how we hit it without extra headcount.",
+  },
+  // ── 高阶多角色（四方及以上） ──
   {
     id: 'scene-1',
-    title: '场景一：国际银团贷款谈判',
+    title: '高阶：国际银团贷款谈判',
+    shortTitle: '国际银团贷款谈判',
+    tier: '高阶',
+    level: 4,
     desc: '核心争议：利率上浮 0.5% 与抵押物权属争议。借款方资金缺口倒逼 72 小时谈判时限。',
+    roleList: '我(牵头行) + 参团行A + 参团行B + 借款企业CFO',
     allies: [{ name: 'CEO', label: '盟友', desc: '极力推动落地，愿让步换时间' }],
     blockers: [{ name: 'CFO', label: '阻力', desc: '严控 IRR 红线，要求重跑估值' }],
     neutrals: [{ name: '监管方', label: '中立', desc: '只关注合规证据与权属文件' }],
     conflicts: ['利率上浮 0.5%', '抵押物权属'],
-    culturalContext: '美系主导（Action-oriented, Direct）。切忌过分谦逊，直面利益冲突并明确亮出 Bottom Line。'
+    culturalContext: '美系主导（Action-oriented, Direct）。切忌过分谦逊，直面利益冲突并明确亮出 Bottom Line。',
+    openingLine: "Gentlemen, let's address the rate adjustment first. Our IRR model doesn't absorb another fifty basis points without collateral restructuring.",
+  },
+  {
+    id: 'scene-adv-2',
+    title: '高阶：Overseas Project Kick-off',
+    shortTitle: '海外项目启动会',
+    tier: '高阶',
+    level: 5,
+    desc: '合规、进度与本地化冲突；跨文化沟通并维护中方利益。',
+    roleList: '我(中方负责人) + 当地官员 + 本地伙伴 + 外方工程师',
+    allies: [{ name: '本地伙伴', label: '盟友', desc: '熟悉当地流程，可斡旋' }],
+    blockers: [{ name: '外方工程师', label: '阻力', desc: '坚持原设计标准，拒绝本地化调整' }],
+    neutrals: [{ name: '当地官员', label: '中立', desc: '关注合规许可与社区关系' }],
+    conflicts: ['合规许可', '本地化标准'],
+    culturalContext: 'Direct vs 委婉并存：官员表述间接，工程师 Direct。需分别调整语气。',
+    openingLine: 'Before we sign off the timeline, the local regulator expects explicit ESG commitments in the contract appendix.',
+  },
+  {
+    id: 'scene-adv-3',
+    title: '高阶：内部晋升评审会',
+    shortTitle: '内部晋升评审会',
+    tier: '高阶',
+    level: 5,
+    desc: '评委关注点各异（能力/业绩/成本）；依次回答且不得罪人。',
+    roleList: '我(候选人) + 外籍HR总监 + 业务负责人 + 财务代表',
+    allies: [{ name: '业务负责人', label: '盟友', desc: '认可业绩，愿背书' }],
+    blockers: [{ name: '财务代表', label: '阻力', desc: '质疑成本管控与 ROI 贡献' }],
+    neutrals: [{ name: '外籍HR总监', label: '中立', desc: '关注领导力与文化 fit' }],
+    conflicts: ['业绩证明', '成本管控'],
+    culturalContext: '欧美 HR Direct 提问，亚洲业务方更委婉。需切换 register。',
+    openingLine: "Let's start with your P&L ownership. Finance flagged a 12% overspend in Q3—how do you reconcile that with a promotion case?",
   },
   {
     id: 'scene-2',
-    title: '场景二：危机公关媒体发布会',
-    desc: '核心争议：亚太子公司环保数据造假，监管介入，各方博弈信息披露边界。',
+    title: '高阶：危机公关媒体发布会',
+    shortTitle: '危机公关媒体会',
+    tier: '高阶',
+    level: 5,
+    desc: '面对尖锐、陷阱与情绪化提问，用英语冷静应对并转向正面。',
+    roleList: '我(发言人) + 记者A + 记者B + 在线观众',
     allies: [{ name: '公关总监', label: '盟友', desc: '试图用技术性误差推锅给第三方' }],
-    blockers: [{ name: '法务官', label: '阻力', desc: '警告承认将触发天价罚款' }],
-    neutrals: [{ name: '财经记者', label: '对立', desc: '掌握邮件截图，紧逼决策链' }],
+    blockers: [{ name: '记者A', label: '阻力', desc: '掌握邮件截图，紧逼决策链' }, { name: '记者B', label: '阻力', desc: '情绪化追问高管责任' }],
+    neutrals: [{ name: '法务官', label: '中立', desc: '警告承认将触发天价罚款' }],
     conflicts: ['数据造假责任', '披露边界'],
-    culturalContext: '欧系合规文化（Regulation-first）。强调程序正义与透明度，切忌掩盖或使用含糊用词，以免触发公关灾难。'
+    culturalContext: '欧系合规文化（Regulation-first）。强调程序正义与透明度。',
+    openingLine: 'We have evidence your subsidiary manipulated environmental data. Did the board know before the IPO prospectus went out?',
+  },
+  // ── 跨文化专项 ──
+  {
+    id: 'scene-culture-1',
+    title: '跨文化：中日韩三方会议',
+    shortTitle: '中日韩三方会议',
+    tier: '跨文化',
+    level: 4,
+    desc: '日方委婉、韩方直接；识别不同文化表达习惯，不做错误假设。',
+    roleList: '我(中国方) + 日本客户 + 韩国供应商',
+    allies: [{ name: '韩国供应商', label: '盟友', desc: 'Direct 支持交期，愿共担成本' }],
+    blockers: [{ name: '日本客户', label: '阻力', desc: '委婉表达对质量顾虑，不直接说 NO' }],
+    neutrals: [],
+    conflicts: ['质量标准', '交期承诺'],
+    culturalContext: '日方 High-context 委婉；韩方 Low-context Direct。勿将沉默当同意。',
+    openingLine: 'It might be... somewhat challenging to accept the current spec as-is. We would need to consider alternatives carefully.',
+  },
+  {
+    id: 'scene-culture-2',
+    title: '跨文化：欧美非视频会',
+    shortTitle: '欧美非视频会',
+    tier: '跨文化',
+    level: 4,
+    desc: '克服时差与沟通效率问题，用简单英语确保理解并确认共识。',
+    roleList: '我(亚洲总部) + 美国团队 + 非洲当地经理',
+    allies: [{ name: '非洲经理', label: '盟友', desc: '熟悉本地运营，需清晰指令' }],
+    blockers: [{ name: '美国团队', label: '阻力', desc: '质疑远程决策效率' }],
+    neutrals: [],
+    conflicts: ['时差协调', '决策效率'],
+    culturalContext: '美国 Direct、非洲关系导向。用简单句确认共识，避免 idioms。',
+    openingLine: "We're three hours into this call and still don't have a decision owner. Can we lock action items before everyone drops?",
   },
   {
     id: 'scene-3',
-    title: '场景三：中东商务晚宴谈判',
-    desc: '核心争议：主权基金新能源开发，核心条款在礼仪博弈中暗中交锋。',
+    title: '跨文化：中东商务晚宴',
+    shortTitle: '中东商务晚宴',
+    tier: '跨文化',
+    level: 4,
+    desc: '宗教礼仪、等级观念与非正式谈判；运用高阶英语社交话术。',
+    roleList: '我 + 当地亲王 + 欧美顾问',
     allies: [{ name: '投资总监', label: '盟友', desc: '用家族荣誉包装强制回购条款' }],
     blockers: [{ name: '战略负责人', label: '阻力', desc: '担心 ESG 违规，私下施压' }],
     neutrals: [{ name: '王室合伙人', label: '中立', desc: '暗示宗教禁忌与政商潜规则' }],
     conflicts: ['对赌回购条款', 'ESG 披露'],
-    culturalContext: '中东政商文化（Relationship & Hierarchy）。重视关系与家族荣誉，避免当众逼迫对方妥协，注意预留谈判台阶。'
+    culturalContext: '中东政商文化（Relationship & Hierarchy）。重视关系与家族荣誉，避免当众逼迫对方妥协。',
+    openingLine: 'Over coffee, my colleague mentioned the buyback clause might touch on sensitive ownership structures. Perhaps we explore a softer formulation?',
+  },
+  // ── 高级定制追加 ──
+  {
+    id: 'scene-custom-1',
+    title: '定制：政策性银行三方融资会',
+    shortTitle: '三方基础设施融资',
+    tier: '定制',
+    level: 5,
+    desc: '政策性银行 + 外资金融机构 + 地方政府三方基础设施融资会议。',
+    roleList: '我(牵头) + 政策性银行 + 外资金融机构 + 地方政府',
+    allies: [{ name: '政策性银行', label: '盟友', desc: '愿提供低成本长期资金' }],
+    blockers: [{ name: '外资金融机构', label: '阻力', desc: '要求商业条款与政府隐性担保' }],
+    neutrals: [{ name: '地方政府', label: '中立', desc: '关注就业与合规审批' }],
+    conflicts: ['担保结构', '提款条件'],
+    culturalContext: '政府 Hierarchy 高；外资 Direct 要求 transparency；需双语 register 切换。',
+    openingLine: 'The offshore lender wants explicit sovereign comfort language. Policy bank needs to stay within regulatory guidance—where is the middle ground?',
   },
   {
+    id: 'scene-custom-2',
+    title: '定制：海外并购整合会',
+    shortTitle: '海外并购整合会',
+    tier: '定制',
+    level: 5,
+    desc: '买方代表 + 被收购方原CEO + 外籍法律顾问 + 员工代表四方博弈。',
+    roleList: '我(买方) + 原CEO + 外籍法律顾问 + 员工代表',
+    allies: [{ name: '投行 FA', label: '中立', desc: '找价差空间，靠佣金驱动防破裂' }],
+    blockers: [{ name: '原CEO', label: '阻力', desc: '以协同溢价模糊财务缺口' }],
+    neutrals: [{ name: '员工代表', label: '中立', desc: '关注裁员与文化冲突' }],
+    conflicts: ['4700万诉讼', '人员整合'],
+    culturalContext: '英系保守主义（Risk-averse）。极端注重细节与免责声明。',
+    openingLine: 'Employee council submitted questions on retention packages. Legal wants indemnities signed before we discuss synergy targets.',
+  },
+  {
+    id: 'scene-custom-3',
+    title: '定制：跨境合规检查',
+    shortTitle: '跨境合规检查',
+    tier: '定制',
+    level: 5,
+    desc: '监管官员 + 我 + 外籍审计师三方合规对话。',
+    roleList: '我 + 监管官员 + 外籍审计师',
+    allies: [{ name: '内审总监', label: '盟友', desc: '已准备整改路线图' }],
+    blockers: [{ name: '监管官员', label: '阻力', desc: '质疑数据跨境传输合规' }],
+    neutrals: [{ name: '外籍审计师', label: '中立', desc: '按 IFRS 标准客观陈述' }],
+    conflicts: ['数据跨境', '审计意见'],
+    culturalContext: 'Regulation-first，官员表述正式；审计师 Direct 引用条文。',
+    openingLine: 'Our inspection note cites gaps in cross-border data mapping. Please walk us through your Article 28 equivalent safeguards.',
+  },
+  {
+    id: 'scene-custom-4',
+    title: '定制：国际行业峰会 Q&A',
+    shortTitle: '国际行业峰会',
+    tier: '定制',
+    level: 5,
+    desc: '作为演讲者面对台下多角色切换提问。',
+    roleList: '我(演讲者) + 投资者 + 竞争对手 + 媒体记者',
+    allies: [{ name: '行业分析师', label: '盟友', desc: '抛出友好问题帮铺垫' }],
+    blockers: [{ name: '竞争对手', label: '阻力', desc: '尖锐质疑技术路线' }, { name: '媒体记者', label: '阻力', desc: '陷阱式提问' }],
+    neutrals: [{ name: '投资者', label: '中立', desc: '关注 ROI 与 risk' }],
+    conflicts: ['技术路线', '估值预期'],
+    culturalContext: '欧美峰会 Direct Q&A；需快速切换对象并保持风度。',
+    openingLine: 'Your slide showed 40% cost reduction, but our due diligence suggests the baseline was inflated. How do you respond?',
+  },
+  {
+    id: 'scene-custom-5',
+    title: '定制：远程团队管理',
+    shortTitle: '远程团队管理',
+    tier: '定制',
+    level: 4,
+    desc: '东南亚下属 + 东欧技术主管 + 美国产品经理跨时区协调。',
+    roleList: '我 + 东南亚下属 + 东欧技术主管 + 美国产品经理',
+    allies: [{ name: '东南亚下属', label: '盟友', desc: '执行力强，需清晰 deadline' }],
+    blockers: [{ name: '美国产品经理', label: '阻力', desc: '频繁变更需求' }],
+    neutrals: [{ name: '东欧技术主管', label: '中立', desc: '关注架构稳定与文档' }],
+    conflicts: ['需求变更', '交付节奏'],
+    culturalContext: '美国 Direct feedback；东南亚 High-context；东欧注重流程与文档。',
+    openingLine: "Product pushed another scope change at midnight our time. Engineering in Warsaw wasn't consulted—this can't be the norm.",
+  },
+  // ── 保留经典场景 ──
+  {
     id: 'scene-4',
-    title: '场景四：跨国并购尽调对话',
-    desc: '核心争议：发现标的方隐瞒 4700 万美元专利诉讼，高压博弈估值调整。',
+    title: '高阶：跨国并购尽调对话',
+    shortTitle: '跨国并购尽调',
+    tier: '高阶',
+    level: 5,
+    desc: '发现标的方隐瞒 4700 万美元专利诉讼，高压博弈估值调整。',
+    roleList: '我(买方) + 投行FA + 标的CEO + 买方CFO',
     allies: [{ name: '投行 FA', label: '中立', desc: '找价差空间，靠佣金驱动防破裂' }],
     blockers: [{ name: '标的 CEO', label: '阻力', desc: '以协同溢价模糊财务缺口' }],
     neutrals: [{ name: '买方 CFO', label: '对立', desc: '要求拆分财务，隔离争议资产' }],
     conflicts: ['4700万诉讼', '估值下调'],
-    culturalContext: '英系保守主义（Risk-averse）。极端注重细节与免责声明，警惕对方通过冗长模糊的法律条款设置陷阱。'
+    culturalContext: '英系保守主义（Risk-averse）。极端注重细节与免责声明。',
+    openingLine: 'We found an undisclosed patent suit worth forty-seven million. Your synergy deck assumes zero litigation reserve—that needs revisiting.',
   },
   {
     id: 'scene-5',
-    title: '场景五：董事会战略否决博弈',
-    desc: '核心争议：CEO 提案 6 亿美元出海战略，遭大股东联合否决，独立董事成关键票。',
+    title: '高阶：董事会战略否决博弈',
+    shortTitle: '董事会战略否决',
+    tier: '高阶',
+    level: 5,
+    desc: 'CEO 提案 6 亿美元出海战略，遭大股东联合否决，独立董事成关键票。',
+    roleList: '我(CEO团队) + 创始人CEO + 大股东 + 独立董事',
     allies: [{ name: '创始人 CEO', label: '盟友', desc: '诉诸竞争威胁，争情感逻辑双支持' }],
     blockers: [{ name: '大股东', label: '阻力', desc: '死守 ROE 红线，欲换血管理层' }],
     neutrals: [{ name: '独立董事', label: '关键', desc: '只看程序合规与受托责任边界' }],
     conflicts: ['6亿预算', '管理权争夺'],
-    culturalContext: '多边复合博弈（Consensus-building）。需同时识别中、美、欧不同利益方的底层诉求，平衡短期利益与长期战略，避免陷入单点争论。'
-  }
+    culturalContext: '多边复合博弈（Consensus-building）。需识别中、美、欧不同利益方诉求。',
+    openingLine: 'Major shareholders reject the six-billion overseas plan unless ROE targets are guaranteed. Independent directors want a fiduciary memo first.',
+  },
 ];
 
-interface ParsedAiResponse {
-  scene?: string;
-  current_speaker: unknown;
-  dialogue: unknown;
-  hidden_intent: unknown;
-  flaw_point: unknown;
-  evaluation: unknown;
-  // 四维反馈面板
-  feedback_pronunciation?: unknown;
-  feedback_vocab?: unknown;
-  feedback_role_switch?: unknown;
-  feedback_strategy?: unknown;
+const ROLE_SWITCH_INSTRUCTION = `你必须同时跟踪多个角色立场：识别盟友与阻力；每轮明确 role_address（当前面向谁说话）；可表现联合施压(joint_pressure)或暗中协助；管理会议节奏（引导、打断、总结、推进）。返回 JSON 须含 role_address、branch_suggestions、difficulty_rating、cultural_signal 及四维 feedback_* 字段。`;
+
+function getVocabZoneFromScene(sceneTitle: string): 'business' | 'general' {
+  const businessKeywords = [
+    '谈判', '并购', '银团', '董事会', '合规', '审计', '尽调',
+    '贷款', '利率', '抵押', '股权', 'IPO', '融资', '授信',
+    '监管', '估值', 'IRR', 'ROE', 'ESG', '担保', '提款',
+    '参团行', '牵头行', 'CFO', 'CEO', '总监', '负责人', '基础设施',
+  ];
+  return businessKeywords.some(kw => sceneTitle.includes(kw)) ? 'business' : 'general';
+}
+
+function getSpeakerStyle(speaker: string, scene: SceneEntry): 'ally' | 'blocker' | 'neutral' | 'joint' {
+  const s = speaker.toLowerCase();
+  const allyHit = scene.allies.some(r => s.includes(r.name.toLowerCase()));
+  const blockerHit = scene.blockers.some(r => s.includes(r.name.toLowerCase()));
+  if (allyHit && blockerHit) return 'joint';
+  if (allyHit) return 'ally';
+  if (blockerHit) return 'blocker';
+  return 'neutral';
+}
+
+const SPEAKER_STYLE_CLASS: Record<string, string> = {
+  ally: 'bg-emerald-600 text-white',
+  blocker: 'bg-red-600 text-white',
+  neutral: 'bg-gray-600 text-white',
+  joint: 'bg-gradient-to-r from-red-600 to-emerald-600 text-white',
+};
+
+function safeText(value: unknown) {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
+
+function parseBranchList(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  const text = safeText(raw);
+  if (!text) return [];
+  return text.split(/[,，\n]/).map(s => s.trim()).filter(Boolean);
+}
+
+function parseTemplateList(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+  const text = safeText(raw);
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch { /* ignore */ }
+  return text.split(/\n|;/).map(s => s.trim().replace(/^[\d.)\-]+\s*/, '')).filter(s => s.length > 10);
+}
+
+function extractFlawType(flawText: string): string {
+  const types: Record<string, string> = {
+    causal_fallacy: '因果倒置',
+    overgeneralization: '以偏概全',
+    false_equivalence: '虚假等同',
+    evasive_argument: '避重就轻',
+    shifting_burden: '偷换举证责任',
+    logical_fallacy: '逻辑谬误',
+    factual_vague: '事实模糊',
+    intent_evade: '意图回避',
+  };
+  for (const [key, label] of Object.entries(types)) {
+    if (flawText.toLowerCase().includes(key)) return label;
+  }
+  if (/因果|causal|post hoc/i.test(flawText)) return '因果倒置';
+  if (/以偏概全|overgeneral/i.test(flawText)) return '以偏概全';
+  if (/等同|equivalence/i.test(flawText)) return '虚假等同';
+  if (/避重|evad/i.test(flawText)) return '避重就轻';
+  return '逻辑破绽';
+}
+
+function renderStars(level: number) {
+  return Array.from({ length: 5 }, (_, i) => (
+    <Star key={i} className={`w-3 h-3 ${i < level ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
+  ));
 }
 
 interface MessageItem {
@@ -92,16 +394,6 @@ function parseAiPayload(raw: string): ParsedAiResponse | null {
     return JSON.parse(stripMarkdownJson(raw));
   } catch {
     return null;
-  }
-}
-
-function safeText(value: unknown) {
-  if (typeof value === 'string') return value;
-  if (value == null) return '';
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return String(value);
   }
 }
 
@@ -125,7 +417,7 @@ export default function OralWarRoom({
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [lastNotice, setLastNotice] = useState('沙盘已就绪，输入你的开场白。');
+  const [lastNotice, setLastNotice] = useState('沙盘已就绪，AI 角色即将开场。');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   // ── 积分与漏洞植入状态 ────────────────────────────────────
@@ -133,6 +425,14 @@ export default function OralWarRoom({
   const [showGoldGlow, setShowGoldGlow] = useState(false);
   const [isLoopholePlanted, setIsLoopholePlanted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [briefCollapsed, setBriefCollapsed] = useState(false);
+  const [feedbackExpanded, setFeedbackExpanded] = useState(false);
+  const [latestFeedback, setLatestFeedback] = useState<ParsedAiResponse | null>(null);
+  const [flawTemplates, setFlawTemplates] = useState<string[]>([]);
+  const [currentFlawType, setCurrentFlawType] = useState('');
+  const [currentFlawClaim, setCurrentFlawClaim] = useState('');
+  const [currentDifficulty, setCurrentDifficulty] = useState<number | null>(null);
+  const sceneInitRef = useRef<string | null>(null);
 
   useEffect(() => {
     localStorage.setItem('oral_combat_points', String(combatPoints));
@@ -201,15 +501,22 @@ export default function OralWarRoom({
     if (!highlightedWord || isAddingWord) return;
     setIsAddingWord(true);
     try {
+      const zone = getVocabZoneFromScene(activeScene.title);
       await addWord({
         word: highlightedWord,
         dictType: 'oral-highlight',
-        category: 'general',
-        payload: { source: 'oral_warroom', theme: sceneThemeRef.current },
+        category: zone,
+        payload: {
+          source: 'oral_warroom',
+          theme: sceneThemeRef.current,
+          scene_id: activeSceneId,
+          scene_title: activeScene.title,
+          auto_zone: zone,
+        },
       });
       window.dispatchEvent(new Event('vocab-updated'));
-      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已划线入库` });
-      setTimeout(() => { setHighlightedWord(''); setHighlightPos(null); setAddWordResult(null); }, 2000);
+      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已入库[${zone === 'business' ? '政商务区' : '全场景区'}]` });
+      setTimeout(() => { setHighlightedWord(''); setHighlightPos(null); setAddWordResult(null); }, 2500);
     } catch {
       setAddWordResult({ ok: false, msg: '入库失败，请重试' });
       setTimeout(() => { setAddWordResult(null); }, 2000);
@@ -321,30 +628,195 @@ export default function OralWarRoom({
     }
   }, [embedded, sceneTheme, activeSceneId]);
 
-  const activeScene = useMemo(() => {
+  const activeScene = useMemo((): SceneEntry => {
     if (activeSceneId === 'dynamic-scene') {
       return {
         id: 'dynamic-scene',
         title: `当前阵地：${sceneTheme}`,
+        shortTitle: sceneTheme.split('：')[1] || sceneTheme,
+        tier: '高阶',
+        level: 4,
         desc: `围绕核心阵地【${sceneTheme}】展开的高压口语对抗。`,
+        roleList: `我 + 业务助攻 + 施压方 + 关键决策人`,
         allies: [{ name: '业务助攻', label: '盟友', desc: '尝试推进流程' }],
         blockers: [{ name: '施压方', label: '阻力', desc: '抛出尖锐问题' }],
         neutrals: [{ name: '关键决策人', label: '中立', desc: '观察您的表现' }],
         conflicts: [sceneTheme.split('：')[0] || sceneTheme],
         culturalContext: '根据当前跨文化主题，精准把握商务分寸与情感张力。',
+        openingLine: 'We need to address the core issue before this meeting runs over time. What is your position?',
       };
     }
     return SCENE_DATABASE.find(s => s.id === activeSceneId)!;
   }, [activeSceneId, sceneTheme]);
 
-  // 场景切换逻辑
-  const handleSceneChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setActiveSceneId(e.target.value);
+  const buildOralContext = useCallback((scene: SceneEntry): OralChatContext => ({
+    scene_title: scene.shortTitle,
+    roles: scene.roleList,
+    cultural_context: scene.culturalContext,
+    conflicts: scene.conflicts.join(' / '),
+    role_switch_instruction: ROLE_SWITCH_INSTRUCTION,
+    scene_level: scene.level,
+  }), []);
+
+  const processAiResponse = useCallback((parsed: ParsedAiResponse | null, content: string, wasLoopholeActive: boolean) => {
+    if (parsed?.difficulty_rating) {
+      const lvl = Number(safeText(parsed.difficulty_rating).replace(/\D/g, ''));
+      if (lvl >= 1 && lvl <= 5) setCurrentDifficulty(lvl);
+    }
+    if (parsed) setLatestFeedback(parsed);
+
+    let evaluatedSuccess = false;
+
+    if (wasLoopholeActive) {
+      const evalText = safeText(parsed?.evaluation || parsed?.feedback_strategy || '');
+      const templates = flawTemplates.length ? flawTemplates : parseTemplateList(parsed?.counter_question_templates);
+      const successFromAI = evalText.includes('【破绽反击成功】') || evalText.includes('反击成功') || evalText.includes('指出破绽');
+      const successFromUserKeywords = /fallacy|flaw|contradict|loophole|concept-switching|causal|reversal|clarify the contradiction|what evidence|conflating correlation|post hoc|evasive|vague/i.test(content);
+      const successFromTemplates = templates.some(t => {
+        const snippet = t.slice(0, 30).toLowerCase();
+        return snippet.length > 10 && content.toLowerCase().includes(snippet.slice(0, 15));
+      });
+
+      if (successFromAI || successFromUserKeywords || successFromTemplates) {
+        setCombatPoints(prev => prev + 50);
+        if (parsed?.flaw_point) {
+          try {
+            const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
+            existingWeaknesses.push({ scene: activeScene.title, flaw: safeText(parsed.flaw_point), timestamp: Date.now() });
+            localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
+            setWeaknessLog(existingWeaknesses);
+            window.dispatchEvent(new Event('weakness-updated'));
+          } catch { /* ignore */ }
+        }
+        setShowGoldGlow(true);
+        setShowConfetti(true);
+        playSuccess();
+        setTimeout(() => setShowGoldGlow(false), 3000);
+        setLastNotice('破绽反击成功！获得 +50 XP!');
+        evaluatedSuccess = true;
+        setFlawTemplates([]);
+        setCurrentFlawType('');
+        setCurrentFlawClaim('');
+      } else {
+        playError();
+        setLastNotice('未成功指出破绽，继续加油！');
+      }
+      setIsLoopholePlanted(false);
+    }
+
+    if (parsed?.flaw_point) {
+      const flawText = safeText(parsed.flaw_point);
+      if (!flawText || flawText === '未识别到破绽') {
+        if (!wasLoopholeActive) setLastNotice('已收到回应，继续追问。');
+        return evaluatedSuccess;
+      }
+      try {
+        const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
+        const alreadyLogged = existingWeaknesses.some((w: { flaw: string }) => w.flaw === flawText);
+        if (!alreadyLogged) {
+          existingWeaknesses.push({ scene: activeScene.title, flaw: flawText, timestamp: Date.now() });
+          localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
+          setWeaknessLog(existingWeaknesses);
+          window.dispatchEvent(new Event('weakness-updated'));
+        }
+      } catch { /* ignore */ }
+      setIsLoopholePlanted(true);
+      setCurrentFlawType(extractFlawType(flawText));
+      setCurrentFlawClaim(flawText);
+      const templates = parseTemplateList(parsed.counter_question_templates);
+      if (templates.length) setFlawTemplates(templates);
+      else setFlawTemplates([
+        'Could you clarify the contradiction between...?',
+        'That seems like a post hoc fallacy. What evidence supports that link?',
+        'Are you conflating correlation with causation here?',
+      ]);
+      if (wasLoopholeActive && !evaluatedSuccess) {
+        setLastNotice('上轮未成功指出破绽。侦测到对手新发言存在逻辑漏洞！请重新进行针对性反击。');
+      } else if (!wasLoopholeActive) {
+        setLastNotice('侦测到对手发言存在逻辑漏洞！请进行针对性反击。');
+      }
+    } else if (!wasLoopholeActive) {
+      setLastNotice('已收到回应，继续追问。');
+    }
+
+    return evaluatedSuccess;
+  }, [activeScene.title, flawTemplates]);
+
+  const initiateSceneDialogue = useCallback(async (scene: SceneEntry) => {
+    if (isSending) return;
+    setIsSending(true);
+    setLastNotice('对手角色正在开场...');
+    const diff = localStorage.getItem('super_agent_global_diff') || 'standard';
+    const difficultyPrefix = diff === 'hardcore' ? '【全局指令：极限施压模式】\n' : '';
+    const opener = scene.openingLine;
+    const apiPayload = `${difficultyPrefix}[系统隐性指令：切换场景「${scene.shortTitle}」。角色：${scene.roleList}。请由非用户角色率先开口（对话启动句），参考风格："${opener}"。用户尚未发言。必须在 JSON 返回 dialogue、current_speaker、role_address、branch_suggestions、difficulty_rating(${scene.level})、cultural_signal 及四维 feedback 字段。${ROLE_SWITCH_INSTRUCTION}]`;
+
+    try {
+      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene));
+      if (res.conversation_id) setConversationId(res.conversation_id);
+      const rawText = String(res.answer || res.message || '');
+      const parsed = parseAiPayload(rawText);
+      const aiMsg: MessageItem = { id: `${Date.now()}-a`, role: 'ai', content: rawText, parsed };
+      setMessages([aiMsg]);
+      processAiResponse(parsed, '', false);
+      scrollToBottom();
+    } catch (error) {
+      const fallbackMsg: MessageItem = {
+        id: `${Date.now()}-a`,
+        role: 'ai',
+        content: JSON.stringify({
+          current_speaker: scene.blockers[0]?.name || 'Opponent',
+          dialogue: scene.openingLine,
+          hidden_intent: '测试您的第一反应与控场能力',
+          flaw_point: '',
+          difficulty_rating: scene.level,
+          role_address: 'You',
+          branch_suggestions: scene.conflicts.join(', '),
+          cultural_signal: scene.culturalContext.slice(0, 80),
+        }),
+        parsed: {
+          current_speaker: scene.blockers[0]?.name || 'Opponent',
+          dialogue: scene.openingLine,
+          hidden_intent: '测试您的第一反应与控场能力',
+          flaw_point: '',
+          evaluation: '',
+          difficulty_rating: scene.level,
+          role_address: 'You',
+          branch_suggestions: scene.conflicts.join(', '),
+          cultural_signal: scene.culturalContext.slice(0, 80),
+        },
+      };
+      setMessages([fallbackMsg]);
+      setCurrentDifficulty(scene.level);
+      setLastNotice('已加载场景开场（离线模式）');
+    } finally {
+      setIsSending(false);
+    }
+  }, [isSending, userId, buildOralContext, processAiResponse]);
+
+  const handleSceneSelect = (sceneId: string) => {
+    const scene = SCENE_DATABASE.find(s => s.id === sceneId);
+    if (!scene) return;
+    setActiveSceneId(sceneId);
     setMessages([]);
     setConversationId(null);
     setIsLoopholePlanted(false);
-    setLastNotice(`已重置战局。进入：${e.target.selectedOptions[0].text}`);
+    setFlawTemplates([]);
+    setCurrentFlawType('');
+    setCurrentFlawClaim('');
+    setLatestFeedback(null);
+    sceneInitRef.current = sceneId;
+    setLastNotice(`已重置战局。进入：${scene.shortTitle}`);
+    void initiateSceneDialogue(scene);
   };
+
+  useEffect(() => {
+    if (embedded) return;
+    if (sceneInitRef.current === activeSceneId) return;
+    sceneInitRef.current = activeSceneId;
+    void initiateSceneDialogue(activeScene);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const scrollToBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -363,16 +835,26 @@ export default function OralWarRoom({
 
     let loopholeInstruction = '';
     if (isLoopholePlanted) {
-      loopholeInstruction = `\n[系统隐性指令：上一轮你刻意植入了逻辑漏洞。请在本次评估中，重点检查用户是否用英语准确指出了你的逻辑漏洞并设计了兼顾商务分寸的提问。如果是，请在返回的 JSON 的 evaluation 字段中包含『【破绽反击成功】』字样，并在分值/反馈中给予额外肯定奖励。]`;
-    } else if (currentRound === 2) {
-      loopholeInstruction = `\n[系统隐性指令：请在本次回复的 dialogue 中，刻意植入一个不易察觉的逻辑漏洞（例如：因果倒置、数据自相矛盾、以偏概全、偷换概念等）。你必须在返回的 JSON 的 flaw_point 字段中，明确且详细地指出你所植入的漏洞具体是什么，以便系统检测用户是否能成功识别并指出。]`;
+      loopholeInstruction = `\n[系统隐性指令：用户已指出上一轮的破绽。请在本轮评估中，检查用户是否用英语准确指出了逻辑漏洞并设计了兼顾商务分寸的提问。如果是，请在返回的 JSON 的 evaluation 字段中包含『【破绽反击成功】』字样。]`;
+    } else {
+      const flawTypes = ['causal_fallacy', 'overgeneralization', 'false_equivalence', 'evasive_argument', 'shifting_burden'];
+      const flawType = flawTypes[currentRound % flawTypes.length];
+      const flawDescriptions: Record<string, string> = {
+        causal_fallacy: '植入一个因果倒置的论点（例如："因为我们拒绝了涨价，所以产品质量一定下降了"）',
+        overgeneralization: '植入一个以偏概全的论点（例如："上次这个供应商出了问题，所以他们全部都不靠谱"）',
+        false_equivalence: '植入一个虚假等同的论点（例如："我们的合规成本和他们的报价差异是同等重要的"）',
+        evasive_argument: '植入一个避重就轻的回答（例如：用程序正义回避实质问题）',
+        shifting_burden: '植入一个偷换举证责任的论点（例如："如果你不能证明我们有问题，那就是我们没问题"）',
+      };
+      loopholeInstruction = `\n[系统隐性指令：请在本次回复的 dialogue 中，刻意植入一个【${flawType}】类型的逻辑漏洞。具体表现为：${flawDescriptions[flawType]}。你必须在返回的 JSON 的 flaw_point 字段中，明确且详细地指出漏洞类型（${flawType}）和具体内容。同时，请在 counter_question_templates 字段中提供 3-5 条推荐的英语反问句式。跨文化语境：${activeScene.culturalContext}]`;
     }
 
+    const culturalInjection = `\n[跨文化语境：${activeScene.culturalContext}]`;
     if (currentRound === 0) {
-       const sceneNameForAI = activeSceneId === 'dynamic-scene' ? sceneTheme : activeScene.title.split('：')[0].replace('场景', '');
-       apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}]\n${difficultyPrefix}用户发言：${content}${loopholeInstruction}`;
+       const sceneNameForAI = activeSceneId === 'dynamic-scene' ? sceneTheme : activeScene.shortTitle;
+       apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}，角色：${activeScene.roleList}]\n${difficultyPrefix}${culturalInjection}${ROLE_SWITCH_INSTRUCTION}\n用户发言：${content}${loopholeInstruction}`;
     } else {
-       apiPayload = `${difficultyPrefix}用户发言：${content}${loopholeInstruction}`;
+       apiPayload = `${difficultyPrefix}${culturalInjection}\n用户发言：${content}${loopholeInstruction}`;
     }
 
     const userMsg: MessageItem = { id: `${Date.now()}-u`, role: 'user', content };
@@ -383,7 +865,7 @@ export default function OralWarRoom({
     setLastNotice('华尔街/中东对手正在推演回应...');
 
     try {
-      const res = await sendOralChatMessage(apiPayload, conversationId);
+      const res = await sendOralChatMessage(apiPayload, conversationId, userId, buildOralContext(activeScene));
       if (res.conversation_id) setConversationId(res.conversation_id);
 
       const rawText = String(res.answer || res.message || '');
@@ -406,72 +888,8 @@ export default function OralWarRoom({
           .catch(() => {});
       }
 
-      let wasLoopholeActive = isLoopholePlanted;
-      let evaluatedSuccess = false;
-
-      if (wasLoopholeActive) {
-        const evalText = safeText(parsed?.evaluation || parsed?.feedback_strategy || '');
-        const successFromAI = evalText.includes('【破绽反击成功】') || evalText.includes('反击成功') || evalText.includes('指出破绽');
-        const successFromUserKeywords = /fallacy|flaw|contradict|loophole|concept-switching|causal|reversal|error|mistake/i.test(content);
-        
-        if (successFromAI || successFromUserKeywords) {
-          setCombatPoints(prev => prev + 50);
-          // 【D-2 新增】XP 成功后，将本次破绽类型追加到用户画像
-          if (parsed?.flaw_point) {
-            try {
-              const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
-              existingWeaknesses.push({
-                scene: activeScene.title,
-                flaw: safeText(parsed.flaw_point),
-                timestamp: Date.now(),
-              });
-              localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
-              setWeaknessLog(existingWeaknesses);
-              // 派发全局事件通知其他标签页
-              window.dispatchEvent(new Event('weakness-updated'));
-            } catch {}
-          }
-          setShowGoldGlow(true);
-          setShowConfetti(true);
-          playSuccess();
-          setTimeout(() => setShowGoldGlow(false), 3000);
-          setLastNotice('破绽反击成功！获得 +50 XP!');
-          evaluatedSuccess = true;
-        } else {
-          playError();
-          setLastNotice('未成功指出破绽，继续加油！');
-        }
-        setIsLoopholePlanted(false);
-      }
-
-      if (parsed?.flaw_point) {
-        // 【D-2 新增】检测到破绽时，立即将弱点追加到用户画像（供下次 Dify 调用使用）
-        try {
-          const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
-          const flawText = safeText(parsed.flaw_point);
-          const alreadyLogged = existingWeaknesses.some((w: { flaw: string }) => w.flaw === flawText);
-          if (!alreadyLogged) {
-            existingWeaknesses.push({
-              scene: activeScene.title,
-              flaw: flawText,
-              timestamp: Date.now(),
-            });
-            localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
-            setWeaknessLog(existingWeaknesses);
-            window.dispatchEvent(new Event('weakness-updated'));
-          }
-        } catch {}
-        setIsLoopholePlanted(true);
-        if (wasLoopholeActive && !evaluatedSuccess) {
-          setLastNotice('上轮未成功指出破绽。 侦测到对手新发言存在逻辑漏洞！请重新进行针对性反击。');
-        } else if (!wasLoopholeActive) {
-          setLastNotice('侦测到对手发言存在逻辑漏洞！请进行针对性反击。');
-        }
-      } else {
-        if (!wasLoopholeActive) {
-          setLastNotice('已收到回应，继续追问。');
-        }
-      }
+      const wasLoopholeActive = isLoopholePlanted;
+      processAiResponse(parsed, content, wasLoopholeActive);
       scrollToBottom();
     } catch (error) {
       const msg = error instanceof Error ? error.message : '对话失败';
@@ -512,21 +930,30 @@ export default function OralWarRoom({
         </div>
       </div>
       
-      {/* 顶部场景选择器 */}
+      {/* 场景库卡片网格 */}
       {!embedded && (
-        <div className="mb-4 flex items-center justify-between bg-white px-5 py-3 rounded-2xl border border-gray-200 shadow-sm">
-          <div className="flex items-center gap-2 text-xs font-black text-[#FF5722] tracking-widest uppercase">
-            <Globe className="w-4 h-4" /> Global Scenario
+        <div className="mb-4 bg-white px-5 py-4 rounded-2xl border border-gray-200 shadow-sm">
+          <div className="flex items-center gap-2 text-xs font-black text-[#FF5722] tracking-widest uppercase mb-3">
+            <Globe className="w-4 h-4" /> 场景库 SCENE LIBRARY
           </div>
-          <select 
-            value={activeSceneId} 
-            onChange={handleSceneChange}
-            className="bg-[#f8f9fa] border border-gray-200 text-[#202124] text-xs font-bold rounded-lg px-4 py-2 outline-none focus:border-[#FF5722] cursor-pointer"
-          >
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2 max-h-[200px] overflow-y-auto pr-1">
             {SCENE_DATABASE.map(s => (
-              <option key={s.id} value={s.id}>{s.title}</option>
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => handleSceneSelect(s.id)}
+                className={`text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                  activeSceneId === s.id
+                    ? 'border-[#FF5722] bg-[#FF5722]/5 ring-2 ring-[#FF5722]/30'
+                    : 'border-gray-200 bg-[#f8f9fa] hover:border-[#FF5722]/50'
+                }`}
+              >
+                <div className="text-[10px] font-black text-[#202124] leading-tight mb-1 line-clamp-2">{s.shortTitle}</div>
+                <div className="flex items-center gap-0.5 mb-1">{renderStars(s.level)}</div>
+                <span className="text-[8px] font-bold uppercase tracking-wider text-gray-400">{s.tier}</span>
+              </button>
             ))}
-          </select>
+          </div>
         </div>
       )}
 
@@ -539,7 +966,8 @@ export default function OralWarRoom({
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 mb-3">
                 <Target className="w-4 h-4 text-[#FF5722]" /> 当前局势 (Situation)
               </div>
-              <h3 className="text-xl font-black leading-tight mb-2">{activeScene.title.split('：')[1]}</h3>
+              <h3 className="text-xl font-black leading-tight mb-2">{activeScene.shortTitle}</h3>
+              <div className="flex items-center gap-2 mb-2">{renderStars(activeScene.level)}</div>
               <p className="text-xs text-gray-300 leading-relaxed">{activeScene.desc}</p>
             </div>
           </div>
@@ -589,6 +1017,28 @@ export default function OralWarRoom({
             </div>
           )}
 
+          {/* 跨文化雷达 */}
+          <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-3xl p-5 border border-gray-200 shadow-sm">
+            <h3 className="text-xs font-black uppercase tracking-widest text-gray-600 mb-3 flex items-center gap-1.5">
+              <Globe className="w-3.5 h-3.5" /> 跨文化雷达
+            </h3>
+            <div className="space-y-2">
+              {[
+                { label: '直接 vs 委婉', value: activeScene.culturalContext?.includes('Direct') ? 80 : activeScene.culturalContext?.includes('委婉') ? 20 : 50, color: 'bg-blue-500' },
+                { label: '权力距离', value: activeScene.culturalContext?.includes('Hierarchy') || activeScene.culturalContext?.includes('等级') ? 85 : 50, color: 'bg-amber-500' },
+                { label: '不确定性规避', value: activeScene.culturalContext?.includes('合规') || activeScene.culturalContext?.includes('Regulation') ? 80 : 50, color: 'bg-emerald-500' },
+              ].map((dim, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-gray-500 w-24 shrink-0">{dim.label}</span>
+                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div className={`h-full ${dim.color} rounded-full transition-all duration-500`} style={{ width: `${dim.value}%` }} />
+                  </div>
+                  <span className="text-[10px] font-black text-gray-600 w-8 text-right">{dim.value}%</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* 战场动态情报 */}
           <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">冲突点</div>
@@ -624,10 +1074,49 @@ export default function OralWarRoom({
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gradient-to-b from-white to-[#f8f9fa]">
+            {/* 战术简报卡片 */}
+            <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setBriefCollapsed(v => !v)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-[#202124] text-white cursor-pointer"
+              >
+                <span className="text-[10px] font-black uppercase tracking-widest">📋 战术简报 TACTICAL BRIEF</span>
+                {briefCollapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </button>
+              {!briefCollapsed && (
+                <div className="p-4 space-y-2 text-xs">
+                  <div><span className="font-black text-gray-400">【场景名称】</span> <span className="font-bold text-[#202124]">{activeScene.shortTitle}</span></div>
+                  <div><span className="font-black text-gray-400">【角色列表】</span> <span className="text-gray-700">{activeScene.roleList}</span></div>
+                  <div><span className="font-black text-gray-400">【背景信息】</span> <span className="text-gray-700">{activeScene.desc}</span></div>
+                  <div className="flex flex-wrap gap-1.5 items-center">
+                    <span className="font-black text-gray-400">【冲突点】</span>
+                    {activeScene.conflicts.map(c => (
+                      <span key={c} className="px-2 py-0.5 rounded-full bg-[#FF5722]/10 text-[#FF5722] text-[10px] font-black">{c}</span>
+                    ))}
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-black text-gray-400 shrink-0">【对话启动】</span>
+                    <button type="button" onClick={() => setInputText(activeScene.openingLine)} className="text-left text-violet-700 italic hover:text-[#FF5722] transition-colors cursor-pointer">
+                      &ldquo;{activeScene.openingLine}&rdquo;
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-black text-gray-400">【难度评级】</span>
+                    {renderStars(currentDifficulty ?? activeScene.level)}
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-violet-500 to-[#FF5722] text-white">
+                      Level {currentDifficulty ?? activeScene.level}
+                    </span>
+                  </div>
+                  <div><span className="font-black text-gray-400">【跨文化信号】</span> <span className="text-purple-800">{activeScene.culturalContext.slice(0, 100)}</span></div>
+                </div>
+              )}
+            </div>
+
             {messages.length === 0 ? (
-              <div className="h-full min-h-[420px] flex flex-col items-center justify-center text-gray-400 text-center px-6">
-                <ShieldAlert className="w-12 h-12 mb-4 opacity-20" />
-                <p className="text-sm font-medium">输入你的开场白，激活对手角色并捕捉逻辑破绽。</p>
+              <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-gray-400 text-center px-6">
+                <ShieldAlert className="w-12 h-12 mb-4 opacity-20 animate-pulse" />
+                <p className="text-sm font-medium">{isSending ? '对手角色正在开场...' : '等待 AI 角色率先开口，随后进行口答反击。'}</p>
               </div>
             ) : (
               messages.map((msg) => (
@@ -642,9 +1131,21 @@ export default function OralWarRoom({
                       {msg.parsed ? (
                         <>
                           <div className="flex flex-wrap items-center gap-2 mb-3">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-[#202124] text-white text-[10px] font-black uppercase tracking-widest px-3 py-1">
-                              {safeText(msg.parsed.current_speaker)}
-                            </span>
+                            {(() => {
+                              const speaker = safeText(msg.parsed.current_speaker);
+                              const style = getSpeakerStyle(speaker, activeScene);
+                              const isJoint = safeText(msg.parsed.joint_pressure) === 'true' || style === 'joint';
+                              return (
+                                <span className={`inline-flex items-center gap-1 rounded-full text-[10px] font-black uppercase tracking-widest px-3 py-1 ${SPEAKER_STYLE_CLASS[isJoint ? 'joint' : style]}`}>
+                                  {speaker} {isJoint ? '(联合施压)' : style === 'blocker' ? '(阻力方)' : style === 'ally' ? '(盟友)' : ''}
+                                </span>
+                              );
+                            })()}
+                            {msg.parsed.role_address && (
+                              <span className="text-[10px] font-bold text-violet-600 bg-violet-50 inline-block px-2 py-0.5 rounded-full">
+                                🎯 本轮面向: {safeText(msg.parsed.role_address)}
+                              </span>
+                            )}
                           </div>
 
                           <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 mb-3">
@@ -660,15 +1161,7 @@ export default function OralWarRoom({
 入
 库
 </span>
-                                <SpeakButton text={safeText(msg.parsed.dialogue)} title="
-播
-放
- AI 
-英
-文
-发
-言
-" />
+                                <SpeakButton text={safeText(msg.parsed.dialogue)} title="播放 AI 英文发言" />
                               </div>
                             </div>
                             <p
@@ -689,6 +1182,39 @@ export default function OralWarRoom({
                               <p className="text-sm text-red-900 leading-relaxed">{safeText(msg.parsed.flaw_point || '未识别到破绽')}</p>
                             </div>
                           </div>
+
+                          {msg.parsed.cultural_signal && safeText(msg.parsed.cultural_signal) && (
+                            <div className="mt-2 text-[10px] font-bold text-purple-700 bg-purple-50 inline-block px-2 py-0.5 rounded-full">
+                              🌐 跨文化信号: {safeText(msg.parsed.cultural_signal)}
+                            </div>
+                          )}
+
+                          {msg.parsed.difficulty_rating && (
+                            <div className="mt-3 flex items-center gap-2">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">难度评级</span>
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-gradient-to-r from-violet-500 to-[#FF5722] text-white">
+                                Level {safeText(msg.parsed.difficulty_rating)}
+                              </span>
+                            </div>
+                          )}
+
+                          {parseBranchList(msg.parsed.branch_suggestions).length > 0 && (
+                            <div className="mt-3">
+                              <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1.5">后续分支走向</div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {parseBranchList(msg.parsed.branch_suggestions).map((b, i) => (
+                                  <button
+                                    key={i}
+                                    type="button"
+                                    onClick={() => setInputText(b)}
+                                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-gray-50 border border-gray-200 text-gray-600 hover:border-[#FF5722] hover:text-[#FF5722] transition-all cursor-pointer"
+                                  >
+                                    → {b}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
 
                           {(() => {
                             const feedbacks = [
@@ -789,18 +1315,82 @@ export default function OralWarRoom({
           </div>
 
           <div className="border-t border-gray-100 p-5 bg-white">
+            {/* 多维反馈面板（固定于输入区上方） */}
+            {latestFeedback && (latestFeedback.feedback_pronunciation || latestFeedback.feedback_vocab || latestFeedback.feedback_role_switch || latestFeedback.feedback_strategy) && (
+              <div className="mb-3 rounded-2xl bg-slate-50 border border-slate-200 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackExpanded(v => !v)}
+                  className="w-full flex items-center justify-between px-4 py-2.5 text-left cursor-pointer hover:bg-slate-100 transition-colors"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-600">AI 多维反馈</span>
+                  {feedbackExpanded ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" /> : <ChevronDown className="w-3.5 h-3.5 text-gray-400" />}
+                </button>
+                <div className="px-4 pb-3 flex flex-wrap gap-2">
+                  {[
+                    { key: 'feedback_pronunciation', label: '发音准确度' },
+                    { key: 'feedback_vocab', label: '用语准确性' },
+                    { key: 'feedback_role_switch', label: '角色切换' },
+                    { key: 'feedback_strategy', label: '谈判策略' },
+                  ].map(({ key, label }) => {
+                    const val = safeText((latestFeedback as Record<string, unknown>)[key]);
+                    if (!val) return null;
+                    const pctMatch = val.match(/(\d{1,3})\s*%/);
+                    const pct = pctMatch ? Math.min(100, Number(pctMatch[1])) : 70;
+                    return (
+                      <div key={key} className="flex-1 min-w-[140px]">
+                        <div className="text-[9px] font-bold text-gray-500 mb-1">{label}</div>
+                        <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-full bg-[#FF5722] rounded-full" style={{ width: `${pct}%` }} />
+                        </div>
+                        {feedbackExpanded && <p className="text-[10px] text-gray-600 mt-1 leading-relaxed">{val}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <div className="text-sm font-bold text-[#202124]">{lastNotice}</div>
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">当前局势：{activeScene.conflicts.join(' / ')}</div>
             </div>
             {isLoopholePlanted && (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-amber-900 flex items-start gap-3 shadow-md animate-pulse mb-3">
-                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h5 className="text-xs font-black uppercase tracking-widest text-amber-850 mb-1">警报：对手露出逻辑破绽！</h5>
-                  <p className="text-xs font-semibold leading-relaxed">
-                    侦测到上述对手发言中存在逻辑漏洞。请在您的回复中，用英语指出破绽并进行精准的商务分寸提问以获得额外积分！
-                  </p>
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-300 rounded-2xl p-4 text-amber-900 shadow-md animate-pulse mb-3">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <h5 className="text-xs font-black uppercase tracking-widest text-amber-800 mb-2">⚠️ 侦测到逻辑破绽！请用英语精准反击</h5>
+                    {currentFlawType && (
+                      <p className="text-xs font-bold mb-1">🔍 破绽类型: {currentFlawType}</p>
+                    )}
+                    {currentFlawClaim && (
+                      <p className="text-xs mb-2 opacity-80">💬 对手声称: {currentFlawClaim.slice(0, 120)}{currentFlawClaim.length > 120 ? '...' : ''}</p>
+                    )}
+                    <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-1.5">🎯 推荐反击句式</div>
+                    <div className="space-y-1.5">
+                      {flawTemplates.map((t, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setInputText(t)}
+                            className="flex-1 text-left text-xs font-semibold italic bg-white/60 rounded-lg px-3 py-1.5 hover:bg-white transition-colors cursor-pointer"
+                          >
+                            {t}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { void navigator.clipboard.writeText(t); }}
+                            className="p-1.5 rounded-lg bg-white/80 hover:bg-white text-amber-700 cursor-pointer"
+                            title="复制"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="text-[10px] font-black text-amber-600 mt-2">成功反击: +50 XP 🏆</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -826,7 +1416,7 @@ export default function OralWarRoom({
                            ${ isRecording
                                ? 'border-red-400 bg-red-50/40 placeholder-red-300'
                                : 'border-gray-200 bg-[#f8f9fa] focus:border-[#FF5722]' }`}
-                placeholder={isRecording ? '正在倾听您的反击...' : '长按麦克风说话，或直接输入破局发言...'}
+                placeholder={isRecording ? '正在倾听您的反击...' : 'AI 已开场，请用语音或文字回应...'}
               />
               <div className="absolute right-3 bottom-3 flex items-center gap-2">
                 {/* 麦克风长按按钮 */}

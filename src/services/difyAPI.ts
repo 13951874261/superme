@@ -45,6 +45,36 @@ export interface OralSandboxReply {
   evaluation: string;
 }
 
+/** 多角色口语沙盘 - AI 返回 JSON 结构 */
+export interface ParsedAiResponse {
+  scene?: unknown;
+  current_speaker: unknown;
+  dialogue: unknown;
+  hidden_intent: unknown;
+  flaw_point: unknown;
+  evaluation: unknown;
+  role_address?: unknown;
+  branch_suggestions?: unknown;
+  difficulty_rating?: unknown;
+  cultural_signal?: unknown;
+  counter_question_templates?: unknown;
+  feedback_pronunciation?: unknown;
+  feedback_vocab?: unknown;
+  feedback_role_switch?: unknown;
+  feedback_strategy?: unknown;
+  joint_pressure?: unknown;
+}
+
+/** 口语沙盘对话上下文（注入 Dify inputs） */
+export interface OralChatContext {
+  scene_title?: string;
+  roles?: string;
+  cultural_context?: string;
+  conflicts?: string;
+  role_switch_instruction?: string;
+  scene_level?: number;
+}
+
 /** 词汇提纯引擎 - 输入 */
 export interface VocabPurifyInput {
   article_text: string;
@@ -594,7 +624,12 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
   };
 }
 
-export async function sendOralChatMessage(query: string, conversationId: string | null = null, userId = 'default-user') {
+export async function sendOralChatMessage(
+  query: string,
+  conversationId: string | null = null,
+  userId = 'default-user',
+  oralContext?: OralChatContext
+) {
   const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY');
 
@@ -610,6 +645,12 @@ export async function sendOralChatMessage(query: string, conversationId: string 
     inputs: injectUserProfile({
       ...(conversationContext || {}),
       user_weakness_profile: profile || '',
+      ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
+      ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
+      ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
+      ...(oralContext?.conflicts ? { conflicts: oralContext.conflicts } : {}),
+      ...(oralContext?.role_switch_instruction ? { role_switch_instruction: oralContext.role_switch_instruction } : {}),
+      ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
     }),
     query,
     response_mode: 'blocking' as const,
