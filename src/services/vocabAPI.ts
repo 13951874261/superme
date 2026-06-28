@@ -3,7 +3,7 @@
  * 统一封装所有对服务端 /api/vocab/* 的调用
  */
 
-import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 import { playError } from '../utils/soundEffects';
 import { showToast } from '../components/Toast';
 
@@ -249,7 +249,7 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
     body: JSON.stringify({
       userContext: '',
       locale: 'zh-CN',
-      userId: 'default-user',
+      userId: getAppUserId(),
       ...params,
       direction: resolvedDirection,
       user_current_profile: getUserCurrentProfile(),

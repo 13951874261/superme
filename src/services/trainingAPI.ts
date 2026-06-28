@@ -1,4 +1,4 @@
-import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 
 export interface SessionUpsertResponse {
   success: boolean;
@@ -97,7 +97,7 @@ export interface ThemeMasteryCheck {
   isMastered: boolean;
 }
 
-export async function checkThemeMastery(theme: string, userId = 'default-user'): Promise<ThemeMasteryCheck> {
+export async function checkThemeMastery(theme: string, userId = getAppUserId()): Promise<ThemeMasteryCheck> {
   const q = new URLSearchParams({ theme, userId });
   return request<ThemeMasteryCheck>(`/api/theme/check-mastery?${q.toString()}`);
 }
@@ -108,7 +108,7 @@ export interface ThemeMasteredListResponse {
   masteredThemes: string[];
 }
 
-export async function getMasteredThemes(userId = 'default-user'): Promise<ThemeMasteredListResponse> {
+export async function getMasteredThemes(userId = getAppUserId()): Promise<ThemeMasteredListResponse> {
   const q = new URLSearchParams({ userId });
   return request<ThemeMasteredListResponse>(`/api/theme/mastered-list?${q.toString()}`);
 }
@@ -158,7 +158,7 @@ export async function getTrainingSessionByDate(params: {
 }): Promise<TrainingSessionDetail> {
   const query = new URLSearchParams({
     trainingDate: params.trainingDate,
-    userId: params.userId || 'default-user',
+    userId: params.userId || getAppUserId(),
   });
   return request(`/api/training/session-by-date?${query.toString()}`);
 }
@@ -240,7 +240,7 @@ export async function deleteMaterialDocument(materialId: string) {
   });
 }
 
-export async function listMaterialIngestJobs(userId = 'default-user') {
+export async function listMaterialIngestJobs(userId = getAppUserId()) {
   return request<MaterialIngestJob[]>(`/api/material/list?userId=${encodeURIComponent(userId)}`);
 }
 
@@ -261,7 +261,7 @@ export async function upsertKnowledgeNode(params: {
   });
 }
 
-export async function listKnowledgeNodes(userId = 'default-user', sourceMaterialId = '') {
+export async function listKnowledgeNodes(userId = getAppUserId(), sourceMaterialId = '') {
   const query = new URLSearchParams({ userId: encodeURIComponent(userId) });
   if (sourceMaterialId) query.set('sourceMaterialId', sourceMaterialId);
   return request<KnowledgeNode[]>(`/api/knowledge-node/list?${query.toString()}`);
@@ -289,7 +289,7 @@ export interface ThemeStayStats {
   todaySuggestion: string;
 }
 
-export async function listCustomThemes(userId = 'default-user'): Promise<{ success: boolean; themes: CustomTheme[] }> {
+export async function listCustomThemes(userId = getAppUserId()): Promise<{ success: boolean; themes: CustomTheme[] }> {
   return request<{ success: boolean; themes: CustomTheme[] }>(`/api/theme/list?userId=${encodeURIComponent(userId)}`);
 }
 
@@ -314,7 +314,7 @@ export async function deleteCustomTheme(id: string): Promise<{ success: boolean 
   });
 }
 
-export async function getThemeStayStats(theme: string, userId = 'default-user'): Promise<ThemeStayStats> {
+export async function getThemeStayStats(theme: string, userId = getAppUserId()): Promise<ThemeStayStats> {
   const query = new URLSearchParams({ theme, userId });
   return request<ThemeStayStats>(`/api/theme/stay-stats?${query.toString()}`);
 }

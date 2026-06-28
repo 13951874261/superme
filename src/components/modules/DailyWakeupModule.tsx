@@ -7,6 +7,7 @@ import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
 import { runEnglishWakeupRoutine } from '../../services/difyAPI';
 import { upsertTrainingSession, getThemeStayStats, getTrainingSessionByDate, ThemeStayStats } from '../../services/trainingAPI';
+import { getAppUserId } from '../../utils/profileHelper';
 
 interface WakeupWord {
   word: string;
@@ -464,7 +465,7 @@ export default function DailyWakeupModule() {
                 <PronunciationTrainer
                   initialNotes={pronunciationNotes}
                   onNotesChange={setPronunciationNotes}
-                  userId="default-user"
+                  userId={getAppUserId()}
                 />
               </div>
             </div>
@@ -474,7 +475,7 @@ export default function DailyWakeupModule() {
                 <GrammarPolishTrainer
                   initialNotes={grammarNotes}
                   onNotesChange={setGrammarNotes}
-                  userId="default-user"
+                  userId={getAppUserId()}
                 />
               </div>
             </div>

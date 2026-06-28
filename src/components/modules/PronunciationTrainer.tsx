@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Mic, Loader2, History, ChevronDown, CheckCircle, AlertCircle, Volume2, Upload } from 'lucide-react';
 import { transcribeAudio } from '../../services/listeningAPI';
+import { getAppUserId } from '../../utils/profileHelper';
 
 interface PronunciationTrainerProps {
   initialNotes: string;
@@ -19,7 +20,7 @@ interface AssessmentResult {
   recognized_text: string;
 }
 
-export default function PronunciationTrainer({ initialNotes, onNotesChange, userId = 'default-user' }: PronunciationTrainerProps) {
+export default function PronunciationTrainer({ initialNotes, onNotesChange, userId = getAppUserId() }: PronunciationTrainerProps) {
   const [targetText, setTargetText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isAssessing, setIsAssessing] = useState(false);

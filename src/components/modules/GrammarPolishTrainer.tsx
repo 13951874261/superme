@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Sparkles, Loader2, History, ChevronDown } from 'lucide-react';
+import { getAppUserId } from '../../utils/profileHelper';
 
 interface GrammarPolishTrainerProps {
   initialNotes: string;
@@ -7,7 +8,7 @@ interface GrammarPolishTrainerProps {
   userId?: string;
 }
 
-export default function GrammarPolishTrainer({ initialNotes, onNotesChange, userId = 'default-user' }: GrammarPolishTrainerProps) {
+export default function GrammarPolishTrainer({ initialNotes, onNotesChange, userId = getAppUserId() }: GrammarPolishTrainerProps) {
   const [targetText, setTargetText] = useState('');
   const [isPolishing, setIsPolishing] = useState(false);
   const [localNotes, setLocalNotes] = useState(initialNotes);

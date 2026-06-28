@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { CheckCircle2, ChevronDown, ChevronUp, FileText, Loader2, UploadCloud, Zap, Globe, Video, Play, Sparkles } from 'lucide-react';
 import { processMaterialsAndExtract } from '../services/difyAPI';
+import { getAppUserId } from '../utils/profileHelper';
 import UrlFetchPanel from './UrlFetchPanel';
 import VideoTranscribePanel from './VideoTranscribePanel';
 import { useTask } from './TaskContext';
@@ -70,7 +71,7 @@ export default function MaterialUploader({
     setLogs([`${nowLabel()} 启动卡片向导式一键提纯流程`]);
 
     try {
-      const result = await processMaterialsAndExtract(files, topicHint, 'default-user');
+      const result = await processMaterialsAndExtract(files, topicHint, getAppUserId());
 
       // 拿到 taskId 后，直接推入全局任务中心上下文托管轮询
       addTask({

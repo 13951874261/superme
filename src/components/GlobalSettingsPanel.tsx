@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, ZapOff, Activity, Lock, Unlock, Image } from 'lucide-react';
 import { playClick, playSwitch, playReveal, playDrag, playValidatePass, playValidateFail, setGlobalVolume } from '../utils/soundEffects';
-import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
+import { getUserCurrentProfile, saveUserCurrentProfile, getAppUserId, setAppUserId, loadUserProfileFromServer } from '../utils/profileHelper';
+import { reloadDifyChatbotEmbed } from '../utils/difyChatbot';
 
 export type GlobalDifficulty = 'standard' | 'hardcore';
 
@@ -15,6 +16,11 @@ export default function GlobalSettingsPanel() {
     localStorage.getItem('super_agent_global_interceptor') !== 'false'
   );
   const [profile, setProfile] = useState(() => getUserCurrentProfile());
+  const [appUserId, setAppUserIdState] = useState(() => getAppUserId());
+  const [userIdDraft, setUserIdDraft] = useState('');
+  const [isUserIdSectionOpen, setIsUserIdSectionOpen] = useState(false);
+  const [userIdMsg, setUserIdMsg] = useState('');
+  const [userIdError, setUserIdError] = useState('');
 
   const [bgEnabled, setBgEnabled] = useState<boolean>(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
@@ -72,6 +78,37 @@ export default function GlobalSettingsPanel() {
     setConfirmPassword('');
     playValidatePass();
     setTimeout(() => setPwdSuccess(''), 3000);
+  };
+
+  const handleSaveUserId = async () => {
+    const next = userIdDraft.trim();
+    if (!next) {
+      setUserIdError('用户标识不能为空');
+      setUserIdMsg('');
+      playValidateFail();
+      return;
+    }
+    if (next === appUserId) {
+      setUserIdMsg('标识未变更');
+      setUserIdError('');
+      return;
+    }
+    try {
+      setAppUserId(next);
+      await loadUserProfileFromServer(next);
+      const saved = getAppUserId();
+      setAppUserIdState(saved);
+      setUserIdDraft(saved);
+      reloadDifyChatbotEmbed();
+      setUserIdMsg('用户标识已更新，画像已从服务端同步');
+      setUserIdError('');
+      playValidatePass();
+      setTimeout(() => setUserIdMsg(''), 3000);
+    } catch {
+      setUserIdError('更新失败，请检查后端服务');
+      setUserIdMsg('');
+      playValidateFail();
+    }
   };
 
   useEffect(() => {
@@ -154,6 +191,51 @@ export default function GlobalSettingsPanel() {
                   默认
                 </button>
               </div>
+            </div>
+
+            <div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsUserIdSectionOpen(!isUserIdSectionOpen);
+                  if (!isUserIdSectionOpen) {
+                    setUserIdDraft(appUserId);
+                    setUserIdMsg('');
+                    setUserIdError('');
+                  }
+                  playClick();
+                }}
+                className="w-full text-left text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 flex items-center justify-between"
+              >
+                <span>用户标识 (User ID)</span>
+                <span className="text-gray-500 normal-case font-mono text-[9px] truncate max-w-[120px]">{appUserId}</span>
+              </button>
+              {isUserIdSectionOpen && (
+                <div className="space-y-3 bg-gray-800/50 p-3 rounded-xl border border-gray-700">
+                  <p className="text-[9px] text-gray-500 leading-relaxed">
+                    用于 SQLite 画像与配额隔离。修改后将加载该标识下的服务端数据。
+                  </p>
+                  <input
+                    type="text"
+                    value={userIdDraft}
+                    onChange={(e) => {
+                      setUserIdDraft(e.target.value);
+                      if (userIdError) setUserIdError('');
+                    }}
+                    placeholder="例如 lzhumy 或 user_xxx"
+                    className="w-full px-3 py-2 rounded-lg bg-gray-900 border border-gray-700 text-xs text-white placeholder-gray-600 outline-none focus:border-[#FF5722]/60"
+                  />
+                  {userIdError && <p className="text-[10px] text-red-400">{userIdError}</p>}
+                  {userIdMsg && <p className="text-[10px] text-green-400">{userIdMsg}</p>}
+                  <button
+                    type="button"
+                    onClick={() => { playClick(); void handleSaveUserId(); }}
+                    className="w-full py-2 rounded-lg bg-[#FF5722] hover:bg-[#ff6a3c] text-[10px] font-black uppercase tracking-widest text-white transition-colors"
+                  >
+                    保存用户标识
+                  </button>
+                </div>
+              )}
             </div>
 
             <div>

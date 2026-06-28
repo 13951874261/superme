@@ -7,7 +7,7 @@ import {
   playSceneSwitch,
   playReveal,
 } from '../../../utils/soundEffects';
-import { appendUserProfileFactor } from '../../../utils/profileHelper';
+import { appendUserProfileFactor, getAppUserId } from '../../../utils/profileHelper';
 import type {
   BreakthroughRecord,
   BreakthroughType,
@@ -42,7 +42,7 @@ export function useOralWarRoomSession({
   embedded = false,
   sceneTheme = '',
   sessionId = null,
-  userId = 'default-user',
+  userId = getAppUserId(),
   onOralRoundLogged,
   onNavigateWrite,
 }: UseOralWarRoomSessionOptions) {

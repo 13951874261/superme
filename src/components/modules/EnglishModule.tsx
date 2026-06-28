@@ -12,6 +12,7 @@ import { checkThemeMastery } from '../../services/trainingAPI';
 import ThemeMasteryOverlay from '../ThemeMasteryOverlay';
 import DailyErrorVocabularyModule from './DailyErrorVocabularyModule';
 import { playSwitch } from '../../utils/soundEffects';
+import { getAppUserId } from '../../utils/profileHelper';
 
 const SUB_TABS = [
   { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
@@ -63,7 +64,7 @@ function EnglishModuleContent() {
             embedded
             sceneTheme={theme}
             sessionId={sessionId}
-            userId="default-user"
+            userId={getAppUserId()}
             onNavigateWrite={() => setActiveTab('write')}
             onOralRoundLogged={() => {
               checkThemeMastery(theme)

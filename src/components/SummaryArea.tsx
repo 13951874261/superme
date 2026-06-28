@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Send, Bot, PenLine } from 'lucide-react';
 import { getTrainingSessionByDate, upsertDailyReview } from '../services/trainingAPI';
+import { getAppUserId } from '../utils/profileHelper';
 
 interface SummaryAreaProps {
   selectedDate: string;
@@ -17,7 +18,7 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
     const init = async () => {
       try {
         const detail = await getTrainingSessionByDate({
-          userId: 'default-user',
+          userId: getAppUserId(),
           trainingDate: selectedDate,
         });
         setSessionId(detail.session?.id || '');
@@ -48,7 +49,7 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
         : summaryText;
       await upsertDailyReview({
         sessionId,
-        userId: 'default-user',
+        userId: getAppUserId(),
         trainingDate: selectedDate,
         summary: mergedSummary,
         accuracyByTag: {},

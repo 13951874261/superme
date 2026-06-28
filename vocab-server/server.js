@@ -282,6 +282,15 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS user_memories (
+    user_id TEXT PRIMARY KEY,
+    profile_content TEXT NOT NULL,
+    error_ledger TEXT,
+    updated_at INTEGER NOT NULL
+  )
+`).run();
+
 // ?????????????????
 db.prepare(`
   CREATE INDEX IF NOT EXISTS idx_gen_history_theme 
@@ -636,6 +645,40 @@ app.get('/api/listen/long-audio/:id', (req, res) => {
     res.json({ success: true, data: audio });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// User profile & long-term memory API
+// ==========================================
+
+app.get('/api/user/profile/:userId', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(req.params.userId);
+    res.json({
+      success: true,
+      data: row || { user_id: req.params.userId, profile_content: '', error_ledger: '{}' },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/user/profile/save', (req, res) => {
+  const { userId, profileContent, errorLedger } = req.body;
+  const now = Date.now();
+  try {
+    db.prepare(`
+      INSERT INTO user_memories (user_id, profile_content, error_ledger, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT(user_id) DO UPDATE SET
+        profile_content = excluded.profile_content,
+        error_ledger = COALESCE(excluded.error_ledger, error_ledger),
+        updated_at = excluded.updated_at
+    `).run(userId || 'default-user', profileContent, errorLedger || '{}', now);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
   }
 });
 

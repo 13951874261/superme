@@ -1,4 +1,4 @@
-import { getUserCurrentProfile, injectUserProfile, interceptOutputText } from '../utils/profileHelper';
+import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 
 // ── 原有接口保留 ────────────────────────────────────────────
 export interface ListenWorkflowInput {
@@ -332,10 +332,10 @@ async function request<T>(path: string, apiKey: string, options?: RequestInit): 
 }
 
 // ── 原有听力工作流（保持不变）────────────────────────────────
-export async function runListenWorkflow(inputs: ListenWorkflowInput, userId = 'default-user') {
+export async function runListenWorkflow(inputs: ListenWorkflowInput, userId = getAppUserId()) {
   return request<DifyWorkflowResponse>(`/workflows/run`, getDifyApiKey(), {
     method: 'POST',
-    body: JSON.stringify({ inputs: injectUserProfile(inputs as any), response_mode: 'blocking', user: userId }),
+    body: JSON.stringify({ inputs: injectUserProfileAndTime(inputs as any), response_mode: 'blocking', user: userId }),
   });
 }
 
@@ -350,12 +350,12 @@ export function getDifyAppId() { return DIFY_APP_ID; }
 export async function callOralSandbox(
   inputs: OralSandboxInput,
   conversationId?: string,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<{ reply: OralSandboxReply; conversationId: string }> {
   const res = await fetch('/api/english/oral-sandbox', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs: injectUserProfile(inputs as any), conversationId, userId }),
+    body: JSON.stringify({ inputs: injectUserProfileAndTime(inputs as any), conversationId, userId }),
   });
   if (!res.ok) throw new Error(`oral-sandbox HTTP ${res.status}`);
   const data = await res.json();
@@ -392,7 +392,7 @@ export async function uploadMaterialToKB(file: File, topic: string): Promise<any
       base64Content,
       topic,
       sourceName: file.name,
-      userId: 'default-user',
+      userId: getAppUserId(),
     }),
   });
 
@@ -431,7 +431,7 @@ export interface MaterialProcessResult {
   logs: string[];
 }
 
-export async function processMaterialsAndExtract(files: File[], topic: string, userId = 'default-user'): Promise<{ success: boolean; taskId: string }> {
+export async function processMaterialsAndExtract(files: File[], topic: string, userId = getAppUserId()): Promise<{ success: boolean; taskId: string }> {
   // 将前端 File 对象转为 Base64 传递给后端的统一提纯路由
   const filePayloads = await Promise.all(
     files.map(async (f) => {
@@ -503,7 +503,7 @@ export interface DailyQuotaStatus {
 
 let activeQuotaPromise: Promise<DailyQuotaStatus> | null = null;
 
-export async function getDailyQuotaStatus(userId = 'default-user'): Promise<DailyQuotaStatus> {
+export async function getDailyQuotaStatus(userId = getAppUserId()): Promise<DailyQuotaStatus> {
   if (activeQuotaPromise) return activeQuotaPromise;
 
   activeQuotaPromise = (async () => {
@@ -523,7 +523,7 @@ export async function getDailyQuotaStatus(userId = 'default-user'): Promise<Dail
 export async function triggerEnglishMasteryExtraction(
   topic: string,
   materialText = '',
-  userId = 'default-user',
+  userId = getAppUserId(),
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
   genre: 'news' | 'meeting' | 'podcast' | 'reading' = 'meeting'
 ): Promise<DailyExtractResult> {
@@ -572,7 +572,7 @@ export async function triggerEnglishMasteryExtraction(
 
 export async function callVocabPurify(
   inputs: VocabPurifyInput,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<VocabPurifyResult> {
   if (!VOCAB_PURIFY_DIRECT_API_KEY) {
     throw new Error('鏈厤缃?VITE_DIFY_VOCAB_API_KEY');
@@ -585,7 +585,7 @@ export async function callVocabPurify(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile(inputs as any),
+      inputs: injectUserProfileAndTime(inputs as any),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -653,7 +653,7 @@ async function proxyOralChatMessage(
     body: JSON.stringify({
       query,
       conversationId: options.conversationId ?? null,
-      userId: options.userId ?? 'default-user',
+      userId: options.userId ?? getAppUserId(),
       inputs: options.inputs ?? {},
     }),
   });
@@ -667,7 +667,7 @@ async function proxyOralChatMessage(
 export async function sendOralChatMessage(
   query: string,
   conversationId: string | null = null,
-  userId = 'default-user',
+  userId = getAppUserId(),
   oralContext?: OralChatContext
 ) {
   const savedConversation = localStorage.getItem('oral_conversation_context');
@@ -675,7 +675,7 @@ export async function sendOralChatMessage(
 
   const profile = getUserCurrentProfile();
 
-  const inputs = injectUserProfile({
+  const inputs = injectUserProfileAndTime({
     ...(conversationContext || {}),
     user_weakness_profile: profile || '',
     ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
@@ -765,7 +765,7 @@ export async function submitBreakthrough(
   };
 }
 
-export async function runEnglishListenEngine(text: string, theme: string, userId = 'default-user'): Promise<ListenEngineResult> {
+export async function runEnglishListenEngine(text: string, theme: string, userId = getAppUserId()): Promise<ListenEngineResult> {
   const apiKey = import.meta.env.VITE_DIFY_LISTEN_API_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_LISTEN_API_KEY');
 
@@ -776,7 +776,7 @@ export async function runEnglishListenEngine(text: string, theme: string, userId
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ listening_text: text, theme }),
+      inputs: injectUserProfileAndTime({ listening_text: text, theme }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -795,7 +795,7 @@ export async function runEnglishListenEngine(text: string, theme: string, userId
   }
 }
 
-export async function runWordEnrichment(targetWord: string, theme: string, userId = 'default-user'): Promise<WordEnrichmentResult> {
+export async function runWordEnrichment(targetWord: string, theme: string, userId = getAppUserId()): Promise<WordEnrichmentResult> {
   const apiKey = import.meta.env.VITE_DIFY_ENRICH_API_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_ENRICH_API_KEY');
 
@@ -806,7 +806,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ target_word: targetWord, theme }),
+      inputs: injectUserProfileAndTime({ target_word: targetWord, theme }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -857,7 +857,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
   }
 }
 
-export async function runEnglishWakeupRoutine(theme: string, userId = 'default-user'): Promise<{
+export async function runEnglishWakeupRoutine(theme: string, userId = getAppUserId()): Promise<{
   theme: string;
   vocab: Array<{
     word: string;
@@ -882,7 +882,7 @@ export async function runEnglishWakeupRoutine(theme: string, userId = 'default-u
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ theme }),
+      inputs: injectUserProfileAndTime({ theme }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -900,7 +900,7 @@ export async function runEnglishSentenceEvaluation(
   targetWord: string,
   userSentence: string,
   theme: string,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<SentenceEvaluationResult> {
   const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
 
@@ -917,7 +917,7 @@ export async function runEnglishSentenceEvaluation(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: injectUserProfile({ target_word: targetWord, user_sentence: userSentence, theme }),
+        inputs: injectUserProfileAndTime({ target_word: targetWord, user_sentence: userSentence, theme }),
         response_mode: 'blocking',
         user: userId,
       }),
@@ -950,7 +950,7 @@ export async function runEnglishSentenceEvaluation(
   }
 }
 
-export async function getDueVocabulary(userId = 'default-user') {
+export async function getDueVocabulary(userId = getAppUserId()) {
   const res = await fetch(`/api/vocab/review?userId=${encodeURIComponent(userId)}`);
   const data = await res.json().catch(() => ([]));
   if (!res.ok) throw new Error(data?.error || '获取待复习词条失败');
@@ -962,7 +962,7 @@ export async function runListenMaterialGenerator(
   genre: 'news' | 'meeting' | 'podcast',
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1',
   duration: number | 'short' | 'long',
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<string> {
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
@@ -973,7 +973,7 @@ export async function runListenMaterialGenerator(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: injectUserProfile({ theme, cefr_level: cefrLevel, genre, duration: durationParam }),
+        inputs: injectUserProfileAndTime({ theme, cefr_level: cefrLevel, genre, duration: durationParam }),
         userId,
       }),
       signal: AbortSignal.timeout(15 * 60 * 1000),
@@ -996,7 +996,7 @@ export async function runListenMaterialGenerator(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: injectUserProfile({ theme, genre, cefr_level: cefrLevel, duration: durationParam }),
+      inputs: injectUserProfileAndTime({ theme, genre, cefr_level: cefrLevel, duration: durationParam }),
       userId,
     }),
   });
@@ -1026,7 +1026,7 @@ export async function runImpromptuSpeechEvaluation(
   theme: string,
   duration: string,
   transcript: string,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<ImpromptuSpeechEvaluationResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_SPEECH_EVAL_API_KEY');
@@ -1038,7 +1038,7 @@ export async function runImpromptuSpeechEvaluation(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ 
+      inputs: injectUserProfileAndTime({ 
         theme, 
         duration,
         transcript
@@ -1093,7 +1093,7 @@ export async function runWriteGovernanceReview(params: {
 }): Promise<WriteGovernanceResult> {
   const apiKey = import.meta.env.VITE_DIFY_WRITE_GOVERNANCE_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_WRITE_GOVERNANCE_API_KEY');
-  const userId = 'default-user';
+  const userId = getAppUserId();
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -1102,7 +1102,7 @@ export async function runWriteGovernanceReview(params: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({
+      inputs: injectUserProfileAndTime({
         task_type: params.taskType,
         original_text: params.originalText,
         additional_params: params.additionalParams || '',
@@ -1164,7 +1164,7 @@ export async function generateImpromptuExemplar(params: {
 }): Promise<ImpromptuExemplarResult> {
   const apiKey = import.meta.env.VITE_DIFY_IMPROMPTU_PROMPTER_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_IMPROMPTU_PROMPTER_API_KEY');
-  const userId = 'default-user';
+  const userId = getAppUserId();
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -1173,7 +1173,7 @@ export async function generateImpromptuExemplar(params: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({
+      inputs: injectUserProfileAndTime({
         topic: params.topic,
         scenario: params.scenario || '',
       }),
@@ -1222,7 +1222,7 @@ export interface AudioToTextResult {
  * @param userId 用户ID
  * @returns 识别出的英文文本
  */
-export async function audioToText(audioFile: Blob, userId = 'default-user'): Promise<AudioToTextResult> {
+export async function audioToText(audioFile: Blob, userId = getAppUserId()): Promise<AudioToTextResult> {
   const apiKey = import.meta.env.VITE_DIFY_STT_API_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_STT_API_KEY');
 
@@ -1273,7 +1273,7 @@ export interface PronunciationAssessmentResult {
 export async function runPronunciationAssessment(
   targetText: string,
   recognizedText: string,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<PronunciationAssessmentResult> {
   // 通过后端代理调用 Dify 鍙戦煶绾犳宸ヤ綔娴?
   const res = await fetch(`/api/pronunciation-assessment`, {
@@ -1368,7 +1368,7 @@ export interface SpeechPrompterResult {
 export async function runSpeechPrompter(
   theme: string,
   difficulty: '基础' | '中等' | '进阶' = '中等',
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<SpeechPrompterResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEECH_PROMPTER_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_PROMPTER_API_KEY');
@@ -1380,7 +1380,7 @@ export async function runSpeechPrompter(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ theme, difficulty }),
+      inputs: injectUserProfileAndTime({ theme, difficulty }),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1441,7 +1441,7 @@ export async function runEnhancedSpeechEvaluation(
   theme: string,
   durationMinutes: string,
   audioFile: File | Blob,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<EnhancedSpeechEvalResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_SPEECH_EVAL_API_KEY');
@@ -1449,7 +1449,7 @@ export async function runEnhancedSpeechEvaluation(
   const formData = new FormData();
   formData.append('file', audioFile, 'speech_audio.webm');
   formData.append('user', userId);
-  formData.append('inputs', JSON.stringify(injectUserProfile({ theme, duration_minutes: durationMinutes })));
+  formData.append('inputs', JSON.stringify(injectUserProfileAndTime({ theme, duration_minutes: durationMinutes })));
   formData.append('response_mode', 'blocking');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
@@ -1493,7 +1493,7 @@ export interface InsightListenInputs {
   user_analysis: string;
 }
 
-export async function fetchInsightFeedback(inputs: InsightListenInputs, userId = 'default-user'): Promise<string> {
+export async function fetchInsightFeedback(inputs: InsightListenInputs, userId = getAppUserId()): Promise<string> {
   const apiKey = import.meta.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
   if (!apiKey) throw new Error("鏈厤缃?VITE_DIFY_INSIGHT_LISTEN_KEY");
 
@@ -1504,7 +1504,7 @@ export async function fetchInsightFeedback(inputs: InsightListenInputs, userId =
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile(inputs as any),
+      inputs: injectUserProfileAndTime(inputs as any),
       response_mode: "blocking",
       user: userId
     })
@@ -1521,7 +1521,7 @@ export async function fetchInsightFeedback(inputs: InsightListenInputs, userId =
  * 动态获取洞察考题 (文本生成应用)
  * 依赖环境变量: VITE_DIFY_INSIGHT_GEN_KEY
  */
-export async function fetchDynamicInsightScenario(category: string, userId = 'default-user'): Promise<string> {
+export async function fetchDynamicInsightScenario(category: string, userId = getAppUserId()): Promise<string> {
   const apiKey = import.meta.env.VITE_DIFY_INSIGHT_GEN_KEY;
   if (!apiKey) {
     throw new Error("未配置 VITE_DIFY_INSIGHT_GEN_KEY，无法调用 Dify 战略评估接口。");
@@ -1534,7 +1534,7 @@ export async function fetchDynamicInsightScenario(category: string, userId = 'de
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ category }),
+      inputs: injectUserProfileAndTime({ category }),
       query: "", // 触发文本生成
       response_mode: 'blocking',
       user: userId
@@ -1564,7 +1564,7 @@ export interface SpeakInfluenceResult {
   revised_version: string;
 }
 
-export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = 'default-user'): Promise<SpeakInfluenceResult> {
+export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = getAppUserId()): Promise<SpeakInfluenceResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_SPEAK_INFLUENCE_KEY');
 
@@ -1575,7 +1575,7 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile(inputs as any),
+      inputs: injectUserProfileAndTime(inputs as any),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1625,7 +1625,7 @@ export interface CognitivePenetrationResult {
   workplace_application?: string;
 }
 
-export async function runCognitivePenetrationEngine(inputs: CognitivePenetrationInput, userId = 'default-user'): Promise<CognitivePenetrationResult> {
+export async function runCognitivePenetrationEngine(inputs: CognitivePenetrationInput, userId = getAppUserId()): Promise<CognitivePenetrationResult> {
   const apiKey = import.meta.env.VITE_DIFY_READ_PENETRATION_KEY;
   if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_READ_PENETRATION_KEY');
 
@@ -1636,7 +1636,7 @@ export async function runCognitivePenetrationEngine(inputs: CognitivePenetration
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile(inputs as any),
+      inputs: injectUserProfileAndTime(inputs as any),
       response_mode: 'blocking',
       user: userId,
     }),
@@ -1694,7 +1694,7 @@ export interface PersonalPrototype {
 // 运行博弈引擎分析（调用后端代理）
 export async function runGameTheoryAnalysis(
   inputs: GameTheoryAnalyzeInput,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<GameTheoryAnalyzeResult> {
   const res = await fetch('/api/game-theory/analyze', {
     method: 'POST',
@@ -1731,7 +1731,7 @@ export interface CognitiveAscensionResult {
 
 export async function runCognitiveAscension(
   inputs: CognitiveAscensionInput,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<CognitiveAscensionResult> {
   const res = await fetch('/api/game-theory/ascension', {
     method: 'POST',
@@ -1748,7 +1748,7 @@ export async function runCognitiveAscension(
 }
 
 // 鑾峰彇鎵€鏈変汉鎬у師鍨嬫。妗?
-export async function getPersonalPrototypes(userId = 'default-user'): Promise<PersonalPrototype[]> {
+export async function getPersonalPrototypes(userId = getAppUserId()): Promise<PersonalPrototype[]> {
   const res = await fetch(`/api/game-theory/prototypes?userId=${encodeURIComponent(userId)}`);
   const data = await res.json().catch(() => ([]));
   if (!res.ok) {
@@ -1803,7 +1803,7 @@ const FLAW_SUB_THEMES = [
 // 每日专属破绽词汇动态生成（调用 Dify 唤醒工作流）
 export async function generateDailyFlawVocabulary(
   excludeWords: string[] = [],
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<Array<{
   word: string;
   ipa: string;
@@ -1831,7 +1831,7 @@ export async function generateDailyFlawVocabulary(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: injectUserProfile({ 
+        inputs: injectUserProfileAndTime({ 
           theme: dynamicTheme,
           history_exclude: historyExclude
         }),
@@ -2078,7 +2078,7 @@ export function getFallbackFlawVocab(): Array<{
 }
 
 
-export async function clearTodayQuotaAndData(userId = 'default-user'): Promise<{ success: boolean; message: string }> {
+export async function clearTodayQuotaAndData(userId = getAppUserId()): Promise<{ success: boolean; message: string }> {
   const res = await fetch('/api/english/clear-today', {
     method: 'POST',
     headers: {
@@ -2096,7 +2096,7 @@ export async function clearTodayQuotaAndData(userId = 'default-user'): Promise<{
 /**
  * 高精度语音转文字 (Whisper) 接口
  */
-export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = 'default-user'): Promise<string> {
+export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = getAppUserId()): Promise<string> {
   const formData = new FormData();
   // Whisper-1 接口强制要求传递 file 字段，格式这里转换为 mp3 规范以保障兼容性
   formData.append('file', audioBlob, 'audio.mp3');
@@ -2125,7 +2125,7 @@ export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = 'defa
 export async function runSpeechExemplar(
   theme: string,
   userTranscript: string,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<string> {
   const apiKey = import.meta.env.VITE_DIFY_SPEECH_EXEMPLAR_API_KEY;
   if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EXEMPLAR_API_KEY');
@@ -2137,7 +2137,7 @@ export async function runSpeechExemplar(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: injectUserProfile({ 
+      inputs: injectUserProfileAndTime({ 
         theme, 
         user_transcript: userTranscript
       }),
@@ -2167,7 +2167,7 @@ export async function runSpeechExemplar(
 export async function generateReadMaterial(
   scene_type: 'policy' | 'report' | 'email' | 'book',
   scene_framework: 'social' | 'gov' | 'corp',
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<string> {
   const frameworkName = {
     social: '通用社交',
@@ -2189,7 +2189,7 @@ export async function generateReadMaterial(
 
   const data = await proxyOralChatMessage(query, {
     userId,
-    inputs: injectUserProfile({}),
+    inputs: injectUserProfileAndTime({}),
   });
   return String(data.answer || '').trim();
 }
@@ -2208,7 +2208,7 @@ export interface ReadInteractiveChatInput {
 
 export async function sendReadInteractiveChatMessage(
   params: ReadInteractiveChatInput,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<{ answer: string; conversation_id: string }> {
   const frameworkName = { social: '通用社交', gov: '体制内职场', corp: '跨国企业' }[params.scene_framework];
   
@@ -2234,7 +2234,7 @@ ${JSON.stringify(params.analysis_result, null, 2)}
   const data = await proxyOralChatMessage(query, {
     userId,
     conversationId: params.conversation_id,
-    inputs: injectUserProfile({}),
+    inputs: injectUserProfileAndTime({}),
   });
   return {
     answer: String(data.answer || ''),
@@ -2254,7 +2254,7 @@ export interface WeeklyCognitiveResult {
  */
 export async function runWeeklyCognitiveAnalysis(
   userText: string,
-  userId = 'default-user'
+  userId = getAppUserId()
 ): Promise<WeeklyCognitiveResult> {
   try {
     const query = `
@@ -2275,7 +2275,7 @@ ${userText}
 `;
     const data = await proxyOralChatMessage(query, {
       userId,
-      inputs: injectUserProfile({}),
+      inputs: injectUserProfileAndTime({}),
     });
 
     if (data?.answer) {

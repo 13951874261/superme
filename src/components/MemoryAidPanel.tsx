@@ -77,6 +77,45 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
 
   // 渲染图片 Tab 的特定状态
   const renderImageTab = () => {
+    // 图片 Tab 专属错误展示（拦截 "Failed to fetch" 并给用户友好提示）
+    if (error) {
+      const isNetError = error === 'Failed to fetch' || error.includes('fetch failed') || error.includes('Failed to fetch');
+      return (
+        <div className="space-y-4">
+          <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 text-red-600 text-xs p-3.5 rounded-xl animate-fade-in">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-black text-red-700 mb-0.5">
+                {isNetError ? '网络请求失败' : '生成失败'}
+              </div>
+              <div className="font-medium">
+                {isNetError
+                  ? '无法连接到后端服务，请确认 vocab-server 已启动且网络正常。'
+                  : error}
+              </div>
+            </div>
+          </div>
+          {!memoryAids?.image_prompt ? null : !memoryAids.image_url ? (
+            <div className="bg-slate-900/5 border border-slate-900/10 rounded-xl p-3.5">
+              <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1.5">图片设计方案 (Prompt)</div>
+              <p className="text-xs text-slate-600 font-mono leading-relaxed select-all">
+                {memoryAids.image_prompt}
+              </p>
+            </div>
+          ) : null}
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={handleGenerateImage}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black tracking-wider uppercase text-white bg-gradient-to-r from-orange-500 via-rose-500 to-pink-500 hover:opacity-95 shadow-md active:scale-95 transition-all select-none"
+            >
+              <Sparkles className="w-4 h-4" />
+              重新生成 AI 记忆
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     if (isGeneratingImage) {
       return (
         <div className="flex flex-col items-center justify-center py-10 text-center">

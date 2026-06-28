@@ -16,6 +16,10 @@ import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
 import GlobalSettingsPanel from './components/GlobalSettingsPanel';
 import { ToastProvider } from './components/Toast';
+import {
+  loadDifyChatbotEmbed,
+  refreshDifyChatbotContext,
+} from './utils/difyChatbot';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -25,22 +29,24 @@ function AppContent() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   const toggleChatbot = () => {
-    const dify = (window as any).difyChatbot;
+    if (!isChatOpen) {
+      refreshDifyChatbotContext();
+    }
+
+    const dify = window.difyChatbot;
     if (dify) {
       if (isChatOpen) {
         if (typeof dify.close === 'function') {
           dify.close();
         } else {
-          const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
-          if (bubbleBtn) bubbleBtn.click();
+          document.getElementById('dify-chatbot-bubble-button')?.click();
         }
         setIsChatOpen(false);
       } else {
         if (typeof dify.open === 'function') {
           dify.open();
         } else {
-          const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
-          if (bubbleBtn) bubbleBtn.click();
+          document.getElementById('dify-chatbot-bubble-button')?.click();
         }
         setIsChatOpen(true);
       }
@@ -70,6 +76,18 @@ function AppContent() {
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
   );
+
+  useEffect(() => {
+    loadDifyChatbotEmbed();
+  }, []);
+
+  useEffect(() => {
+    const handleProfileChange = () => {
+      refreshDifyChatbotContext();
+    };
+    window.addEventListener('global-profile-changed', handleProfileChange);
+    return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+  }, []);
 
   useEffect(() => {
     const handleSettingsChange = () => {

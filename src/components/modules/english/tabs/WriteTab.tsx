@@ -4,6 +4,7 @@ import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
 import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceTaskType, WriteGovernanceResult } from '../../../../services/difyAPI';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
+import { getAppUserId } from '../../../../utils/profileHelper';
 import { playClick, playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
 import { consumeWriteContext } from '../../oralWarRoom/utils';
 import { Copy, Check, Upload, Trash2, BookOpen, Layers, Zap } from 'lucide-react';
@@ -300,7 +301,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
       if (sessionId) {
         const att = await createTrainingAttempt({
           sessionId,
-          userId: 'default-user',
+          userId: getAppUserId(),
           moduleType: 'write',
           sceneType: theme,
           caseText: writingText.slice(0, 4000),
@@ -314,7 +315,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         });
         await submitTrainingFeedback({
           attemptId: att.attemptId,
-          userId: 'default-user',
+          userId: getAppUserId(),
           decomposition: { L1: normalized.L1, L2: normalized.L2 },
           logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
           strengths: `文治板块【${moduleLabel}】已提交评估`,
@@ -330,7 +331,7 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         try {
           const att2 = await createTrainingAttempt({
             sessionId,
-            userId: 'default-user',
+            userId: getAppUserId(),
             moduleType: 'write',
             sceneType: theme,
             caseText: writingText.slice(0, 4000),

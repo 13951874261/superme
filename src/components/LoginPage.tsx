@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { Lock, Eye, EyeOff, ShieldAlert, ArrowRight } from 'lucide-react';
 import { playClick, playSuccess, playError } from '../utils/soundEffects';
+import { ensureAppUserId, getAppUserId, initializeUserSession } from '../utils/profileHelper';
 
 interface LoginPageProps {
   onUnlock: () => void;
@@ -10,9 +11,12 @@ interface LoginPageProps {
 
 export default function LoginPage({ onUnlock }: LoginPageProps) {
   const [password, setPassword] = useState('');
+  const [userAlias, setUserAlias] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isShaking, setIsShaking] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasExistingUserId] = useState(() => Boolean(localStorage.getItem('super_agent_user_id')));
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Auto focus input on mount
@@ -22,15 +26,26 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
     }
   }, []);
 
-  const handleUnlock = (e?: React.FormEvent) => {
+  const handleUnlock = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (isSubmitting) return;
     
     // Fetch correct password from localStorage, default is '1'
     const correctPassword = localStorage.getItem('super_agent_lock_password') || '1';
 
     if (password === correctPassword) {
-      playSuccess();
-      onUnlock();
+      setIsSubmitting(true);
+      try {
+        playSuccess();
+        await initializeUserSession(userAlias.trim() || undefined);
+        onUnlock();
+      } catch (err) {
+        console.warn('[LoginPage] session init failed, continuing with local user id:', err);
+        ensureAppUserId(userAlias.trim() || undefined);
+        onUnlock();
+      } finally {
+        setIsSubmitting(false);
+      }
     } else {
       playError();
       setIsShaking(true);
@@ -137,6 +152,22 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
             )}
           </div>
 
+          {!hasExistingUserId && (
+            <input
+              type="text"
+              placeholder="用户标识（可选，留空则自动生成）"
+              value={userAlias}
+              onChange={(e) => setUserAlias(e.target.value)}
+              className="w-full px-5 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-sm text-white placeholder-white/30 outline-none transition-all duration-300 focus:border-[#FF5722]/60 focus:shadow-[0_0_20px_rgba(255,87,34,0.15)] focus:bg-white/10"
+            />
+          )}
+
+          {hasExistingUserId && (
+            <p className="text-[10px] text-white/35 tracking-wider">
+              当前用户：{getAppUserId()}
+            </p>
+          )}
+
           {/* Error Message with micro-animation */}
           {errorMsg && (
             <motion.div
@@ -152,10 +183,11 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
           {/* Unlock Button */}
           <button
             type="submit"
+            disabled={isSubmitting}
             onClick={() => playClick()}
-            className="w-full group relative flex items-center justify-center gap-2 py-4 px-6 rounded-2xl bg-[#FF5722] hover:bg-[#ff6a3c] text-white font-bold text-xs uppercase tracking-widest transition-all duration-300 shadow-lg shadow-[#FF5722]/20 hover:shadow-[#FF5722]/45 cursor-pointer active:scale-[0.98]"
+            className="w-full group relative flex items-center justify-center gap-2 py-4 px-6 rounded-2xl bg-[#FF5722] hover:bg-[#ff6a3c] disabled:opacity-60 disabled:cursor-not-allowed text-white font-bold text-xs uppercase tracking-widest transition-all duration-300 shadow-lg shadow-[#FF5722]/20 hover:shadow-[#FF5722]/45 cursor-pointer active:scale-[0.98]"
           >
-            解锁登录
+            {isSubmitting ? '正在初始化…' : '解锁登录'}
             <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
           </button>
         </form>

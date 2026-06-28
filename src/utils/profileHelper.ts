@@ -1,3 +1,76 @@
+const PROFILE_UPDATED_AT_KEY = 'user_profile_server_updated_at';
+const ERROR_LEDGER_KEY = 'user_error_ledger';
+const USER_ID_KEY = 'super_agent_user_id';
+
+function sanitizeUserId(id: string): string {
+  const cleaned = id.trim().replace(/[^\w\-@.]/g, '_').slice(0, 64);
+  return cleaned || 'default-user';
+}
+
+function generateAppUserId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `user_${crypto.randomUUID()}`;
+  }
+  return `user_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+/**
+ * 确保 localStorage 中存在用户 ID。
+ * - 已有 ID：直接返回（登录时不覆盖）
+ * - 首次登录且传入 customId：使用用户填写的标识
+ * - 首次登录且未填写：自动生成 UUID 并持久化
+ */
+export function ensureAppUserId(customId?: string): string {
+  const existing = localStorage.getItem(USER_ID_KEY);
+  if (existing) return existing;
+
+  const userId = customId?.trim() ? sanitizeUserId(customId) : generateAppUserId();
+  localStorage.setItem(USER_ID_KEY, userId);
+  return userId;
+}
+
+/** 手动设置用户 ID（如全局设置中修改），会写入 localStorage */
+export function setAppUserId(userId: string) {
+  localStorage.setItem(USER_ID_KEY, sanitizeUserId(userId));
+}
+
+export function getAppUserId(): string {
+  return localStorage.getItem(USER_ID_KEY) || 'default-user';
+}
+
+function getStoredProfileRaw(): string {
+  return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+}
+
+function writeProfileLocal(profile: string, updatedAt?: number) {
+  localStorage.setItem('user_current_profile', profile);
+  localStorage.setItem('User_Current_Profile', profile);
+  if (updatedAt) {
+    localStorage.setItem(PROFILE_UPDATED_AT_KEY, String(updatedAt));
+  }
+  window.dispatchEvent(new Event('global-profile-changed'));
+}
+
+async function syncProfileToServer(profileContent?: string): Promise<void> {
+  const content = profileContent ?? getStoredProfileRaw();
+  try {
+    const res = await fetch('/api/user/profile/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: getAppUserId(),
+        profileContent: content,
+        errorLedger: localStorage.getItem(ERROR_LEDGER_KEY) || '{}',
+      }),
+    });
+    if (res.ok) {
+      localStorage.setItem(PROFILE_UPDATED_AT_KEY, String(Date.now()));
+    }
+  } catch (e) {
+    console.warn('[profileHelper] sync to server failed:', e);
+  }
+}
+
 /**
  * 获取当前持久化的画像
  */
@@ -18,12 +91,11 @@ export function getUserCurrentProfile(): string {
 }
 
 /**
- * 保存画像并向全局广播状态同步事件
+ * 保存画像并向全局广播状态同步事件，同时写入后端 SQLite
  */
 export function saveUserCurrentProfile(profile: string) {
-  localStorage.setItem('user_current_profile', profile);
-  localStorage.setItem('User_Current_Profile', profile);
-  window.dispatchEvent(new Event('global-profile-changed'));
+  writeProfileLocal(profile);
+  void syncProfileToServer(profile);
 }
 
 /**
@@ -60,9 +132,8 @@ export function appendUserProfileFactor(newFactorsStr: string) {
   }
 
   const jsonStr = JSON.stringify(currentArray);
-  localStorage.setItem('user_current_profile', jsonStr);
-  localStorage.setItem('User_Current_Profile', jsonStr);
-  window.dispatchEvent(new Event('global-profile-changed'));
+  writeProfileLocal(jsonStr);
+  void syncProfileToServer(jsonStr);
 }
 
 /**
@@ -131,6 +202,31 @@ export function interceptOutputText(output: any): void {
 }
 
 /**
+ * 获取当前格式化时间（Asia/Shanghai），含星期
+ */
+export function getCurrentFormattedTime(): string {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  };
+  const formatter = new Intl.DateTimeFormat('zh-CN', options);
+  const parts = formatter.formatToParts(now);
+  const val = (type: string) => parts.find((p) => p.type === type)?.value || '';
+
+  const weekdayMap = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  const dayOfWeek = weekdayMap[now.getDay()];
+
+  return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${dayOfWeek}`;
+}
+
+/**
  * 包装并注入当前画像到 Dify 请求体中
  */
 export function injectUserProfile(inputs: Record<string, any> = {}): Record<string, any> {
@@ -159,4 +255,70 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
     ...result,
     user_current_profile: mergedProfile || profile,
   };
+}
+
+/**
+ * 包装并注入当前画像与系统时间到 Dify 请求体中
+ */
+export function injectUserProfileAndTime(inputs: Record<string, any> = {}): Record<string, any> {
+  const result = injectUserProfile(inputs);
+  return {
+    ...result,
+    _system_time: getCurrentFormattedTime(),
+    _system_timestamp_ms: Date.now(),
+  };
+}
+
+/**
+ * 应用启动时从后端拉取画像/长效记忆，并与 localStorage 按 updated_at 合并
+ */
+export async function loadUserProfileFromServer(userId?: string): Promise<void> {
+  const uid = userId || getAppUserId();
+  const localRaw = getStoredProfileRaw();
+  const localUpdatedAt = Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
+
+  try {
+    const res = await fetch(`/api/user/profile/${encodeURIComponent(uid)}`);
+    if (!res.ok) {
+      if (localRaw) void syncProfileToServer(localRaw);
+      return;
+    }
+
+    const json = await res.json();
+    if (!json?.success) return;
+
+    const { profile_content, error_ledger, updated_at } = json.data || {};
+    const serverUpdatedAt = Number(updated_at || 0);
+
+    if (error_ledger && error_ledger !== '{}') {
+      localStorage.setItem(ERROR_LEDGER_KEY, error_ledger);
+    }
+
+    if (profile_content && serverUpdatedAt >= localUpdatedAt) {
+      writeProfileLocal(profile_content, serverUpdatedAt);
+      return;
+    }
+
+    if (localRaw && (localUpdatedAt > serverUpdatedAt || !profile_content)) {
+      void syncProfileToServer(localRaw);
+    }
+  } catch (e) {
+    console.warn('[profileHelper] load from server failed:', e);
+    if (localRaw) void syncProfileToServer(localRaw);
+  }
+}
+
+export function saveUserErrorLedger(ledger: string | Record<string, unknown>) {
+  const value = typeof ledger === 'string' ? ledger : JSON.stringify(ledger);
+  localStorage.setItem(ERROR_LEDGER_KEY, value);
+  void syncProfileToServer();
+}
+
+/**
+ * 登录成功后调用：确定 userId 并从后端拉取该用户的画像/记忆
+ */
+export async function initializeUserSession(customUserId?: string): Promise<string> {
+  const userId = ensureAppUserId(customUserId);
+  await loadUserProfileFromServer(userId);
+  return userId;
 }

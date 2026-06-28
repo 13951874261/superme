@@ -16,6 +16,7 @@ import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
 import { triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
+import { getAppUserId } from '../../../../utils/profileHelper';
 import { addWord, getAllWords, batchAddWords, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
@@ -566,12 +567,12 @@ export default function DashboardTab() {
       // 尝试生成一段引导语料（若工作流可用），否则跳过
       try {
         const listenGenre = genre === 'reading' ? 'meeting' : genre;
-        script = await runListenMaterialGenerator(theme, listenGenre, cefrLevel, 'short', 'default-user');
+        script = await runListenMaterialGenerator(theme, listenGenre, cefrLevel, 'short', getAppUserId());
       } catch {
         script = '';
       }
 
-      const result = await triggerEnglishMasteryExtraction(theme, script, 'default-user', cefrLevel, genre);
+      const result = await triggerEnglishMasteryExtraction(theme, script, getAppUserId(), cefrLevel, genre);
 
       // 更新配额状态
       if (result.quota) {
