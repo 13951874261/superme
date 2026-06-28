@@ -5,7 +5,7 @@ import {
 } from './profileHelper';
 
 const DIFY_EMBED_TOKEN =
-  import.meta.env.VITE_DIFY_CHATBOT_TOKEN || 'SQb8O34NAVGEV18I';
+  import.meta.env.VITE_DIFY_CHATBOT_TOKEN || 'Gz2zXRlfsAr5jYgC';
 const DIFY_EMBED_BASE_URL =
   import.meta.env.VITE_DIFY_CHATBOT_BASE_URL || 'https://dify.234124123.xyz';
 
@@ -19,11 +19,20 @@ export interface DifyChatbotConfig {
 
 let embedLoaded = false;
 
+async function compressAndEncodeBase64(input: string): Promise<string> {
+  const uint8Array = new TextEncoder().encode(input);
+  const compressedStream = new Response(
+    new Blob([uint8Array]).stream().pipeThrough(new CompressionStream('gzip')),
+  ).arrayBuffer();
+  const compressedUint8Array = new Uint8Array(await compressedStream);
+  return btoa(String.fromCharCode(...compressedUint8Array));
+}
+
 /** 与主站 injectUserProfileAndTime 对齐的 embed inputs */
 export function buildDifyChatbotConfig(): DifyChatbotConfig {
   return {
     token: DIFY_EMBED_TOKEN,
-    baseUrl: DIFY_EMBED_BASE_URL,
+    baseUrl: DIFY_EMBED_BASE_URL.replace(/\/$/, ''),
     inputs: {
       user_current_profile: getUserCurrentProfile(),
       _system_time: getCurrentFormattedTime(),
@@ -36,21 +45,53 @@ export function buildDifyChatbotConfig(): DifyChatbotConfig {
   };
 }
 
+/**
+ * 按 Dify embed.js 规则压缩 query，供 iframe / embed 使用。
+ * systemVariables.user_id → sys.user_id，与主站 getAppUserId() 一致。
+ */
+export async function buildDifyChatbotIframeUrl(): Promise<string> {
+  const config = buildDifyChatbotConfig();
+  const params = new URLSearchParams();
+
+  await Promise.all(
+    Object.entries(config.inputs).map(async ([key, value]) => {
+      params.set(key, await compressAndEncodeBase64(String(value)));
+    }),
+  );
+
+  await Promise.all(
+    Object.entries(config.systemVariables).map(async ([key, value]) => {
+      params.set(`sys.${key}`, await compressAndEncodeBase64(String(value)));
+    }),
+  );
+
+  await Promise.all(
+    Object.entries(config.userVariables).map(async ([key, value]) => {
+      params.set(`user.${key}`, await compressAndEncodeBase64(String(value)));
+    }),
+  );
+
+  const url = `${config.baseUrl}/chatbot/${config.token}?${params.toString()}`;
+  if (url.length > 2048) {
+    console.warn('[difyChatbot] iframe URL exceeds 2048 chars; reduce inputs if load fails.');
+  }
+  return url;
+}
+
 export function applyDifyChatbotConfig(): DifyChatbotConfig {
   const config = buildDifyChatbotConfig();
   window.difyChatbotConfig = config;
   return config;
 }
 
-/** 刷新 inputs / user_id；移除已挂载 iframe，下次打开时使用最新上下文 */
+/** 刷新 inputs / user_id；重建 embed iframe（embed.js 仅在加载时读 config） */
 export function refreshDifyChatbotContext(): void {
-  applyDifyChatbotConfig();
-  document.getElementById('dify-chatbot-bubble-window')?.remove();
-  try {
-    window.difyChatbot?.close?.();
-  } catch {
-    // embed 可能尚未初始化
+  if (embedLoaded || document.getElementById(DIFY_EMBED_TOKEN)) {
+    unloadDifyChatbotEmbed();
+    loadDifyChatbotEmbed();
+    return;
   }
+  applyDifyChatbotConfig();
 }
 
 export function unloadDifyChatbotEmbed(): void {
@@ -73,7 +114,7 @@ export function loadDifyChatbotEmbed(): void {
   }
 
   const script = document.createElement('script');
-  script.src = `${DIFY_EMBED_BASE_URL}/embed.min.js`;
+  script.src = `${DIFY_EMBED_BASE_URL.replace(/\/$/, '')}/embed.min.js`;
   script.id = DIFY_EMBED_TOKEN;
   script.defer = true;
   document.body.appendChild(script);

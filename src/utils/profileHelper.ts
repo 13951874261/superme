@@ -32,6 +32,7 @@ export function ensureAppUserId(customId?: string): string {
 /** 手动设置用户 ID（如全局设置中修改），会写入 localStorage */
 export function setAppUserId(userId: string) {
   localStorage.setItem(USER_ID_KEY, sanitizeUserId(userId));
+  window.dispatchEvent(new Event('global-user-id-changed'));
 }
 
 export function getAppUserId(): string {

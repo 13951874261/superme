@@ -25,8 +25,8 @@ export default function OralWarRoomSituationPanel({
   const [culturalCollapsed, setCulturalCollapsed] = useState(true);
 
   return (
-    <aside className={`flex flex-col gap-3 h-full overflow-y-auto ${isContextPanelOpen ? '2xl:col-span-3' : '2xl:col-span-4'}`}>
-          <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-5 xl:p-6 shadow-lg relative overflow-hidden">
+    <aside className={`flex flex-col gap-2 h-full overflow-y-auto ${isContextPanelOpen ? '2xl:col-span-3' : '2xl:col-span-3'}`}>
+          <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-4 xl:p-5 shadow-lg relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-36 h-36 bg-[#FF5722]/15 rounded-full blur-3xl" />
             <div className="relative z-10">
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 mb-3">
@@ -311,7 +311,7 @@ export default function OralWarRoomSituationPanel({
           )}
 
           {/* 跨文化雷达 */}
-          <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-3xl p-5 border border-gray-200 shadow-sm">
+          <div className="bg-gradient-to-br from-slate-50 to-gray-50 rounded-3xl p-4 border border-gray-200 shadow-sm">
             <h3 className="text-xs font-black uppercase tracking-widest text-gray-600 mb-3 flex items-center gap-1.5">
               <Globe className="w-3.5 h-3.5" /> 跨文化雷达
             </h3>
@@ -333,7 +333,7 @@ export default function OralWarRoomSituationPanel({
           </div>
 
           {/* 战场动态情报 */}
-          <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
+          <div className="bg-white rounded-3xl p-4 border border-gray-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)]">
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">冲突点</div>
             <div className="flex flex-wrap gap-2">
               {activeScene.conflicts.map(c => (

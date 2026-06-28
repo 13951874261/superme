@@ -2074,7 +2074,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
     // ??????????????????
     setImmediate(async () => {
       try {
-        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://9router.234124123.xyz/v1';
+        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://23.95.214.232/v1';
         const apiKey = process.env.IMAGE_GEN_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
         const models = (process.env.IMAGE_GEN_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
         if (models.length === 0) models.push(...DEFAULT_IMAGE_GEN_MODELS);

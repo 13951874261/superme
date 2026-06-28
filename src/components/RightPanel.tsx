@@ -3,6 +3,7 @@ import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Che
 import { getAllWords, queryDictionary, type VocabEntry } from '../services/vocabAPI';
 import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
 import MemoryAidPanel from './MemoryAidPanel';
+import DifyAssistantFrame from './DifyAssistantFrame';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
@@ -19,6 +20,7 @@ interface RightPanelProps {
 
 export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
   const [profile, setProfile] = useState(() => getUserCurrentProfile());
+  const [assistantRefreshKey, setAssistantRefreshKey] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const [localWordEntry, setLocalWordEntry] = useState<VocabEntry | null>(null);
@@ -115,11 +117,17 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
   };
 
   useEffect(() => {
+    const bumpAssistant = () => setAssistantRefreshKey((k) => k + 1);
     const handleProfileChange = () => {
       setProfile(getUserCurrentProfile());
+      bumpAssistant();
     };
     window.addEventListener('global-profile-changed', handleProfileChange);
-    return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+    window.addEventListener('global-user-id-changed', bumpAssistant);
+    return () => {
+      window.removeEventListener('global-profile-changed', handleProfileChange);
+      window.removeEventListener('global-user-id-changed', bumpAssistant);
+    };
   }, []);
 
   return (
@@ -230,13 +238,8 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                 className="w-full h-full"
               >
                 {activeTab === 'assistant' ? (
-                  /* 全局 AI 助手 (Dify chatbot) */
                   <div className="w-full h-full relative">
-                    <iframe
-                      src="https://dify.234124123.xyz/chatbot/Gz2zXRlfsAr5jYgC"
-                      className="w-full h-full border-none"
-                      allow="microphone"
-                    />
+                    <DifyAssistantFrame refreshKey={String(assistantRefreshKey)} />
                   </div>
                 ) : (
                   /* 情报解密舱 (上下文词汇详情) */
