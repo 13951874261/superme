@@ -152,8 +152,11 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
     }
   }
 
+  const incomingProfile = typeof result.user_current_profile === 'string' ? result.user_current_profile.trim() : '';
+  const mergedProfile = [profile, incomingProfile].filter(Boolean).join('; ');
+
   return {
     ...result,
-    user_current_profile: profile,
+    user_current_profile: mergedProfile || profile,
   };
 }

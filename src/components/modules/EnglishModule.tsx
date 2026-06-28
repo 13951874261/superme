@@ -64,6 +64,7 @@ function EnglishModuleContent() {
             sceneTheme={theme}
             sessionId={sessionId}
             userId="default-user"
+            onNavigateWrite={() => setActiveTab('write')}
             onOralRoundLogged={() => {
               checkThemeMastery(theme)
                 .then((res) => {

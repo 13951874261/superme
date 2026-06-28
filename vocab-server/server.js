@@ -2598,6 +2598,177 @@ app.post('/api/english/clear-today', (req, res) => {
   }
 });
 
+// ==========================================
+// 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow）
+// API Key 仅保存在服务端 DIFY_ORAL_API_KEY
+// ==========================================
+app.post('/api/english/oral/chat', async (req, res) => {
+  const {
+    query,
+    conversationId = null,
+    userId = 'default-user',
+    inputs = {},
+  } = req.body || {};
+
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ message: '缺少 query 参数。' });
+  }
+
+  const apiKey = process.env.DIFY_ORAL_API_KEY
+    || process.env.VITE_DIFY_ORAL_API_KEY
+    || 'app-LfCGgdQrwlGTfegQNYeEzpB9';
+  const baseUrl = process.env.DIFY_API_BASE_URL
+    || process.env.VITE_DIFY_API_BASE_URL
+    || 'https://dify.234124123.xyz/v1';
+
+  try {
+    const response = await fetch(`${baseUrl}/chat-messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: typeof inputs === 'object' && inputs !== null ? inputs : {},
+        query,
+        response_mode: 'blocking',
+        user: userId,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[oral/chat] Dify error:', response.status, data);
+      return res.status(response.status).json(data);
+    }
+    return res.json(data);
+  } catch (err) {
+    console.error('[oral/chat] error:', err);
+    return res.status(500).json({ message: err.message || '口语沙盘对话代理失败' });
+  }
+});
+
+// ==========================================
+// 多角色沙盘：破绽识别判定（走 English_Oral_Sandbox Chatflow）
+// API Key: DIFY_ORAL_API_KEY / VITE_DIFY_ORAL_API_KEY（与口语沙盘主对话相同）
+// ==========================================
+app.post('/api/english/breakthrough/submit', async (req, res) => {
+  const {
+    messageId,
+    type,
+    selectedText,
+    conversationId = null,
+    flawPoint = '',
+    sceneTitle = '',
+    userId = 'default-user',
+  } = req.body || {};
+
+  if (!selectedText || !type) {
+    return res.status(400).json({ correct: false, feedback: '缺少划词内容或破绽类型。' });
+  }
+
+  const typeLabels = {
+    logic: '逻辑破绽',
+    fact: '事实矛盾',
+    intent: '意图避重',
+  };
+
+  const apiKey = process.env.DIFY_ORAL_API_KEY
+    || process.env.VITE_DIFY_ORAL_API_KEY
+    || 'app-LfCGgdQrwlGTfegQNYeEzpB9';
+  const baseUrl = process.env.DIFY_API_BASE_URL
+    || process.env.VITE_DIFY_API_BASE_URL
+    || 'https://dify.234124123.xyz/v1';
+
+  const query = `[系统指令：破绽识别判定 — 仅输出 JSON，不要 Markdown]
+场景：${sceneTitle || '多角色沙盘'}
+消息ID：${messageId || 'unknown'}
+用户划词：${String(selectedText).slice(0, 500)}
+用户标记类型：${typeLabels[type] || type}
+AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
+
+判定规则：
+1. 用户划词是否覆盖或指向 flaw_point 中的关键矛盾片段；
+2. 用户选择的破绽类型（logic/fact/intent）是否与 flaw_point 描述的谬误类型一致。
+
+只输出一行合法 JSON：{"correct":true或false,"feedback":"不超过80字的中文说明"}`;
+
+  try {
+    const response = await fetch(`${baseUrl}/chat-messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: {
+          scene_title: sceneTitle || '多角色沙盘',
+          role_judgement: type,
+          intent_judgement: 'breakthrough_audit',
+        },
+        query,
+        response_mode: 'blocking',
+        user: userId,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[breakthrough/submit] Dify error:', response.status, data);
+      return res.status(response.status).json({
+        correct: false,
+        feedback: data.message || data.error || `Dify 判定失败 (${response.status})`,
+      });
+    }
+
+    const rawAnswer = String(data.answer || data.message || '').trim();
+    const jsonText = rawAnswer.replace(/```json/g, '').replace(/```/g, '').trim();
+    let parsed = null;
+    try {
+      parsed = JSON.parse(jsonText);
+    } catch {
+      const match = jsonText.match(/\{[\s\S]*"correct"[\s\S]*\}/);
+      if (match) {
+        try { parsed = JSON.parse(match[0]); } catch { /* ignore */ }
+      }
+    }
+
+    if (parsed && typeof parsed.correct === 'boolean') {
+      return res.json({
+        correct: parsed.correct,
+        feedback: String(parsed.feedback || (parsed.correct ? '破绽标记正确。' : '破绽类型不匹配。')),
+      });
+    }
+
+    // Dify 未返回 JSON 时做本地回退
+    const flaw = String(flawPoint).toLowerCase();
+    const selection = String(selectedText).toLowerCase();
+    const typeKeywords = {
+      logic: ['causal', 'fallacy', 'overgeneral', 'equivalence', 'logic', '因果', '以偏概全', '虚假'],
+      fact: ['contradict', 'vague', 'data', 'fact', '矛盾', '模糊', '数据'],
+      intent: ['evad', 'avoid', 'shift', 'intent', '避重', '推诿', '转移'],
+    };
+    const typeMatch = (typeKeywords[type] || []).some((kw) => flaw.includes(kw));
+    const textOverlap = selection.length >= 3 && (
+      flaw.includes(selection.slice(0, Math.min(20, selection.length)))
+      || selection.split(/\s+/).some((w) => w.length > 4 && flaw.includes(w))
+    );
+    const correct = Boolean(flaw && flaw !== '未识别到破绽' && (typeMatch || textOverlap));
+
+    return res.json({
+      correct,
+      feedback: correct
+        ? '已识别破绽（本地回退判定），请用英语发起针对性提问。'
+        : '标记与 AI 埋设破绽不匹配，请重新划词。',
+    });
+  } catch (err) {
+    console.error('[breakthrough/submit] error:', err);
+    return res.status(500).json({ correct: false, feedback: '破绽判定服务异常，请稍后重试。' });
+  }
+});
+
 const WORD_DAILY_LIMIT = 50;
 const PHRASE_DAILY_LIMIT = 30;
 

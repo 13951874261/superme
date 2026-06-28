@@ -63,6 +63,14 @@ export interface ParsedAiResponse {
   feedback_role_switch?: unknown;
   feedback_strategy?: unknown;
   joint_pressure?: unknown;
+  logicScore?: number;
+  culturalScore?: number;
+  fluencyScore?: number;
+  breakthroughs?: Array<{
+    type: 'logic' | 'fact' | 'intent';
+    text: string;
+    suggestion: string;
+  }>;
 }
 
 /** 口语沙盘对话上下文（注入 Dify inputs） */
@@ -73,6 +81,12 @@ export interface OralChatContext {
   conflicts?: string;
   role_switch_instruction?: string;
   scene_level?: number;
+  scene_type?: string;
+  role_judgement?: string;
+  intent_judgement?: string;
+  /** 与 Dify start 节点 user_current_profile 对齐 */
+  user_current_profile?: string;
+  User_Current_Profile?: string;
 }
 
 /** 词汇提纯引擎 - 输入 */
@@ -624,53 +638,62 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
   };
 }
 
+/** 口语类 Chatflow 统一走后端代理（DIFY_ORAL_API_KEY 仅存服务端） */
+async function proxyOralChatMessage(
+  query: string,
+  options: {
+    conversationId?: string | null;
+    userId?: string;
+    inputs?: Record<string, unknown>;
+  } = {},
+): Promise<{ answer?: string; message?: string; conversation_id?: string }> {
+  const res = await fetch('/api/english/oral/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      conversationId: options.conversationId ?? null,
+      userId: options.userId ?? 'default-user',
+      inputs: options.inputs ?? {},
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(String(data.message || data.error || '口语 Chat API 请求失败'));
+  }
+  return data;
+}
+
 export async function sendOralChatMessage(
   query: string,
   conversationId: string | null = null,
   userId = 'default-user',
   oralContext?: OralChatContext
 ) {
-  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY');
-
-  // 【D-1 新增】从 localStorage 读取会话上下文
   const savedConversation = localStorage.getItem('oral_conversation_context');
   const conversationContext = savedConversation ? JSON.parse(savedConversation) : null;
 
-  // 【D-1 新增】注入用户画像弱点
   const profile = getUserCurrentProfile();
 
-  const body = {
-    // 【D-1 修改】inputs 中包含持久化会话变量和用户画像
-    inputs: injectUserProfile({
-      ...(conversationContext || {}),
-      user_weakness_profile: profile || '',
-      ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
-      ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
-      ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
-      ...(oralContext?.conflicts ? { conflicts: oralContext.conflicts } : {}),
-      ...(oralContext?.role_switch_instruction ? { role_switch_instruction: oralContext.role_switch_instruction } : {}),
-      ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
-    }),
-    query,
-    response_mode: 'blocking' as const,
-    user: userId,
-    ...(conversationId ? { conversation_id: conversationId } : {}),
-  };
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
+  const inputs = injectUserProfile({
+    ...(conversationContext || {}),
+    user_weakness_profile: profile || '',
+    ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
+    ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
+    ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
+    ...(oralContext?.conflicts ? { conflicts: oralContext.conflicts } : {}),
+    ...(oralContext?.role_switch_instruction ? { role_switch_instruction: oralContext.role_switch_instruction } : {}),
+    ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
+    ...(oralContext?.role_judgement ? { role_judgement: oralContext.role_judgement } : {}),
+    ...(oralContext?.intent_judgement ? { intent_judgement: oralContext.intent_judgement } : {}),
+    ...(oralContext?.user_current_profile ? { user_current_profile: oralContext.user_current_profile } : {}),
+    ...(oralContext?.User_Current_Profile && !oralContext?.user_current_profile
+      ? { user_current_profile: oralContext.User_Current_Profile }
+      : {}),
   });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || data.error || 'Dify Chat API 请求失败');
+  const data = await proxyOralChatMessage(query, { conversationId, userId, inputs });
 
-  // 【D-1 新增】将本次对话内容持久化到 localStorage，供下次调用使用
   if (data.conversation_id) {
     const updatedContext = {
       ...(conversationContext || {}),
@@ -681,6 +704,65 @@ export async function sendOralChatMessage(
   }
 
   return data;
+}
+
+export interface BreakthroughSubmitResult {
+  correct: boolean;
+  feedback: string;
+}
+
+/** 破绽识别提交：走后端代理，调用 English_Oral_Sandbox Chatflow（DIFY_ORAL_API_KEY） */
+export async function submitBreakthrough(
+  messageId: string,
+  type: 'logic' | 'fact' | 'intent',
+  selectedText: string,
+  context?: {
+    conversationId?: string | null;
+    flawPoint?: string;
+    sceneTitle?: string;
+  },
+): Promise<BreakthroughSubmitResult> {
+  try {
+    const res = await fetch('/api/english/breakthrough/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        messageId,
+        type,
+        selectedText,
+        conversationId: context?.conversationId || null,
+        flawPoint: context?.flawPoint || '',
+        sceneTitle: context?.sceneTitle || '',
+      }),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch {
+    // fall through to client-side heuristic
+  }
+
+  const flaw = String(context?.flawPoint || '').toLowerCase();
+  const selection = selectedText.toLowerCase();
+  const typeKeywords: Record<'logic' | 'fact' | 'intent', string[]> = {
+    logic: ['causal', 'fallacy', 'overgeneral', 'equivalence', 'logic', '因果', '以偏概全', '虚假'],
+    fact: ['contradict', 'vague', 'data', 'fact', '矛盾', '模糊', '数据'],
+    intent: ['evad', 'avoid', 'shift', 'intent', '避重', '推诿', '转移'],
+  };
+
+  const typeMatch = typeKeywords[type].some((kw) => flaw.includes(kw));
+  const textOverlap = selection.length >= 3 && (
+    flaw.includes(selection.slice(0, Math.min(20, selection.length)))
+    || selection.split(/\s+/).some((w) => w.length > 4 && flaw.includes(w))
+  );
+  const correct = Boolean(flaw && flaw !== '未识别到破绽' && (typeMatch || textOverlap));
+
+  return {
+    correct,
+    feedback: correct
+      ? '已识别破绽类型，请用英语发起针对性提问。'
+      : '标记与当前 AI 埋设的破绽不匹配，请重新划词或调整类型。',
+  };
 }
 
 export async function runEnglishListenEngine(text: string, theme: string, userId = 'default-user'): Promise<ListenEngineResult> {
@@ -2087,9 +2169,6 @@ export async function generateReadMaterial(
   scene_framework: 'social' | 'gov' | 'corp',
   userId = 'default-user'
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY，无法动态生成素材');
-
   const frameworkName = {
     social: '通用社交',
     gov: '体制内职场',
@@ -2103,29 +2182,16 @@ export async function generateReadMaterial(
     book: '经典课外书或高阶认知随笔'
   }[scene_type];
 
-  // 拟定高规格的 Prompt 让 AI 返回单篇硬核材料
   const query = `你是一个顶级商务与政策教官。请为我动态生成一篇用于高管穿透训练的【${typeName}】原始文本。
 场景框架要求限制在：【${frameworkName}】。
 内容必须专业、硬核、贴近真实商业利益博弈（比如包含具体的部门拉扯、财报数据隐性漏洞或政策潜台词）。
 字数在 150-300 字之间。不要任何前言、不要任何“好的，这是为您生成的材料”等废话，直接输出材料正文。`;
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: injectUserProfile({}),
-      query,
-      response_mode: 'blocking',
-      user: userId
-    }),
+  const data = await proxyOralChatMessage(query, {
+    userId,
+    inputs: injectUserProfile({}),
   });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '动态生成素材失败');
-  return String(data?.answer || '').trim();
+  return String(data.answer || '').trim();
 }
 
 /**
@@ -2144,9 +2210,6 @@ export async function sendReadInteractiveChatMessage(
   params: ReadInteractiveChatInput,
   userId = 'default-user'
 ): Promise<{ answer: string; conversation_id: string }> {
-  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_ORAL_API_KEY，无法使用 AI 追问舱');
-
   const frameworkName = { social: '通用社交', gov: '体制内职场', corp: '跨国企业' }[params.scene_framework];
   
   const query = `
@@ -2168,28 +2231,14 @@ ${JSON.stringify(params.analysis_result, null, 2)}
 字数保持在 150-250 字左右，语气应当犀利、专业、富有洞察力。
 `;
 
-  const body = {
+  const data = await proxyOralChatMessage(query, {
+    userId,
+    conversationId: params.conversation_id,
     inputs: injectUserProfile({}),
-    query,
-    response_mode: 'blocking' as const,
-    user: userId,
-    ...(params.conversation_id ? { conversation_id: params.conversation_id } : {}),
-  };
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
   });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || '专属交互舱对话请求失败');
   return {
-    answer: String(data?.answer || ''),
-    conversation_id: String(data?.conversation_id || '')
+    answer: String(data.answer || ''),
+    conversation_id: String(data.conversation_id || ''),
   };
 }
 
@@ -2207,11 +2256,8 @@ export async function runWeeklyCognitiveAnalysis(
   userText: string,
   userId = 'default-user'
 ): Promise<WeeklyCognitiveResult> {
-  const apiKey = import.meta.env.VITE_DIFY_ORAL_API_KEY; // 复用口语/决策类 API 密钥进行综合评判
-  
-  if (apiKey) {
-    try {
-      const query = `
+  try {
+    const query = `
 你是专为高层管理者提供认知陪伴与决策分析的顶层 AI 智囊。
 请针对用户周末录入的深度感悟、职场困境或心理状态，提供深度研判。
 
@@ -2227,34 +2273,23 @@ ${userText}
   <factors>提取 1 至 3 个最精准的能力短板或弱点词语，用英文逗号分隔。例如：防御性退缩,缺乏开创力</factors>
 </response>
 `;
-      const res = await fetch(`${DIFY_API_BASE_URL}/chat-messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: injectUserProfile({}),
-          query,
-          response_mode: 'blocking',
-          user: userId
-        }),
-      });
+    const data = await proxyOralChatMessage(query, {
+      userId,
+      inputs: injectUserProfile({}),
+    });
 
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.answer) {
-        const text = String(data.answer);
-        const analysisMatch = text.match(/<analysis>([\s\S]*?)<\/analysis>/);
-        const factorsMatch = text.match(/<factors>([\s\S]*?)<\/factors>/);
-        
-        return {
-          analysis: (analysisMatch ? analysisMatch[1] : text).trim(),
-          shortDebilitatingFactors: (factorsMatch ? factorsMatch[1] : '缺乏开创力').trim(),
-        };
-      }
-    } catch (e) {
-      console.warn('Dify 接口调用失败，自动启用高阶本地 Fallback 算法: ', e);
+    if (data?.answer) {
+      const text = String(data.answer);
+      const analysisMatch = text.match(/<analysis>([\s\S]*?)<\/analysis>/);
+      const factorsMatch = text.match(/<factors>([\s\S]*?)<\/factors>/);
+      
+      return {
+        analysis: (analysisMatch ? analysisMatch[1] : text).trim(),
+        shortDebilitatingFactors: (factorsMatch ? factorsMatch[1] : '缺乏开创力').trim(),
+      };
     }
+  } catch (e) {
+    console.warn('Dify 接口调用失败，自动启用高阶本地 Fallback 算法: ', e);
   }
 
   // ====== 智能本地 Fallback 演化算法（保证离线与私有部署体验） ======

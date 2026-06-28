@@ -5,6 +5,7 @@ import Confetti from '../../../Confetti';
 import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceTaskType, WriteGovernanceResult } from '../../../../services/difyAPI';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
 import { playClick, playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
+import { consumeWriteContext } from '../../oralWarRoom/utils';
 import { Copy, Check, Upload, Trash2, BookOpen, Layers, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -156,12 +157,33 @@ export default function WriteTab() {
     }
   };
 
+  // 从多角色沙盘跳转时预填书面闭环上下文
+  const [oralWriteContext, setOralWriteContext] = useState<{ sceneTitle: string; conflicts: string[] } | null>(null);
+
+  useEffect(() => {
+    const ctx = consumeWriteContext();
+    if (!ctx?.sceneTitle) return;
+    setActiveModule('biz_proposal');
+    setOralWriteContext({ sceneTitle: ctx.sceneTitle, conflicts: ctx.conflicts || [] });
+    const conflictLine = (ctx.conflicts || []).join(' / ');
+    setWriteIntent(
+      `【沙盘书面闭环 · ${ctx.sceneTitle}】\n`
+      + `核心冲突：${conflictLine || '见上文沙盘推演'}\n`
+      + `跨文化背景：${ctx.culturalContext || ''}\n\n`
+      + '请撰写一封高阶商务信函/邮件，回应上述多角色博弈情境。要求：语法严谨、逻辑闭环、分寸得体，无破绽。',
+    );
+    playPageTurn();
+    showNotice('review', `已载入沙盘场景「${ctx.sceneTitle}」，请完成书面闭环`, 'success');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 监听主题切换，清空当前输入
   useEffect(() => {
     setChallengeText('');
     setWritingText('');
     setWriteIntent('');
     setReviewResult(null);
+    setOralWriteContext(null);
   }, [theme, setWritingText, setWriteIntent, setReviewResult]);
 
   // 对标文本自动保存
@@ -360,6 +382,21 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
   return (
     <div className="flex flex-col gap-6">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
+
+      {oralWriteContext && (
+        <div className="bg-[var(--color-canvas)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-start gap-3 shadow-[var(--shadow-sm)]">
+          <BookOpen className="w-4 h-4 text-[var(--color-accent)] shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">沙盘书面闭环</p>
+            <p className="text-xs font-bold text-[var(--color-ink-primary)] mt-0.5">{oralWriteContext.sceneTitle}</p>
+            {oralWriteContext.conflicts.length > 0 && (
+              <p className="text-[10px] text-[var(--color-ink-secondary)] mt-1">
+                冲突：{oralWriteContext.conflicts.join(' · ')}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
       
       {/* 顶部微投影 SOP 说明区：精简为单行，收缩高度 */}
       <div className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">

@@ -203,6 +203,17 @@ export const playDrag = () => synthClick(720, 0.035, 0.06);
 export const playValidatePass = () => synthSuccess([523.25, 784], 0.09, 0.12);
 export const playValidateFail = () => synthError(380, 120, 0.18, 0.08);
 
+// 口语沙盘专用音效
+export const playSendMessage = () => synthWaterDrop(1200, 0.07, 0.09);
+export const playRecordStart = () => synthWaterDrop(980, 0.06, 0.08);
+export const playRecordStop = () => synthClick(880, 0.05, 0.1);
+export const playSceneSwitch = () => playPageTurn();
+export const playBreakthrough = () => {
+  synthClick(1050, 0.04, 0.12);
+  setTimeout(() => synthClick(880, 0.05, 0.1), 45);
+};
+export const playRoleSwitch = () => synthClick(920, 0.04, 0.11);
+
 // 兼容老音效函数映射
 export const playWaterDrop = () => synthWaterDrop();
 export const playSuccessCyber = () => playSuccess();
