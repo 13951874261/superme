@@ -3876,21 +3876,35 @@ function getEdgeTtsCommand() {
  */
 async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   const { execFile } = require('child_process');
+  const os = require('os');
+  const fs = require('fs');
+  const path = require('path');
   const { command, prefixArgs } = getEdgeTtsCommand();
-  const tmpFile = path.join(require('os').tmpdir(), `edge_tts_${Date.now()}_${Math.random().toString(36).slice(2)}.mp3`);
+  const tmpId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  const tmpMediaFile = path.join(os.tmpdir(), `edge_tts_${tmpId}.mp3`);
+  const tmpTextFile = path.join(os.tmpdir(), `edge_tts_${tmpId}.txt`);
+  
+  // 将极长的文本写入临时文件，防止命令行因过长或包含特殊字符报错
+  fs.writeFileSync(tmpTextFile, text, 'utf8');
+
   return new Promise((resolve, reject) => {
-    const args = [...prefixArgs, '--voice', voice, '--text', text, '--write-media', tmpFile];
-    const proc = execFile(command, args, { timeout: 60000 }, (err) => {
-      if (err) return reject(new Error(`edge-tts failed: ${err.message}`));
+    const args = [...prefixArgs, '--voice', voice, '--file', tmpTextFile, '--write-media', tmpMediaFile];
+    // 放宽超时到 5 分钟 (300000 ms)
+    const proc = execFile(command, args, { timeout: 300000 }, (err) => {
+      if (fs.existsSync(tmpTextFile)) fs.unlinkSync(tmpTextFile);
+      if (err) {
+        if (fs.existsSync(tmpMediaFile)) fs.unlinkSync(tmpMediaFile);
+        return reject(new Error(`edge-tts failed: ${err.message}`));
+      }
       try {
-        const data = fs.readFileSync(tmpFile);
-        fs.unlinkSync(tmpFile);
+        const data = fs.readFileSync(tmpMediaFile);
+        fs.unlinkSync(tmpMediaFile);
         resolve(data);
       } catch (readErr) {
-        reject(new Error(`???????????????: ${readErr.message}`));
+        reject(new Error(`音频读取失败: ${readErr.message}`));
       }
     });
-    // ?????????? signal ???????????????
+    // 处理外部 signal 打断
     if (signal) {
       signal.addEventListener('abort', () => {
         proc.kill();
