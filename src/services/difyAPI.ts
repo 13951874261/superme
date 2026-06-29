@@ -958,11 +958,11 @@ export async function runListenMaterialGenerator(
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1',
   duration: number | 'short' | 'long',
   userId = getAppUserId()
-): Promise<string> {
+): Promise<any> {
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
 
-  // ── 长音频（≥5 分钟）：走后端 SSE 代理，避免浏览器直连 Dify 时 HTTP/2 断连 ──
+  // ── 长音频（≥5 分钟）：走后端后台任务机制，立即返回 taskId ──
   if (isLong) {
     const res = await fetch('/api/listen/generate-material-long', {
       method: 'POST',
@@ -971,14 +971,18 @@ export async function runListenMaterialGenerator(
         inputs: injectUserProfileAndTime({ theme, cefr_level: cefrLevel, genre, duration: durationParam }),
         userId,
       }),
-      signal: AbortSignal.timeout(15 * 60 * 1000),
     });
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
-      throw new Error(data.error || data.message || `生成长文听力失败 (HTTP ${res.status})`);
+      throw new Error(data.error || data.message || `提交长文听力生成失败 (HTTP ${res.status})`);
     }
 
+    if (data.taskId) {
+      return { taskId: data.taskId };
+    }
+
+    // Fallback 兼容逻辑
     if (!data.answer) {
       throw new Error('后台没有返回任何听力材料数据，请检查 Dify 应用配置。');
     }

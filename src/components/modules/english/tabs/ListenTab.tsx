@@ -34,6 +34,7 @@ export default function ListenTab() {
   const [isFullscreenText, setIsFullscreenText] = useState(false);
   const [isAddingHighlight, setIsAddingHighlight] = useState(false);
   const [curTtsTaskId, setCurTtsTaskId] = useState<string | null>(null);
+  const [curListenTaskId, setCurListenTaskId] = useState<string | null>(null);
   const [isAudioGenerating, setIsAudioGenerating] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
 
@@ -86,6 +87,50 @@ export default function ListenTab() {
     }
   }, [tasks, curTtsTaskId]);
 
+  // 监听剧本生成任务 (长音频后台机制)
+  useEffect(() => {
+    if (!curListenTaskId) return;
+    const task = tasks.find(t => t.id === curListenTaskId);
+    if (!task) return;
+
+    if (task.status === 'completed' && task.result?.content) {
+      const script = task.result.content;
+      setListenMaterial(script);
+      setCurListenTaskId(null);
+      setIsListenMaterialLoading(false);
+      showNotice('listen', '长音频剧本生成完毕！即将开始后台合成语音...', 'success');
+
+      // 自动触发 TTS 生成 (选项 A 逻辑)
+      setIsAudioGenerating(true);
+      import('../../../../services/listeningAPI').then(({ fetchDifyTTS }) => {
+        fetchDifyTTS(script, { isAsync: true }).then(ttsRes => {
+          if (ttsRes.audioUrl) {
+            setListenAudioUrl(ttsRes.audioUrl);
+            setIsAudioGenerating(false);
+          } else if (ttsRes.taskId) {
+            addTask({
+              id: ttsRes.taskId,
+              type: 'tts',
+              name: `精听音频: ${listenMaterialTheme}`,
+              status: 'pending',
+              progress: 0,
+              logs: ['音频已提交合成队列...'],
+            });
+            setCurTtsTaskId(ttsRes.taskId);
+          }
+        }).catch(audioErr => {
+          setIsAudioGenerating(false);
+          console.error('音频生成失败', audioErr);
+          showNotice('listen', '语音合成服务异常，将降级使用原生发音', 'error');
+        });
+      });
+    } else if (task.status === 'failed') {
+      setCurListenTaskId(null);
+      setIsListenMaterialLoading(false);
+      showNotice('listen', `剧本生成失败: ${task.error || '未知错误'}`, 'error');
+    }
+  }, [tasks, curListenTaskId, listenMaterialTheme, addTask, setListenMaterial, setIsListenMaterialLoading, showNotice]);
+
   const generateListenMaterial = async (targetTheme: string) => {
     setIsListenMaterialLoading(true);
     setListenResult(null);
@@ -93,26 +138,43 @@ export default function ListenTab() {
     setIsTextVisible(false);
     setListenAudioUrl(null);
     setCurTtsTaskId(null);
+    setCurListenTaskId(null);
     setIsAudioGenerating(false);
     setListenMaterialTheme(targetTheme);
     setHasPlayed(false);
 
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
-      const script = await runListenMaterialGenerator(targetTheme, listenGenre, listenCefr, listenDuration);
+      const res = await runListenMaterialGenerator(targetTheme, listenGenre, listenCefr, listenDuration);
+      
+      // 若是后台长任务
+      if (res && typeof res === 'object' && res.taskId) {
+        addTask({
+          id: res.taskId,
+          type: 'material',
+          name: `长听力剧本: ${targetTheme}`,
+          status: 'pending',
+          progress: 0,
+          logs: ['提交剧本生成队列...'],
+        });
+        setCurListenTaskId(res.taskId);
+        showNotice('listen', '长剧本已加入后台任务队列，生成完成后将自动加载并朗读', 'info');
+        // 注意：不在这里 set false，保持 loading 动画直到 useEffect 中检测到 task 完成
+        return;
+      }
+
+      const script = typeof res === 'string' ? res : (res.script || '');
       setListenMaterial(script);
 
-      // 异步音频生成（默认路径）
+      // 异步音频生成（默认路径，用于短音频）
       const { fetchDifyTTS } = await import('../../../../services/listeningAPI');
       setIsAudioGenerating(true);
       try {
         const ttsRes = await fetchDifyTTS(script, { isAsync: true });
         if (ttsRes.audioUrl) {
-          // 缓存命中，直接使用
           setListenAudioUrl(ttsRes.audioUrl);
           setIsAudioGenerating(false);
         } else if (ttsRes.taskId) {
-          // 注册到全局任务中心
           addTask({
             id: ttsRes.taskId,
             type: 'tts',
@@ -136,11 +198,11 @@ export default function ListenTab() {
           showNotice('listen', `高保真音频生成失败，将使用浏览器原生发音`, 'error');
         }
       }
+      setIsListenMaterialLoading(false);
     } catch (err) {
       console.error(err);
       const msg = err instanceof Error ? err.message : '剧本生成失败，请检查配置';
       showNotice('listen', msg, 'error');
-    } finally {
       setIsListenMaterialLoading(false);
     }
   };

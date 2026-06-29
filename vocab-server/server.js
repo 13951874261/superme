@@ -604,55 +604,87 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
       || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
       || process.env.DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ success: false, error: '?????????? DIFY_LONG_AUDIO_API_KEY' });
+      return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
     }
 
     const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    const fetchController = new AbortController();
-    const fetchTimeout = setTimeout(() => fetchController.abort(), 15 * 60 * 1000);
 
-    let wfResponse;
-    try {
-      wfResponse = await fetch(`${baseUrl}/chat-messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        signal: fetchController.signal,
-        body: JSON.stringify({
-          inputs: inputs || {},
-          query: 'generate',
-          response_mode: 'streaming',
-          user: userId,
-        }),
-      });
-    } finally {
-      clearTimeout(fetchTimeout);
-    }
+    // 引入任务队列，创建任务
+    const taskQueue = require('./services/taskQueue');
+    const taskTitle = inputs.theme ? `播客文稿: ${inputs.theme}` : '深度播客生成';
+    const task = taskQueue.createTask('material', taskTitle);
 
-    if (!wfResponse.ok) {
-      const errText = await wfResponse.text().catch(() => '');
-      let errMsg = errText || 'Dify API Error';
+    // 立即响应给前端 taskId，由前端使用全局的 TaskContext 接管轮询
+    res.json({ success: true, taskId: task.id, status: task.status });
+
+    // ========= 以下进入异步后台执行，不会阻塞客户端连接 =========
+    (async () => {
       try {
-        const parsed = JSON.parse(errText);
-        errMsg = parsed.message || parsed.error || errMsg;
-      } catch (_) {}
-      return res.status(wfResponse.status).json({ success: false, error: errMsg });
-    }
+        taskQueue.updateTaskProgress(task.id, 10);
+        taskQueue.appendTaskLog(task.id, '正在连接智库并初始化推演模型 (Dify API)...');
 
-    const answer = await collectDifyStreamingAnswer(wfResponse);
-    if (!answer) {
-      return res.status(500).json({ success: false, error: '??????????????????????????????????? Dify ????????????' });
-    }
+        const fetchController = new AbortController();
+        // 放宽到 30 分钟，后台不受 Nginx 超时限制
+        const fetchTimeout = setTimeout(() => fetchController.abort(), 30 * 60 * 1000);
 
-    res.json({ success: true, answer });
+        let wfResponse;
+        try {
+          wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+            },
+            signal: fetchController.signal,
+            body: JSON.stringify({
+              inputs: injectOralSystemTime(inputs),
+              query: 'generate',
+              response_mode: 'streaming',
+              user: userId,
+            }),
+          });
+        } finally {
+          clearTimeout(fetchTimeout);
+        }
+
+        if (!wfResponse.ok) {
+          const errText = await wfResponse.text().catch(() => '');
+          let errMsg = errText || `Dify HTTP ${wfResponse.status}`;
+          try {
+            const parsed = JSON.parse(errText);
+            errMsg = parsed.message || parsed.error || errMsg;
+          } catch (_) {}
+          taskQueue.failTask(task.id, `模型接口出错: ${errMsg}`);
+          return;
+        }
+
+        taskQueue.updateTaskProgress(task.id, 30);
+        taskQueue.appendTaskLog(task.id, '成功连接，模型正在流式下发剧本数据...');
+
+        // 原本收集流式答案的函数
+        const answer = await collectDifyStreamingAnswer(wfResponse);
+        if (!answer) {
+          taskQueue.failTask(task.id, '接收成功但答案为空');
+          return;
+        }
+
+        // 保存生成的文稿内容给前端提取 (保存在 task.result.content)
+        taskQueue.updateTaskProgress(task.id, 100);
+        taskQueue.appendTaskLog(task.id, '长音频剧本生成圆满完成！');
+        taskQueue.completeTask(task.id, { content: answer });
+
+      } catch (error) {
+        console.error('generate-material-long background task error:', error);
+        const msg = error.name === 'AbortError'
+          ? '后台任务因超时被中止 (30分钟拦截机制)'
+          : error.message;
+        taskQueue.failTask(task.id, `后台生成异常: ${msg}`);
+      }
+    })();
+
   } catch (error) {
-    console.error('generate-material-long error:', error);
-    const msg = error.name === 'AbortError'
-      ? '???????????????????????15 ????????????????????????????'
-      : error.message;
-    res.status(500).json({ success: false, error: msg });
+    console.error('generate-material-long request handler error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
