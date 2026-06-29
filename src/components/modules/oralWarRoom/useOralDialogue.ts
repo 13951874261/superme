@@ -10,7 +10,15 @@ import {
   formatSessionMemoryProfile,
 } from './utils';
 
-const FLAW_TYPES = ['causal_fallacy', 'overgeneralization', 'false_equivalence', 'evasive_argument', 'shifting_burden'] as const;
+const FLAW_TYPES = [
+  'causal_fallacy',
+  'overgeneralization',
+  'false_equivalence',
+  'evasive_argument',
+  'shifting_burden',
+  'factual_vague',
+  'intent_evade',
+] as const;
 
 const FLAW_DESCRIPTIONS: Record<(typeof FLAW_TYPES)[number], string> = {
   causal_fallacy: '植入一个因果倒置的论点（例如："因为我们拒绝了涨价，所以产品质量一定下降了"）',
@@ -18,6 +26,8 @@ const FLAW_DESCRIPTIONS: Record<(typeof FLAW_TYPES)[number], string> = {
   false_equivalence: '植入一个虚假等同的论点（例如："我们的合规成本和他们的报价差异是同等重要的"）',
   evasive_argument: '植入一个避重就轻的回答（例如：用程序正义回避实质问题）',
   shifting_burden: '植入一个偷换举证责任的论点（例如："如果你不能证明我们有问题，那就是我们没问题"）',
+  factual_vague: '植入一个事实模糊或数据矛盾的论点（例如："据我所知市场普遍如此"但无法给出具体依据）',
+  intent_evade: '植入一个意图回避的论点（例如：用流程合规掩盖实质让步，或转移谈判焦点）',
 };
 
 function getDifficultyPrefix(hardcoreMessage: string): string {

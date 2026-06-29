@@ -2642,6 +2642,38 @@ app.post('/api/english/clear-today', (req, res) => {
 });
 
 // ==========================================
+// 多角色沙盘：English_Oral_Sandbox v10 时间 inputs 注入（与前端 profileHelper 对齐）
+// ==========================================
+function getOralSystemFormattedTime() {
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const val = (type) => parts.find((p) => p.type === type)?.value || '';
+  const weekdayMap = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${weekdayMap[now.getDay()]}`;
+}
+
+function injectOralSystemTime(inputs = {}) {
+  const base = typeof inputs === 'object' && inputs !== null ? { ...inputs } : {};
+  if (!base._system_time) {
+    base._system_time = getOralSystemFormattedTime();
+  }
+  if (base._system_timestamp_ms == null || base._system_timestamp_ms === '') {
+    base._system_timestamp_ms = Date.now();
+  }
+  return base;
+}
+
+// ==========================================
 // 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow）
 // API Key 仅保存在服务端 DIFY_ORAL_API_KEY
 // ==========================================
@@ -2672,7 +2704,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: typeof inputs === 'object' && inputs !== null ? inputs : {},
+        inputs: injectOralSystemTime(inputs),
         query,
         response_mode: 'blocking',
         user: userId,
@@ -2745,11 +2777,11 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {
+        inputs: injectOralSystemTime({
           scene_title: sceneTitle || '多角色沙盘',
           role_judgement: type,
           intent_judgement: 'breakthrough_audit',
-        },
+        }),
         query,
         response_mode: 'blocking',
         user: userId,
@@ -2790,8 +2822,8 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
     const selection = String(selectedText).toLowerCase();
     const typeKeywords = {
       logic: ['causal', 'fallacy', 'overgeneral', 'equivalence', 'logic', '因果', '以偏概全', '虚假'],
-      fact: ['contradict', 'vague', 'data', 'fact', '矛盾', '模糊', '数据'],
-      intent: ['evad', 'avoid', 'shift', 'intent', '避重', '推诿', '转移'],
+      fact: ['contradict', 'vague', 'data', 'fact', 'factual_vague', '矛盾', '模糊', '数据'],
+      intent: ['evad', 'avoid', 'shift', 'intent', 'intent_evade', '避重', '推诿', '转移'],
     };
     const typeMatch = (typeKeywords[type] || []).some((kw) => flaw.includes(kw));
     const textOverlap = selection.length >= 3 && (

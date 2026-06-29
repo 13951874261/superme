@@ -670,13 +670,9 @@ export async function sendOralChatMessage(
   userId = getAppUserId(),
   oralContext?: OralChatContext
 ) {
-  const savedConversation = localStorage.getItem('oral_conversation_context');
-  const conversationContext = savedConversation ? JSON.parse(savedConversation) : null;
-
   const profile = getUserCurrentProfile();
 
   const inputs = injectUserProfileAndTime({
-    ...(conversationContext || {}),
     user_weakness_profile: profile || '',
     ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
     ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
@@ -693,14 +689,13 @@ export async function sendOralChatMessage(
   });
 
   const data = await proxyOralChatMessage(query, { conversationId, userId, inputs });
+  interceptOutputText(data);
 
   if (data.conversation_id) {
-    const updatedContext = {
-      ...(conversationContext || {}),
+    localStorage.setItem('oral_conversation_context', JSON.stringify({
       last_conversation_id: data.conversation_id,
       last_round_at: Date.now(),
-    };
-    localStorage.setItem('oral_conversation_context', JSON.stringify(updatedContext));
+    }));
   }
 
   return data;
@@ -746,8 +741,8 @@ export async function submitBreakthrough(
   const selection = selectedText.toLowerCase();
   const typeKeywords: Record<'logic' | 'fact' | 'intent', string[]> = {
     logic: ['causal', 'fallacy', 'overgeneral', 'equivalence', 'logic', '因果', '以偏概全', '虚假'],
-    fact: ['contradict', 'vague', 'data', 'fact', '矛盾', '模糊', '数据'],
-    intent: ['evad', 'avoid', 'shift', 'intent', '避重', '推诿', '转移'],
+    fact: ['contradict', 'vague', 'data', 'fact', 'factual_vague', '矛盾', '模糊', '数据'],
+    intent: ['evad', 'avoid', 'shift', 'intent', 'intent_evade', '避重', '推诿', '转移'],
   };
 
   const typeMatch = typeKeywords[type].some((kw) => flaw.includes(kw));
