@@ -66,6 +66,9 @@ if ($Force) {
         if ($file -match "^vocab-server/") {
             $needBackendDeploy = $true
         }
+        if ($file -eq "vocab-server/.env") {
+            $needBackendDeploy = $true
+        }
         if ($file -match "app\.liujingzhuwo\.site") {
             $needNginxDeploy = $true
         }
@@ -80,6 +83,10 @@ if ($Force) {
         $needFrontendDeploy = $true
         $needBackendDeploy = $true
         $needNginxDeploy = $true
+    }
+
+    if ((Test-Path "$ProjectRoot\vocab-server\.env" -PathType Leaf) -and $needBackendDeploy) {
+        Write-Host "Local vocab-server/.env found; will sync to server during backend deploy." -ForegroundColor DarkGreen
     }
 }
 
@@ -198,8 +205,10 @@ try {
 
         $envFile = "$ProjectRoot\vocab-server\.env"
         if (Test-Path $envFile -PathType Leaf) {
-            Write-Host "     Uploading: .env"
+            Write-Host "  -> Uploading vocab-server/.env -> $RemoteApiRoot/.env" -ForegroundColor DarkCyan
             Send-File $envFile "$RemoteApiRoot/.env"
+        } else {
+            Write-Host "  -> Skip .env (local vocab-server/.env not found)" -ForegroundColor Yellow
         }
 
         $runFixOldVocab = $false

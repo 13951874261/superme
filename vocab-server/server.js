@@ -411,19 +411,45 @@ function buildImageGenerationPayload(model, prompt) {
   };
 }
 
+function getImageGenFetchOptions(baseUrl) {
+  let hostname = '';
+  try {
+    hostname = new URL(baseUrl).hostname;
+  } catch {
+    return {};
+  }
+  const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+  const insecureTls = process.env.IMAGE_GEN_INSECURE_TLS === '1'
+    || process.env.IMAGE_GEN_INSECURE_TLS === 'true'
+    || isIpHost;
+  if (!insecureTls) return {};
+  try {
+    const { Agent } = require('undici');
+    return { dispatcher: new Agent({ connect: { rejectUnauthorized: false } }) };
+  } catch {
+    return {};
+  }
+}
+
 async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
   const requestUrl = `${String(baseUrl || '').replace(/\/$/, '')}/images/generations`;
   const payload = buildImageGenerationPayload(model, prompt);
-  const response = await fetch(requestUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const rawText = await response.text().catch(() => '');
+  let response;
+  let rawText = '';
+  try {
+    response = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+      ...getImageGenFetchOptions(baseUrl),
+    });
+    rawText = await response.text().catch(() => '');
+  } catch (error) {
+    return { ok: false, error: `生图服务连接失败 (${model} @ ${baseUrl}): ${formatTtsFetchError(error)}` };
+  }
   let responseData = {};
   try {
     responseData = rawText ? JSON.parse(rawText) : {};
@@ -2142,7 +2168,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         });
       } catch (err) {
         console.error('[generate-image async] Error:', err);
-        taskQueue.updateTask(task.id, { status: 'failed', error: err.message });
+        taskQueue.updateTask(task.id, { status: 'failed', error: formatTtsFetchError(err) });
       }
     });
 

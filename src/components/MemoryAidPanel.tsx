@@ -79,7 +79,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
   const renderImageTab = () => {
     // 图片 Tab 专属错误展示（拦截 "Failed to fetch" 并给用户友好提示）
     if (error) {
-      const isNetError = error === 'Failed to fetch' || error.includes('fetch failed') || error.includes('Failed to fetch');
+      const isNetError = error === 'Failed to fetch' || error.includes('Failed to fetch');
       return (
         <div className="space-y-4">
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 text-red-600 text-xs p-3.5 rounded-xl animate-fade-in">
