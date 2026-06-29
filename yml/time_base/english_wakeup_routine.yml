@@ -1,5 +1,11 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-jOUB4sarfRYumAyBzWhuGFYo (VITE_DIFY_WAKEUP_API_KEY)
+# 用途: Daily Wakeup Engine — 时间感知晨读复习版
+# 改造: 注入 _system_time/_system_timestamp_ms；知识检索后经 Time_Decay_Rerank（3天半衰期）衰减重排
+# ─────────────────────────────────────────────────────────────
 app:
-  description: 每日发音与语法唤醒 (Wakeup Engine)
+  description: 每日发音与语法唤醒 (Wakeup Engine)；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（3天半衰期）热词优先复习。
   icon: 🌅
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -7,6 +13,11 @@ app:
   name: english_wakeup_routine
   use_icon_as_answer_icon: false
 dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
 - current_identifier: null
   type: marketplace
   value:
@@ -33,7 +44,7 @@ workflow:
       - remote_url
       enabled: false
       fileUploadConfig:
-        attachment_image_file_size_limit: 2
+        attachment_image_file_size_limit: 10
         audio_file_size_limit: 1024
         batch_count_limit: 5
         file_size_limit: 1024
@@ -52,7 +63,7 @@ workflow:
       number_limits: 3
     opening_statement: ''
     retriever_resource:
-      enabled: false
+      enabled: true
     sensitive_word_avoidance:
       enabled: false
     speech_to_text:
@@ -70,9 +81,33 @@ workflow:
         isInIteration: false
         isInLoop: false
         sourceType: start
-        targetType: llm
-      id: wakeup-start-llm
+        targetType: knowledge-retrieval
+      id: wakeup-start-kb
       source: wakeup_start
+      sourceHandle: source
+      target: c1d2e3f4-a5b6-4890-wake-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: wakeup-kb-decay
+      source: c1d2e3f4-a5b6-4890-wake-012345678901
+      sourceHandle: source
+      target: d2e3f4a5-b6c7-4901-wake-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: wakeup-decay-llm
+      source: d2e3f4a5-b6c7-4901-wake-123456789012
       sourceHandle: source
       target: wakeup_llm
       targetHandle: target
@@ -134,13 +169,127 @@ workflow:
           required: false
           type: paragraph
           variable: user_current_profile
-      height: 161
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 220
       id: wakeup_start
       position:
         x: 80
         y: 240
       positionAbsolute:
         x: 80
+        y: 240
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - Gh9Wui8bN0bAx85wYPwLdU/mVJRTqTm97rjWl6DvF6xxd5DAF72wFc1u4Pu7Y4S8
+        metadata_filtering_mode: disabled
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          score_threshold: null
+          top_k: 5
+          weights:
+            keyword_setting:
+              keyword_weight: 0
+            vector_setting:
+              embedding_model_name: bge-small-zh-v1.5
+              embedding_provider_name: langgenius/xinference/xinference
+              vector_weight: 1
+            weight_type: customized
+        query_attachment_selector: []
+        query_variable_selector:
+        - wakeup_start
+        - theme
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: c1d2e3f4-a5b6-4890-wake-012345678901
+      position:
+        x: 380
+        y: 240
+      positionAbsolute:
+        x: 380
+        y: 240
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 晨读复习错词的半衰期设定为 3 天 (3 * 24 * 60 * 60 * 1000 毫秒)\n    # 这样能保证\
+          \ 1-2 天内的新错词获得绝对的高分，从而优先在早上被唤醒复习\n    HALF_LIFE_MS = 3 * 24 * 60 * 60 *\
+          \ 1000\n    decay_rate = math.log(2) / HALF_LIFE_MS\n\n    reranked_docs =\
+          \ []\n\n    if not retrieved_docs:\n        return {\"reranked_context\"\
+          : \"\"}\n\n    ts = int(current_timestamp) if current_timestamp is not None\
+          \ else 0\n\n    for doc in retrieved_docs:\n        if not isinstance(doc,\
+          \ dict):\n            continue\n        content = doc.get(\"content\", \"\
+          \")\n        orig_score = float(doc.get(\"score\", 0.5))\n        metadata\
+          \ = doc.get(\"metadata\", {}) or {}\n\n        # 获取错词记录时间戳\n        doc_time\
+          \ = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff\
+          \ = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate *\
+          \ time_diff)\n        final_score = orig_score * decay_factor\n\n       \
+          \ doc_age_days = round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag\
+          \ = f\"[错词记录于：{doc_age_days} 天前]\"\n\n        reranked_docs.append({\n  \
+          \          \"content\": f\"{time_tag} {content}\",\n            \"final_score\"\
+          : final_score,\n            \"metadata\": metadata\n        })\n\n    # 根据时间衰减后的分数重新降序排序\n\
+          \    reranked_docs.sort(key=lambda x: x[\"final_score\"], reverse=True)\n\n\
+          \    # 拼接为纯文本供 LLM 使用\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"\
+          content\"] for d in reranked_docs])\n\n    return {\n        \"reranked_context\"\
+          : merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 3 天半衰期做时间衰减重排，并为每段记忆注入「错词记录于 X 天前」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - c1d2e3f4-a5b6-4890-wake-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - wakeup_start
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: d2e3f4a5-b6c7-4901-wake-123456789012
+      position:
+        x: 680
+        y: 240
+      positionAbsolute:
+        x: 680
         y: 240
       selected: false
       sourcePosition: right
@@ -160,7 +309,11 @@ workflow:
         prompt_template:
         - id: wakeup-system-prompt
           role: system
-          text: "你是一个极简的「发音与语法」唤醒排版引擎。请根据当前主题与用户地区画像生成严格 JSON。\n\n【输入变量】\n- 当前主题：{{theme}}\n\
+          text: "你是一个极简的「发音与语法」唤醒排版引擎。请根据当前主题与用户地区画像生成严格 JSON。\n\n【全局时间感知】\n当前系统时间是：{{#wakeup_start._system_time#}}。\n\n【艾宾浩斯晨读复习规则】\n上下文提供了错词和句型的\
+            \ \"[错词记录于：X 天前]\" 状态。\n1. 请务必优先使用记录在 1-3 天内（最新产生）的错词/弱点进行今天的晨读短文编排。\n2.\
+            \ 记录时间在 7 天以上的词汇，视为已进入中长期记忆阶段，仅可作为背景词汇随机出现，不作为今日复习和讲解的重点。\n\n【知识库检索 —\
+            \ 近期破绽生词与薄弱语法点】\n检索到的用户私有记忆与沉淀：\n{{#d2e3f4a5-b6c7-4901-wake-123456789012.reranked_context#}}\n\
+            须优先参考上述检索内容中的近期错词与薄弱语法点进行今日晨读编排；与避重列表冲突时跳过该词。\n\n【输入变量】\n- 当前主题：{{theme}}\n\
             - 避重词汇（绝对不能输出这些单词）：{{history_exclude}}\n- 画像背景：{{user_current_profile}}\n\
             \n【画像自适应生成约束】\n当前跟读学习者的地区画像设定为：{{user_current_profile}}\n你在生成单词音标、英文释义例句以及语法重点解析时，必须高度对齐该画像的语言偏好与书写风格：\n\
             1. 国际音标 (IPA) 生成自适应 (对于 JSON 中的 \"vocab[].ipa\" 字段)：\n   - 如果 {{user_current_profile}}\
@@ -174,15 +327,16 @@ workflow:
             \ 中提供英音的独有发音特征与口腔阻尼要领提示（例如：指出无卷舌音特征、元音开口度偏深、或注意辅音 /t/ 的清晰爆破，不可像美式闪音那样过度浊化等）。\n\
             \   - 如果为其他地区，则提供对应的美音发音（如卷舌音 /r/、T-flapping 浊化等）规律点评。\n\n注意：\n- vocab\
             \ 里的 word 必须是英文单词或英文短语，禁止输出中文词作为 word。\n- meaning_zh 只能输出中文释义。\n- example\
-            \ 必须是英文句子，并且与主题高度相关。\n- 词条应优先选择适合 TTS 朗读的商务高频词。\n\n输出结构必须完全符合以下 JSON 格式：\n\
-            {\n  \"theme\": \"主题名\",\n  \"vocab\": [\n    {\n      \"word\": \"英文单词或短语\"\
-            ,\n      \"ipa\": \"音标（对齐画像国际音标）\",\n      \"pronunciation_note\": \"\
-            发音注意点与口音提示（使用画像习惯拼写）\",\n      \"meaning_zh\": \"中文释义\",\n      \"example\"\
-            : \"英文例句（拼写对齐画像）\"\n    }\n  ],\n  \"grammar\": {\n    \"point\": \"1\
-            \ 个关联语法点\",\n    \"explanation\": \"简要说明与解析（使用画像习惯拼写）\",\n    \"examples\"\
-            : [\n      {\n        \"correct\": \"正确英文用法（拼写对齐画像）\",\n        \"incorrect\"\
-            : \"错误英文用法\"\n      }\n    ]\n  }\n}\n\n约束：\n- vocab 必须恰好 10 个词。\n- 仅输出\
-            \ JSON，不要 Markdown，不要解释文字。\n- 语法点只保留 1 个，例子至少 1 组。"
+            \ 必须是英文句子，并且与主题高度相关。\n- 词条应优先选择适合 TTS 朗读的商务高频词；若检索到 1-3 天内的新错词，必须优先纳入\
+            \ vocab 列表。\n\n输出结构必须完全符合以下 JSON 格式：\n{\n  \"theme\": \"主题名\",\n  \"vocab\"\
+            : [\n    {\n      \"word\": \"英文单词或短语\",\n      \"ipa\": \"音标（对齐画像国际音标）\"\
+            ,\n      \"pronunciation_note\": \"发音注意点与口音提示（使用画像习惯拼写）\",\n      \"meaning_zh\"\
+            : \"中文释义\",\n      \"example\": \"英文例句（拼写对齐画像）\"\n    }\n  ],\n  \"grammar\"\
+            : {\n    \"point\": \"1 个关联语法点\",\n    \"explanation\": \"简要说明与解析（使用画像习惯拼写）\"\
+            ,\n    \"examples\": [\n      {\n        \"correct\": \"正确英文用法（拼写对齐画像）\"\
+            ,\n        \"incorrect\": \"错误英文用法\"\n      }\n    ]\n  }\n}\n\n约束：\n-\
+            \ vocab 必须恰好 10 个词。\n- 仅输出 JSON，不要 Markdown，不要解释文字。\n- 语法点只保留 1 个，例子至少\
+            \ 1 组。"
         - id: a4ace364-eeb4-4f07-b8cd-ea3b8c68e3ef
           role: user
           text: 'theme: {{theme}}
@@ -198,10 +352,10 @@ workflow:
       height: 88
       id: wakeup_llm
       position:
-        x: 380
+        x: 980
         y: 240
       positionAbsolute:
-        x: 380
+        x: 980
         y: 240
       selected: true
       sourcePosition: right
@@ -246,10 +400,10 @@ workflow:
       height: 52
       id: wakeup_code
       position:
-        x: 680
+        x: 1280
         y: 240
       positionAbsolute:
-        x: 680
+        x: 1280
         y: 240
       selected: false
       sourcePosition: right
@@ -269,10 +423,10 @@ workflow:
       height: 88
       id: wakeup_end
       position:
-        x: 980
+        x: 1580
         y: 240
       positionAbsolute:
-        x: 980
+        x: 1580
         y: 240
       selected: false
       sourcePosition: right
@@ -280,7 +434,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: -256
-      y: -21
-      zoom: 1
+      x: 0
+      y: 0
+      zoom: 0.85
   rag_pipeline_variables: []

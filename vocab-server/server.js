@@ -3018,7 +3018,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
 
 // ????????????????
 async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft, quotaRow, today) {
-  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', user_current_profile } = requestBody;
+  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', user_current_profile, _system_time, _system_timestamp_ms } = requestBody;
   
   try {
     // ????????????????? (history_exclude) ????????? (user_flaws)
@@ -3081,14 +3081,16 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         },
         signal: fetchController.signal,
         body: JSON.stringify({
-          inputs: { 
-            theme: topic || "General Business", 
-            cefr_level: cefrLevel, 
+          inputs: injectOralSystemTime({
+            theme: topic || "General Business",
+            cefr_level: cefrLevel,
             genre: genre,
             history_exclude: historyExclude,
             user_flaws: userFlaws,
-            user_current_profile: user_current_profile || ''
-          },
+            user_current_profile: user_current_profile || '',
+            _system_time,
+            _system_timestamp_ms,
+          }),
           query: "generate",
           response_mode: "streaming",
           user: userId,
