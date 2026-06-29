@@ -620,8 +620,7 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
     // ========= 以下进入异步后台执行，不会阻塞客户端连接 =========
     (async () => {
       try {
-        taskQueue.updateTaskProgress(task.id, 10);
-        taskQueue.appendTaskLog(task.id, '正在连接智库并初始化推演模型 (Dify API)...');
+        taskQueue.updateTask(task.id, { progress: 10, logs: ['正在连接智库并初始化推演模型 (Dify API)...'] });
 
         const fetchController = new AbortController();
         // 放宽到 30 分钟，后台不受 Nginx 超时限制
@@ -654,31 +653,33 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
             const parsed = JSON.parse(errText);
             errMsg = parsed.message || parsed.error || errMsg;
           } catch (_) {}
-          taskQueue.failTask(task.id, `模型接口出错: ${errMsg}`);
+          taskQueue.updateTask(task.id, { status: 'failed', error: `模型接口出错: ${errMsg}` });
           return;
         }
 
-        taskQueue.updateTaskProgress(task.id, 30);
-        taskQueue.appendTaskLog(task.id, '成功连接，模型正在流式下发剧本数据...');
+        taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数据...'] });
 
         // 原本收集流式答案的函数
         const answer = await collectDifyStreamingAnswer(wfResponse);
         if (!answer) {
-          taskQueue.failTask(task.id, '接收成功但答案为空');
+          taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为空' });
           return;
         }
 
         // 保存生成的文稿内容给前端提取 (保存在 task.result.content)
-        taskQueue.updateTaskProgress(task.id, 100);
-        taskQueue.appendTaskLog(task.id, '长音频剧本生成圆满完成！');
-        taskQueue.completeTask(task.id, { content: answer });
+        taskQueue.updateTask(task.id, { 
+          progress: 100, 
+          logs: ['长音频剧本生成圆满完成！'], 
+          status: 'completed', 
+          result: { content: answer } 
+        });
 
       } catch (error) {
         console.error('generate-material-long background task error:', error);
         const msg = error.name === 'AbortError'
           ? '后台任务因超时被中止 (30分钟拦截机制)'
           : error.message;
-        taskQueue.failTask(task.id, `后台生成异常: ${msg}`);
+        taskQueue.updateTask(task.id, { status: 'failed', error: `后台生成异常: ${msg}` });
       }
     })();
 
