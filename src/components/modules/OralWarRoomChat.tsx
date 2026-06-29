@@ -4,7 +4,6 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
-  Copy,
   Globe,
   Mic,
   MicOff,
@@ -139,39 +138,6 @@ export default function OralWarRoomChat({
     <section className={`flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))] relative ${
       isContextPanelOpen ? '2xl:col-span-6' : '2xl:col-span-9'
     }`}>
-      <OralWarRoomImprovTimer
-        elapsed={improvElapsed}
-        isActive={improvActive}
-        onElapsedChange={setImprovElapsed}
-        onActiveChange={setImprovActive}
-        onMilestone={() => setShowConfetti(true)}
-      />
-      <button
-        type="button"
-        onClick={() => {
-          playReveal();
-          setIsContextPanelOpen(v => !v);
-        }}
-        className={`absolute right-4 top-4 z-10 w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border
-          ${isContextPanelOpen
-            ? 'bg-[var(--color-accent)] text-white border-transparent shadow-[var(--shadow-sm)]'
-            : 'bg-white border-[var(--color-border)] text-[var(--color-ink-muted)] hover:border-[var(--color-border)]'
-          }`}
-        title="切换上下文面板"
-      >
-        <Globe className="w-4 h-4" />
-      </button>
-      {onNavigateWrite && (
-        <button
-          type="button"
-          onClick={() => onNavigateWrite?.()}
-          className="absolute right-14 top-4 z-10 flex items-center gap-1 px-2.5 h-8 rounded-xl border border-[var(--color-border)] bg-white text-[var(--color-ink-muted)] hover:text-[var(--color-ink-primary)] text-[9px] font-black uppercase tracking-widest cursor-pointer"
-          title="撰写信函（书面闭环）"
-        >
-          <PenTool className="w-3.5 h-3.5" />
-          信函
-        </button>
-      )}
       {isSending && messages.length === 0 && (
         <div className="absolute inset-0 z-20 bg-white/70 backdrop-blur-[2px] flex items-center justify-center pointer-events-none animate-fade-in">
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-[#202124] text-white text-[10px] font-black uppercase tracking-widest shadow-lg">
@@ -180,40 +146,77 @@ export default function OralWarRoomChat({
           </div>
         </div>
       )}
-      <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-[#f8f9fa] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-0.5">对抗通信通道</div>
-          <h4 className="text-base font-black text-[#202124]">对话主线 · 实时掌控</h4>
-        </div>
-        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap justify-end">
-          <button
-            type="button"
-            onClick={() => setBriefCollapsed(v => !v)}
-            className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[#FF5722] cursor-pointer"
-          >
-            {briefCollapsed ? '战术简报' : '收起简报'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowIntelDetails(v => !v)}
-            className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg border cursor-pointer ${
-              showIntelDetails ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-600 hover:border-violet-300'
-            }`}
-          >
-            {showIntelDetails ? '收起分析' : '展开分析'}
-          </button>
-          <div
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-white font-black text-[10px] tracking-widest shadow-md transition-all ${
-              showGoldGlow
-                ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 ring-2 ring-yellow-300 scale-105'
-                : 'bg-slate-900 border border-slate-800'
-            }`}
-          >
-            <Trophy className="w-3 h-3" />
-            <span>{combatPoints} XP</span>
+      <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-[#f8f9fa] flex flex-col gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <OralWarRoomImprovTimer
+              elapsed={improvElapsed}
+              isActive={improvActive}
+              onElapsedChange={setImprovElapsed}
+              onActiveChange={setImprovActive}
+              onMilestone={() => setShowConfetti(true)}
+            />
+            <div className="min-w-0 pt-0.5">
+              <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-0.5">对抗通信通道</div>
+              <h4 className="text-base font-black text-[#202124]">对话主线 · 实时掌控</h4>
+            </div>
           </div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-2.5 py-1.5 border border-gray-200">
-            {isSending ? '推演中' : '待命'}
+          <div className="flex items-center gap-1.5 self-end sm:self-start flex-wrap justify-end shrink-0">
+            <button
+              type="button"
+              onClick={() => setBriefCollapsed(v => !v)}
+              className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[#FF5722] cursor-pointer whitespace-nowrap"
+            >
+              {briefCollapsed ? '战术简报' : '收起简报'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowIntelDetails(v => !v)}
+              className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border cursor-pointer whitespace-nowrap ${
+                showIntelDetails ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-gray-200 bg-white text-gray-600 hover:border-violet-300'
+              }`}
+            >
+              {showIntelDetails ? '收起分析' : '展开分析'}
+            </button>
+            <div
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-white font-black text-[10px] tracking-widest shadow-md transition-all whitespace-nowrap ${
+                showGoldGlow
+                  ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 ring-2 ring-yellow-300 scale-105'
+                  : 'bg-slate-900 border border-slate-800'
+              }`}
+            >
+              <Trophy className="w-3 h-3 shrink-0" />
+              <span>{combatPoints} XP</span>
+            </div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-2.5 py-1.5 border border-gray-200 whitespace-nowrap">
+              {isSending ? '推演中' : '待命'}
+            </div>
+            {onNavigateWrite && (
+              <button
+                type="button"
+                onClick={() => onNavigateWrite?.()}
+                className="flex items-center gap-1 px-2.5 h-8 rounded-xl border border-[var(--color-border)] bg-white text-[var(--color-ink-muted)] hover:text-[var(--color-ink-primary)] text-[9px] font-black uppercase tracking-widest cursor-pointer whitespace-nowrap"
+                title="撰写信函（书面闭环）"
+              >
+                <PenTool className="w-3.5 h-3.5 shrink-0" />
+                信函
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                playReveal();
+                setIsContextPanelOpen(v => !v);
+              }}
+              className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all cursor-pointer border shrink-0
+                ${isContextPanelOpen
+                  ? 'bg-[var(--color-accent)] text-white border-transparent shadow-[var(--shadow-sm)]'
+                  : 'bg-white border-[var(--color-border)] text-[var(--color-ink-muted)] hover:border-[var(--color-border)]'
+                }`}
+              title="切换上下文面板"
+            >
+              <Globe className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
@@ -225,8 +228,9 @@ export default function OralWarRoomChat({
         onNavigateWrite={onNavigateWrite}
       />
 
-      {/* 沙盘标准结构展示卡片 */}
-      <div className="shrink-0 bg-gradient-to-r from-[#202124] via-slate-800 to-[#202124] text-white px-4 py-4 border-b border-white/10">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+      {messages.length === 0 && (
+      <div className="bg-gradient-to-r from-[#202124] via-slate-800 to-[#202124] text-white px-4 py-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FF5722]/20 border border-[#FF5722]/40">
@@ -320,12 +324,22 @@ export default function OralWarRoomChat({
           </div>
         )}
       </div>
+      )}
 
-      {/* 固定对话主线 — 始终可见，无需滚动 */}
+      {messages.length > 0 && (
+        <div className="px-4 py-2 bg-slate-800 text-white text-[10px] border-b border-white/10 flex items-center justify-between gap-2">
+          <span className="font-black truncate">{activeScene.shortTitle}</span>
+          <span className="text-gray-400 shrink-0 whitespace-nowrap">
+            第 {Math.max(1, Math.ceil(latestExchange.turnCount / 2))} 轮 · Level {currentDifficulty ?? activeScene.level}/5
+          </span>
+        </div>
+      )}
+
+      {/* 固定对话主线 */}
       <div
         data-message-id="live-dialogue"
         data-ai-message="true"
-        className="shrink-0 border-b border-gray-200 bg-gradient-to-br from-[#202124] via-slate-900 to-[#2a2a2e] text-white px-4 py-4"
+        className="border-b border-gray-200 bg-gradient-to-br from-[#202124] via-slate-900 to-[#2a2a2e] text-white px-4 py-4"
       >
         <div className="flex items-center justify-between gap-2 mb-2">
           <span className="text-[9px] font-black uppercase tracking-widest text-[#FF5722]">
@@ -426,8 +440,8 @@ export default function OralWarRoomChat({
         </div>
       )}
 
-      {/* 对话历史 — 紧凑时间线，分析详情按需展开 */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 bg-gradient-to-b from-white to-[#f8f9fa]">
+      {/* 对话历史 */}
+      <div className="p-3 space-y-2 bg-gradient-to-b from-white to-[#f8f9fa]">
         {messages.length === 0 ? (
           <p className="text-center text-xs text-gray-400 py-4">历史记录将显示于此</p>
         ) : (() => {
@@ -550,13 +564,8 @@ export default function OralWarRoomChat({
             </div>
           </details>
         )}
-        <div ref={bottomRef} />
-      </div>
-
-      <div className="shrink-0 border-t border-gray-100 p-4 bg-white">
-        {/* 四维反馈面板 — 进度 after progress bars */}
         {latestFeedback && (latestFeedback.feedback_pronunciation || latestFeedback.feedback_vocab || latestFeedback.feedback_role_switch || latestFeedback.feedback_strategy) && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm mb-3 overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
             <button
               type="button"
               onClick={() => setFeedbackExpanded(v => !v)}
@@ -573,34 +582,6 @@ export default function OralWarRoomChat({
                 : <ChevronDown className="w-4 h-4 text-gray-400" />
               }
             </button>
-            <div className="px-4 pb-3 flex gap-3">
-              {[
-                { key: 'feedback_pronunciation', label: '发音', icon: '🎤', color: 'from-blue-400 to-blue-500' },
-                { key: 'feedback_vocab', label: '用语', icon: '📝', color: 'from-emerald-400 to-emerald-500' },
-                { key: 'feedback_role_switch', label: '切换', icon: '🔄', color: 'from-purple-400 to-purple-500' },
-                { key: 'feedback_strategy', label: '策略', icon: '🎯', color: 'from-amber-400 to-orange-500' },
-              ].map(({ key, label, icon, color }) => {
-                const val = safeText((latestFeedback as Record<string, unknown>)[key]);
-                if (!val) return null;
-                const pctMatch = val.match(/(\d{1,3})\s*%/);
-                const pct = pctMatch ? Math.min(100, Number(pctMatch[1])) : 70;
-                return (
-                  <div key={key} className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1 mb-1">
-                      <span className="text-[10px]">{icon}</span>
-                      <span className="text-[9px] font-bold text-gray-600">{label}</span>
-                      <span className="text-[9px] font-black text-gray-800 ml-auto">{pct}%</span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full bg-gradient-to-r ${color} rounded-full transition-all duration-500`}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
             {feedbackExpanded && (
               <div className="px-4 pb-4 pt-2 border-t border-gray-100 space-y-2">
                 {[
@@ -624,9 +605,8 @@ export default function OralWarRoomChat({
             )}
           </div>
         )}
-
         {latestExchange.branchSuggestions.length > 0 && (
-          <div className="mb-3 p-3 rounded-xl bg-violet-50 border border-violet-200">
+          <div className="p-3 rounded-xl bg-violet-50 border border-violet-200">
             <div className="text-[9px] font-black uppercase tracking-widest text-violet-600 mb-2">后续分支建议</div>
             <div className="flex flex-wrap gap-1.5">
               {latestExchange.branchSuggestions.map((b, i) => (
@@ -642,13 +622,8 @@ export default function OralWarRoomChat({
             </div>
           </div>
         )}
-
-        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div className="text-sm font-bold text-[#202124]">{lastNotice}</div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-gray-400">当前局势：{activeScene.conflicts.join(' / ')}</div>
-        </div>
         {isLoopholePlanted && (
-          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-400 rounded-2xl mb-3 shadow-[0_4px_24px_rgba(245,158,11,0.15)] ring-1 ring-amber-200/50">
+          <div className="bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 border-2 border-amber-400 rounded-2xl shadow-[0_4px_24px_rgba(245,158,11,0.15)] ring-1 ring-amber-200/50">
             <div className="px-4 py-3 flex items-start gap-3">
               <div className="bg-amber-500 text-white p-2 rounded-xl shrink-0 shadow-lg">
                 <ShieldAlert className="w-5 h-5" />
@@ -663,12 +638,6 @@ export default function OralWarRoomChat({
                   )}
                 </div>
                 <p className="text-xs text-amber-800/80 leading-relaxed mb-2">{currentFlawClaim}</p>
-                <div className="mb-2 p-2 rounded-lg bg-amber-100/60 border border-amber-200 text-[10px] text-amber-800">
-                  <span className="font-black">语气提示 · </span>
-                  {latestExchange.speakerStyle === 'ally' ? '对盟友：温和确认，避免公开拆台' :
-                   latestExchange.speakerStyle === 'blocker' ? '对阻力：直接点破矛盾，保持专业克制' :
-                   '对中立：客观提问，寻求第三方澄清'}
-                </div>
                 <div className="bg-white/60 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Target className="w-3.5 h-3.5 text-amber-600" />
@@ -677,30 +646,14 @@ export default function OralWarRoomChat({
                   <div className="space-y-2">
                     {flawTemplates.map((t, i) => (
                       <div key={i} className="flex items-center gap-2">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="w-5 h-5 rounded-full bg-amber-500 text-white text-[9px] font-black flex items-center justify-center shrink-0">
-                              {i + 1}
-                            </span>
-                            <span className="text-xs font-medium text-gray-700 italic">{t}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setInputText(t)}
-                            className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[10px] font-black hover:bg-amber-600 transition-colors cursor-pointer"
-                          >
-                            使用
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { void navigator.clipboard.writeText(t); }}
-                            className="p-1.5 rounded-lg bg-white/80 border border-amber-200 cursor-pointer hover:bg-white transition-colors"
-                          >
-                            <Copy className="w-3 h-3 text-amber-600" />
-                          </button>
-                        </div>
+                        <span className="text-xs font-medium text-gray-700 italic flex-1">{t}</span>
+                        <button
+                          type="button"
+                          onClick={() => setInputText(t)}
+                          className="px-3 py-1.5 rounded-lg bg-amber-500 text-white text-[10px] font-black hover:bg-amber-600 transition-colors cursor-pointer shrink-0"
+                        >
+                          使用
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -725,12 +678,23 @@ export default function OralWarRoomChat({
             }}
           />
         )}
+        <div ref={bottomRef} />
+      </div>
+      </div>
+
+      <div className="shrink-0 border-t border-gray-100 p-4 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.06)] z-10">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <div className="text-sm font-bold text-[#202124] truncate">{lastNotice}</div>
+          <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate max-w-[40%]">
+            {activeScene.conflicts.join(' / ')}
+          </div>
+        </div>
         <OralWarRoomRoleSwitcher
           roles={sceneRoleSwitcherItems}
           currentTarget={currentTarget}
           onTargetChange={handleTargetChange}
         />
-        <div className="relative flex flex-col">
+        <div className="relative flex flex-col mt-2">
           {/* 高压 10 秒倒计时 */}
           {isRecording && (
             <div className="absolute -top-12 left-1/2 -translate-x-1/2 z-10

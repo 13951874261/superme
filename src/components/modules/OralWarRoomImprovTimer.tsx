@@ -46,7 +46,7 @@ export default function OralWarRoomImprovTimer({
   if (!isActive && elapsed === 0) return null;
 
   return (
-    <div className="absolute left-4 top-4 z-10 flex flex-col gap-1">
+    <div className="flex flex-col gap-1 shrink-0">
       <motion.div
         initial={{ opacity: 0, x: -8 }}
         animate={{ opacity: 1, x: 0 }}
