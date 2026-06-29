@@ -325,11 +325,8 @@ function calculateNextReview(quality, repetitions, easeFactor, interval) {
 }
 
 const DEFAULT_IMAGE_GEN_MODELS = [
-  'cf/@cf/black-forest-labs/flux-2-klein-9b',
   'nb/nanobanana-flash',
-  'fal/fal-ai/flux/schnell',
-  'stability/stable-image-ultra',
-  'runway/gen4_image'
+  'nb/nanobanana-pro'
 ];
 
 function extractGeneratedImageUrl(responseData) {
@@ -370,6 +367,19 @@ function extractGeneratedImageUrl(responseData) {
 }
 
 function buildImageGenerationPayload(model, prompt) {
+  if (model === 'nb/nanobanana-flash' || model === 'nb/nanobanana-pro') {
+    return {
+      model,
+      prompt,
+      n: 1,
+      size: 'auto',
+      quality: 'auto',
+      background: 'auto',
+      image_detail: 'high',
+      output_format: 'png',
+    };
+  }
+
   if (model === 'stability/stable-image-ultra') {
     return {
       model,
