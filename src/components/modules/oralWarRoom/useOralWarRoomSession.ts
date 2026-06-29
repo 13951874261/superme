@@ -7,7 +7,7 @@ import {
   playSceneSwitch,
   playReveal,
 } from '../../../utils/soundEffects';
-import { appendUserProfileFactor, getAppUserId } from '../../../utils/profileHelper';
+import { getAppUserId } from '../../../utils/profileHelper';
 import type {
   BreakthroughRecord,
   BreakthroughType,
@@ -114,7 +114,6 @@ export function useOralWarRoomSession({
   const appendWeaknessToMemory = useCallback((flaw: string) => {
     const trimmed = flaw.trim();
     if (!trimmed || trimmed === '未识别到破绽') return;
-    appendUserProfileFactor(trimmed);
     setSessionMemory((prev) => {
       if (prev.weaknesses.includes(trimmed)) return prev;
       return { ...prev, weaknesses: [...prev.weaknesses, trimmed].slice(-20) };

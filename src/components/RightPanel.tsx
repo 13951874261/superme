@@ -117,6 +117,12 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
     }
   };
 
+  const profileLabel = (() => {
+    if (!profile) return '默认';
+    const locale = profile.match(/英国\s*\(UK\)|美国\s*\(US\)/)?.[0];
+    return locale || (profile.length > 16 ? `${profile.slice(0, 14)}…` : profile);
+  })();
+
   useEffect(() => {
     const bumpAssistant = () => setAssistantRefreshKey((k) => k + 1);
     const handleProfileChange = () => {
@@ -144,11 +150,11 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
           className={`h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[99] overflow-hidden`}
         >
           {/* 头部 Tab 区域 */}
-          <div className={`flex items-center justify-between border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300`}>
-            <div className="flex items-center gap-1">
+          <div className={`flex items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>
+            <div className="flex items-center gap-1 min-w-0 flex-1">
               <button
                 onClick={() => handleTabChange('assistant')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer shrink-0 ${
                   activeTab === 'assistant'
                     ? 'bg-[#202124] text-white'
                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
@@ -159,7 +165,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
               </button>
               <button
                 onClick={() => handleTabChange('context')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider transition cursor-pointer shrink-0 ${
                   activeTab === 'context'
                     ? 'bg-[#202124] text-white'
                     : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100'
@@ -170,14 +176,15 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
               </button>
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <div className="relative flex items-center">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <div className="relative flex items-center max-w-[120px]">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="h-8 px-3 rounded-full border border-gray-150 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-650 cursor-pointer"
+                  title={profile ? `画像: ${profile}` : '画像: 默认'}
+                  className="h-8 max-w-full px-3 rounded-full border border-gray-150 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-650 cursor-pointer min-w-0"
                 >
-                  <Globe className="w-3.5 h-3.5 text-indigo-500" />
-                  <span>画像: {profile || '默认'}</span>
+                  <Globe className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                  <span className="truncate">画像: {profileLabel}</span>
                 </button>
 
                 {showProfileMenu && (

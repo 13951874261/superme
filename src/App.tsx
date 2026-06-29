@@ -199,13 +199,12 @@ function AppContent() {
       <BackgroundOverlay />
       <TextHighlighter />
       
-      {/* 黄金折叠主视界 (70% 或 100% 宽度平滑缩进) */}
-      <motion.div 
+      {/* 主视界：flex-1 自适应，右侧面板固定 400px，避免 70vw + 400px 溢出视口 */}
+      <motion.div
         layout
         onClick={handleLeftAreaClick}
-        animate={{ width: isRightPanelOpen ? '70vw' : '100vw' }}
         transition={GLOBAL_SPRING}
-        className="h-screen flex overflow-hidden shrink-0"
+        className={`h-screen flex overflow-hidden min-w-0 ${isRightPanelOpen ? 'flex-1' : 'w-full flex-1'}`}
       >
         <Sidebar 
           isOpen={isSidebarOpen} 
