@@ -411,69 +411,79 @@ function buildImageGenerationPayload(model, prompt) {
   };
 }
 
-function getImageGenFetchOptions(baseUrl) {
-  let hostname = '';
-  try {
-    hostname = new URL(baseUrl).hostname;
-  } catch {
-    return {};
-  }
-  const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
-  const insecureTls = process.env.IMAGE_GEN_INSECURE_TLS === '1'
-    || process.env.IMAGE_GEN_INSECURE_TLS === 'true'
-    || isIpHost;
-  if (!insecureTls) return {};
-  try {
-    const { Agent } = require('undici');
-    return { dispatcher: new Agent({ connect: { rejectUnauthorized: false } }) };
-  } catch {
-    return {};
-  }
-}
-
 async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
   const requestUrl = `${String(baseUrl || '').replace(/\/$/, '')}/images/generations`;
   const payload = buildImageGenerationPayload(model, prompt);
-  let response;
-  let rawText = '';
+
+  let parsedUrl;
   try {
-    response = await fetch(requestUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify(payload),
-      ...getImageGenFetchOptions(baseUrl),
+    parsedUrl = new URL(requestUrl);
+  } catch (err) {
+    return { ok: false, error: `无效的请求地址: ${requestUrl}` };
+  }
+
+  const isHttps = parsedUrl.protocol === 'https:';
+  const transport = isHttps ? require('https') : require('http');
+  const isIpHost = /^\d{1,3}(\.\d{1,3}){3}$/.test(parsedUrl.hostname);
+  const insecureTls = process.env.IMAGE_GEN_INSECURE_TLS === '1'
+    || process.env.IMAGE_GEN_INSECURE_TLS === 'true'
+    || isIpHost;
+
+  const reqOptions = {
+    hostname: parsedUrl.hostname,
+    port: parsedUrl.port || (isHttps ? 443 : 80),
+    path: parsedUrl.pathname + parsedUrl.search,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    ...(isHttps && insecureTls ? { rejectUnauthorized: false } : {}),
+  };
+
+  return new Promise((resolve) => {
+    const req = transport.request(reqOptions, (res) => {
+      const chunks = [];
+      res.on('data', (chunk) => chunks.push(chunk));
+      res.on('end', () => {
+        const rawText = Buffer.concat(chunks).toString('utf8');
+        let responseData = {};
+        try {
+          responseData = rawText ? JSON.parse(rawText) : {};
+        } catch (error) {
+          resolve({
+            ok: false,
+            error: `生图服务返回数据解析失败 (HTTP ${res.statusCode}): ${rawText.substring(0, 200) || '无法解析的响应内容'}`
+          });
+          return;
+        }
+
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          const errMsg = responseData?.error?.message || responseData?.error || responseData?.message || JSON.stringify(responseData).substring(0, 200);
+          resolve({ ok: false, error: `生图服务返回错误状态码 (${res.statusCode}): ${errMsg}` });
+          return;
+        }
+
+        const { imageUrl, downloadUrl, revisedPrompt } = extractGeneratedImageUrl(responseData);
+        if (!imageUrl) {
+          resolve({
+            ok: false,
+            error: `生图成功但未找到图片地址或 Base64 数据: ${JSON.stringify(responseData).substring(0, 200)}`
+          });
+          return;
+        }
+
+        resolve({ ok: true, imageUrl, downloadUrl, revisedPrompt });
+      });
     });
-    rawText = await response.text().catch(() => '');
-  } catch (error) {
-    return { ok: false, error: `生图服务连接失败 (${model} @ ${baseUrl}): ${formatTtsFetchError(error)}` };
-  }
-  let responseData = {};
-  try {
-    responseData = rawText ? JSON.parse(rawText) : {};
-  } catch (error) {
-    return {
-      ok: false,
-      error: `9router ?????????? (HTTP ${response.status}): ${rawText.substring(0, 200) || '????????????????????'}`
-    };
-  }
 
-  if (!response.ok) {
-    const errMsg = responseData?.error?.message || responseData?.error || responseData?.message || JSON.stringify(responseData).substring(0, 200);
-    return { ok: false, error: `9router ????????? (${response.status}): ${errMsg}` };
-  }
+    req.on('error', (error) => {
+      resolve({ ok: false, error: `生图服务连接失败 (${model} @ ${baseUrl}): ${error.message || error}` });
+    });
 
-  const { imageUrl, downloadUrl, revisedPrompt } = extractGeneratedImageUrl(responseData);
-  if (!imageUrl) {
-    return {
-      ok: false,
-      error: `9router ?????????????????????????????????: ${JSON.stringify(responseData).substring(0, 200)}`
-    };
-  }
-
-  return { ok: true, imageUrl, downloadUrl, revisedPrompt };
+    req.write(JSON.stringify(payload));
+    req.end();
+  });
 }
 
 // ==========================================
