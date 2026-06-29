@@ -9,6 +9,35 @@ const DIFY_EMBED_TOKEN =
 const DIFY_EMBED_BASE_URL =
   import.meta.env.VITE_DIFY_CHATBOT_BASE_URL || 'https://dify.234124123.xyz';
 
+/** 变更此版本可一次性让所有用户脱离旧 localStorage 会话桶 */
+const DIFY_EMBED_SCOPE_VERSION = `${DIFY_EMBED_TOKEN}-v2`;
+const DIFY_EMBED_SCOPE_STORAGE = 'dify_embed_scope_id';
+const DIFY_EMBED_SCOPE_MIGRATED = 'dify_embed_scope_migrated_v2';
+
+/**
+ * Dify embed 专用 user_id（与 SQLite getAppUserId 隔离命名空间）。
+ * Dify 按 sys.user_id 在浏览器 localStorage 分桶存 conversation_id；
+ * 旧桶里若有过期 id，会触发 /api/messages 404 循环。
+ */
+export function ensureDifyEmbedScope(): void {
+  if (localStorage.getItem(DIFY_EMBED_SCOPE_MIGRATED) === '1') return;
+  localStorage.setItem(DIFY_EMBED_SCOPE_STORAGE, DIFY_EMBED_SCOPE_VERSION);
+  localStorage.setItem(DIFY_EMBED_SCOPE_MIGRATED, '1');
+}
+
+export function getDifyChatbotUserId(): string {
+  ensureDifyEmbedScope();
+  const scope = localStorage.getItem(DIFY_EMBED_SCOPE_STORAGE) || DIFY_EMBED_SCOPE_VERSION;
+  return `${getAppUserId()}@${scope}`;
+}
+
+/** 新对话：切换 Dify 会话桶，避免复用已失效的 conversation_id */
+export function resetDifyChatbotSession(): void {
+  localStorage.setItem(DIFY_EMBED_SCOPE_STORAGE, `${DIFY_EMBED_TOKEN}-${Date.now()}`);
+  window.dispatchEvent(new Event('dify-embed-scope-changed'));
+  refreshDifyChatbotContext();
+}
+
 export interface DifyChatbotConfig {
   token: string;
   baseUrl: string;
@@ -39,7 +68,7 @@ export function buildDifyChatbotConfig(): DifyChatbotConfig {
       _system_timestamp_ms: Date.now(),
     },
     systemVariables: {
-      user_id: getAppUserId(),
+      user_id: getDifyChatbotUserId(),
     },
     userVariables: {},
   };
@@ -106,6 +135,7 @@ export function unloadDifyChatbotEmbed(): void {
 export function loadDifyChatbotEmbed(): void {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
+  ensureDifyEmbedScope();
   applyDifyChatbotConfig();
 
   if (embedLoaded || document.getElementById(DIFY_EMBED_TOKEN)) {

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { buildDifyChatbotIframeUrl } from '../utils/difyChatbot';
-import { getAppUserId } from '../utils/profileHelper';
+import {
+  buildDifyChatbotIframeUrl,
+  getDifyChatbotUserId,
+} from '../utils/difyChatbot';
 
 interface DifyAssistantFrameProps {
   /** 变化时重建 iframe（例如切换画像、重新打开面板） */
@@ -15,7 +17,7 @@ interface DifyAssistantFrameProps {
 export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFrameProps) {
   const [iframeSrc, setIframeSrc] = useState('');
   const [error, setError] = useState('');
-  const userId = getAppUserId();
+  const userId = getDifyChatbotUserId();
 
   useEffect(() => {
     let cancelled = false;

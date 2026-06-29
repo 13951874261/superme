@@ -137,7 +137,7 @@ export default function OralWarRoomChat({
 }: OralWarRoomChatProps) {
   return (
     <section className={`flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))] relative ${
-      isContextPanelOpen ? '2xl:col-span-6' : '2xl:col-span-8'
+      isContextPanelOpen ? '2xl:col-span-6' : '2xl:col-span-9'
     }`}>
       <OralWarRoomImprovTimer
         elapsed={improvElapsed}

@@ -7,6 +7,7 @@ import DifyAssistantFrame from './DifyAssistantFrame';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
 import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
+import { resetDifyChatbotSession } from '../utils/difyChatbot';
 import { playClick, playReveal, playSwitch } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 
@@ -124,9 +125,11 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
     };
     window.addEventListener('global-profile-changed', handleProfileChange);
     window.addEventListener('global-user-id-changed', bumpAssistant);
+    window.addEventListener('dify-embed-scope-changed', bumpAssistant);
     return () => {
       window.removeEventListener('global-profile-changed', handleProfileChange);
       window.removeEventListener('global-user-id-changed', bumpAssistant);
+      window.removeEventListener('dify-embed-scope-changed', bumpAssistant);
     };
   }, []);
 
@@ -212,6 +215,20 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                   </>
                 )}
               </div>
+
+              {activeTab === 'assistant' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClick();
+                    resetDifyChatbotSession();
+                  }}
+                  className="h-8 px-2.5 rounded-full border border-gray-150 bg-white/70 text-[9px] font-black uppercase tracking-wider text-gray-500 hover:text-[#1C64F2] hover:border-[#1C64F2]/30 transition cursor-pointer"
+                  title="清除 Dify 本地过期会话并重新开始"
+                >
+                  新对话
+                </button>
+              )}
 
               <button
                 onClick={() => {

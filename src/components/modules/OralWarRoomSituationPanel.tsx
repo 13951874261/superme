@@ -26,7 +26,7 @@ export default function OralWarRoomSituationPanel({
 
   return (
     <aside className={`flex flex-col gap-2 h-full overflow-y-auto ${isContextPanelOpen ? '2xl:col-span-3' : '2xl:col-span-3'}`}>
-          <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-4 xl:p-5 shadow-lg relative overflow-hidden">
+          <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-3 xl:p-4 shadow-lg relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-36 h-36 bg-[#FF5722]/15 rounded-full blur-3xl" />
             <div className="relative z-10">
               <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 flex items-center gap-2 mb-3">
@@ -60,7 +60,7 @@ export default function OralWarRoomSituationPanel({
           <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
             <button
               onClick={() => setChecklistCollapsed(!checklistCollapsed)}
-              className="w-full p-4 xl:p-5 flex items-center justify-between hover:bg-gray-50 transition-colors"
+              className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <div className="text-[9px] font-black uppercase tracking-widest text-[#FF5722] flex items-center gap-1.5">
                 <Target className="w-3.5 h-3.5" /> 沙盘结构 CHECKLIST
@@ -69,7 +69,7 @@ export default function OralWarRoomSituationPanel({
             </button>
 
             {!checklistCollapsed && (
-              <div className="px-4 xl:px-5 pb-4 xl:pb-5 pt-0 space-y-1.5 text-[10px] border-t border-gray-50">
+              <div className="px-3 xl:px-4 pb-3 xl:pb-4 pt-0 space-y-1.5 text-[10px] border-t border-gray-50">
                 {[
                   { label: '场景名称', value: activeScene.shortTitle, ok: true },
                   { label: '角色列表', value: activeScene.roleList, ok: true },
@@ -96,7 +96,7 @@ export default function OralWarRoomSituationPanel({
           <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[200px]">
             <button
               onClick={() => setStakeholdersCollapsed(!stakeholdersCollapsed)}
-              className="w-full p-4 xl:p-5 flex items-center justify-between hover:bg-gray-50 transition-colors shrink-0"
+              className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-gray-50 transition-colors shrink-0"
             >
               <div className="text-[10px] font-black uppercase tracking-widest text-[#202124] flex items-center gap-2">
                 <Users className="w-4 h-4 text-[#FF5722]" /> 核心参局者 (Stakeholders)
@@ -111,7 +111,7 @@ export default function OralWarRoomSituationPanel({
             </button>
 
             {!stakeholdersCollapsed && (
-              <div className="px-4 xl:px-5 pb-4 xl:pb-5 pt-0 overflow-y-auto border-t border-gray-50 flex-1">
+              <div className="px-3 xl:px-4 pb-3 xl:pb-4 pt-0 overflow-y-auto border-t border-gray-50 flex-1">
                 {latestExchange.jointPressure && (
                   <div className="mb-3 p-2.5 rounded-xl bg-red-50 border border-red-200 flex items-start gap-2">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-500 shrink-0 mt-0.5" />
@@ -289,7 +289,7 @@ export default function OralWarRoomSituationPanel({
             <div className="bg-purple-50 rounded-[1.5rem] xl:rounded-[2rem] border border-purple-100 shadow-sm overflow-hidden">
               <button
                 onClick={() => setCulturalCollapsed(!culturalCollapsed)}
-                className="w-full p-4 xl:p-5 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
+                className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
               >
                 <h3 className="text-sm font-black text-purple-900 uppercase tracking-widest flex items-center">
                   <Globe className="w-4 h-4 mr-2" /> 跨文化预警 (Cultural Context)
@@ -298,7 +298,7 @@ export default function OralWarRoomSituationPanel({
               </button>
 
               {!culturalCollapsed && (
-                <div className="px-4 xl:px-5 pb-4 xl:pb-5 pt-0 border-t border-purple-100">
+                <div className="px-3 xl:px-4 pb-3 xl:pb-4 pt-0 border-t border-purple-100">
                   <p className="text-sm text-purple-800 leading-relaxed font-medium">{activeScene.culturalContext}</p>
                   {latestExchange.culturalSignal && (
                     <p className="mt-3 pt-3 border-t border-purple-200 text-xs text-purple-700">
