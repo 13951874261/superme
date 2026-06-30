@@ -214,6 +214,9 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
   const content = normalizeSpeakText(text);
   if (!content) return false;
 
+  // 安全阀：如果内容中没有任何英文字母或数字（例如纯中文或符号），直接忽略朗读请求，避免触发无效的空 TTS
+  if (!/[a-zA-Z0-9]/.test(content)) return false;
+
   const voiceCode = getGlobalVoiceId();
   const model = buildTtsModel(voiceCode);
 
