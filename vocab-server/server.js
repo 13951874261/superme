@@ -4257,6 +4257,11 @@ app.post('/api/tts/speech', async (req, res) => {
     // 针对纯英文 TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩溃 (NoAudioReceived)
     if (finalModel.includes('/en-') || finalModel.startsWith('en-')) {
       cleanInput = cleanInput.replace(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g, '').trim();
+      
+      // 熔断机制：如果过滤后没有任何有效字母或数字，直接返回空音频，防止 edge-tts 读空气报错 500
+      if (!/[a-zA-Z0-9]/.test(cleanInput)) {
+        return res.json({ success: true, audioId: 'empty', audioUrl: null, duration: 0 });
+      }
     }
 
     // ????????????????????? Key???????????????????????
