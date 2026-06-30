@@ -1631,14 +1631,14 @@ app.post('/api/dify/dict-query', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        inputs: {
+        inputs: injectOralSystemTime({
           word: word.trim(),
           dict_type: dictType || 'en_zh_bidirectional',
           direction: direction || 'auto',
           user_context: userContext || '',
           locale: locale || 'zh-CN',
           user_current_profile: user_current_profile || ''
-        },
+        }),
         response_mode: 'blocking',
         user: userId || 'frontend-panel'
       }),
@@ -3534,11 +3534,11 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {
+        inputs: injectOralSystemTime({
           target_text: targetText,
           recognized_text: recognizedText || '',
           user_current_profile: user_current_profile || ''
-        },
+        }),
         response_mode: 'blocking',
         user: userId,
       }),
@@ -3602,10 +3602,10 @@ app.post('/api/grammar-polish', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {
-          original_text: originalText, // ??? yml ?????? start ???????????
+        inputs: injectOralSystemTime({
+          original_text: originalText,
           user_current_profile: user_current_profile || ''
-        },
+        }),
         response_mode: 'blocking',
         user: userId,
       }),
@@ -3664,14 +3664,14 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: {
+        inputs: injectOralSystemTime({
           scene_type,
           game_model,
           case_text,
           user_answer,
           applied_tactics: applied_tactics || '',
-          user_current_profile: user_current_profile || ''
-        },
+          user_current_profile: user_current_profile || '',
+        }),
         response_mode: 'blocking',
         user: userId,
       }),

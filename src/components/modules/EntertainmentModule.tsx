@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playSuccess, playError } from '../../utils/soundEffects';
+import { injectUserProfileAndTime } from '../../utils/profileHelper';
 
 // ---------------- 1. 深度情境数据库 (社交场合与高端审美) ----------------
 interface Scenario {
@@ -211,11 +212,10 @@ export default function EntertainmentModule() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          inputs: {
+          inputs: injectUserProfileAndTime({
             scene_category: getDifySceneCategory(selectedScenario.id),
             user_response: response,
-            user_current_profile: localStorage.getItem('user_current_profile') || localStorage.getItem('User_Current_Profile') || ''
-          },
+          }),
           response_mode: "blocking",
           user: "aesthetic_user_01"
         })
