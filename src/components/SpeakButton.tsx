@@ -27,7 +27,9 @@ function splitIntoSentences(text: string): string[] {
   return text
     .split(/(?<!\b(?:Mr|Ms|Mrs|Dr|Co|Ltd|Inc|e\.g|i\.e|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Assoc|Univ|Prof|Dept))(?<=[.?!])\s+|\n+/i)
     .map(s => s.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    // 强制丢弃完全没有英文字母/数字的句子（比如纯中文的提示语或单纯的标点），防止它们进入播放队列
+    .filter(s => /[a-zA-Z0-9]/.test(s));
 }
 
 // 播放音频缓存（缓存 URL 字符串，避免复用已失效的 Audio 对象导致 416 错误）
