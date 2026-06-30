@@ -94,7 +94,8 @@ export default function ListenTab() {
     if (!task) return;
 
     if (task.status === 'completed' && task.result?.content) {
-      const script = task.result.content;
+      // 过滤大模型可能返回的中文提示语（如 "📝 沉浸式听力/阅读长篇材料（生成完毕）"）
+      const script = task.result.content.replace(/^.*?(📝|生成完毕|沉浸式听力|阅读长篇材料).*?\n/gm, '').trim();
       setListenMaterial(script);
       setCurListenTaskId(null);
       setIsListenMaterialLoading(false);
@@ -163,7 +164,9 @@ export default function ListenTab() {
         return;
       }
 
-      const script = typeof res === 'string' ? res : (res.script || '');
+      // 过滤大模型可能返回的中文提示语
+      const rawScript = typeof res === 'string' ? res : (res.script || '');
+      const script = rawScript.replace(/^.*?(📝|生成完毕|沉浸式听力|阅读长篇材料).*?\n/gm, '').trim();
       setListenMaterial(script);
 
       // 异步音频生成（默认路径，用于短音频）

@@ -4251,8 +4251,13 @@ app.post('/api/tts/speech', async (req, res) => {
     if (!input) return res.status(400).json({ error: 'Missing input text' });
 
     const finalModel = model || 'edge-tts/en-US-EmmaNeural';
-    // ???? Emoji
-    const cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
+    // 移除 Emoji
+    let cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
+    
+    // 针对纯英文 TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩溃 (NoAudioReceived)
+    if (finalModel.includes('/en-') || finalModel.startsWith('en-')) {
+      cleanInput = cleanInput.replace(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g, '').trim();
+    }
 
     // ????????????????????? Key???????????????????????
     const md5 = crypto.createHash('md5').update(cleanInput + '_' + finalModel).digest('hex');
