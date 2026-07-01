@@ -1607,7 +1607,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-// ?????????????????????????????? Dify ???????????
+// 词典查询：后端代理 Dify dict_tool_workflow，避免前端暴露 API Key
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
 
@@ -1616,13 +1616,14 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
-  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://app.liujingzhuwo.site/v1';
+  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 120000;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 15000);
+  const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
 
   try {
-    console.log(`[Dict Query] ??????????: "${word}", ?????????: "${dictType}"`);
+    console.log(`[Dict Query] 发起查询: "${word}", 词典类型: "${dictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -1645,13 +1646,10 @@ app.post('/api/dify/dict-query', async (req, res) => {
       signal: controller.signal
     });
 
-    clearTimeout(timeoutId);
-
     if (!response.ok) {
       const errText = await response.text();
-      console.warn(`[Dict Query] Dify ??????????????????(${response.status}):`, errText);
+      console.warn(`[Dict Query] Dify 工作流返回错误 (${response.status}):`, errText);
 
-      // ??????????
       try {
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
@@ -1659,16 +1657,15 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: `Dify ????????????: ${response.status}` });
+      return res.json({ ok: false, fallback: true, message: `Dify 工作流调用失败: HTTP ${response.status}` });
     }
 
     const data = await response.json();
     const resultStr = data?.data?.outputs?.result;
 
     if (!resultStr) {
-      console.warn('[Dict Query] ???????????? result ???:', data);
+      console.warn('[Dict Query] 工作流输出缺少 result 字段:', data);
 
-      // ??????????
       try {
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
@@ -1676,17 +1673,15 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: 'Dify ??????????????????????????' });
+      return res.json({ ok: false, fallback: true, message: 'Dify 工作流未返回有效结果，请稍后重试' });
     }
 
-    // ??????????????????
     let parsedResult;
     try {
       parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
     } catch (e) {
-      console.warn('[Dict Query] ???? result JSON ??:', e.message);
+      console.warn('[Dict Query] 解析 result JSON 失败:', e.message);
 
-      // ????????????????
       try {
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
@@ -1694,10 +1689,9 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: '????????????????????????????????' });
+      return res.json({ ok: false, fallback: true, message: '词典结果格式异常，无法解析' });
     }
 
-    // ??????????????
     try {
       db.prepare(`
         INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
@@ -1705,11 +1699,17 @@ app.post('/api/dify/dict-query', async (req, res) => {
       `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), Date.now());
     } catch (logErr) {}
 
-    console.log(`[Dict Query] ???? "${word}" ??????????????????`, Object.keys(parsedResult?.payload || {}));
+    console.log(`[Dict Query] 词条 "${word}" 查询成功，字段:`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
-    console.warn('[Dict Query] ??????????????????????????????:', error.message);
-    return res.json({ ok: false, fallback: true, message: `????????????????: ${error.message}` });
+    const isTimeout = error.name === 'AbortError' || /aborted/i.test(error.message || '');
+    console.warn('[Dict Query] 查询失败:', error.message);
+    const message = isTimeout
+      ? `词典查询超时（${DICT_QUERY_TIMEOUT_MS / 1000} 秒），工作流仍在运行中，请稍后重试`
+      : `词典查询失败: ${error.message}`;
+    return res.json({ ok: false, fallback: true, message });
+  } finally {
+    clearTimeout(timeoutId);
   }
 });
 
