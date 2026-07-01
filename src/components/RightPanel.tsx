@@ -132,10 +132,12 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
     window.addEventListener('global-profile-changed', handleProfileChange);
     window.addEventListener('global-user-id-changed', bumpAssistant);
     window.addEventListener('dify-embed-scope-changed', bumpAssistant);
+    window.addEventListener('dify-assistant-open', bumpAssistant);
     return () => {
       window.removeEventListener('global-profile-changed', handleProfileChange);
       window.removeEventListener('global-user-id-changed', bumpAssistant);
       window.removeEventListener('dify-embed-scope-changed', bumpAssistant);
+      window.removeEventListener('dify-assistant-open', bumpAssistant);
     };
   }, []);
 

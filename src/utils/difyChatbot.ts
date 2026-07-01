@@ -13,6 +13,7 @@ const DIFY_EMBED_BASE_URL =
 const DIFY_EMBED_SCOPE_VERSION = `${DIFY_EMBED_TOKEN}-v2`;
 const DIFY_EMBED_SCOPE_STORAGE = 'dify_embed_scope_id';
 const DIFY_EMBED_SCOPE_MIGRATED = 'dify_embed_scope_migrated_v2';
+const DIFY_EMBED_CONVERSATION_PREFIX = 'dify_embed_conversation_';
 
 /**
  * Dify embed 专用 user_id（与 SQLite getAppUserId 隔离命名空间）。
@@ -31,19 +32,41 @@ export function getDifyChatbotUserId(): string {
   return `${getAppUserId()}@${scope}`;
 }
 
-/** 新对话：切换 Dify 会话桶，避免复用已失效的 conversation_id */
-export function resetDifyChatbotSession(): void {
+function getCachedConversationId(userId: string): string | null {
+  return localStorage.getItem(`${DIFY_EMBED_CONVERSATION_PREFIX}${userId}`);
+}
+
+function setCachedConversationId(userId: string, conversationId: string | null): void {
+  const key = `${DIFY_EMBED_CONVERSATION_PREFIX}${userId}`;
+  if (conversationId) localStorage.setItem(key, conversationId);
+  else localStorage.removeItem(key);
+}
+
+function rotateDifyEmbedScope(): void {
   localStorage.setItem(DIFY_EMBED_SCOPE_STORAGE, `${DIFY_EMBED_TOKEN}-${Date.now()}`);
   window.dispatchEvent(new Event('dify-embed-scope-changed'));
   refreshDifyChatbotContext();
+}
+
+/** 新对话：切换 Dify 会话桶，避免复用已失效的 conversation_id */
+export function resetDifyChatbotSession(): void {
+  setCachedConversationId(getDifyChatbotUserId(), null);
+  rotateDifyEmbedScope();
 }
 
 export interface DifyChatbotConfig {
   token: string;
   baseUrl: string;
   inputs: Record<string, string | number>;
-  systemVariables: { user_id: string };
+  systemVariables: { user_id: string; conversation_id?: string };
   userVariables: Record<string, string>;
+}
+
+export interface DifyEmbedSession {
+  userId: string;
+  conversationId: string | null;
+  /** 用空 sys.conversation_id 覆盖 Dify iframe 内过期 localStorage */
+  forceNew?: boolean;
 }
 
 let embedLoaded = false;
@@ -58,7 +81,17 @@ async function compressAndEncodeBase64(input: string): Promise<string> {
 }
 
 /** 与主站 injectUserProfileAndTime 对齐的 embed inputs */
-export function buildDifyChatbotConfig(): DifyChatbotConfig {
+export function buildDifyChatbotConfig(options?: {
+  userId?: string;
+  conversationId?: string;
+}): DifyChatbotConfig {
+  const systemVariables: { user_id: string; conversation_id?: string } = {
+    user_id: options?.userId ?? getDifyChatbotUserId(),
+  };
+  if (options?.conversationId !== undefined) {
+    systemVariables.conversation_id = options.conversationId;
+  }
+
   return {
     token: DIFY_EMBED_TOKEN,
     baseUrl: DIFY_EMBED_BASE_URL.replace(/\/$/, ''),
@@ -67,19 +100,64 @@ export function buildDifyChatbotConfig(): DifyChatbotConfig {
       _system_time: getCurrentFormattedTime(),
       _system_timestamp_ms: Date.now(),
     },
-    systemVariables: {
-      user_id: getDifyChatbotUserId(),
-    },
+    systemVariables,
     userVariables: {},
   };
+}
+
+/**
+ * 打开 embed 前解析会话：有效历史继续加载；过期则自动切换 scope 并开新会话。
+ * URL 中的 sys.conversation_id 优先于 Dify iframe 内 localStorage，可覆盖过期 id。
+ */
+export async function resolveDifyEmbedSession(retried = false): Promise<DifyEmbedSession> {
+  ensureDifyEmbedScope();
+  const userId = getDifyChatbotUserId();
+  const cachedConversationId = getCachedConversationId(userId);
+
+  const params = new URLSearchParams({ userId });
+  if (cachedConversationId) params.set('conversationId', cachedConversationId);
+
+  try {
+    const response = await fetch(`/api/dify/embed-session?${params.toString()}`);
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.warn('[difyChatbot] embed-session failed:', data);
+      return { userId, conversationId: cachedConversationId };
+    }
+
+    if (data.stale && !retried) {
+      setCachedConversationId(userId, null);
+      rotateDifyEmbedScope();
+      return resolveDifyEmbedSession(true);
+    }
+
+    const resolvedUserId = getDifyChatbotUserId();
+    const conversationId = typeof data.conversationId === 'string' ? data.conversationId : null;
+    const forceNew = data.forceNew === true || (data.stale === true && retried);
+    setCachedConversationId(resolvedUserId, conversationId);
+    return { userId: resolvedUserId, conversationId, forceNew };
+  } catch (err) {
+    console.error('[difyChatbot] resolveDifyEmbedSession error:', err);
+    return { userId, conversationId: cachedConversationId };
+  }
 }
 
 /**
  * 按 Dify embed.js 规则压缩 query，供 iframe / embed 使用。
  * systemVariables.user_id → sys.user_id，与主站 getAppUserId() 一致。
  */
-export async function buildDifyChatbotIframeUrl(): Promise<string> {
-  const config = buildDifyChatbotConfig();
+export async function buildDifyChatbotIframeUrl(options?: {
+  userId?: string;
+  conversationId?: string | null;
+  forceNew?: boolean;
+}): Promise<string> {
+  const config = buildDifyChatbotConfig({
+    userId: options?.userId,
+    conversationId: options?.forceNew
+      ? ''
+      : (options?.conversationId ?? undefined),
+  });
   const params = new URLSearchParams();
 
   await Promise.all(

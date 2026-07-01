@@ -213,21 +213,13 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
     const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
     const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const KNOWLEAGE_PRO_SCENARIOS_DATASET_ID = 'c53857b1-f54f-42ef-a6e8-fe54e9333862';
 
-    // 1. 获取知识库列表，定位 English_Pro_Scenarios
-    const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
-      headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-    });
-    const dsData = await dsResponse.json();
-    const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
-    
-    if (!dataset) {
-      throw new Error('在 Dify 平台未找到名为 English_Pro_Scenarios 的知识库');
-    }
-    const datasetId = dataset.id;
+    // 1. 使用固定 ID 访问 Knowleage_Pro_Scenarios 知识库
+    const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
     // 2. 清空旧文档
-    taskQueue.updateTask(taskId, { logs: ['正在清空 Dify 知识库旧文档...'] });
+    taskQueue.updateTask(taskId, { logs: ['正在清空 Knowleage_Pro_Scenarios 知识库旧文档...'] });
     const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
     });

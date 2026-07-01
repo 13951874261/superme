@@ -9,6 +9,8 @@ const crypto = require('crypto');
 // ??????????????
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
+const KNOWLEAGE_PRO_SCENARIOS_DATASET_ID = 'c53857b1-f54f-42ef-a6e8-fe54e9333862';
+
 const app = express();
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -1238,17 +1240,30 @@ app.post('/api/theme/custom-add', async (req, res) => {
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
-    // 1. ????????????????????? English_Pro_Scenarios
-    const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
+    // 1. 使用固定 ID 访问 Knowleage_Pro_Scenarios，并清空现有文档
+    const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
+
+    console.log('[Custom Theme] 正在清空 Knowleage_Pro_Scenarios 知识库...');
+    const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
     });
-    const dsData = await dsResponse.json();
-    const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
-    
-    if (!dataset) {
-      throw new Error('??? Dify ????????????? English_Pro_Scenarios ??????????');
+    if (!docsResponse.ok) throw new Error(`获取知识库文档列表失败 (HTTP ${docsResponse.status})`);
+    const docsData = await docsResponse.json();
+    const docIds = docsData.data?.map(d => d.id) || [];
+
+    if (docIds.length > 0) {
+      console.log(`[Custom Theme] 发现 ${docIds.length} 个旧文档，正在删除...`);
+      await Promise.all(docIds.map(async docId => {
+        const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+        });
+        if (!delRes.ok) console.warn(`[Custom Theme] 删除文档 ${docId} 失败 (HTTP ${delRes.status})`);
+      }));
+      console.log('[Custom Theme] 知识库已清空');
+    } else {
+      console.log('[Custom Theme] 知识库为空，无需清空');
     }
-    const datasetId = dataset.id;
 
     // 2. ???????????????????????????????????????????????????????????????????
     const base64Data = file.content || file.base64 || '';
@@ -1607,6 +1622,80 @@ app.get('/api/theme/stay-stats', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
+// Dify embed 会话校验：有效则返回 conversation_id 供 iframe URL 覆盖过期 localStorage
+app.get('/api/dify/embed-session', async (req, res) => {
+  const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
+  const conversationId = typeof req.query.conversationId === 'string'
+    ? req.query.conversationId.trim()
+    : '';
+
+  if (!userId) {
+    return res.status(400).json({ message: '缺少 userId 参数。' });
+  }
+
+  const apiKey = process.env.DIFY_CHATBOT_API_KEY
+    || process.env.VITE_DIFY_CHATBOT_API_KEY
+    || 'app-TyztRkdBVX4kNUxA8dZ0frk7';
+  const baseUrl = process.env.DIFY_API_BASE_URL
+    || process.env.VITE_DIFY_API_BASE_URL
+    || 'https://dify.234124123.xyz/v1';
+
+  async function validateConversation(convId) {
+    if (!convId) return false;
+    const url = `${baseUrl}/messages?user=${encodeURIComponent(userId)}&conversation_id=${encodeURIComponent(convId)}&limit=1`;
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      return response.ok;
+    } catch (err) {
+      console.error('[embed-session] validate conversation failed:', err);
+      return false;
+    }
+  }
+
+  async function listLatestConversation() {
+    const url = `${baseUrl}/conversations?user=${encodeURIComponent(userId)}&limit=1&sort_by=-updated_at`;
+    try {
+      const response = await fetch(url, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!response.ok) return null;
+      const data = await response.json().catch(() => ({}));
+      return data?.data?.[0]?.id || null;
+    } catch (err) {
+      console.error('[embed-session] list conversations failed:', err);
+      return null;
+    }
+  }
+
+  try {
+    if (conversationId) {
+      if (await validateConversation(conversationId)) {
+        return res.json({ conversationId, stale: false });
+      }
+      const latest = await listLatestConversation();
+      if (latest && await validateConversation(latest)) {
+        return res.json({ conversationId: latest, stale: false, recovered: true });
+      }
+      return res.json({ conversationId: null, stale: true, reason: 'cached_invalid' });
+    }
+
+    const latest = await listLatestConversation();
+    if (latest && await validateConversation(latest)) {
+      return res.json({ conversationId: latest, stale: false });
+    }
+    if (latest) {
+      return res.json({ conversationId: null, stale: true, reason: 'listed_invalid' });
+    }
+    // 服务端无会话，但 Dify iframe localStorage 可能仍有过期 id → 用空 conversation_id 覆盖
+    return res.json({ conversationId: null, stale: false, forceNew: true, reason: 'no_conversation' });
+  } catch (err) {
+    console.error('[embed-session] error:', err);
+    return res.status(500).json({ message: err.message || 'embed 会话校验失败' });
+  }
+});
+
 // 词典查询：后端代理 Dify dict_tool_workflow，避免前端暴露 API Key
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
@@ -2251,30 +2340,16 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       });
 
       // ---------------------------------------------------------
-      // ?????????????????????????????? English_Pro_Scenarios
+      // 使用固定 ID 直接访问 Knowleage_Pro_Scenarios 知识库
       // ---------------------------------------------------------
-      taskQueue.updateTask(task.id, {
-        progress: 10,
-        logs: ['[???] ?????? Dify ???????????????????????? English_Pro_Scenarios...']
-      });
-      const dsResponse = await fetch(`${BASE_URL}/datasets?page=1&limit=100`, {
-        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-      });
-      if (!dsResponse.ok) throw new Error(`?????????????????? (HTTP ${dsResponse.status})`);
-      const dsData = await dsResponse.json();
-      const dataset = dsData.data?.find(d => d.name === 'English_Pro_Scenarios');
-
-      if (!dataset) {
-        throw new Error('??? Dify ????????????? English_Pro_Scenarios ??????????');
-      }
-      const datasetId = dataset.id;
+      const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
       // ---------------------------------------------------------
       // ?????????????????????????????????????????
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 20,
-        logs: ['[???] ?????????????????????????????????????????...']
+        logs: ['[进度] 正在清空 Knowleage_Pro_Scenarios 知识库...']
       });
       const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
