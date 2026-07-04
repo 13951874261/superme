@@ -1,17 +1,37 @@
 #!/bin/bash
-# Memory Dreaming Phase 1 端到端验证脚本
-# 用法：bash /tmp/test-memory-dreaming.sh
+# Memory Dreaming + L0/L1 溯源端到端验证脚本
+# 用法：bash scratch/test-memory-dreaming.sh [user-id]
 
 set -e
 BASE="http://127.0.0.1:3001"
 USER_ID="${1:-test-user}"
 
-echo "=== 1. ingest 测试 episode ==="
-INGEST=$(curl -s -X POST "$BASE/api/user/memory/ingest" \
+echo "=== 0. L0/L1 溯源 ingest ==="
+PROV=$(curl -s -X POST "$BASE/api/user/memory/ingest" \
   -H "Content-Type: application/json" \
-  -d "{\"userId\":\"$USER_ID\",\"source\":\"manual\",\"episode\":{\"summary\":\"用户偏好英音，正在练即兴表达逻辑链\"}}")
-echo "$INGEST" | head -c 500
+  -d "{\"userId\":\"$USER_ID\",\"source\":\"provenance_test\",\"turn\":{\"role\":\"user\",\"text\":\"我偏好英音，想练即兴表达\",\"session_id\":\"sess_demo\"},\"sessionSummary\":{\"title\":\"测试摘要\",\"summary\":\"用户偏好英音，正在练即兴表达\"},\"promoteToEpisode\":true}")
+echo "$PROV" | head -c 800
 echo ""
+EP_ID=$(echo "$PROV" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('data',{}).get('ingest_meta',{}).get('episode_id',''))" 2>/dev/null || true)
+if [ -n "$EP_ID" ]; then
+  echo "OK: episode_id=$EP_ID"
+  curl -s "$BASE/api/user/memory/provenance/$USER_ID/$EP_ID" | head -c 600
+  echo ""
+else
+  echo "WARN: 未拿到 episode_id，检查 ingest 响应"
+fi
+echo ""
+
+echo "=== 1. ingest 测试 episodes（含相似/不相似两簇） ==="
+for SUMMARY in \
+  "用户偏好英音，正在练即兴表达逻辑链" \
+  "用户偏好英音，强化发音与语调" \
+  "听力弱项：连读识别困难，需加强精听"; do
+  curl -s -X POST "$BASE/api/user/memory/ingest" \
+    -H "Content-Type: application/json" \
+    -d "{\"userId\":\"$USER_ID\",\"source\":\"manual\",\"episode\":{\"summary\":\"$SUMMARY\"}}" > /dev/null
+done
+echo "ingested 3 episodes for cluster smoke test"
 echo ""
 
 echo "=== 2. 触发 Dreaming ==="
@@ -23,6 +43,11 @@ echo ""
 
 if echo "$DREAM" | grep -q '"skipped":false'; then
   echo "OK: LLM Dreaming 已执行"
+  if echo "$DREAM" | grep -q '"clustered":true'; then
+    echo "OK: Phase3 聚类已启用（本批应为同主题 episode）"
+  elif echo "$DREAM" | grep -q '"cluster"'; then
+    echo "INFO: 查看 llm.cluster 字段确认 batch 大小与 label"
+  fi
   if echo "$DREAM" | grep -q '"synced":1'; then
     echo "OK: KB 同步成功"
   fi

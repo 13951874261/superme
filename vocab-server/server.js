@@ -325,6 +325,75 @@ function mergeProfileNarrative(existing, delta) {
   return `${prev}; ${next}`.slice(0, 2000);
 }
 
+const L3_VAR_KEYS = new Set(['accent', 'locale', 'timezone', 'training_goal', 'spelling_variant', 'weakness_focus']);
+
+function normalizeL3VarKey(key) {
+  return String(key || '').trim().replace(/[^a-z0-9_]/gi, '_').slice(0, 40);
+}
+
+function normalizeL3VarValue(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'boolean') return val ? 'true' : 'false';
+  if (typeof val === 'number') return String(val);
+  return String(val).trim().slice(0, 200);
+}
+
+function getL3VarsObject(memoryLayers) {
+  const raw = memoryLayers?.l3_vars;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  return { ...raw };
+}
+
+function mergeL3Vars(existing, delta) {
+  const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? { ...existing } : {};
+  const conflicts = [];
+  if (!delta || typeof delta !== 'object' || Array.isArray(delta)) {
+    return { vars: base, conflicts };
+  }
+  for (const [rawKey, rawVal] of Object.entries(delta)) {
+    const key = normalizeL3VarKey(rawKey);
+    if (!key || !L3_VAR_KEYS.has(key)) continue;
+    const next = normalizeL3VarValue(rawVal);
+    if (!next) continue;
+    const prev = base[key];
+    if (prev !== undefined && String(prev) !== next) {
+      conflicts.push(`${key}=${prev}`);
+    }
+    base[key] = next;
+  }
+  return { vars: base, conflicts };
+}
+
+function inferL3VarsDeltaFromText(text) {
+  const delta = {};
+  const raw = String(text || '');
+  if (/英音|英国|\(UK\)|\bUK\b|\[profile:\s*uk\]/i.test(raw)) {
+    delta.accent = 'UK';
+    delta.spelling_variant = 'UK';
+  } else if (/美音|美国|\(US\)|\bUS\b|\[profile:\s*us\]/i.test(raw)) {
+    delta.accent = 'US';
+    delta.spelling_variant = 'US';
+  }
+  if (/即兴/.test(raw) && /表达|口语/.test(raw)) {
+    delta.training_goal = '即兴表达';
+  }
+  return delta;
+}
+
+function applyL3VarsToMemoryLayers(memoryLayers, delta, profileConflicts = null) {
+  if (!delta || typeof delta !== 'object') return { changed: false, conflicts: [] };
+  const merged = mergeL3Vars(getL3VarsObject(memoryLayers), delta);
+  if (Object.keys(merged.vars).length) {
+    memoryLayers.l3_vars = merged.vars;
+  }
+  if (merged.conflicts.length && Array.isArray(profileConflicts)) {
+    for (const c of merged.conflicts) {
+      if (!profileConflicts.includes(c)) profileConflicts.push(c);
+    }
+  }
+  return { changed: Object.keys(merged.vars).length > 0, conflicts: merged.conflicts };
+}
+
 function upsertUserMemoryRow(userId, { profileContent, errorLedger, memoryLayers, updatedAt }) {
   const now = updatedAt || Date.now();
   db.prepare(`
@@ -528,8 +597,133 @@ function composeMemorySummaryForPrompt(memoryCtx) {
   return parts.join('\n\n');
 }
 
+function normalizeRecallQuery(query) {
+  return String(query || '').trim().toLowerCase();
+}
+
+function recallQueryTokens(query) {
+  const q = normalizeRecallQuery(query);
+  if (!q) return [];
+  const parts = q.split(/[\s,，;；、。！？!?]+/).filter((t) => t.length >= 2);
+  if (!parts.length) return [q];
+  return parts;
+}
+
+function scoreRecallText(query, tokens, text) {
+  const t = String(text || '').toLowerCase();
+  if (!t || !query) return 0;
+  let score = 0;
+  if (t.includes(query)) score += 10;
+  for (const tok of tokens) {
+    if (tok.length >= 2 && t.includes(tok)) score += 3;
+  }
+  return score;
+}
+
+function pushRecallHit(hits, seen, item) {
+  const key = item.key || `${item.kind}:${item.text}`;
+  if (!item.text || seen.has(key)) return;
+  seen.add(key);
+  hits.push(item);
+}
+
+function recallMemoryForUser(userId, query, topK = 5) {
+  const q = normalizeRecallQuery(query);
+  const tokens = recallQueryTokens(q);
+  const limit = Math.min(Math.max(Number(topK) || 5, 1), 15);
+  if (!q) {
+    return { query: '', items: [], context: '' };
+  }
+
+  const uid = normalizeMemoryUserId(userId);
+  const row = db.prepare('SELECT profile_content, memory_layers FROM user_memories WHERE user_id = ?').get(uid);
+  const memoryLayers = parseJsonObject(row?.memory_layers, {});
+  const hits = [];
+  const seen = new Set();
+
+  const profileScore = scoreRecallText(q, tokens, row?.profile_content || '');
+  if (profileScore > 0) {
+    pushRecallHit(hits, seen, {
+      kind: 'profile',
+      score: profileScore + 2,
+      text: String(row?.profile_content || '').trim().slice(0, 200),
+      at: 0,
+      key: 'profile:main',
+    });
+  }
+
+  for (const sem of (Array.isArray(memoryLayers.l2_semantics) ? memoryLayers.l2_semantics : [])) {
+    if (!sem || typeof sem !== 'object') continue;
+    const blob = [sem.tag, sem.pattern, sem.evidence, sem.category].filter(Boolean).join(' ');
+    const score = scoreRecallText(q, tokens, blob);
+    if (score > 0) {
+      pushRecallHit(hits, seen, {
+        kind: 'semantic',
+        score,
+        text: String(sem.pattern || sem.tag || blob).trim().slice(0, 180),
+        at: Number(sem.at || 0),
+        key: `semantic:${sem.tag || sem.pattern}`,
+      });
+    }
+  }
+
+  for (const ep of (Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [])) {
+    if (!ep || typeof ep !== 'object') continue;
+    const text = getEpisodeText(ep);
+    const score = scoreRecallText(q, tokens, text);
+    if (score > 0) {
+      pushRecallHit(hits, seen, {
+        kind: 'episode',
+        score,
+        text: text.slice(0, 180),
+        at: Number(ep.at || 0),
+        source: ep.source || 'unknown',
+        key: `episode:${ep._id || text.slice(0, 40)}`,
+      });
+    }
+  }
+
+  const graph = memoryLayers.l2_graph;
+  const relations = graph && typeof graph === 'object' && Array.isArray(graph.relations) ? graph.relations : [];
+  const entities = graph && typeof graph === 'object' && Array.isArray(graph.entities) ? graph.entities : [];
+  const matchedEntities = new Set();
+  for (const e of entities) {
+    const name = normalizeGraphNodeName(e?.name);
+    if (name && scoreRecallText(q, tokens, name) > 0) matchedEntities.add(name);
+  }
+  for (const r of relations) {
+    if (!r || typeof r !== 'object') continue;
+    const line = `${r.from} ${r.rel} ${r.to} ${r.evidence || ''}`;
+    const score = scoreRecallText(q, tokens, line);
+    const entityBoost = matchedEntities.has(normalizeGraphNodeName(r.from))
+      || matchedEntities.has(normalizeGraphNodeName(r.to)) ? 4 : 0;
+    if (score + entityBoost > 0) {
+      pushRecallHit(hits, seen, {
+        kind: 'graph',
+        score: score + entityBoost,
+        text: `${r.from} —[${r.rel}]→ ${r.to}`.slice(0, 180),
+        at: Number(r.at || 0),
+        key: `graph:${r.from}|${r.rel}|${r.to}`,
+      });
+    }
+  }
+
+  hits.sort((a, b) => (b.score - a.score) || (b.at - a.at));
+  const items = hits.slice(0, limit);
+  const context = items.length
+    ? items.map((item, i) => {
+      const src = item.source ? ` · ${item.source}` : '';
+      return `${i + 1}. [${item.kind}${src}] ${item.text}`;
+    }).join('\n')
+    : '';
+
+  return { query: q, items, context };
+}
+
 const DREAMING_MIN_PATTERN_COUNT = 2;
 const MEMORY_KB_DATASET_ID_DEFAULT = '99abd904-f0e0-45f3-95a8-660b44b17cc5';
+const L0_TURNS_MAX = 100;
+const L1_SUMMARIES_MAX = 40;
 const DREAM_BACKOFF_HTTP_STATUSES = new Set([429, 502, 503, 504]);
 
 function getDreamBackoffMs() {
@@ -541,11 +735,193 @@ function isKbSyncEnabled() {
 }
 
 function getPendingEpisodesFromLayers(memoryLayers, batchSize) {
+  const l1Materialized = materializePendingL1ToEpisodes(memoryLayers);
   const episodes = Array.isArray(memoryLayers.l2_episodes)
     ? memoryLayers.l2_episodes.map((ep) => ensureEpisodeMeta(ep))
     : [];
-  const pending = episodes.filter((ep) => ep._dreamed !== true).slice(0, batchSize);
-  return { episodes, pending };
+  const limit = Math.min(Math.max(Number(batchSize) || 5, 1), 15);
+  const poolSize = isDreamingClusterEnabled()
+    ? Math.max(limit, getDreamClusterPoolSize())
+    : limit;
+  const allPending = episodes.filter((ep) => ep._dreamed !== true);
+  const pool = allPending.slice(0, poolSize);
+  const selection = selectDreamingBatchFromPending(pool, limit);
+  return {
+    episodes,
+    pending: selection.batch,
+    l1Materialized,
+    clusterMeta: {
+      label: selection.clusterLabel,
+      clusterCount: selection.clusterCount,
+      pendingTotal: selection.pendingTotal,
+      pendingPoolSize: pool.length,
+      clustered: selection.clustered,
+    },
+  };
+}
+
+function isDreamingClusterEnabled() {
+  return process.env.MEMORY_DREAMING_CLUSTER !== '0';
+}
+
+function getDreamClusterWindowMs() {
+  return Number(process.env.MEMORY_DREAMING_CLUSTER_WINDOW_MS || 7 * 24 * 60 * 60 * 1000);
+}
+
+function getDreamClusterMinSimilarity() {
+  const n = Number(process.env.MEMORY_DREAMING_CLUSTER_MIN_SIM || 0.6);
+  if (!Number.isFinite(n)) return 0.6;
+  return Math.min(Math.max(n, 0), 1);
+}
+
+function getDreamClusterPoolSize() {
+  return Number(process.env.MEMORY_DREAMING_CLUSTER_POOL || 30);
+}
+
+function normalizeClusterText(text) {
+  return String(text || '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function episodeClusterText(ep) {
+  return getEpisodeText(ep);
+}
+
+function prefixSimilarity(a, b) {
+  const x = normalizeClusterText(a);
+  const y = normalizeClusterText(b);
+  if (!x || !y) return 0;
+  if (x === y) return 1;
+  const shorter = x.length <= y.length ? x : y;
+  const longer = x.length <= y.length ? y : x;
+  if (shorter.length >= 4 && longer.includes(shorter)) {
+    return shorter.length / longer.length;
+  }
+  let i = 0;
+  const minLen = Math.min(x.length, y.length);
+  while (i < minLen && x[i] === y[i]) i += 1;
+  const lcpScore = i === 0 ? 0 : (2 * i) / (x.length + y.length);
+  let sharedScore = 0;
+  for (let len = Math.min(shorter.length, 20); len >= 6; len -= 1) {
+    for (let j = 0; j <= shorter.length - len; j += 1) {
+      const sub = shorter.slice(j, j + len);
+      if (longer.includes(sub)) {
+        sharedScore = Math.max(sharedScore, (2 * len) / (x.length + y.length));
+        break;
+      }
+    }
+    if (sharedScore > 0) break;
+  }
+  return Math.max(lcpScore, sharedScore);
+}
+
+function episodesAreSimilar(a, b, minSim) {
+  if (prefixSimilarity(a, b) >= minSim) return true;
+  const x = normalizeClusterText(a);
+  const y = normalizeClusterText(b);
+  if (!x || !y) return false;
+  const shorter = x.length <= y.length ? x : y;
+  const longer = x.length <= y.length ? y : x;
+  for (let len = Math.min(shorter.length, 20); len >= 6; len -= 1) {
+    for (let j = 0; j <= shorter.length - len; j += 1) {
+      if (longer.includes(shorter.slice(j, j + len))) return true;
+    }
+  }
+  return false;
+}
+
+function getEpisodeClusterGroupKey(ep, windowMs) {
+  const source = String(ep.source || 'unknown').trim() || 'unknown';
+  const at = Number(ep.at || Date.now());
+  const bucket = Math.floor(at / windowMs);
+  return `${source}:${bucket}`;
+}
+
+function clusterEpisodesInGroup(episodes, batchSize, minSim) {
+  const remaining = [...episodes].sort((a, b) => Number(a.at || 0) - Number(b.at || 0));
+  const clusters = [];
+
+  while (remaining.length) {
+    const seed = remaining.shift();
+    const cluster = [seed];
+    const seedText = episodeClusterText(seed);
+    for (let i = remaining.length - 1; i >= 0; i -= 1) {
+      if (cluster.length >= batchSize) break;
+      const candidate = remaining[i];
+      if (episodesAreSimilar(seedText, episodeClusterText(candidate), minSim)) {
+        cluster.push(candidate);
+        remaining.splice(i, 1);
+      }
+    }
+    clusters.push(cluster);
+  }
+  return clusters;
+}
+
+function clusterPendingEpisodes(pending, batchSize, options = {}) {
+  const limit = Math.min(Math.max(Number(batchSize) || 5, 1), 15);
+  const windowMs = options.windowMs ?? getDreamClusterWindowMs();
+  const minSim = options.minSim ?? getDreamClusterMinSimilarity();
+  if (!pending.length) return [];
+
+  const byGroup = new Map();
+  for (const ep of pending) {
+    const key = getEpisodeClusterGroupKey(ep, windowMs);
+    if (!byGroup.has(key)) byGroup.set(key, []);
+    byGroup.get(key).push(ep);
+  }
+
+  const clusters = [];
+  for (const groupEps of byGroup.values()) {
+    clusters.push(...clusterEpisodesInGroup(groupEps, limit, minSim));
+  }
+
+  clusters.sort((a, b) => {
+    const aMin = Math.min(...a.map((ep) => Number(ep.at || 0)));
+    const bMin = Math.min(...b.map((ep) => Number(ep.at || 0)));
+    return aMin - bMin;
+  });
+  return clusters;
+}
+
+function buildDreamClusterLabel(batch) {
+  if (!Array.isArray(batch) || !batch.length) return '';
+  const source = String(batch[0].source || 'unknown').trim() || 'unknown';
+  const hint = episodeClusterText(batch[0]).slice(0, 24);
+  return `${source}·${hint}·${batch.length}条`;
+}
+
+function selectDreamingBatchFromPending(pending, batchSize) {
+  const limit = Math.min(Math.max(Number(batchSize) || 5, 1), 15);
+  if (!pending.length) {
+    return {
+      batch: [],
+      clusterLabel: '',
+      clusterCount: 0,
+      pendingTotal: 0,
+      clustered: false,
+    };
+  }
+
+  if (!isDreamingClusterEnabled() || pending.length <= 1) {
+    const batch = pending.slice(0, limit);
+    return {
+      batch,
+      clusterLabel: buildDreamClusterLabel(batch),
+      clusterCount: 1,
+      pendingTotal: pending.length,
+      clustered: false,
+    };
+  }
+
+  const clusters = clusterPendingEpisodes(pending, limit);
+  const batch = clusters[0] || pending.slice(0, limit);
+  return {
+    batch,
+    clusterLabel: buildDreamClusterLabel(batch),
+    clusterCount: clusters.length,
+    pendingTotal: pending.length,
+    clustered: true,
+  };
 }
 
 function shouldRunLlmDreaming(memoryLayers, options = {}) {
@@ -653,6 +1029,153 @@ function ensureEpisodeMeta(ep, at = Date.now()) {
   return episode;
 }
 
+function generateMemoryLayerId(prefix, at = Date.now()) {
+  return `${prefix}_${at}_${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function ensureL0TurnMeta(turn, at = Date.now()) {
+  const item = { ...turn };
+  if (!item._id) item._id = generateMemoryLayerId('l0', item.at || at);
+  if (item._summarized !== true) item._summarized = false;
+  return item;
+}
+
+function ensureL1SummaryMeta(summary, at = Date.now()) {
+  const item = { ...summary };
+  if (!item._id) item._id = generateMemoryLayerId('l1', item.at || at);
+  if (item._dreamed !== true) item._dreamed = false;
+  if (item._materialized !== true) item._materialized = false;
+  const text = String(item.summary || item.text || '').trim();
+  if (text && !item.summary) item.summary = text;
+  return item;
+}
+
+function markL0Summarized(memoryLayers, l0Ids) {
+  if (!Array.isArray(l0Ids) || !l0Ids.length) return;
+  const idSet = new Set(l0Ids.map(String));
+  const turns = Array.isArray(memoryLayers.l0_turns) ? memoryLayers.l0_turns : [];
+  memoryLayers.l0_turns = turns.map((t) => (
+    idSet.has(String(t._id)) ? { ...t, _summarized: true, _summarized_at: Date.now() } : t
+  ));
+}
+
+function l1ToEpisodeShape(l1, source) {
+  return ensureEpisodeMeta({
+    summary: String(l1.summary || l1.text || l1.title || '').trim(),
+    source: l1.source || source || 'l1_summary',
+    at: l1.at || Date.now(),
+    source_l1_id: l1._id,
+    source_l0_ids: Array.isArray(l1.source_l0_ids) ? l1.source_l0_ids : [],
+    session_id: l1.session_id || '',
+    title: l1.title || '',
+    _from_l1: true,
+  }, l1.at);
+}
+
+function materializePendingL1ToEpisodes(memoryLayers) {
+  const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
+  const episodes = Array.isArray(memoryLayers.l2_episodes)
+    ? memoryLayers.l2_episodes.map((ep) => ensureEpisodeMeta(ep))
+    : [];
+  let changed = false;
+
+  for (const l1 of l1List) {
+    if (!l1 || typeof l1 !== 'object') continue;
+    if (l1._dreamed === true || l1._materialized === true) continue;
+    if (episodes.some((ep) => ep.source_l1_id === l1._id)) {
+      l1._materialized = true;
+      changed = true;
+      continue;
+    }
+    const text = String(l1.summary || l1.text || '').trim();
+    if (!text) continue;
+    episodes.unshift(l1ToEpisodeShape(l1, l1.source || 'l1_summary'));
+    l1._materialized = true;
+    changed = true;
+  }
+
+  if (changed) memoryLayers.l2_episodes = episodes.slice(0, 50);
+  return changed;
+}
+
+function markL1DreamedForEpisodes(memoryLayers, dreamedEpisodeIds) {
+  if (!dreamedEpisodeIds || !dreamedEpisodeIds.size) return;
+  const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
+  const l1Ids = new Set();
+  for (const ep of episodes) {
+    if (dreamedEpisodeIds.has(ep._id) && ep.source_l1_id) {
+      l1Ids.add(String(ep.source_l1_id));
+    }
+  }
+  if (!l1Ids.size) return;
+  const now = Date.now();
+  const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
+  memoryLayers.l1_summaries = l1List.map((l1) => (
+    l1Ids.has(String(l1._id))
+      ? { ...l1, _dreamed: true, _dreamed_at: now }
+      : l1
+  ));
+}
+
+function ingestL0Turn(memoryLayers, turnInput, source, now) {
+  const turn = ensureL0TurnMeta({ ...turnInput, source, at: turnInput.at || now }, now);
+  const turns = Array.isArray(memoryLayers.l0_turns) ? memoryLayers.l0_turns : [];
+  turns.unshift(turn);
+  memoryLayers.l0_turns = turns.slice(0, L0_TURNS_MAX);
+  return turn;
+}
+
+function ingestSessionSummary(memoryLayers, summaryInput, source, now, options = {}) {
+  const promote = options.promoteToEpisode !== false;
+  const s = ensureL1SummaryMeta({ ...summaryInput, source, at: summaryInput.at || now }, now);
+  if (Array.isArray(s.source_l0_ids) && s.source_l0_ids.length) {
+    markL0Summarized(memoryLayers, s.source_l0_ids);
+  }
+  const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
+  l1List.unshift(s);
+  memoryLayers.l1_summaries = l1List.slice(0, L1_SUMMARIES_MAX);
+
+  if (promote) {
+    s._materialized = true;
+    const episodes = Array.isArray(memoryLayers.l2_episodes)
+      ? memoryLayers.l2_episodes.map((ep) => ensureEpisodeMeta(ep))
+      : [];
+    if (!episodes.some((ep) => ep.source_l1_id === s._id)) {
+      episodes.unshift(l1ToEpisodeShape(s, source));
+      memoryLayers.l2_episodes = episodes.slice(0, 50);
+    }
+  }
+  return s;
+}
+
+function ingestEpisodeRecord(memoryLayers, episodeInput, source, now) {
+  const ep = ensureEpisodeMeta({ ...episodeInput, source, at: episodeInput.at || now }, now);
+  if (!ep.source_l1_id) {
+    const l1 = ensureL1SummaryMeta({
+      summary: getEpisodeText(ep),
+      title: episodeInput.title || '',
+      session_id: episodeInput.session_id || '',
+      source_l0_ids: Array.isArray(episodeInput.source_l0_ids) ? episodeInput.source_l0_ids : [],
+      source,
+      at: ep.at || now,
+      _materialized: true,
+    }, ep.at || now);
+    ep.source_l1_id = l1._id;
+    if (Array.isArray(ep.source_l0_ids) && ep.source_l0_ids.length) {
+      markL0Summarized(memoryLayers, ep.source_l0_ids);
+    }
+    const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
+    l1List.unshift(l1);
+    memoryLayers.l1_summaries = l1List.slice(0, L1_SUMMARIES_MAX);
+  }
+  const episodes = Array.isArray(memoryLayers.l2_episodes)
+    ? memoryLayers.l2_episodes.map((e) => ensureEpisodeMeta(e))
+    : [];
+  episodes.unshift(ep);
+  memoryLayers.l2_episodes = episodes.slice(0, 50);
+  return ep;
+}
+
 function stripProfileConflicts(profile, conflicts) {
   let result = String(profile || '');
   if (!Array.isArray(conflicts)) return result;
@@ -668,6 +1191,7 @@ function parseMemoryDreamingResult(rawText) {
   const empty = {
     profile_delta: '',
     profile_conflicts: [],
+    l3_vars_delta: {},
     semantics: [],
     episode_summaries: [],
     dedupe_keys: [],
@@ -678,9 +1202,13 @@ function parseMemoryDreamingResult(rawText) {
   try {
     const clean = String(rawText).replace(/```json/gi, '').replace(/```/g, '').trim();
     const parsed = JSON.parse(clean);
+    const l3Delta = parsed.l3_vars_delta && typeof parsed.l3_vars_delta === 'object' && !Array.isArray(parsed.l3_vars_delta)
+      ? parsed.l3_vars_delta
+      : {};
     return {
       profile_delta: String(parsed.profile_delta || '').trim(),
       profile_conflicts: Array.isArray(parsed.profile_conflicts) ? parsed.profile_conflicts : [],
+      l3_vars_delta: l3Delta,
       semantics: Array.isArray(parsed.semantics) ? parsed.semantics : [],
       episode_summaries: Array.isArray(parsed.episode_summaries) ? parsed.episode_summaries : [],
       dedupe_keys: Array.isArray(parsed.dedupe_keys) ? parsed.dedupe_keys : [],
@@ -797,7 +1325,8 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
     return { skipped: true, reason: 'backoff', backoffUntil };
   }
 
-  let { episodes, pending } = getPendingEpisodesFromLayers(memoryLayers, batchSize);
+  let { episodes, pending, clusterMeta, l1Materialized } = getPendingEpisodesFromLayers(memoryLayers, batchSize);
+  if (l1Materialized) persistMemoryLayersOnly(uid, row, memoryLayers);
   if (!pending.length) return { skipped: true, reason: 'no_pending' };
 
   const memoryCtx = buildMemoryContextForUser(uid);
@@ -829,6 +1358,8 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
           error_ledger_summary: memoryCtx.errorLedgerSummary,
           recent_semantics_json: JSON.stringify(semantics.slice(0, 10)),
           recent_graph_json: JSON.stringify(memoryLayers.l2_graph || { entities: [], relations: [] }),
+          batch_label: clusterMeta?.label || '',
+          current_l3_vars_json: JSON.stringify(getL3VarsObject(memoryLayers)),
         },
         response_mode: 'blocking',
         user: uid,
@@ -856,6 +1387,13 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
       profileContent = mergeProfileNarrative(profileContent, parsed.profile_delta);
     }
 
+    const profileConflicts = Array.isArray(parsed.profile_conflicts) ? [...parsed.profile_conflicts] : [];
+    applyL3VarsToMemoryLayers(memoryLayers, parsed.l3_vars_delta, profileConflicts);
+    applyL3VarsToMemoryLayers(memoryLayers, inferL3VarsDeltaFromText(parsed.profile_delta), profileConflicts);
+    if (profileConflicts.length > parsed.profile_conflicts.length) {
+      parsed.profile_conflicts = profileConflicts;
+    }
+
     const summaryById = new Map();
     for (const item of parsed.episode_summaries) {
       if (item && item.id) summaryById.set(String(item.id), item);
@@ -878,6 +1416,8 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
     });
 
     episodes = episodes.filter((ep) => !ep._discarded);
+
+    markL1DreamedForEpisodes(memoryLayers, pendingIds);
 
     if (parsed.dedupe_keys.length) {
       const keys = parsed.dedupe_keys.map((k) => String(k).trim().slice(0, 80)).filter(Boolean);
@@ -943,8 +1483,10 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
       changed: true,
       dreamedCount: pending.length,
       newSemantics: parsed.semantics.length,
-      profileUpdated: Boolean(parsed.profile_delta || parsed.profile_conflicts.length),
+      profileUpdated: Boolean(parsed.profile_delta || parsed.profile_conflicts.length || Object.keys(parsed.l3_vars_delta || {}).length),
+      l3_vars: getL3VarsObject(memoryLayers),
       kb: kbResult,
+      cluster: clusterMeta,
       graph: {
         newEntities: graphMerge.newEntities,
         newRelations: graphMerge.newRelations,
@@ -1502,6 +2044,24 @@ app.get('/api/user/memory/context/:userId', (req, res) => {
   }
 });
 
+app.get('/api/user/memory/recall', (req, res) => {
+  try {
+    const userId = req.query.userId || req.query.user_id;
+    const query = req.query.query || req.query.q || '';
+    const topK = req.query.topK || req.query.top_k || 5;
+    if (!userId) {
+      return res.status(400).json({ success: false, error: '缺少 userId。' });
+    }
+    if (!String(query).trim()) {
+      return res.status(400).json({ success: false, error: '缺少 query。' });
+    }
+    const data = recallMemoryForUser(userId, query, topK);
+    res.json({ success: true, data });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/user/memory/dreaming/run', async (req, res) => {
   try {
     const { userId } = req.body || {};
@@ -1535,7 +2095,19 @@ app.post('/api/user/profile/save', (req, res) => {
 });
 
 app.post('/api/user/memory/ingest', (req, res) => {
-  const { userId, profileDelta, source = 'unknown', episode, semantic } = req.body || {};
+  const {
+    userId,
+    profileDelta,
+    source = 'unknown',
+    episode,
+    semantic,
+    turn,
+    sessionSummary,
+    l1,
+    promoteToEpisode,
+    l3VarsDelta,
+    l3_vars_delta,
+  } = req.body || {};
   const uid = normalizeMemoryUserId(userId);
   const now = Date.now();
 
@@ -1546,12 +2118,47 @@ app.post('/api/user/memory/ingest', (req, res) => {
 
     if (profileDelta) {
       profileContent = mergeProfileNarrative(profileContent, profileDelta);
+      applyL3VarsToMemoryLayers(memoryLayers, inferL3VarsDeltaFromText(profileDelta));
     }
 
-    if (episode && typeof episode === 'object') {
-      const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
-      episodes.unshift(ensureEpisodeMeta({ ...episode, source, at: now }, now));
-      memoryLayers.l2_episodes = episodes.slice(0, 50);
+    const l3Delta = l3VarsDelta || l3_vars_delta;
+    if (l3Delta && typeof l3Delta === 'object') {
+      applyL3VarsToMemoryLayers(memoryLayers, l3Delta);
+    }
+
+    const ingestMeta = { l0_id: null, l1_id: null, episode_id: null };
+
+    if (turn && typeof turn === 'object') {
+      const savedTurn = ingestL0Turn(memoryLayers, turn, source, now);
+      ingestMeta.l0_id = savedTurn._id;
+    }
+
+    const l1Input = sessionSummary || l1;
+    if (l1Input && typeof l1Input === 'object') {
+      const l1Payload = { ...l1Input };
+      if (
+        ingestMeta.l0_id
+        && (!Array.isArray(l1Payload.source_l0_ids) || !l1Payload.source_l0_ids.length)
+      ) {
+        l1Payload.source_l0_ids = [ingestMeta.l0_id];
+      }
+      const savedL1 = ingestSessionSummary(memoryLayers, l1Payload, source, now, {
+        promoteToEpisode: promoteToEpisode !== false,
+      });
+      ingestMeta.l1_id = savedL1._id;
+      const promoted = (memoryLayers.l2_episodes || []).find((ep) => ep.source_l1_id === savedL1._id);
+      if (promoted) ingestMeta.episode_id = promoted._id;
+    } else if (episode && typeof episode === 'object') {
+      const epPayload = { ...episode };
+      if (
+        ingestMeta.l0_id
+        && (!Array.isArray(epPayload.source_l0_ids) || !epPayload.source_l0_ids.length)
+      ) {
+        epPayload.source_l0_ids = [ingestMeta.l0_id];
+      }
+      const savedEp = ingestEpisodeRecord(memoryLayers, epPayload, source, now);
+      ingestMeta.episode_id = savedEp._id;
+      ingestMeta.l1_id = savedEp.source_l1_id || null;
     }
 
     if (semantic && typeof semantic === 'object') {
@@ -1567,13 +2174,53 @@ app.post('/api/user/memory/ingest', (req, res) => {
       updatedAt: now,
     });
 
+    ingestMeta.l3_vars = getL3VarsObject(memoryLayers);
+
     res.json({
       success: true,
       data: {
         user_id: uid,
         profile_content: profileContent,
         memory_layers: memoryLayers,
+        ingest_meta: ingestMeta,
+        l3_vars: getL3VarsObject(memoryLayers),
         updated_at: now,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/user/memory/provenance/:userId/:episodeId', (req, res) => {
+  try {
+    const uid = normalizeMemoryUserId(req.params.userId);
+    const episodeId = String(req.params.episodeId || '').trim();
+    if (!episodeId) {
+      return res.status(400).json({ success: false, error: '缺少 episodeId。' });
+    }
+    const row = db.prepare('SELECT memory_layers FROM user_memories WHERE user_id = ?').get(uid);
+    const memoryLayers = parseJsonObject(row?.memory_layers, {});
+    const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
+    const episode = episodes.find((ep) => String(ep._id) === episodeId);
+    if (!episode) {
+      return res.status(404).json({ success: false, error: 'episode 未找到。' });
+    }
+    const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
+    const l1 = episode.source_l1_id
+      ? l1List.find((item) => String(item._id) === String(episode.source_l1_id))
+      : null;
+    const l0Ids = Array.isArray(episode.source_l0_ids) ? episode.source_l0_ids.map(String) : [];
+    const turns = Array.isArray(memoryLayers.l0_turns) ? memoryLayers.l0_turns : [];
+    const l0_turns = l0Ids.length
+      ? turns.filter((t) => l0Ids.includes(String(t._id)))
+      : [];
+    res.json({
+      success: true,
+      data: {
+        episode,
+        l1_summary: l1 || null,
+        l0_turns,
       },
     });
   } catch (err) {
@@ -5929,6 +6576,9 @@ app.listen(PORT, () => {
     }
     if (isKbSyncEnabled()) {
       console.log('[Memory Dreaming] KB sync enabled (mychat dataset create-by-text)');
+    }
+    if (isDreamingClusterEnabled()) {
+      console.log(`[Memory Dreaming] cluster enabled (pool=${getDreamClusterPoolSize()}, sim>=${getDreamClusterMinSimilarity()})`);
     }
   }
 });

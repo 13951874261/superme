@@ -83,11 +83,18 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
       void ingestUserMemory({
         source: 'weekly_chat_summary',
         profileDelta: result.profileFactors,
-        episode: {
-          summary: result.analysis.slice(0, 300),
-          directions,
-          preview: result.nextWeekPreview,
+        turn: {
+          role: 'user',
+          text: content.slice(0, 1000),
+          session_id: `weekly_${Date.now()}`,
         },
+        sessionSummary: {
+          summary: result.analysis.slice(0, 300),
+          title: '周聊摘要',
+          preview: result.nextWeekPreview,
+          directions,
+        },
+        promoteToEpisode: true,
       }).then(() => runMemoryDreaming());
       setChatResult({ analysis: result.analysis, nextWeekPreview: result.nextWeekPreview });
       setContent('');

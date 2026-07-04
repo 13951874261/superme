@@ -179,6 +179,7 @@ export function updateProfileFromText(text: string): boolean {
     const current = getUserCurrentProfile();
     if (current !== "英国 (UK)") {
       saveUserCurrentProfile("英国 (UK)");
+      void ingestUserMemory({ source: 'profile_text', l3VarsDelta: { accent: 'UK', spelling_variant: 'UK' } });
       return true;
     }
   }
@@ -196,6 +197,7 @@ export function updateProfileFromText(text: string): boolean {
     const current = getUserCurrentProfile();
     if (current !== "美国 (US)") {
       saveUserCurrentProfile("美国 (US)");
+      void ingestUserMemory({ source: 'profile_text', l3VarsDelta: { accent: 'US', spelling_variant: 'US' } });
       return true;
     }
   }
@@ -249,6 +251,165 @@ export function getCurrentFormattedTime(): string {
   return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${dayOfWeek}`;
 }
 
+/** 读取 localStorage 中 memory_layers.l3_vars 结构化画像 */
+export function getL3VarsLocal(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    if (!raw) return {};
+    const layers = JSON.parse(raw) as { l3_vars?: Record<string, string> };
+    const vars = layers.l3_vars;
+    if (!vars || typeof vars !== 'object' || Array.isArray(vars)) return {};
+    return vars;
+  } catch {
+    return {};
+  }
+}
+
+function formatL3VarsForProfile(vars: Record<string, string>): string {
+  const parts: string[] = [];
+  if (vars.accent) parts.push(`Accent:${vars.accent}`);
+  if (vars.training_goal) parts.push(`Goal:${vars.training_goal}`);
+  if (vars.weakness_focus) parts.push(`Focus:${vars.weakness_focus}`);
+  return parts.join('; ');
+}
+
+function normalizeRecallQuery(query: string): string {
+  return String(query || '').trim().toLowerCase();
+}
+
+function recallQueryTokens(query: string): string[] {
+  const q = normalizeRecallQuery(query);
+  if (!q) return [];
+  const parts = q.split(/[\s,，;；、。！？!?]+/).filter((t) => t.length >= 2);
+  if (!parts.length) return [q];
+  return parts;
+}
+
+function scoreRecallText(query: string, tokens: string[], text: string): number {
+  const t = String(text || '').toLowerCase();
+  if (!t || !query) return 0;
+  let score = 0;
+  if (t.includes(query)) score += 10;
+  for (const tok of tokens) {
+    if (tok.length >= 2 && t.includes(tok)) score += 3;
+  }
+  return score;
+}
+
+function extractRecallQueryFromInputs(inputs: Record<string, unknown>): string {
+  const explicit = inputs._memory_recall_query ?? inputs.query;
+  if (typeof explicit === 'string' && explicit.trim()) return explicit.trim();
+  for (const key of ['topic', 'theme', 'user_query', 'sys_query']) {
+    const val = inputs[key];
+    if (typeof val !== 'string' || !val.trim()) continue;
+    const cleaned = val.replace(/\s*\(Weakness:[^)]*\)/gi, '').trim();
+    if (cleaned.length >= 2) return cleaned;
+  }
+  return '';
+}
+
+/** 基于 localStorage 缓存的 memory_layers 做关键词召回（与 server recall 规则对齐） */
+export function recallMemoryLocal(query: string, topK = 5): { query: string; context: string; items: unknown[] } {
+  const q = normalizeRecallQuery(query);
+  const tokens = recallQueryTokens(q);
+  const limit = Math.min(Math.max(topK, 1), 15);
+  if (!q) return { query: '', context: '', items: [] };
+
+  let layers: {
+    l2_episodes?: Record<string, unknown>[];
+    l2_semantics?: Record<string, unknown>[];
+    l2_graph?: {
+      entities?: { name?: string }[];
+      relations?: { from?: string; rel?: string; to?: string; evidence?: string; at?: number }[];
+    };
+  } = {};
+  try {
+    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    if (raw) layers = JSON.parse(raw);
+  } catch {
+    return { query: q, context: '', items: [] };
+  }
+
+  const profile = getUserCurrentProfile();
+  const hits: { kind: string; score: number; text: string; at: number; source?: string; key: string }[] = [];
+  const seen = new Set<string>();
+
+  const pushHit = (item: typeof hits[number]) => {
+    if (!item.text || seen.has(item.key)) return;
+    seen.add(item.key);
+    hits.push(item);
+  };
+
+  const profileScore = scoreRecallText(q, tokens, profile);
+  if (profileScore > 0) {
+    pushHit({ kind: 'profile', score: profileScore + 2, text: profile.slice(0, 200), at: 0, key: 'profile:main' });
+  }
+
+  for (const sem of layers.l2_semantics || []) {
+    const blob = [sem.tag, sem.pattern, sem.evidence, sem.category].filter(Boolean).join(' ');
+    const score = scoreRecallText(q, tokens, String(blob));
+    if (score > 0) {
+      pushHit({
+        kind: 'semantic',
+        score,
+        text: String(sem.pattern || sem.tag || blob).slice(0, 180),
+        at: Number(sem.at || 0),
+        key: `semantic:${sem.tag || sem.pattern}`,
+      });
+    }
+  }
+
+  for (const ep of layers.l2_episodes || []) {
+    const text = String(ep.summary || ep.preview || ep.weaknessScan || ep.practicalTest || '').trim();
+    const score = scoreRecallText(q, tokens, text);
+    if (score > 0) {
+      pushHit({
+        kind: 'episode',
+        score,
+        text: text.slice(0, 180),
+        at: Number(ep.at || 0),
+        source: String(ep.source || 'unknown'),
+        key: `episode:${ep._id || text.slice(0, 40)}`,
+      });
+    }
+  }
+
+  const relations = layers.l2_graph?.relations || [];
+  const entities = layers.l2_graph?.entities || [];
+  const matchedEntities = new Set<string>();
+  for (const e of entities) {
+    const name = String(e.name || '').trim();
+    if (name && scoreRecallText(q, tokens, name) > 0) matchedEntities.add(name);
+  }
+  for (const r of relations) {
+    const line = `${r.from} ${r.rel} ${r.to} ${r.evidence || ''}`;
+    const score = scoreRecallText(q, tokens, line);
+    const from = String(r.from || '').trim();
+    const to = String(r.to || '').trim();
+    const entityBoost = matchedEntities.has(from) || matchedEntities.has(to) ? 4 : 0;
+    if (score + entityBoost > 0) {
+      pushHit({
+        kind: 'graph',
+        score: score + entityBoost,
+        text: `${r.from} —[${r.rel}]→ ${r.to}`.slice(0, 180),
+        at: Number(r.at || 0),
+        key: `graph:${r.from}|${r.rel}|${r.to}`,
+      });
+    }
+  }
+
+  hits.sort((a, b) => (b.score - a.score) || (b.at - a.at));
+  const items = hits.slice(0, limit);
+  const context = items.length
+    ? items.map((item, i) => {
+      const src = item.source ? ` · ${item.source}` : '';
+      return `${i + 1}. [${item.kind}${src}] ${item.text}`;
+    }).join('\n')
+    : '';
+
+  return { query: q, context, items };
+}
+
 /**
  * 包装并注入当前画像到 Dify 请求体中
  */
@@ -262,6 +423,8 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   const profile = getUserCurrentProfile();
   const result = { ...inputs };
   const errorSummary = getErrorLedgerSummary();
+  const l3Vars = getL3VarsLocal();
+  const l3Line = formatL3VarsForProfile(l3Vars);
 
   if (profile) {
     if (typeof result.theme === "string" && !result.theme.includes("Weakness:")) {
@@ -275,12 +438,26 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   const incomingProfile = typeof result.user_current_profile === 'string' ? result.user_current_profile.trim() : '';
   const graphSummary = getGraphSummaryLocal();
   const graphLine = graphSummary ? `Graph: ${graphSummary.replace(/\n/g, '; ')}` : '';
-  const mergedProfile = [profile, errorSummary, graphLine, incomingProfile].filter(Boolean).join('; ');
 
-  return {
+  const recallQuery = extractRecallQueryFromInputs(result);
+  const recall = recallQuery ? recallMemoryLocal(recallQuery, 5) : { context: '' };
+  const recallLine = recall.context ? `Recall: ${recall.context.replace(/\n/g, ' | ')}` : '';
+
+  const mergedProfile = [profile, l3Line, errorSummary, graphLine, recallLine, incomingProfile].filter(Boolean).join('; ');
+
+  const output: Record<string, any> = {
     ...result,
     user_current_profile: mergedProfile || profile,
+    user_accent: l3Vars.accent || '',
+    user_spelling_variant: l3Vars.spelling_variant || l3Vars.accent || '',
+    user_training_goal: l3Vars.training_goal || '',
+    user_locale: l3Vars.locale || 'zh-CN',
+    user_timezone: l3Vars.timezone || 'Asia/Shanghai',
   };
+  if (recall.context) {
+    output.memory_recall_context = recall.context;
+  }
+  return output;
 }
 
 /**
@@ -356,6 +533,11 @@ export interface MemoryIngestPayload {
   profileDelta?: string;
   episode?: Record<string, unknown>;
   semantic?: Record<string, unknown>;
+  turn?: Record<string, unknown>;
+  sessionSummary?: Record<string, unknown>;
+  l1?: Record<string, unknown>;
+  promoteToEpisode?: boolean;
+  l3VarsDelta?: Record<string, string>;
   source: string;
 }
 
@@ -393,6 +575,53 @@ export async function runMemoryDreaming(userId?: string): Promise<void> {
     await loadUserProfileFromServer(userId);
   } catch (e) {
     console.warn('[profileHelper] memory dreaming failed:', e);
+  }
+}
+
+/** 服务端记忆召回（需 query；失败时回退 localStorage 规则召回） */
+export async function fetchMemoryRecall(query: string, topK = 5): Promise<{ context: string; items: unknown[] }> {
+  const q = String(query || '').trim();
+  if (!q) return { context: '', items: [] };
+  try {
+    const params = new URLSearchParams({
+      userId: getAppUserId(),
+      query: q,
+      topK: String(topK),
+    });
+    const res = await fetch(`/api/user/memory/recall?${params.toString()}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json?.success && json.data) {
+        return {
+          context: String(json.data.context || ''),
+          items: Array.isArray(json.data.items) ? json.data.items : [],
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('[profileHelper] memory recall API failed, using local:', e);
+  }
+  const local = recallMemoryLocal(q, topK);
+  return { context: local.context, items: local.items };
+}
+
+/** 查询 L2 episode 的 L1/L0 溯源链 */
+export async function fetchMemoryProvenance(
+  episodeId: string,
+  userId?: string,
+): Promise<{ episode: Record<string, unknown> | null; l1_summary: Record<string, unknown> | null; l0_turns: Record<string, unknown>[] } | null> {
+  const epId = String(episodeId || '').trim();
+  if (!epId) return null;
+  try {
+    const uid = userId || getAppUserId();
+    const res = await fetch(`/api/user/memory/provenance/${encodeURIComponent(uid)}/${encodeURIComponent(epId)}`);
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json?.success) return null;
+    return json.data || null;
+  } catch (e) {
+    console.warn('[profileHelper] memory provenance failed:', e);
+    return null;
   }
 }
 

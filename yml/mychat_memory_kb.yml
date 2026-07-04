@@ -330,6 +330,18 @@ workflow:
       zIndex: 0
     - data:
         isInLoop: false
+        sourceType: assigner
+        targetType: http-request
+      id: f0e1d2c3-assign-l1-ingest-http
+      selected: false
+      source: f0e1d2c3-b4a5-6978-9abc-def012345606
+      sourceHandle: source
+      target: f0e1d2c3-b4a5-6978-9abc-def012345607
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
         sourceType: if-else
         targetType: code
       id: f0e1d2c3-ifelse-false-skip-target
@@ -872,10 +884,10 @@ workflow:
     - data:
         code: "import json\n\n_FENCE = chr(96) * 3\n_DATASET_ID = \"99abd904-f0e0-45f3-95a8-660b44b17cc5\"\
           \n# 自建 Docker：工作流 HTTP 节点走公网域名易 hairpin/反代 503，请用 compose 内服务名直连 API\n_API_BASE\
-          \ = \"http://api:5001\"\n\ndef main(llm_json: str) -> dict:\n    empty =\
+          \ = \"http://api:5001\"\n\ndef main(llm_json: str, user_id: str) -> dict:\n    empty =\
           \ {\n        \"do_post\": 0,\n        \"doc_name\": \"\",\n        \"doc_text\"\
           : \"\",\n        \"api_body\": \"\",\n        \"kb_pending_record\": \"\"\
-          ,\n    }\n    if llm_json is None:\n        return empty\n    if isinstance(llm_json,\
+          ,\n        \"memory_ingest_body\": \"\",\n    }\n    if llm_json is None:\n        return empty\n    if isinstance(llm_json,\
           \ dict):\n        if \"save\" in llm_json or (\"title\" in llm_json and\
           \ \"text\" in llm_json):\n            data = llm_json\n        elif \"llm_json\"\
           \ in llm_json:\n            inner = llm_json[\"llm_json\"]\n           \
@@ -907,15 +919,18 @@ workflow:
           \ = {\n        \"kind\": \"dify_dataset_create_by_text\",\n        \"dataset_id\"\
           : _DATASET_ID,\n        \"create_by_text_url\": (\n            _API_BASE\
           \ + \"/v1/datasets/\" + _DATASET_ID + \"/document/create-by-text\"\n   \
-          \     ),\n        \"method\": \"POST\",\n        \"body\": payload,\n  \
-          \  }\n    return {\n        \"do_post\": 1,\n        \"doc_name\": title,\n\
-          \        \"doc_text\": text,\n        \"api_body\": json.dumps(payload,\
-          \ ensure_ascii=False),\n        \"kb_pending_record\": json.dumps(pending,\
-          \ ensure_ascii=False),\n    }\n"
+          \     ),\n        \"method\": \"POST\",\n        \"body\": payload,\n    }\n    uid = (user_id or \"default-user\").split(\"@\")[0].strip() or \"default-user\"\
+          \n    memory_ingest_payload = {\n        \"userId\": uid,\n        \"source\"\
+          : \"mychat_memory_kb\",\n        \"sessionSummary\": {\n            \"title\"\
+          : title,\n            \"summary\": text,\n            \"session_id\": \"\
+          \",\n        },\n        \"promoteToEpisode\": True,\n    }\n    return {\n\
+          \        \"do_post\": 1,\n        \"doc_name\": title,\n        \"doc_text\"\
+          : text,\n        \"api_body\": json.dumps(payload, ensure_ascii=False),\n\
+          \        \"kb_pending_record\": json.dumps(pending, ensure_ascii=False),\n\
+          \        \"memory_ingest_body\": json.dumps(memory_ingest_payload, ensure_ascii=False),\n\
+          \    }\n"
         code_language: python3
-        desc: 解析档案员 JSON；输出 api_body、kb_pending_record（供后端异步入库）；HTTP 请用 raw-text 发
-          api_body。请求体字段与 Apifox 成功示例对齐（含 doc_form / embedding 等）。kb_pending_record
-          内 URL 与「知识库create-by-text」一致，默认 http://api:5001；若 compose 服务名/端口不同请改 _API_BASE。
+        desc: 解析档案员 JSON；输出 api_body、kb_pending_record、memory_ingest_body（L1 溯源入库 vocab-server）
         outputs:
           api_body:
             children: null
@@ -932,6 +947,9 @@ workflow:
           kb_pending_record:
             children: null
             type: string
+          memory_ingest_body:
+            children: null
+            type: string
         selected: false
         title: 解析摘要JSON
         type: code
@@ -941,6 +959,11 @@ workflow:
           - text
           value_type: string
           variable: llm_json
+        - value_selector:
+          - sys
+          - user_id
+          value_type: string
+          variable: user_id
       height: 208
       id: f0e1d2c3-b4a5-6978-9abc-def012345602
       position:
@@ -1073,6 +1096,49 @@ workflow:
       positionAbsolute:
         x: 2816
         y: 126
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: l1-ingest-body
+            key: ''
+            type: text
+            value: '{{#f0e1d2c3-b4a5-6978-9abc-def012345602.memory_ingest_body#}}'
+          type: raw-text
+        desc: 对话摘要写入 L1 层（memory_layers.l1_summaries）并 promote 为 L2 episode，供 Dreaming 溯源
+        headers: 'Content-Type: application/json
+
+          Accept: application/json'
+        method: post
+        params: ''
+        retry_config:
+          enabled: true
+          max_retries: 3
+          retry_interval: 1000
+        selected: false
+        ssl_verify: true
+        timeout:
+          connect: 10
+          read: 30
+          write: 30
+        title: L1摘要回写vocab-server
+        type: http-request
+        url: https://app.liujingzhuwo.site/api/user/memory/ingest
+      height: 120
+      id: f0e1d2c3-b4a5-6978-9abc-def012345607
+      position:
+        x: 2816
+        y: 300
+      positionAbsolute:
+        x: 2816
+        y: 300
       selected: false
       sourcePosition: right
       targetPosition: left
