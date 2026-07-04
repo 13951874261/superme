@@ -1,4 +1,4 @@
-# 对应 API Key: app-pNTtsab39PwcMJl0b2KJvjYI (DIFY_MEMORY_DREAMING_API_KEY)
+# 对应 API Key: app-KlXuWwhQmsssv5sjjzN5b7BR (DIFY_MEMORY_DREAMING_API_KEY)
 # 后台 LLM Dreaming：从未处理的 L2 情景记忆中提炼 L3 画像与 L2 语义
 app:
   description: 跨会话记忆后台 Dreaming 工作流。读取待处理 L2 episode，输出画像增量、语义标签、摘要合并与去重键。

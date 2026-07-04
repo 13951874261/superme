@@ -459,6 +459,67 @@ function mergeGraphMemory(existing, { entities = [], relations = [] }, source = 
   };
 }
 
+/** LLM 未输出 relations 时，从 episode/画像文本规则合成基础图谱 */
+function fallbackGraphFromMemory(pending, profileContent, profileDelta) {
+  const entities = [];
+  const relations = [];
+  const texts = [
+    ...pending.map((ep) => getEpisodeText(ep)),
+    String(profileContent || ''),
+    String(profileDelta || ''),
+  ].filter(Boolean);
+  const corpus = texts.join(' ');
+  if (!corpus.trim()) return { entities, relations };
+
+  const pushEntity = (name, type) => {
+    if (!entities.some((e) => e.name === name)) entities.push({ name, type });
+  };
+  const pushRel = (from, rel, to, evidence) => {
+    pushEntity(from, from === '用户' ? 'person' : 'concept');
+    pushEntity(to, 'concept');
+    relations.push({ from, rel, to, evidence: String(evidence || corpus).slice(0, 120) });
+  };
+
+  pushEntity('用户', 'person');
+  const evidence = texts[0] || corpus;
+  if (/英音|英国|\(UK\)|\bUK\b/i.test(corpus)) {
+    pushRel('用户', '偏好', '英音', evidence);
+  }
+  if (/美音|美国|\(US\)|\bUS\b/i.test(corpus)) {
+    pushRel('用户', '偏好', '美音', evidence);
+  }
+  if (/即兴/.test(corpus) && /逻辑|表达/.test(corpus)) {
+    pushRel('用户', '正在练习', '即兴表达逻辑链', evidence);
+  }
+
+  return { entities, relations };
+}
+
+/** 从 LLM 已输出的 semantics 合成关系（工作流未返回 relations 时的兜底） */
+function graphFromSemantics(semantics) {
+  const entities = [{ name: '用户', type: 'person' }];
+  const relations = [];
+  if (!Array.isArray(semantics)) return { entities, relations };
+
+  for (const sem of semantics.slice(0, 5)) {
+    if (!sem || typeof sem !== 'object') continue;
+    const pattern = String(sem.pattern || sem.tag?.split(':').slice(1).join(':') || '').trim();
+    if (!pattern) continue;
+    const category = String(sem.category || 'general').trim();
+    const rel = category === 'oral' ? '正在练习' : category === 'general' ? '特征' : '短板';
+    if (!entities.some((e) => e.name === pattern)) {
+      entities.push({ name: pattern, type: 'concept' });
+    }
+    relations.push({
+      from: '用户',
+      rel,
+      to: pattern,
+      evidence: String(sem.evidence || pattern).slice(0, 120),
+    });
+  }
+  return { entities, relations };
+}
+
 function composeMemorySummaryForPrompt(memoryCtx) {
   const parts = [memoryCtx.recentEpisodesSummary];
   if (memoryCtx.graphSummary && memoryCtx.graphSummary !== '暂无关系记忆。') {
@@ -850,7 +911,20 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
 
     memoryLayers.l2_episodes = episodes.slice(0, 50);
     memoryLayers.l2_semantics = mergedSemantics.slice(0, 30);
-    const graphMerge = mergeGraphMemory(memoryLayers.l2_graph, parsed, 'llm_dreaming');
+    let graphPayload = { entities: parsed.entities, relations: parsed.relations };
+    let graphSource = 'llm_dreaming';
+    if (!graphPayload.relations.length && parsed.semantics.length) {
+      graphPayload = graphFromSemantics(parsed.semantics);
+      graphSource = 'graph_from_semantics';
+    }
+    if (!graphPayload.relations.length) {
+      const fallback = fallbackGraphFromMemory(pending, profileContent, parsed.profile_delta);
+      if (fallback.relations.length) {
+        graphPayload = fallback;
+        graphSource = 'graph_fallback';
+      }
+    }
+    const graphMerge = mergeGraphMemory(memoryLayers.l2_graph, graphPayload, graphSource);
     memoryLayers.l2_graph = graphMerge.graph;
     memoryLayers._last_llm_dream_at = Date.now();
     memoryLayers._dream_backoff_until = 0;
@@ -875,6 +949,7 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
         newEntities: graphMerge.newEntities,
         newRelations: graphMerge.newRelations,
         totalRelations: graphMerge.graph.relations.length,
+        source: graphSource,
       },
     };
   } catch (e) {

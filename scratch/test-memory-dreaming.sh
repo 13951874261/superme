@@ -23,11 +23,15 @@ echo ""
 
 if echo "$DREAM" | grep -q '"skipped":false'; then
   echo "OK: LLM Dreaming 已执行"
-  if echo "$DREAM" | grep -q '"synced"'; then
-    echo "OK: KB 同步已尝试（见 llm.kb.synced）"
+  if echo "$DREAM" | grep -q '"synced":1'; then
+    echo "OK: KB 同步成功"
   fi
-  if echo "$DREAM" | grep -q '"totalRelations"'; then
-    echo "OK: Graph Memory 已更新（见 llm.graph）"
+  if echo "$DREAM" | grep -q '"totalRelations":[1-9]'; then
+    echo "OK: Graph Memory 已有关系"
+  elif echo "$DREAM" | grep -q '"source":"graph_'; then
+    echo "WARN: Graph 由服务端兜底生成，请确认 Dify 工作流已更新"
+  else
+    echo "WARN: Graph relations 仍为 0，请上传最新 server.js 并确认 .env API Key"
   fi
 elif echo "$DREAM" | grep -q '"reason":"llm_disabled"'; then
   echo "WARN: LLM 层未启用，检查 .env 中 DIFY_MEMORY_DREAMING_API_KEY"
