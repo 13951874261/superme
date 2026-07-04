@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Send, Award, Target, Flame, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { runBiweeklyReviewAnalysis } from '../../services/difyAPI';
-import { appendUserProfileFactor } from '../../utils/profileHelper';
+import { appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../../hooks/useBiweeklyReviewTrigger';
 import {
   setLastReviewDate,
@@ -74,6 +74,15 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
       const res = await runBiweeklyReviewAnalysis(answers);
 
       appendUserProfileFactor(res.shortDebilitatingFactors);
+      void ingestUserMemory({
+        source: 'biweekly_review',
+        profileDelta: res.shortDebilitatingFactors,
+        episode: {
+          practicalTest: answers.practicalTest.slice(0, 120),
+          weaknessScan: answers.weaknessScan.slice(0, 120),
+          tacticalDispatch: answers.tacticalDispatch.slice(0, 120),
+        },
+      }).then(() => runMemoryDreaming());
 
       saveReviewRecord({
         id: Date.now().toString(),
@@ -115,6 +124,9 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
       setTimeout(() => {
         setLoading(false);
         setCompleted(false);
+        window.dispatchEvent(new Event('global-profile-changed'));
+        window.dispatchEvent(new Event('dify-context-refresh-needed'));
+        window.dispatchEvent(new Event('superme-review-date-changed'));
         onClose();
       }, 3000);
     } catch (e) {

@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap } from 'lucide-react';
-import { getUserCurrentProfile, appendUserProfileFactor } from '../utils/profileHelper';
+import { getUserCurrentProfile, appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 import {
   getLastReviewDate,
   getReviewHistory,
   getNextWeekPushPlan,
   saveNextWeekPushPlan,
+  GLOBAL_DIRECTION_OPTIONS,
+  appendWeeklyChatHistory,
 } from '../utils/reviewHelper';
 import { runWeeklyChatEnhanced } from '../services/difyAPI';
 import { playClick, playWaterDrop } from '../utils/soundEffects';
@@ -14,15 +16,6 @@ import { playClick, playWaterDrop } from '../utils/soundEffects';
 interface SummaryAreaProps {
   selectedDate: string;
 }
-
-const DIRECTION_OPTIONS = [
-  { label: '人性博弈', value: 'humanGameCase' },
-  { label: '英语主题', value: 'englishTopic' },
-  { label: '高管斗争', value: 'executiveConflict' },
-  { label: '驭人博弈', value: 'manipulationStrategy' },
-  { label: '认知升维', value: 'cognitiveUpgrade' },
-  { label: '晋升跳槽', value: 'careerAdvice' },
-];
 
 function daysSinceLastReview(): number {
   const last = getLastReviewDate();
@@ -79,6 +72,23 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
       const result = await runWeeklyChatEnhanced(content, directions);
       appendUserProfileFactor(result.profileFactors);
       saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
+      appendWeeklyChatHistory({
+        id: Date.now().toString(),
+        date: new Date().toLocaleString('zh-CN'),
+        userContent: content,
+        aiAnalysis: result.analysis,
+        directions: [...directions],
+        nextWeekPreview: result.nextWeekPreview,
+      });
+      void ingestUserMemory({
+        source: 'weekly_chat_summary',
+        profileDelta: result.profileFactors,
+        episode: {
+          summary: result.analysis.slice(0, 300),
+          directions,
+          preview: result.nextWeekPreview,
+        },
+      }).then(() => runMemoryDreaming());
       setChatResult({ analysis: result.analysis, nextWeekPreview: result.nextWeekPreview });
       setContent('');
       setHasPushPlan(true);
@@ -187,7 +197,7 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
           />
 
           <div className="grid grid-cols-3 gap-1.5 mb-3">
-            {DIRECTION_OPTIONS.map((opt) => (
+            {GLOBAL_DIRECTION_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
                 type="button"

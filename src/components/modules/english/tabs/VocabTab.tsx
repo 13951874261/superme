@@ -5,6 +5,7 @@ import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
 import { submitReview, getAllWords, getReviewWords } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
+import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
 import CustomCardModal from '../../../CustomCardModal';
 import MemoryAidPanel from '../../../MemoryAidPanel';
@@ -218,6 +219,12 @@ export default function VocabTab() {
         showNotice('eval', '评估完成，已写入复习记录', 'success');
       } else {
         playError();
+        void appendErrorLedgerEntries('vocab', [{
+          word: currentWord.word,
+          score: quality,
+          feedback: result.feedback,
+          theme,
+        }]);
       }
     } catch (err: any) {
       playError();

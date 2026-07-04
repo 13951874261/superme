@@ -1,3 +1,6 @@
+import { getErrorLedgerSummary } from './errorLedgerHelper';
+
+const MEMORY_LAYERS_KEY = 'user_memory_layers';
 const PROFILE_UPDATED_AT_KEY = 'user_profile_server_updated_at';
 const ERROR_LEDGER_KEY = 'user_error_ledger';
 const USER_ID_KEY = 'super_agent_user_id';
@@ -258,6 +261,7 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   
   const profile = getUserCurrentProfile();
   const result = { ...inputs };
+  const errorSummary = getErrorLedgerSummary();
 
   if (profile) {
     if (typeof result.theme === "string" && !result.theme.includes("Weakness:")) {
@@ -269,7 +273,7 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   }
 
   const incomingProfile = typeof result.user_current_profile === 'string' ? result.user_current_profile.trim() : '';
-  const mergedProfile = [profile, incomingProfile].filter(Boolean).join('; ');
+  const mergedProfile = [profile, errorSummary, incomingProfile].filter(Boolean).join('; ');
 
   return {
     ...result,
@@ -307,11 +311,23 @@ export async function loadUserProfileFromServer(userId?: string): Promise<void> 
     const json = await res.json();
     if (!json?.success) return;
 
-    const { profile_content, error_ledger, updated_at } = json.data || {};
+    const {
+      profile_content,
+      error_ledger,
+      memory_layers,
+      updated_at,
+    } = json.data || {};
     const serverUpdatedAt = Number(updated_at || 0);
 
-    if (error_ledger && error_ledger !== '{}') {
-      localStorage.setItem(ERROR_LEDGER_KEY, error_ledger);
+    if (error_ledger && (typeof error_ledger === 'object' || error_ledger !== '{}')) {
+      localStorage.setItem(
+        ERROR_LEDGER_KEY,
+        typeof error_ledger === 'string' ? error_ledger : JSON.stringify(error_ledger),
+      );
+    }
+
+    if (memory_layers && typeof memory_layers === 'object') {
+      localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
     }
 
     if (profile_content && serverUpdatedAt >= localUpdatedAt) {
@@ -332,6 +348,66 @@ export function saveUserErrorLedger(ledger: string | Record<string, unknown>) {
   const value = typeof ledger === 'string' ? ledger : JSON.stringify(ledger);
   localStorage.setItem(ERROR_LEDGER_KEY, value);
   void syncProfileToServer();
+}
+
+export interface MemoryIngestPayload {
+  profileDelta?: string;
+  episode?: Record<string, unknown>;
+  semantic?: Record<string, unknown>;
+  source: string;
+}
+
+export async function ingestUserMemory(payload: MemoryIngestPayload): Promise<void> {
+  try {
+    const res = await fetch('/api/user/memory/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: getAppUserId(), ...payload }),
+    });
+    if (!res.ok) return;
+
+    const json = await res.json();
+    const { profile_content, updated_at, memory_layers } = json?.data || {};
+    if (profile_content) {
+      writeProfileLocal(profile_content, Number(updated_at || Date.now()));
+    }
+    if (memory_layers && typeof memory_layers === 'object') {
+      localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
+    }
+  } catch (e) {
+    console.warn('[profileHelper] memory ingest failed:', e);
+  }
+}
+
+/** 触发后台 Dreaming：去重 L2、升格高频短板至 L3 */
+export async function runMemoryDreaming(userId?: string): Promise<void> {
+  try {
+    const res = await fetch('/api/user/memory/dreaming/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(userId ? { userId } : {}),
+    });
+    if (!res.ok) return;
+    await loadUserProfileFromServer(userId);
+  } catch (e) {
+    console.warn('[profileHelper] memory dreaming failed:', e);
+  }
+}
+
+/** 读取本地缓存的 L2 情景记忆（最多 5 条摘要行） */
+export function getRecentEpisodesSummaryLocal(): string {
+  try {
+    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    if (!raw) return '';
+    const layers = JSON.parse(raw) as { l2_episodes?: Record<string, unknown>[] };
+    const episodes = layers.l2_episodes || [];
+    return episodes.slice(0, 5).map((ep, i) => {
+      const text = String(ep.summary || ep.preview || ep.weaknessScan || '').slice(0, 120);
+      return text ? `${i + 1}. ${text}` : '';
+    }).filter(Boolean).join('\n');
+  } catch {
+    return '';
+  }
 }
 
 /**

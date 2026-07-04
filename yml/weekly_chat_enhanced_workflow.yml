@@ -74,6 +74,18 @@ workflow:
           required: false
           type: text-input
           variable: user_current_profile
+        - label: 近期情景记忆摘要
+          max_length: 1500
+          options: []
+          required: false
+          type: paragraph
+          variable: recent_episodes_summary
+        - label: 结构化短板记录
+          max_length: 800
+          options: []
+          required: false
+          type: paragraph
+          variable: error_ledger_summary
       height: 115
       id: start
       position:
@@ -125,6 +137,12 @@ workflow:
           role: user
           text: |-
             用户当前画像：{{#start.user_current_profile#}}
+
+            近期情景记忆（L2，跨会话沉淀）：
+            {{#start.recent_episodes_summary#}}
+
+            结构化短板记录（error_ledger）：
+            {{#start.error_ledger_summary#}}
 
             心智投喂文本：
             """

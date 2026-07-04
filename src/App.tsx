@@ -22,6 +22,7 @@ import {
   loadDifyChatbotEmbed,
   refreshDifyChatbotContext,
 } from './utils/difyChatbot';
+import { loadUserProfileFromServer } from './utils/profileHelper';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -32,7 +33,7 @@ function AppContent() {
 
   const toggleChatbot = () => {
     if (!isChatOpen) {
-      refreshDifyChatbotContext();
+      void loadUserProfileFromServer().then(() => refreshDifyChatbotContext());
     }
 
     const dify = window.difyChatbot;
@@ -83,6 +84,13 @@ function AppContent() {
 
   useEffect(() => {
     loadDifyChatbotEmbed();
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        void loadUserProfileFromServer();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
   useEffect(() => {

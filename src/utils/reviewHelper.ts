@@ -309,14 +309,51 @@ const KEYWORD_THEME_MAP: Record<string, Partial<TrainingRebalancePlan>> = {
   },
 };
 
-const DIRECTION_LABELS: Record<string, string> = {
-  humanGameCase: '人性博弈案例',
-  executiveConflict: '高管斗争案例',
-  manipulationStrategy: '驭人/博弈策略',
-  cognitiveUpgrade: '顶层认知升维',
-  careerAdvice: '晋升/跳槽建议',
-  englishTopic: '英语学习主题',
-};
+export const WEEKLY_CHAT_HISTORY_KEY = 'superme_weekly_history_enhanced';
+
+export const GLOBAL_DIRECTION_OPTIONS = [
+  { label: '人性博弈', value: 'humanGameCase' },
+  { label: '英语主题', value: 'englishTopic' },
+  { label: '高管斗争', value: 'executiveConflict' },
+  { label: '驭人博弈', value: 'manipulationStrategy' },
+  { label: '认知升维', value: 'cognitiveUpgrade' },
+  { label: '晋升跳槽', value: 'careerAdvice' },
+] as const;
+
+const DIRECTION_LABELS: Record<string, string> = Object.fromEntries(
+  GLOBAL_DIRECTION_OPTIONS.map((o) => [o.value, o.label]),
+);
+
+export interface WeeklyHistoryItem {
+  id: string;
+  date: string;
+  userContent: string;
+  aiAnalysis: string;
+  directions: string[];
+  nextWeekPreview: string;
+}
+
+export function getDirectionLabel(value: string): string {
+  return DIRECTION_LABELS[value] || value;
+}
+
+export function getWeeklyChatHistory(): WeeklyHistoryItem[] {
+  const raw = localStorage.getItem(WEEKLY_CHAT_HISTORY_KEY) || localStorage.getItem('super_agent_weekly_history');
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return [];
+  }
+}
+
+/** 往 localStorage 中追加 WeeklyChat 历史足迹，并广播同步事件 */
+export function appendWeeklyChatHistory(item: WeeklyHistoryItem) {
+  const list = getWeeklyChatHistory();
+  list.unshift(item);
+  localStorage.setItem(WEEKLY_CHAT_HISTORY_KEY, JSON.stringify(list));
+  window.dispatchEvent(new Event('superme-weekly-history-updated'));
+}
 
 export function generateScenarioMapping(
   keywords: string[],

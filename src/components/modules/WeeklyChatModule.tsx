@@ -3,26 +3,16 @@ import { Lock, Zap, Loader2, Calendar, Trash2 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
 import { runWeeklyChatEnhanced } from '../../services/difyAPI';
-import { saveNextWeekPushPlan, getNextWeekPushPlan } from '../../utils/reviewHelper';
-import { getUserCurrentProfile, appendUserProfileFactor } from '../../utils/profileHelper';
-
-interface HistoryItem {
-  id: string;
-  date: string;
-  userContent: string;
-  aiAnalysis: string;
-  directions: string[];
-  nextWeekPreview: string;
-}
-
-const DIRECTION_OPTIONS = [
-  { label: '人性博弈案例', value: 'humanGameCase' },
-  { label: '英语学习主题', value: 'englishTopic' },
-  { label: '高管斗争案例', value: 'executiveConflict' },
-  { label: '驭人/博弈策略', value: 'manipulationStrategy' },
-  { label: '顶层认知升维', value: 'cognitiveUpgrade' },
-  { label: '晋升/跳槽建议', value: 'careerAdvice' },
-];
+import {
+  saveNextWeekPushPlan,
+  getNextWeekPushPlan,
+  GLOBAL_DIRECTION_OPTIONS,
+  appendWeeklyChatHistory,
+  getWeeklyChatHistory,
+  getDirectionLabel,
+  type WeeklyHistoryItem,
+} from '../../utils/reviewHelper';
+import { getUserCurrentProfile, appendUserProfileFactor, ingestUserMemory, getRecentEpisodesSummaryLocal, runMemoryDreaming } from '../../utils/profileHelper';
 
 export default function WeeklyChatModule() {
   const [content, setContent] = useState('');
@@ -32,35 +22,33 @@ export default function WeeklyChatModule() {
     analysis: string;
     nextWeekPreview: string;
   } | null>(null);
-  const [historyList, setHistoryList] = useState<HistoryItem[]>([]);
+  const [historyList, setHistoryList] = useState<WeeklyHistoryItem[]>([]);
   const [globalProfile, setGlobalProfile] = useState('');
+  const [recentEpisodes, setRecentEpisodes] = useState('');
   const [hasPushPlan, setHasPushPlan] = useState(false);
 
   useEffect(() => {
     setGlobalProfile(getUserCurrentProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
+    setRecentEpisodes(getRecentEpisodesSummaryLocal());
     setHasPushPlan(!!getNextWeekPushPlan());
 
-    const enhanced = localStorage.getItem('superme_weekly_history_enhanced');
-    const legacy = localStorage.getItem('super_agent_weekly_history');
-    const raw = enhanced || legacy;
-    if (raw) {
-      try {
-        setHistoryList(JSON.parse(raw));
-      } catch (e) {
-        console.error('解析历史沉淀失败:', e);
-      }
-    }
+    const loadHistory = () => setHistoryList(getWeeklyChatHistory());
+    loadHistory();
 
     const handleProfileChange = () => {
       setGlobalProfile(getUserCurrentProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
+      setRecentEpisodes(getRecentEpisodesSummaryLocal());
     };
     const handleRebalance = () => setHasPushPlan(!!getNextWeekPushPlan());
+    const handleHistoryUpdate = () => loadHistory();
 
     window.addEventListener('global-profile-changed', handleProfileChange);
     window.addEventListener('global-training-rebalance', handleRebalance);
+    window.addEventListener('superme-weekly-history-updated', handleHistoryUpdate);
     return () => {
       window.removeEventListener('global-profile-changed', handleProfileChange);
       window.removeEventListener('global-training-rebalance', handleRebalance);
+      window.removeEventListener('superme-weekly-history-updated', handleHistoryUpdate);
     };
   }, []);
 
@@ -85,18 +73,23 @@ export default function WeeklyChatModule() {
       saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
       setHasPushPlan(true);
 
-      const newHistory: HistoryItem = {
+      appendWeeklyChatHistory({
         id: Date.now().toString(),
         date: new Date().toLocaleString('zh-CN'),
         userContent: content,
         aiAnalysis: result.analysis,
         directions: [...directions],
         nextWeekPreview: result.nextWeekPreview,
-      };
-
-      const updated = [newHistory, ...historyList];
-      setHistoryList(updated);
-      localStorage.setItem('superme_weekly_history_enhanced', JSON.stringify(updated));
+      });
+      void ingestUserMemory({
+        source: 'weekly_chat_module',
+        profileDelta: result.profileFactors,
+        episode: {
+          summary: result.analysis.slice(0, 300),
+          directions,
+          preview: result.nextWeekPreview,
+        },
+      }).then(() => runMemoryDreaming());
       setCurrentResult({
         analysis: result.analysis,
         nextWeekPreview: result.nextWeekPreview,
@@ -138,6 +131,11 @@ export default function WeeklyChatModule() {
             当前全局进化能力短板
           </span>
           <p className="text-sm font-semibold text-zinc-800 mt-1">{globalProfile}</p>
+          {recentEpisodes && (
+            <p className="text-[10px] text-zinc-500 mt-2 leading-relaxed whitespace-pre-line border-t border-zinc-100 pt-2">
+              近期情景记忆（L2）：{recentEpisodes}
+            </p>
+          )}
         </div>
 
         <div className="bg-white p-6 rounded-2xl border border-zinc-200 space-y-4">
@@ -158,7 +156,7 @@ export default function WeeklyChatModule() {
             <span>🎯</span> 2. 定制方向勾选项
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            {DIRECTION_OPTIONS.map((opt) => (
+            {GLOBAL_DIRECTION_OPTIONS.map((opt) => (
               <label
                 key={opt.value}
                 className={`p-3 border rounded-xl flex items-center gap-2 cursor-pointer transition-all text-xs font-bold ${
@@ -243,7 +241,7 @@ export default function WeeklyChatModule() {
                     </span>
                     {item.directions?.length > 0 && (
                       <span className="bg-zinc-200/60 text-zinc-700 px-3 py-1 rounded font-bold">
-                        {item.directions.join(' · ')}
+                        {item.directions.map(getDirectionLabel).join(' · ')}
                       </span>
                     )}
                   </div>

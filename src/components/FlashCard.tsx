@@ -4,6 +4,7 @@ import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen,
 import SpeakButton from './SpeakButton';
 import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
+import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 
 interface FlashCardProps {
@@ -157,6 +158,14 @@ export default function FlashCard({ onClose }: FlashCardProps) {
           category: 'general',  // 闪卡造句属于日常场景，存入全场景区
           payload: { meaning: '句子考核通过', source: '闪卡造句评估' },
         });
+      } else {
+        void appendErrorLedgerEntries('vocab', [{
+          word: targetWord,
+          score: result.score,
+          feedback: result.feedback,
+          theme,
+          source: 'flashcard',
+        }]);
       }
     } catch (error) {
       console.error('强制应用考核失败:', error);

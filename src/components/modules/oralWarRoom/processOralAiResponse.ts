@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { ParsedAiResponse } from '../../../services/difyAPI';
 import { playSuccess, playError } from '../../../utils/soundEffects';
 import type { WeaknessLogEntry } from './types';
+import { appendErrorLedgerEntries } from '../../../utils/errorLedgerHelper';
 import { safeText, parseTemplateList, extractFlawType } from './utils';
 
 export interface ProcessOralAiResponseCtx {
@@ -30,6 +31,7 @@ function logWeakness(sceneTitle: string, flawText: string, setWeaknessLog: Proce
   localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
   setWeaknessLog(existingWeaknesses);
   window.dispatchEvent(new Event('weakness-updated'));
+  void appendErrorLedgerEntries('oral', [{ scene: sceneTitle, flaw: flawText }]);
 }
 
 export function processOralAiResponse(

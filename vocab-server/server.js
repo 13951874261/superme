@@ -293,6 +293,205 @@ db.prepare(`
   )
 `).run();
 
+try {
+  db.prepare("ALTER TABLE user_memories ADD COLUMN memory_layers TEXT DEFAULT '{}'").run();
+  console.log('Migration: Added memory_layers column to user_memories.');
+} catch (e) {
+  /* column may already exist */
+}
+
+function normalizeMemoryUserId(raw) {
+  if (!raw) return 'default-user';
+  const base = String(raw).split('@')[0].trim();
+  return base || 'default-user';
+}
+
+function parseJsonObject(raw, fallback = {}) {
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function mergeProfileNarrative(existing, delta) {
+  const prev = String(existing || '').trim();
+  const next = String(delta || '').trim();
+  if (!next) return prev;
+  if (!prev) return next.slice(0, 2000);
+  if (prev.includes(next)) return prev;
+  return `${prev}; ${next}`.slice(0, 2000);
+}
+
+function upsertUserMemoryRow(userId, { profileContent, errorLedger, memoryLayers, updatedAt }) {
+  const now = updatedAt || Date.now();
+  db.prepare(`
+    INSERT INTO user_memories (user_id, profile_content, error_ledger, memory_layers, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET
+      profile_content = COALESCE(excluded.profile_content, user_memories.profile_content),
+      error_ledger = COALESCE(excluded.error_ledger, user_memories.error_ledger),
+      memory_layers = COALESCE(excluded.memory_layers, user_memories.memory_layers),
+      updated_at = excluded.updated_at
+  `).run(
+    userId,
+    profileContent ?? '',
+    errorLedger ?? '{}',
+    memoryLayers ?? '{}',
+    now,
+  );
+}
+
+function formatEpisodeLine(episode, index) {
+  const source = episode.source || 'unknown';
+  const at = episode.at ? new Date(episode.at).toLocaleDateString('zh-CN') : '';
+  const text = String(
+    episode.summary
+    || episode.preview
+    || episode.weaknessScan
+    || episode.practicalTest
+    || '',
+  ).trim().slice(0, 180);
+  if (!text) return null;
+  return `${index + 1}. [${source}${at ? `·${at}` : ''}] ${text}`;
+}
+
+function buildMemoryContextForUser(userId) {
+  const uid = normalizeMemoryUserId(userId);
+  const row = db.prepare('SELECT memory_layers, error_ledger FROM user_memories WHERE user_id = ?').get(uid);
+  const memoryLayers = parseJsonObject(row?.memory_layers, {});
+  const ledger = parseJsonObject(row?.error_ledger, {});
+
+  const episodeLines = (Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [])
+    .slice(0, 5)
+    .map(formatEpisodeLine)
+    .filter(Boolean);
+  const recentEpisodesSummary = episodeLines.length
+    ? episodeLines.join('\n')
+    : '暂无近期情景记忆。';
+
+  const errorParts = [];
+  for (const cat of ['oral', 'listening', 'vocab']) {
+    const items = ledger[cat];
+    if (!Array.isArray(items) || !items.length) continue;
+    const top = items.slice(0, 3).map((e) => {
+      if (cat === 'oral') return e.flaw;
+      if (cat === 'listening') return e.pattern || e.reason;
+      return e.word;
+    }).filter(Boolean);
+    if (top.length) errorParts.push(`${cat}: ${top.join('、')}`);
+  }
+  const errorLedgerSummary = errorParts.length
+    ? errorParts.join('; ')
+    : '暂无结构化短板记录。';
+
+  return { recentEpisodesSummary, errorLedgerSummary, memoryLayers };
+}
+
+const DREAMING_MIN_PATTERN_COUNT = 2;
+
+function dedupeEpisodes(episodes) {
+  const seen = new Set();
+  return episodes.filter((ep) => {
+    const key = String(ep.summary || ep.preview || ep.weaknessScan || '').trim().slice(0, 80);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function collectFrequentLedgerPatterns(ledger) {
+  const promoted = [];
+  for (const [category, items] of Object.entries(ledger)) {
+    if (!Array.isArray(items)) continue;
+    const counts = {};
+    for (const item of items) {
+      const key = String(item.pattern || item.flaw || item.word || item.reason || '').trim();
+      if (!key) continue;
+      counts[key] = (counts[key] || 0) + 1;
+    }
+    for (const [pattern, count] of Object.entries(counts)) {
+      if (count >= DREAMING_MIN_PATTERN_COUNT) {
+        promoted.push({ category, pattern, count });
+      }
+    }
+  }
+  return promoted.sort((a, b) => b.count - a.count);
+}
+
+function runMemoryDreamingForUser(userId) {
+  const uid = normalizeMemoryUserId(userId);
+  const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+  if (!row) return { userId: uid, changed: false, skipped: true };
+
+  const ledger = parseJsonObject(row.error_ledger, {});
+  const memoryLayers = parseJsonObject(row.memory_layers, {});
+  let profileContent = row.profile_content || '';
+  let changed = false;
+  const details = { dedupedEpisodes: 0, promotedPatterns: 0, newSemantics: 0 };
+
+  if (Array.isArray(memoryLayers.l2_episodes) && memoryLayers.l2_episodes.length) {
+    const before = memoryLayers.l2_episodes.length;
+    memoryLayers.l2_episodes = dedupeEpisodes(memoryLayers.l2_episodes).slice(0, 50);
+    if (memoryLayers.l2_episodes.length !== before) {
+      details.dedupedEpisodes = before - memoryLayers.l2_episodes.length;
+      changed = true;
+    }
+  }
+
+  const promoted = collectFrequentLedgerPatterns(ledger);
+  if (promoted.length) {
+    const semantics = Array.isArray(memoryLayers.l2_semantics) ? memoryLayers.l2_semantics : [];
+    for (const item of promoted.slice(0, 5)) {
+      const tag = `${item.category}:${item.pattern}`;
+      if (!semantics.some((s) => s.tag === tag)) {
+        semantics.unshift({
+          tag,
+          pattern: item.pattern,
+          category: item.category,
+          count: item.count,
+          source: 'dreaming',
+          at: Date.now(),
+        });
+        details.newSemantics += 1;
+        changed = true;
+      }
+      if (!profileContent.includes(item.pattern)) {
+        profileContent = mergeProfileNarrative(profileContent, item.pattern);
+        details.promotedPatterns += 1;
+        changed = true;
+      }
+    }
+    memoryLayers.l2_semantics = semantics.slice(0, 30);
+  }
+
+  if (changed) {
+    upsertUserMemoryRow(uid, {
+      profileContent,
+      errorLedger: row.error_ledger,
+      memoryLayers: JSON.stringify(memoryLayers),
+      updatedAt: Date.now(),
+    });
+  }
+
+  return { userId: uid, changed, skipped: false, details, promotedCount: promoted.length };
+}
+
+function runMemoryDreamingJob() {
+  const users = db.prepare('SELECT user_id FROM user_memories').all();
+  let processed = 0;
+  let updated = 0;
+  for (const { user_id } of users) {
+    const result = runMemoryDreamingForUser(user_id);
+    processed += 1;
+    if (result.changed) updated += 1;
+  }
+  console.log(`[Memory Dreaming] processed=${processed} updated=${updated}`);
+  return { processed, updated, at: Date.now() };
+}
+
 // ?????????????????
 db.prepare(`
   CREATE INDEX IF NOT EXISTS idx_gen_history_theme 
@@ -735,11 +934,53 @@ app.get('/api/listen/long-audio/:id', (req, res) => {
 
 app.get('/api/user/profile/:userId', (req, res) => {
   try {
-    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(req.params.userId);
+    const uid = normalizeMemoryUserId(req.params.userId);
+    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    const memoryCtx = buildMemoryContextForUser(uid);
     res.json({
       success: true,
-      data: row || { user_id: req.params.userId, profile_content: '', error_ledger: '{}' },
+      data: row
+        ? {
+            ...row,
+            memory_layers: parseJsonObject(row.memory_layers, {}),
+            error_ledger: parseJsonObject(row.error_ledger, {}),
+            recent_episodes_summary: memoryCtx.recentEpisodesSummary,
+            error_ledger_summary: memoryCtx.errorLedgerSummary,
+          }
+        : {
+            user_id: uid,
+            profile_content: '',
+            error_ledger: {},
+            memory_layers: {},
+            recent_episodes_summary: memoryCtx.recentEpisodesSummary,
+            error_ledger_summary: memoryCtx.errorLedgerSummary,
+            updated_at: 0,
+          },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/user/memory/context/:userId', (req, res) => {
+  try {
+    const uid = normalizeMemoryUserId(req.params.userId);
+    const ctx = buildMemoryContextForUser(uid);
+    res.json({ success: true, data: ctx });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/user/memory/dreaming/run', (req, res) => {
+  try {
+    const { userId } = req.body || {};
+    if (userId) {
+      const result = runMemoryDreamingForUser(userId);
+      return res.json({ success: true, data: result });
+    }
+    const result = runMemoryDreamingJob();
+    res.json({ success: true, data: result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -747,17 +988,98 @@ app.get('/api/user/profile/:userId', (req, res) => {
 
 app.post('/api/user/profile/save', (req, res) => {
   const { userId, profileContent, errorLedger } = req.body;
+  const uid = normalizeMemoryUserId(userId);
   const now = Date.now();
   try {
-    db.prepare(`
-      INSERT INTO user_memories (user_id, profile_content, error_ledger, updated_at)
-      VALUES (?, ?, ?, ?)
-      ON CONFLICT(user_id) DO UPDATE SET
-        profile_content = excluded.profile_content,
-        error_ledger = COALESCE(excluded.error_ledger, error_ledger),
-        updated_at = excluded.updated_at
-    `).run(userId || 'default-user', profileContent, errorLedger || '{}', now);
+    const existing = db.prepare('SELECT profile_content, error_ledger, memory_layers FROM user_memories WHERE user_id = ?').get(uid);
+    upsertUserMemoryRow(uid, {
+      profileContent: profileContent ?? existing?.profile_content ?? '',
+      errorLedger: errorLedger || existing?.error_ledger || '{}',
+      memoryLayers: existing?.memory_layers || '{}',
+      updatedAt: now,
+    });
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/user/memory/ingest', (req, res) => {
+  const { userId, profileDelta, source = 'unknown', episode, semantic } = req.body || {};
+  const uid = normalizeMemoryUserId(userId);
+  const now = Date.now();
+
+  try {
+    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    let profileContent = row?.profile_content || '';
+    let memoryLayers = parseJsonObject(row?.memory_layers, {});
+
+    if (profileDelta) {
+      profileContent = mergeProfileNarrative(profileContent, profileDelta);
+    }
+
+    if (episode && typeof episode === 'object') {
+      const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
+      episodes.unshift({ ...episode, source, at: now });
+      memoryLayers.l2_episodes = episodes.slice(0, 50);
+    }
+
+    if (semantic && typeof semantic === 'object') {
+      const semantics = Array.isArray(memoryLayers.l2_semantics) ? memoryLayers.l2_semantics : [];
+      semantics.unshift({ ...semantic, source, at: now });
+      memoryLayers.l2_semantics = semantics.slice(0, 50);
+    }
+
+    upsertUserMemoryRow(uid, {
+      profileContent,
+      errorLedger: row?.error_ledger || '{}',
+      memoryLayers: JSON.stringify(memoryLayers),
+      updatedAt: now,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        user_id: uid,
+        profile_content: profileContent,
+        memory_layers: memoryLayers,
+        updated_at: now,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/user/error-ledger/append', (req, res) => {
+  const { userId, category, entries } = req.body || {};
+  const uid = normalizeMemoryUserId(userId);
+  const now = Date.now();
+
+  if (!category || !Array.isArray(entries) || entries.length === 0) {
+    return res.status(400).json({ success: false, error: '缺少 category 或 entries。' });
+  }
+
+  try {
+    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    const ledger = parseJsonObject(row?.error_ledger, {});
+    const bucket = Array.isArray(ledger[category]) ? ledger[category] : [];
+
+    for (const entry of entries) {
+      if (entry && typeof entry === 'object') {
+        bucket.unshift({ ...entry, at: entry.at || now });
+      }
+    }
+
+    ledger[category] = bucket.slice(0, 30);
+    upsertUserMemoryRow(uid, {
+      profileContent: row?.profile_content || '',
+      errorLedger: JSON.stringify(ledger),
+      memoryLayers: row?.memory_layers || '{}',
+      updatedAt: now,
+    });
+
+    res.json({ success: true, data: { error_ledger: ledger, updated_at: now } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -3876,6 +4198,8 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
       || 'app-p8u1qA8A6iWDB6FzEOtjectn';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
+    const memoryCtx = buildMemoryContextForUser(userId);
+
     const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
       headers: {
@@ -3889,6 +4213,8 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
           weakness_scan: weaknessScan,
           tactical_dispatch: tacticalDispatch,
           user_current_profile: user_current_profile || '',
+          recent_episodes_summary: memoryCtx.recentEpisodesSummary,
+          error_ledger_summary: memoryCtx.errorLedgerSummary,
         }),
         response_mode: 'blocking',
         user: userId,
@@ -3986,6 +4312,8 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
       || 'app-1imBRwdxi4dxa1bSLbMLTvNu';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
+    const memoryCtx = buildMemoryContextForUser(userId);
+
     const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
       headers: {
@@ -3999,6 +4327,8 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
             ? selectedDirections.join(', ')
             : String(selectedDirections || ''),
           user_current_profile: user_current_profile || '',
+          recent_episodes_summary: memoryCtx.recentEpisodesSummary,
+          error_ledger_summary: memoryCtx.errorLedgerSummary,
         }),
         response_mode: 'blocking',
         user: userId,
@@ -5013,4 +5343,15 @@ process.on('uncaughtException', (err) => {
 app.listen(PORT, () => {
   console.log(`Real Vocab Server running on port ${PORT}`);
   console.log(`Database connected at: ${dbPath}`);
+
+  const dreamingIntervalMs = Number(process.env.MEMORY_DREAMING_INTERVAL_MS || 30 * 60 * 1000);
+  if (dreamingIntervalMs > 0) {
+    setTimeout(() => {
+      try { runMemoryDreamingJob(); } catch (e) { console.error('[Memory Dreaming] startup run failed:', e); }
+    }, 60 * 1000);
+    setInterval(() => {
+      try { runMemoryDreamingJob(); } catch (e) { console.error('[Memory Dreaming] periodic run failed:', e); }
+    }, dreamingIntervalMs);
+    console.log(`[Memory Dreaming] scheduled every ${Math.round(dreamingIntervalMs / 60000)} min`);
+  }
 });

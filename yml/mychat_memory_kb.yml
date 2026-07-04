@@ -1,7 +1,8 @@
 app:
   description: Gemini / Claude Sonnet / Claude Opus 三路由并行答疑；回复顺序为「Gemini 3.1 Pro 全文→Claude
-    Sonnet 4.6（思考）全文→Claude Opus 4.6（思考）全文→对比汇总表」；对话摘要条件入库；侧写仅存会话变量。知识库 HTTP 默认走 Docker
-    内网 http://api:5001（避免公网自调用 503）；与官方 compose 服务名不一致时请改节点 URL 与「解析摘要JSON」内 _API_BASE。
+    Sonnet 4.6（思考）全文→Claude Opus 4.6（思考）全文→对比汇总表」；对话摘要条件入库；旁路侧写回写 vocab-server（/api/user/memory/ingest）。知识库
+    HTTP 默认走 Docker 内网 http://api:5001（避免公网自调用 503）；侧写回写默认 http://host.docker.internal:3001，与 compose
+    不一致时请改「构建侧写回写Body」内 _VOCAB_API_BASE。
   icon: 🤖
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -227,6 +228,32 @@ workflow:
       source: '1775879840605'
       sourceHandle: source
       target: '1775880683606'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: code
+      id: 1775880683606-source-c0ffee010001-target
+      selected: false
+      source: '1775880683606'
+      sourceHandle: source
+      target: c0ffee010001
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: http-request
+      id: c0ffee010001-source-c0ffee010002-target
+      selected: false
+      source: c0ffee010001
+      sourceHandle: source
+      target: c0ffee010002
       targetHandle: target
       type: custom
       zIndex: 0
@@ -1196,6 +1223,89 @@ workflow:
         y: 2
       positionAbsolute:
         x: 1770
+        y: 2
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\n\n# Docker 内 Dify 访问宿主机 vocab-server；生产 compose 请改为内网服务名\n_VOCAB_API_BASE\
+          \ = \"http://host.docker.internal:3001\"\n\ndef main(profile_delta: str, user_id: str) ->\
+          \ dict:\n    uid = (user_id or \"default-user\").split(\"@\")[0].strip() or \"default-user\"\
+          \n    payload = {\n        \"userId\": uid,\n        \"profileDelta\": (profile_delta or\
+          \ \"\").strip()[:500],\n        \"source\": \"mychat_memory_kb\",\n    }\n    return {\n\
+          \        \"api_body\": json.dumps(payload, ensure_ascii=False),\n    }\n"
+        code_language: python3
+        desc: 构建侧写回写 vocab-server 的 JSON body；user_id 取 sys.user_id（去掉 @scope 后缀）
+        outputs:
+          api_body:
+            children: null
+            type: string
+        selected: false
+        title: 构建侧写回写Body
+        type: code
+        variables:
+        - value_selector:
+          - '1775879840605'
+          - text
+          value_type: string
+          variable: profile_delta
+        - value_selector:
+          - sys
+          - user_id
+          value_type: string
+          variable: user_id
+      height: 88
+      id: c0ffee010001
+      position:
+        x: 2112
+        y: 2
+      positionAbsolute:
+        x: 2112
+        y: 2
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        authorization:
+          config: null
+          type: no-auth
+        body:
+          data:
+          - id: profile-ingest-body
+            key: ''
+            type: text
+            value: '{{#c0ffee010001.api_body#}}'
+          type: raw-text
+        desc: 旁路侧写异步回写 super-agent vocab-server，跨会话持久化 L3 画像
+        headers: 'Content-Type: application/json
+
+          Accept: application/json'
+        method: post
+        params: ''
+        retry_config:
+          enabled: true
+          max_retries: 3
+          retry_interval: 1000
+        selected: false
+        ssl_verify: true
+        timeout:
+          connect: 10
+          read: 30
+          write: 30
+        title: 侧写回写vocab-server
+        type: http-request
+        url: http://host.docker.internal:3001/api/user/memory/ingest
+      height: 120
+      id: c0ffee010002
+      position:
+        x: 2454
+        y: 2
+      positionAbsolute:
+        x: 2454
         y: 2
       selected: false
       sourcePosition: right

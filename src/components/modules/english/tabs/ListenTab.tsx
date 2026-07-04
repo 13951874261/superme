@@ -3,6 +3,7 @@ import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye,
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { runListeningEngine } from '../../../../services/listeningAPI';
+import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { submitReview, addWord } from '../../../../services/vocabAPI';
 import { useTask } from '../../../../components/TaskContext';
 
@@ -225,6 +226,13 @@ export default function ListenTab() {
     try {
       const result = await runListeningEngine(listenInput, listenMaterial, theme);
       setListenResult(result);
+      if (result.comparison.errors?.length) {
+        void appendErrorLedgerEntries('listening', result.comparison.errors.map((err) => ({
+          pattern: err.reason,
+          user_heard: err.user_heard,
+          actual: err.actual_words,
+        })));
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '听辨解析失败';
       showNotice('listen', `解析失败：${msg}`, 'error');
