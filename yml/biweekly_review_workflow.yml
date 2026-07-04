@@ -107,7 +107,7 @@ workflow:
             temperature: 0.7
           mode: chat
           name: gpt-4o
-          provider: openai
+          provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
         - edition_type: basic
           id: biweekly-sys-prompt

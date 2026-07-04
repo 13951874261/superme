@@ -8,7 +8,12 @@ import {
   playReveal,
 } from '../../../utils/soundEffects';
 import { getAppUserId } from '../../../utils/profileHelper';
-import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../../utils/reviewHelper';
+import {
+  getNextWeekPushPlan,
+  applyDifficultyAdjustment,
+  getRebalanceHintMessage,
+  type TrainingRebalancePlan,
+} from '../../../utils/reviewHelper';
 import type {
   BreakthroughRecord,
   BreakthroughType,
@@ -174,7 +179,7 @@ export function useOralWarRoomSession({
         setActiveSceneId('rebalance-scene');
         setMessages([]);
         setConversationId(null);
-        setLastNotice(`心智投喂已重组训练场景：${plan.oralSandbox.scenario}`);
+        setLastNotice(`🔄 ${getRebalanceHintMessage()}`);
       }
     };
     window.addEventListener('global-training-rebalance', handler);
@@ -190,12 +195,13 @@ export function useOralWarRoomSession({
   const activeScene = useMemo((): SceneEntry => {
     const pushScene = rebalancePush?.oralSandbox;
     if (activeSceneId === 'rebalance-scene' && pushScene?.scenario) {
+      const baseLevel = pushScene.difficulty || 5;
       return {
         id: 'rebalance-scene',
         title: pushScene.scenario,
         shortTitle: pushScene.scenario.slice(0, 24),
         tier: '定制',
-        level: 5,
+        level: applyDifficultyAdjustment(baseLevel, 'oralSandbox'),
         desc: pushScene.focus || pushScene.scenario,
         roleList: pushScene.roles || '我 + 业务助攻 + 施压方 + 关键决策人',
         allies: [{ name: '业务助攻', label: '盟友', desc: '配合推进议程' }],

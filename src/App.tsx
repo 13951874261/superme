@@ -92,6 +92,12 @@ function AppContent() {
   }, []);
 
   useEffect(() => {
+    const refreshChatbot = () => refreshDifyChatbotContext();
+    window.addEventListener('dify-context-refresh-needed', refreshChatbot);
+    return () => window.removeEventListener('dify-context-refresh-needed', refreshChatbot);
+  }, []);
+
+  useEffect(() => {
     const handleProfileChange = () => {
       refreshDifyChatbotContext();
     };

@@ -14,6 +14,7 @@ import { ModuleType } from '../App';
 import { Lock, Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain } from 'lucide-react';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 import { playClick, playPageTurn } from '../utils/soundEffects';
+import { isModulePaused } from '../utils/reviewHelper';
 
 interface MainContentProps {
   selectedDate: string;
@@ -76,6 +77,11 @@ export default function MainContent({
   };
 
   const handleTabClick = (tabId: ModuleType) => {
+    if (isModulePaused(tabId)) {
+      playClick();
+      alert('根据复盘战术调度，该模块已暂时挂起。请先完成当前主攻方向的训练。');
+      return;
+    }
     if (isLocked && tabId !== 'english') {
       if (onLockTrigger) onLockTrigger();
     } else {
@@ -97,7 +103,7 @@ export default function MainContent({
         {/* 顶部 Tab 导航 (The Execution 调度器) */}
         <div className="mb-6 flex flex-wrap gap-2.5 border-b border-slate-200/60 pb-3">
           {TABS.map(tab => {
-            const isTabLocked = isLocked && tab.id !== 'english';
+            const isTabLocked = (isLocked && tab.id !== 'english') || isModulePaused(tab.id);
             const isActive = activeModule === tab.id;
             return (
               <button

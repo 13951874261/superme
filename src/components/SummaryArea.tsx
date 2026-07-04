@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap } from 'lucide-react';
-import { getUserCurrentProfile } from '../utils/profileHelper';
+import { getUserCurrentProfile, appendUserProfileFactor } from '../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 import {
   getLastReviewDate,
@@ -8,7 +8,7 @@ import {
   getNextWeekPushPlan,
   saveNextWeekPushPlan,
 } from '../utils/reviewHelper';
-import { runWeeklyChatAnalysis } from '../services/difyAPI';
+import { runWeeklyChatEnhanced } from '../services/difyAPI';
 import { playClick, playWaterDrop } from '../utils/soundEffects';
 
 interface SummaryAreaProps {
@@ -76,7 +76,8 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
     setIsLoading(true);
     setChatResult(null);
     try {
-      const result = await runWeeklyChatAnalysis(content, directions);
+      const result = await runWeeklyChatEnhanced(content, directions);
+      appendUserProfileFactor(result.profileFactors);
       saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
       setChatResult({ analysis: result.analysis, nextWeekPreview: result.nextWeekPreview });
       setContent('');
@@ -138,13 +139,13 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
               </span>
               <p className="text-gray-700 text-xs leading-relaxed">{profile}</p>
             </div>
-            {latestReview?.factors && (
+            {latestReview && (latestReview.profileUpdateFactors || latestReview.factors) && (
               <div>
                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
                   最近一次复盘提取
                 </span>
                 <p className="text-xs text-zinc-800 bg-white px-3 py-2 rounded-lg border border-slate-100">
-                  {latestReview.factors}
+                  {latestReview.profileUpdateFactors || latestReview.factors}
                 </p>
               </div>
             )}

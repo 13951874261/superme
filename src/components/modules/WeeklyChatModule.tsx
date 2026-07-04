@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Lock, Zap, Loader2, Calendar, Trash2 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
-import { runWeeklyChatAnalysis } from '../../services/difyAPI';
+import { runWeeklyChatEnhanced } from '../../services/difyAPI';
 import { saveNextWeekPushPlan, getNextWeekPushPlan } from '../../utils/reviewHelper';
-import { getUserCurrentProfile } from '../../utils/profileHelper';
+import { getUserCurrentProfile, appendUserProfileFactor } from '../../utils/profileHelper';
 
 interface HistoryItem {
   id: string;
@@ -79,8 +79,9 @@ export default function WeeklyChatModule() {
     setCurrentResult(null);
 
     try {
-      const result = await runWeeklyChatAnalysis(content, directions);
+      const result = await runWeeklyChatEnhanced(content, directions);
 
+      appendUserProfileFactor(result.profileFactors);
       saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
       setHasPushPlan(true);
 

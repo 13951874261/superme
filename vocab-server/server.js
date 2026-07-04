@@ -3810,9 +3810,47 @@ function parseBiweeklyReviewXml(rawText) {
   const text = String(rawText || '');
   const analysisMatch = text.match(/<analysis>([\s\S]*?)<\/analysis>/);
   const factorsMatch = text.match(/<factors>([\s\S]*?)<\/factors>/);
+
+  const difficultyAdjustment = {};
+  const diffBlock = text.match(/<difficulty_increase>([\s\S]*?)<\/difficulty_increase>/);
+  if (diffBlock) {
+    const inner = diffBlock[1];
+    const oral = inner.match(/<oral_sandbox>(\d+)<\/oral_sandbox>/);
+    const game = inner.match(/<game_theory>(\d+)<\/game_theory>/);
+    const speech = inner.match(/<impromptu_speech>(\d+)<\/impromptu_speech>/);
+    if (oral) difficultyAdjustment.oralSandbox = Number(oral[1]);
+    if (game) difficultyAdjustment.gameTheory = Number(game[1]);
+    if (speech) difficultyAdjustment.impromptuSpeech = Number(speech[1]);
+  }
+
+  const trainingAdjustment = {
+    pauseModules: [],
+    intensifyModules: [],
+    newFocusAreas: [],
+    difficultyIncrease: difficultyAdjustment,
+  };
+  const adjBlock = text.match(/<training_adjustment>([\s\S]*?)<\/training_adjustment>/);
+  if (adjBlock) {
+    const inner = adjBlock[1];
+    const pause = inner.match(/<pause_modules>([\s\S]*?)<\/pause_modules>/);
+    const intensify = inner.match(/<intensify_modules>([\s\S]*?)<\/intensify_modules>/);
+    const focus = inner.match(/<new_focus_areas>([\s\S]*?)<\/new_focus_areas>/);
+    if (pause?.[1]?.trim()) {
+      trainingAdjustment.pauseModules = pause[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+    }
+    if (intensify?.[1]?.trim()) {
+      trainingAdjustment.intensifyModules = intensify[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+    }
+    if (focus?.[1]?.trim()) {
+      trainingAdjustment.newFocusAreas = focus[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
   return {
     analysis: (analysisMatch ? analysisMatch[1] : text).trim(),
     shortDebilitatingFactors: (factorsMatch ? factorsMatch[1] : '缺乏开创力').trim(),
+    difficultyAdjustment,
+    trainingAdjustment,
   };
 }
 
@@ -3871,6 +3909,116 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
   } catch (err) {
     console.error('Biweekly review proxy error:', err);
     res.status(500).json({ success: false, error: '复盘分析代理失败: ' + err.message });
+  }
+});
+
+function parseWeeklyChatEnhancedXml(rawText) {
+  const text = String(rawText || '');
+  const pick = (tag) => {
+    const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+    return m ? m[1].trim() : '';
+  };
+
+  const pushBlock = pick('next_week_push');
+  const nextWeekPush = {};
+
+  if (pushBlock) {
+    const yuxin = pushBlock.match(/<yuxin_game_theory>([\s\S]*?)<\/yuxin_game_theory>/)?.[1]?.trim();
+    const oralScenario = pushBlock.match(/<oral_scenario>([\s\S]*?)<\/oral_scenario>/)?.[1]?.trim();
+    const oralRoles = pushBlock.match(/<oral_roles>([\s\S]*?)<\/oral_roles>/)?.[1]?.trim();
+    const oralFocus = pushBlock.match(/<oral_focus>([\s\S]*?)<\/oral_focus>/)?.[1]?.trim();
+    const oralDifficulty = pushBlock.match(/<oral_difficulty>([\s\S]*?)<\/oral_difficulty>/)?.[1]?.trim();
+    const impromptuTopic = pushBlock.match(/<impromptu_topic>([\s\S]*?)<\/impromptu_topic>/)?.[1]?.trim();
+    const impromptuLevels = pushBlock.match(/<impromptu_levels>([\s\S]*?)<\/impromptu_levels>/)?.[1]?.trim();
+    const generalFocus = pushBlock.match(/<general_focus>([\s\S]*?)<\/general_focus>/)?.[1]?.trim();
+
+    if (yuxin) {
+      nextWeekPush.yuxinGameTheory = yuxin.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+    }
+    if (oralScenario) {
+      nextWeekPush.oralSandbox = {
+        scenario: oralScenario,
+        roles: oralRoles || '我 + 业务助攻 + 施压方 + 关键决策人',
+        focus: oralFocus || oralScenario,
+        difficulty: oralDifficulty ? Number(oralDifficulty) : 4,
+      };
+    }
+    if (impromptuTopic) {
+      nextWeekPush.impromptuSpeech = {
+        topic: impromptuTopic,
+        targetLevels: impromptuLevels
+          ? impromptuLevels.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean)
+          : [],
+        format: '结构化即兴表达',
+      };
+    }
+    if (generalFocus) {
+      nextWeekPush.generalFocus = generalFocus.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+    }
+  }
+
+  return {
+    analysis: pick('analysis') || text.trim(),
+    nextWeekPreview: pick('preview') || '已为您重组下周训练课表',
+    nextWeekPush,
+    coreThemes: pick('core_themes'),
+    profileFactors: pick('profile_factors') || pick('factors') || '',
+  };
+}
+
+// 每周夜话增强工作流（Weekly Chat Enhanced Workflow）
+app.post('/api/weekly-chat/enhanced', async (req, res) => {
+  const {
+    userText,
+    selectedDirections,
+    user_current_profile,
+    userId = 'default-user',
+  } = req.body || {};
+
+  if (!userText || typeof userText !== 'string') {
+    return res.status(400).json({ success: false, error: '缺少心智投喂文本。' });
+  }
+
+  try {
+    const difyApiKey =
+      process.env.VITE_DIFY_WEEKLY_CHAT_ENHANCED_API_KEY
+      || process.env.DIFY_WEEKLY_CHAT_ENHANCED_API_KEY
+      || 'app-1imBRwdxi4dxa1bSLbMLTvNu';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${difyApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: injectOralSystemTime({
+          user_text: userText,
+          selected_directions: Array.isArray(selectedDirections)
+            ? selectedDirections.join(', ')
+            : String(selectedDirections || ''),
+          user_current_profile: user_current_profile || '',
+        }),
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Dify weekly chat enhanced error:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 夜话工作流失败: ${response.status}` });
+    }
+
+    const data = await response.json();
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+    const parsed = parseWeeklyChatEnhancedXml(rawResult);
+
+    res.json({ success: true, ...parsed });
+  } catch (err) {
+    console.error('Weekly chat enhanced proxy error:', err);
+    res.status(500).json({ success: false, error: '夜话增强代理失败: ' + err.message });
   }
 });
 

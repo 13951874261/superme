@@ -1,4 +1,9 @@
 import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId } from '../utils/profileHelper';
+import {
+  extractKeywordsFromText,
+  generateScenarioMapping,
+  mergeTrainingPlans,
+} from '../utils/reviewHelper';
 
 // ── 原有接口保留 ────────────────────────────────────────────
 export interface ListenWorkflowInput {
@@ -2319,6 +2324,13 @@ ${userText}
 export interface BiweeklyReviewResult {
   analysis: string;
   shortDebilitatingFactors: string;
+  difficultyAdjustment?: Record<string, number>;
+  trainingAdjustment?: {
+    pauseModules: string[];
+    intensifyModules: string[];
+    newFocusAreas: string[];
+    difficultyIncrease: Record<string, number>;
+  };
 }
 
 /**
@@ -2348,6 +2360,8 @@ export async function runBiweeklyReviewAnalysis(
       return {
         analysis: String(data.analysis).trim(),
         shortDebilitatingFactors: String(data.shortDebilitatingFactors || '缺乏开创力').trim(),
+        difficultyAdjustment: data.difficultyAdjustment || {},
+        trainingAdjustment: data.trainingAdjustment,
       };
     }
 
@@ -2372,7 +2386,17 @@ export async function runBiweeklyReviewAnalysis(
       '【博弈瓶颈研判】您正处于复杂利益拉扯期。建议强化驭心博弈与口语沙盘联动，以场景化推演补齐筹码识别短板。';
   }
 
-  return { analysis, shortDebilitatingFactors };
+  return {
+    analysis,
+    shortDebilitatingFactors,
+    difficultyAdjustment: {},
+    trainingAdjustment: {
+      pauseModules: combined.includes('审美') || answers.tacticalDispatch.includes('挂起') ? ['entertainment'] : [],
+      intensifyModules: combined.includes('口语') || combined.includes('即兴') ? ['oralSandbox', 'impromptuSpeech'] : [],
+      newFocusAreas: [],
+      difficultyIncrease: {},
+    },
+  };
 }
 
 /** 每周夜话增强分析结果 */
@@ -2464,6 +2488,77 @@ export async function runWeeklyChatAnalysis(
     analysis: `【心智投喂研判】您本周沉淀的核心议题已纳入系统进化队列。针对「${directionLabels || '综合'}」方向，建议下周优先在口语沙盘与驭心博弈中做场景化演练，将认知转化为可执行的战术肌肉记忆。`,
     nextWeekPreview: `下周将重点重组：${directionLabels || '口语沙盘 + 驭心博弈'}，并根据您的投喂内容自动注入定制场景。`,
     nextWeekPush: fallbackPush,
+  };
+}
+
+/** 每周夜话增强分析结果（含场景映射） */
+export interface WeeklyChatEnhancedResult extends WeeklyChatAnalysisResult {
+  coreThemes: string[];
+  profileFactors: string;
+}
+
+/**
+ * 运行每周夜话增强 API：Dify 研判 + 本地关键词场景映射引擎合并
+ */
+export async function runWeeklyChatEnhanced(
+  content: string,
+  directions: string[],
+  userId = getAppUserId(),
+): Promise<WeeklyChatEnhancedResult> {
+  try {
+    const res = await fetch('/api/weekly-chat/enhanced', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userText: content,
+        selectedDirections: directions,
+        user_current_profile: getUserCurrentProfile(),
+        userId,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success && data.analysis) {
+      interceptOutputText(data);
+      const keywordsFromDify = data.coreThemes
+        ? String(data.coreThemes).split(/[,，;；]/).map((s: string) => s.trim()).filter(Boolean)
+        : [];
+      const keywords = keywordsFromDify.length
+        ? keywordsFromDify
+        : extractKeywordsFromText(`${content} ${data.analysis}`);
+      const mapped = generateScenarioMapping(keywords, directions, data.analysis);
+      const nextWeekPush = mergeTrainingPlans(data.nextWeekPush, mapped);
+      const profileFactors = String(data.profileFactors || keywords.slice(0, 3).join(',') || '长期战略模糊').trim();
+
+      return {
+        analysis: String(data.analysis).trim(),
+        nextWeekPreview: String(data.nextWeekPreview || '已为您重组下周训练课表').trim(),
+        nextWeekPush,
+        coreThemes: keywords,
+        profileFactors,
+      };
+    }
+
+    throw new Error(data?.error || `夜话工作流 HTTP ${res.status}`);
+  } catch (e) {
+    console.warn('Dify 夜话增强工作流失败，启用本地 Fallback:', e);
+  }
+
+  const base = await runWeeklyChatAnalysis(content, directions, userId);
+  const keywords = extractKeywordsFromText(`${content} ${base.analysis}`);
+  const mapped = generateScenarioMapping(keywords, directions, base.analysis);
+  const nextWeekPush = mergeTrainingPlans(base.nextWeekPush, mapped);
+
+  const factorsMatch = base.analysis.match(/<profile_factors>([\s\S]*?)<\/profile_factors>/);
+  const profileFactors = factorsMatch?.[1]?.trim()
+    || keywords.slice(0, 3).join(',')
+    || '长期战略模糊';
+
+  return {
+    ...base,
+    nextWeekPush,
+    coreThemes: keywords,
+    profileFactors,
   };
 }
 

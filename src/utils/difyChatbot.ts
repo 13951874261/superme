@@ -3,6 +3,7 @@ import {
   getUserCurrentProfile,
   getCurrentFormattedTime,
 } from './profileHelper';
+import { getNextWeekPushPlan } from './reviewHelper';
 
 const DIFY_EMBED_TOKEN =
   import.meta.env.VITE_DIFY_CHATBOT_TOKEN || 'Gz2zXRlfsAr5jYgC';
@@ -92,6 +93,11 @@ export function buildDifyChatbotConfig(options?: {
     systemVariables.conversation_id = options.conversationId;
   }
 
+  const pushPlan = getNextWeekPushPlan();
+  const rebalanceFocus = pushPlan?.generalFocus?.join('、')
+    || pushPlan?.oralSandbox?.focus
+    || '';
+
   return {
     token: DIFY_EMBED_TOKEN,
     baseUrl: DIFY_EMBED_BASE_URL.replace(/\/$/, ''),
@@ -99,6 +105,7 @@ export function buildDifyChatbotConfig(options?: {
       user_current_profile: getUserCurrentProfile(),
       _system_time: getCurrentFormattedTime(),
       _system_timestamp_ms: Date.now(),
+      ...(rebalanceFocus ? { training_rebalance_focus: rebalanceFocus } : {}),
     },
     systemVariables,
     userVariables: {},
@@ -193,6 +200,14 @@ export function applyDifyChatbotConfig(): DifyChatbotConfig {
 
 /** 刷新 inputs / user_id；重建 embed iframe（embed.js 仅在加载时读 config） */
 export function refreshDifyChatbotContext(): void {
+  const pushPlan = getNextWeekPushPlan();
+  if (pushPlan?.generalFocus?.length) {
+    localStorage.setItem('superme_dify_context_update', JSON.stringify({
+      type: 'training_rebalance',
+      focus: pushPlan.generalFocus,
+      timestamp: Date.now(),
+    }));
+  }
   if (embedLoaded || document.getElementById(DIFY_EMBED_TOKEN)) {
     unloadDifyChatbotEmbed();
     loadDifyChatbotEmbed();
