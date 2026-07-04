@@ -5,6 +5,7 @@ import { playSuccess, playError, playScan } from '../../../../utils/soundEffects
 import Confetti from '../../../Confetti';
 import SpeakButton from '../../../SpeakButton';
 import { getUserCurrentProfile } from '../../../../utils/profileHelper';
+import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../../../utils/reviewHelper';
 
 const MAX_SECONDS = 1800; // 30分钟上限
 
@@ -39,6 +40,12 @@ export default function ImpromptuSpeechTab() {
   const [exemplarText, setExemplarText] = useState('');
 
   const [userProfile, setUserProfile] = useState('');
+  const [rebalanceTopic, setRebalanceTopic] = useState<string | null>(() => {
+    const plan = getNextWeekPushPlan();
+    return plan?.impromptuSpeech?.topic || null;
+  });
+
+  const effectiveTheme = rebalanceTopic || theme;
 
   useEffect(() => {
     setUserProfile(getUserCurrentProfile());
@@ -46,8 +53,14 @@ export default function ImpromptuSpeechTab() {
       setUserProfile(getUserCurrentProfile());
     };
     window.addEventListener('global-profile-changed', handleProfileChange);
+    const handleRebalance = (e: Event) => {
+      const plan = (e as CustomEvent<TrainingRebalancePlan>).detail || getNextWeekPushPlan();
+      setRebalanceTopic(plan?.impromptuSpeech?.topic || null);
+    };
+    window.addEventListener('global-training-rebalance', handleRebalance);
     return () => {
       window.removeEventListener('global-profile-changed', handleProfileChange);
+      window.removeEventListener('global-training-rebalance', handleRebalance);
     };
   }, []);
 
@@ -189,7 +202,7 @@ export default function ImpromptuSpeechTab() {
     setShowPrompter(false);
     setIsLoadingPrompter(false);
     setEvaluatingStage('idle');
-  }, [theme]);
+  }, [effectiveTheme]);
 
   // 自动向下滚动锚定
   useEffect(() => {
@@ -209,8 +222,8 @@ export default function ImpromptuSpeechTab() {
       const { runSpeechPrompter } = await import('../../../../services/difyAPI');
       const userProfile = getUserCurrentProfile();
       const targetTheme = userProfile 
-        ? `${theme} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)` 
-        : theme;
+        ? `${effectiveTheme} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)` 
+        : effectiveTheme;
       const result = await runSpeechPrompter(targetTheme, '中等');
       setPrompterResult(result);
       setShowPrompter(true);
@@ -421,9 +434,9 @@ export default function ImpromptuSpeechTab() {
       setEvaluatingStage('evaluating');
       const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
       const profileStrForEval = getUserCurrentProfile();
-      let enrichedThemeForEval = theme;
+      let enrichedThemeForEval = effectiveTheme;
       if (profileStrForEval) {
-        enrichedThemeForEval = `${theme} (针对画像短板进行挑战判定: ${profileStrForEval})`;
+        enrichedThemeForEval = `${effectiveTheme} (针对画像短板进行挑战判定: ${profileStrForEval})`;
       }
       const res = await runImpromptuSpeechEvaluation(enrichedThemeForEval, durationStr, finalTranscript);
 
@@ -572,7 +585,10 @@ export default function ImpromptuSpeechTab() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">当前主题</span>
-              <h3 className="text-lg font-black text-white">{theme}</h3>
+              <h3 className="text-lg font-black text-white">{effectiveTheme}</h3>
+              {rebalanceTopic && (
+                <span className="text-[10px] text-amber-300 font-bold mt-1 block">心智投喂重组主题</span>
+              )}
             </div>
             <div className="text-right">
               <div className="flex items-center gap-2 justify-end mb-1">

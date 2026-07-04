@@ -8,6 +8,7 @@ import {
   playReveal,
 } from '../../../utils/soundEffects';
 import { getAppUserId } from '../../../utils/profileHelper';
+import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../../utils/reviewHelper';
 import type {
   BreakthroughRecord,
   BreakthroughType,
@@ -162,7 +163,49 @@ export function useOralWarRoomSession({
     return 'scene-1';
   });
 
+  const [rebalancePush, setRebalancePush] = useState<TrainingRebalancePlan | null>(() => getNextWeekPushPlan());
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<TrainingRebalancePlan>).detail;
+      const plan = detail || getNextWeekPushPlan();
+      setRebalancePush(plan);
+      if (plan?.oralSandbox?.scenario) {
+        setActiveSceneId('rebalance-scene');
+        setMessages([]);
+        setConversationId(null);
+        setLastNotice(`心智投喂已重组训练场景：${plan.oralSandbox.scenario}`);
+      }
+    };
+    window.addEventListener('global-training-rebalance', handler);
+    return () => window.removeEventListener('global-training-rebalance', handler);
+  }, []);
+
+  useEffect(() => {
+    if (rebalancePush?.oralSandbox?.scenario && activeSceneId === 'scene-1' && !embedded) {
+      setActiveSceneId('rebalance-scene');
+    }
+  }, [rebalancePush, activeSceneId, embedded]);
+
   const activeScene = useMemo((): SceneEntry => {
+    const pushScene = rebalancePush?.oralSandbox;
+    if (activeSceneId === 'rebalance-scene' && pushScene?.scenario) {
+      return {
+        id: 'rebalance-scene',
+        title: pushScene.scenario,
+        shortTitle: pushScene.scenario.slice(0, 24),
+        tier: '定制',
+        level: 5,
+        desc: pushScene.focus || pushScene.scenario,
+        roleList: pushScene.roles || '我 + 业务助攻 + 施压方 + 关键决策人',
+        allies: [{ name: '业务助攻', label: '盟友', desc: '配合推进议程' }],
+        blockers: [{ name: '施压方', label: '阻力', desc: '抛出尖锐质询' }],
+        neutrals: [{ name: '关键决策人', label: '中立', desc: '观察临场表现' }],
+        conflicts: [pushScene.focus || pushScene.scenario],
+        culturalContext: '心智投喂重组场景：聚焦本周投喂的核心博弈议题。',
+        openingLine: 'Based on your recent strategic focus, let us address the core tension directly. What is your opening position?',
+      };
+    }
     if (activeSceneId === 'dynamic-scene') {
       return {
         id: 'dynamic-scene',
@@ -181,7 +224,7 @@ export function useOralWarRoomSession({
       };
     }
     return SCENE_DATABASE.find(s => s.id === activeSceneId)!;
-  }, [activeSceneId, sceneTheme]);
+  }, [activeSceneId, sceneTheme, rebalancePush]);
 
   const {
     breakthroughMenu,

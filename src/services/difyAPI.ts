@@ -2315,3 +2315,155 @@ ${userText}
   return { analysis, shortDebilitatingFactors };
 }
 
+/** 两周复盘分析结果 */
+export interface BiweeklyReviewResult {
+  analysis: string;
+  shortDebilitatingFactors: string;
+}
+
+/**
+ * 运行两周一次的专属复盘分析工作流（走后端代理，对接 Biweekly Review Workflow）
+ */
+export async function runBiweeklyReviewAnalysis(
+  answers: Record<string, string>,
+  userId = getAppUserId(),
+): Promise<BiweeklyReviewResult> {
+  try {
+    const res = await fetch('/api/biweekly-review/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        practicalTest: answers.practicalTest,
+        goalAlignment: answers.goalAlignment,
+        weaknessScan: answers.weaknessScan,
+        tacticalDispatch: answers.tacticalDispatch,
+        user_current_profile: getUserCurrentProfile(),
+        userId,
+      }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data?.success && data.analysis) {
+      interceptOutputText(data);
+      return {
+        analysis: String(data.analysis).trim(),
+        shortDebilitatingFactors: String(data.shortDebilitatingFactors || '缺乏开创力').trim(),
+      };
+    }
+
+    throw new Error(data?.error || `复盘工作流 HTTP ${res.status}`);
+  } catch (e) {
+    console.warn('Dify 复盘工作流失败，启用本地 Fallback:', e);
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1200));
+  const combined = `${answers.weaknessScan} ${answers.tacticalDispatch}`.toLowerCase();
+  let shortDebilitatingFactors = '长期战略模糊,大局观弱';
+  let analysis =
+    '【综合复盘研判】您已主动完成两周期结构化自省。建议将下两周训练火力集中对准当前最痛瓶颈，挂起低 ROI 板块，优先击穿口语抗压与博弈敏感度。';
+
+  if (combined.includes('口语') || combined.includes('即兴') || combined.includes('表达')) {
+    shortDebilitatingFactors = '即兴逻辑散乱,上级质询承压弱';
+    analysis =
+      '【口语瓶颈研判】复盘显示即兴表达与高压质询是当前晋升卡点。建议下周口语沙盘与破局说权重上调，高阶审美可暂时挂起。';
+  } else if (combined.includes('博弈') || combined.includes('斗争') || combined.includes('高管')) {
+    shortDebilitatingFactors = '信息垄断弱,博弈敏感度低';
+    analysis =
+      '【博弈瓶颈研判】您正处于复杂利益拉扯期。建议强化驭心博弈与口语沙盘联动，以场景化推演补齐筹码识别短板。';
+  }
+
+  return { analysis, shortDebilitatingFactors };
+}
+
+/** 每周夜话增强分析结果 */
+export interface WeeklyChatAnalysisResult {
+  analysis: string;
+  nextWeekPreview: string;
+  nextWeekPush: Record<string, unknown>;
+}
+
+const WEEKLY_DIRECTION_LABELS: Record<string, string> = {
+  humanGameCase: '人性博弈案例',
+  englishTopic: '英语学习主题',
+  executiveConflict: '高管斗争案例',
+  manipulationStrategy: '驭人/博弈策略',
+  cognitiveUpgrade: '顶层认知升维',
+  careerAdvice: '晋升/跳槽建议',
+};
+
+function buildFallbackWeeklyPush(
+  content: string,
+  directions: string[],
+): Record<string, unknown> {
+  const labels = directions.map((d) => WEEKLY_DIRECTION_LABELS[d] || d);
+  const focusHint = labels.join('、') || '综合心智升级';
+  return {
+    yuxinGameTheory: directions.includes('humanGameCase') || directions.includes('executiveConflict')
+      ? [`${focusHint}：${content.slice(0, 40)}...`]
+      : undefined,
+    oralSandbox: {
+      scenario: `心智投喂定向：${focusHint}`,
+      roles: '我 + 业务助攻 + 施压方 + 关键决策人',
+      focus: content.slice(0, 80) || focusHint,
+    },
+    impromptuSpeech: directions.includes('englishTopic') || directions.includes('careerAdvice')
+      ? { topic: `${focusHint}即兴演练`, targetLevels: ['logic', 'fluency'] }
+      : undefined,
+  };
+}
+
+/**
+ * 运行每周夜话启发互动 API（含训练库重组配置）
+ */
+export async function runWeeklyChatAnalysis(
+  content: string,
+  directions: string[],
+  userId = getAppUserId(),
+): Promise<WeeklyChatAnalysisResult> {
+  const query = `【心智投喂与方向指定】
+内容：${content}
+勾选推送方向：${directions.join(', ')}
+
+【输出规范】
+请必须且只能按以下 XML 返回：
+<response>
+  <analysis>150字左右的启发式研判</analysis>
+  <preview>下周训练重组预告（80字内）</preview>
+  <push_config>{"oralSandbox":{"scenario":"...","roles":"...","focus":"..."},"yuxinGameTheory":["..."],"impromptuSpeech":{"topic":"...","targetLevels":["logic"]}}</push_config>
+</response>`;
+
+  try {
+    const data = await proxyOralChatMessage(query, {
+      userId,
+      inputs: injectUserProfileAndTime({}),
+    });
+
+    if (data?.answer) {
+      const text = String(data.answer);
+      const analysis = (text.match(/<analysis>([\s\S]*?)<\/analysis>/)?.[1] || text).trim();
+      const preview = (text.match(/<preview>([\s\S]*?)<\/preview>/)?.[1] || '已为您重组下周训练课表').trim();
+      const pushRaw = text.match(/<push_config>([\s\S]*?)<\/push_config>/)?.[1] || '{}';
+
+      let nextWeekPush: Record<string, unknown> = {};
+      try {
+        nextWeekPush = JSON.parse(pushRaw);
+      } catch {
+        nextWeekPush = buildFallbackWeeklyPush(content, directions);
+      }
+
+      return { analysis, nextWeekPreview: preview, nextWeekPush };
+    }
+  } catch (e) {
+    console.warn('Dify 每周夜话接口失败，启用本地 Fallback:', e);
+  }
+
+  await new Promise((resolve) => setTimeout(resolve, 1500));
+  const fallbackPush = buildFallbackWeeklyPush(content, directions);
+  const directionLabels = directions.map((d) => WEEKLY_DIRECTION_LABELS[d] || d).join('、');
+  return {
+    analysis: `【心智投喂研判】您本周沉淀的核心议题已纳入系统进化队列。针对「${directionLabels || '综合'}」方向，建议下周优先在口语沙盘与驭心博弈中做场景化演练，将认知转化为可执行的战术肌肉记忆。`,
+    nextWeekPreview: `下周将重点重组：${directionLabels || '口语沙盘 + 驭心博弈'}，并根据您的投喂内容自动注入定制场景。`,
+    nextWeekPush: fallbackPush,
+  };
+}
+

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock, Edit3 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MessageSquare, Search, BookOpen, Calendar, CheckCircle2, RefreshCw, Languages, Type, BookA, BrainCircuit, ChevronUp, ChevronDown, Lock, Edit3, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ChatModule from './ChatModule';
 import DictionaryPanel from './DictionaryPanel';
@@ -8,6 +8,7 @@ import Confetti from './Confetti';
 import { formatDateShort, getRecentDates, getTodayDateDot } from '../utils/date';
 import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
+import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 
 
 interface SidebarProps {
@@ -32,6 +33,7 @@ export default function Sidebar({
   onLockTrigger
 }: SidebarProps) {
   const today = getTodayDateDot();
+  const { shouldShowCard } = useBiweeklyReviewTrigger();
 
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
@@ -516,6 +518,28 @@ export default function Sidebar({
 
           </div>
         </div>
+
+        {shouldShowCard && (
+          <div className="mx-5 my-3 p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+            <div className="flex items-center gap-2 text-amber-800 text-[11px] font-bold">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600 animate-pulse" />
+              <span>复盘纠偏窗口已开启</span>
+            </div>
+            <p className="text-[10px] text-amber-600 leading-relaxed font-medium">
+              距离上次复盘已过两周，为保证训练方向的匹配度，请及时提交复盘报告。
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                playClick();
+                window.dispatchEvent(new Event('open-biweekly-review'));
+              }}
+              className="w-full py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              立即开启弱点扫描
+            </button>
+          </div>
+        )}
 
         {/* 2. 即时答疑模块 (多模型舱) — 固定最大高度，避免撑满侧边栏 */}
         <div className="px-5 xl:px-6 py-6 flex flex-col shrink-0">

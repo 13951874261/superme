@@ -17,6 +17,7 @@ import {
   runCognitiveAscension,
   CognitiveAscensionResult
 } from '../../services/difyAPI';
+import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
 
 // 预设高维博弈案例库
 interface PresetCase {
@@ -311,6 +312,27 @@ export default function GameTheoryModule() {
   // 加载人性原型档案
   useEffect(() => {
     fetchPrototypes();
+  }, []);
+
+  // 心智投喂重组：注入驭心博弈定制案例
+  useEffect(() => {
+    const applyRebalance = (plan: TrainingRebalancePlan | null) => {
+      const topics = plan?.yuxinGameTheory;
+      if (topics?.length) {
+        setCaseText(topics[0]);
+        setActiveEnv('corp_clash');
+        setActiveTab('cases');
+      }
+    };
+
+    applyRebalance(getNextWeekPushPlan());
+
+    const handler = (e: Event) => {
+      const plan = (e as CustomEvent<TrainingRebalancePlan>).detail || getNextWeekPushPlan();
+      applyRebalance(plan);
+    };
+    window.addEventListener('global-training-rebalance', handler);
+    return () => window.removeEventListener('global-training-rebalance', handler);
   }, []);
 
   const fetchPrototypes = async () => {

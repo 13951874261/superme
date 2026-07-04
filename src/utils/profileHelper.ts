@@ -100,6 +100,25 @@ export function saveUserCurrentProfile(profile: string) {
 }
 
 /**
+ * 从持久化画像中提取结构化短板标签数组
+ */
+export function getUserProfileFactorsArray(): string[] {
+  const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  if (!raw) return [];
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.map((s) => String(s).trim()).filter(Boolean);
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return raw.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+}
+
+/**
  * 追加画像短板并去重，限制最大长度为 5 个标签，并广播同步事件
  */
 export function appendUserProfileFactor(newFactorsStr: string) {

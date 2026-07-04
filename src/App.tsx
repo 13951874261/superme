@@ -16,6 +16,8 @@ import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
 import GlobalSettingsPanel from './components/GlobalSettingsPanel';
 import { ToastProvider } from './components/Toast';
+import BiweeklyReviewModal from './components/modules/BiweeklyReviewModal';
+import { useBiweeklyReviewTrigger } from './hooks/useBiweeklyReviewTrigger';
 import {
   loadDifyChatbotEmbed,
   refreshDifyChatbotContext,
@@ -72,6 +74,8 @@ function AppContent() {
 
   const { theme, masteryData, pendingSentenceDebt, setActiveTab } = useEnglishContext();
   const [isLockModalOpen, setIsLockModalOpen] = useState(false);
+  const { shouldForceModal } = useBiweeklyReviewTrigger();
+  const [isReviewOpen, setIsReviewOpen] = useState(false);
 
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
@@ -79,6 +83,12 @@ function AppContent() {
 
   useEffect(() => {
     loadDifyChatbotEmbed();
+  }, []);
+
+  useEffect(() => {
+    const openReview = () => setIsReviewOpen(true);
+    window.addEventListener('open-biweekly-review', openReview);
+    return () => window.removeEventListener('open-biweekly-review', openReview);
   }, []);
 
   useEffect(() => {
@@ -99,6 +109,10 @@ function AppContent() {
 
   const handleLockTrigger = () => {
     playError();
+    if (shouldForceModal) {
+      setIsReviewOpen(true);
+      return;
+    }
     setIsLockModalOpen(true);
   };
 
@@ -118,7 +132,7 @@ function AppContent() {
     masteryData.oralCount < 10 ||
     masteryData.maxWriteScore < 8 ||
     !masteryData.emailCompleted
-  )) || !!pendingSentenceDebt;
+  )) || !!pendingSentenceDebt || shouldForceModal;
 
   // 当触发控制论强制锁定且当前不在英语引擎时，强行重定向至英语引擎
   // 如果是因为债务被锁定，还要确保切回 vocab tab
@@ -240,13 +254,19 @@ function AppContent() {
 
       {/* 控制论闭环警示弹窗 */}
       <CyberneticLockModal
-        isOpen={isLockModalOpen}
+        isOpen={isLockModalOpen && !shouldForceModal}
         onClose={() => setIsLockModalOpen(false)}
         theme={theme}
         oralCount={masteryData.oralCount}
         maxWriteScore={masteryData.maxWriteScore}
         emailCompleted={masteryData.emailCompleted}
         pendingSentenceDebt={pendingSentenceDebt}
+      />
+
+      <BiweeklyReviewModal
+        isOpen={shouldForceModal || isReviewOpen}
+        onClose={() => setIsReviewOpen(false)}
+        isForce={shouldForceModal}
       />
 
       {/* 项目答疑右下角悬浮按钮 */}

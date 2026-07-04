@@ -3806,6 +3806,74 @@ app.post('/api/game-theory/analyze', async (req, res) => {
   }
 });
 
+function parseBiweeklyReviewXml(rawText) {
+  const text = String(rawText || '');
+  const analysisMatch = text.match(/<analysis>([\s\S]*?)<\/analysis>/);
+  const factorsMatch = text.match(/<factors>([\s\S]*?)<\/factors>/);
+  return {
+    analysis: (analysisMatch ? analysisMatch[1] : text).trim(),
+    shortDebilitatingFactors: (factorsMatch ? factorsMatch[1] : '缺乏开创力').trim(),
+  };
+}
+
+// 两周一度的专属复盘与弱点扫描（Biweekly Review Workflow）
+app.post('/api/biweekly-review/analyze', async (req, res) => {
+  const {
+    practicalTest,
+    goalAlignment,
+    weaknessScan,
+    tacticalDispatch,
+    user_current_profile,
+    userId = 'default-user',
+  } = req.body || {};
+
+  if (!practicalTest || !goalAlignment || !weaknessScan || !tacticalDispatch) {
+    return res.status(400).json({ success: false, error: '请完整填写四个维度的复盘表单。' });
+  }
+
+  try {
+    const difyApiKey =
+      process.env.VITE_DIFY_BIWEEKLY_REVIEW_API_KEY
+      || process.env.DIFY_BIWEEKLY_REVIEW_API_KEY
+      || 'app-p8u1qA8A6iWDB6FzEOtjectn';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${difyApiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: injectOralSystemTime({
+          practical_test: practicalTest,
+          goal_alignment: goalAlignment,
+          weakness_scan: weaknessScan,
+          tactical_dispatch: tacticalDispatch,
+          user_current_profile: user_current_profile || '',
+        }),
+        response_mode: 'blocking',
+        user: userId,
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error('Dify biweekly review error:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 复盘工作流失败: ${response.status}` });
+    }
+
+    const data = await response.json();
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+    const parsed = parseBiweeklyReviewXml(rawResult);
+
+    res.json({ success: true, ...parsed });
+  } catch (err) {
+    console.error('Biweekly review proxy error:', err);
+    res.status(500).json({ success: false, error: '复盘分析代理失败: ' + err.message });
+  }
+});
+
 // ??????????????? API ?????????? Cognitive Penetration Engine
 app.post('/api/game-theory/ascension', async (req, res) => {
   const { event_text, layers, dimension, user_current_profile, userId = 'default-user' } = req.body;
