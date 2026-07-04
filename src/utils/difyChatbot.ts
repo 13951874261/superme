@@ -2,6 +2,7 @@ import {
   getAppUserId,
   getUserCurrentProfile,
   getCurrentFormattedTime,
+  getGraphSummaryLocal,
 } from './profileHelper';
 import { getNextWeekPushPlan } from './reviewHelper';
 
@@ -10,49 +11,61 @@ const DIFY_EMBED_TOKEN =
 const DIFY_EMBED_BASE_URL =
   import.meta.env.VITE_DIFY_CHATBOT_BASE_URL || 'https://dify.234124123.xyz';
 
-/** 变更此版本可一次性让所有用户脱离旧 localStorage 会话桶 */
-const DIFY_EMBED_SCOPE_VERSION = `${DIFY_EMBED_TOKEN}-v3`;
-const DIFY_EMBED_SCOPE_STORAGE = 'dify_embed_scope_id';
-const DIFY_EMBED_SCOPE_MIGRATED = 'dify_embed_scope_migrated_v3';
 const DIFY_EMBED_CONVERSATION_PREFIX = 'dify_embed_conversation_';
+const DIFY_EMBED_SID_KEY = 'dify_embed_session_id';
+const DIFY_EMBED_MIGRATED = 'dify_embed_isolated_session_v1';
 
 /**
- * Dify embed 专用 user_id（与 SQLite getAppUserId 隔离命名空间）。
- * Dify 按 sys.user_id 在浏览器 localStorage 分桶存 conversation_id；
- * 旧桶里若有过期 id，会触发 /api/messages 404 循环。
+ * Dify 在 dify 域名 localStorage 按 sys.user_id 存 conversation_id，且优先于 URL 参数。
+ * 无法从主站清除；为每个浏览器标签页使用独立 @embed-{sid} 桶，避免过期 id 404。
+ * 工作流侧写/记忆用 inputs.app_user_id（登录账号，如 lzhumy）。
  */
 export function ensureDifyEmbedScope(): void {
-  if (localStorage.getItem(DIFY_EMBED_SCOPE_MIGRATED) === '1') return;
-  localStorage.setItem(DIFY_EMBED_SCOPE_STORAGE, DIFY_EMBED_SCOPE_VERSION);
-  localStorage.setItem(DIFY_EMBED_SCOPE_MIGRATED, '1');
+  if (localStorage.getItem(DIFY_EMBED_MIGRATED) === '1') return;
+  clearAllEmbedConversationCache();
+  localStorage.removeItem('dify_embed_plain_user_migrated_v1');
+  localStorage.removeItem('dify_embed_scope_id');
+  localStorage.removeItem('dify_embed_scope_migrated_v4');
+  sessionStorage.removeItem(DIFY_EMBED_SID_KEY);
+  localStorage.setItem(DIFY_EMBED_MIGRATED, '1');
 }
 
-export function getDifyChatbotUserId(): string {
+function clearAllEmbedConversationCache(): void {
+  const prefix = DIFY_EMBED_CONVERSATION_PREFIX;
+  for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+    const key = localStorage.key(i);
+    if (key?.startsWith(prefix)) localStorage.removeItem(key);
+  }
+}
+
+/** 登录账号（与登录页「当前用户」一致） */
+export function getAppAccountUserId(): string {
+  return getAppUserId();
+}
+
+function getOrCreateEmbedSessionId(forceNew = false): string {
+  if (forceNew) sessionStorage.removeItem(DIFY_EMBED_SID_KEY);
+  let sid = sessionStorage.getItem(DIFY_EMBED_SID_KEY);
+  if (!sid) {
+    sid = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    sessionStorage.setItem(DIFY_EMBED_SID_KEY, sid);
+  }
+  return sid;
+}
+
+/** Dify sys.user_id：{登录账号}@embed-{标签页会话}，隔离 dify 域过期 conversationIdInfo */
+export function getDifyChatbotUserId(forceNewEmbedSession = false): string {
   ensureDifyEmbedScope();
-  const scope = localStorage.getItem(DIFY_EMBED_SCOPE_STORAGE) || DIFY_EMBED_SCOPE_VERSION;
-  return `${getAppUserId()}@${scope}`;
+  const sid = getOrCreateEmbedSessionId(forceNewEmbedSession);
+  return `${getAppUserId()}@embed-${sid}`;
 }
 
-function getCachedConversationId(userId: string): string | null {
-  return localStorage.getItem(`${DIFY_EMBED_CONVERSATION_PREFIX}${userId}`);
-}
-
-function setCachedConversationId(userId: string, conversationId: string | null): void {
-  const key = `${DIFY_EMBED_CONVERSATION_PREFIX}${userId}`;
-  if (conversationId) localStorage.setItem(key, conversationId);
-  else localStorage.removeItem(key);
-}
-
-function rotateDifyEmbedScope(): void {
-  localStorage.setItem(DIFY_EMBED_SCOPE_STORAGE, `${DIFY_EMBED_TOKEN}-${Date.now()}`);
-  window.dispatchEvent(new Event('dify-embed-scope-changed'));
-  refreshDifyChatbotContext();
-}
-
-/** 新对话：切换 Dify 会话桶，避免复用已失效的 conversation_id */
+/** 新对话：轮换 embed 会话桶并刷新 iframe/气泡 */
 export function resetDifyChatbotSession(): void {
-  setCachedConversationId(getDifyChatbotUserId(), null);
-  rotateDifyEmbedScope();
+  clearAllEmbedConversationCache();
+  getOrCreateEmbedSessionId(true);
+  window.dispatchEvent(new Event('dify-assistant-open'));
+  refreshDifyChatbotContext();
 }
 
 export interface DifyChatbotConfig {
@@ -61,13 +74,6 @@ export interface DifyChatbotConfig {
   inputs: Record<string, string | number>;
   systemVariables: { user_id: string; conversation_id?: string };
   userVariables: Record<string, string>;
-}
-
-export interface DifyEmbedSession {
-  userId: string;
-  conversationId: string | null;
-  /** 用空 sys.conversation_id 覆盖 Dify iframe 内过期 localStorage */
-  forceNew?: boolean;
 }
 
 let embedLoaded = false;
@@ -86,6 +92,7 @@ export function buildDifyChatbotConfig(options?: {
   userId?: string;
   conversationId?: string;
 }): DifyChatbotConfig {
+  const accountUserId = getAppAccountUserId();
   const systemVariables: { user_id: string; conversation_id?: string } = {
     user_id: options?.userId ?? getDifyChatbotUserId(),
   };
@@ -97,12 +104,18 @@ export function buildDifyChatbotConfig(options?: {
   const rebalanceFocus = pushPlan?.generalFocus?.join('、')
     || pushPlan?.oralSandbox?.focus
     || '';
+  const graphSummary = getGraphSummaryLocal();
+  const profileBase = getUserCurrentProfile();
+  const profileWithGraph = graphSummary
+    ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}`
+    : profileBase;
 
   return {
     token: DIFY_EMBED_TOKEN,
     baseUrl: DIFY_EMBED_BASE_URL.replace(/\/$/, ''),
     inputs: {
-      user_current_profile: getUserCurrentProfile(),
+      app_user_id: accountUserId,
+      user_current_profile: profileWithGraph,
       _system_time: getCurrentFormattedTime(),
       _system_timestamp_ms: Date.now(),
       ...(rebalanceFocus ? { training_rebalance_focus: rebalanceFocus } : {}),
@@ -113,65 +126,17 @@ export function buildDifyChatbotConfig(options?: {
 }
 
 /**
- * 打开 embed 前解析会话：有效历史继续加载；过期则自动切换 scope 并开新会话。
- * URL 中的 sys.conversation_id 优先于 Dify iframe 内 localStorage，可覆盖过期 id。
- */
-export async function resolveDifyEmbedSession(retried = false): Promise<DifyEmbedSession> {
-  ensureDifyEmbedScope();
-  const userId = getDifyChatbotUserId();
-  const cachedConversationId = getCachedConversationId(userId);
-
-  const params = new URLSearchParams({ userId });
-  if (cachedConversationId) params.set('conversationId', cachedConversationId);
-
-  try {
-    const response = await fetch(`/api/dify/embed-session?${params.toString()}`);
-    const data = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-      console.warn('[difyChatbot] embed-session failed:', data);
-      return { userId, conversationId: null, forceNew: true };
-    }
-
-    if (data.stale && !retried) {
-      setCachedConversationId(userId, null);
-      rotateDifyEmbedScope();
-      return resolveDifyEmbedSession(true);
-    }
-
-    // 服务端无历史会话，但 Dify iframe 域 localStorage 可能仍有过期 id → 切换 scope 换新桶
-    if (data.forceNew === true && !data.conversationId && !retried) {
-      rotateDifyEmbedScope();
-      return resolveDifyEmbedSession(true);
-    }
-
-    const resolvedUserId = getDifyChatbotUserId();
-    const conversationId = typeof data.conversationId === 'string' ? data.conversationId : null;
-    const forceNew = data.forceNew === true || (data.stale === true && retried);
-    setCachedConversationId(resolvedUserId, conversationId);
-    return { userId: resolvedUserId, conversationId, forceNew };
-  } catch (err) {
-    console.error('[difyChatbot] resolveDifyEmbedSession error:', err);
-    return { userId, conversationId: null, forceNew: true };
-  }
-}
-
-/**
  * 按 Dify embed.js 规则压缩 query，供 iframe / embed 使用。
- * systemVariables.user_id → sys.user_id，与主站 getAppUserId() 一致。
+ * 新 embed 桶 + 空 conversation_id，无需等待后端 embed-session（避免 AbortError）。
  */
 export async function buildDifyChatbotIframeUrl(options?: {
   userId?: string;
-  conversationId?: string | null;
   forceNew?: boolean;
 }): Promise<string> {
-  // 始终写入 sys.conversation_id：有效 id 继续历史，否则空串覆盖 iframe 内过期 localStorage
-  const conversationId =
-    options?.forceNew || !options?.conversationId ? '' : options.conversationId;
-
+  const userId = options?.userId ?? getDifyChatbotUserId();
   const config = buildDifyChatbotConfig({
-    userId: options?.userId,
-    conversationId,
+    userId,
+    conversationId: '',
   });
   const params = new URLSearchParams();
 
@@ -193,7 +158,7 @@ export async function buildDifyChatbotIframeUrl(options?: {
     }),
   );
 
-  const url = `${config.baseUrl}/chatbot/${config.token}?${params.toString()}`;
+  const url = `${config.baseUrl}/chatbot/${config.token}?${params.toString()}&_refresh=${Date.now()}`;
   if (url.length > 2048) {
     console.warn('[difyChatbot] iframe URL exceeds 2048 chars; reduce inputs if load fails.');
   }

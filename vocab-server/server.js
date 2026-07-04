@@ -387,10 +387,250 @@ function buildMemoryContextForUser(userId) {
     ? errorParts.join('; ')
     : '暂无结构化短板记录。';
 
-  return { recentEpisodesSummary, errorLedgerSummary, memoryLayers };
+  const graphSummary = formatGraphSummary(memoryLayers);
+
+  return { recentEpisodesSummary, errorLedgerSummary, graphSummary, memoryLayers };
+}
+
+function normalizeGraphNodeName(name) {
+  return String(name || '').trim().slice(0, 80);
+}
+
+function formatGraphSummary(memoryLayers) {
+  const graph = memoryLayers?.l2_graph;
+  if (!graph || typeof graph !== 'object') return '暂无关系记忆。';
+  const relations = Array.isArray(graph.relations) ? graph.relations.slice(0, 8) : [];
+  if (!relations.length) return '暂无关系记忆。';
+  return relations.map((r, i) => {
+    const ev = r.evidence ? ` (${String(r.evidence).slice(0, 60)})` : '';
+    return `${i + 1}. ${r.from} —[${r.rel}]→ ${r.to}${ev}`;
+  }).join('\n');
+}
+
+function mergeGraphMemory(existing, { entities = [], relations = [] }, source = 'llm_dreaming') {
+  const graph = existing && typeof existing === 'object' ? existing : {};
+  const entityList = Array.isArray(graph.entities) ? [...graph.entities] : [];
+  const relationList = Array.isArray(graph.relations) ? [...graph.relations] : [];
+  const now = Date.now();
+  let newEntities = 0;
+  let newRelations = 0;
+
+  for (const e of entities.slice(0, 10)) {
+    if (!e || typeof e !== 'object') continue;
+    const name = normalizeGraphNodeName(e.name);
+    if (!name) continue;
+    const type = String(e.type || 'general').trim().slice(0, 40);
+    const key = `${type}:${name}`;
+    if (!entityList.some((x) => `${x.type || 'general'}:${x.name}` === key)) {
+      entityList.unshift({ name, type, source, at: now });
+      newEntities += 1;
+    }
+  }
+
+  for (const r of relations.slice(0, 15)) {
+    if (!r || typeof r !== 'object') continue;
+    const from = normalizeGraphNodeName(r.from);
+    const to = normalizeGraphNodeName(r.to);
+    const rel = String(r.rel || r.relation || '关联').trim().slice(0, 40);
+    if (!from || !to) continue;
+    const evidence = String(r.evidence || '').trim().slice(0, 200);
+    const key = `${from}|${rel}|${to}`;
+    const existingIdx = relationList.findIndex((x) => `${x.from}|${x.rel}|${x.to}` === key);
+    if (existingIdx >= 0) {
+      relationList[existingIdx] = {
+        ...relationList[existingIdx],
+        evidence: evidence || relationList[existingIdx].evidence,
+        at: now,
+        source,
+      };
+    } else {
+      relationList.unshift({ from, rel, to, evidence, source, at: now });
+      newRelations += 1;
+    }
+  }
+
+  return {
+    graph: {
+      entities: entityList.slice(0, 40),
+      relations: relationList.slice(0, 60),
+    },
+    newEntities,
+    newRelations,
+  };
+}
+
+function composeMemorySummaryForPrompt(memoryCtx) {
+  const parts = [memoryCtx.recentEpisodesSummary];
+  if (memoryCtx.graphSummary && memoryCtx.graphSummary !== '暂无关系记忆。') {
+    parts.push(`关系记忆（Graph）：\n${memoryCtx.graphSummary}`);
+  }
+  return parts.join('\n\n');
 }
 
 const DREAMING_MIN_PATTERN_COUNT = 2;
+const MEMORY_KB_DATASET_ID_DEFAULT = '99abd904-f0e0-45f3-95a8-660b44b17cc5';
+const DREAM_BACKOFF_HTTP_STATUSES = new Set([429, 502, 503, 504]);
+
+function getDreamBackoffMs() {
+  return Number(process.env.MEMORY_DREAMING_BACKOFF_MS || 30 * 60 * 1000);
+}
+
+function isKbSyncEnabled() {
+  return process.env.MEMORY_DREAMING_KB_SYNC !== '0';
+}
+
+function getPendingEpisodesFromLayers(memoryLayers, batchSize) {
+  const episodes = Array.isArray(memoryLayers.l2_episodes)
+    ? memoryLayers.l2_episodes.map((ep) => ensureEpisodeMeta(ep))
+    : [];
+  const pending = episodes.filter((ep) => ep._dreamed !== true).slice(0, batchSize);
+  return { episodes, pending };
+}
+
+function shouldRunLlmDreaming(memoryLayers, options = {}) {
+  const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
+  const hasPending = episodes.some((ep) => ensureEpisodeMeta(ep)._dreamed !== true);
+  if (!hasPending) return false;
+  if (options.force) return true;
+  if (Number(memoryLayers._dream_backoff_until || 0) > Date.now()) return false;
+  return true;
+}
+
+function persistMemoryLayersOnly(uid, row, memoryLayers) {
+  upsertUserMemoryRow(uid, {
+    profileContent: row.profile_content || '',
+    errorLedger: row.error_ledger || '{}',
+    memoryLayers: JSON.stringify(memoryLayers),
+    updatedAt: Date.now(),
+  });
+}
+
+async function postEpisodeSummaryToKb(userId, episode, profileContent) {
+  const apiKey = process.env.DIFY_KB_API_KEY || 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const datasetId = process.env.DIFY_KB_DATASET_ID || MEMORY_KB_DATASET_ID_DEFAULT;
+  const summary = getEpisodeText(episode);
+  if (!summary) return { skipped: true, reason: 'empty_summary' };
+
+  const dreamDate = episode._dreamed_at
+    ? new Date(episode._dreamed_at).toISOString().slice(0, 10)
+    : new Date().toISOString().slice(0, 10);
+  const title = `Dreaming摘要·${userId}·${dreamDate}`.slice(0, 120);
+  const text = `[用户 ${userId} · ${episode.source || 'unknown'}]\n${summary}\n\n画像上下文: ${String(profileContent || '').slice(0, 300)}`;
+
+  const response = await fetch(`${baseUrl}/datasets/${datasetId}/document/create-by-text`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: title,
+      text,
+      indexing_technique: 'high_quality',
+      doc_form: 'text_model',
+      doc_language: 'Chinese',
+      embedding_model: 'bge-small-zh-v1.5',
+      embedding_model_provider: 'langgenius/xinference/xinference',
+      process_rule: { mode: 'automatic' },
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    console.warn(`[Memory Dreaming] KB sync HTTP ${response.status}:`, errText.slice(0, 300));
+    return { skipped: true, reason: 'kb_http_error', status: response.status };
+  }
+
+  const data = await response.json().catch(() => ({}));
+  return { synced: true, documentId: data?.document?.id || data?.id || null, title };
+}
+
+async function syncDreamedEpisodesToKb(userId, episodes, profileContent) {
+  if (!isKbSyncEnabled()) return { skipped: true, reason: 'kb_sync_disabled', synced: 0 };
+
+  const targets = episodes.filter((ep) => ep._dreamed === true && !ep._kb_synced && getEpisodeText(ep));
+  if (!targets.length) return { skipped: true, reason: 'no_kb_targets', synced: 0 };
+
+  let synced = 0;
+  const errors = [];
+  for (const ep of targets.slice(0, 5)) {
+    try {
+      const result = await postEpisodeSummaryToKb(userId, ep, profileContent);
+      if (result.synced) {
+        ep._kb_synced = true;
+        ep._kb_synced_at = Date.now();
+        synced += 1;
+      } else if (result.reason === 'kb_http_error') {
+        errors.push(result.status);
+      }
+    } catch (e) {
+      errors.push(e.message);
+    }
+  }
+
+  return { synced, errors, skipped: synced === 0 };
+}
+
+function isLlmDreamingEnabled() {
+  if (process.env.MEMORY_DREAMING_LLM_ENABLED === '0') return false;
+  return Boolean(process.env.DIFY_MEMORY_DREAMING_API_KEY);
+}
+
+function generateEpisodeId(at = Date.now()) {
+  return `ep_${at}_${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function getEpisodeText(ep) {
+  return String(ep.summary || ep.preview || ep.weaknessScan || ep.practicalTest || '').trim();
+}
+
+function ensureEpisodeMeta(ep, at = Date.now()) {
+  const episode = { ...ep };
+  if (!episode._id) episode._id = generateEpisodeId(episode.at || at);
+  if (episode._dreamed !== true) episode._dreamed = false;
+  return episode;
+}
+
+function stripProfileConflicts(profile, conflicts) {
+  let result = String(profile || '');
+  if (!Array.isArray(conflicts)) return result;
+  for (const c of conflicts) {
+    const fragment = String(c || '').trim();
+    if (!fragment) continue;
+    result = result.split(fragment).join('').replace(/;\s*;/g, ';').replace(/^;\s*|;\s*$/g, '').trim();
+  }
+  return result.replace(/\s{2,}/g, ' ').trim();
+}
+
+function parseMemoryDreamingResult(rawText) {
+  const empty = {
+    profile_delta: '',
+    profile_conflicts: [],
+    semantics: [],
+    episode_summaries: [],
+    dedupe_keys: [],
+    entities: [],
+    relations: [],
+  };
+  if (!rawText) return empty;
+  try {
+    const clean = String(rawText).replace(/```json/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    return {
+      profile_delta: String(parsed.profile_delta || '').trim(),
+      profile_conflicts: Array.isArray(parsed.profile_conflicts) ? parsed.profile_conflicts : [],
+      semantics: Array.isArray(parsed.semantics) ? parsed.semantics : [],
+      episode_summaries: Array.isArray(parsed.episode_summaries) ? parsed.episode_summaries : [],
+      dedupe_keys: Array.isArray(parsed.dedupe_keys) ? parsed.dedupe_keys : [],
+      entities: Array.isArray(parsed.entities) ? parsed.entities : [],
+      relations: Array.isArray(parsed.relations) ? parsed.relations : [],
+    };
+  } catch (e) {
+    console.warn('[Memory Dreaming] JSON parse failed:', e.message);
+    return null;
+  }
+}
 
 function dedupeEpisodes(episodes) {
   const seen = new Set();
@@ -421,7 +661,7 @@ function collectFrequentLedgerPatterns(ledger) {
   return promoted.sort((a, b) => b.count - a.count);
 }
 
-function runMemoryDreamingForUser(userId) {
+function runRuleBasedDreamingForUser(userId) {
   const uid = normalizeMemoryUserId(userId);
   const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
   if (!row) return { userId: uid, changed: false, skipped: true };
@@ -479,17 +719,230 @@ function runMemoryDreamingForUser(userId) {
   return { userId: uid, changed, skipped: false, details, promotedCount: promoted.length };
 }
 
-function runMemoryDreamingJob() {
+async function runLlmMemoryDreamingForUser(userId, options = {}) {
+  if (!isLlmDreamingEnabled()) {
+    return { skipped: true, reason: 'llm_disabled' };
+  }
+
+  const uid = normalizeMemoryUserId(userId);
+  const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+  if (!row) return { skipped: true, reason: 'no_user' };
+
+  const memoryLayers = parseJsonObject(row.memory_layers, {});
+  const batchSize = Number(process.env.MEMORY_DREAMING_BATCH_SIZE || 5);
+
+  const backoffUntil = Number(memoryLayers._dream_backoff_until || 0);
+  if (!options.force && backoffUntil > Date.now()) {
+    return { skipped: true, reason: 'backoff', backoffUntil };
+  }
+
+  let { episodes, pending } = getPendingEpisodesFromLayers(memoryLayers, batchSize);
+  if (!pending.length) return { skipped: true, reason: 'no_pending' };
+
+  const memoryCtx = buildMemoryContextForUser(uid);
+  const semantics = Array.isArray(memoryLayers.l2_semantics) ? memoryLayers.l2_semantics : [];
+  const apiKey = process.env.DIFY_MEMORY_DREAMING_API_KEY;
+  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const timeoutMs = Number(process.env.MEMORY_DREAMING_TIMEOUT_MS || 90000);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  const applyBackoff = () => {
+    memoryLayers._dream_backoff_until = Date.now() + getDreamBackoffMs();
+    persistMemoryLayersOnly(uid, row, memoryLayers);
+    return memoryLayers._dream_backoff_until;
+  };
+
+  try {
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: {
+          current_profile: row.profile_content || '',
+          pending_episodes_json: JSON.stringify(pending),
+          error_ledger_summary: memoryCtx.errorLedgerSummary,
+          recent_semantics_json: JSON.stringify(semantics.slice(0, 10)),
+          recent_graph_json: JSON.stringify(memoryLayers.l2_graph || { entities: [], relations: [] }),
+        },
+        response_mode: 'blocking',
+        user: uid,
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[Memory Dreaming] Dify HTTP ${response.status}:`, errText.slice(0, 500));
+      if (DREAM_BACKOFF_HTTP_STATUSES.has(response.status)) {
+        const until = applyBackoff();
+        return { skipped: true, reason: 'dify_http_error', status: response.status, backoffUntil: until };
+      }
+      return { skipped: true, reason: 'dify_http_error', status: response.status };
+    }
+
+    const data = await response.json();
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? '';
+    const parsed = parseMemoryDreamingResult(rawResult);
+    if (!parsed) return { skipped: true, reason: 'parse_failed' };
+
+    let profileContent = stripProfileConflicts(row.profile_content || '', parsed.profile_conflicts);
+    if (parsed.profile_delta) {
+      profileContent = mergeProfileNarrative(profileContent, parsed.profile_delta);
+    }
+
+    const summaryById = new Map();
+    for (const item of parsed.episode_summaries) {
+      if (item && item.id) summaryById.set(String(item.id), item);
+    }
+
+    const pendingIds = new Set(pending.map((ep) => ep._id));
+    episodes = episodes.map((ep) => {
+      if (!pendingIds.has(ep._id)) return ep;
+      const update = summaryById.get(String(ep._id));
+      if (update?.discard === true) {
+        return { ...ep, _dreamed: true, _discarded: true, _dreamed_at: Date.now() };
+      }
+      const merged = String(update?.merged_summary || '').trim();
+      return {
+        ...ep,
+        summary: merged || getEpisodeText(ep),
+        _dreamed: true,
+        _dreamed_at: Date.now(),
+      };
+    });
+
+    episodes = episodes.filter((ep) => !ep._discarded);
+
+    if (parsed.dedupe_keys.length) {
+      const keys = parsed.dedupe_keys.map((k) => String(k).trim().slice(0, 80)).filter(Boolean);
+      const seen = new Set();
+      episodes = episodes.filter((ep) => {
+        const text = getEpisodeText(ep).slice(0, 80);
+        const matchKey = keys.find((k) => text.includes(k) || k.includes(text));
+        if (!matchKey) return true;
+        if (seen.has(matchKey)) return false;
+        seen.add(matchKey);
+        return true;
+      });
+    }
+
+    let mergedSemantics = Array.isArray(memoryLayers.l2_semantics) ? [...memoryLayers.l2_semantics] : [];
+    for (const sem of parsed.semantics.slice(0, 10)) {
+      if (!sem || typeof sem !== 'object') continue;
+      const tag = String(sem.tag || `${sem.category || 'general'}:${sem.pattern || ''}`).trim();
+      if (!tag || tag === ':' || tag === 'general:') continue;
+      if (!mergedSemantics.some((s) => s.tag === tag)) {
+        mergedSemantics.unshift({
+          tag,
+          pattern: String(sem.pattern || '').trim(),
+          category: String(sem.category || 'general').trim(),
+          evidence: String(sem.evidence || '').trim().slice(0, 200),
+          source: 'llm_dreaming',
+          at: Date.now(),
+        });
+      }
+    }
+
+    memoryLayers.l2_episodes = episodes.slice(0, 50);
+    memoryLayers.l2_semantics = mergedSemantics.slice(0, 30);
+    const graphMerge = mergeGraphMemory(memoryLayers.l2_graph, parsed, 'llm_dreaming');
+    memoryLayers.l2_graph = graphMerge.graph;
+    memoryLayers._last_llm_dream_at = Date.now();
+    memoryLayers._dream_backoff_until = 0;
+
+    const kbResult = await syncDreamedEpisodesToKb(uid, memoryLayers.l2_episodes, profileContent);
+
+    upsertUserMemoryRow(uid, {
+      profileContent,
+      errorLedger: row.error_ledger,
+      memoryLayers: JSON.stringify(memoryLayers),
+      updatedAt: Date.now(),
+    });
+
+    return {
+      skipped: false,
+      changed: true,
+      dreamedCount: pending.length,
+      newSemantics: parsed.semantics.length,
+      profileUpdated: Boolean(parsed.profile_delta || parsed.profile_conflicts.length),
+      kb: kbResult,
+      graph: {
+        newEntities: graphMerge.newEntities,
+        newRelations: graphMerge.newRelations,
+        totalRelations: graphMerge.graph.relations.length,
+      },
+    };
+  } catch (e) {
+    if (e.name === 'AbortError') {
+      const until = applyBackoff();
+      return { skipped: true, reason: 'timeout', backoffUntil: until };
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function runMemoryDreamingForUser(userId, options = {}) {
+  const uid = normalizeMemoryUserId(userId);
+  const ruleResult = runRuleBasedDreamingForUser(uid);
+  let llmResult = { skipped: true, reason: 'not_attempted' };
+
+  const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+  const layers = parseJsonObject(row?.memory_layers, {});
+
+  if (row) {
+    layers._last_dream_scan_at = Date.now();
+    persistMemoryLayersOnly(uid, row, layers);
+  }
+
+  if (row && shouldRunLlmDreaming(layers, options)) {
+    try {
+      llmResult = await runLlmMemoryDreamingForUser(uid, { force: options.force === true });
+    } catch (e) {
+      console.warn('[Memory Dreaming] LLM layer failed:', e.message);
+      llmResult = { skipped: true, reason: 'llm_error', error: e.message };
+    }
+  } else if (options.incrementalOnly) {
+    const hasPending = (layers.l2_episodes || []).some((ep) => ensureEpisodeMeta(ep)._dreamed !== true);
+    if (!hasPending) {
+      llmResult = { skipped: true, reason: 'no_pending_incremental' };
+    } else if (Number(layers._dream_backoff_until || 0) > Date.now()) {
+      llmResult = { skipped: true, reason: 'backoff', backoffUntil: layers._dream_backoff_until };
+    }
+  } else if (row && !(layers.l2_episodes || []).some((ep) => ensureEpisodeMeta(ep)._dreamed !== true)) {
+    llmResult = { skipped: true, reason: 'no_pending' };
+  }
+
+  return {
+    userId: ruleResult.userId || uid,
+    changed: ruleResult.changed || llmResult.changed === true,
+    skipped: ruleResult.skipped && llmResult.skipped,
+    rule: ruleResult,
+    llm: llmResult,
+  };
+}
+
+async function runMemoryDreamingJob() {
   const users = db.prepare('SELECT user_id FROM user_memories').all();
   let processed = 0;
   let updated = 0;
+  let skippedLlm = 0;
   for (const { user_id } of users) {
-    const result = runMemoryDreamingForUser(user_id);
+    const result = await runMemoryDreamingForUser(user_id, { incrementalOnly: true });
     processed += 1;
     if (result.changed) updated += 1;
+    if (result.llm?.skipped && ['no_pending_incremental', 'backoff', 'no_pending'].includes(result.llm.reason)) {
+      skippedLlm += 1;
+    }
   }
-  console.log(`[Memory Dreaming] processed=${processed} updated=${updated}`);
-  return { processed, updated, at: Date.now() };
+  console.log(`[Memory Dreaming] processed=${processed} updated=${updated} skipped_llm=${skippedLlm}`);
+  return { processed, updated, skippedLlm, at: Date.now() };
 }
 
 // ?????????????????
@@ -946,6 +1399,7 @@ app.get('/api/user/profile/:userId', (req, res) => {
             error_ledger: parseJsonObject(row.error_ledger, {}),
             recent_episodes_summary: memoryCtx.recentEpisodesSummary,
             error_ledger_summary: memoryCtx.errorLedgerSummary,
+            graph_summary: memoryCtx.graphSummary,
           }
         : {
             user_id: uid,
@@ -954,6 +1408,7 @@ app.get('/api/user/profile/:userId', (req, res) => {
             memory_layers: {},
             recent_episodes_summary: memoryCtx.recentEpisodesSummary,
             error_ledger_summary: memoryCtx.errorLedgerSummary,
+            graph_summary: memoryCtx.graphSummary,
             updated_at: 0,
           },
     });
@@ -972,14 +1427,14 @@ app.get('/api/user/memory/context/:userId', (req, res) => {
   }
 });
 
-app.post('/api/user/memory/dreaming/run', (req, res) => {
+app.post('/api/user/memory/dreaming/run', async (req, res) => {
   try {
     const { userId } = req.body || {};
     if (userId) {
-      const result = runMemoryDreamingForUser(userId);
+      const result = await runMemoryDreamingForUser(userId, { force: true });
       return res.json({ success: true, data: result });
     }
-    const result = runMemoryDreamingJob();
+    const result = await runMemoryDreamingJob();
     res.json({ success: true, data: result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
@@ -1020,7 +1475,7 @@ app.post('/api/user/memory/ingest', (req, res) => {
 
     if (episode && typeof episode === 'object') {
       const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
-      episodes.unshift({ ...episode, source, at: now });
+      episodes.unshift(ensureEpisodeMeta({ ...episode, source, at: now }, now));
       memoryLayers.l2_episodes = episodes.slice(0, 50);
     }
 
@@ -1944,12 +2399,13 @@ app.get('/api/theme/stay-stats', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-// Dify embed 会话校验：有效则返回 conversation_id 供 iframe URL 覆盖过期 localStorage
+// Dify embed 会话校验：有效则返回 conversation_id 供 iframe URL；renew=1 时创建新会话
 app.get('/api/dify/embed-session', async (req, res) => {
   const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
   const conversationId = typeof req.query.conversationId === 'string'
     ? req.query.conversationId.trim()
     : '';
+  const renew = req.query.renew === '1';
 
   if (!userId) {
     return res.status(400).json({ message: '缺少 userId 参数。' });
@@ -1991,7 +2447,43 @@ app.get('/api/dify/embed-session', async (req, res) => {
     }
   }
 
+  async function createConversation() {
+    try {
+      const response = await fetch(`${baseUrl}/chat-messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: {},
+          query: ' ',
+          user: userId,
+          response_mode: 'blocking',
+        }),
+      });
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        console.error('[embed-session] create conversation failed:', response.status, errText);
+        return null;
+      }
+      const data = await response.json().catch(() => ({}));
+      return data?.conversation_id || null;
+    } catch (err) {
+      console.error('[embed-session] create conversation error:', err);
+      return null;
+    }
+  }
+
   try {
+    if (renew) {
+      const created = await createConversation();
+      if (created && await validateConversation(created)) {
+        return res.json({ conversationId: created, stale: false, created: true });
+      }
+      return res.json({ conversationId: null, stale: false, forceNew: true, reason: 'renew_failed' });
+    }
+
     if (conversationId) {
       if (await validateConversation(conversationId)) {
         return res.json({ conversationId, stale: false });
@@ -2010,7 +2502,11 @@ app.get('/api/dify/embed-session', async (req, res) => {
     if (latest) {
       return res.json({ conversationId: null, stale: true, reason: 'listed_invalid' });
     }
-    // 服务端无会话，但 Dify iframe localStorage 可能仍有过期 id → 用空 conversation_id 覆盖
+
+    const created = await createConversation();
+    if (created && await validateConversation(created)) {
+      return res.json({ conversationId: created, stale: false, created: true });
+    }
     return res.json({ conversationId: null, stale: false, forceNew: true, reason: 'no_conversation' });
   } catch (err) {
     console.error('[embed-session] error:', err);
@@ -4213,7 +4709,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
           weakness_scan: weaknessScan,
           tactical_dispatch: tacticalDispatch,
           user_current_profile: user_current_profile || '',
-          recent_episodes_summary: memoryCtx.recentEpisodesSummary,
+          recent_episodes_summary: composeMemorySummaryForPrompt(memoryCtx),
           error_ledger_summary: memoryCtx.errorLedgerSummary,
         }),
         response_mode: 'blocking',
@@ -4327,7 +4823,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
             ? selectedDirections.join(', ')
             : String(selectedDirections || ''),
           user_current_profile: user_current_profile || '',
-          recent_episodes_summary: memoryCtx.recentEpisodesSummary,
+          recent_episodes_summary: composeMemorySummaryForPrompt(memoryCtx),
           error_ledger_summary: memoryCtx.errorLedgerSummary,
         }),
         response_mode: 'blocking',
@@ -5347,11 +5843,17 @@ app.listen(PORT, () => {
   const dreamingIntervalMs = Number(process.env.MEMORY_DREAMING_INTERVAL_MS || 30 * 60 * 1000);
   if (dreamingIntervalMs > 0) {
     setTimeout(() => {
-      try { runMemoryDreamingJob(); } catch (e) { console.error('[Memory Dreaming] startup run failed:', e); }
+      runMemoryDreamingJob().catch((e) => console.error('[Memory Dreaming] startup run failed:', e));
     }, 60 * 1000);
     setInterval(() => {
-      try { runMemoryDreamingJob(); } catch (e) { console.error('[Memory Dreaming] periodic run failed:', e); }
+      runMemoryDreamingJob().catch((e) => console.error('[Memory Dreaming] periodic run failed:', e));
     }, dreamingIntervalMs);
     console.log(`[Memory Dreaming] scheduled every ${Math.round(dreamingIntervalMs / 60000)} min`);
+    if (isLlmDreamingEnabled()) {
+      console.log('[Memory Dreaming] LLM layer enabled (DIFY_MEMORY_DREAMING_API_KEY set)');
+    }
+    if (isKbSyncEnabled()) {
+      console.log('[Memory Dreaming] KB sync enabled (mychat dataset create-by-text)');
+    }
   }
 });

@@ -1,8 +1,7 @@
 app:
   description: Gemini / Claude Sonnet / Claude Opus 三路由并行答疑；回复顺序为「Gemini 3.1 Pro 全文→Claude
     Sonnet 4.6（思考）全文→Claude Opus 4.6（思考）全文→对比汇总表」；对话摘要条件入库；旁路侧写回写 vocab-server（/api/user/memory/ingest）。知识库
-    HTTP 默认走 Docker 内网 http://api:5001（避免公网自调用 503）；侧写回写默认 http://host.docker.internal:3001，与 compose
-    不一致时请改「构建侧写回写Body」内 _VOCAB_API_BASE。
+    内网 http://api:5001（避免公网自调用 503）；侧写回写走 https://app.liujingzhuwo.site/api（与 english_mastery 等已验证节点一致）。
   icon: 🤖
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -1230,8 +1229,8 @@ workflow:
       type: custom
       width: 242
     - data:
-        code: "import json\n\n# Docker 内 Dify 访问宿主机 vocab-server；生产 compose 请改为内网服务名\n_VOCAB_API_BASE\
-          \ = \"http://host.docker.internal:3001\"\n\ndef main(profile_delta: str, user_id: str) ->\
+        code: "import json\n\n# Dify Docker 内访问 super-agent vocab-server（经 Nginx 反代 /api）\n_VOCAB_API_BASE\
+          \ = \"https://app.liujingzhuwo.site\"\n\ndef main(profile_delta: str, user_id: str) ->\
           \ dict:\n    uid = (user_id or \"default-user\").split(\"@\")[0].strip() or \"default-user\"\
           \n    payload = {\n        \"userId\": uid,\n        \"profileDelta\": (profile_delta or\
           \ \"\").strip()[:500],\n        \"source\": \"mychat_memory_kb\",\n    }\n    return {\n\
@@ -1298,7 +1297,7 @@ workflow:
           write: 30
         title: 侧写回写vocab-server
         type: http-request
-        url: http://host.docker.internal:3001/api/user/memory/ingest
+        url: https://app.liujingzhuwo.site/api/user/memory/ingest
       height: 120
       id: c0ffee010002
       position:

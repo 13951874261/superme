@@ -3,7 +3,6 @@ import { Loader2 } from 'lucide-react';
 import {
   buildDifyChatbotIframeUrl,
   getDifyChatbotUserId,
-  resolveDifyEmbedSession,
 } from '../utils/difyChatbot';
 
 interface DifyAssistantFrameProps {
@@ -13,13 +12,12 @@ interface DifyAssistantFrameProps {
 
 /**
  * 右侧「全局 AI 助手」内嵌 Dify 对话。
- * 打开前经后端校验会话：有效历史继续加载；过期则自动切换 scope 并开新会话。
+ * 使用独立 embed 会话桶规避 Dify 域过期 localStorage；记忆仍绑定 app_user_id（登录账号）。
  */
 export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFrameProps) {
   const [iframeSrc, setIframeSrc] = useState('');
   const [error, setError] = useState('');
   const [sessionUserId, setSessionUserId] = useState('');
-  const baseUserId = getDifyChatbotUserId();
 
   useEffect(() => {
     let cancelled = false;
@@ -27,12 +25,10 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
     setIframeSrc('');
     setSessionUserId('');
 
-    resolveDifyEmbedSession()
-      .then(({ userId, conversationId, forceNew }) => {
-        if (cancelled) return;
-        setSessionUserId(userId);
-        return buildDifyChatbotIframeUrl({ userId, conversationId, forceNew });
-      })
+    const userId = getDifyChatbotUserId();
+    setSessionUserId(userId);
+
+    buildDifyChatbotIframeUrl({ userId })
       .then((url) => {
         if (!cancelled && url) setIframeSrc(url);
       })
@@ -44,7 +40,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
     return () => {
       cancelled = true;
     };
-  }, [baseUserId, refreshKey]);
+  }, [refreshKey]);
 
   if (error) {
     return (
@@ -65,7 +61,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
 
   return (
     <iframe
-      key={`${sessionUserId || baseUserId}-${refreshKey}`}
+      key={`${sessionUserId}-${refreshKey}`}
       src={iframeSrc}
       className="w-full h-full border-none"
       allow="microphone; fullscreen"

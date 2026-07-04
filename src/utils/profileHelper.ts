@@ -273,7 +273,9 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   }
 
   const incomingProfile = typeof result.user_current_profile === 'string' ? result.user_current_profile.trim() : '';
-  const mergedProfile = [profile, errorSummary, incomingProfile].filter(Boolean).join('; ');
+  const graphSummary = getGraphSummaryLocal();
+  const graphLine = graphSummary ? `Graph: ${graphSummary.replace(/\n/g, '; ')}` : '';
+  const mergedProfile = [profile, errorSummary, graphLine, incomingProfile].filter(Boolean).join('; ');
 
   return {
     ...result,
@@ -391,6 +393,25 @@ export async function runMemoryDreaming(userId?: string): Promise<void> {
     await loadUserProfileFromServer(userId);
   } catch (e) {
     console.warn('[profileHelper] memory dreaming failed:', e);
+  }
+}
+
+/** 读取本地缓存的 L2 关系图谱摘要（最多 8 条关系） */
+export function getGraphSummaryLocal(): string {
+  try {
+    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    if (!raw) return '';
+    const layers = JSON.parse(raw) as {
+      l2_graph?: { relations?: { from?: string; rel?: string; to?: string; evidence?: string }[] };
+    };
+    const relations = layers.l2_graph?.relations || [];
+    if (!relations.length) return '';
+    return relations.slice(0, 8).map((r, i) => {
+      const ev = r.evidence ? ` (${String(r.evidence).slice(0, 60)})` : '';
+      return `${i + 1}. ${r.from} —[${r.rel}]→ ${r.to}${ev}`;
+    }).join('\n');
+  } catch {
+    return '';
   }
 }
 
