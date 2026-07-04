@@ -1,129 +1,240 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Send, Bot, PenLine } from 'lucide-react';
-import { getTrainingSessionByDate, upsertDailyReview } from '../services/trainingAPI';
-import { getAppUserId } from '../utils/profileHelper';
+import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap } from 'lucide-react';
+import { getUserCurrentProfile } from '../utils/profileHelper';
+import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
+import {
+  getLastReviewDate,
+  getReviewHistory,
+  getNextWeekPushPlan,
+  saveNextWeekPushPlan,
+} from '../utils/reviewHelper';
+import { runWeeklyChatAnalysis } from '../services/difyAPI';
+import { playClick, playWaterDrop } from '../utils/soundEffects';
 
 interface SummaryAreaProps {
   selectedDate: string;
 }
 
+const DIRECTION_OPTIONS = [
+  { label: '人性博弈', value: 'humanGameCase' },
+  { label: '英语主题', value: 'englishTopic' },
+  { label: '高管斗争', value: 'executiveConflict' },
+  { label: '驭人博弈', value: 'manipulationStrategy' },
+  { label: '认知升维', value: 'cognitiveUpgrade' },
+  { label: '晋升跳槽', value: 'careerAdvice' },
+];
+
+function daysSinceLastReview(): number {
+  const last = getLastReviewDate();
+  return Math.floor((Date.now() - last) / (1000 * 60 * 60 * 24));
+}
+
 export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
-  const [sessionId, setSessionId] = useState('');
-  const [summaryText, setSummaryText] = useState('');
-  const [nextFocus, setNextFocus] = useState('明日重点：继续训练谬误识别与反问句构造。');
-  const [reflection, setReflection] = useState('');
-  const [saving, setSaving] = useState(false);
+  const { shouldShowCard, shouldForceModal } = useBiweeklyReviewTrigger();
+  const [profile, setProfile] = useState('');
+  const [latestReview, setLatestReview] = useState<{ factors?: string; date?: string } | null>(null);
+  const [daysSince, setDaysSince] = useState(0);
+
+  const [content, setContent] = useState('');
+  const [directions, setDirections] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [chatResult, setChatResult] = useState<{ analysis: string; nextWeekPreview: string } | null>(null);
+  const [hasPushPlan, setHasPushPlan] = useState(false);
+
+  const refreshReviewState = () => {
+    setProfile(getUserCurrentProfile() || '系统全面扫描中');
+    setDaysSince(daysSinceLastReview());
+    const history = getReviewHistory();
+    setLatestReview(history[0] || null);
+    setHasPushPlan(!!getNextWeekPushPlan());
+  };
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        const detail = await getTrainingSessionByDate({
-          userId: getAppUserId(),
-          trainingDate: selectedDate,
-        });
-        setSessionId(detail.session?.id || '');
-        const attempts = detail.attempts || [];
-        const avgScore =
-          attempts.length > 0
-            ? Math.round(attempts.reduce((acc, it) => acc + (Number(it?.score) || 0), 0) / attempts.length)
-            : 0;
-        const autoSummary =
-          attempts.length > 0
-            ? `当日已完成 ${attempts.length} 次训练，平均效率评分 ${avgScore}/10。建议聚焦“角色层级判断 + 谬误识别”联合练习。`
-            : '今日尚无训练提交，先完成至少 1 次场景拆解以生成有效复盘。';
-        setSummaryText(detail.review?.summary || autoSummary);
-        if (detail.review?.next_day_focus) setNextFocus(detail.review.next_day_focus);
-      } catch {
-        setSummaryText('复盘数据加载失败，请确认后端服务可用。');
-      }
+    refreshReviewState();
+    const onProfile = () => refreshReviewState();
+    const onReviewDate = () => refreshReviewState();
+    const onRebalance = () => refreshReviewState();
+    window.addEventListener('global-profile-changed', onProfile);
+    window.addEventListener('superme-review-date-changed', onReviewDate);
+    window.addEventListener('global-training-rebalance', onRebalance);
+    return () => {
+      window.removeEventListener('global-profile-changed', onProfile);
+      window.removeEventListener('superme-review-date-changed', onReviewDate);
+      window.removeEventListener('global-training-rebalance', onRebalance);
     };
-    init();
   }, [selectedDate]);
 
-  const handleSaveReview = async () => {
-    if (!sessionId) return;
+  const handleDirectionToggle = (val: string) => {
+    playClick();
+    setDirections((prev) =>
+      prev.includes(val) ? prev.filter((d) => d !== val) : [...prev, val],
+    );
+  };
+
+  const handleWeeklySubmit = async () => {
+    if (!content.trim()) return;
+    setIsLoading(true);
+    setChatResult(null);
     try {
-      setSaving(true);
-      const mergedSummary = reflection.trim()
-        ? `${summaryText}\n\n用户补充反思：${reflection.trim()}`
-        : summaryText;
-      await upsertDailyReview({
-        sessionId,
-        userId: getAppUserId(),
-        trainingDate: selectedDate,
-        summary: mergedSummary,
-        accuracyByTag: {},
-        nextDayFocus: nextFocus,
-        efficiencyScore: 7,
-      });
-      setSummaryText(mergedSummary);
-      setReflection('');
+      const result = await runWeeklyChatAnalysis(content, directions);
+      saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
+      setChatResult({ analysis: result.analysis, nextWeekPreview: result.nextWeekPreview });
+      setContent('');
+      setHasPushPlan(true);
+      playWaterDrop();
+    } catch (e) {
+      console.error('心智投喂失败:', e);
     } finally {
-      setSaving(false);
+      setIsLoading(false);
     }
+  };
+
+  const openBiweeklyReview = () => {
+    playClick();
+    window.dispatchEvent(new Event('open-biweekly-review'));
   };
 
   return (
     <div className="w-full relative px-2 mb-20">
-      {/* 康奈尔底栏标题注记：去除 Side-stripe */}
       <div className="absolute -top-3.5 left-10 bg-[#FF5722]/5 border border-[#FF5722]/20 px-4 py-1 text-[10px] font-black tracking-[0.2em] text-[#FF5722] uppercase z-10 shadow-sm rounded-full backdrop-blur-md">
         Cornell Summary Area
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 border border-slate-100/80 rounded-3xl p-6 md:p-8 hover:border-[#FF5722]/20 transition-all duration-300 shadow-[0_12px_35px_rgba(0,0,0,0.015)] bg-white relative">
-        
-        {/* 左半区：每周实践复盘 (AI总结区) */}
+
+        {/* 左半区：两周期专属复盘 */}
         <div className="flex flex-col border-b md:border-b-0 md:border-r border-gray-100 md:pr-12 md:pb-0 pb-10">
           <h3 className="font-black text-[#202124] mb-4 flex items-center text-xl tracking-tight">
             <Bot className="w-5 h-5 mr-3 text-[#FF5722]" strokeWidth={2.5} />
             专属复盘与弱点扫描
           </h3>
-          <p className="text-[11px] text-gray-400 mb-8 font-bold tracking-[0.1em] uppercase">
-            AI 汇总进度 / 总结思维漏洞 / 定向深化建议
+          <p className="text-[11px] text-gray-400 mb-4 font-bold tracking-[0.1em] uppercase">
+            两周期强制评估 / 四维度结构化自省 / 画像纠偏
           </p>
-          
-          <div className="flex-1 bg-slate-50/70 rounded-xl p-5 text-sm text-gray-700 leading-relaxed font-medium min-h-[160px] border border-slate-100 shadow-inner group transition-all duration-500 hover:bg-white relative overflow-hidden">
-             {/* Shimmer sweep effect */}
-             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#FF5722]/3 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-[2000ms] ease-out pointer-events-none" />
-             <div className="flex items-center text-[#FF5722] mb-3 text-xs font-black font-mono tracking-widest animate-pulse">
-                <Sparkles className="w-3.5 h-3.5 mr-2" />
-                ANALYZING WEEKLY DATA...
-             </div>
-             <div className="relative z-10 text-gray-700">{summaryText}</div>
-             <div className="mt-4 text-xs text-gray-400 font-semibold border-t border-slate-100/60 pt-3 relative z-10"> {nextFocus} </div>
+
+          {(shouldShowCard || shouldForceModal) && (
+            <div className={`mb-4 p-3 rounded-xl border text-[11px] font-semibold flex items-start gap-2 ${
+              shouldForceModal
+                ? 'bg-red-50 border-red-200 text-red-700'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                {shouldForceModal
+                  ? '已超过17天未复盘，系统已阻断训练，请立即完成弱点扫描。'
+                  : `距离上次复盘已 ${daysSince} 天，复盘纠偏窗口已开启。`}
+              </span>
+            </div>
+          )}
+
+          <div className="flex-1 bg-slate-50/70 rounded-xl p-5 text-sm text-gray-700 leading-relaxed font-medium min-h-[160px] border border-slate-100 shadow-inner space-y-3">
+            <div className="flex items-center text-[#FF5722] text-xs font-black font-mono tracking-widest">
+              <Sparkles className="w-3.5 h-3.5 mr-2" />
+              距上次复盘 {daysSince} 天
+            </div>
+            <div>
+              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
+                当前全局短板画像
+              </span>
+              <p className="text-gray-700 text-xs leading-relaxed">{profile}</p>
+            </div>
+            {latestReview?.factors && (
+              <div>
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
+                  最近一次复盘提取
+                </span>
+                <p className="text-xs text-zinc-800 bg-white px-3 py-2 rounded-lg border border-slate-100">
+                  {latestReview.factors}
+                </p>
+              </div>
+            )}
           </div>
+
+          <button
+            type="button"
+            onClick={openBiweeklyReview}
+            className="mt-4 w-full bg-zinc-950 hover:bg-[#FF5722] text-white py-3 rounded-xl text-xs font-black tracking-widest flex items-center justify-center gap-2 transition-all cursor-pointer"
+          >
+            <Target className="w-4 h-4" />
+            {shouldForceModal ? '立即完成阻断式弱点扫描' : '开启四维度专属复盘'}
+          </button>
         </div>
 
-        {/* 右半区：个人随笔与专属智能体对话 (私人陪伴) */}
+        {/* 右半区：心智投喂四段式（紧凑版） */}
         <div className="flex flex-col md:pl-4">
           <h3 className="font-black text-[#202124] mb-4 flex items-center text-xl tracking-tight">
             <PenLine className="w-5 h-5 mr-3 text-[#FF5722]" strokeWidth={2.5} />
             每周夜话与心智投喂
           </h3>
-          <p className="text-[11px] text-gray-400 mb-8 font-bold tracking-[0.1em] uppercase">
-            私密沉淀 / 读书感想 / 智能体人格喂养
+          <p className="text-[11px] text-gray-400 mb-3 font-bold tracking-[0.1em] uppercase">
+            投喂输入 / 定向勾选 / 启发研判 / 训练库重组
           </p>
-          
-          <div className="flex-1 flex flex-col relative w-full group">
-            <textarea 
-              rows={6} 
-              value={reflection}
-              onChange={(e) => setReflection(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200/60 rounded-xl p-4 text-xs text-gray-800 focus:bg-white focus:outline-none focus:border-[#FF5722]/40 focus:shadow-[0_0_15px_rgba(255,87,34,0.05)] mb-4 transition-all duration-300 resize-none leading-relaxed placeholder-gray-400 font-medium" 
-              placeholder="记录这周的内心感悟，或是你刚读完的书的启发。你越吐露真言，这个 AI 就越能与您的潜意识同频同构..."
-            />
-            
-            <button
-              onClick={handleSaveReview}
-              disabled={saving}
-              className="w-full mt-auto bg-[#202124] hover:bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-[0.15em] uppercase flex items-center justify-center transition-all duration-300 cubic-bezier(0.34, 1.56, 0.64, 1) hover:scale-[1.01] active:scale-[0.97] hover:shadow-[0_8px_24px_rgba(255,87,34,0.22)] shadow-[0_4px_14px_rgba(0,0,0,0.08)] disabled:opacity-60 cursor-pointer"
-            >
-              <Send className="w-4 h-4 mr-3" strokeWidth={2.5} />
-              {saving ? '保存中...' : '上传心智与反思至专属分身'}
-            </button>
-          </div>
-        </div>
 
+          {hasPushPlan && (
+            <p className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-3 font-medium">
+              下周训练重组计划已生效，口语沙盘 / 驭心博弈 / 破局说将自动读取。
+            </p>
+          )}
+
+          <textarea
+            rows={3}
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            disabled={isLoading}
+            className="w-full bg-slate-50 border border-slate-200/60 rounded-xl p-3 text-xs text-gray-800 focus:bg-white focus:outline-none focus:border-[#FF5722]/40 mb-3 resize-none leading-relaxed placeholder-gray-400 font-medium"
+            placeholder="倾吐本周职场博弈困局、高管利益纠葛、心智瓶颈..."
+          />
+
+          <div className="grid grid-cols-3 gap-1.5 mb-3">
+            {DIRECTION_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => handleDirectionToggle(opt.value)}
+                className={`text-[10px] font-bold py-1.5 px-2 rounded-lg border transition-all cursor-pointer ${
+                  directions.includes(opt.value)
+                    ? 'border-zinc-900 bg-zinc-50 text-zinc-900'
+                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+
+          {chatResult && (
+            <div className="mb-3 space-y-2">
+              <div className="bg-zinc-900 text-zinc-200 rounded-xl p-3 text-[11px] leading-relaxed">
+                <span className="text-amber-400 font-bold flex items-center gap-1 mb-1">
+                  <Zap className="w-3 h-3" /> 启发研判
+                </span>
+                {chatResult.analysis}
+              </div>
+              <div className="bg-emerald-50 text-emerald-700 rounded-xl p-3 text-[10px] leading-relaxed border border-emerald-100">
+                {chatResult.nextWeekPreview}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleWeeklySubmit}
+            disabled={isLoading || !content.trim()}
+            className="w-full mt-auto bg-[#202124] hover:bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-widest flex items-center justify-center transition-all disabled:opacity-50 cursor-pointer"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                启发式研判中...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" strokeWidth={2.5} />
+                提交投喂并进化系统
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );
