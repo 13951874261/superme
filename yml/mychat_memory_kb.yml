@@ -82,6 +82,15 @@ workflow:
     - KB_Pending_Record
     value: ''
     value_type: string
+  - description: 本轮 L1 摘要 ingest 的整段 JSON 字符串；IF 为真时由赋值节点从「解析摘要JSON」写入，L1 HTTP 只引用本会话变量，避免
+      1.13.x 在 IF 后对 Code 输出的模板不替换或 body 为空（与 KB_Create_By_Text_Body 同理）。
+    id: a1b2c3d4-e5f6-7890-abcd-ef1234567891
+    name: Memory_Ingest_Body
+    selector:
+    - conversation
+    - Memory_Ingest_Body
+    value: ''
+    value_type: string
   environment_variables: []
   features:
     file_upload:
@@ -1029,8 +1038,17 @@ workflow:
           - conversation
           - KB_Pending_Record
           write_mode: over-write
+        - input_type: variable
+          operation: over-write
+          value:
+          - f0e1d2c3-b4a5-6978-9abc-def012345602
+          - memory_ingest_body
+          variable_selector:
+          - conversation
+          - Memory_Ingest_Body
+          write_mode: over-write
         selected: false
-        title: 知识库请求体写入会话
+        title: 知识库与L1请求体写入会话
         type: assigner
         version: '2'
       height: 110
@@ -1110,9 +1128,11 @@ workflow:
           - id: l1-ingest-body
             key: ''
             type: text
-            value: '{{#f0e1d2c3-b4a5-6978-9abc-def012345602.memory_ingest_body#}}'
+            value: '{{#conversation.Memory_Ingest_Body#}}'
           type: raw-text
-        desc: 对话摘要写入 L1 层（memory_layers.l1_summaries）并 promote 为 L2 episode，供 Dreaming 溯源
+        desc: 对话摘要写入 L1 层（memory_layers.l1_summaries）并 promote 为 L2 episode，供 Dreaming 溯源。Body
+          用 raw-text 绑定 conversation.Memory_Ingest_Body（勿直接引用 IF 后 Code 输出，避免 Dify 1.13.x
+          模板不替换导致 400）。
         headers: 'Content-Type: application/json
 
           Accept: application/json'

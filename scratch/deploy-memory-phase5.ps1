@@ -2,9 +2,12 @@
 # Memory System Phase 5 — 生产部署 + 全链路验证（手动执行）
 # 覆盖：Phase 2 Recall / Phase 3 Cluster / Phase 1 L0-L1 / Phase 4 l3_vars
 #
+# ⚠️ 验证脚本 verify-memory-phase5.sh 只能在「生产服务器」上跑，不能在本机 WSL 跑 /var/www/...
+# 本机验证请用：.\scratch\verify-memory-phase5-remote.ps1 -UseSystemSSH
+#
 # 用法（PowerShell，项目根目录）：
-#   powershell -ExecutionPolicy Bypass -File .\scratch\deploy-memory-phase5.ps1
 #   powershell -ExecutionPolicy Bypass -File .\scratch\deploy-memory-phase5.ps1 -UseSystemSSH
+#   powershell -ExecutionPolicy Bypass -File .\scratch\verify-memory-phase5-remote.ps1 -UseSystemSSH
 #   powershell -ExecutionPolicy Bypass -File .\scratch\deploy-memory-phase5.ps1 -SkipFrontend
 #   powershell -ExecutionPolicy Bypass -File .\scratch\deploy-memory-phase5.ps1 -SkipVerify
 #
@@ -127,7 +130,8 @@ try {
         Send-File "$ProjectRoot\yml\mychat_memory_kb.yml" "$RemoteWebRoot/yml/"
         Send-File "$ProjectRoot\scratch\verify-memory-phase5.sh" "$RemoteWebRoot/scratch/"
         Send-File "$ProjectRoot\scratch\test-memory-dreaming.sh" "$RemoteWebRoot/scratch/"
-        Invoke-RemoteCommand "chmod +x $RemoteWebRoot/scratch/verify-memory-phase5.sh $RemoteWebRoot/scratch/test-memory-dreaming.sh"
+        Send-File "$ProjectRoot\scratch\test-mychat-memory-e2e.sh" "$RemoteWebRoot/scratch/"
+        Invoke-RemoteCommand "chmod +x $RemoteWebRoot/scratch/verify-memory-phase5.sh $RemoteWebRoot/scratch/test-memory-dreaming.sh $RemoteWebRoot/scratch/test-mychat-memory-e2e.sh"
         Write-Host "  yml synced to $RemoteWebRoot/yml (Dify 需手动导入 DSL)" -ForegroundColor Yellow
     } else {
         Write-Host "--- Step 3: Skip Yml ---" -ForegroundColor DarkGray

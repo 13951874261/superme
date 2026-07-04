@@ -16,12 +16,12 @@ echo "========== Memory Phase 5 Verification =========="
 echo "BASE=$BASE USER_ID=$USER_ID"
 echo ""
 
-echo "--- 1. Health ---"
-HEALTH=$(curl -sf "$BASE/api/vocab/health" || true)
-if echo "$HEALTH" | grep -q 'ok\|success\|vocab'; then
-  ok "vocab health"
+echo "--- 1. Health (vocab stats) ---"
+HEALTH=$(curl -sf "$BASE/api/vocab/stats" || true)
+if echo "$HEALTH" | grep -q 'success\|total\|count'; then
+  ok "vocab stats"
 else
-  fail "vocab health: $HEALTH"
+  fail "vocab stats: $HEALTH"
 fi
 
 echo ""
@@ -44,7 +44,9 @@ fi
 
 echo ""
 echo "--- 3. Recall API ---"
-RECALL=$(curl -sf "$BASE/api/user/memory/recall?userId=$USER_ID&query=英音" || true)
+RECALL=$(curl -sf -G "$BASE/api/user/memory/recall" \
+  --data-urlencode "userId=$USER_ID" \
+  --data-urlencode "query=英音" || true)
 if echo "$RECALL" | grep -q '"success":true' && echo "$RECALL" | grep -q '英音'; then
   ok "recall 英音"
 else
