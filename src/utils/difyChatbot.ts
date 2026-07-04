@@ -11,9 +11,9 @@ const DIFY_EMBED_BASE_URL =
   import.meta.env.VITE_DIFY_CHATBOT_BASE_URL || 'https://dify.234124123.xyz';
 
 /** 变更此版本可一次性让所有用户脱离旧 localStorage 会话桶 */
-const DIFY_EMBED_SCOPE_VERSION = `${DIFY_EMBED_TOKEN}-v2`;
+const DIFY_EMBED_SCOPE_VERSION = `${DIFY_EMBED_TOKEN}-v3`;
 const DIFY_EMBED_SCOPE_STORAGE = 'dify_embed_scope_id';
-const DIFY_EMBED_SCOPE_MIGRATED = 'dify_embed_scope_migrated_v2';
+const DIFY_EMBED_SCOPE_MIGRATED = 'dify_embed_scope_migrated_v3';
 const DIFY_EMBED_CONVERSATION_PREFIX = 'dify_embed_conversation_';
 
 /**
@@ -130,11 +130,17 @@ export async function resolveDifyEmbedSession(retried = false): Promise<DifyEmbe
 
     if (!response.ok) {
       console.warn('[difyChatbot] embed-session failed:', data);
-      return { userId, conversationId: cachedConversationId };
+      return { userId, conversationId: null, forceNew: true };
     }
 
     if (data.stale && !retried) {
       setCachedConversationId(userId, null);
+      rotateDifyEmbedScope();
+      return resolveDifyEmbedSession(true);
+    }
+
+    // 服务端无历史会话，但 Dify iframe 域 localStorage 可能仍有过期 id → 切换 scope 换新桶
+    if (data.forceNew === true && !data.conversationId && !retried) {
       rotateDifyEmbedScope();
       return resolveDifyEmbedSession(true);
     }
@@ -146,7 +152,7 @@ export async function resolveDifyEmbedSession(retried = false): Promise<DifyEmbe
     return { userId: resolvedUserId, conversationId, forceNew };
   } catch (err) {
     console.error('[difyChatbot] resolveDifyEmbedSession error:', err);
-    return { userId, conversationId: cachedConversationId };
+    return { userId, conversationId: null, forceNew: true };
   }
 }
 
@@ -159,11 +165,13 @@ export async function buildDifyChatbotIframeUrl(options?: {
   conversationId?: string | null;
   forceNew?: boolean;
 }): Promise<string> {
+  // 始终写入 sys.conversation_id：有效 id 继续历史，否则空串覆盖 iframe 内过期 localStorage
+  const conversationId =
+    options?.forceNew || !options?.conversationId ? '' : options.conversationId;
+
   const config = buildDifyChatbotConfig({
     userId: options?.userId,
-    conversationId: options?.forceNew
-      ? ''
-      : (options?.conversationId ?? undefined),
+    conversationId,
   });
   const params = new URLSearchParams();
 
