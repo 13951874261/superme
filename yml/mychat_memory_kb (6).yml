@@ -1,5 +1,8 @@
 app:
-  description: 'mychat_memory_kb Phase2 v3.9：【口音偏好（权威）】压制过期英音 + KB 向量过滤。'
+  description: Gemini / Claude Sonnet / Claude Opus 三路由并行答疑；回复顺序为「Gemini 3.1 Pro 全文→Claude
+    Sonnet 4.6（思考）全文→Claude Opus 4.6（思考）全文→对比汇总表」；对话摘要条件入库；旁路侧写回写 vocab-server（/api/user/memory/ingest）。知识库
+    内网 http://api:5001（避免公网自调用 503）；侧写回写走 https://app.liujingzhuwo.site/api（与 english_mastery
+    等已验证节点一致）。
   icon: 🤖
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -89,15 +92,6 @@ workflow:
     - Memory_Ingest_Body
     value: ''
     value_type: string
-  - description: 本轮 documents/metadata 的整段 JSON；IF 为真时由赋值节点写入，HTTP 只引用本会话变量（同
-      KB_Create_By_Text_Body 模式）。
-    id: c1d2e3f4-a5b6-7890-cdef-123456789abc
-    name: KB_Metadata_Body
-    selector:
-    - conversation
-    - KB_Metadata_Body
-    value: ''
-    value_type: string
   environment_variables: []
   features:
     file_upload:
@@ -151,11 +145,11 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: code
+        sourceType: start
         targetType: knowledge-retrieval
-      id: aaaa1111-source-1775878356368-target
+      id: 1775878243074-source-1775878356368-target
       selected: false
-      source: aaaa1111-1111-4111-8111-aaaa111111111
+      source: '1775878243074'
       sourceHandle: source
       target: '1775878356368'
       targetHandle: target
@@ -164,102 +158,11 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: code
-        targetType: knowledge-retrieval
-      id: aaaa1111-source-bbbb5555-memory-kb-target
-      selected: false
-      source: aaaa1111-1111-4111-8111-aaaa111111111
-      sourceHandle: source
-      target: bbbb5555-5555-4555-8555-bbbb555555555
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: start
-        targetType: code
-      id: 1775878243074-source-aaaa1111-uid-target
-      selected: false
-      source: '1775878243074'
-      sourceHandle: source
-      target: aaaa1111-1111-4111-8111-aaaa111111111
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: code
-        targetType: code
-      id: aaaa1111-source-aaaa4444-pack-target
-      selected: false
-      source: aaaa1111-1111-4111-8111-aaaa111111111
-      sourceHandle: source
-      target: aaaa4444-4444-4444-8444-aaaa444444444
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: http-request
-        targetType: code
-      id: aaaa3333-source-aaaa4444-merge-http-target
-      selected: false
-      source: aaaa3333-3333-4333-8333-aaaa333333333
-      sourceHandle: source
-      target: aaaa4444-4444-4444-8444-aaaa444444444
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: code
-        targetType: http-request
-      id: aaaa1111-source-aaaa3333-context-target
-      selected: false
-      source: aaaa1111-1111-4111-8111-aaaa111111111
-      sourceHandle: source
-      target: aaaa3333-3333-4333-8333-aaaa333333333
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
         sourceType: knowledge-retrieval
-        targetType: code
-      id: 1775878356368-source-aaaa4444-merge-target
+        targetType: llm
+      id: 1775878356368-source-e1111111-target
       selected: false
       source: '1775878356368'
-      sourceHandle: source
-      target: aaaa4444-4444-4444-8444-aaaa444444444
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: knowledge-retrieval
-        targetType: code
-      id: bbbb5555-source-aaaa4444-merge-target
-      selected: false
-      source: bbbb5555-5555-4555-8555-bbbb555555555
-      sourceHandle: source
-      target: aaaa4444-4444-4444-8444-aaaa444444444
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: code
-        targetType: llm
-      id: aaaa4444-source-e1111111-target
-      selected: false
-      source: aaaa4444-4444-4444-8444-aaaa444444444
       sourceHandle: source
       target: e1111111-1111-4111-8111-111111111111
       targetHandle: target
@@ -268,11 +171,11 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: code
+        sourceType: knowledge-retrieval
         targetType: llm
-      id: aaaa4444-source-e2222222-target
+      id: 1775878356368-source-e2222222-target
       selected: false
-      source: aaaa4444-4444-4444-8444-aaaa444444444
+      source: '1775878356368'
       sourceHandle: source
       target: e2222222-2222-4222-8222-222222222222
       targetHandle: target
@@ -281,11 +184,11 @@ workflow:
     - data:
         isInIteration: false
         isInLoop: false
-        sourceType: code
+        sourceType: knowledge-retrieval
         targetType: llm
-      id: aaaa4444-source-e3333333-target
+      id: 1775878356368-source-e3333333-target
       selected: false
-      source: aaaa4444-4444-4444-8444-aaaa444444444
+      source: '1775878356368'
       sourceHandle: source
       target: e3333333-3333-4333-8333-333333333333
       targetHandle: target
@@ -460,56 +363,6 @@ workflow:
       type: custom
       zIndex: 0
     - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: http-request
-        targetType: code
-      id: f0e1d2c3-create-source-build-meta-target
-      selected: false
-      source: f0e1d2c3-b4a5-6978-9abc-def012345604
-      sourceHandle: source
-      target: dddd8888-8888-4888-8888-dddd888888888
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInIteration: false
-        isInLoop: false
-        sourceType: code
-        targetType: if-else
-      id: dddd8888-source-if-meta-target
-      selected: false
-      source: dddd8888-8888-4888-8888-dddd888888888
-      sourceHandle: source
-      target: dddd7777-7777-4777-8777-dddd777777777
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: if-else
-        targetType: assigner
-      id: dddd7777-true-assign-meta-body
-      selected: false
-      source: dddd7777-7777-4777-8777-dddd777777777
-      sourceHandle: 'true'
-      target: dddd6666-6666-4666-8666-dddd666666666
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
-        isInLoop: false
-        sourceType: assigner
-        targetType: http-request
-      id: dddd6666-assign-meta-http-target
-      selected: false
-      source: dddd6666-6666-4666-8666-dddd666666666
-      sourceHandle: source
-      target: dddd5555-5555-4555-8555-dddd555555555
-      targetHandle: target
-      type: custom
-      zIndex: 0
-    - data:
         isInLoop: false
         sourceType: llm
         targetType: code
@@ -552,66 +405,15 @@ workflow:
         selected: false
         title: 用户输入
         type: start
-        variables:
-        - label: 登录账号（embed inputs.app_user_id）
-          max_length: 100
-          options: []
-          required: false
-          type: text-input
-          variable: app_user_id
-        - label: 结构化记忆包（服务端/API 注入 memory_pack，优先于 HTTP）
-          max_length: 8000
-          options: []
-          required: false
-          type: text-input
-          variable: memory_pack
-      height: 109
+        variables: []
+      height: 73
       id: '1775878243074'
       position:
         x: 0
-        y: 171.4238095238095
+        y: 233
       positionAbsolute:
         x: 0
-        y: 171.4238095238095
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        dataset_ids:
-        - ngTiC9KzHjKxr8zUAwg23XQ7lyykCjbmmdyptXHGJqgF1u1AHIytVw6Ash2s3FTK
-        metadata_filtering_conditions:
-          conditions:
-          - comparison_operator: is
-            id: mem-filter-user-id-001
-            name: user_id
-            value: '{{#aaaa1111-1111-4111-8111-aaaa111111111.uid#}}'
-          logical_operator: and
-        metadata_filtering_mode: manual
-        multiple_retrieval_config:
-          reranking_enable: true
-          reranking_mode: reranking_model
-          reranking_model:
-            model: bge-reranker-base
-            provider: langgenius/xinference/xinference
-          top_k: 4
-        query_attachment_selector: []
-        query_variable_selector:
-        - '1775878243074'
-        - sys.query
-        retrieval_mode: multiple
-        selected: false
-        title: 知识检索·用户记忆
-        type: knowledge-retrieval
-      height: 90
-      id: bbbb5555-5555-4555-8555-bbbb555555555
-      position:
-        x: 1388
-        y: 246.59047619047618
-      positionAbsolute:
-        x: 1388
-        y: 246.59047619047618
+        y: 233
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -619,8 +421,10 @@ workflow:
       width: 242
     - data:
         context:
-          enabled: false
-          variable_selector: []
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
         memory:
           query_prompt_template: '{{#sys.query#}}
 
@@ -646,19 +450,15 @@ workflow:
             你是与使用者长期同行的「专属成长陪伴智能体」：清冷稳重、理性克制、高情商、不情绪化、专业干练。以可执行洞察帮助对方认识自己、推进目标、稳固习惯与边界。
 
 
-            # 知识库与结构化记忆（必须优先使用）
+            # 知识库检索（必须优先使用）
 
-            完整输入（可能含 [结构化记忆] 前缀 + [用户问题] 正文）：{{#sys.query#}}
+            用户问题：{{#sys.query#}}
 
-            【合并记忆上下文（向量库 + structured recall + HTTP pack）】
-            {{#aaaa4444-4444-4444-8444-aaaa444444444.merged_memory_context#}}
+            检索到的私有记忆与沉淀：
 
-            解析规则（强制）：
-            1. 【口音偏好（权威）】为最高优先级；含「偏好澳式/澳式口音」→【核心判断】必须答澳式。
-            2. 向量库/graph/episode/L3 中出现的「英音/英式/accent=UK」视为过期旧记录，禁止采信。
-            3. 仅当全文完全无口音/偏好相关信息时才可说「尚未明确/无记录」。
+            {{#context#}}
 
-            与 {{#conversation.User_Current_Profile#}} 冲突时以 [结构化记忆] 与合并记忆上下文为准。
+            解答须优先调用上述检索内容，与历史结论一致处不得自相矛盾。
 
 
             # 使用者侧写（动态）
@@ -694,20 +494,22 @@ workflow:
       height: 88
       id: e1111111-1111-4111-8111-111111111111
       position:
-        x: 2112
-        y: 125.37619047619046
+        x: 704
+        y: 58
       positionAbsolute:
-        x: 2112
-        y: 125.37619047619046
-      selected: false
+        x: 704
+        y: 58
+      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
         context:
-          enabled: false
-          variable_selector: []
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
         memory:
           query_prompt_template: '{{#sys.query#}}
 
@@ -733,19 +535,15 @@ workflow:
             你是与使用者长期同行的「专属成长陪伴智能体」：清冷稳重、理性克制、高情商、不情绪化、专业干练。以可执行洞察帮助对方认识自己、推进目标、稳固习惯与边界。
 
 
-            # 知识库与结构化记忆（必须优先使用）
+            # 知识库检索（必须优先使用）
 
-            完整输入（可能含 [结构化记忆] 前缀 + [用户问题] 正文）：{{#sys.query#}}
+            用户问题：{{#sys.query#}}
 
-            【合并记忆上下文（向量库 + structured recall + HTTP pack）】
-            {{#aaaa4444-4444-4444-8444-aaaa444444444.merged_memory_context#}}
+            检索到的私有记忆与沉淀：
 
-            解析规则（强制）：
-            1. 【口音偏好（权威）】为最高优先级；含「偏好澳式/澳式口音」→【核心判断】必须答澳式。
-            2. 向量库/graph/episode/L3 中出现的「英音/英式/accent=UK」视为过期旧记录，禁止采信。
-            3. 仅当全文完全无口音/偏好相关信息时才可说「尚未明确/无记录」。
+            {{#context#}}
 
-            与 {{#conversation.User_Current_Profile#}} 冲突时以 [结构化记忆] 与合并记忆上下文为准。
+            解答须优先调用上述检索内容，与历史结论一致处不得自相矛盾。
 
 
             # 使用者侧写（动态）
@@ -781,11 +579,11 @@ workflow:
       height: 88
       id: e2222222-2222-4222-8222-222222222222
       position:
-        x: 2112
-        y: 293.37619047619046
+        x: 704
+        y: 226
       positionAbsolute:
-        x: 2112
-        y: 293.37619047619046
+        x: 704
+        y: 226
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -793,8 +591,10 @@ workflow:
       width: 242
     - data:
         context:
-          enabled: false
-          variable_selector: []
+          enabled: true
+          variable_selector:
+          - '1775878356368'
+          - result
         memory:
           query_prompt_template: '{{#sys.query#}}
 
@@ -820,19 +620,15 @@ workflow:
             你是与使用者长期同行的「专属成长陪伴智能体」：清冷稳重、理性克制、高情商、不情绪化、专业干练。以可执行洞察帮助对方认识自己、推进目标、稳固习惯与边界。
 
 
-            # 知识库与结构化记忆（必须优先使用）
+            # 知识库检索（必须优先使用）
 
-            完整输入（可能含 [结构化记忆] 前缀 + [用户问题] 正文）：{{#sys.query#}}
+            用户问题：{{#sys.query#}}
 
-            【合并记忆上下文（向量库 + structured recall + HTTP pack）】
-            {{#aaaa4444-4444-4444-8444-aaaa444444444.merged_memory_context#}}
+            检索到的私有记忆与沉淀：
 
-            解析规则（强制）：
-            1. 【口音偏好（权威）】为最高优先级；含「偏好澳式/澳式口音」→【核心判断】必须答澳式。
-            2. 向量库/graph/episode/L3 中出现的「英音/英式/accent=UK」视为过期旧记录，禁止采信。
-            3. 仅当全文完全无口音/偏好相关信息时才可说「尚未明确/无记录」。
+            {{#context#}}
 
-            与 {{#conversation.User_Current_Profile#}} 冲突时以 [结构化记忆] 与合并记忆上下文为准。
+            解答须优先调用上述检索内容，与历史结论一致处不得自相矛盾。
 
 
             # 使用者侧写（动态）
@@ -868,11 +664,11 @@ workflow:
       height: 88
       id: e3333333-3333-4333-8333-333333333333
       position:
-        x: 2112
-        y: 461.37619047619046
+        x: 704
+        y: 394
       positionAbsolute:
-        x: 2112
-        y: 461.37619047619046
+        x: 704
+        y: 394
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -897,7 +693,7 @@ workflow:
           completion_params:
             temperature: 0.25
           mode: chat
-          name: dify
+          name: hermes
           provider: langgenius/openai_api_compatible/openai_api_compatible
         prompt_template:
         - id: 74d08e1a-1943-4e4a-b1ef-b55a402fdd5f
@@ -926,7 +722,7 @@ workflow:
             5. 表格最后一行后另起一行，输出以「综合建议：」开头的单行摘要（不超过 120 字）。
 
             '
-        selected: true
+        selected: false
         title: 三模型表格聚合
         type: llm
         vision:
@@ -934,12 +730,12 @@ workflow:
       height: 88
       id: e4444444-4444-4444-8444-444444444444
       position:
-        x: 2474
-        y: 313.16190476190474
+        x: 1064.5714285714287
+        y: 225
       positionAbsolute:
-        x: 2474
-        y: 313.16190476190474
-      selected: true
+        x: 1064.5714285714287
+        y: 225
+      selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -949,7 +745,6 @@ workflow:
         - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
         - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
         - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
-        metadata_filtering_mode: disabled
         multiple_retrieval_config:
           reranking_enable: true
           reranking_mode: reranking_model
@@ -963,16 +758,16 @@ workflow:
         - sys.query
         retrieval_mode: multiple
         selected: false
-        title: 知识检索·业务库
+        title: 知识检索
         type: knowledge-retrieval
       height: 90
       id: '1775878356368'
       position:
-        x: 704
-        y: 135.59047619047618
+        x: 342
+        y: 225
       positionAbsolute:
-        x: 704
-        y: 135.59047619047618
+        x: 342
+        y: 225
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1027,10 +822,10 @@ workflow:
       height: 88
       id: '1775879840605'
       position:
-        x: 2836
+        x: 1428
         y: 0
       positionAbsolute:
-        x: 2836
+        x: 1428
         y: 0
       selected: false
       sourcePosition: right
@@ -1086,18 +881,18 @@ workflow:
       height: 88
       id: f0e1d2c3-b4a5-6978-9abc-def012345601
       position:
-        x: 2836
-        y: 305.5214285714285
+        x: 1428
+        y: 226
       positionAbsolute:
-        x: 2836
-        y: 305.5214285714285
+        x: 1428
+        y: 226
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        code: "import json\n\n_FENCE = chr(96) * 3\n_DATASET_ID = \"6109896f-0cae-4a3a-85f4-161f936d9baa\"\
+        code: "import json\n\n_FENCE = chr(96) * 3\n_DATASET_ID = \"99abd904-f0e0-45f3-95a8-660b44b17cc5\"\
           \n# 自建 Docker：工作流 HTTP 节点走公网域名易 hairpin/反代 503，请用 compose 内服务名直连 API\n_API_BASE\
           \ = \"http://api:5001\"\n\ndef main(llm_json: str, user_id: str) -> dict:\n\
           \    empty = {\n        \"do_post\": 0,\n        \"doc_name\": \"\",\n \
@@ -1185,11 +980,11 @@ workflow:
       height: 128
       id: f0e1d2c3-b4a5-6978-9abc-def012345602
       position:
-        x: 3178
-        y: 300.18809523809523
+        x: 1770
+        y: 166
       positionAbsolute:
-        x: 3178
-        y: 300.18809523809523
+        x: 1770
+        y: 166
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1217,11 +1012,11 @@ workflow:
       height: 124
       id: f0e1d2c3-b4a5-6978-9abc-def012345603
       position:
-        x: 3520
-        y: 323.5214285714286
+        x: 2112
+        y: 208
       positionAbsolute:
-        x: 3520
-        y: 323.5214285714286
+        x: 2112
+        y: 208
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1263,11 +1058,11 @@ workflow:
       height: 136
       id: f0e1d2c3-b4a5-6978-9abc-def012345606
       position:
-        x: 3882
-        y: 247.33333333333337
+        x: 2474
+        y: 227
       positionAbsolute:
-        x: 3882
-        y: 247.33333333333337
+        x: 2474
+        y: 227
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1314,191 +1109,15 @@ workflow:
           write: 120
         title: 知识库create-by-text
         type: http-request
-        url: http://api:5001/v1/datasets/6109896f-0cae-4a3a-85f4-161f936d9baa/document/create-by-text
+        url: http://api:5001/v1/datasets/99abd904-f0e0-45f3-95a8-660b44b17cc5/document/create-by-text
       height: 312
       id: f0e1d2c3-b4a5-6978-9abc-def012345604
       position:
-        x: 4244
-        y: 6.533333333333374
+        x: 2816
+        y: 126
       positionAbsolute:
-        x: 4244
-        y: 6.533333333333374
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        code: "import json\nimport time\n\n# super-agent-user-memory 自定义 Metadata 字段 ID（Phase0\
-          \ 创建；若重建知识库需同步更新）\n_META = {\n    \"user_id\": (\"9fbfa426-66b7-4867-9cd7-875740dde8cc\"\
-          , \"user_id\"),\n    \"memory_layer\": (\"0499c22d-5557-48f9-8fd9-ca65073db5b1\"\
-          , \"memory_layer\"),\n    \"memory_id\": (\"31ea96cd-4e00-4ce2-96b8-43d520526006\"\
-          , \"memory_id\"),\n    \"created_at\": (\"7ea7ad82-aa35-44a4-b139-ee7bfc9cae51\"\
-          , \"created_at\"),\n    \"memory_source\": (\"2b352140-2d6d-416e-ac49-12d0127305ac\"\
-          , \"memory_source\"),\n}\n\ndef _load_json(raw):\n    if raw is None:\n\
-          \        return None\n    if isinstance(raw, dict):\n        return raw\n\
-          \    if isinstance(raw, str):\n        s = raw.strip()\n        if not s:\n\
-          \            return None\n        try:\n            return json.loads(s)\n\
-          \        except Exception:\n            return None\n    return None\n\n\
-          def main(create_body, create_status, user_id: str) -> dict:\n    empty =\
-          \ {\"do_metadata\": 0, \"metadata_body\": \"\"}\n    try:\n        status\
-          \ = int(create_status or 0)\n    except Exception:\n        status = 0\n\
-          \    if status < 200 or status >= 300:\n        return empty\n    data =\
-          \ _load_json(create_body)\n    if not isinstance(data, dict):\n        return\
-          \ empty\n    doc = data.get(\"document\") if isinstance(data.get(\"document\"\
-          ), dict) else data\n    doc_id = doc.get(\"id\") if isinstance(doc, dict)\
-          \ else None\n    if not doc_id:\n        return empty\n    uid = (user_id\
-          \ or \"default-user\").split(\"@\")[0].strip() or \"default-user\"\n    now_ms\
-          \ = int(time.time() * 1000)\n    mem_id = f\"l1_{now_ms}\"\n    values =\
-          \ {\n        \"user_id\": uid,\n        \"memory_layer\": \"l1_session\"\
-          ,\n        \"memory_id\": mem_id,\n        \"created_at\": now_ms,\n   \
-          \     \"memory_source\": \"mychat_memory_kb\",\n    }\n    metadata_list\
-          \ = []\n    for key, (field_id, field_name) in _META.items():\n        metadata_list.append({\n\
-          \            \"id\": field_id,\n            \"name\": field_name,\n    \
-          \        \"value\": values[key],\n        })\n    payload = {\n        \"\
-          operation_data\": [{\n            \"document_id\": doc_id,\n           \
-          \ \"partial_update\": True,\n            \"metadata_list\": metadata_list,\n\
-          \        }]\n    }\n    return {\n        \"do_metadata\": 1,\n        \"\
-          metadata_body\": json.dumps(payload, ensure_ascii=False),\n    }\n"
-        code_language: python3
-        desc: create-by-text 成功后构建 documents/metadata 请求体（user_id/memory_layer 等）
-        outputs:
-          do_metadata:
-            children: null
-            type: number
-          metadata_body:
-            children: null
-            type: string
-        selected: false
-        title: 构建KB文档Metadata
-        type: code
-        variables:
-        - value_selector:
-          - f0e1d2c3-b4a5-6978-9abc-def012345604
-          - body
-          value_type: string
-          variable: create_body
-        - value_selector:
-          - f0e1d2c3-b4a5-6978-9abc-def012345604
-          - status_code
-          value_type: number
-          variable: create_status
-        - value_selector:
-          - sys
-          - user_id
-          value_type: string
-          variable: user_id
-      height: 120
-      id: dddd8888-8888-4888-8888-dddd888888888
-      position:
-        x: 4586
-        y: 6.533333333333374
-      positionAbsolute:
-        x: 4586
-        y: 6.533333333333374
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        cases:
-        - case_id: 'true'
-          conditions:
-          - comparison_operator: '='
-            id: dddd7777-do-metadata-cond
-            value: '1'
-            varType: number
-            variable_selector:
-            - dddd8888-8888-4888-8888-dddd888888888
-            - do_metadata
-          id: 'true'
-          logical_operator: and
-        selected: false
-        title: 是否写KB元数据
-        type: if-else
-      height: 100
-      id: dddd7777-7777-4777-8777-dddd777777777
-      position:
-        x: 4928
-        y: 6.533333333333374
-      positionAbsolute:
-        x: 4928
-        y: 6.533333333333374
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: variable
-          operation: over-write
-          value:
-          - dddd8888-8888-4888-8888-dddd888888888
-          - metadata_body
-          variable_selector:
-          - conversation
-          - KB_Metadata_Body
-          write_mode: over-write
-        selected: false
-        title: KB元数据Body写入会话
-        type: assigner
-        version: '2'
-      height: 84
-      id: dddd6666-6666-4666-8666-dddd666666666
-      position:
-        x: 5270
-        y: 6.533333333333374
-      positionAbsolute:
-        x: 5270
-        y: 6.533333333333374
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        authorization:
-          config:
-            api_key: dataset-Jk5ehEEDT72wmXI5P68hcTlI
-            type: bearer
-          type: api-key
-        body:
-          data:
-          - id: meta-body-field-001
-            key: ''
-            type: text
-            value: '{{#conversation.KB_Metadata_Body#}}'
-          type: raw-text
-        desc: POST documents/metadata 写入 user_id/memory_layer 等（super-agent-user-memory
-          6109896f）。Body 绑定 conversation.KB_Metadata_Body。
-        headers: 'Content-Type: application/json
-
-          Accept: application/json'
-        method: post
-        params: ''
-        retry_config:
-          enabled: true
-          max_retries: 3
-          retry_interval: 1000
-        selected: false
-        ssl_verify: true
-        timeout:
-          connect: 10
-          read: 30
-          write: 30
-        title: KB文档写Metadata
-        type: http-request
-        url: http://api:5001/v1/datasets/6109896f-0cae-4a3a-85f4-161f936d9baa/documents/metadata
-      height: 200
-      id: dddd5555-5555-4555-8555-dddd555555555
-      position:
-        x: 5612
-        y: 6.533333333333374
-      positionAbsolute:
-        x: 5612
-        y: 6.533333333333374
+        x: 2816
+        y: 126
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1539,11 +1158,11 @@ workflow:
       height: 248
       id: f0e1d2c3-b4a5-6978-9abc-def012345607
       position:
-        x: 4244
-        y: 398.5333333333333
+        x: 2816
+        y: 300
       positionAbsolute:
-        x: 4244
-        y: 398.5333333333333
+        x: 2816
+        y: 300
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1564,11 +1183,11 @@ workflow:
       height: 52
       id: f0e1d2c3-b4a5-6978-9abc-def012345605
       position:
-        x: 3882
-        y: 463.33333333333337
+        x: 2474
+        y: 417
       positionAbsolute:
-        x: 3882
-        y: 463.33333333333337
+        x: 2474
+        y: 417
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1633,11 +1252,11 @@ workflow:
       height: 112
       id: e7777777-7777-4777-8777-777777777777
       position:
-        x: 2836
-        y: 490.35476190476186
+        x: 1428
+        y: 440
       positionAbsolute:
-        x: 2836
-        y: 490.35476190476186
+        x: 1428
+        y: 440
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1661,11 +1280,11 @@ workflow:
       height: 84
       id: e6666666-6666-4666-8666-666666666666
       position:
-        x: 3178
-        y: 523.0214285714286
+        x: 1770
+        y: 454
       positionAbsolute:
-        x: 3178
-        y: 523.0214285714286
+        x: 1770
+        y: 454
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1689,11 +1308,11 @@ workflow:
       height: 84
       id: '1775880683606'
       position:
-        x: 3178
-        y: 16.666666666666657
+        x: 1770
+        y: 2
       positionAbsolute:
-        x: 3178
-        y: 16.666666666666657
+        x: 1770
+        y: 2
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1730,11 +1349,11 @@ workflow:
       height: 112
       id: c0ffee010001
       position:
-        x: 3520
-        y: 16.666666666666657
+        x: 2112
+        y: 2
       positionAbsolute:
-        x: 3520
-        y: 16.666666666666657
+        x: 2112
+        y: 2
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1773,11 +1392,11 @@ workflow:
       height: 152
       id: c0ffee010002
       position:
-        x: 3862
-        y: 15.333333333333343
+        x: 2454
+        y: 2
       positionAbsolute:
-        x: 3862
-        y: 15.333333333333343
+        x: 2454
+        y: 2
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -1792,231 +1411,18 @@ workflow:
       height: 103
       id: '1775881305156'
       position:
-        x: 3520
-        y: 527.5214285714286
+        x: 2112
+        y: 444
       positionAbsolute:
-        x: 3520
-        y: 527.5214285714286
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        code: "def main(app_user_id: str, sys_user_id: str, sys_query: str, memory_pack:\
-          \ str) -> dict:\n    import urllib.parse\n    raw = (app_user_id or sys_user_id\
-          \ or \"default-user\").strip()\n    uid = raw.split(\"@\")[0].strip() or\
-          \ \"default-user\"\n    q = (sys_query or \"\").strip()\n    q_for_kw = q.split(\"\
-          [用户问题]\", 1)[-1].strip() if \"[用户问题]\" in q else q\n    keywords = [kw\
-          \ for kw in (\"口音\", \"英式\", \"英音\", \"澳式\", \"美式\", \"偏好\", \"习惯\", \"\
-          目标\", \"边界\") if kw in q_for_kw]\n    recall_query = \" \".join(keywords)\
-          \ if keywords else (q_for_kw[:80] if q_for_kw else \"memory\")\n    recall_query_enc\
-          \ = urllib.parse.quote(recall_query, safe=\"\")\n    pack = (memory_pack\
-          \ or \"\").strip()\n    if not pack and \"[结构化记忆]\" in q:\n        head\
-          \ = q.split(\"[用户问题]\", 1)[0] if \"[用户问题]\" in q else q\n        pack =\
-          \ head.replace(\"[结构化记忆]\", \"\").strip()\n    return {\"uid\": uid, \"\
-          recall_query\": recall_query, \"recall_query_enc\": recall_query_enc, \"\
-          memory_pack_text\": pack}\n"
-        code_language: python3
-        desc: 解析 user_id + 透传 memory_pack（支持 query 嵌入）
-        outputs:
-          memory_pack_text:
-            children: null
-            type: string
-          recall_query:
-            children: null
-            type: string
-          recall_query_enc:
-            children: null
-            type: string
-          uid:
-            children: null
-            type: string
-        selected: false
-        title: 解析登录user_id
-        type: code
-        variables:
-        - value_selector:
-          - '1775878243074'
-          - app_user_id
-          value_type: string
-          variable: app_user_id
-        - value_selector:
-          - sys
-          - user_id
-          value_type: string
-          variable: sys_user_id
-        - value_selector:
-          - sys
-          - query
-          value_type: string
-          variable: sys_query
-        - value_selector:
-          - '1775878243074'
-          - memory_pack
-          value_type: string
-          variable: memory_pack
-      height: 112
-      id: aaaa1111-1111-4111-8111-aaaa111111111
-      position:
-        x: 342
-        y: 164.09047619047618
-      positionAbsolute:
-        x: 342
-        y: 164.09047619047618
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        authorization:
-          config: null
-          type: no-auth
-        body:
-          data: []
-          type: none
-        desc: GET plain-text memory pack（recall+context 服务端合并，避免 Dify JSON 解析失败）
-        headers: 'Accept: application/json'
-        method: get
-        params: ''
-        retry_config:
-          enabled: true
-          max_retries: 2
-          retry_interval: 1000
-        selected: false
-        ssl_verify: true
-        timeout:
-          connect: 10
-          read: 30
-          write: 30
-        title: HTTP记忆pack
-        type: http-request
-        url: https://app.liujingzhuwo.site/api/user/memory/pack-for-llm?userId={{#aaaa1111-1111-4111-8111-aaaa111111111.uid#}}&query={{#aaaa1111-1111-4111-8111-aaaa111111111.recall_query_enc#}}&format=json
-      height: 170
-      id: aaaa3333-3333-4333-8333-aaaa333333333
-      position:
-        x: 704
-        y: 373.0904761904762
-      positionAbsolute:
-        x: 704
-        y: 373.0904761904762
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        code: "import json\nimport ast\nimport re\n\ndef _kb_to_text(kb_result) -> str:\n    if\
-          \ not kb_result:\n        return \"\"\n    if isinstance(kb_result, str):\n\
-          \        return kb_result.strip()\n    lines = []\n    items = kb_result\
-          \ if isinstance(kb_result, list) else []\n    for i, item in enumerate(items[:8]):\n\
-          \        if isinstance(item, dict):\n            content = item.get(\"content\"\
-          ) or item.get(\"text\") or \"\"\n            title = item.get(\"title\"\
-          ) or item.get(\"document_name\") or \"\"\n            line = str(content).strip()\
-          \ or str(title).strip()\n        else:\n            line = str(item).strip()\n\
-          \        if line:\n            lines.append(f\"{i + 1}. {line[:500]}\")\n\
-          \    return \"\\n\".join(lines)\n\ndef _extract_pack(raw) -> str:\n   \
-          \ if raw is None:\n        return \"\"\n    if isinstance(raw, dict):\n\
-          \        if raw.get(\"success\") and raw.get(\"data\"):\n            return\
-          \ str(raw[\"data\"].get(\"text\") or \"\").strip()\n        return str(raw.get(\"\
-          data\", {}).get(\"text\") or raw.get(\"text\") or \"\").strip()\n    if\
-          \ isinstance(raw, (bytes, bytearray)):\n        return raw.decode(\"utf-8\"\
-          , errors=\"replace\").strip()\n    s = str(raw).strip()\n    if not s:\n\
-          \        return \"\"\n    if s.startswith(\"{\"):\n        try:\n      \
-          \      obj = json.loads(s)\n        except Exception:\n            try:\n\
-          \                obj = ast.literal_eval(s)\n            except Exception:\n\
-          \                obj = None\n        if isinstance(obj, dict):\n        \
-          \    if obj.get(\"success\") and obj.get(\"data\"):\n                return\
-          \ str(obj[\"data\"].get(\"text\") or \"\").strip()\n            return str(obj.get(\"\
-          data\", {}).get(\"text\") or obj.get(\"text\") or s).strip()\n    return\
-          \ s\n\ndef _filter_kb_uk_noise(text, anchor):\n    if not text or not anchor:\n\
-          \        return text or \"\"\n    if not re.search(r\"【口音偏好（权威）】.*澳式|偏好澳式|澳式口音\"\
-          , anchor):\n        return text\n    out = []\n    for line in str(text).split(\"\
-          \\n\"):\n        if re.search(r\"英音|英式\", line) and not re.search(r\"澳式\"\
-          , line):\n            continue\n        out.append(line)\n    return \"\\\
-          n\".join(out).strip()\n\ndef _extract_from_query(q) -> str:\n    if not q:\n        return\
-          \ \"\"\n    s = str(q).strip()\n    if \"[结构化记忆]\" not in s:\n        return\
-          \ \"\"\n    if \"[用户问题]\" in s:\n        return s.split(\"[用户问题]\", 1)[0].replace(\"\
-          [结构化记忆]\", \"\").strip()\n    return s.replace(\"[结构化记忆]\", \"\").strip()\n\
-          \ndef main(kb_business, kb_memory, pack_body, pack_status, memory_pack_text:\
-          \ str, sys_query: str) -> dict:\n    biz_text = _kb_to_text(kb_business)\n\
-          \    mem_text = _kb_to_text(kb_memory)\n    http_text = (memory_pack_text\
-          \ or \"\").strip() or _extract_pack(pack_body) or _extract_from_query(sys_query)\n\
-          \    mem_text = _filter_kb_uk_noise(mem_text, http_text)\n    biz_text =\
-          \ _filter_kb_uk_noise(biz_text, http_text)\n    if not http_text:\n     \
-          \   try:\n            code = int(pack_status or 0)\n        except Exception:\n\
-          \            code = 0\n        if code >= 400:\n            http_text =\
-          \ f\"（memory pack HTTP {code}）\"\n    sections = []\n    if http_text:\n\
-          \        sections.append(http_text)\n    if mem_text:\n        sections.append(\"\
-          【向量检索·用户记忆库】\\n\" + mem_text)\n    if biz_text:\n        sections.append(\"\
-          【向量检索·业务知识库】\\n\" + biz_text)\n    if not sections:\n        sections.append(\"\
-          （本轮未检索到历史记忆，仅依据侧写与会话作答。）\")\n    merged = \"\\n\\n\".join(sections)\n\
-          \    kb_used = \"1\" if (biz_text or mem_text) else \"0\"\n    recall_used\
-          \ = \"1\" if http_text and \"【结构化即时召回】\" in http_text else \"0\"\n    return\
-          \ {\n        \"merged_memory_context\": merged,\n        \"recall_used\"\
-          : recall_used,\n        \"kb_used\": kb_used,\n    }\n"
-        code_language: python3
-        desc: 融合双 KB + HTTP pack + 澳式权威时过滤向量库英音噪声
-        outputs:
-          kb_used:
-            children: null
-            type: string
-          merged_memory_context:
-            children: null
-            type: string
-          recall_used:
-            children: null
-            type: string
-        selected: false
-        title: 融合记忆上下文
-        type: code
-        variables:
-        - value_selector:
-          - '1775878356368'
-          - result
-          value_type: array[object]
-          variable: kb_business
-        - value_selector:
-          - bbbb5555-5555-4555-8555-bbbb555555555
-          - result
-          value_type: array[object]
-          variable: kb_memory
-        - value_selector:
-          - aaaa3333-3333-4333-8333-aaaa333333333
-          - body
-          value_type: string
-          variable: pack_body
-        - value_selector:
-          - aaaa3333-3333-4333-8333-aaaa333333333
-          - status_code
-          value_type: number
-          variable: pack_status
-        - value_selector:
-          - aaaa1111-1111-4111-8111-aaaa111111111
-          - memory_pack_text
-          value_type: string
-          variable: memory_pack_text
-        - value_selector:
-          - sys
-          - query
-          value_type: string
-          variable: sys_query
-      height: 96
-      id: aaaa4444-4444-4444-8444-aaaa444444444
-      position:
-        x: 1750
-        y: 216.58095238095234
-      positionAbsolute:
-        x: 1750
-        y: 216.58095238095234
+        x: 2112
+        y: 444
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     viewport:
-      x: -1446
-      y: 107
+      x: -1147.5
+      y: 138.90000000000003
       zoom: 0.7
   rag_pipeline_variables: []

@@ -367,7 +367,9 @@ function mergeL3Vars(existing, delta) {
 function inferL3VarsDeltaFromText(text) {
   const delta = {};
   const raw = String(text || '');
-  if (/英音|英国|\(UK\)|\bUK\b|\[profile:\s*uk\]/i.test(raw)) {
+  if (/澳式|澳大利亚|\(AU\)|\bAU\b|澳洲/i.test(raw)) {
+    delta.accent = 'AU';
+  } else if (/英音|英国|\(UK\)|\bUK\b|\[profile:\s*uk\]/i.test(raw)) {
     delta.accent = 'UK';
     delta.spelling_variant = 'UK';
   } else if (/美音|美国|\(US\)|\bUS\b|\[profile:\s*us\]/i.test(raw)) {
@@ -429,9 +431,11 @@ function formatEpisodeLine(episode, index) {
 
 function buildMemoryContextForUser(userId) {
   const uid = normalizeMemoryUserId(userId);
-  const row = db.prepare('SELECT memory_layers, error_ledger FROM user_memories WHERE user_id = ?').get(uid);
+  const row = db.prepare('SELECT profile_content, memory_layers, error_ledger FROM user_memories WHERE user_id = ?').get(uid);
   const memoryLayers = parseJsonObject(row?.memory_layers, {});
   const ledger = parseJsonObject(row?.error_ledger, {});
+  const profileSummary = String(row?.profile_content || '').trim().slice(0, 600)
+    || '暂无用户画像摘要。';
 
   const episodeLines = (Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [])
     .slice(0, 5)
@@ -458,7 +462,7 @@ function buildMemoryContextForUser(userId) {
 
   const graphSummary = formatGraphSummary(memoryLayers);
 
-  return { recentEpisodesSummary, errorLedgerSummary, graphSummary, memoryLayers };
+  return { profileSummary, recentEpisodesSummary, errorLedgerSummary, graphSummary, memoryLayers };
 }
 
 function normalizeGraphNodeName(name) {
@@ -595,6 +599,109 @@ function composeMemorySummaryForPrompt(memoryCtx) {
     parts.push(`关系记忆（Graph）：\n${memoryCtx.graphSummary}`);
   }
   return parts.join('\n\n');
+}
+
+const ACCENT_AUTHORITY_LABELS = {
+  AU: '澳式口音',
+  UK: '英音',
+  US: '美式口音',
+};
+
+function resolveAuthoritativeAccent(profileText, l3Vars) {
+  const p = String(profileText || '');
+  const ausCount = (p.match(/澳式|澳大利亚/g) || []).length;
+  const ukCount = (p.match(/英音|英式/g) || []).length;
+  if (ausCount > 0 && ausCount >= ukCount) return 'AU';
+  if (/美式/.test(p)) return 'US';
+  if (ukCount > 0) return 'UK';
+  const l3 = l3Vars?.accent;
+  if (l3 === 'AU' || l3 === 'UK' || l3 === 'US') return l3;
+  return null;
+}
+
+function filterStaleUkAccentLines(text, authAccent) {
+  if (!text || authAccent !== 'AU') return String(text || '').trim();
+
+  const cleanSegment = (seg) => {
+    const s = String(seg || '').trim();
+    if (!s) return '';
+    if (/英音|英式|accent\s*=\s*UK/i.test(s) && !/澳式|澳大利亚/.test(s)) return '';
+    return s.replace(/\baccent=UK\b/gi, 'accent=AU');
+  };
+
+  return String(text)
+    .split('\n')
+    .map((line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return '';
+      if (/;/.test(trimmed)) {
+        const parts = trimmed.split(';').map(cleanSegment).filter(Boolean);
+        return parts.join('; ');
+      }
+      return cleanSegment(trimmed);
+    })
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+}
+
+function buildMemoryPackForLlm(userId, query) {
+  const uid = normalizeMemoryUserId(userId);
+  const ctx = buildMemoryContextForUser(uid);
+  const recall = recallMemoryForUser(uid, query || 'memory', 8);
+  const authAccent = resolveAuthoritativeAccent(ctx.profileSummary, ctx.memoryLayers?.l3_vars);
+  const authLabel = authAccent ? ACCENT_AUTHORITY_LABELS[authAccent] : null;
+
+  let recallContext = filterStaleUkAccentLines(recall.context || '', authAccent);
+  const profileSummary = filterStaleUkAccentLines(ctx.profileSummary || '', authAccent);
+  const recentEpisodesSummary = filterStaleUkAccentLines(ctx.recentEpisodesSummary || '', authAccent);
+  const errorLedgerSummary = filterStaleUkAccentLines(ctx.errorLedgerSummary || '', authAccent);
+  const graphSummary = filterStaleUkAccentLines(ctx.graphSummary || '', authAccent);
+
+  const sections = [];
+  if (authLabel) {
+    sections.push(
+      `【口音偏好（权威）】用户练口语偏好${authLabel}。`
+      + '若下文 graph/episode/向量库/旧侧写/L3 出现与此冲突的其他口音表述，一律以本行为准，视为过期记录。',
+    );
+  }
+  if (recallContext) {
+    sections.push(`【结构化即时召回】\n${recallContext}`);
+  }
+  const ctxParts = [];
+  if (profileSummary && profileSummary !== '暂无用户画像摘要。') {
+    ctxParts.push(`【用户画像】\n${profileSummary}`);
+  }
+  if (recentEpisodesSummary && recentEpisodesSummary !== '暂无近期情景记忆。') {
+    ctxParts.push(`【近期情景】\n${recentEpisodesSummary}`);
+  }
+  if (errorLedgerSummary && errorLedgerSummary !== '暂无结构化短板记录。') {
+    ctxParts.push(`【训练短板】\n${errorLedgerSummary}`);
+  }
+  if (graphSummary && graphSummary !== '暂无关系记忆。') {
+    ctxParts.push(`【关系记忆】\n${graphSummary}`);
+  }
+  const l3 = ctx.memoryLayers?.l3_vars;
+  if (l3 && typeof l3 === 'object') {
+    const l3Copy = { ...l3 };
+    if (authAccent === 'AU' && l3Copy.accent === 'UK') {
+      l3Copy.accent = 'AU';
+    }
+    if (l3Copy.accent) {
+      ctxParts.push(`【L3变量】\naccent=${l3Copy.accent}${l3Copy.training_goal ? `\ntraining_goal=${l3Copy.training_goal}` : ''}`);
+    }
+  }
+  if (ctxParts.length) {
+    sections.push(`【画像与关系上下文】\n${ctxParts.join('\n\n')}`);
+  }
+  return sections.join('\n\n').trim();
+}
+
+function buildRecallQueryFromUserQuery(query) {
+  const q = String(query || '').trim();
+  const keywords = ['口音', '英式', '英音', '澳式', '美式', '偏好', '习惯', '目标', '边界'];
+  const found = keywords.filter((kw) => q.includes(kw));
+  return found.length ? found.join(' ') : (q.slice(0, 80) || 'memory');
 }
 
 function normalizeRecallQuery(query) {
@@ -2062,6 +2169,24 @@ app.get('/api/user/memory/recall', (req, res) => {
   }
 });
 
+app.get('/api/user/memory/pack-for-llm', (req, res) => {
+  try {
+    const userId = req.query.userId || req.query.user_id;
+    const query = req.query.query || req.query.q || '';
+    const format = String(req.query.format || 'json').trim().toLowerCase();
+    if (!userId) {
+      return res.status(400).json({ success: false, error: '缺少 userId。' });
+    }
+    const text = buildMemoryPackForLlm(userId, query);
+    if (format === 'text') {
+      return res.type('text/plain; charset=utf-8').send(text || '（本轮未检索到结构化记忆。）');
+    }
+    res.json({ success: true, data: { text: text || '（本轮未检索到结构化记忆。）' } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/user/memory/dreaming/run', async (req, res) => {
   try {
     const { userId } = req.body || {};
@@ -3233,6 +3358,76 @@ app.get('/api/dify/embed-session', async (req, res) => {
   } catch (err) {
     console.error('[embed-session] error:', err);
     return res.status(500).json({ message: err.message || 'embed 会话校验失败' });
+  }
+});
+
+// mychat 对话代理：服务端拉取 memory_pack 注入 Dify inputs（规避工作流 HTTP 节点丢 body）
+app.post('/api/dify/mychat/chat', async (req, res) => {
+  const {
+    query,
+    conversationId = null,
+    userId = 'default-user',
+    inputs = {},
+    responseMode = 'blocking',
+  } = req.body || {};
+
+  if (!query || typeof query !== 'string') {
+    return res.status(400).json({ message: '缺少 query 参数。' });
+  }
+
+  const apiKey = process.env.DIFY_CHATBOT_API_KEY
+    || process.env.VITE_DIFY_CHATBOT_API_KEY
+    || 'app-TyztRkdBVX4kNUxA8dZ0frk7';
+  const baseUrl = process.env.DIFY_API_BASE_URL
+    || process.env.VITE_DIFY_API_BASE_URL
+    || 'https://dify.234124123.xyz/v1';
+
+  const rawUser = String(userId || inputs.app_user_id || 'default-user').trim();
+  const uid = normalizeMemoryUserId(rawUser.split('@')[0] || rawUser);
+  const recallQ = buildRecallQueryFromUserQuery(query);
+  let memoryPack = '';
+  try {
+    memoryPack = buildMemoryPackForLlm(uid, recallQ);
+  } catch (err) {
+    console.error('[mychat/chat] memory pack failed:', err);
+  }
+
+  const packText = String(inputs.memory_pack || memoryPack || '').trim();
+  const mergedInputs = {
+    ...inputs,
+    app_user_id: uid,
+    memory_pack: packText,
+  };
+  // 将 memory_pack 嵌入 sys.query，规避 Dify 工作流 paragraph/跨节点变量丢失
+  const difyQuery = packText
+    ? `[结构化记忆]\n${packText}\n\n[用户问题]\n${query}`
+    : query;
+
+  try {
+    const response = await fetch(`${baseUrl}/chat-messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: mergedInputs,
+        query: difyQuery,
+        response_mode: responseMode,
+        user: rawUser,
+        ...(conversationId ? { conversation_id: conversationId } : {}),
+      }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      console.error('[mychat/chat] Dify error:', response.status, data);
+      return res.status(response.status).json(data);
+    }
+    return res.json(data);
+  } catch (err) {
+    console.error('[mychat/chat] error:', err);
+    return res.status(500).json({ message: err.message || 'mychat 对话代理失败' });
   }
 });
 

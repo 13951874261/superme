@@ -10,6 +10,9 @@ const DIFY_EMBED_TOKEN =
   import.meta.env.VITE_DIFY_CHATBOT_TOKEN || 'Gz2zXRlfsAr5jYgC';
 const DIFY_EMBED_BASE_URL =
   import.meta.env.VITE_DIFY_CHATBOT_BASE_URL || 'https://dify.234124123.xyz';
+const EMBED_MEMORY_PACK_QUERY = 'memory';
+const EMBED_MEMORY_PACK_MAX_LEN = 4000;
+const EMBED_IFRAME_URL_MAX_LEN = 2048;
 
 const DIFY_EMBED_CONVERSATION_PREFIX = 'dify_embed_conversation_';
 const DIFY_EMBED_SID_KEY = 'dify_embed_session_id';
@@ -87,57 +90,31 @@ async function compressAndEncodeBase64(input: string): Promise<string> {
   return btoa(String.fromCharCode(...compressedUint8Array));
 }
 
-/** 与主站 injectUserProfileAndTime 对齐的 embed inputs */
-export function buildDifyChatbotConfig(options?: {
-  userId?: string;
-  conversationId?: string;
-}): DifyChatbotConfig {
-  const accountUserId = getAppAccountUserId();
-  const systemVariables: { user_id: string; conversation_id?: string } = {
-    user_id: options?.userId ?? getDifyChatbotUserId(),
-  };
-  if (options?.conversationId !== undefined) {
-    systemVariables.conversation_id = options.conversationId;
+/** 启动 embed 前拉取结构化记忆包，供 Dify inputs.memory_pack 注入 */
+export async function fetchEmbedMemoryPack(accountUserId?: string): Promise<string> {
+  const uid = String(accountUserId || getAppAccountUserId()).trim();
+  if (!uid) return '';
+  try {
+    const params = new URLSearchParams({
+      userId: uid,
+      query: EMBED_MEMORY_PACK_QUERY,
+      format: 'json',
+    });
+    const res = await fetch(`/api/user/memory/pack-for-llm?${params.toString()}`);
+    if (!res.ok) return '';
+    const json = await res.json();
+    const text = String(json?.data?.text || '').trim();
+    if (!text) return '';
+    return text.length > EMBED_MEMORY_PACK_MAX_LEN
+      ? text.slice(0, EMBED_MEMORY_PACK_MAX_LEN)
+      : text;
+  } catch (e) {
+    console.warn('[difyChatbot] fetch memory_pack failed:', e);
+    return '';
   }
-
-  const pushPlan = getNextWeekPushPlan();
-  const rebalanceFocus = pushPlan?.generalFocus?.join('、')
-    || pushPlan?.oralSandbox?.focus
-    || '';
-  const graphSummary = getGraphSummaryLocal();
-  const profileBase = getUserCurrentProfile();
-  const profileWithGraph = graphSummary
-    ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}`
-    : profileBase;
-
-  return {
-    token: DIFY_EMBED_TOKEN,
-    baseUrl: DIFY_EMBED_BASE_URL.replace(/\/$/, ''),
-    inputs: {
-      app_user_id: accountUserId,
-      user_current_profile: profileWithGraph,
-      _system_time: getCurrentFormattedTime(),
-      _system_timestamp_ms: Date.now(),
-      ...(rebalanceFocus ? { training_rebalance_focus: rebalanceFocus } : {}),
-    },
-    systemVariables,
-    userVariables: {},
-  };
 }
 
-/**
- * 按 Dify embed.js 规则压缩 query，供 iframe / embed 使用。
- * 新 embed 桶 + 空 conversation_id，无需等待后端 embed-session（避免 AbortError）。
- */
-export async function buildDifyChatbotIframeUrl(options?: {
-  userId?: string;
-  forceNew?: boolean;
-}): Promise<string> {
-  const userId = options?.userId ?? getDifyChatbotUserId();
-  const config = buildDifyChatbotConfig({
-    userId,
-    conversationId: '',
-  });
+async function encodeConfigToChatbotUrl(config: DifyChatbotConfig): Promise<string> {
   const params = new URLSearchParams();
 
   await Promise.all(
@@ -158,9 +135,90 @@ export async function buildDifyChatbotIframeUrl(options?: {
     }),
   );
 
-  const url = `${config.baseUrl}/chatbot/${config.token}?${params.toString()}&_refresh=${Date.now()}`;
-  if (url.length > 2048) {
-    console.warn('[difyChatbot] iframe URL exceeds 2048 chars; reduce inputs if load fails.');
+  return `${config.baseUrl}/chatbot/${config.token}?${params.toString()}&_refresh=${Date.now()}`;
+}
+
+/** 与主站 injectUserProfileAndTime 对齐的 embed inputs */
+export function buildDifyChatbotConfig(options?: {
+  userId?: string;
+  conversationId?: string;
+  memoryPack?: string;
+}): DifyChatbotConfig {
+  const accountUserId = getAppAccountUserId();
+  const systemVariables: { user_id: string; conversation_id?: string } = {
+    user_id: options?.userId ?? getDifyChatbotUserId(),
+  };
+  if (options?.conversationId !== undefined) {
+    systemVariables.conversation_id = options.conversationId;
+  }
+
+  const pushPlan = getNextWeekPushPlan();
+  const rebalanceFocus = pushPlan?.generalFocus?.join('、')
+    || pushPlan?.oralSandbox?.focus
+    || '';
+  const graphSummary = getGraphSummaryLocal();
+  const profileBase = getUserCurrentProfile();
+  const profileWithGraph = graphSummary
+    ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}`
+    : profileBase;
+  const memoryPack = String(options?.memoryPack || '').trim();
+
+  return {
+    token: DIFY_EMBED_TOKEN,
+    baseUrl: DIFY_EMBED_BASE_URL.replace(/\/$/, ''),
+    inputs: {
+      app_user_id: accountUserId,
+      user_current_profile: profileWithGraph,
+      _system_time: getCurrentFormattedTime(),
+      _system_timestamp_ms: Date.now(),
+      ...(rebalanceFocus ? { training_rebalance_focus: rebalanceFocus } : {}),
+      ...(memoryPack ? { memory_pack: memoryPack } : {}),
+    },
+    systemVariables,
+    userVariables: {},
+  };
+}
+
+export async function applyDifyChatbotConfigAsync(options?: {
+  userId?: string;
+  conversationId?: string;
+  skipMemoryPack?: boolean;
+}): Promise<DifyChatbotConfig> {
+  const memoryPack = options?.skipMemoryPack
+    ? ''
+    : await fetchEmbedMemoryPack();
+  const config = buildDifyChatbotConfig({
+    userId: options?.userId,
+    conversationId: options?.conversationId,
+    memoryPack,
+  });
+  window.difyChatbotConfig = config;
+  return config;
+}
+
+/**
+ * 按 Dify embed.js 规则压缩 query，供 iframe / embed 使用。
+ * 新 embed 桶 + 空 conversation_id，无需等待后端 embed-session（避免 AbortError）。
+ */
+export async function buildDifyChatbotIframeUrl(options?: {
+  userId?: string;
+  forceNew?: boolean;
+}): Promise<string> {
+  const userId = options?.userId ?? getDifyChatbotUserId();
+  const memoryPack = await fetchEmbedMemoryPack();
+  let config = buildDifyChatbotConfig({
+    userId,
+    conversationId: '',
+    memoryPack,
+  });
+  let url = await encodeConfigToChatbotUrl(config);
+  if (url.length > EMBED_IFRAME_URL_MAX_LEN && memoryPack) {
+    console.warn('[difyChatbot] iframe URL exceeds limit with memory_pack; retrying without memory_pack.');
+    config = buildDifyChatbotConfig({ userId, conversationId: '', memoryPack: '' });
+    url = await encodeConfigToChatbotUrl(config);
+  }
+  if (url.length > EMBED_IFRAME_URL_MAX_LEN) {
+    console.warn('[difyChatbot] iframe URL still exceeds 2048 chars; reduce inputs if load fails.');
   }
   return url;
 }
@@ -186,7 +244,7 @@ export function refreshDifyChatbotContext(): void {
     loadDifyChatbotEmbed();
     return;
   }
-  applyDifyChatbotConfig();
+  void applyDifyChatbotConfigAsync();
 }
 
 export function unloadDifyChatbotEmbed(): void {
@@ -199,10 +257,14 @@ export function unloadDifyChatbotEmbed(): void {
 
 /** 登录成功后注入配置并动态加载 embed.min.js（仅一次） */
 export function loadDifyChatbotEmbed(): void {
+  void loadDifyChatbotEmbedAsync();
+}
+
+async function loadDifyChatbotEmbedAsync(): Promise<void> {
   if (typeof window === 'undefined' || typeof document === 'undefined') return;
 
   ensureDifyEmbedScope();
-  applyDifyChatbotConfig();
+  await applyDifyChatbotConfigAsync();
 
   if (embedLoaded || document.getElementById(DIFY_EMBED_TOKEN)) {
     embedLoaded = true;
