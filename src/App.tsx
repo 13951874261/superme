@@ -20,7 +20,10 @@ import BiweeklyReviewModal from './components/modules/BiweeklyReviewModal';
 import { useBiweeklyReviewTrigger } from './hooks/useBiweeklyReviewTrigger';
 import {
   loadDifyChatbotEmbed,
+  prefetchEmbedMemoryPack,
+  prepareDifyAssistantIframe,
   refreshDifyChatbotContext,
+  rotateEmbedSessionOnPageLoad,
 } from './utils/difyChatbot';
 import { loadUserProfileFromServer } from './utils/profileHelper';
 
@@ -83,6 +86,9 @@ function AppContent() {
   );
 
   useEffect(() => {
+    rotateEmbedSessionOnPageLoad();
+    prefetchEmbedMemoryPack();
+    void prepareDifyAssistantIframe();
     loadDifyChatbotEmbed();
     const onVisible = () => {
       if (document.visibilityState === 'visible') {

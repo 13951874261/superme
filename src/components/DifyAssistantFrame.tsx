@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
-  buildDifyChatbotIframeUrl,
   getDifyChatbotUserId,
+  prepareDifyAssistantIframe,
+  prefetchEmbedMemoryPack,
 } from '../utils/difyChatbot';
 
 interface DifyAssistantFrameProps {
@@ -22,13 +23,12 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
   useEffect(() => {
     let cancelled = false;
     setError('');
-    setIframeSrc('');
-    setSessionUserId('');
 
     const userId = getDifyChatbotUserId();
     setSessionUserId(userId);
+    prefetchEmbedMemoryPack();
 
-    buildDifyChatbotIframeUrl({ userId })
+    prepareDifyAssistantIframe()
       .then((url) => {
         if (!cancelled && url) setIframeSrc(url);
       })
