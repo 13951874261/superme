@@ -467,6 +467,38 @@ async function mergeProfileWithDedupe(existing, delta, userId, meta = {}) {
   return dedupeProfileLocal(prev, next).mergedProfile;
 }
 
+const MANUAL_PROFILE_COMPRESS_DELTA = '【手动压缩】对已有画像全文做语义去重与精炼，合并重复主题，保留最新信息；忽略本条提示本身。';
+
+async function compressProfileContent(profileContent, userId) {
+  const text = String(profileContent || '').trim();
+  if (!text) {
+    return { mergedProfile: '', dedupeCount: 0, source: 'empty' };
+  }
+
+  if (isProfileDedupeEnabled()) {
+    try {
+      const llmResult = await runProfileDedupeWorkflow(
+        text,
+        MANUAL_PROFILE_COMPRESS_DELTA,
+        userId,
+        { source: 'manual_compress', at: Date.now() },
+      );
+      if (llmResult?.mergedProfile) {
+        return { ...llmResult, source: 'dify' };
+      }
+    } catch (err) {
+      console.warn('[Profile Dedupe] manual compress failed:', err.message);
+    }
+  }
+
+  const local = dedupeProfileLocal(text, '');
+  return {
+    mergedProfile: local.mergedProfile,
+    dedupeCount: local.dedupeCount,
+    source: 'local',
+  };
+}
+
 const L3_VAR_KEYS = new Set(['accent', 'locale', 'timezone', 'training_goal', 'spelling_variant', 'weakness_focus']);
 
 function normalizeL3VarKey(key) {
@@ -2358,6 +2390,52 @@ app.post('/api/user/profile/save', (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/user/profile/compress', async (req, res) => {
+  const { userId, profileContent, save = true } = req.body || {};
+  const uid = normalizeMemoryUserId(userId);
+  const now = Date.now();
+
+  try {
+    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    const input = String(profileContent ?? row?.profile_content ?? '').trim();
+    if (!input) {
+      return res.status(400).json({ success: false, error: '画像内容为空，无法压缩。' });
+    }
+
+    const beforeLen = input.length;
+    const compressed = await compressProfileContent(input, uid);
+    const mergedProfile = String(compressed.mergedProfile || '').trim();
+    if (!mergedProfile) {
+      return res.status(500).json({ success: false, error: '压缩结果为空，请稍后重试。' });
+    }
+
+    if (save) {
+      upsertUserMemoryRow(uid, {
+        profileContent: mergedProfile,
+        errorLedger: row?.error_ledger || '{}',
+        memoryLayers: row?.memory_layers || '{}',
+        updatedAt: now,
+      });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        user_id: uid,
+        profile_content: mergedProfile,
+        dedupe_count: compressed.dedupeCount || 0,
+        source: compressed.source || 'unknown',
+        before_length: beforeLen,
+        after_length: mergedProfile.length,
+        updated_at: now,
+      },
+    });
+  } catch (err) {
+    console.error('[Profile Compress] error:', err);
+    res.status(500).json({ success: false, error: err.message || '画像压缩失败' });
   }
 });
 

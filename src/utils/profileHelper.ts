@@ -102,6 +102,44 @@ export function saveUserCurrentProfile(profile: string) {
   void syncProfileToServer(profile);
 }
 
+/** 调用后端 Dify Profile Dedupe 工作流，手动压缩画像并可选持久化 */
+export async function compressUserProfile(
+  profileContent?: string,
+  save = true,
+): Promise<{
+  mergedProfile: string;
+  dedupeCount: number;
+  source: string;
+  beforeLength: number;
+  afterLength: number;
+}> {
+  const res = await fetch('/api/user/profile/compress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: getAppUserId(),
+      profileContent: profileContent ?? getStoredProfileRaw(),
+      save,
+    }),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json?.success) {
+    throw new Error(json?.error || `画像压缩失败 HTTP ${res.status}`);
+  }
+  const data = json.data || {};
+  const mergedProfile = String(data.profile_content || '').trim();
+  if (save && mergedProfile) {
+    writeProfileLocal(mergedProfile, Number(data.updated_at || Date.now()));
+  }
+  return {
+    mergedProfile,
+    dedupeCount: Number(data.dedupe_count || 0),
+    source: String(data.source || 'unknown'),
+    beforeLength: Number(data.before_length || 0),
+    afterLength: Number(data.after_length || mergedProfile.length),
+  };
+}
+
 /**
  * 从持久化画像中提取结构化短板标签数组
  */
