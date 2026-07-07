@@ -38,7 +38,7 @@ export function VocabularyGrid({
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-4">
       {/* 词汇专区 - 权重 5 */}
       {extractedWords.length > 0 && (
-        <div className="flex flex-col max-h-[700px] lg:col-span-5">
+        <div className="flex flex-col max-h-[700px] lg:col-span-4">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5 shrink-0">
             <span className="w-1.5 h-3 bg-[var(--color-brand)] rounded-full"></span>
             成功提纯商战生词 ({extractedWords.length})
@@ -210,7 +210,7 @@ export function VocabularyGrid({
 
       {/* 句型专区 - 权重 3 */}
       {extractedSentences.length > 0 && (
-        <div className="flex flex-col max-h-[700px] lg:col-span-3">
+        <div className="flex flex-col max-h-[700px] lg:col-span-4">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5 shrink-0">
             <span className="w-1.5 h-3 bg-emerald-500 rounded-full"></span>
             成功提纯高频句型 ({extractedSentences.length})
