@@ -325,6 +325,148 @@ function mergeProfileNarrative(existing, delta) {
   return `${prev}; ${next}`.slice(0, 2000);
 }
 
+function splitProfileSegments(text) {
+  return String(text || '')
+    .split(/[;；]\s*/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+function normalizeProfileSegment(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/标记:[^\s;；]+/gi, '')
+    .replace(/\s+/g, '')
+    .slice(0, 500);
+}
+
+function profileSegmentBigrams(text) {
+  const normalized = normalizeProfileSegment(text);
+  const set = new Set();
+  for (let i = 0; i < normalized.length - 1; i += 1) {
+    set.add(normalized.slice(i, i + 2));
+  }
+  return set;
+}
+
+function profileSegmentSimilarity(a, b) {
+  const na = normalizeProfileSegment(a);
+  const nb = normalizeProfileSegment(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  if (na.includes(nb) || nb.includes(na)) {
+    const shorter = na.length <= nb.length ? na : nb;
+    const longer = na.length > nb.length ? na : nb;
+    return shorter.length / Math.max(longer.length, 1);
+  }
+  const ba = profileSegmentBigrams(a);
+  const bb = profileSegmentBigrams(b);
+  if (!ba.size || !bb.size) return 0;
+  let inter = 0;
+  for (const token of ba) {
+    if (bb.has(token)) inter += 1;
+  }
+  return inter / (ba.size + bb.size - inter);
+}
+
+function dedupeProfileLocal(existing, delta) {
+  const segments = [...splitProfileSegments(existing), ...splitProfileSegments(delta)];
+  if (!segments.length) return '';
+  const merged = [];
+  let dedupeCount = 0;
+  for (const seg of segments) {
+    const idx = merged.findIndex((item) => profileSegmentSimilarity(item, seg) >= 0.62);
+    if (idx >= 0) {
+      merged[idx] = seg;
+      dedupeCount += 1;
+    } else {
+      merged.push(seg);
+    }
+  }
+  return { mergedProfile: merged.join('; ').slice(0, 2000), dedupeCount };
+}
+
+function parseProfileDedupeXml(rawText) {
+  const text = String(rawText || '');
+  const pick = (tag) => {
+    const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+    return m ? m[1].trim() : '';
+  };
+  const mergedProfile = pick('merged_profile');
+  if (!mergedProfile) return null;
+  return {
+    mergedProfile: mergedProfile.slice(0, 2000),
+    dedupeCount: Number(pick('dedupe_count') || 0),
+  };
+}
+
+function isProfileDedupeEnabled() {
+  return Boolean(process.env.DIFY_PROFILE_DEDUPE_API_KEY);
+}
+
+async function runProfileDedupeWorkflow(existingProfile, newDelta, userId, meta = {}) {
+  const apiKey = process.env.DIFY_PROFILE_DEDUPE_API_KEY;
+  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const timeoutMs = Number(process.env.PROFILE_DEDUPE_TIMEOUT_MS || 45000);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inputs: {
+          existing_profile: String(existingProfile || '').slice(0, 2000),
+          new_delta: String(newDelta || '').slice(0, 800),
+          delta_source: String(meta.source || 'unknown').slice(0, 80),
+          delta_timestamp_ms: String(meta.at || Date.now()),
+        },
+        response_mode: 'blocking',
+        user: normalizeMemoryUserId(userId),
+      }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Dify profile dedupe HTTP ${response.status}: ${errText.slice(0, 200)}`);
+    }
+
+    const data = await response.json();
+    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? '';
+    const parsed = parseProfileDedupeXml(rawResult);
+    if (!parsed?.mergedProfile) {
+      throw new Error('profile dedupe parse_failed');
+    }
+    return parsed;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function mergeProfileWithDedupe(existing, delta, userId, meta = {}) {
+  const prev = String(existing || '').trim();
+  const next = String(delta || '').trim();
+  if (!next) return prev;
+  if (!prev) return next.slice(0, 2000);
+  if (prev.includes(next)) return prev;
+
+  if (isProfileDedupeEnabled()) {
+    try {
+      const llmResult = await runProfileDedupeWorkflow(prev, next, userId, meta);
+      if (llmResult?.mergedProfile) return llmResult.mergedProfile;
+    } catch (err) {
+      console.warn('[Profile Dedupe] LLM failed, using local fallback:', err.message);
+    }
+  }
+
+  return dedupeProfileLocal(prev, next).mergedProfile;
+}
+
 const L3_VAR_KEYS = new Set(['accent', 'locale', 'timezone', 'training_goal', 'spelling_variant', 'weakness_focus']);
 
 function normalizeL3VarKey(key) {
@@ -2219,7 +2361,7 @@ app.post('/api/user/profile/save', (req, res) => {
   }
 });
 
-app.post('/api/user/memory/ingest', (req, res) => {
+app.post('/api/user/memory/ingest', async (req, res) => {
   const {
     userId,
     profileDelta,
@@ -2242,7 +2384,7 @@ app.post('/api/user/memory/ingest', (req, res) => {
     let memoryLayers = parseJsonObject(row?.memory_layers, {});
 
     if (profileDelta) {
-      profileContent = mergeProfileNarrative(profileContent, profileDelta);
+      profileContent = await mergeProfileWithDedupe(profileContent, profileDelta, uid, { source, at: now });
       applyL3VarsToMemoryLayers(memoryLayers, inferL3VarsDeltaFromText(profileDelta));
     }
 
@@ -6768,6 +6910,9 @@ app.listen(PORT, () => {
     console.log(`[Memory Dreaming] scheduled every ${Math.round(dreamingIntervalMs / 60000)} min`);
     if (isLlmDreamingEnabled()) {
       console.log('[Memory Dreaming] LLM layer enabled (DIFY_MEMORY_DREAMING_API_KEY set)');
+    }
+    if (isProfileDedupeEnabled()) {
+      console.log('[Profile Dedupe] LLM layer enabled (DIFY_PROFILE_DEDUPE_API_KEY set)');
     }
     if (isKbSyncEnabled()) {
       console.log('[Memory Dreaming] KB sync enabled (mychat dataset create-by-text)');

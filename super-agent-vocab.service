@@ -23,6 +23,7 @@ Environment=DIFY_ORAL_API_KEY=app-LfCGgdQrwlGTfegQNYeEzpB9
 Environment=VITE_DIFY_ORAL_API_KEY=app-LfCGgdQrwlGTfegQNYeEzpB9
 Environment=VITE_DIFY_BIWEEKLY_REVIEW_API_KEY=app-p8u1qA8A6iWDB6FzEOtjectn
 Environment=VITE_DIFY_WEEKLY_CHAT_ENHANCED_API_KEY=app-1imBRwdxi4dxa1bSLbMLTvNu
+Environment=DIFY_PROFILE_DEDUPE_API_KEY=app-fH7ALg8Q052NQrrCbf6wC2WC
 
 [Install]
 WantedBy=multi-user.target

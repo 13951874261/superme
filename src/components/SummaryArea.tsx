@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap } from 'lucide-react';
+import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap, ChevronRight } from 'lucide-react';
 import { getUserCurrentProfile, appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
+import ProfileEditModal from './ProfileEditModal';
 import {
   getLastReviewDate,
   getReviewHistory,
@@ -33,6 +34,10 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [chatResult, setChatResult] = useState<{ analysis: string; nextWeekPreview: string } | null>(null);
   const [hasPushPlan, setHasPushPlan] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  const profilePreviewThreshold = 180;
+  const showProfileExpand = profile.length > profilePreviewThreshold;
 
   const refreshReviewState = () => {
     setProfile(getUserCurrentProfile() || '系统全面扫描中');
@@ -151,10 +156,40 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
               距上次复盘 {daysSince} 天
             </div>
             <div>
-              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-1">
-                当前全局短板画像
-              </span>
-              <p className="text-gray-700 text-xs leading-relaxed">{profile}</p>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                  当前全局短板画像
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className="text-[10px] font-bold text-zinc-500 hover:text-[#FF5722] transition-colors"
+                >
+                  {showProfileExpand ? '查看全部' : '编辑'}
+                </button>
+              </div>
+              <div className="relative">
+                <p
+                  className={`text-gray-700 text-xs leading-relaxed ${
+                    showProfileExpand ? 'max-h-[120px] overflow-hidden' : ''
+                  }`}
+                >
+                  {profile}
+                </p>
+                {showProfileExpand && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-slate-50/95 to-transparent" />
+                )}
+              </div>
+              {showProfileExpand && (
+                <button
+                  type="button"
+                  onClick={() => setShowProfileModal(true)}
+                  className="mt-2 inline-flex items-center gap-0.5 text-[10px] font-bold text-[#FF5722] hover:text-[#E64A19] transition-colors"
+                >
+                  查看全部
+                  <ChevronRight className="w-3 h-3" />
+                </button>
+              )}
             </div>
             {latestReview && (latestReview.profileUpdateFactors || latestReview.factors) && (
               <div>
@@ -254,6 +289,13 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
           </button>
         </div>
       </div>
+
+      <ProfileEditModal
+        isOpen={showProfileModal}
+        profile={profile}
+        onClose={() => setShowProfileModal(false)}
+        onSaved={refreshReviewState}
+      />
     </div>
   );
 }
