@@ -12,7 +12,7 @@ const DIFY_EMBED_BASE_URL =
   import.meta.env.VITE_DIFY_CHATBOT_BASE_URL || 'https://dify.234124123.xyz';
 const EMBED_MEMORY_PACK_QUERY = 'memory';
 const EMBED_MEMORY_PACK_MAX_LEN = 4000;
-const EMBED_IFRAME_URL_MAX_LEN = 2048;
+const EMBED_IFRAME_URL_MAX_LEN = 8192;
 
 const DIFY_EMBED_CONVERSATION_PREFIX = 'dify_embed_conversation_';
 const DIFY_EMBED_SID_KEY = 'dify_embed_session_id';
