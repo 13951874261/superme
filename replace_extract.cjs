@@ -213,7 +213,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
     }
 
-    const difyApiKey = process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
+    const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     let wfResponse;
