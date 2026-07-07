@@ -117,6 +117,11 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
     window.dispatchEvent(new Event('open-biweekly-review'));
   };
 
+  const openProfileModal = () => {
+    playClick();
+    setShowProfileModal(true);
+  };
+
   return (
     <div className="w-full relative px-2 mb-20">
       <div className="absolute -top-3.5 left-10 bg-[#FF5722]/5 border border-[#FF5722]/20 px-4 py-1 text-[10px] font-black tracking-[0.2em] text-[#FF5722] uppercase z-10 shadow-sm rounded-full backdrop-blur-md">
@@ -162,8 +167,8 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
                 </span>
                 <button
                   type="button"
-                  onClick={() => setShowProfileModal(true)}
-                  className="text-[10px] font-bold text-zinc-500 hover:text-[#FF5722] transition-colors"
+                  onClick={openProfileModal}
+                  className="text-[10px] font-bold text-zinc-500 hover:text-[#FF5722] transition-colors cursor-pointer"
                 >
                   {showProfileExpand ? '查看全部' : '编辑'}
                 </button>
@@ -183,8 +188,8 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
               {showProfileExpand && (
                 <button
                   type="button"
-                  onClick={() => setShowProfileModal(true)}
-                  className="mt-2 inline-flex items-center gap-0.5 text-[10px] font-bold text-[#FF5722] hover:text-[#E64A19] transition-colors"
+                  onClick={openProfileModal}
+                  className="mt-2 inline-flex items-center gap-0.5 text-[10px] font-bold text-[#FF5722] hover:text-[#E64A19] transition-colors cursor-pointer"
                 >
                   查看全部
                   <ChevronRight className="w-3 h-3" />

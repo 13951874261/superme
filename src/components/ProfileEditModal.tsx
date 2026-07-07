@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Save, Trash2 } from 'lucide-react';
 import { saveUserCurrentProfile } from '../utils/profileHelper';
 import { playClick, playWaterDrop } from '../utils/soundEffects';
@@ -40,15 +41,18 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="关闭"
         className="absolute inset-0 bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+      <div
+        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm font-black text-zinc-900 tracking-wide">全局短板画像</h3>
@@ -105,6 +109,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

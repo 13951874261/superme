@@ -146,11 +146,11 @@ workflow:
         - default: ''
           hint: ''
           label: 学习主题(e.g.银团贷款)
-          max_length: 256
+          max_length: 65535
           options: []
           placeholder: ''
           required: true
-          type: text-input
+          type: paragraph
           variable: theme
         - default: ''
           hint: ''
