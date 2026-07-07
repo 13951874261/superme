@@ -24,6 +24,9 @@ Environment=VITE_DIFY_ORAL_API_KEY=app-LfCGgdQrwlGTfegQNYeEzpB9
 Environment=VITE_DIFY_BIWEEKLY_REVIEW_API_KEY=app-p8u1qA8A6iWDB6FzEOtjectn
 Environment=VITE_DIFY_WEEKLY_CHAT_ENHANCED_API_KEY=app-1imBRwdxi4dxa1bSLbMLTvNu
 Environment=DIFY_PROFILE_DEDUPE_API_KEY=app-fH7ALg8Q052NQrrCbf6wC2WC
+Environment=DIFY_MEMORY_DREAMING_API_KEY=app-KlXuWwhQmsssv5sjjzN5b7BR
+Environment=DIFY_LONG_AUDIO_API_KEY=app-hbRjadfxD6alF5roOKPTR8HC
+Environment=VITE_DIFY_LONG_AUDIO_API_KEY=app-hbRjadfxD6alF5roOKPTR8HC
 
 [Install]
 WantedBy=multi-user.target

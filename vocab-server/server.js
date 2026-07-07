@@ -2042,7 +2042,29 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
 // ?????????????????????????????????????????
 // ==========================================
 
-/** ?? Dify chat-messages SSE ????????????? answer */
+/** 合并 Dify SSE 流式 answer：兼容增量 delta 与全量 cumulative 两种模式 */
+function mergeStreamAnswer(current, incoming) {
+  if (!incoming || typeof incoming !== 'string') return current;
+  const next = incoming.trim();
+  if (!next) return current;
+  if (!current) return next;
+  if (next === current) return current;
+  if (next.startsWith(current)) return next;
+  if (current.startsWith(next)) return current;
+  return current + incoming;
+}
+
+/** 清洗听力长文稿：去掉 Dify 模板头与词汇 JSON 段，仅保留可朗读正文 */
+function sanitizeListenMaterialScript(raw) {
+  if (!raw || typeof raw !== 'string') return '';
+  let script = raw.trim();
+  script = script.replace(/^📝[^\n]*\n+/m, '');
+  script = script.replace(/^[^\n]*(生成完毕|沉浸式听力|阅读长篇材料)[^\n]*\n+/m, '');
+  script = script.split(/---VOCAB_JSON_START---/i)[0].trim();
+  return script;
+}
+
+/** 从 Dify chat-messages SSE 流中收集完整 answer */
 async function collectDifyStreamingAnswer(wfResponse) {
   let finalAnswer = '';
   const decoder = new TextDecoder();
@@ -2054,27 +2076,31 @@ async function collectDifyStreamingAnswer(wfResponse) {
     if (dataStr === '[DONE]') return;
     try {
       const parsed = JSON.parse(dataStr);
-      if (parsed.answer && typeof parsed.answer === 'string' && parsed.answer.trim()) {
-        finalAnswer = parsed.answer;
+      const event = parsed.event;
+      if (typeof parsed.answer === 'string' && parsed.answer) {
+        finalAnswer = mergeStreamAnswer(finalAnswer, parsed.answer);
       }
-      if (parsed.event === 'message' && parsed.answer) {
-        finalAnswer = parsed.answer;
+      if ((event === 'message' || event === 'agent_message') && parsed.answer) {
+        finalAnswer = mergeStreamAnswer(finalAnswer, parsed.answer);
       }
-      if (parsed.event === 'message_end' && parsed.data?.outputs?.answer) {
-        finalAnswer = parsed.data.outputs.answer;
+      if (event === 'message_end' && parsed.data?.outputs?.answer) {
+        finalAnswer = mergeStreamAnswer(finalAnswer, parsed.data.outputs.answer);
       }
-      if (parsed.event === 'workflow_finished' && parsed.data?.outputs) {
+      if (event === 'workflow_finished' && parsed.data?.outputs) {
         const out = parsed.data.outputs;
-        finalAnswer = out.answer ?? out.result ?? out.text ?? out.content ?? out.listening_material_preview ?? finalAnswer;
+        const finished = out.answer ?? out.result ?? out.text ?? out.content ?? out.listening_material_preview;
+        if (typeof finished === 'string' && finished.trim()) {
+          finalAnswer = mergeStreamAnswer(finalAnswer, finished);
+        }
       }
-      if (parsed.event === 'text_chunk' && parsed.data?.text) {
-        finalAnswer += parsed.data.text;
+      if (event === 'text_chunk' && parsed.data?.text) {
+        finalAnswer = mergeStreamAnswer(finalAnswer, parsed.data.text);
       }
       if (!finalAnswer && parsed.data?.outputs) {
         for (const key of Object.keys(parsed.data.outputs)) {
           const val = parsed.data.outputs[key];
           if (typeof val === 'string' && val.trim()) {
-            finalAnswer = val;
+            finalAnswer = mergeStreamAnswer(finalAnswer, val);
             break;
           }
         }
@@ -2107,7 +2133,7 @@ async function collectDifyStreamingAnswer(wfResponse) {
     }
   }
 
-  return finalAnswer.trim();
+  return sanitizeListenMaterialScript(finalAnswer);
 }
 
 app.post('/api/listen/generate-material', async (req, res) => {
@@ -2154,7 +2180,8 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
     const { inputs, userId = 'default-user' } = req.body;
     const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
       || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
-      || process.env.DIFY_LISTEN_GEN_API_KEY;
+      || process.env.DIFY_LISTEN_GEN_API_KEY
+      || 'app-hbRjadfxD6alF5roOKPTR8HC';
     if (!apiKey) {
       return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
     }
@@ -2217,11 +2244,14 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
           taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为空' });
           return;
         }
+        if (answer.length < 500) {
+          console.warn(`[generate-material-long] suspiciously short script (${answer.length} chars) for task ${task.id}`);
+        }
 
         // 保存生成的文稿内容给前端提取 (保存在 task.result.content)
         taskQueue.updateTask(task.id, { 
           progress: 100, 
-          logs: ['长音频剧本生成圆满完成！'], 
+          logs: [`长音频剧本生成圆满完成！（${answer.length} 字符）`], 
           status: 'completed', 
           result: { content: answer } 
         });
@@ -6507,6 +6537,7 @@ app.post('/api/tts/speech', async (req, res) => {
     const finalModel = model || 'edge-tts/en-US-EmmaNeural';
     // 移除 Emoji
     let cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
+    cleanInput = sanitizeListenMaterialScript(cleanInput);
     
     // 针对纯英文 TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩溃 (NoAudioReceived)
     if (finalModel.includes('/en-') || finalModel.startsWith('en-')) {

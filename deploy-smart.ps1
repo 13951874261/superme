@@ -78,6 +78,22 @@ if ($Force) {
         }
     }
 
+    $saveEnvHash = $null
+    $envFile = "$ProjectRoot\vocab-server\.env"
+    if (Test-Path $envFile -PathType Leaf) {
+        $envHashFile = "$ProjectRoot\.deploy_env_hash"
+        $currentHash = (Get-FileHash $envFile).Hash
+        $prevHash = ""
+        if (Test-Path $envHashFile -PathType Leaf) {
+            $prevHash = (Get-Content $envHashFile -Raw).Trim()
+        }
+        if ($currentHash -ne $prevHash) {
+            Write-Host "Detected changes in vocab-server/.env. Forcing backend deploy." -ForegroundColor Magenta
+            $needBackendDeploy = $true
+            $saveEnvHash = $currentHash
+        }
+    }
+
     if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
         Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
         $needFrontendDeploy = $true
@@ -241,6 +257,11 @@ try {
  
         Write-Host "  -> Restarting vocab service" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "sudo systemctl restart super-agent-vocab.service"
+
+        if ($saveEnvHash) {
+            $saveEnvHash | Out-File -FilePath "$ProjectRoot\.deploy_env_hash" -NoNewline
+            Write-Host "  -> Saved new .env hash to local cache." -ForegroundColor DarkGreen
+        }
     } else {
         Write-Host ""
         Write-Host "========== Step 3: Skip Backend ==========" -ForegroundColor DarkGray
