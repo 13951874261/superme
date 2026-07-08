@@ -16,24 +16,23 @@
 
 ### 1.2 智能词典聚合 (DictionaryPanel)
 *   **业务需求**：支持“现代汉语词典”、“英英商务词典”、“英汉双向译制”三种模式，专治商务俚语、职场黑话及潜台词穿透。
-*   **实现方法**：前端 `DictionaryPanel.tsx` 响应用户输入或“划线取词”事件，通过 `vocabAPI.ts` 的 `queryDictionary` 向后端发起查询。
+*   **实现方法**：前端 `DictionaryPanel.tsx` 响应用户输入或“划线取词”事件，通过 `vocabAPI.ts` 的 `queryDictionary` 向后端发起查询，并播放行政级水滴/和弦交互音效。
 *   **工作流/API信息**：
     *   前端请求路径：`POST /api/dify/dict-query`
-    *   后端承接机制：在 `vocab-server/server.js` 中当前为**仿真存根路由**，返回 `{ mocked: true }`；在生产环境中映射至对应的 Dify 工作流 `dict_tool_workflow.yml`。
-    *   映射 Dify 密钥：由配置文件或代理层中的 `DIFY_DICT_TOOL_API_KEY` 或 `VITE_DIFY_ENRICH_API_KEY` 鉴权。
+    *   后端承接机制：后端在 `vocab-server/server.js` 中拦截请求，除了转发至 Dify 工作流 `dict_tool_workflow.yml`（由 `DIFY_DICT_TOOL_API_KEY` 或 `VITE_DIFY_ENRICH_API_KEY` 鉴权）获取剖析外，还会把每次查询自动记录至 SQLite `dict_query_log` 日志表中。
 *   **具体实现逻辑**：
-    1.  前端传入参数 `{ word, dictType, direction: 'auto', locale: 'zh-CN' }`。
-    2.  后端代理层转发请求至 Dify 工作流，进行深度词源和跨文化职场弦外之音的剖析。
-    3.  前端捕获返回的结构化 JSON `payload`。
-    4.  根据所选词典类型，在 UI 中将释义字段（词条、词性、核心译义、商务语境、易混词、职场弦外之音）渲染为多签页（Tabs）卡片。
-    5.  提供“收录生词本”动作按钮，一键触发本地 SQLite 存储。
+    1.  前端传入参数 `{ word, dictType, direction: 'auto', locale: 'zh-CN', userContext }`。
+    2.  后端代理层转发请求至 Dify 并成功返回后，向本地数据库中写入查询日志，字段包括 `id`, `word`, `dict_type`, `direction`, `user_context`, `locale`, `is_success`, `response_payload`, `created_at`。
+    3.  前端捕获返回 of 结构化 JSON `payload`，根据释义字段在 UI 中渲染多签页（Tabs）卡片。
+    4.  操作成功触发 `playSuccess()` 音效，失败则触发 `playError()` 温柔低频和弦音效，保障高端商务交互体验。
+    5.  提供“收录生词本”动作按钮，一键触发 SQLite 本地入库。
 
 ### 1.3 艾宾浩斯生词本 (VocabularyBook)
 *   **业务需求**：全自动接管用户查询记录或从各沙盘中一键截获的硬核词汇，根据艾宾浩斯记忆曲线算法动态编排复习天数，确保词汇和用法彻底进入长期记忆。
-*   **实现方法**：前后端分离，前端组件 `VocabularyBook` 频繁与本地部署的 Node.js + SQLite 服务交互。
+*   **实现方法**：前后端分离，前端组件 `VocabularyBook` 频繁与本地部署 of Node.js + SQLite 服务交互。
 *   **工作流/API信息**：
     *   SQLite 数据库表：`vocabulary`
-    *   数据表结构：`id (TEXT)`, `word (TEXT)`, `dict_type (TEXT)`, `category (TEXT)`, `payload (TEXT, 存储 JSON 字符串)`, `added_at (INTEGER)`, `repetitions (INTEGER)`, `ease_factor (REAL)`, `interval_days (INTEGER)`, `next_review_date (INTEGER)`, `review_history (TEXT, 存储 JSON 数组)`。
+    *   数据表结构：`id (TEXT)`, `word (TEXT)`, `dict_type (TEXT)`, `category (TEXT)`, `scene_type (TEXT)`, `payload (TEXT, 存储 JSON 字符串)`, `added_at (INTEGER)`, `repetitions (INTEGER)`, `ease_factor (REAL)`, `interval_days (INTEGER)`, `next_review_date (INTEGER)`, `last_review_date (INTEGER)`, `review_history (TEXT, 存储 JSON 数组)`, `memory_aids (TEXT)`。
     *   核心 API 接口：
         *   获取今日复习任务：`GET /api/vocab/review`
         *   插入新词条：`POST /api/vocab/add`
@@ -41,11 +40,12 @@
         *   复习打卡提交：`PUT /api/vocab/review/:id`
         *   人工干预频率：`PUT /api/vocab/manual-intervention/:id`
 *   **具体实现逻辑**：
-    1.  **艾宾浩斯/SM-2 算法实现**：新词入库时，初始化 `repetitions = 0`，`ease_factor = 2.5`，`interval_days = 0`。
-    2.  当用户进行打卡复习时，选择掌握质量 `quality`（0-5分）。
-    3.  若 `quality >= 3`（记住/轻松），`repetitions` 递增，间隔天数按 `interval * ease_factor` 递增；若 `quality < 3`（朦胧/完全忘记），则 `repetitions` 重置为 0，`interval_days` 回归 1。
-    4.  重新计算 `ease_factor = ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))`，其最低红线限制为 1.3。
-    5.  利用当前时间戳 + `interval_days * 86400000` 刷新 `next_review_date` 字段，实现精准的算法过滤调度。
+    1.  **数据库平滑自动迁移**：后端在启动时检测表结构，自动利用 `ALTER TABLE` 在 `vocabulary` 表中补足并初始化 `category`, `scene_type`, `repetitions`, `ease_factor`, `interval_days`, `memory_aids` 等扩展字段，确保旧数据向下兼容。
+    2.  **艾宾浩斯/SM-2 算法实现**：新词入库时，初始化 `repetitions = 0`，`ease_factor = 2.5`，`interval_days = 1`（默认为1天后复习）。
+    3.  当用户进行打卡复习时，选择掌握质量 `quality`（0-5分）。
+    4.  若 `quality >= 3`（记住/轻松），`repetitions` 递增，间隔天数按 `interval * ease_factor` 递增；若 `quality < 3`（朦胧/完全忘记），则 `repetitions` 重置为 0，`interval_days` 回归 1。
+    5.  重新计算并更新 `ease_factor = ease_factor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))`，其最低红线限制为 1.3。
+    6.  利用当前时间戳 + `interval_days * 86400000` 刷新 `next_review_date`，并在 `review_history` 中追加历史评分日志，实现精准的算法过滤调度。
 
 ### 1.4 系统解锁登录模块 (LoginPage)
 *   **业务需求**：为系统提供一道安全锁屏界面，防止未经授权的访问，在初次访问时强制进行密钥校验，并支持在系统后台动态修改系统解锁密码并自动保存。
@@ -127,6 +127,21 @@
         *   纵深写作：显示最高得分（如 6 / 8 分），配合状态徽标。
     4.  **返回主题战场**：用户点击“返回主题战场”或遮罩层关闭弹窗，继续返回英语主线进行未尽的目标攻坚。
 
+### 1.10 高管画像与记忆进化中枢 (UserMemory & L1/L2/L3 Layers)
+*   **业务需求**：为高管建立长期深度的行为模式画像与多维记忆层，包括基础画像（L1）、近期情景事件与关系图谱（L2）、常驻变量（L3，如口音、弱点等），以实现沙盘训练的动态自适应与进化。
+*   **实现方法**：前后端分离，前端通过订阅 `global-profile-changed` 事件实时同步状态，后端在 SQLite 中由 `user_memories` 数据库表承载，配合 Dify 工作流去重；若去重失败，降级使用本地 Bigram 算法进行去重。
+*   **工作流/API信息**：
+    *   SQLite 数据库表：`user_memories`
+    *   数据表结构：`user_id (TEXT PRIMARY KEY)`, `profile_content (TEXT NOT NULL)`, `error_ledger (TEXT)`, `memory_layers (TEXT DEFAULT '{}')`, `updated_at (INTEGER NOT NULL)`。
+    *   核心代理接口：调用 Dify 画像去重工作流（由 `DIFY_PROFILE_DEDUPE_API_KEY` 鉴权）。
+*   **具体实现逻辑**：
+    1.  **画像两阶段智能去重合并**：当生成新画像片段（Delta）时，系统首先尝试调用 Dify 去重工作流。如果超时或报错，则降级采用本地双字符（Bigram）计算文本相似度。当相似度 $\ge 0.62$ 时，判定语义重复并执行覆盖/精炼，避免用户画像无限膨胀。
+    2.  **多级记忆结构划分**：
+        *   **L1 画像层**：由 `profile_content` 表明，经过精炼的用户画像总摘要。
+        *   **L2 记忆层**：由 `memory_layers.l2_episodes`（近期情景记忆列表）及 `memory_layers.l2_graph`（关系图谱，包含实体如 `[用户]`、`[英音]` 和关系链）构成，用于捕捉长期复杂事件关联，并在 LLM 数据缺省时采用本地规则降级提取。
+        *   **L3 变量层**：由 `memory_layers.l3_vars` 承载，管理如 `accent` (口音)、`spelling_variant` (拼写模式)、`training_goal` (训练目标)、`weakness_focus` (弱点关注) 等常驻变量。
+    3.  **L3 变量决策注入**：系统启动或交互时，会从行为文本中自动推理出当前的口音类型（AU/UK/US）、当前训练目标（如“即兴表达”），将其自动写入 `l3_vars` 中。每次向 Dify 发送会话请求时，后端会自动抽取并注入这些常驻变量作为输入，保证沙盘决策和反应的一致性。
+
 
 ## 2. 英语引擎核心工作流模块 (English Mastery & Evaluation Engines)
 
@@ -142,16 +157,16 @@
     3.  前端拆解返回的 JSON 结构体，分别输出听写精准度百分比、错误词溯源（在文本中高亮标红差异）以及潜台词因果链解析卡片。
 
 ### 2.2 多角色跨文化口语沙盘 (Oral Sandbox)
-*   **业务需求**：提供仿真银团贷款、危机公关等 5 大高压对抗谈判阵地，由 AI 同时扮演多方对手和助攻，测试并训练用户的高级口语反击与心理防线。
-*   **实现方法**：前端 `OralWarRoom.tsx` 通过 `src/services/difyAPI.ts` 封装的 `sendOralChatMessage` 保持连续对话。
+*   **业务需求**：提供仿真银团贷款、危机公关等 5 大高压对抗谈判阵地，由 AI 同时扮演多方对手 and 助攻，测试并训练用户的高级口语反击与心理防线。
+*   **实现方法**：前端 `OralWarRoom.tsx` 及 `OralWarRoomChat.tsx` 等组件配合，通过后端代理路由 `/api/english/oral-sandbox` 以及 `/api/english/oral/chat` 与 Dify 口语 Chatflow 接口通信，避开在前端直接暴露 API 密钥。
 *   **工作流/API信息**：
-    *   API 路径：`POST /v1/chat-messages` (接入 Dify Chatflow 模式)
-    *   Dify 密钥：环境变量 `VITE_DIFY_ORAL_API_KEY`
+    *   后端代理路径：`POST /api/english/oral-sandbox`（首次开场）和 `POST /api/english/oral/chat`（连续对话轮次）
+    *   鉴权密钥：环境变量 `DIFY_ORAL_API_KEY`（仅留存后端）
 *   **具体实现逻辑**：
-    1.  **开场白与指令注入**：首轮发言自动追加隐式指令（例如 `[系统隐性指令：切换场景 scene-1]`）以及选定的难度模式（如 `standard` 或 `hardcore` 极限施压）。
-    2.  **角色多重演绎**：Dify 智能体在单个会话中根据上下文切换不同说话者（如 CEO 盟友或 CFO 阻碍者），并通过返回的 JSON 明确区分 `current_speaker` 与 `dialogue`。
-    3.  **多维度实时解析**：每次 AI 回复还会自动附加 `hidden_intent`（隐藏意图分析）、`flaw_point`（发现的用户的口语表达破绽）与 `feedback_strategy`（谈判策略改进意见）。
-    4.  **长按发送与倒计时熔断**：前端支持 Web Speech API 的 SpeechRecognition 录音，当开启 10 秒倒计时，若耗尽则自动截断语音识别文本并发送，强迫用户脱口反击。
+    1.  **开场白与画像变量注入**：首轮发起请求时，后端会自动从 SQLite `user_memories` 调取用户的当前弱点画像，合成注入隐式 inputs 字段（如 `user_weakness_profile`、`user_current_profile` 等），配合选定场景和难度（`standard` 或 `hardcore` 极限施压）下发开场对话。
+    2.  **角色多重演绎**：Dify 智能体根据上下文切换说话者角色（如 CEO 盟友或 CFO 阻碍者），后端向前端下发强规范 JSON，分离 `current_speaker`、`dialogue` 以及非展示分析数据。
+    3.  **多维度实时解析反馈**：随 AI 回复返回 `hidden_intent`（隐藏意图）、`flaw_point`（表达破绽）、`feedback_strategy`（谈判策略）以及口语得分指标（逻辑、文化、流利度得分），在右侧面板的“战术观察室”与“提问策略指导”动态呈现。
+    4.  **长按发送与倒计时熔断**：前端支持 Web Speech API 的 SpeechRecognition 进行实时录音和转写，长按即可开启 10 秒即兴表达倒计时，倒计时结束后强制截断并自动发送，施加真实场景反击压力。
 
 ### 2.3 三段式公文批阅引擎 (Writing Review)
 *   **业务需求**：针对英文邮件、公文起草进行三级纵深诊断：基础合规、中层逻辑/语气妥帖性、顶层战略站位与政治敏感性。
@@ -215,6 +230,72 @@
     1.  前端获取当前的主题参数（如“华尔街财报”、“中东地缘政治”），作为 `theme` 传入。
     2.  Dify 文本生成工作流产出今日重点词汇、配套发音音频链接以及一句商业格言。
     3.  在系统首页以悬浮卡片形态动态渲染，完成每日开机的心智激活。
+
+### 2.8 语法润色训练营 (GrammarPolishTrainer)
+*   **业务需求**：针对高管日常书面交流中较为生硬或偏中式发散的英文表达，提供高管级的语法润色、长句重组、段落润色以及商务委婉化调整，支持对历史润色结果的无缝回溯。
+*   **实现方法**：前端 `GrammarPolishTrainer.tsx` 响应用户文本输入，通过请求后端 `/api/grammar-polish` API 接口获取 AI 优化结果，并在 UI 中将修改轨迹通过时间戳形式动态归集至本地状态中。
+*   **工作流/API信息**：
+    *   后端接口路径：`POST /api/grammar-polish`
+    *   接口入参：`{ originalText: string, userId: string }`
+    *   AI 优化返回：`{ success: true, polishedText: string }`
+*   **具体实现逻辑**：
+    1.  用户在面板输入生硬英文，点击“高管润色”按钮（触发 `Loader2` 等待并进入半透明高光毛玻璃遮罩状态）。
+    2.  后端服务接收参数，调用 Dify 重构工作流，对句子的行文合理性、高管表达张力及商务妥帖度进行优化，返还润色后的完美文本 `polishedText`。
+    3.  前端捕获返回结果后，按 `[时间戳] 原始文本: XXX \n 润色文本...` 自动拼接并组装成最新的历史数据片段，实时推入本地状态 `localNotes`，同时触发状态回调 `onNotesChange()` 以便上层同步。
+    4.  提供历史记录下拉选项框（Dropdown），方便用户根据时间戳一键切换和查阅历史多次诊断的版本，并且文本框支持用户手动二次编辑。
+
+### 2.9 每日错词自测与破绽词汇推送 (DailyErrorVocabularyModule)
+*   **业务需求**：为了让高管迅速攻克自身在听写、口语破绽判定中经常犯错的薄弱点，系统每日动态生成 6 个与用户高管场景和薄弱环节强相关的核心商务词汇，辅助用户对短板进行一键“收录生词本”打卡。
+*   **实现方法**：前端组件 `DailyErrorVocabularyModule.tsx` 调用后端 SQLite 获取本地已存词汇，并通过 `difyAPI.ts` 中的 `generateDailyFlawVocabulary` 代理接口发起大模型定制化生成。
+*   **工作流/API信息**：
+    *   错词生成接口：`generateDailyFlawVocabulary(excludeWords)`
+    *   本地生词录入：`vocabAPI.ts` 的 `addWord`
+*   **具体实现逻辑**：
+    1.  **动态薄弱词避重机制**：加载时首先请求本地 SQLite 获取已有单词库，合并本次会话已经刷新过的词汇作为“避重排除数组”，截取最近 50 个词传入大模型。
+    2.  **大模型自适应生成**：Dify 根据当前用户容易犯错的口语漏洞或听辨漏洞，动态合成 6 个量身定制的词条（包括单词、国际音标、释义、发音注意事项例句等）。
+    3.  **三层排重与降级填充防空白机制**：
+        *   **第一层**：AI 生成的词汇如果在生词本中存在或本轮已显示，则予以过滤。
+        *   **第二层 (备选词补足)**：若去重后不足 6 个词，从内置的 `getFallbackFlawVocab()` 静态备份池中选择不冲突的词汇进行追加。
+        *   **第三层 (强制重置)**：如果备份词也被本地数据库完全耗尽，则自动清空会话历史避重数组，并强制重新将备选词全部推入，确保 UI 页面永远有 6 张词汇卡片，绝对避免显示空白。
+    4.  用户点击“收录生词本”，前端调用 `addWord` 将其保存入 SQLite，并向全局发布 `vocab-updated` 事件通知生词面板无缝更新。
+
+### 2.10 双周自省纠偏与火力重组 (BiweeklyReviewModal)
+*   **业务需求**：为了避免高管陷入机械式刷题，系统提供一个隔断式的双周学习效果盘点窗口。若用户超出 14 天未复盘，则自动进入“硬核锁定”阻断状态，强制阻隔非英语引擎外的常规训练，直至用户完成四个维度的自省并重组下周学习计划。
+*   **实现方法**：前端 `BiweeklyReviewModal.tsx` 由 hook `useBiweeklyReviewTrigger` 监控上一次复盘日期间隔，并收集输入后通过 `runBiweeklyReviewAnalysis` 提交大模型分析，实时干预系统画像和学习策略。
+*   **工作流/API信息**：
+    *   复盘分析接口：`runBiweeklyReviewAnalysis(answers)`
+    *   画像固化操作：`ingestUserMemory` 和 `runMemoryDreaming`
+    *   难度和计划调度：`recordDifficultyIncrease`, `setPausedModules`, `saveNextWeekPushPlan` 等。
+*   **具体实现逻辑**：
+    1.  **阻断性拦截机制**：当 `daysSinceReview > 14` 时，触发强制阻断，展示警告通知，禁止用户进行其他高级沙盘探索。
+    2.  **四个维度自省收集**：用户需完整填写“实战检验比对”、“目标动态校准”、“短板瓶颈扫描”、“战术火力调度”四个输入框，提交至后端转 Dify 分析。
+    3.  **系统记忆层进化与画像纠偏**：大模型输出提炼的弱点因子（`shortDebilitatingFactors`），系统通过 `appendUserProfileFactor` 及 `ingestUserMemory` 追加画像改动，生成情景片段，并异步拉起 `runMemoryDreaming`（记忆重组）。
+    4.  **训练策略自动重构（火力重组）**：
+        *   **动态调整难度**：根据 AI 诊断意见，循环调用 `recordDifficultyIncrease` 对指定模块的难度级（Level）进行递增或递减调整。
+        *   **挂起冗余模块**：若高管决定集中火力，系统调用 `setPausedModules` 将被挂起的不紧急模块在侧边栏临时锁定。
+        *   **重平衡推送**：调用 `saveNextWeekPushPlan` 记录下周火力轰炸计划，并依次分发全局事件 `global-profile-changed` 及 `dify-context-refresh-needed`，完成系统行为惯性的全局重整。
+
+### 2.11 英语引擎主控仪表盘与成长地图 (DashboardTab & StrategicRoadmap)
+*   **业务需求**：为高管用户提供个人进度的全局总览中心（Dashboard），用大图表盘可视化呈现今日待办学习任务（包括听力草稿、口语轮数、写作评分等），以及在不同场景主题（地缘政治、财报研判、外企邮件）下的通关熟练度图谱。
+*   **实现方法**：前端 `DashboardTab.tsx` 和 `StrategicRoadmap.tsx` 联动，通过读取本地 `SQLite` 存储中关于沙盘的主题通关状态，利用可视化卡片和成长图谱进行状态机渲染。
+*   **工作流/API信息**：
+    *   熟练度查询接口：`/api/training/theme-progress`
+    *   主要涉及数据库表：`theme_progress`（主键包含 `user_id` 和 `theme`，记录用户是否完美通过公文对标等）
+*   **具体实现逻辑**：
+    1.  **待办任务雷达**：仪表盘根据今日自适应任务完成情况渲染进度环（Ring Chart），对于已达成的阶段性口语和公文挑战（如口语满10轮、写作得8分）高亮呈现，其余待办显示为 Zinc 锌灰色。
+    2.  **战术蓝图成长网络（Roadmap）**：以连线节点的层级结构渲染通关地图。每个节点（地缘政治 ➔ 谈判施压 ➔ 危机公关）展示高管当前所处的熟练等级。当用户点击某一节点时，自动拉起详情遮罩（`ThemeMasteryOverlay.tsx`），展现用户在该主题下已存入生词本的单词数、已纠正的发音薄弱音标，引导高管查漏补缺。
+
+### 2.12 自定义沙盘主题上传 (CustomThemeModal)
+*   **业务需求**：考虑到不同行业的高管面临的具体政商材料存在差异，系统支持“自定义场景”功能。高管可以直接上传自己的行业材料（如招股说明书、最新行业法规），AI 自动消化背景，并一键提纯生词和商务长句，完成数字沙盘训练主题的动态自我扩容。
+*   **实现方法**：前端 `CustomThemeModal.tsx` 使用 Base64 提取本地上传的文件并发送至 `services/trainingAPI` 中的 `addCustomTheme` 后端接口，后端同步至 Dify 知识库并利用工作流进行文本淬取。
+*   **工作流/API信息**：
+    *   后端处理接口：`POST /api/training/add-custom-theme`
+    *   主要涉及数据库表：`custom_themes`（结构：`id`, `user_id`, `theme_name`, `display_name`, `associated_file`, `dify_document_id`, `dify_dataset_id`, `extracted_keywords`, `created_at`, `updated_at`）
+*   **具体实现逻辑**：
+    1.  **文件读取与 Base64 发送**：前端限制文件大小 $\le 10\text{MB}$（支持 PDF/DOCX/TXT/MD），通过 `FileReader` 以 Base64 的规范格式编码，附带用户自定义的主题标识名发送至后端。
+    2.  **后端同步 Dify 知识库**：`vocab-server/server.js` 接收 Base64 还原临时文件并上传至 Dify 数据集（Dataset）。Dify 建立解析索引并反馈 `dify_document_id`。
+    3.  **核心词句大模型萃取**：启动萃取工作流，从上传的长文本中抓取符合该场景的高阶商务搭配和学术高频词汇。
+    4.  **一键回填与场景激活**：提取出的新词与句式被批量存入 SQLite `vocabulary` 中，同时将主题信息归档到 SQLite `custom_themes` 中。前端收到提纯结果后播放成功音效，显示“已加入词汇数、已加入句式数”，引导高管一键“确认并立即进入此场景”开启训练。
 
 
 ## 3. 核心沙盘战力训练模块 (Core Leadership Sandbox Modules)

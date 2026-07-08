@@ -106,6 +106,7 @@ export async function runListeningEngine(userInput: string, standardText: string
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
     const errMsg = errData?.message || errData?.error || `比对引擎运行失败 (HTTP ${response.status})`;
+    console.error('[listeningAPI] runListeningEngine HTTP error:', errMsg, errData);
     throw new Error(errMsg);
   }
   const data = await response.json();
@@ -119,6 +120,7 @@ export async function runListeningEngine(userInput: string, standardText: string
     interceptOutputText(parsed);
     return parsed;
   } catch (e) {
+    console.error('[listeningAPI] runListeningEngine JSON parse failed:', e, resultString);
     throw new Error('解析 AI 返回的 JSON 格式失败');
   }
 }
@@ -153,11 +155,13 @@ export async function pollTtsTask(taskId: string): Promise<string> {
         return task.audioUrl;
       }
       if (task.status === 'failed') {
+        console.error('[listeningAPI] pollTtsTask task failed:', task.error);
         throw new Error(`音频合成失败: ${task.error || '未知错误'}`);
       }
       // pending / running 状态继续等待
-    } catch {
+    } catch (e) {
       // 网络异常，继续重试
+      console.warn('[listeningAPI] pollTtsTask transient error:', e);
       continue;
     }
   }
@@ -192,9 +196,15 @@ export interface LongAudio {
  */
 export async function fetchLongAudioList(): Promise<LongAudio[]> {
   const response = await fetch('/api/listen/long-audio/list');
-  if (!response.ok) throw new Error('获取长音频列表失败');
+  if (!response.ok) {
+    console.error('[listeningAPI] fetchLongAudioList HTTP failed:', response.status);
+    throw new Error('获取长音频列表失败');
+  }
   const data = await response.json();
-  if (!data.success) throw new Error(data.error || '获取长音频列表失败');
+  if (!data.success) {
+    console.error('[listeningAPI] fetchLongAudioList data error:', data.error);
+    throw new Error(data.error || '获取长音频列表失败');
+  }
   return data.data;
 }
 
@@ -203,9 +213,15 @@ export async function fetchLongAudioList(): Promise<LongAudio[]> {
  */
 export async function fetchLongAudioDetail(id: string): Promise<LongAudio> {
   const response = await fetch(`/api/listen/long-audio/${id}`);
-  if (!response.ok) throw new Error('获取长音频详情失败');
+  if (!response.ok) {
+    console.error('[listeningAPI] fetchLongAudioDetail HTTP failed for ID:', id, response.status);
+    throw new Error('获取长音频详情失败');
+  }
   const data = await response.json();
-  if (!data.success) throw new Error(data.error || '获取长音频详情失败');
+  if (!data.success) {
+    console.error('[listeningAPI] fetchLongAudioDetail data error:', data.error);
+    throw new Error(data.error || '获取长音频详情失败');
+  }
   return data.data;
 }
 

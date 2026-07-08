@@ -142,12 +142,14 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
+      console.error('[vocabAPI] Vocab request HTTP error:', path, res.status, err);
       throw new Error(err.error || `HTTP ${res.status}`);
     }
     const data = await res.json();
     interceptOutputText(data);
     return data;
   } catch (err: any) {
+    console.error('[vocabAPI] Vocab request exception:', path, err);
     playError();
     showToast({ message: err.message, type: 'error' });
     throw err;
@@ -243,24 +245,30 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
     resolvedDirection = hasChinese ? 'zh_to_en' : 'en_to_zh';
   }
 
-  const res = await fetch('/api/dify/dict-query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userContext: '',
-      locale: 'zh-CN',
-      userId: getAppUserId(),
-      ...params,
-      direction: resolvedDirection,
-      user_current_profile: getUserCurrentProfile(),
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.message || `HTTP ${res.status}`);
+  try {
+    const res = await fetch('/api/dify/dict-query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userContext: '',
+        locale: 'zh-CN',
+        userId: getAppUserId(),
+        ...params,
+        direction: resolvedDirection,
+        user_current_profile: getUserCurrentProfile(),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[vocabAPI] queryDictionary HTTP error:', res.status, data);
+      throw new Error(data?.message || `HTTP ${res.status}`);
+    }
+    interceptOutputText(data);
+    return data;
+  } catch (err: any) {
+    console.error('[vocabAPI] queryDictionary exception:', err);
+    throw err;
   }
-  interceptOutputText(data);
-  return data;
 }
 
 // --- 新增记忆辅助与遗忘曲线相关类型 ---
@@ -328,15 +336,24 @@ export async function generateMemoryImage(id: string): Promise<{ success: boolea
   if (initialRes.taskId) {
     let attempts = 0;
     while (attempts < 60) {
-      const res = await fetch(`/api/tasks/${initialRes.taskId}`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || '获取任务状态失败');
+      try {
+        const res = await fetch(`/api/tasks/${initialRes.taskId}`);
+        const data = await res.json();
+        if (!res.ok) {
+          console.error('[vocabAPI] generateMemoryImage poll HTTP error:', res.status, data);
+          throw new Error(data.error || '获取任务状态失败');
+        }
 
-      if (data.status === 'completed' && data.result) {
-        return { success: true, id, image_url: data.result.image_url, download_url: data.result.download_url };
-      }
-      if (data.status === 'failed') {
-        throw new Error(data.error || '图片生成失败');
+        if (data.status === 'completed' && data.result) {
+          return { success: true, id, image_url: data.result.image_url, download_url: data.result.download_url };
+        }
+        if (data.status === 'failed') {
+          console.error('[vocabAPI] generateMemoryImage poll task failed:', data.error);
+          throw new Error(data.error || '图片生成失败');
+        }
+      } catch (err: any) {
+        console.error('[vocabAPI] generateMemoryImage poll exception:', err);
+        throw err;
       }
 
       await new Promise(r => setTimeout(r, 3000));
@@ -351,12 +368,18 @@ export async function generateMemoryImage(id: string): Promise<{ success: boolea
 
 /** 获取词典查询统计/覆盖率 */
 export async function getDictCoverage(): Promise<DictCoverageData> {
-  const res = await fetch('/api/dify/dict-coverage');
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || `HTTP ${res.status}`);
+  try {
+    const res = await fetch('/api/dify/dict-coverage');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[vocabAPI] getDictCoverage HTTP error:', res.status, data);
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    return data;
+  } catch (err: any) {
+    console.error('[vocabAPI] getDictCoverage exception:', err);
+    throw err;
   }
-  return data;
 }
 
 

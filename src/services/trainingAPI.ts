@@ -52,16 +52,22 @@ export interface KnowledgeNode {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  try {
+    const res = await fetch(path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[trainingAPI] Training API HTTP error:', path, res.status, data);
+      throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    }
+    interceptOutputText(data);
+    return data as T;
+  } catch (err: any) {
+    console.error('[trainingAPI] Training API request failed:', path, err);
+    throw err;
   }
-  interceptOutputText(data);
-  return data as T;
 }
 
 export async function upsertTrainingSession(params: {

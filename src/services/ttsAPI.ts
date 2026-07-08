@@ -27,24 +27,30 @@ export async function requestTtsSpeech(
   input: string,
   options: TtsSpeechOptions = {}
 ): Promise<TtsSpeechResult> {
-  const response = await fetch('/api/tts/speech', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      input,
-      model: options.model ?? buildTtsModel(),
-      ...(options.isAsync !== undefined ? { isAsync: options.isAsync } : {}),
-    }),
-  });
+  try {
+    const response = await fetch('/api/tts/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input,
+        model: options.model ?? buildTtsModel(),
+        ...(options.isAsync !== undefined ? { isAsync: options.isAsync } : {}),
+      }),
+    });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => null);
-    const code = errorData?.code || 'TTS_REQUEST_FAILED';
-    const message = errorData?.message || `TTS failed: ${response.status}`;
-    const err = new Error(message) as Error & { code?: string };
-    err.code = code;
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => null);
+      console.error('[ttsAPI] TTS API HTTP error:', response.status, errorData);
+      const code = errorData?.code || 'TTS_REQUEST_FAILED';
+      const message = errorData?.message || `TTS failed: ${response.status}`;
+      const err = new Error(message) as Error & { code?: string };
+      err.code = code;
+      throw err;
+    }
+
+    return response.json();
+  } catch (err: any) {
+    console.error('[ttsAPI] requestTtsSpeech error:', err);
     throw err;
   }
-
-  return response.json();
 }

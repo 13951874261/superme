@@ -580,7 +580,7 @@ export async function callVocabPurify(
   userId = getAppUserId()
 ): Promise<VocabPurifyResult> {
   if (!VOCAB_PURIFY_DIRECT_API_KEY) {
-    throw new Error('鏈厤缃?VITE_DIFY_VOCAB_API_KEY');
+    throw new Error('未配置 VITE_DIFY_VOCAB_API_KEY');
   }
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
@@ -607,7 +607,7 @@ export async function callVocabPurify(
 
 /**
  * 英语公文纵深批阅接口 (前端直接调用 Dify)
- * @param userText 鐢ㄦ埛鍐欑殑鍘熷鑻辨枃鑽夌
+ * @param userText 用户写的原始英文草稿
  * @param mailIntent 行文意图
  * @param theme 全局阵地主题
  */
@@ -767,7 +767,7 @@ export async function submitBreakthrough(
 
 export async function runEnglishListenEngine(text: string, theme: string, userId = getAppUserId()): Promise<ListenEngineResult> {
   const apiKey = import.meta.env.VITE_DIFY_LISTEN_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_LISTEN_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_API_KEY');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -790,14 +790,14 @@ export async function runEnglishListenEngine(text: string, theme: string, userId
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return mapListenEngineResult(JSON.parse(cleanJson));
   } catch (e) {
-    console.error('解析听辨结果失败:', e);
+    console.error('[difyAPI] 解析听辨结果失败:', e);
     throw new Error('AI 返回数据格式异常');
   }
 }
 
 export async function runWordEnrichment(targetWord: string, theme: string, userId = getAppUserId()): Promise<WordEnrichmentResult> {
   const apiKey = import.meta.env.VITE_DIFY_ENRICH_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_ENRICH_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_ENRICH_API_KEY');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -817,7 +817,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
 
   const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
   if (typeof rawResult !== 'string') {
-    console.error('璇嶆眹琛ュ叏鍘熷杩斿洖涓嶆槸瀛楃涓?', data);
+    console.error('[difyAPI] 词汇补全原始返回不是字符串:', data);
     throw new Error('AI 格式异常');
   }
 
@@ -852,7 +852,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
         : [],
     };
   } catch (e) {
-    console.error('解析词汇补全失败:', e, data);
+    console.error('[difyAPI] 解析词汇补全失败:', e, data);
     throw new Error('AI 格式异常');
   }
 }
@@ -873,7 +873,7 @@ export async function runEnglishWakeupRoutine(theme: string, userId = getAppUser
   };
 }> {
   const apiKey = import.meta.env.VITE_DIFY_WAKEUP_API_KEY || import.meta.env.VITE_DIFY_WAKUP_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_WAKEUP_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_WAKEUP_API_KEY');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -905,7 +905,7 @@ export async function runEnglishSentenceEvaluation(
   const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
 
   if (!apiKey) {
-    throw new Error('未配置造句 API 瀵嗛挜锛岃妫€鏌?.env.local 骞堕噸鏂拌繍琛?build/dev');
+    throw new Error('未配置造句 API 密钥，请检查 .env.local 并重新运行 build/dev');
   }
 
   let res: Response;
@@ -923,14 +923,14 @@ export async function runEnglishSentenceEvaluation(
       }),
     });
   } catch (err) {
-    console.error('Fetch 通讯异常:', err);
-    throw new Error('涓?Dify 鎬婚儴澶卞幓杩炴帴锛岃妫€鏌?HTTPS 接口是否可达');
+    console.error('[difyAPI] Fetch 通讯异常:', err);
+    throw new Error('与 Dify 总部失去连接，请检查 HTTPS 接口是否可达');
   }
 
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    console.error('Dify 拒绝请求:', data);
+    console.error('[difyAPI] Dify 拒绝请求:', data);
     throw new Error(data?.message || data?.error || 'Dify 响应成功但状态非 200');
   }
 
@@ -940,13 +940,13 @@ export async function runEnglishSentenceEvaluation(
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
 
     if (!jsonMatch) {
-      throw new Error('AI 鏈繑鍥炴湁鏁堢殑澶ф嫭鍙?JSON 结构');
+      throw new Error('AI 未返回有效的花括号 JSON 结构');
     }
 
     return mapSentenceEvaluationResult(JSON.parse(jsonMatch[0]));
   } catch (e) {
-    console.error('脱水解析失败. 原始数据:', data?.data?.outputs?.result ?? data);
-    throw new Error('AI 杩斿洖鏁版嵁鏍煎紡寮傚父锛岃В鏋?JSON 崩溃');
+    console.error('[difyAPI] 脱水解析失败. 原始数据:', data?.data?.outputs?.result ?? data);
+    throw new Error('AI 返回数据格式异常，解析 JSON 崩溃');
   }
 }
 
@@ -1033,7 +1033,7 @@ export async function runImpromptuSpeechEvaluation(
   userId = getAppUserId()
 ): Promise<ImpromptuSpeechEvaluationResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_SPEECH_EVAL_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EVAL_API_KEY');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -1060,7 +1060,7 @@ export async function runImpromptuSpeechEvaluation(
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as ImpromptuSpeechEvaluationResult;
   } catch (e) {
-    console.error('解析即兴演讲评测结果失败:', e, data);
+    console.error('[difyAPI] 解析即兴演讲评测结果失败:', e, data);
     throw new Error('AI 返回口语评估数据格式异常');
   }
 }
@@ -1149,7 +1149,7 @@ export async function runWriteGovernanceReview(params: {
 
     return result;
   } catch (e) {
-    console.error('解析文治系统结果失败:', e, data);
+    console.error('[difyAPI] 解析文治系统结果失败:', e, data);
     throw new Error('文治系统返回数据格式异常');
   }
 }
@@ -1221,14 +1221,14 @@ export interface AudioToTextResult {
 }
 
 /**
- * 步骤1: 调用 Dify audio-to-text 鎺ュ彛灏嗛煶棰戣浆涓鸿嫳鏂囨枃鏈?
+ * 步骤1: 调用 Dify audio-to-text 接口将音频转为英文文本
  * @param audioFile 录音文件 (Blob/File)
  * @param userId 用户ID
  * @returns 识别出的英文文本
  */
 export async function audioToText(audioFile: Blob, userId = getAppUserId()): Promise<AudioToTextResult> {
   const apiKey = import.meta.env.VITE_DIFY_STT_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_STT_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_STT_API_KEY');
 
   const formData = new FormData();
   formData.append('file', audioFile, 'audio.wav');
@@ -1268,9 +1268,9 @@ export interface PronunciationAssessmentResult {
 }
 
 /**
- * 步骤2: 璋冪敤鍙戦煶绾犳宸ヤ綔娴?
- * @param targetText 鐢ㄦ埛杈撳叆鐨勭洰鏍囧崟璇?句子
- * @param recognizedText 璇煶璇嗗埆杩斿洖鐨勬枃鏈?
+ * 步骤2: 调用发音纠正工作流
+ * @param targetText 用户输入的目标单词/句子
+ * @param recognizedText 语音识别返回的文本
  * @param userId 用户ID
  * @returns 发音纠正结果
  */
@@ -1279,7 +1279,7 @@ export async function runPronunciationAssessment(
   recognizedText: string,
   userId = getAppUserId()
 ): Promise<PronunciationAssessmentResult> {
-  // 通过后端代理调用 Dify 鍙戦煶绾犳宸ヤ綔娴?
+  // 通过后端代理调用 Dify 发音纠正工作流
   const res = await fetch(`/api/pronunciation-assessment`, {
     method: 'POST',
     headers: {
@@ -1323,7 +1323,7 @@ export async function runPronunciationAssessment(
       };
     }
     
-    // 如果没有 JSON 缁撴瀯锛岃繑鍥炲師濮嬬粨鏋?
+    // 如果没有 JSON 结构，返回原始结果
     return {
       score: 0,
       analysis: rawText || '无法解析评测结果',
@@ -1332,14 +1332,14 @@ export async function runPronunciationAssessment(
       recognized_text: recognizedText,
     };
   } catch (e) {
-    console.error('解析发音纠正结果失败:', e, data);
+    console.error('[difyAPI] 解析发音纠正结果失败:', e, data);
     throw new Error('发音纠正结果解析失败');
   }
 }
 
 // ── 即兴演讲增强功能 ─────────────────────────────────────────
 
-/** 鍗冲叴婕旇鎻愮ず璇嶇敓鎴愮粨鏋?*/
+/** 即兴演讲提示词生成结果 */
 export interface SpeechPrompterResult {
   outline: {
     opening: string;
@@ -1365,7 +1365,7 @@ export interface SpeechPrompterResult {
 }
 
 /**
- * 鑾峰彇鍗冲叴婕旇涓婚鎻愮ず璇?
+ * 获取即兴演讲主题提示词
  * @param theme 演讲主题
  * @param difficulty 难度级别：基础/中等/进阶
  */
@@ -1396,12 +1396,12 @@ export async function runSpeechPrompter(
   try {
     const outputs = data?.data?.outputs;
 
-    // 黄金路径：Dify 鐩存帴杩斿洖浜嗙粨鏋勫寲鐨?JSON 瀵硅薄锛堟棤闇€鍐嶈В鏋愬瓧绗︿覆锛?
+    // 黄金路径：Dify 直接返回了结构化的 JSON 对象（无需再解析字符串）
     if (outputs && typeof outputs === 'object' && outputs.outline && outputs.tips) {
       return outputs as SpeechPrompterResult;
     }
 
-    // 鍏滃簳璺緞锛氬鏋?Dify 把内容包在了某个变量里的字符串中
+    // 兜底路径：如果 Dify 把内容包在了某个变量里的字符串中
     const rawResult = outputs?.result ?? outputs?.text ?? data?.answer ?? '';
     const rawText = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
     
@@ -1413,7 +1413,7 @@ export async function runSpeechPrompter(
     const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as SpeechPrompterResult;
   } catch (e) {
-    console.error('瑙ｆ瀽鎻愮ず璇嶇粨鏋滃け璐?', e, data);
+    console.error('[difyAPI] 解析提示词结果失败:', e, data);
     throw new Error('AI 建议返回数据格式异常');
   }
 }
@@ -1448,7 +1448,7 @@ export async function runEnhancedSpeechEvaluation(
   userId = getAppUserId()
 ): Promise<EnhancedSpeechEvalResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_SPEECH_EVAL_API_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EVAL_API_KEY');
 
   const formData = new FormData();
   formData.append('file', audioFile, 'speech_audio.webm');
@@ -1485,12 +1485,12 @@ export async function runEnhancedSpeechEvaluation(
       },
     };
   } catch (e) {
-    console.error('解析增强评测结果失败:', e, data);
+    console.error('[difyAPI] 解析增强评测结果失败:', e, data);
     throw new Error('增强评测结果解析失败');
   }
 }
 
-// ── 洞察(鍚? 人性解码与破绽识别 ─────────────────────────────────────────
+// ── 洞察(听) 人性解码与破绽识别 ─────────────────────────────────────────
 
 export interface InsightListenInputs {
   scenario_text: string;
@@ -1499,7 +1499,7 @@ export interface InsightListenInputs {
 
 export async function fetchInsightFeedback(inputs: InsightListenInputs, userId = getAppUserId()): Promise<string> {
   const apiKey = import.meta.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
-  if (!apiKey) throw new Error("鏈厤缃?VITE_DIFY_INSIGHT_LISTEN_KEY");
+  if (!apiKey) throw new Error("未配置 VITE_DIFY_INSIGHT_LISTEN_KEY");
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -1551,7 +1551,7 @@ export async function fetchDynamicInsightScenario(category: string, userId = get
   return String(data?.answer || "").trim();
 }
 
-// ── 鐮村眬绯荤粺锛堣锛夌浉鍏虫帴鍙?─────────────────────────────────────────
+// ── 破局系统（说）相关接口 ─────────────────────────────────────────
 
 export interface SpeakInfluenceInput {
   training_mode: string;
@@ -1570,7 +1570,7 @@ export interface SpeakInfluenceResult {
 
 export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = getAppUserId()): Promise<SpeakInfluenceResult> {
   const apiKey = import.meta.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_SPEAK_INFLUENCE_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEAK_INFLUENCE_KEY');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -1593,7 +1593,7 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as SpeakInfluenceResult;
   } catch (e) {
-    console.error('瑙ｆ瀽鏁欑粌杩斿洖鐨?JSON 格式失败:', e, rawResult);
+    console.error('[difyAPI] 解析教练返回的 JSON 格式失败:', e, rawResult);
     throw new Error('AI 主题判定失败，返回的不是有效 JSON');
   }
 }
@@ -1631,7 +1631,7 @@ export interface CognitivePenetrationResult {
 
 export async function runCognitivePenetrationEngine(inputs: CognitivePenetrationInput, userId = getAppUserId()): Promise<CognitivePenetrationResult> {
   const apiKey = import.meta.env.VITE_DIFY_READ_PENETRATION_KEY;
-  if (!apiKey) throw new Error('鏈厤缃?VITE_DIFY_READ_PENETRATION_KEY');
+  if (!apiKey) throw new Error('未配置 VITE_DIFY_READ_PENETRATION_KEY');
 
   const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
     method: 'POST',
@@ -1654,12 +1654,12 @@ export async function runCognitivePenetrationEngine(inputs: CognitivePenetration
     const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
     return JSON.parse(cleanJson) as CognitivePenetrationResult;
   } catch (e) {
-    console.error('解析认知穿透结果的 JSON 格式失败:', e, rawResult);
+    console.error('[difyAPI] 解析认知穿透结果的 JSON 格式失败:', e, rawResult);
     throw new Error('AI 错题集生成失败，返回的不是有效 JSON');
   }
 }
 
-// ── 驭心博弈系统（Game Theory锛夌浉鍏虫帴鍙?─────────────────────────────────────────
+// ── 驭心博弈系统（Game Theory）相关接口 ─────────────────────────────────────────
 
 export interface GameTheoryAnalyzeInput {
   scene_type: 'gov_struggle' | 'corp_clash' | 'upward_takeover';
@@ -1751,7 +1751,7 @@ export async function runCognitiveAscension(
   return data.result as CognitiveAscensionResult;
 }
 
-// 鑾峰彇鎵€鏈変汉鎬у師鍨嬫。妗?
+// 获取所有人性原型档案
 export async function getPersonalPrototypes(userId = getAppUserId()): Promise<PersonalPrototype[]> {
   const res = await fetch(`/api/game-theory/prototypes?userId=${encodeURIComponent(userId)}`);
   const data = await res.json().catch(() => ([]));
@@ -1761,7 +1761,7 @@ export async function getPersonalPrototypes(userId = getAppUserId()): Promise<Pe
   return data as PersonalPrototype[];
 }
 
-// 鎵嬪姩娣诲姞鎴栨洿鏂颁汉鎬у師鍨嬫。妗?
+// 手动添加或更新人性原型档案
 export async function upsertPersonalPrototype(
   params: { name: string; type: string; description: string; userId?: string }
 ): Promise<{ success: boolean; id: string; status: string }> {
@@ -1779,7 +1779,7 @@ export async function upsertPersonalPrototype(
   return data;
 }
 
-// 鍒犻櫎浜烘€у師鍨嬫。妗?
+// 删除人性原型档案
 export async function deletePersonalPrototype(id: string): Promise<{ success: boolean }> {
   const res = await fetch(`/api/game-theory/prototypes/${id}`, {
     method: 'DELETE',
@@ -1817,7 +1817,7 @@ export async function generateDailyFlawVocabulary(
 }>> {
   const apiKey = import.meta.env.VITE_DIFY_WAKEUP_API_KEY || import.meta.env.VITE_DIFY_WAKUP_API_KEY;
   if (!apiKey) {
-    console.warn('VITE_DIFY_WAKEUP_API_KEY not configured, using local fallback vocab.');
+    console.warn('[difyAPI] VITE_DIFY_WAKEUP_API_KEY not configured, using local fallback vocab.');
     return getFallbackFlawVocab();
   }
 
@@ -2157,7 +2157,7 @@ export async function runSpeechExemplar(
     const rawResult = data?.data?.outputs?.exemplar_text ?? data?.answer ?? '';
     return String(rawResult).trim();
   } catch (e) {
-    console.error('解析即兴演讲范文失败:', e, data);
+    console.error('[difyAPI] 解析即兴演讲范文失败:', e, data);
     throw new Error('AI 返回演讲范文格式异常');
   }
 }
@@ -2293,7 +2293,7 @@ ${userText}
       };
     }
   } catch (e) {
-    console.warn('Dify 接口调用失败，自动启用高阶本地 Fallback 算法: ', e);
+    console.warn('[difyAPI] Dify 接口调用失败，自动启用高阶本地 Fallback 算法: ', e);
   }
 
   // ====== 智能本地 Fallback 演化算法（保证离线与私有部署体验） ======
@@ -2367,7 +2367,7 @@ export async function runBiweeklyReviewAnalysis(
 
     throw new Error(data?.error || `复盘工作流 HTTP ${res.status}`);
   } catch (e) {
-    console.warn('Dify 复盘工作流失败，启用本地 Fallback:', e);
+    console.warn('[difyAPI] Dify 复盘工作流失败，启用本地 Fallback:', e);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 1200));
@@ -2478,7 +2478,7 @@ export async function runWeeklyChatAnalysis(
       return { analysis, nextWeekPreview: preview, nextWeekPush };
     }
   } catch (e) {
-    console.warn('Dify 每周夜话接口失败，启用本地 Fallback:', e);
+    console.warn('[difyAPI] Dify 每周夜话接口失败，启用本地 Fallback:', e);
   }
 
   await new Promise((resolve) => setTimeout(resolve, 1500));
@@ -2541,7 +2541,7 @@ export async function runWeeklyChatEnhanced(
 
     throw new Error(data?.error || `夜话工作流 HTTP ${res.status}`);
   } catch (e) {
-    console.warn('Dify 夜话增强工作流失败，启用本地 Fallback:', e);
+    console.warn('[difyAPI] Dify 夜话增强工作流失败，启用本地 Fallback:', e);
   }
 
   const base = await runWeeklyChatAnalysis(content, directions, userId);
