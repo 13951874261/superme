@@ -48,6 +48,15 @@ export function rotateEmbedSessionOnPageLoad(): void {
   }
 }
 
+/**
+ * 路由切换时主动轮换会话 sid 桶，强制 Dify 建立全新干净会话，防止过期 ID 残留报 404
+ */
+export function rotateEmbedSessionOnRouteChange(): void {
+  ensureDifyEmbedScope();
+  getOrCreateEmbedSessionId(true);
+  invalidateMemoryPackCache();
+}
+
 /** App 启动时预拉 memory_pack，打开助手面板时更快 */
 export function prefetchEmbedMemoryPack(): void {
   void fetchEmbedMemoryPackCached();
@@ -266,7 +275,6 @@ async function fitConfigToEmbedUrl(config: DifyChatbotConfig): Promise<{ config:
 export function buildDifyChatbotConfig(options?: {
   userId?: string;
   conversationId?: string;
-  memoryPack?: string;
   embedCompact?: boolean;
 }): DifyChatbotConfig {
   const accountUserId = getAppAccountUserId();
@@ -290,11 +298,6 @@ export function buildDifyChatbotConfig(options?: {
   if (options?.embedCompact && profileWithGraph.length > EMBED_PROFILE_MAX_LEN) {
     profileWithGraph = profileWithGraph.slice(0, EMBED_PROFILE_MAX_LEN);
   }
-  const memoryPack = String(options?.memoryPack || '').trim();
-  let embedMemoryPack = memoryPack;
-  if (options?.embedCompact && embedMemoryPack) {
-    embedMemoryPack = embedMemoryPack.split('\n\n').slice(0, 2).join('\n\n').slice(0, 700);
-  }
 
   return {
     token: DIFY_EMBED_TOKEN,
@@ -305,7 +308,6 @@ export function buildDifyChatbotConfig(options?: {
       _system_time: getCurrentFormattedTime(),
       _system_timestamp_ms: Date.now(),
       ...(rebalanceFocus && !options?.embedCompact ? { training_rebalance_focus: rebalanceFocus } : {}),
-      ...(embedMemoryPack ? { memory_pack: embedMemoryPack } : {}),
     },
     systemVariables,
     userVariables: {},
@@ -317,13 +319,9 @@ export async function applyDifyChatbotConfigAsync(options?: {
   conversationId?: string;
   skipMemoryPack?: boolean;
 }): Promise<DifyChatbotConfig> {
-  const memoryPack = options?.skipMemoryPack
-    ? ''
-    : await fetchEmbedMemoryPack();
   const config = buildDifyChatbotConfig({
     userId: options?.userId,
     conversationId: options?.conversationId,
-    memoryPack,
   });
   window.difyChatbotConfig = config;
   return config;
@@ -338,16 +336,11 @@ export async function buildDifyChatbotIframeUrl(options?: {
   forceNew?: boolean;
 }): Promise<string> {
   const userId = options?.userId ?? getDifyChatbotUserId(options?.forceNew);
-  const memoryPack = await fetchEmbedMemoryPackCached();
   const config = buildDifyChatbotConfig({
     userId,
-    memoryPack,
     embedCompact: true,
   });
   const fitted = await fitConfigToEmbedUrl(config);
-  if (memoryPack && !fitted.config.inputs.memory_pack) {
-    console.warn('[difyChatbot] memory_pack dropped from iframe URL after shrink; workflow HTTP fallback only.');
-  }
   return fitted.url;
 }
 

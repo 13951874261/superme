@@ -24,6 +24,7 @@ import {
   prepareDifyAssistantIframe,
   refreshDifyChatbotContext,
   rotateEmbedSessionOnPageLoad,
+  rotateEmbedSessionOnRouteChange,
 } from './utils/difyChatbot';
 import { loadUserProfileFromServer } from './utils/profileHelper';
 
@@ -164,6 +165,11 @@ function AppContent() {
       setActiveTab('vocab');
     }
   }, [isLocked, activeModule, pendingSentenceDebt, setActiveTab]);
+
+  // 切换模块时，轮换 Dify 会话隔离命名空间，规避 404 会话已删除报错
+  useEffect(() => {
+    rotateEmbedSessionOnRouteChange();
+  }, [activeModule]);
 
   useEffect(() => {
     // 监听全局事件，用于呼出右侧面板
