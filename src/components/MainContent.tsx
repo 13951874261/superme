@@ -1,13 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Header from './Header';
-import ListenModule from './modules/ListenModule';
-import SpeakModule from './modules/SpeakModule';
-import ReadModule from './modules/ReadModule';
-import WriteModule from './modules/WriteModule';
 import EnglishModule from './modules/EnglishModule';
 import DailyWakeupModule from './modules/DailyWakeupModule';
-import EntertainmentModule from './modules/EntertainmentModule';
-import GameTheoryModule from './modules/GameTheoryModule';
 import WeeklyChatModule from './modules/WeeklyChatModule';
 import SummaryArea from './SummaryArea';
 import { ModuleType } from '../App';
@@ -15,6 +9,14 @@ import { Lock, Headphones, Mic, BookOpen, PenTool, Globe, Wine, Brain } from 'lu
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 import { playClick, playPageTurn } from '../utils/soundEffects';
 import { isModulePaused } from '../utils/reviewHelper';
+import ModuleSkeleton from './modules/ModuleSkeleton';
+
+const ListenModule = React.lazy(() => import('./modules/ListenModule'));
+const SpeakModule = React.lazy(() => import('./modules/SpeakModule'));
+const ReadModule = React.lazy(() => import('./modules/ReadModule'));
+const WriteModule = React.lazy(() => import('./modules/WriteModule'));
+const EntertainmentModule = React.lazy(() => import('./modules/EntertainmentModule'));
+const GameTheoryModule = React.lazy(() => import('./modules/GameTheoryModule'));
 
 interface MainContentProps {
   selectedDate: string;
@@ -65,12 +67,36 @@ export default function MainContent({
           <EnglishModule />
         </div>
       );
-      case 'listen': return <ListenModule selectedDate={selectedDate} />;
-      case 'speak': return <SpeakModule />;
-      case 'read': return <ReadModule />;
-      case 'write': return <WriteModule />;
-      case 'gametheory': return <GameTheoryModule />;
-      case 'entertainment': return <EntertainmentModule />;
+      case 'listen': return (
+        <React.Suspense fallback={<ModuleSkeleton />}>
+          <ListenModule selectedDate={selectedDate} />
+        </React.Suspense>
+      );
+      case 'speak': return (
+        <React.Suspense fallback={<ModuleSkeleton />}>
+          <SpeakModule />
+        </React.Suspense>
+      );
+      case 'read': return (
+        <React.Suspense fallback={<ModuleSkeleton />}>
+          <ReadModule />
+        </React.Suspense>
+      );
+      case 'write': return (
+        <React.Suspense fallback={<ModuleSkeleton />}>
+          <WriteModule />
+        </React.Suspense>
+      );
+      case 'gametheory': return (
+        <React.Suspense fallback={<ModuleSkeleton />}>
+          <GameTheoryModule />
+        </React.Suspense>
+      );
+      case 'entertainment': return (
+        <React.Suspense fallback={<ModuleSkeleton />}>
+          <EntertainmentModule />
+        </React.Suspense>
+      );
       case 'weekly': return <WeeklyChatModule />;
       default: return <EnglishModule />;
     }
