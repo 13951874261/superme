@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface ModuleWrapperProps {
   id?: string;
@@ -6,6 +7,7 @@ interface ModuleWrapperProps {
   icon: React.ReactNode;
   children: React.ReactNode;
   isOpen?: boolean;
+  onToggleCollapse?: () => void;
   description?: string;
   badge?: React.ReactNode;
   compact?: boolean;
@@ -16,7 +18,8 @@ export default function ModuleWrapper({
   title, 
   icon, 
   children, 
-  isOpen = true, 
+  isOpen = true,
+  onToggleCollapse,
   description, 
   badge,
   compact = true
@@ -33,21 +36,32 @@ export default function ModuleWrapper({
           <div className="w-10 h-10 rounded-xl bg-[var(--color-brand-subtle)] flex items-center justify-center text-[var(--color-brand)]">
             {icon}
           </div>
-          <div className="flex items-baseline gap-3 flex-wrap">
+          <div className="flex items-baseline gap-3 flex-wrap flex-1 min-w-0">
             <h2 className="font-display text-2xl font-black text-[var(--color-ink-primary)] tracking-tight">
               {main}
             </h2>
             {badge}
           </div>
+          {onToggleCollapse && (
+            <button
+              type="button"
+              onClick={onToggleCollapse}
+              aria-expanded={isOpen}
+              aria-label={isOpen ? '折叠模块' : '展开模块'}
+              className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 shrink-0"
+            >
+              {isOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+            </button>
+          )}
         </div>
 
-        {sub && (
+        {isOpen && sub && (
           <span className="text-xs font-bold tracking-wide uppercase text-[var(--color-brand)]">
             {sub}
           </span>
         )}
 
-        {description && (
+        {isOpen && description && (
           <div className="mt-1 max-w-[70ch]">
             <p className="text-[13px] text-[var(--color-ink-secondary)] leading-relaxed">
               {description}

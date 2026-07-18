@@ -34,8 +34,8 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function DailyWakeupModule() {
-  const { pronunciationNotes, setPronunciationNotes, grammarNotes, setGrammarNotes } = useEnglishContext();
-  const [theme, setTheme] = useState('银团贷款');
+  const { pronunciationNotes, setPronunciationNotes, grammarNotes, setGrammarNotes, theme, setTheme } = useEnglishContext();
+  const [isOpen, setIsOpen] = useState(true);
   const [result, setResult] = useState<WakeupResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkInLoading, setCheckInLoading] = useState(false);
@@ -175,6 +175,8 @@ export default function DailyWakeupModule() {
 
   return (
     <ModuleWrapper 
+      isOpen={isOpen}
+      onToggleCollapse={() => setIsOpen(prev => !prev)}
       title="每日唤醒 ｜ 发音与语法闭环"
       icon={<TimerReset className="w-8 h-8" strokeWidth={2.5} />}
       description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
