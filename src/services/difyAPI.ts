@@ -432,6 +432,8 @@ export interface MaterialProcessResult {
   words: string[];
   phrases: string[];
   article: string;
+  /** 本地抽取原文（PDF/纯文本）；若缺失则 article 可能来自 Dify 分段回退 */
+  originalText?: string;
   results: any[];
   logs: string[];
 }

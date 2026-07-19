@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, X, Loader2 } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
-import { addWord } from '../../../../../services/vocabAPI';
+import { addWord, updateWordPayload } from '../../../../../services/vocabAPI';
+import { runWordEnrichment, toVocabEnrichmentPayload } from '../../../../../services/difyAPI';
 import { playSuccess, playError, playPageTurn } from '../../../../../utils/soundEffects';
 
 export interface ImmersiveReaderProps {
@@ -203,18 +204,54 @@ export function ImmersiveReader({
             onClick={async () => {
               playPageTurn();
               setIsAddingSelected(true);
+              const targetWord = selectedWord;
+              let payload = {
+                word: targetWord,
+                phonetic: '',
+                partOfSpeech: '',
+                meaning: '待复习补充',
+                definition_en: '',
+                business_note: '',
+                examples: [] as string[],
+                source: 'immersive_reading',
+                theme,
+              };
               try {
-                await addWord({
-                  word: selectedWord,
+                try {
+                  const enriched = await runWordEnrichment(targetWord, theme);
+                  payload = { ...toVocabEnrichmentPayload(enriched), source: 'immersive_reading', theme };
+                } catch (enrichError) {
+                  console.error('沉浸式阅读词汇补全失败，使用占位 payload 继续入库:', enrichError);
+                }
+
+                const category = theme === '日常场景' || theme.includes('日常') ? 'general' : 'business';
+                const created = await addWord({
+                  word: targetWord,
                   dictType: 'immersive-highlight',
-                  scene_type: theme === '日常场景' || theme.includes('日常') ? 'general' : 'business',
-                  payload: { source: 'immersive_reading', theme }
+                  scene_type: category,
+                  category,
+                  payload,
                 });
-                showNotice('dashboard', `“${selectedWord}” 已成功加入生词本`, 'success');
+
+                const wordId = created?.id;
+                if (wordId) {
+                  await updateWordPayload(wordId, payload);
+                }
+
+                window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+                  detail: {
+                    open: true,
+                    tab: 'context',
+                    wordData: { ...payload, id: wordId, word: targetWord },
+                  },
+                }));
+
+                showNotice('dashboard', `“${targetWord}” 已成功加入词库并解锁解析`, 'success');
                 window.dispatchEvent(new Event('vocab-updated'));
                 playSuccess();
               } catch (e) {
                 playError();
+                showNotice('dashboard', `“${targetWord}” 入库失败，请检查网络`, 'error');
               } finally {
                 setIsAddingSelected(false);
                 setSelectedWord('');

@@ -4494,21 +4494,53 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         logs: ['[进度] 知识库文档向量化就绪，准备提纯...']
       });
 
-      // --- 从 Dify 获取文档分段并拼接为原文 ---
+      // --- 展示用正文：优先本地抽取原文；Dify 分段仅作回退（分段拼接会改段落结构）---
+      // Dify knowledge create-by-file / hierarchical 用于检索提纯，不宜作为阅读器展示源。
       let articleText = "";
+      let originalText = "";
+      const uploadedFileName = fileObj.fileName || '';
       try {
-        const segmentsRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}/segments`, {
-          headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-        });
-        if (segmentsRes.ok) {
-          const segmentsData = await segmentsRes.json();
-          const segments = segmentsData.data || [];
-          articleText = segments.map(s => s.content || '').join('\n\n');
-        } else {
-          console.warn("[Material] 获取文档分段失败", segmentsRes.status);
+        const isPlainText = /\.(txt|md|text|html|htm)$/i.test(uploadedFileName);
+        const isPdf = /\.pdf$/i.test(uploadedFileName) || (!uploadedFileName && buffer.length > 4 && buffer.slice(0, 5).toString() === '%PDF-');
+
+        if (isPlainText && buffer.length > 0) {
+          originalText = buffer.toString('utf-8');
+          taskQueue.updateTask(task.id, {
+            logs: ['[进度] 纯文本材料，已直接解码为展示原文']
+          });
+        } else if (isPdf && buffer.length > 0) {
+          const pdfParse = require('pdf-parse');
+          const pdfData = await pdfParse(buffer);
+          originalText = String(pdfData?.text || '').replace(/\r\n/g, '\n').trim();
+          taskQueue.updateTask(task.id, {
+            logs: [`[进度] PDF 本地抽文本完成（约 ${originalText.length} 字），用于沉浸式阅读展示`]
+          });
         }
       } catch (e) {
-        console.error("[Material] 获取文档分段异常:", e.message);
+        console.warn('[Material] 本地抽取原文失败，将回退 Dify 分段:', e.message);
+        originalText = '';
+        taskQueue.updateTask(task.id, {
+          logs: [`[进度] 本地原文抽取失败（${e.message}），回退 Dify 分段拼接`]
+        });
+      }
+
+      if (originalText) {
+        articleText = originalText;
+      } else {
+        try {
+          const segmentsRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}/segments`, {
+            headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
+          });
+          if (segmentsRes.ok) {
+            const segmentsData = await segmentsRes.json();
+            const segments = segmentsData.data || [];
+            articleText = segments.map(s => s.content || '').join('\n\n');
+          } else {
+            console.warn("[Material] 获取文档分段失败", segmentsRes.status);
+          }
+        } catch (e) {
+          console.error("[Material] 获取文档分段异常:", e.message);
+        }
       }
 
       // ---------------------------------------------------------
@@ -4742,6 +4774,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           sentences: sentencesToReturn.map(i => typeof i === 'object' ? (i.word || i.sentence || i.text) : String(i)),
           addedSentenceCount,
           article: articleText,
+          originalText: originalText || undefined,
           results: [
             {
               fileName: fileObj.fileName || "Document",
