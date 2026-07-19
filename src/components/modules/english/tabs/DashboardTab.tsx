@@ -122,17 +122,13 @@ export default function DashboardTab() {
   };
 
   const handleTrackChange = async (newTrack: 'business' | 'all') => {
-    // 核心修复：切回当前阶段时，不加限制并直接清理可能残留的弹窗
+    // 政商务 / 全场景轨道可自由切换，不做通关锁定；主题切换仍走 runMasteryGate
     if (newTrack === stage) {
       setThemeSwitchError(null);
       return;
     }
 
-    // 堵住漏洞：切换阶段也会导致主题变更，必须执行强制拦截校验！
-    const passed = await runMasteryGate();
-    if (!passed) return;
-
-    // 校验通过，放行阶段切换
+    setThemeSwitchError(null);
     setStage(newTrack);
     const options = getThemeOptions(newTrack);
     if (!options.find(o => o.value === theme)) {
