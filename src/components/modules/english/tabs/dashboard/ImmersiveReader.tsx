@@ -2,10 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, X, Loader2 } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
-import { addWord, updateWordPayload } from '../../../../../services/vocabAPI';
+import { addWord, updateWordPayload, queryDictionaryWithCache } from '../../../../../services/vocabAPI';
 import { runWordEnrichment, toVocabEnrichmentPayload } from '../../../../../services/difyAPI';
 import { playSuccess, playError, playPageTurn } from '../../../../../utils/soundEffects';
-
 /** 与 App RightPanel 宽度一致，沉浸层需让出右侧以免 z-[9999] 挡住情报解密仓 */
 const RIGHT_PANEL_WIDTH_PX = 400;
 
@@ -231,32 +230,68 @@ export function ImmersiveReader({
               playPageTurn();
               setIsAddingSelected(true);
               const targetWord = selectedWord;
-              let payload = {
+              let payload: Record<string, unknown> = {
                 word: targetWord,
-                phonetic: '',
-                partOfSpeech: '',
-                meaning: '待复习补充',
-                definition_en: '',
-                business_note: '',
-                examples: [] as string[],
                 source: 'immersive_reading',
                 theme,
               };
               try {
-                // 先让出右侧并打开情报解密仓（占位），避免 enrichment 等待期间「无影响」感
+                // 1) 立即打开解密仓（仅 word），RightPanel 开始拉词典
                 window.dispatchEvent(new CustomEvent('toggle-right-panel', {
                   detail: {
                     open: true,
                     tab: 'context',
-                    wordData: { ...payload, word: targetWord },
+                    wordData: { word: targetWord, source: 'immersive_reading' },
                   },
                 }));
 
+                // 2) 主动拉取与完整解密仓相同的商业词典（优先），结果经 dictPreload 注入
+                let dictPreload: Awaited<ReturnType<typeof queryDictionaryWithCache>> | null = null;
+                try {
+                  dictPreload = await queryDictionaryWithCache({
+                    word: targetWord,
+                    dictType: 'en_en_business',
+                  });
+                  if (!dictPreload?.ok) {
+                    dictPreload = await queryDictionaryWithCache({
+                      word: targetWord,
+                      dictType: 'en_zh_bidirectional',
+                    });
+                  }
+                  if (dictPreload?.ok) {
+                    window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+                      detail: {
+                        open: true,
+                        tab: 'context',
+                        wordData: {
+                          word: targetWord,
+                          source: 'immersive_reading',
+                          dictPreload,
+                        },
+                      },
+                    }));
+                  }
+                } catch (dictErr) {
+                  console.error('沉浸式阅读词典查询失败:', dictErr);
+                }
+
+                // 3) enrichment 仅用于入库 payload，不再当作解密仓主展示
                 try {
                   const enriched = await runWordEnrichment(targetWord, theme);
                   payload = { ...toVocabEnrichmentPayload(enriched), source: 'immersive_reading', theme };
                 } catch (enrichError) {
                   console.error('沉浸式阅读词汇补全失败，使用占位 payload 继续入库:', enrichError);
+                  payload = {
+                    word: targetWord,
+                    phonetic: '',
+                    partOfSpeech: '',
+                    meaning: '',
+                    definition_en: '',
+                    business_note: '',
+                    examples: [],
+                    source: 'immersive_reading',
+                    theme,
+                  };
                 }
 
                 const category = theme === '日常场景' || theme.includes('日常') ? 'general' : 'business';
@@ -273,12 +308,16 @@ export function ImmersiveReader({
                   await updateWordPayload(wordId, payload);
                 }
 
-                // 用补全后的完整 payload 刷新解密仓
                 window.dispatchEvent(new CustomEvent('toggle-right-panel', {
                   detail: {
                     open: true,
                     tab: 'context',
-                    wordData: { ...payload, id: wordId, word: targetWord },
+                    wordData: {
+                      ...payload,
+                      id: wordId,
+                      word: targetWord,
+                      ...(dictPreload?.ok ? { dictPreload } : {}),
+                    },
                   },
                 }));
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock } from 'lucide-react';
-import { getAllWords, queryDictionary, type VocabEntry } from '../services/vocabAPI';
+import { getAllWords, queryDictionaryWithCache, type VocabEntry } from '../services/vocabAPI';
 import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
 import MemoryAidPanel from './MemoryAidPanel';
 import DifyAssistantFrame from './DifyAssistantFrame';
@@ -44,53 +44,89 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
   }, [wordData]);
 
   useEffect(() => {
-    if (!wordData?.word) {
-      setLocalWordEntry(null);
-      setDictResult(null);
+    const word = typeof wordData?.word === 'string' ? wordData.word.trim() : '';
+    if (!isOpen || !word) {
+      if (!word) {
+        setLocalWordEntry(null);
+        setDictResult(null);
+        setDictLoading(false);
+      }
       return;
     }
 
+    let cancelled = false;
+
+    // 沉浸式等入口可注入与完整解密仓相同的词典结果，优先采用，避免只显示「待复习补充」
+    const preload = wordData?.dictPreload;
+    if (preload?.ok && preload?.payload) {
+      setDictResult(preload);
+      setDictLoading(false);
+    }
+
     const loadData = async () => {
-      // 切换新词时，立即同步清空上一个词的本地词条和字典缓存，防止异步等待期间的数据错乱
-      setLocalWordEntry(null);
-      setDictResult(null);
+      if (!preload?.ok) {
+        setDictResult(null);
+        setDictLoading(true);
+      }
       try {
         const allWords = await getAllWords();
-        const found = allWords.find(w => w.word.toLowerCase() === wordData.word.toLowerCase());
+        if (cancelled) return;
+        const found = allWords.find(w => w.word.toLowerCase() === word.toLowerCase());
         setLocalWordEntry(found || null);
       } catch (err) {
         console.error('Failed to search local word database:', err);
-        setLocalWordEntry(null);
+        if (!cancelled) setLocalWordEntry(null);
       }
 
-      setDictLoading(true);
+      // 已有有效 preload 时不再重复打断 UI；后台仍可刷新
       try {
-        const res = await queryDictionary({
-          word: wordData.word,
+        let res = await queryDictionaryWithCache({
+          word,
           dictType: 'en_en_business',
         });
-        if (res && res.ok) {
-          setDictResult(res);
-        } else {
-          const resBi = await queryDictionary({
-            word: wordData.word,
+        if (cancelled) return;
+        if (!(res && res.ok)) {
+          res = await queryDictionaryWithCache({
+            word,
             dictType: 'en_zh_bidirectional',
           });
-          if (resBi && resBi.ok) {
-            setDictResult(resBi);
-          }
+        }
+        if (cancelled) return;
+        if (res && res.ok) {
+          setDictResult(res);
+        } else if (!preload?.ok) {
+          setDictResult(null);
         }
       } catch (err) {
         console.error('Failed to query dictionary for RightPanel:', err);
-        setDictResult(null);
+        if (!cancelled && !preload?.ok) setDictResult(null);
       } finally {
-        setDictLoading(false);
+        if (!cancelled) setDictLoading(false);
       }
     };
 
     loadData();
-  }, [wordData]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, wordData?.word, wordData?.dictPreload]);
 
+  // 同一词的 payload / 入库刷新：只同步本地词条，不重跑词典
+  useEffect(() => {
+    const word = typeof wordData?.word === 'string' ? wordData.word.trim() : '';
+    if (!word || !isOpen) return;
+
+    const syncLocal = async () => {
+      try {
+        const allWords = await getAllWords();
+        const found = allWords.find(w => w.word.toLowerCase() === word.toLowerCase());
+        setLocalWordEntry(found || null);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+    syncLocal();
+  }, [wordData, isOpen]);
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
   );
@@ -345,7 +381,9 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                                 核心释义
                               </div>
                               <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-gray-800 leading-relaxed font-semibold">
-                                {wordData.meaning || '未获取到释义。'}
+                                {(!wordData.meaning || wordData.meaning === '待复习补充')
+                                  ? '词典情报暂未返回，请稍后重试或从弹药库再次打开该词。'
+                                  : wordData.meaning}
                               </div>
                             </div>
 
