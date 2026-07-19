@@ -2054,6 +2054,22 @@ function mergeStreamAnswer(current, incoming) {
   return current + incoming;
 }
 
+/** 将 Dify / 下游模型错误转为可操作的提示（daily-extract、completion 等共用） */
+function formatDifyModelError(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return 'Dify 模型调用失败，未返回错误详情';
+  if (/Server Unavailable|ConnectTimeout|23\.95\.214\.232|38000|Max retries exceeded/i.test(text)) {
+    return [
+      'Dify 下游 LLM 推理服务不可用（23.95.214.232:38000 连接超时）。',
+      '长文生成应用：materail_generate_url_enhanced',
+      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默认 app-OShKY1EcVuLFkuxrpO28ZB0A）',
+      '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL，或重启 38000 端口推理服务。',
+    ].join(' ');
+  }
+  if (/^\[models\]/i.test(text)) return `Dify 模型调用失败: ${text}`;
+  return text;
+}
+
 /** 清洗听力长文稿：去掉 Dify 模板头与词汇 JSON 段，仅保留可朗读正文 */
 function sanitizeListenMaterialScript(raw) {
   if (!raw || typeof raw !== 'string') return '';
@@ -2160,11 +2176,12 @@ app.post('/api/listen/generate-material', async (req, res) => {
     
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return res.status(response.status).json({ success: false, error: data.message || data.error || 'Dify API Error' });
+      const errMsg = formatDifyModelError(data.message || data.error || 'Dify API Error');
+      return res.status(response.status).json({ success: false, error: errMsg });
     }
     
     if (!data.answer) {
-      return res.status(500).json({ success: false, error: '??????????????????????????????????? Dify ????????????' });
+      return res.status(500).json({ success: false, error: 'Dify 未返回听力材料正文，请检查 listen_material_generator 应用配置' });
     }
     
     res.json({ success: true, answer: data.answer });
@@ -4295,24 +4312,24 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
   }
 });
 
-// ???????????????????????? Dify ???????????? -> ??? -> ??? -> ??????????
+// 处理材料提纯解析请求（真实 Dify 联动：找库 -> 清空 -> 上传 -> 工作流抽提）
 app.post('/api/material/process-and-extract', async (req, res) => {
   const { topic, userId, files, user_current_profile } = req.body;
 
   if (!files || files.length === 0) {
-    return res.status(400).json({ success: false, error: '??????????????????????????' });
+    return res.status(400).json({ success: false, error: '未提供可处理的上传文件' });
   }
 
   const taskQueue = require('./services/taskQueue');
-  const taskName = `??????: ${files[0]?.fileName || '??????????'}`;
+  const taskName = `材料提纯: ${files[0]?.fileName || '未知文件'}`;
   const task = taskQueue.createTask('material', taskName);
 
-  // ???????? taskId ???????????????????
+  // 立即返回 taskId，后续在后台异步执行
   res.json({ success: true, taskId: task.id, status: task.status });
 
-  // ??????????????????
+  // 异步执行材料上传与知识库写入流程
   setImmediate(async () => {
-    // ????????????????????????
+    // 创建 Dify 知识库文档，轮询索引状态，触发提纯工作流，写入生词本
     const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
     const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
@@ -4321,7 +4338,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'running',
         progress: 5,
-        logs: ['[???] ?????????????????...']
+        logs: ['[进度] 正在初始化提取任务...']
       });
 
       // ---------------------------------------------------------
@@ -4330,7 +4347,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
       // ---------------------------------------------------------
-      // ?????????????????????????????????????????
+      // 批量删除旧文档（如果存在）
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 20,
@@ -4339,52 +4356,52 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
       });
-      if (!docsResponse.ok) throw new Error(`????????????????????? (HTTP ${docsResponse.status})`);
+      if (!docsResponse.ok) throw new Error(`获取知识库文档列表失败 (HTTP ${docsResponse.status})`);
       const docsData = await docsResponse.json();
       const docIds = docsData.data?.map(d => d.id) || [];
 
-      // ????????????????????????
+      // 异步并行删除所有旧文档
       if (docIds.length > 0) {
         taskQueue.updateTask(task.id, {
           progress: 30,
-          logs: [`[???] ??????? ${docIds.length} ????????????????????????...`]
+          logs: [`[进度] 发现已存在 ${docIds.length} 个旧文档，正在清空...`]
         });
         await Promise.all(docIds.map(async docId => {
           const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
           });
-          if (!delRes.ok) console.warn(`[???] ????????????? ${docId} ?? (HTTP ${delRes.status})`);
+          if (!delRes.ok) console.warn(`[警告] 删除旧文档 ${docId} 失败 (HTTP ${delRes.status})`);
         }));
         taskQueue.updateTask(task.id, {
           progress: 40,
-          logs: ['[???] ??????????????????']
+          logs: ['[进度] 旧文档清空完成']
         });
       } else {
         taskQueue.updateTask(task.id, {
           progress: 40,
-          logs: ['[???] ????????????????????????']
+          logs: ['[进度] 知识库为空，无需清空']
         });
       }
 
       // ---------------------------------------------------------
-      // ??????????????????????????????????
+      // 准备上传文件到 Dify 知识库
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 45,
-        logs: ['[???] ???????????????? Base64 ??????????????...']
+        logs: ['[进度] 正在解析 Base64 格式的上传材料...']
       });
       const fileObj = files[0];
       const base64Data = fileObj.content || fileObj.base64 || '';
       const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
-      // ???? Node 18+ ???????? Blob ??? FormData ?????????????????
+      // Node 18+ 使用全局 Blob 构造 FormData（兼容浏览器和 Node 环境）
       const blob = new Blob([buffer], { type: 'application/octet-stream' });
       const formData = new FormData();
       formData.append('file', blob, fileObj.fileName || 'upload_material.pdf');
-      // ???????????????????????????????????????????? (Hierarchical)
-      // ?????????????? rules (?????? pre_processing_rules ??? subchunk_segmentation)
+      // 使用 Hierarchical 模式保留文档结构（段+子段）
+      // 配置解析规则：预处理（去多余空格）、父段落模式、子段分割
       formData.append('data', JSON.stringify({
         indexing_technique: 'high_quality',
         doc_form: 'hierarchical_model',
@@ -4410,7 +4427,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 50,
-        logs: ['[???] ??????????????????????? Dify ??????????????????...']
+        logs: ['[进度] 正在上传解析后的材料到 Dify 知识库...']
       });
       const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
         method: 'POST',
@@ -4420,7 +4437,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       if (!uploadResponse.ok) {
         const errText = await uploadResponse.text();
-        throw new Error(`Dify ?????????????: ${errText}`);
+        throw new Error(`Dify 文件上传失败: ${errText}`);
       }
 
       const uploadData = await uploadResponse.json();
@@ -4428,19 +4445,19 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const batchId = uploadData.batch;
 
       if (!documentId || !batchId) {
-        throw new Error('??????????????????? Dify ?????? batch ID ????????????');
+        throw new Error('未能从 Dify 响应中获取 document / batch ID');
       }
 
       taskQueue.updateTask(task.id, {
         progress: 55,
-        logs: [`[???] ????????????? (ID: ${documentId}, Batch: ${batchId})?????????????????????????...`]
+        logs: [`[进度] 导入文档成功 (ID: ${documentId}, Batch: ${batchId})，正在开始索引...`]
       });
 
       // ---------------------------------------------------------
-      // ??????????????????????????????????????????????????????
+      // 轮询 Dify 文档索引状态，等待向量化完成
       // ---------------------------------------------------------
       let isIndexed = false;
-      // ??? 40 ??????? 3 ?????????????? 120 ?????????????
+      // 最多等待 40 轮（每轮 3 秒），总计 120 秒超时
       for (let i = 0; i < 40; i++) {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -4449,21 +4466,21 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
         });
 
-        if (!statusRes.ok) continue; // ???????????????????????????????????
+        if (!statusRes.ok) continue; // 本轮状态查询失败则跳过，继续下一轮
         const statusData = await statusRes.json();
-        // ??????????????????? (????????????????)
+        // 获取单个文档的索引状态（pending / indexing / completed / error）
         const docInfo = statusData.data?.[0];
 
         if (docInfo) {
           taskQueue.updateTask(task.id, {
             progress: Math.min(68, 55 + i),
-            logs: [`[???] ? ${i + 1} ????? Dify ?????????: ${docInfo.indexing_status}`]
+            logs: [`[进度] 第 ${i + 1} 轮获取 Dify 索引状态: ${docInfo.indexing_status}`]
           });
           if (docInfo.indexing_status === 'completed') {
             isIndexed = true;
             break;
           } else if (docInfo.indexing_status === 'error') {
-            throw new Error('Dify ??????????????????????????????????????');
+            throw new Error('Dify 文档索引失败，请检查上传文件或知识库配置');
           }
         }
       }
@@ -4474,10 +4491,10 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 70,
-        logs: ['[???] ????????????????????????????????? Dify ????????????...']
+        logs: ['[进度] 知识库文档向量化就绪，准备提纯...']
       });
 
-      // --- ??????????????? Dify ?????????????????? ---
+      // --- 从 Dify 获取文档分段并拼接为原文 ---
       let articleText = "";
       try {
         const segmentsRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}/segments`, {
@@ -4488,18 +4505,18 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           const segments = segmentsData.data || [];
           articleText = segments.map(s => s.content || '').join('\n\n');
         } else {
-          console.warn("[Material] ??????????????????????????", segmentsRes.status);
+          console.warn("[Material] 获取文档分段失败", segmentsRes.status);
         }
       } catch (e) {
-        console.error("[Material] ????????????????????:", e.message);
+        console.error("[Material] 获取文档分段异常:", e.message);
       }
 
       // ---------------------------------------------------------
-      // ???????????????????????????????????????????????
+      // 运行 Dify 英文商业实战材料提纯工作流
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 75,
-        logs: ['[???] ??????????????????????????????????????????????????????...']
+        logs: ['[进度] 正在运行 Dify 提纯工作流提取核心词句...']
       });
       const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
         method: 'POST',
@@ -4519,11 +4536,11 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       if (!wfResponse.ok) {
         const errText = await wfResponse.text().catch(() => '');
-        throw new Error(`??????????? (HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
+        throw new Error(`提纯工作流失败 (HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
       }
       const wfData = await wfResponse.json();
 
-      // ??????????????????????????????????????????????????????????????????
+      // 从工作流 outputs 中提取词汇和句型结果
       const outputs = wfData?.data?.outputs || {};
       const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
 
@@ -4531,7 +4548,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       if (Array.isArray(rawExtracted)) {
         extractedItems = rawExtracted;
       } else if (typeof rawExtracted === 'string') {
-        // ???????????? JSON ????
+        // 尝试将字符串结果解析为 JSON 格式
         let cleanJson = rawExtracted.trim();
         if (cleanJson.startsWith('\`\`\`json')) cleanJson = cleanJson.substring(7);
         else if (cleanJson.startsWith('\`\`\`')) cleanJson = cleanJson.substring(3);
@@ -4553,15 +4570,15 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           }
           if (Array.isArray(parsed)) extractedItems = parsed;
         } catch (e) {
-          // ???????????????????????
-          extractedItems = rawExtracted.split(/[,??\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
+          // 解析失败时按逗号/换行粗分
+          extractedItems = rawExtracted.split(/[,，、\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
         }
       }
 
-      // ??????? extractedItems ?????????? item ??? category ???????????????
+      // 根据 extractedItems 中每项的 category 字段补充布尔标记
       for (const item of extractedItems) {
         if (typeof item === 'object' && item !== null) {
-          // ??? ??????????????????? category???????????????????
+          // 若模型已给出 category，则同步到 is_phrase / is_sentence
           if (item.category === 'word') item.is_phrase = false;
           else if (item.category === 'phrase') item.is_phrase = true;
           else if (item.category === 'sentence') item.is_sentence = true;
@@ -4572,14 +4589,14 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       let phrasesToReturn = [];
       let sentencesToReturn = [];
 
-      // ??????????
+      // 按词数规则分类
       for (const item of extractedItems) {
         const isObject = typeof item === 'object' && item !== null;
         const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : item;
         const cleanStr = String(wordStr).trim();
         if (!cleanStr) continue;
 
-        // ??? ????????????????????????????????????????
+        // 统一走词数分类，决定写入词/词组/句型
         let dictType = classifyByWordCount(cleanStr);
 
         if (dictType === 'ai_sentence') {
@@ -4591,36 +4608,36 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // ?????????????????????
+      // 合并词汇和词组，准备写入数据库
       const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
 
       taskQueue.updateTask(task.id, {
         progress: 85,
-        logs: [`[???] ????????????? ${vocabToInsert.length} ??????????????? ${sentencesToReturn.length} ????????????????????? SQLite ?????????????...`]
+        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词本...`]
       });
 
       /**
-       * ??????????????????????????????????????????????
-       * @param {string} str - ?????????
-       * @returns {number} ?????????
+       * 计算字符串中的英文单词数（用于分类词汇/词组/句型）
+       * @param {string} str - 输入字符串
+       * @returns {number} 单词数量
        */
       function countWords(str) {
         if (!str || typeof str !== 'string') return 0;
         return str
           .trim()
-          .replace(/[.!?,;:'"()[\]{}]/g, '')   // ?????????????
-          .split(/\s+/)                           // ????????????????
-          .filter(w => w.length > 0)             // ????????
+          .replace(/[.!?,;:'"()[\]{}]/g, '')   // 去掉常见标点
+          .split(/\s+/)                           // 按空白分词
+          .filter(w => w.length > 0)             // 去掉空段
           .length;
       }
 
       /**
-       * ??????????????????????????
-       * - ??????ai_extracted?????? 1 ??????????
-       * - ??????ai_phrase???????2 ??????????????????
-       * - ??????ai_sentence????? . ! ? ???????? ???5 ????????????
+       * 按英文单词数粗分类型
+       * - ai_extracted：约 1 个词
+       * - ai_phrase：至少 2 个词且不以句号结尾
+       * - ai_sentence：以 . ! ? 结尾且至少 5 个词
        *
-       * @param {string} wordStr - ???????????
+       * @param {string} wordStr - 待分类文本
        * @returns {'ai_extracted'|'ai_phrase'|'ai_sentence'}
        */
       function classifyByWordCount(wordStr) {
@@ -4639,7 +4656,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // ?????? SQLite
+      // 写入 SQLite
       let addedCount = 0;
       const now = Date.now();
       for (const item of vocabToInsert) {
@@ -4647,10 +4664,10 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
         if (!wordStr) continue;
 
-        // ??? ????????????????????????????????????????????
+        // 再次按词数分类，决定 dict_type
         const dictType = classifyByWordCount(wordStr);
 
-        // ??? payload
+        // 组装 payload
         let payload = { source: 'Material Upload' };
         if (isObject && item.payload) {
           payload = item.payload;
@@ -4666,7 +4683,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           `).run(id, wordStr, dictType, topic || 'material_extraction', JSON.stringify(payload), now, now, '[]');
           addedCount++;
         } else {
-          // ???????????? payload ??????????????????????????
+          // 已存在则仅在 payload 较空时覆盖更新
           let oldPayload = {};
           try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
           if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
@@ -4680,7 +4697,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // ===== ???????????????dict_type = 'ai_sentence'?? =====
+      // ===== 写入句型（dict_type = 'ai_sentence'） =====
       let addedSentenceCount = 0;
       for (const item of sentencesToReturn) {
         const isObject = typeof item === 'object' && item !== null;
@@ -4690,7 +4707,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         const cleanSent = String(sentenceStr).trim();
         if (!cleanSent || cleanSent.length > 500) continue;
 
-        // ???????????????? 50 ?????? LIKE ???????????????????
+        // 用前 50 字符做 LIKE 前缀排重，避免重复长句
         const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
         const existingSent = db.prepare(
           "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
@@ -4712,7 +4729,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         addedSentenceCount++;
       }
 
-      // ??????????????????????????
+      // 组装完成结果并标记任务完成
       taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,
@@ -4733,7 +4750,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
             }
           ]
         },
-        logs: ['[???] ???????????????????????????????????????????????']
+        logs: ['[完成] Dify 提纯分析与生词本写入全部顺利完成！艾宾浩斯复习引擎已刷新']
       });
 
     } catch (error) {
@@ -4741,12 +4758,12 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'failed',
         progress: 100,
-        logs: [`[???] ??????????????${error.message}`]
+        logs: [`[错误] 提纯分析失败: ${error.message}`]
       });
     }
   });
 });// ==========================================
-// ????????????????+???????????????????????????????????????????????// ??????????????????????50 ??? + 30 ????
+// 清空今日配额与当日新增词条（生词本日清）
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
   const { userId = 'default-user' } = req.body;
@@ -5199,12 +5216,17 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 
     if (!wfResponse.ok) {
       const errText = await wfResponse.text();
-      console.error("[Daily Extract] Dify ??????", errText);
-      extractionTasks.set(taskId, { status: 'failed', error: `Dify ???????: ${wfResponse.status} - ${errText}`, createdAt: Date.now() });
+      console.error("[Daily Extract] Dify HTTP error:", errText);
+      extractionTasks.set(taskId, {
+        status: 'failed',
+        error: formatDifyModelError(errText || `HTTP ${wfResponse.status}`),
+        createdAt: Date.now(),
+      });
       return;
     }
 
     let answer = "";
+    let streamError = "";
     const decoder = new TextDecoder();
     let sseBuffer = "";
 
@@ -5219,8 +5241,14 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           if (dataStr === "[DONE]") break;
           try {
             const parsed = JSON.parse(dataStr);
-            if (parsed.answer) {
-              answer += parsed.answer;
+            if (parsed.event === 'error' || parsed.status === 'error') {
+              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+            }
+            if (parsed.message && /Server Unavailable|ConnectTimeout|\[models\]/i.test(String(parsed.message))) {
+              streamError = String(parsed.message);
+            }
+            if (typeof parsed.answer === 'string' && parsed.answer) {
+              answer = mergeStreamAnswer(answer, parsed.answer);
             }
           } catch (e) {}
         }
@@ -5262,14 +5290,26 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         if (dataStr !== "[DONE]") {
           try {
             const parsed = JSON.parse(dataStr);
-            if (parsed.answer) {
-              answer += parsed.answer;
+            if (parsed.event === 'error' || parsed.status === 'error') {
+              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+            }
+            if (typeof parsed.answer === 'string' && parsed.answer) {
+              answer = mergeStreamAnswer(answer, parsed.answer);
             }
           } catch (e) {}
         }
       }
     } else {
       extractionTasks.set(taskId, { status: 'failed', error: "Streaming not supported by Dify backend", createdAt: Date.now() });
+      return;
+    }
+
+    if (streamError) {
+      extractionTasks.set(taskId, {
+        status: 'failed',
+        error: formatDifyModelError(streamError),
+        createdAt: Date.now(),
+      });
       return;
     }
 
@@ -5283,6 +5323,15 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     } else {
       articleText = answer;
       rawVocabText = "";
+    }
+
+    if (!articleText.trim()) {
+      extractionTasks.set(taskId, {
+        status: 'failed',
+        error: formatDifyModelError(answer || 'Dify 流式响应为空，未生成长文正文'),
+        createdAt: Date.now(),
+      });
+      return;
     }
     
     let parsedVocab = [];
