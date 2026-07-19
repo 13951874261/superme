@@ -268,7 +268,13 @@ function AppContent() {
       {/* 右侧上下文及 AI 助手面板 (30% 宽度，收放微缩) */}
       <RightPanel 
         isOpen={isRightPanelOpen}
-        onClose={() => setIsRightPanelOpen(false)}
+        onClose={() => {
+          setIsRightPanelOpen(false);
+          // 通知沉浸式阅读层收回右侧让位（ImmersiveReader z-[9999] 遮罩）
+          window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+            detail: { open: false },
+          }));
+        }}
         activeTab={rightPanelTab}
         setActiveTab={setRightPanelTab}
         wordData={highlightedWordData}

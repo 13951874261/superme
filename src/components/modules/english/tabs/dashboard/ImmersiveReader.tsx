@@ -1,10 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, X, Loader2 } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
 import { addWord, updateWordPayload } from '../../../../../services/vocabAPI';
 import { runWordEnrichment, toVocabEnrichmentPayload } from '../../../../../services/difyAPI';
 import { playSuccess, playError, playPageTurn } from '../../../../../utils/soundEffects';
+
+/** 与 App RightPanel 宽度一致，沉浸层需让出右侧以免 z-[9999] 挡住情报解密仓 */
+const RIGHT_PANEL_WIDTH_PX = 400;
 
 export interface ImmersiveReaderProps {
   isOpen: boolean;
@@ -43,7 +46,9 @@ export function ImmersiveReader({
   setIsAddingSelected,
   showNotice
 }: ImmersiveReaderProps) {
-  
+  // 情报解密仓打开时，沉浸层让出右侧，避免全屏遮罩盖住 RightPanel
+  const [leaveRoomForPanel, setLeaveRoomForPanel] = useState(false);
+
   // Esc 快捷键支持
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -55,10 +60,31 @@ export function ImmersiveReader({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    const handleToggle = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.open === false) {
+        setLeaveRoomForPanel(false);
+      } else if (detail.open === true) {
+        setLeaveRoomForPanel(true);
+      }
+    };
+    window.addEventListener('toggle-right-panel', handleToggle);
+    return () => window.removeEventListener('toggle-right-panel', handleToggle);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) setLeaveRoomForPanel(false);
+  }, [isOpen]);
+
   if (!isOpen || !generatedArticle) return null;
 
   return createPortal(
-    <div className={`fixed inset-0 z-[9999] flex flex-col transition-all duration-300 ${
+    <div
+      style={leaveRoomForPanel ? { right: RIGHT_PANEL_WIDTH_PX } : undefined}
+      className={`fixed top-0 left-0 bottom-0 z-[9999] flex flex-col transition-all duration-300 ${
+      leaveRoomForPanel ? '' : 'right-0'
+    } ${
       immersiveTheme === 'dark' ? 'bg-[#0f172a] text-slate-205' :
       immersiveTheme === 'parchment' ? 'bg-[#fcf8f2] text-slate-800' : 'bg-white text-slate-900'
     }`}>
@@ -217,6 +243,15 @@ export function ImmersiveReader({
                 theme,
               };
               try {
+                // 先让出右侧并打开情报解密仓（占位），避免 enrichment 等待期间「无影响」感
+                window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+                  detail: {
+                    open: true,
+                    tab: 'context',
+                    wordData: { ...payload, word: targetWord },
+                  },
+                }));
+
                 try {
                   const enriched = await runWordEnrichment(targetWord, theme);
                   payload = { ...toVocabEnrichmentPayload(enriched), source: 'immersive_reading', theme };
@@ -238,6 +273,7 @@ export function ImmersiveReader({
                   await updateWordPayload(wordId, payload);
                 }
 
+                // 用补全后的完整 payload 刷新解密仓
                 window.dispatchEvent(new CustomEvent('toggle-right-panel', {
                   detail: {
                     open: true,

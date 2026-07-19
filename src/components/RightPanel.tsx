@@ -149,7 +149,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={GLOBAL_SPRING}
-          className={`h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[99] overflow-hidden`}
+          className={`h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[10050] overflow-hidden`}
         >
           {/* 头部 Tab 区域 */}
           <div className={`flex items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>
