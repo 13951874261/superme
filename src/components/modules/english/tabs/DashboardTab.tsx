@@ -669,22 +669,22 @@ export default function DashboardTab() {
 
   return (
     <>
-      <div className="space-y-8 animate-[fadeIn_0.3s_ease-out] relative">
+      <div className="space-y-4 animate-[fadeIn_0.3s_ease-out] relative">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
-      {/* 战术使用指南 SOP */}
-      <div className="card-sop p-5 flex flex-col gap-4 shrink-0 shadow-sm transition-all duration-300">
+      {/* 战术使用指南 SOP — 默认收起的细条 */}
+      <div className="card-sop px-4 py-3 flex flex-col gap-3 shrink-0 shadow-sm transition-all duration-300">
         <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsSopExpanded(!isSopExpanded)}>
-          <div className="flex items-center gap-3">
-            <div className="bg-indigo-600 text-white p-2 rounded-lg shadow-md">
-               <Target className="w-4 h-4" />
+          <div className="flex items-center gap-2.5">
+            <div className="bg-indigo-600 text-white p-1.5 rounded-lg shadow-md">
+               <Target className="w-3.5 h-3.5" />
             </div>
             <div className="text-left">
               <h5 className="eyebrow text-indigo-900/80">战术使用指南 // Tactical SOP</h5>
               <p className="text-[10px] text-indigo-800/60 font-medium mt-0.5">点击展开/收起模块使用说明</p>
             </div>
           </div>
-          <button className="flex items-center gap-1 text-indigo-500 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors text-xs font-bold">
+          <button className="flex items-center gap-1 text-indigo-500 hover:bg-indigo-100 px-2.5 py-1 rounded-md transition-colors text-xs font-bold">
             {isSopExpanded ? '收起指南' : '展开指南'}
             {isSopExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
@@ -693,49 +693,58 @@ export default function DashboardTab() {
         <SOPGuide isSopExpanded={isSopExpanded} />
       </div>
 
-      {/* 核心中枢：战局大纲与当前闭环主题控制 */}
-      <div className="bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-5 animate-[fadeIn_0.3s_ease-out]">
-        <StrategicRoadmap
-          stage={stage}
-          handleTrackChange={handleTrackChange}
-          masteredThemes={masteredThemes}
-          customThemesCount={customThemes?.length || 0}
-          currentTheme={theme}
-        />
+      {/* 首屏带 Option B：Hub | (Stay + Briefing) 同列，压缩垂直预算 */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
+        <div className="lg:col-span-7 bg-white rounded-3xl p-3.5 md:p-4 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-3 animate-[fadeIn_0.3s_ease-out]">
+          <StrategicRoadmap
+            stage={stage}
+            handleTrackChange={handleTrackChange}
+            masteredThemes={masteredThemes}
+            customThemesCount={customThemes?.length || 0}
+            currentTheme={theme}
+          />
 
-        {/* 当前闭环主题（抽离后的 ThemeGateway 组件） */}
-        <ThemeGateway 
-          theme={theme}
-          setTheme={setTheme}
-          themeSwitchError={themeSwitchError}
-          setThemeSwitchError={setThemeSwitchError}
-          runMasteryGate={runMasteryGate}
-          masteryData={masteryData}
-          customThemes={customThemes || []}
-          currentCustomTheme={currentCustomTheme}
-          isDeletingTheme={isDeletingTheme}
-          setIsDeletingTheme={setIsDeletingTheme}
-          setIsCustomThemeModalOpen={setIsCustomThemeModalOpen}
-          getThemeOptions={getThemeOptions}
-          stage={stage}
-          refreshCustomThemes={refreshCustomThemes}
-          showNotice={showNotice}
-          setThemeFocus={async (params) => {
-            await setThemeFocus(params).catch(() => {});
-          }}
-          deleteCustomTheme={async (id) => {
-             const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
-             return deleteCustomTheme(id);
-          }}
-        />
+          <ThemeGateway 
+            theme={theme}
+            setTheme={setTheme}
+            themeSwitchError={themeSwitchError}
+            setThemeSwitchError={setThemeSwitchError}
+            runMasteryGate={runMasteryGate}
+            masteryData={masteryData}
+            customThemes={customThemes || []}
+            currentCustomTheme={currentCustomTheme}
+            isDeletingTheme={isDeletingTheme}
+            setIsDeletingTheme={setIsDeletingTheme}
+            setIsCustomThemeModalOpen={setIsCustomThemeModalOpen}
+            getThemeOptions={getThemeOptions}
+            stage={stage}
+            refreshCustomThemes={refreshCustomThemes}
+            showNotice={showNotice}
+            setThemeFocus={async (params) => {
+              await setThemeFocus(params).catch(() => {});
+            }}
+            deleteCustomTheme={async (id) => {
+               const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
+               return deleteCustomTheme(id);
+            }}
+          />
         </div>
 
-        {/* 状态与停留分析区（已抽离） */}
-        <StayAnalysisPanel 
-          masteryData={masteryData}
-          impromptuPassed={impromptuPassed}
-          stayStats={stayStats}
-        />
+        <div className="lg:col-span-5 flex flex-col gap-3 min-h-0">
+          <StayAnalysisPanel 
+            masteryData={masteryData}
+            impromptuPassed={impromptuPassed}
+            stayStats={stayStats}
+          />
+          <DailyBriefingCard 
+             quotaStatus={quotaStatus}
+             generatedArticle={generatedArticle}
+             extractedWordsCount={extractedWords.length}
+             extractedPhrasesCount={extractedPhrases.length}
+          />
+        </div>
+      </div>
+
       <ArsenalPanel
         genre={genre}
         setGenre={setGenre}
@@ -751,18 +760,10 @@ export default function DashboardTab() {
       />
 
         {inlineNotice && noticeAnchor === 'dashboard' && (
-          <div className={`absolute right-0 top-16 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}>
+          <div className={`absolute right-0 top-12 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}>
             {inlineNotice.text}
           </div>
         )}
-
-        {/* === 新增：今日战区简报 (Daily Briefing) === */}
-        <DailyBriefingCard 
-           quotaStatus={quotaStatus}
-           generatedArticle={generatedArticle}
-           extractedWordsCount={extractedWords.length}
-           extractedPhrasesCount={extractedPhrases.length}
-        />
 
         <IntelBriefing 
           generatedArticle={generatedArticle}

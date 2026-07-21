@@ -29,6 +29,28 @@ Write-Host "========== Step 1: Scan Workspace Changes ==========" -ForegroundCol
 $needFrontendDeploy = $false
 $needBackendDeploy = $false
 $needNginxDeploy = $false
+$saveEnvHash = $null
+
+# Always collect changed files so -BackendOnly / -Force still upload the right backend paths
+# (Previously -BackendOnly skipped this scan and defaulted to server.js only, missing e.g. services/webFetcher.js)
+$branchName = (git branch --show-current)
+$diffFiles = @()
+try {
+    $upstreamExists = git ls-remote --heads origin $branchName 2>$null
+    if ($upstreamExists) {
+        $diffFiles = git diff --name-only "origin/$branchName...HEAD" 2>$null
+    }
+} catch {}
+
+$statusFiles = git status --porcelain | ForEach-Object {
+    if ($_ -match '^(..)\s+(.*)$') { $matches[2] } else { $_ -replace '^...|\s+$', '' }
+}
+$changedFiles = @($diffFiles) + @($statusFiles) | Select-Object -Unique | Where-Object { $_ -ne '' }
+
+if (@($changedFiles).Count -eq 0) {
+    Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
+    $changedFiles = @(git diff --name-only HEAD~1 HEAD)
+}
 
 if ($Force) {
     Write-Host "Force switch is active. Enabling full deployment!" -ForegroundColor Magenta
@@ -41,24 +63,16 @@ if ($Force) {
 } elseif ($BackendOnly) {
     Write-Host "BackendOnly switch is active. Deploying backend only!" -ForegroundColor Magenta
     $needBackendDeploy = $true
-} else {
-    $branchName = (git branch --show-current)
-    $diffFiles = @()
-    try {
-        $upstreamExists = git ls-remote --heads origin $branchName 2>$null
-        if ($upstreamExists) {
-            $diffFiles = git diff --name-only "origin/$branchName...HEAD" 2>$null
+    $backendChanged = @($changedFiles | Where-Object { $_ -match '^vocab-server/' })
+    if ($backendChanged.Count -eq 0) {
+        Write-Host "No vocab-server paths in scan; including HEAD~1..HEAD vocab-server files." -ForegroundColor Yellow
+        $changedFiles = @(git diff --name-only HEAD~1 HEAD -- vocab-server/)
+        if (@($changedFiles).Count -eq 0) {
+            $changedFiles = @('vocab-server/server.js', 'vocab-server/services/webFetcher.js')
+            Write-Host "Fallback upload list: server.js + services/webFetcher.js" -ForegroundColor Yellow
         }
-    } catch {}
-
-    $statusFiles = git status --porcelain | ForEach-Object { $_ -replace '^...|\s+$', '' }
-    $changedFiles = @($diffFiles) + @($statusFiles) | Select-Object -Unique | Where-Object { $_ -ne '' }
-
-    if ($changedFiles.Count -eq 0) {
-        Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
-        $changedFiles = git diff --name-only HEAD~1 HEAD
     }
-
+} else {
     foreach ($file in $changedFiles) {
         if ($file -match "^src/" -or $file -match "^public/" -or $file -match "index\.html$" -or $file -match "vite\.config\.ts$" -or $file -match "tsconfig\.json$" -or $file -match "^\.env") {
             $needFrontendDeploy = $true
@@ -78,7 +92,6 @@ if ($Force) {
         }
     }
 
-    $saveEnvHash = $null
     $envFile = "$ProjectRoot\vocab-server\.env"
     if (Test-Path $envFile -PathType Leaf) {
         $envHashFile = "$ProjectRoot\.deploy_env_hash"
@@ -100,10 +113,10 @@ if ($Force) {
         $needBackendDeploy = $true
         $needNginxDeploy = $true
     }
+}
 
-    if ((Test-Path "$ProjectRoot\vocab-server\.env" -PathType Leaf) -and $needBackendDeploy) {
-        Write-Host "Local vocab-server/.env found; will sync to server during backend deploy." -ForegroundColor DarkGreen
-    }
+if ((Test-Path "$ProjectRoot\vocab-server\.env" -PathType Leaf) -and $needBackendDeploy) {
+    Write-Host "Local vocab-server/.env found; will sync to server during backend deploy." -ForegroundColor DarkGreen
 }
 
 Write-Host "[Analysis Results]" -ForegroundColor DarkCyan
@@ -193,8 +206,8 @@ try {
         Write-Host "========== Step 3: Backend Sync and Restart ==========" -ForegroundColor Cyan
         
         if (-not $changedFiles -or @($changedFiles).Count -eq 0) {
-            $changedFiles = @('vocab-server/server.js')
-            Write-Host "  -> No changed-file list; defaulting to vocab-server/server.js" -ForegroundColor Yellow
+            $changedFiles = @('vocab-server/server.js', 'vocab-server/services/webFetcher.js')
+            Write-Host "  -> No changed-file list; defaulting to server.js + services/webFetcher.js" -ForegroundColor Yellow
         }
 
         Write-Host "  -> Backup server.js on remote" -ForegroundColor DarkCyan
@@ -292,6 +305,13 @@ try {
     Write-Host "========== Step 6: Git Push to GitHub ==========" -ForegroundColor Cyan
     $branchName = (git branch --show-current)
     Write-Host "Current branch: $branchName"
+
+    # Prefer 10808, then 7897; if neither is up, push direct (avoid stale proxy in .git/config)
+    $proxyHelper = Join-Path $ProjectRoot 'scripts\resolve-git-proxy.ps1'
+    if (Test-Path $proxyHelper -PathType Leaf) {
+        . $proxyHelper
+        Set-LocalGitProxy | Out-Null
+    }
     
     $gitDiffStatus = git status --porcelain
     if ($gitDiffStatus) {

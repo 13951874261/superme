@@ -44,13 +44,13 @@ export function ThemeGateway({
 }: ThemeGatewayProps) {
   return (
     <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-3">当前闭环主题 <span className="text-slate-300">//</span> Theme Gateway</span>
+      <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1.5">当前闭环主题 <span className="text-slate-300">//</span> Theme Gateway</span>
 
       {themeSwitchError && (
-        <div className="flex items-start gap-3 mb-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
+        <div className="flex items-start gap-3 mb-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
           <div className="flex-1">
-            <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-2">跨国高管拦截指令</p>
+            <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1">跨国高管拦截指令</p>
             <div className="text-xs font-medium leading-relaxed">{themeSwitchError}</div>
           </div>
           <button
@@ -60,7 +60,7 @@ export function ThemeGateway({
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 flex-wrap">
         <select
           value={theme}
           onChange={async (e) => {
@@ -82,7 +82,7 @@ export function ThemeGateway({
             e.stopPropagation();
             setThemeSwitchError(null);
           }}
-          className="flex-1 bg-[var(--color-surface-mid)] border border-[var(--color-border)] text-slate-800 text-sm font-bold rounded-xl px-4 py-3 outline-none focus:border-[var(--color-brand)] focus:shadow-[0_0_0_3px_var(--color-brand-light)] transition-all cursor-pointer"
+          className="flex-1 min-w-[10rem] bg-[var(--color-surface-mid)] border border-[var(--color-border)] text-slate-800 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:border-[var(--color-brand)] focus:shadow-[0_0_0_3px_var(--color-brand-light)] transition-all cursor-pointer"
         >
           <optgroup label="系统预置主题">
             {getThemeOptions(stage as 'business' | 'all').map((o) => (
