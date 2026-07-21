@@ -3,6 +3,11 @@ import { Type, BookA, Languages, ChevronRight, Search, Loader2, BookmarkPlus, Al
 import SpeakButton from './SpeakButton';
 import { addWord, queryDictionary } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
+import {
+  UtilityZhModernView,
+  UtilityEnEnBusinessView,
+  UtilityEnZhBidirectionalView,
+} from './DictionaryUtilityViews';
 
 type DictType = 'zh_modern' | 'en_en_business' | 'en_zh_bidirectional';
 
@@ -726,9 +731,9 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
 }
 
 const DICT_CONFIG = {
-  zh_modern:           { title: '现代汉语词典', subtitle: '词汇溯源与写作文风升维支撑', icon: <Type className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50' },
-  en_en_business:      { title: '英英词典',     subtitle: '沉浸获取原生商务英英解释',   icon: <BookA className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50' },
-  en_zh_bidirectional: { title: '英汉双向译制', subtitle: '带音标及职场黑话穿透',       icon: <Languages className="w-5 h-5" />, color: 'text-indigo-600 bg-indigo-50' },
+  zh_modern:           { title: '现代汉语词典', subtitle: '词汇溯源与写作文风升维支撑', icon: <Type className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
+  en_en_business:      { title: '英英词典',     subtitle: '沉浸获取原生商务英英解释',   icon: <BookA className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
+  en_zh_bidirectional: { title: '英汉双向译制', subtitle: '带音标及职场黑话穿透',       icon: <Languages className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
 } as const;
 
 const DICT_ORDER: DictType[] = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'];
@@ -801,23 +806,23 @@ export default function DictionaryPanel() {
           const isOpen = openDict === type;
 
           return (
-            <div key={type} className={`rounded-2xl border transition-all ${isOpen ? 'border-indigo-100 shadow-md' : 'border-gray-100 shadow-sm'} overflow-hidden bg-white`}>
+            <div key={type} className={`rounded-2xl border transition-all ${isOpen ? 'border-[#FF5722]/25 shadow-md' : 'border-stone-200/80 shadow-sm'} overflow-hidden bg-white`}>
               {/* 菜单行 */}
               <button
                 onClick={(e) => handleToggle(type, e)}
-                className="w-full flex items-center p-3 hover:bg-gray-50 transition-all group"
+                className="w-full flex items-center p-3 hover:bg-stone-50 transition-all group"
               >
                 <div className={`p-2 rounded-xl mr-4 ${cfg.color}`}>{cfg.icon}</div>
                 <div className="text-left flex-1">
                   <div className="font-bold text-[#202124] text-sm">{cfg.title}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5">{cfg.subtitle}</div>
+                  <div className="text-[11px] text-stone-400 mt-0.5">{cfg.subtitle}</div>
                 </div>
-                <ChevronRight className={`w-4 h-4 text-gray-300 transition-transform duration-300 ${isOpen ? 'rotate-90 text-indigo-500' : 'group-hover:text-gray-500'}`} />
+                <ChevronRight className={`w-4 h-4 text-stone-300 transition-transform duration-300 ${isOpen ? 'rotate-90 text-[#FF5722]' : 'group-hover:text-stone-500'}`} />
               </button>
 
               {/* 内联展开的详情区 */}
               {isOpen && (
-                <div className="border-t border-gray-100 p-3 flex flex-col gap-3 bg-[#fafafa]">
+                <div className="border-t border-stone-100 p-3 flex flex-col gap-3 bg-[#fafafa]">
                   {/* 搜索框 */}
                   <div className="relative">
                     <input
@@ -827,12 +832,12 @@ export default function DictionaryPanel() {
                       onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') handleSearch(type); }}
                       onClick={e => e.stopPropagation()}
                       placeholder="切入精准词条..."
-                      className="w-full bg-white border border-gray-200 rounded-xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 shadow-sm transition animate-none"
+                      className="w-full bg-white border border-stone-200 rounded-xl pl-4 pr-12 py-2.5 text-sm focus:outline-none focus:border-[#FF5722] focus:ring-1 focus:ring-[#FF5722]/40 shadow-sm transition animate-none"
                     />
                     <button
                       onClick={(e) => { e.stopPropagation(); handleSearch(type); }}
                       disabled={isLoading || !query.trim()}
-                      className="absolute right-2 top-1.5 bg-[#202124] text-white p-1.5 rounded-lg hover:bg-indigo-600 disabled:opacity-50 transition"
+                      className="absolute right-2 top-1.5 bg-[#202124] text-white p-1.5 rounded-lg hover:bg-[#FF5722] disabled:opacity-50 transition"
                     >
                       {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                     </button>
@@ -840,9 +845,9 @@ export default function DictionaryPanel() {
 
                   {/* 加载中 */}
                   {isLoading && (
-                    <div className="flex flex-col items-center py-6 text-gray-400 animate-pulse">
-                      <Loader2 className="w-6 h-6 animate-spin mb-2 text-indigo-600" />
-                      <span className="text-xs">Dify 工作流深度解构中...</span>
+                    <div className="flex flex-col items-center py-6 text-stone-400 animate-pulse">
+                      <Loader2 className="w-6 h-6 animate-spin mb-2 text-[#FF5722]" />
+                      <span className="text-xs">查询词典中…</span>
                     </div>
                   )}
 
@@ -854,27 +859,25 @@ export default function DictionaryPanel() {
                     </div>
                   )}
 
-                  {/* 结果区 */}
+                  {/* 结果区：侧栏专用 Utility 视图（解密仓仍用导出的 legacy 视图） */}
                   {result?.ok && result.payload && (
-                    <div className="bg-white rounded-xl border border-gray-100 p-3.5 shadow-sm space-y-4">
-                      {/* 一体化排版展示 */}
-                      {result.type === 'zh_modern' ? <ZhModernView payload={result.payload} query={query} /> :
-                       result.type === 'en_en_business' ? <EnEnBusinessView payload={result.payload} query={query} /> :
-                       result.type === 'en_zh_bidirectional' ? <EnZhBidirectionalView payload={result.payload} query={query} /> :
-                       /* Fallback 旧式渲染 */
+                    <div className="bg-white rounded-xl border border-stone-200/80 p-3.5 shadow-sm space-y-4">
+                      {result.type === 'zh_modern' ? <UtilityZhModernView payload={result.payload} query={query} /> :
+                       result.type === 'en_en_business' ? <UtilityEnEnBusinessView payload={result.payload} query={query} /> :
+                       result.type === 'en_zh_bidirectional' ? <UtilityEnZhBidirectionalView payload={result.payload} query={query} /> :
                        <div className="space-y-4">
-                         <div className="flex items-center justify-between pb-2 border-b border-gray-105">
-                           <span className="text-sm font-bold text-gray-800">{query}</span>
-                           <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">未格式化数据</span>
+                         <div className="flex items-center justify-between pb-2 border-b border-stone-100">
+                           <span className="text-sm font-bold text-stone-800">{query}</span>
+                           <span className="text-[10px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded">未格式化数据</span>
                          </div>
-                         <div className="text-xs leading-relaxed text-gray-600">
+                         <div className="text-xs leading-relaxed text-stone-600">
                            {renderValue(result.payload, 0, 'payload', query)}
                          </div>
                        </div>
                       }
 
                       {/* 收录操作 */}
-                      <div className="flex justify-end pt-3 border-t border-gray-100">
+                      <div className="flex justify-end pt-3 border-t border-stone-100">
                         <button
                           title={saveStatus === 'saved' ? '已收录' : saveStatus === 'exists' ? '已存在' : '收录'}
                           disabled={saveStatus === 'saving'}
@@ -883,7 +886,7 @@ export default function DictionaryPanel() {
                             saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
                             saveStatus === 'exists' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 
                             saveStatus === 'error' ? 'bg-red-50 text-red-500 border border-red-100' : 
-                            'bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white border border-indigo-100/50 hover:border-indigo-600'
+                            'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white border border-[#FF5722]/25 hover:border-[#FF5722]'
                           }`}
                         >
                           {saveStatus === 'saved' ? <><CheckCircle2 className="w-3.5 h-3.5" />已收录</> :

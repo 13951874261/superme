@@ -9,6 +9,7 @@ import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
 import CustomCardModal from '../../../CustomCardModal';
 import MemoryAidPanel from '../../../MemoryAidPanel';
+import VocabExportControl from '../../../VocabExportControl';
 import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
 
 // --- Payload Adapter ---
@@ -266,11 +267,11 @@ export default function VocabTab() {
 
       {/* 双区生词本切换 — 含区别说明 */}
       <div className="flex flex-col gap-2">
-        <div className="flex justify-between items-center w-full">
+        <div className="flex justify-between items-center w-full gap-3 flex-wrap">
           <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
             <button
               onClick={() => { setVocabZone('business'); setCurrentWordIdx(0); }}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                 vocabZone === 'business' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
               }`}
             >
@@ -278,19 +279,22 @@ export default function VocabTab() {
             </button>
             <button
               onClick={() => { setVocabZone('general'); setCurrentWordIdx(0); }}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-black uppercase tracking-widest transition-all ${
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
                 vocabZone === 'general' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
               }`}
             >
               <Globe className="w-3.5 h-3.5" /> 全场景区
             </button>
           </div>
-          <button
-            onClick={() => setShowCustomCardModal(true)}
-            className="flex items-center gap-1.5 bg-[#FF5722] text-white text-xs font-black uppercase tracking-widest px-4 py-2 rounded-xl hover:bg-[#E64A19] transition shadow-sm"
-          >
-            + 自定义制卡
-          </button>
+          <div className="flex items-center gap-2 ml-auto">
+            <VocabExportControl currentTab={vocabZone} />
+            <button
+              onClick={() => setShowCustomCardModal(true)}
+              className="flex items-center gap-1.5 border border-[#FF5722]/30 text-[#FF5722] hover:bg-[#FF5722]/5 text-xs font-bold px-4 py-2 rounded-xl transition"
+            >
+              + 制卡
+            </button>
+          </div>
         </div>
         {/* 区别说明 */}
         <div className="text-[11px] text-gray-400 leading-relaxed font-medium px-1">

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, Clock, AlertCircle, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
+import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, AlertCircle, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import { getStats, getAllWords, deleteWord, manualIntervention, getEbbinghausData, VocabEntry, VocabStats, EbbinghausData } from '../services/vocabAPI';
 import FlashCard from './FlashCard';
 import CustomCardModal from './CustomCardModal';
 import MemoryAidPanel from './MemoryAidPanel';
 import EbbinghausChart from './EbbinghausChart';
+import VocabExportControl from './VocabExportControl';
+import { getWordTranslation } from '../utils/vocabCsvExport';
 
 // ==========================================
 // 生词本内联详情展示组件 (手风琴展开内容)
@@ -39,46 +41,41 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
   }, [activeTab, word.id, ebbinghausData]);
 
   const payload = word.payload || {};
-  const phonetic = payload.phonetic || '';
-  const translation = payload.definition || payload.translation_main || (Array.isArray(payload.definitions_en) ? payload.definitions_en[0] : '');
-  const pos = payload.pos || '';
+  const translation = getWordTranslation(word);
 
   return (
     <div className="bg-slate-50/70 border-t border-slate-100 p-4 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
-      {/* 选项卡导航 */}
       <div className="flex border-b border-slate-200 pb-1">
         <button
           onClick={() => setActiveTab('definition')}
-          className={`flex-1 text-[11px] font-black pb-1 border-b-2 text-center transition-all ${activeTab === 'definition' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          className={`flex-1 text-[11px] font-bold pb-1 border-b-2 text-center transition-all ${activeTab === 'definition' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
           完整释义
         </button>
         <button
           onClick={() => setActiveTab('memory')}
-          className={`flex-1 text-[11px] font-black pb-1 border-b-2 text-center transition-all ${activeTab === 'memory' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          className={`flex-1 text-[11px] font-bold pb-1 border-b-2 text-center transition-all ${activeTab === 'memory' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
           记忆辅助
         </button>
         <button
           onClick={() => setActiveTab('ebbinghaus')}
-          className={`flex-1 text-[11px] font-black pb-1 border-b-2 text-center transition-all ${activeTab === 'ebbinghaus' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+          className={`flex-1 text-[11px] font-bold pb-1 border-b-2 text-center transition-all ${activeTab === 'ebbinghaus' ? 'border-[#FF5722] text-[#FF5722]' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
         >
           遗忘曲线
         </button>
       </div>
 
-      {/* 选项卡内容 */}
       <div className="text-left">
         {activeTab === 'definition' && (
           <div className="bg-white border border-slate-100 rounded-xl p-3.5 space-y-2.5 max-h-[220px] overflow-y-auto shadow-sm">
             <div className="text-xs text-slate-700 leading-relaxed font-medium">
-              {translation || <span className="text-slate-400 italic">暂无中文释义</span>}
+              {translation || <span className="text-slate-400">暂无中文释义</span>}
             </div>
-            
-            {/* 商务/通用例句渲染 */}
+
             {payload.example_sentences && payload.example_sentences.length > 0 && (
               <div className="mt-2 pt-2 border-t border-slate-50 space-y-1">
-                <div className="text-[9px] font-black uppercase text-slate-400 tracking-wider">精选例句</div>
+                <div className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">精选例句</div>
                 {payload.example_sentences.slice(0, 2).map((s: any, idx: number) => (
                   <div key={idx} className="text-[11px] text-slate-600 leading-relaxed">
                     {typeof s === 'object' ? (
@@ -135,8 +132,8 @@ export default function VocabularyBook() {
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
   const [editingWord, setEditingWord] = useState<VocabEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
-  
-  // 新增：展开的单词 ID 状态 (手风琴效果)
+  const [exportHint, setExportHint] = useState<string | null>(null);
+
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
 
   const loadStats = useCallback(async () => {
@@ -144,7 +141,7 @@ export default function VocabularyBook() {
       const s = await getStats();
       setStats(s);
       setError(null);
-    } catch (e: any) {
+    } catch {
       setError('API 连接失败');
     }
   }, []);
@@ -154,7 +151,7 @@ export default function VocabularyBook() {
     try {
       const list = await getAllWords();
       setWords(list);
-    } catch (e) {
+    } catch {
       // ignore
     } finally {
       setIsLoading(false);
@@ -163,12 +160,10 @@ export default function VocabularyBook() {
 
   useEffect(() => {
     loadStats();
-    // 每分钟刷新一次统计
     const timer = setInterval(loadStats, 60000);
     return () => clearInterval(timer);
   }, [loadStats]);
 
-  // 监听全局事件，实现实时无感更新
   useEffect(() => {
     const handleUpdate = () => {
       loadStats();
@@ -205,9 +200,7 @@ export default function VocabularyBook() {
   };
 
   const handleWordClick = (word: VocabEntry) => {
-    // 切换当前行的折叠面板
     setExpandedWordId(prev => prev === word.id ? null : word.id);
-    // 派发事件让 DictionaryPanel 截获并展示
     const event = new CustomEvent('vocab-view', { detail: word });
     window.dispatchEvent(event);
   };
@@ -220,21 +213,19 @@ export default function VocabularyBook() {
 
   const formatNextReview = (ts: number) => {
     const diff = ts - Date.now();
-    if (diff <= 0) return '今日待复习';
-    
-    // 按时间跨度返回直观展示
+    if (diff <= 0) return '今日';
+
     if (diff < 60 * 60 * 1000) {
-      return `${Math.ceil(diff / 60000)} 分钟后复习`;
+      return `${Math.ceil(diff / 60000)} 分钟后`;
     }
     if (diff < 24 * 60 * 60 * 1000) {
-      return `${Math.ceil(diff / 3600000)} 小时后复习`;
+      return `${Math.ceil(diff / 3600000)} 小时后`;
     }
-    return `${Math.ceil(diff / 86400000)} 天后复习`;
+    return `${Math.ceil(diff / 86400000)} 天后`;
   };
 
   return (
     <>
-      {/* 侧边栏生词本区域 */}
       <div className="px-6 pb-8">
         <div
           onClick={handleExpand}
@@ -251,11 +242,11 @@ export default function VocabularyBook() {
                   <span title={error}><AlertCircle className="w-3.5 h-3.5 text-red-400" /></span>
                 )}
               </div>
-              <div className="text-[11px] text-gray-400 mt-0.5">
+              <div className="text-[10px] text-gray-400 mt-0.5 leading-tight">
                 共 {stats.total} 词
                 {stats.dueToday > 0 && (
-                  <span className="ml-2 text-[#FF5722] font-bold">
-                    · {stats.dueToday} 待复习
+                  <span className="ml-1.5 text-[#FF5722] font-bold animate-pulse">
+                    {stats.dueToday} 待复习
                   </span>
                 )}
               </div>
@@ -263,56 +254,76 @@ export default function VocabularyBook() {
           </div>
           <div className="flex items-center gap-2">
             {stats.dueToday > 0 && (
-              <span className="bg-[#FF5722] text-white text-[10px] font-black rounded-full px-1.5 py-0.5 min-w-[18px] text-center">
-                {stats.dueToday}
+              <span className="relative flex h-2.5 w-2.5" aria-hidden>
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#FF5722]" />
               </span>
             )}
             <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
           </div>
         </div>
 
-        {/* 展开列表 */}
         {isExpanded && (
           <div className="mt-2 bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
-            {/* 操作栏 */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-50">
+            {/* 操作栏：分区 | 次要操作簇 | 主操作复习 */}
+            <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-gray-50 flex-wrap">
               <div className="flex bg-gray-100 p-1 rounded-lg">
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); setVocabTab('business'); }}
-                  className={`text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest transition-all ${vocabTab === 'business' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                  className={`text-[10px] font-bold px-3 py-1 rounded-md uppercase tracking-wider transition-all ${vocabTab === 'business' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                 >政商务区</button>
-                <button 
+                <button
                   onClick={(e) => { e.stopPropagation(); setVocabTab('general'); }}
-                  className={`text-[10px] font-black px-3 py-1 rounded-md uppercase tracking-widest transition-all ${vocabTab === 'general' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
+                  className={`text-[10px] font-bold px-3 py-1 rounded-md uppercase tracking-wider transition-all ${vocabTab === 'general' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                 >全场景区</button>
               </div>
-              <div className="flex items-center gap-2">
+
+              <div className="flex items-center gap-1.5 ml-auto">
+                <div className="w-px h-5 bg-gray-200 mx-0.5 hidden sm:block" aria-hidden />
                 <button
-                  onClick={loadWords}
-                  className="text-gray-400 hover:text-gray-600 transition"
+                  onClick={(e) => { e.stopPropagation(); loadWords(); }}
+                  className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
                   title="刷新词条"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                 </button>
+                <VocabExportControl
+                  compact
+                  currentTab={vocabTab}
+                  words={words.length ? words : undefined}
+                  onExported={(count) => {
+                    setExportHint(`已导出 ${count} 条`);
+                    window.setTimeout(() => setExportHint(null), 2500);
+                  }}
+                  onError={(msg) => {
+                    setExportHint(msg);
+                    window.setTimeout(() => setExportHint(null), 3000);
+                  }}
+                />
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowCustomCardModal(true); }}
-                  className="flex items-center gap-1 border border-[#FF5722] text-[#FF5722] hover:bg-[#FF5722]/5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg transition"
+                  className="flex items-center gap-1 border border-[#FF5722]/30 text-[#FF5722] hover:bg-[#FF5722]/5 text-[10px] font-bold px-2.5 py-1 rounded-lg transition"
                 >
                   + 制卡
                 </button>
                 {stats.dueToday > 0 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowFlashCard(true); }}
-                    className="flex items-center gap-1 bg-[#FF5722] text-white text-[11px] font-bold px-3 py-1 rounded-lg hover:bg-[#E64A19] transition"
+                    className="flex items-center gap-1.5 bg-[#FF5722] text-white text-[11px] font-bold px-3.5 py-1.5 rounded-lg hover:bg-[#E64A19] transition shadow-sm shadow-[#FF5722]/20"
                   >
                     <Brain className="w-3.5 h-3.5" />
-                    开始复习
+                    复习 {stats.dueToday}
                   </button>
                 )}
               </div>
             </div>
 
-            {/* 词条列表 */}
+            {exportHint && (
+              <div className="px-4 py-1.5 text-[10px] font-medium text-slate-500 bg-slate-50 border-b border-slate-50">
+                {exportHint}
+              </div>
+            )}
+
             <div className="divide-y divide-gray-50 border-t border-gray-100 max-h-[550px] overflow-y-auto scrollbar-thin">
               {isLoading ? (
                 <div className="text-center text-gray-400 text-xs py-6">加载中...</div>
@@ -325,116 +336,109 @@ export default function VocabularyBook() {
                   const payload = word.payload || {};
                   const pos = payload.pos || '';
                   const phonetic = payload.phonetic || '';
-                  const translation = payload.definition || payload.translation_main || (Array.isArray(payload.definitions_en) ? payload.definitions_en[0] : '');
+                  const translation = getWordTranslation(word);
                   const isOpened = expandedWordId === word.id;
 
                   return (
                     <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition">
-                      {/* 主行 */}
                       <div
                         onClick={() => handleWordClick(word)}
-                        className={`flex items-center justify-between px-4 py-3 cursor-pointer group transition-colors ${isOpened ? 'bg-indigo-50/20' : ''}`}
+                        className={`flex items-center justify-between px-4 py-3 cursor-pointer group transition-colors ${isOpened ? 'bg-amber-50/40' : ''}`}
                       >
                         <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="font-bold text-[#202124] text-sm min-w-0 truncate">
-                                {word.word}
-                              </div>
-                              {pos && (
-                                <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold shrink-0 select-none">
-                                  {pos}
-                                </span>
-                              )}
-                              {phonetic && (
-                                <span className="text-[10px] font-mono text-slate-400 font-medium select-none truncate max-w-[90px] shrink-1">
-                                  [{phonetic}]
-                                </span>
-                              )}
-                              <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="font-bold text-[#202124] text-sm min-w-0 truncate">
+                              {word.word}
                             </div>
-                            
-                            {/* 核心释义预览 (已展开时则隐藏，避免与详情重合) */}
-                            {translation && !isOpened && (
-                              <div className="text-[11px] text-gray-500 truncate mt-0.5 max-w-[85%] font-medium">
-                                {translation}
-                              </div>
+                            {pos && (
+                              <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-medium shrink-0 select-none">
+                                {pos}
+                              </span>
                             )}
+                            {phonetic && (
+                              <span className="text-[10px] font-mono text-slate-400 select-none truncate max-w-[90px] shrink">
+                                [{phonetic}]
+                              </span>
+                            )}
+                            <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
+                          </div>
 
-                            {/* 艾宾浩斯复习状态高颜值 Pill Badge */}
-                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                              {word.repetitions === 999 ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-100/50 select-none shrink-0">
-                                  <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />
-                                  <span>已归档，已掌握</span>
-                                </span>
-                              ) : word.next_review_date <= Date.now() ? (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-amber-50/70 text-amber-600 border border-amber-100/50 select-none shrink-0">
-                                  <Clock className="w-2.5 h-2.5 text-amber-500 shrink-0" />
-                                  <span>今日待复习</span>
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-gray-50 text-gray-500 border border-gray-100/60 select-none shrink-0">
-                                  <Clock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
-                                  <span>{formatNextReview(word.next_review_date)}</span>
-                                </span>
-                              )}
-                              {word.repetitions > 0 && word.repetitions !== 999 && (
-                                <span className="text-[9px] text-gray-400 shrink-0 bg-slate-50 border border-slate-100/50 px-1.5 py-0.5 rounded-full font-medium">
-                                  第 {word.repetitions} 级复习
-                                </span>
-                              )}
+                          {translation && (
+                            <div className="text-xs text-slate-600 truncate mt-0.5 max-w-[85%] font-medium">
+                              {translation}
                             </div>
+                          )}
+
+                          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                            {word.repetitions === 999 ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 select-none shrink-0">
+                                已掌握
+                              </span>
+                            ) : word.next_review_date <= Date.now() ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-500 text-white select-none shrink-0">
+                                今日
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-slate-100 text-slate-500 select-none shrink-0">
+                                {formatNextReview(word.next_review_date)}
+                              </span>
+                            )}
+                            {word.repetitions > 0 && word.repetitions !== 999 && (
+                              <span className="text-[8px] text-slate-400 shrink-0">
+                                #{word.repetitions}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        
-                        {/* 操作图标（悬浮显示） */}
+
                         <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex bg-white shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-2">
+                          <div className="flex bg-white/95 shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-1.5 backdrop-blur-sm">
                             <button
-                              title="编辑卡片内容"
+                              title="编辑"
                               onClick={(e) => { e.stopPropagation(); setEditingWord(word); }}
-                              className="px-2 py-1 text-gray-400 hover:bg-orange-50 hover:text-[#FF5722] transition border-r border-gray-100"
+                              className="px-1.5 py-1 text-gray-400 hover:bg-orange-50 hover:text-[#FF5722] transition border-r border-gray-100"
                             >
-                              <Pencil className="w-3 h-3" />
+                              <Pencil className="w-3.5 h-3.5" />
                             </button>
                             <button
                               title="重新学习（第一节点）"
                               onClick={(e) => handleIntervention(word.id, 'restart', e)}
-                              className="px-2 py-1 text-gray-400 hover:bg-amber-50 hover:text-amber-500 transition border-r border-gray-100"
+                              className="px-1.5 py-1 text-gray-400 hover:bg-amber-50 hover:text-amber-500 transition border-r border-gray-100"
                             >
-                              <RotateCcw className="w-3 h-3" />
+                              <RotateCcw className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              title="退回上一节点"
+                              title="退回"
                               onClick={(e) => handleIntervention(word.id, 'step-back', e)}
-                              className="px-2 py-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition border-r border-gray-100"
+                              className="px-1.5 py-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition border-r border-gray-100"
                             >
-                              <Rewind className="w-3 h-3" />
+                              <Rewind className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              title="跳过至下一节点"
+                              title="跳过"
                               onClick={(e) => handleIntervention(word.id, 'step-forward', e)}
-                              className="px-2 py-1 text-gray-400 hover:bg-purple-50 hover:text-purple-500 transition border-r border-gray-100"
+                              className="px-1.5 py-1 text-gray-400 hover:bg-slate-50 hover:text-slate-600 transition border-r border-gray-100"
                             >
-                              <FastForward className="w-3 h-3" />
+                              <FastForward className="w-3.5 h-3.5" />
                             </button>
                             <button
-                              title="在此次循环中停止推荐（归档）"
+                              title="归档"
                               onClick={(e) => handleIntervention(word.id, 'master', e)}
-                              className="px-2 py-1 text-gray-400 hover:bg-emerald-50 hover:text-emerald-500 transition"
+                              className="px-1.5 py-1 text-gray-400 hover:bg-emerald-50 hover:text-emerald-500 transition"
                             >
-                              <CheckCircle2 className="w-3 h-3" />
+                              <CheckCircle2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
                           <button
                             onClick={(e) => handleDelete(word.id, e)}
-                            className="text-gray-300 hover:text-red-400 p-1 transition"
+                            className="text-gray-300 hover:text-red-400 p-1 transition rounded-lg"
+                            title="删除"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      {/* 内联折叠手风琴面板 */}
                       {isOpened && (
                         <InlineWordDetail word={word} />
                       )}
@@ -444,7 +448,6 @@ export default function VocabularyBook() {
               )}
             </div>
 
-            {/* 底部：今日无任务提示 */}
             {!isLoading && stats.dueToday === 0 && stats.total > 0 && (
               <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-center gap-1.5 text-[11px] text-emerald-500 font-bold bg-emerald-50/30">
                 <CheckCircle2 className="w-3.5 h-3.5" />
@@ -455,12 +458,10 @@ export default function VocabularyBook() {
         )}
       </div>
 
-      {/* 闪卡复习全屏 Portal */}
       {showFlashCard && (
         <FlashCard onClose={handleReviewDone} />
       )}
 
-      {/* 自定义制卡全屏 Portal */}
       {showCustomCardModal && (
         <CustomCardModal
           onClose={() => setShowCustomCardModal(false)}
@@ -472,7 +473,6 @@ export default function VocabularyBook() {
         />
       )}
 
-      {/* 闪卡编辑全屏 Portal */}
       {editingWord && (
         <CustomCardModal
           editWord={editingWord}

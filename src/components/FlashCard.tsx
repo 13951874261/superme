@@ -258,21 +258,33 @@ export default function FlashCard({ onClose }: FlashCardProps) {
           {!isLoading && !isFinished && current && (
             <div className="px-6 py-6 flex flex-col gap-4">
               {/* 正面：词条 */}
-              <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className="text-3xl font-black text-[#202124]">{current.word}</div>
-                  <SpeakButton text={current.word} title={`播放 ${current.word}`} className="w-10 h-10" iconClassName="w-5 h-5" />
+              <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none shadow-sm shadow-[#FF5722]/5">
+                <div className="mb-4">
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    <div className="text-4xl font-black text-[#202124] tracking-tight">{current.word}</div>
+                    <SpeakButton
+                      text={current.word}
+                      title={`播放 ${current.word}`}
+                      className="w-10 h-10 rounded-full bg-white shadow-sm border border-gray-100"
+                      iconClassName="w-5 h-5 text-[#FF5722]"
+                    />
+                  </div>
+                  {(localPayload || current.payload)?.phonetic && (
+                    <div className="text-sm text-slate-400 font-mono">
+                      [{(localPayload || current.payload).phonetic}]
+                    </div>
+                  )}
                 </div>
                 {!isFlipped && (
                   isEnriching ? (
-                    <div className="mt-3 inline-flex items-center justify-center rounded-full bg-[#FF5722]/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-[#FF5722] border border-[#FF5722]/20 shadow-inner animate-pulse">
+                    <div className="mt-2 inline-flex items-center justify-center rounded-full bg-[#FF5722]/10 px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-[#FF5722] border border-[#FF5722]/20 shadow-inner animate-pulse">
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      正在接入总部数据库解密...
+                      正在解密释义...
                     </div>
                   ) : (
                     <button
                       onClick={handleFlip}
-                      className="mt-3 inline-flex items-center justify-center gap-1 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95"
+                      className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95 shadow-lg shadow-[#202124]/20"
                     >
                       <BookOpen className="w-4 h-4" />
                       {shouldEnrichPayload(localPayload || current.payload) ? '点击连接 Dify 解密释义' : '翻转查看释义'}

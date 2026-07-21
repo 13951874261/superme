@@ -551,7 +551,8 @@ export default function Sidebar({
             {isUtilitiesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
           
-          <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isUtilitiesOpen ? 'max-h-[800px] mt-4 opacity-100' : 'max-h-0 opacity-0'}`}>
+          {/* Allow full dict results: old max-h-[800px]+overflow-hidden clipped examples */}
+          <div className={`transition-all duration-500 ease-in-out ${isUtilitiesOpen ? 'max-h-[min(85vh,2400px)] mt-4 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}>
             <div className="space-y-4 pb-2">
               {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}
               <DictionaryPanel />
