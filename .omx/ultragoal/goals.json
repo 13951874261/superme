@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "mode": "aggregate",
+  "sourceBrief": ".omx/specs/deep-interview-webpage-purify-500.md",
+  "briefPath": ".omx/ultragoal/brief.md",
+  "ledgerPath": ".omx/ultragoal/ledger.jsonl",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for webpage-purify-500 recovery",
+  "status": "active",
+  "createdAt": "2026-07-21T17:01:00Z",
+  "note": "Created manually: omx CLI unavailable in Cursor runtime",
+  "goals": [
+    {
+      "id": "G001",
+      "title": "Diagnose production fetch failed",
+      "objective": "On production, prove why /api/materials/fetch-url returns error fetch failed via server curl to 9router /web/fetch and/or vocab service logs.",
+      "status": "pending",
+      "acceptance": [
+        "Documented connectivity or log evidence aligned with fetch failed"
+      ]
+    },
+    {
+      "id": "G002",
+      "title": "Fix root cause",
+      "objective": "Apply minimal env/proxy/code fix so vocab-server can complete upstream web fetch without changing out-of-scope features.",
+      "status": "pending",
+      "acceptance": [
+        "Local or server-side fetchUrlContent succeeds for https://example.com"
+      ]
+    },
+    {
+      "id": "G003",
+      "title": "Deploy and verify production",
+      "objective": "Deploy fix, restart super-agent-vocab, verify production POST /api/materials/fetch-url returns success with non-empty markdown.",
+      "status": "pending",
+      "acceptance": [
+        "Production curl/API success for example.com",
+        "No unrelated material-pipeline/UI changes"
+      ]
+    }
+  ]
+}

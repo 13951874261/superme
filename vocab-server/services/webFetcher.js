@@ -13,7 +13,7 @@ async function fetchUrlContent(urlString) {
   }
 
   const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
-  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://9router.234124123.xyz/v1').replace(/\/$/, '');
+  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://23.95.214.232/v1').replace(/\/$/, '');
 
   const response = await fetch(`${endpointBase}/web/fetch`, {
     method: 'POST',
@@ -25,7 +25,6 @@ async function fetchUrlContent(urlString) {
       model: 'fetch-combo',
       url: urlString,
       format: 'markdown',
-      max_characters: 0,
     }),
   });
 
