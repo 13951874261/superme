@@ -335,13 +335,13 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
         </div>
       )}
 
-      {/* 内容展示区：使用自适应高度，通过 rows=6 保证初始可见度 */}
+      {/* 内容展示区：初始 rows=3，避免空状态过高；可手动拖拽增高 */}
       <div className="flex-1 relative mt-1">
         <textarea
           value={records.length > 0 ? records[selectedIndex]?.content : localNotes}
           onChange={handleNotesEdit}
           onClick={(e) => e.stopPropagation()}
-          rows={6}
+          rows={3}
           className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-sm text-white/90 placeholder-gray-600 outline-none resize-y focus:border-white/20 transition-colors"
           placeholder="录音后的 AI 诊断结果将自动填充于此，您也可以手动补充笔记..."
         />
