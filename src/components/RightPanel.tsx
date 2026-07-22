@@ -111,22 +111,6 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
     };
   }, [isOpen, wordData?.word, wordData?.dictPreload]);
 
-  // 同一词的 payload / 入库刷新：只同步本地词条，不重跑词典
-  useEffect(() => {
-    const word = typeof wordData?.word === 'string' ? wordData.word.trim() : '';
-    if (!word || !isOpen) return;
-
-    const syncLocal = async () => {
-      try {
-        const allWords = await getAllWords();
-        const found = allWords.find(w => w.word.toLowerCase() === word.toLowerCase());
-        setLocalWordEntry(found || null);
-      } catch (e) {
-        console.error(e);
-      }
-    };
-    syncLocal();
-  }, [wordData, isOpen]);
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
   );

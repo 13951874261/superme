@@ -6,7 +6,7 @@ import TextHighlighter from './components/TextHighlighter';
 import RightPanel from './components/RightPanel';
 import GlobalTaskCenter from './components/GlobalTaskCenter';
 import { getTodayDateDot } from './utils/date';
-import { EnglishProvider, useEnglishContext } from './components/modules/english/context/EnglishContext';
+import { EnglishProvider, useEnglishContext, useThemeMastery } from './components/modules/english/context/EnglishContext';
 import { TaskProvider } from './components/TaskContext';
 import { playError } from './utils/soundEffects';
 import CyberneticLockModal from './components/CyberneticLockModal';
@@ -78,7 +78,8 @@ function AppContent() {
   const [rightPanelTab, setRightPanelTab] = useState<'assistant' | 'context'>('assistant');
   const [highlightedWordData, setHighlightedWordData] = useState<any>(null);
 
-  const { theme, masteryData, pendingSentenceDebt, setActiveTab } = useEnglishContext();
+  const { setActiveTab } = useEnglishContext();
+  const { theme, masteryData, pendingSentenceDebt } = useThemeMastery();
   const [isLockModalOpen, setIsLockModalOpen] = useState(false);
   const { shouldForceModal } = useBiweeklyReviewTrigger();
   const [isReviewOpen, setIsReviewOpen] = useState(false);

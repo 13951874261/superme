@@ -11,6 +11,74 @@ import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEff
 import { GLOBAL_SPRING } from '../utils/motion';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 
+type CalendarDaySlot = {
+  day: number;
+  isCurrentMonth: boolean;
+  monthOffset: number;
+};
+
+function getDaysInMonth(year: number, month: number): CalendarDaySlot[] {
+  const date = new Date(year, month, 1);
+  const days: CalendarDaySlot[] = [];
+  let startDay = date.getDay();
+  if (startDay === 0) startDay = 7;
+
+  const prevMonthLastDate = new Date(year, month, 0).getDate();
+  for (let i = startDay - 1; i > 0; i--) {
+    days.push({
+      day: prevMonthLastDate - i + 1,
+      isCurrentMonth: false,
+      monthOffset: -1,
+    });
+  }
+
+  const lastDate = new Date(year, month + 1, 0).getDate();
+  for (let i = 1; i <= lastDate; i++) {
+    days.push({
+      day: i,
+      isCurrentMonth: true,
+      monthOffset: 0,
+    });
+  }
+
+  const totalSlots = days.length <= 35 ? 35 : 42;
+  const nextDaysNeeded = totalSlots - days.length;
+  for (let i = 1; i <= nextDaysNeeded; i++) {
+    days.push({
+      day: i,
+      isCurrentMonth: false,
+      monthOffset: 1,
+    });
+  }
+
+  return days;
+}
+
+function getDateStr(viewYear: number, viewMonth: number, day: number, monthOffset: number) {
+  let y = viewYear;
+  let m = viewMonth + monthOffset;
+  if (m < 0) {
+    m = 11;
+    y = y - 1;
+  } else if (m > 11) {
+    m = 0;
+    y = y + 1;
+  }
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${y}.${pad(m + 1)}.${pad(day)}`;
+}
+
+function readHabitsCount(dateStr: string): number {
+  const saved = localStorage.getItem(`superme_habits_${dateStr}`);
+  if (!saved) return 0;
+  try {
+    const parsed = JSON.parse(saved);
+    return Object.values(parsed).filter(Boolean).length;
+  } catch {
+    return 0;
+  }
+}
+
 
 interface SidebarProps {
   isOpen: boolean;
@@ -124,71 +192,20 @@ export default function Sidebar({
   const [showConfetti, setShowConfetti] = useState(false);
   const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
 
-  // 月度日历计算逻辑与辅助函数
-  const getDaysInMonth = (year: number, month: number) => {
-    const date = new Date(year, month, 1);
-    const days = [];
-    let startDay = date.getDay();
-    if (startDay === 0) startDay = 7; // 周日转换成 7，周一为 1
-    
-    // 上个月的补全日期
-    const prevMonthLastDate = new Date(year, month, 0).getDate();
-    for (let i = startDay - 1; i > 0; i--) {
-      days.push({
-        day: prevMonthLastDate - i + 1,
-        isCurrentMonth: false,
-        monthOffset: -1
-      });
-    }
-    
-    // 当月的日期
-    const lastDate = new Date(year, month + 1, 0).getDate();
-    for (let i = 1; i <= lastDate; i++) {
-      days.push({
-        day: i,
-        isCurrentMonth: true,
-        monthOffset: 0
-      });
-    }
-    
-    // 下个月的补全日期
-    const totalSlots = days.length <= 35 ? 35 : 42;
-    const nextDaysNeeded = totalSlots - days.length;
-    for (let i = 1; i <= nextDaysNeeded; i++) {
-      days.push({
-        day: i,
-        isCurrentMonth: false,
-        monthOffset: 1
-      });
-    }
-    
-    return days;
-  };
+  const calendarDays = React.useMemo(
+    () => getDaysInMonth(viewYear, viewMonth),
+    [viewYear, viewMonth]
+  );
 
-  const getDateStr = (day: number, monthOffset: number) => {
-    let y = viewYear;
-    let m = viewMonth + monthOffset;
-    if (m < 0) {
-      m = 11;
-      y = y - 1;
-    } else if (m > 11) {
-      m = 0;
-      y = y + 1;
+  const habitsCache = React.useMemo(() => {
+    const cache: Record<string, number> = {};
+    for (const slot of calendarDays) {
+      const dateStr = getDateStr(viewYear, viewMonth, slot.day, slot.monthOffset);
+      cache[dateStr] = readHabitsCount(dateStr);
     }
-    const pad = (n: number) => String(n).padStart(2, '0');
-    return `${y}.${pad(m + 1)}.${pad(day)}`;
-  };
-
-  const getHabitsCountForDate = (dateStr: string) => {
-    const saved = localStorage.getItem(`superme_habits_${dateStr}`);
-    if (!saved) return 0;
-    try {
-      const parsed = JSON.parse(saved);
-      return Object.values(parsed).filter(Boolean).length;
-    } catch (e) {
-      return 0;
-    }
-  };
+    cache[selectedDate] = Object.values(habits).filter(Boolean).length;
+    return cache;
+  }, [calendarDays, viewYear, viewMonth, selectedDate, habits]);
 
   const handlePrevMonth = () => {
     playPageTurn();
@@ -281,11 +298,11 @@ export default function Sidebar({
 
                    {/* 日历网格 */}
                    <div className="grid grid-cols-7 gap-y-2.5 gap-x-1 text-center">
-                     {getDaysInMonth(viewYear, viewMonth).map((slot, index) => {
-                       const dateStr = getDateStr(slot.day, slot.monthOffset);
+                     {calendarDays.map((slot, index) => {
+                       const dateStr = getDateStr(viewYear, viewMonth, slot.day, slot.monthOffset);
                        const isSelected = selectedDate === dateStr;
                        const isToday = today === dateStr;
-                       const habitsCount = getHabitsCountForDate(dateStr);
+                       const habitsCount = habitsCache[dateStr] ?? 0;
                        
                        return (
                          <div 

@@ -8,8 +8,12 @@ export default defineConfig(({mode}) => {
   return {
     cacheDir: 'D:/cursor/work/super-agent/.vite_cache',
     optimizeDeps: {
-      noDiscovery: true,
-      include: []
+      include: [
+        'react',
+        'react-dom',
+        'motion/react',
+        'lucide-react',
+      ],
     },
     plugins: [react(), tailwindcss()],
     define: {
