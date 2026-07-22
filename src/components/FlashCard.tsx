@@ -320,7 +320,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
 
                   {/* 3. 商务注解 */}
                   <div>
-                    <div className="text-[10px] font-black text-purple-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                    <div className="text-[10px] font-black text-[var(--color-accent)] uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
                       <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> Business Context / 商务注解</span>
                       <SpeakButton text={currentBusinessNote} title="播放商务注解" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
                     </div>

@@ -1114,10 +1114,10 @@ export default function ReadModule() {
                           审计出海企业盈利破绽与海外市场合规/风险痛点。
                         </div>
                       </div>
-                      <div className="p-3 bg-purple-50/50 rounded-2xl border border-purple-100/80 flex gap-2 items-start transition-all hover:bg-purple-50 hover:shadow-sm">
-                        <span className="text-[10px] bg-purple-500/10 text-purple-600 font-black px-1.5 py-0.5 rounded">3</span>
-                        <div className="text-[11px] text-purple-900/90 font-medium">
-                          <span className="block text-purple-950 font-black mb-0.5">外企跨文化博弈</span>
+                      <div className="p-3 bg-[var(--color-accent)]/5 rounded-2xl border border-[var(--color-accent)]/20 flex gap-2 items-start transition-all hover:bg-[var(--color-accent)]/10 hover:shadow-sm">
+                        <span className="text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-black px-1.5 py-0.5 rounded">3</span>
+                        <div className="text-[11px] text-[var(--color-brand)]/90 font-medium">
+                          <span className="block text-[var(--color-brand)] font-black mb-0.5">外企跨文化博弈</span>
                           穿透外企客套话与逻辑阻碍，剥离各方真实利益立场。
                         </div>
                       </div>

@@ -103,11 +103,11 @@ function renderLevelBadge(level?: string) {
   } else if (cleanLevel.includes('TOEFL') || cleanLevel.includes('托福')) {
     bgStyles = 'bg-sky-500/10 text-sky-400 border-sky-500/20';
   } else if (cleanLevel.includes('GRE')) {
-    bgStyles = 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+    bgStyles = 'bg-[var(--color-accent)]/10 text-[var(--color-accent)] border-[var(--color-accent)]/20';
   } else if (cleanLevel.includes('BUSINESS') || cleanLevel.includes('商务')) {
     bgStyles = 'bg-orange-500/10 text-orange-400 border-orange-500/20';
   } else if (cleanLevel.includes('IELTS') || cleanLevel.includes('雅思')) {
-    bgStyles = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+    bgStyles = 'bg-[var(--color-info)]/10 text-[var(--color-info)] border-[var(--color-info)]/20';
   }
 
   return (
@@ -136,28 +136,28 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
   const [showConfusable, setShowConfusable] = useState(false);
 
   return (
-    <div className="space-y-4 text-left select-text selection:bg-indigo-100">
+    <div className="space-y-4 text-left select-text selection:bg-[var(--color-accent)]/20">
       {/* 词条头部 */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-info)]/10 rounded-full blur-xl pointer-events-none"></div>
         <div className="flex flex-wrap items-baseline gap-2.5">
           <span className="text-2xl font-black tracking-tight select-all text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-100">{query}</span>
           {phonetic && (
             <span className="text-sm font-mono text-indigo-300/90 font-medium">[{phonetic}]</span>
           )}
           {pos && (
-            <span className="text-xs bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 px-2 py-0.5 rounded-md font-semibold select-none">
+            <span className="text-xs bg-[var(--color-info)]/20 text-[var(--color-info)] border border-[var(--color-info)]/30 px-2 py-0.5 rounded-md font-semibold select-none">
               {pos}
             </span>
           )}
           {payload.level && renderLevelBadge(payload.level)}
-          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">现代汉语</span>
+          <span className="text-[10px] font-bold text-[var(--color-info)] bg-[var(--color-info)]/10 border border-[var(--color-info)]/20 px-1.5 py-0.5 rounded ml-auto select-none">现代汉语</span>
         </div>
       </div>
 
       {/* 核心释义 */}
-      <div className="relative border border-indigo-100/80 bg-gradient-to-r from-indigo-50/50 to-indigo-100/10 rounded-2xl p-4 shadow-sm overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+      <div className="relative border border-[var(--color-border)] bg-gradient-to-r from-slate-50/80 to-slate-50/20 rounded-2xl p-4 shadow-sm overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-500"></div>
         <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1.5 select-none flex items-center gap-1">
           <BookOpen className="w-3.5 h-3.5" />
           核心释义
@@ -168,7 +168,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
       {/* 用法说明 */}
       {usage_notes && (
         <div className="border border-gray-100 bg-gray-50/30 rounded-2xl p-3.5 shadow-inner">
-          <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-1 flex items-center gap-1 select-none">
+          <div className="text-[10px] font-bold text-[var(--color-info)] uppercase tracking-widest mb-1 flex items-center gap-1 select-none">
             <Sparkles className="w-3.5 h-3.5" />
             用法语境规范
           </div>
@@ -190,7 +190,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
                     className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition"
                   >
                     <span className="text-xs font-bold text-gray-750">{item.meaning}</span>
-                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-205 ${isOpen ? 'rotate-90 text-indigo-500' : ''}`} />
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-205 ${isOpen ? 'rotate-90 text-[var(--color-info)]' : ''}`} />
                   </button>
                   {isOpen && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-50 text-[11px] text-gray-500 bg-gray-50/30 leading-relaxed">
@@ -211,7 +211,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
             {validExampleSentences.map((sent, idx) => (
               <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs text-gray-700 leading-relaxed flex gap-2">
-                <span className="text-indigo-400 font-bold shrink-0">{idx + 1}.</span>
+                <span className="text-[var(--color-info)] font-bold shrink-0">{idx + 1}.</span>
                 <span className="select-text">{sent}</span>
               </div>
             ))}
@@ -286,8 +286,8 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
                 {confusable_pairs.map((pair, idx) => (
                   <div key={idx} className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm">
                     <div className="flex items-center gap-1.5 mb-1.5 select-none">
-                      <AlertOctagon className="w-3.5 h-3.5 text-indigo-500" />
-                      <span className="text-xs font-bold text-indigo-750 bg-indigo-55 px-2 py-0.5 rounded-md">{pair.term}</span>
+                      <AlertOctagon className="w-3.5 h-3.5 text-[var(--color-info)]" />
+                      <span className="text-xs font-bold text-[var(--color-brand)] bg-slate-50 px-2 py-0.5 rounded-md">{pair.term}</span>
                     </div>
                     <div className="text-xs text-gray-500 leading-relaxed pl-5">{pair.note}</div>
                   </div>
@@ -335,22 +335,22 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
   const wordDisplay = headword || query;
 
   return (
-    <div className="space-y-4 text-left select-text selection:bg-indigo-100">
+    <div className="space-y-4 text-left select-text selection:bg-[var(--color-accent)]/20">
       {/* 词条头部 */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-info)]/10 rounded-full blur-xl pointer-events-none"></div>
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-2xl font-black tracking-tight select-all text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-100">{wordDisplay}</span>
           {phonetic && (
             <span className="text-sm font-mono text-indigo-300/90 font-medium">{phonetic}</span>
           )}
           {pos && (
-            <span className="text-xs italic bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 px-2 py-0.5 rounded-md font-semibold select-none">
+            <span className="text-xs italic bg-[var(--color-info)]/20 text-[var(--color-info)] border border-[var(--color-info)]/30 px-2 py-0.5 rounded-md font-semibold select-none">
               {pos}
             </span>
           )}
           {payload.level && renderLevelBadge(payload.level)}
-          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">商务英英</span>
+          <span className="text-[10px] font-bold text-[var(--color-info)] bg-[var(--color-info)]/10 border border-[var(--color-info)]/20 px-1.5 py-0.5 rounded ml-auto select-none">商务英英</span>
           {hasEnglishText(wordDisplay) && (
             <SpeakButton text={wordDisplay} title="播放词条发音" className="w-7 h-7 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center justify-center shrink-0 border border-white/10" iconClassName="w-3.5 h-3.5" />
           )}
@@ -391,7 +391,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
 
       {/* 商务注解 */}
       {business_notes && (
-        <div className="border border-indigo-100/60 bg-indigo-50/10 p-4 rounded-2xl shadow-sm">
+        <div className="border border-[var(--color-border)] bg-slate-50/40 p-4 rounded-2xl shadow-sm">
           <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1 flex items-center gap-1 select-none">
             <Sparkles className="w-3.5 h-3.5" />
             Business Usage Notes
@@ -414,7 +414,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
                     className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition"
                   >
                     <span className="text-xs font-bold text-gray-700">{item.meaning_en}</span>
-                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-indigo-500' : ''}`} />
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-[var(--color-info)]' : ''}`} />
                   </button>
                   {isOpen && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-50 text-[11px] text-gray-500 bg-gray-50/30 leading-relaxed select-text">
@@ -437,7 +437,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
               <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:border-indigo-100 hover:shadow transition">
                 <div className="flex items-center gap-1.5 mb-1.5 select-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
-                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-55 px-1.5 py-0.5 rounded">{sc.scene || 'Scenario'}</span>
+                  <span className="text-[10px] font-bold text-[var(--color-info)] bg-slate-50 px-1.5 py-0.5 rounded">{sc.scene || 'Scenario'}</span>
                   {hasEnglishText(sc.example_en) && (
                     <SpeakButton text={sc.example_en} title="Play example audio" className="ml-auto w-6 h-6 hover:bg-gray-100 rounded-lg flex items-center justify-center shrink-0 border border-gray-100" iconClassName="w-3 h-3" />
                   )}
@@ -456,7 +456,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
             {validEnExampleSentences.map((sent, idx) => (
               <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs text-gray-700 leading-relaxed flex items-start gap-2">
-                <span className="text-indigo-400 font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
+                <span className="text-[var(--color-info)] font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
                 <span className="flex-1 select-text">{sent}</span>
                 {hasEnglishText(sent) && (
                   <SpeakButton text={sent} title="Play audio" className="w-6 h-6 hover:bg-gray-50 rounded-md flex items-center justify-center shrink-0" iconClassName="w-3 h-3" />
@@ -557,22 +557,22 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
   const speakText = query;
 
   return (
-    <div className="space-y-4 text-left select-text selection:bg-indigo-100">
+    <div className="space-y-4 text-left select-text selection:bg-[var(--color-accent)]/20">
       {/* 词条头部 */}
       <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-2xl p-4 border border-slate-800 shadow-md relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-xl pointer-events-none"></div>
+        <div className="absolute right-0 top-0 w-24 h-24 bg-[var(--color-info)]/10 rounded-full blur-xl pointer-events-none"></div>
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="text-2xl font-black tracking-tight select-all text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-100 to-indigo-100">{query}</span>
           {phonetic && (
             <span className="text-sm font-mono text-indigo-300/90 font-medium">[{phonetic}]</span>
           )}
           {pos && (
-            <span className="text-xs italic bg-indigo-500/20 text-indigo-200 border border-indigo-500/30 px-2 py-0.5 rounded-md font-semibold select-none">
+            <span className="text-xs italic bg-[var(--color-info)]/20 text-[var(--color-info)] border border-[var(--color-info)]/30 px-2 py-0.5 rounded-md font-semibold select-none">
               {pos}
             </span>
           )}
           {payload.level && renderLevelBadge(payload.level)}
-          <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded ml-auto select-none">
+          <span className="text-[10px] font-bold text-[var(--color-info)] bg-[var(--color-info)]/10 border border-[var(--color-info)]/20 px-1.5 py-0.5 rounded ml-auto select-none">
             {isEnToZh ? '英 ➜ 汉' : '汉 ➜ 英'}
           </span>
           {hasEnglishText(speakText) && (
@@ -582,8 +582,8 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
       </div>
 
       {/* 核心释义 */}
-      <div className="relative border border-indigo-100/80 bg-gradient-to-r from-indigo-50/50 to-indigo-100/10 rounded-2xl p-4 shadow-sm overflow-hidden">
-        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+      <div className="relative border border-[var(--color-border)] bg-gradient-to-r from-slate-50/80 to-slate-50/20 rounded-2xl p-4 shadow-sm overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-500"></div>
         <div className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest mb-1 select-none flex items-center gap-1">
           <BookOpen className="w-3.5 h-3.5" />
           核心释义
@@ -605,7 +605,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
                     className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition"
                   >
                     <span className="text-xs font-bold text-gray-700">{item.meaning}</span>
-                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-indigo-500' : ''}`} />
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-90 text-[var(--color-info)]' : ''}`} />
                   </button>
                   {isOpen && (
                     <div className="px-3 pb-3 pt-1 border-t border-gray-50 text-[11px] text-gray-500 bg-gray-50/30 leading-relaxed select-text">
@@ -628,7 +628,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
               <div key={idx} className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:border-indigo-100 hover:shadow transition">
                 <div className="flex items-center gap-1.5 mb-1 select-none">
                   <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0"></span>
-                  <span className="text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded">{ex.scene || '商务场景'}</span>
+                  <span className="text-[10px] font-bold text-[var(--color-info)] bg-slate-50 px-1.5 py-0.5 rounded">{ex.scene || '商务场景'}</span>
                   {hasEnglishText(ex.en) && (
                     <SpeakButton text={ex.en} title="播放例句发音" className="ml-auto w-6 h-6 hover:bg-gray-100 rounded-lg flex items-center justify-center shrink-0 border border-gray-100" iconClassName="w-3 h-3" />
                   )}
@@ -648,7 +648,7 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
             {validExampleSentences.map((sent, idx) => (
               <div key={idx} className="bg-white border border-gray-100/80 border-l-2 border-l-indigo-400 rounded-xl p-3 shadow-sm hover:shadow transition text-xs leading-relaxed flex items-start gap-2">
-                <span className="text-indigo-400 font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
+                <span className="text-[var(--color-info)] font-bold shrink-0 mt-0.5 select-none">{idx + 1}.</span>
                 <div className="flex-1 space-y-1">
                   <div className="text-gray-800 font-medium select-text">{sent.en}</div>
                   <div className="text-gray-500 select-text">{sent.zh}</div>

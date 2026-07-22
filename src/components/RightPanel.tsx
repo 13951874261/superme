@@ -408,12 +408,12 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
                               <div className="space-y-2">
                                 <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest flex items-center justify-between">
                                   <span className="flex items-center gap-1.5">
-                                    <span className="w-1 h-3 bg-purple-500 rounded-full"></span>
+                                    <span className="w-1 h-3 bg-[var(--color-accent)] rounded-full"></span>
                                     Business Context / 商务注解
                                   </span>
                                   <SpeakButton text={wordData.business_note} className="w-6 h-6 border-none bg-transparent hover:bg-slate-100" iconClassName="w-3.5 h-3.5" />
                                 </div>
-                                <div className="bg-purple-50/50 border border-purple-100/50 text-[#d84315] rounded-xl p-4 text-xs leading-relaxed italic font-medium">
+                                <div className="bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 text-[var(--color-brand)] rounded-xl p-4 text-xs leading-relaxed italic font-medium">
                                   {wordData.business_note}
                                 </div>
                               </div>
