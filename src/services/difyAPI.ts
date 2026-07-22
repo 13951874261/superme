@@ -1813,7 +1813,10 @@ export async function upsertPersonalPrototype(
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(params),
+    body: JSON.stringify({
+      ...params,
+      userId: params.userId ?? getAppUserId(),
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

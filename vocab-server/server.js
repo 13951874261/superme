@@ -6165,7 +6165,10 @@ app.get('/api/game-theory/prototypes', (req, res) => {
 // ????/???????????????????????????????
 app.post('/api/game-theory/prototypes', (req, res) => {
   try {
-    const { userId = 'default-user', name, type, description } = req.body;
+    const { userId, name, type, description } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing userId' });
+    }
     if (!name) {
       return res.status(400).json({ error: 'Missing name' });
     }

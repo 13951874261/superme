@@ -379,7 +379,9 @@ export default function GameTheoryModule() {
 
       fetchPrototypes();
     } catch (err) {
-      console.error(err);
+      console.error('录入人性档案失败:', err);
+      playGentleWarning();
+      alert(err instanceof Error ? err.message : '录入失败，请稍后重试');
     }
   };
 
