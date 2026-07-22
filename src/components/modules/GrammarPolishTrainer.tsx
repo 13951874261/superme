@@ -23,7 +23,8 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
     }, 3000);
   };
 
-  // 同步外部状�?  useEffect(() => {
+  // 同步外部状态
+  useEffect(() => {
     if (initialNotes !== localNotes) {
       setLocalNotes(initialNotes);
     }
@@ -32,7 +33,8 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
   // 解析历史记录
   const records = useMemo(() => {
     if (!localNotes.trim()) return [];
-    // 匹配类似 [14:20:05] 的时间戳作为分隔�?    const parts = localNotes.split(/(?=\[\d{1,2}:\d{2}:\d{2}\])/).filter(p => p.trim());
+    // 匹配类似 [14:20:05] 的时间戳作为分隔符
+    const parts = localNotes.split(/(?=\[\d{1,2}:\d{2}:\d{2}\])/).filter(p => p.trim());
     if (parts.length === 0) return [{ id: '0', title: '默认记录', content: localNotes }];
     return parts.map((p, i) => {
       const match = p.match(/^\[(.*?)\] 原始文本: (.*?)\n/);
@@ -57,7 +59,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
 
   const handlePolish = async () => {
     if (!targetText.trim()) {
-      showToast('请先输入需要润色的中式/生硬英文�?);
+      showToast('请先输入需要润色的中式/生硬英文！');
       return;
     }
     
@@ -79,11 +81,13 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
         throw new Error(data.error || '语法润色失败');
       }
 
-      // 组装新记�?      const newNote = `[${new Date().toLocaleTimeString()}] 原始文本: ${targetText}\n${data.polishedText}\n\n`;
+      // 组装新记录
+      const newNote = `[${new Date().toLocaleTimeString()}] 原始文本: ${targetText}\n${data.polishedText}\n\n`;
       const updatedNotes = newNote + localNotes;
       setLocalNotes(updatedNotes);
       onNotesChange(updatedNotes);
-      setSelectedIndex(0); // 自动选中最新的一�?      setTargetText('');
+      setSelectedIndex(0); // 自动选中最新的一条
+      setTargetText('');
 
     } catch (err: any) {
       console.error('语法润色请求失败:', err);
@@ -95,7 +99,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
 
   return (
     <div className="flex flex-col h-full gap-3">
-      {/* 顶部操作�?*/}
+      {/* 顶部操作区 */}
       <div className="flex gap-2 items-center relative">
         {toast.show && (
           <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#202124] border border-[var(--color-accent)]/30 text-white text-xs px-4 py-2 rounded-lg shadow-[0_4px_12px_rgba(255,87,34,0.15)] z-50 whitespace-nowrap animate-fade-in-up flex items-center gap-2 transition-opacity duration-300">
@@ -113,7 +117,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
               handlePolish();
             }
           }}
-          placeholder="输入原始英文 (�?I will do it...)"
+          placeholder="输入原始英文 (如 I will do it...)"
           className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[var(--color-accent)]/50 transition-colors"
           disabled={isPolishing}
         />
@@ -126,7 +130,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
               ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
               : 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/80 shadow-[0_4px_12px_rgba(255,87,34,0.25)]'
           }`}
-          title="点击进行高管级语法润�?
+          title="点击进行高管级语法润色"
         >
           {isPolishing ? (
             <Loader2 className="w-5 h-5 animate-spin text-[var(--color-accent)]" />
@@ -136,7 +140,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
         </button>
       </div>
 
-      {/* 历史记录选择�?*/}
+      {/* 历史记录选择器 */}
       {records.length > 0 && (
         <div className="relative">
           <button 
@@ -171,7 +175,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
         </div>
       )}
 
-      {/* 内容展示区：初始 rows=3，避免空状态过高；可手动拖拽增�?*/}
+      {/* 内容展示区：初始 rows=3，避免空状态过高；可手动拖拽增高 */}
       <div className="flex-1 relative mt-1">
         <textarea
           value={records.length > 0 ? records[selectedIndex]?.content : localNotes}
@@ -185,7 +189,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
           <div className="absolute inset-0 bg-black/50 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm z-10">
             <div className="flex items-center gap-2 text-[var(--color-accent)] font-semibold text-xs tracking-widest uppercase">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>AI 重构�?..</span>
+              <span>AI 重构中...</span>
             </div>
           </div>
         )}
