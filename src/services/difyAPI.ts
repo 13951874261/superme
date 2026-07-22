@@ -322,18 +322,59 @@ function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
   }
 }
 
+const REQUEST_TIMEOUT_MS = 10_000;
+const inflightGetRequests = new Map<string, Promise<unknown>>();
+
+async function fetchWithTimeout(url: string, options: RequestInit | undefined, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const parentSignal = options?.signal;
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) controller.abort();
+    else parentSignal.addEventListener('abort', onParentAbort, { once: true });
+  }
+  try {
+    return await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+    parentSignal?.removeEventListener('abort', onParentAbort);
+  }
+}
+
 async function request<T>(path: string, apiKey: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${DIFY_API_BASE_URL}${path}`, {
+  const method = String(options?.method || 'GET').toUpperCase();
+  const url = `${DIFY_API_BASE_URL}${path}`;
+  const init: RequestInit = {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     ...options,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
-  interceptOutputText(data);
-  return data as T;
+  };
+
+  const execute = async (): Promise<T> => {
+    const res = await fetchWithTimeout(url, init, REQUEST_TIMEOUT_MS);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
+    interceptOutputText(data);
+    return data as T;
+  };
+
+  // 仅合并并发 GET；POST workflow 不去重，避免误吞用户主动重试
+  if (method === 'GET' && !options?.body) {
+    const key = `GET:${url}`;
+    const existing = inflightGetRequests.get(key);
+    if (existing) return existing as Promise<T>;
+    const pending = execute().finally(() => inflightGetRequests.delete(key));
+    inflightGetRequests.set(key, pending);
+    return pending;
+  }
+
+  return execute();
 }
 
 // ── 原有听力工作流（保持不变）────────────────────────────────

@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, CustomTheme } from '../../../../services/trainingAPI';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, getThemeStayStats, CustomTheme, ThemeStayStats } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { ComparisonResult } from '../../../../types/listening';
 import { LongAudio } from '../../../../services/listeningAPI';
@@ -66,6 +66,12 @@ interface EnglishContextType {
   themeSwitchError: React.ReactNode | null;
   setThemeSwitchError: React.Dispatch<React.SetStateAction<React.ReactNode | null>>;
   sessionId: string | null;
+  todaySession: any | null;
+  stayStats: ThemeStayStats | null;
+  refreshStayStats: (force?: boolean) => Promise<void>;
+  refreshTodaySession: () => Promise<void>;
+  englishShellActive: boolean;
+  setEnglishShellActive: React.Dispatch<React.SetStateAction<boolean>>;
   inlineNotice: { text: string; tone: 'success' | 'error' | 'info' } | null;
   noticeAnchor: 'review' | 'oral' | 'listen' | 'eval' | 'dashboard' | null;
   showNotice: (anchor: 'review' | 'oral' | 'listen' | 'eval' | 'dashboard', text: string, tone: 'success' | 'error' | 'info') => void;
@@ -244,6 +250,9 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   }, [setMasteryData]);
   const [themeSwitchError, setThemeSwitchError] = useState<React.ReactNode | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [todaySession, setTodaySession] = useState<any | null>(null);
+  const [stayStats, setStayStats] = useState<ThemeStayStats | null>(null);
+  const [englishShellActive, setEnglishShellActive] = useState(true);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
 
   const [pendingSentenceDebt, setPendingSentenceDebt] = useState<string | null>(() => {
@@ -381,8 +390,10 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewResult, setReviewResult] = useState<any>(null);
 
-  // Global Effects
+  // Global Effects — mastery poll only while English shell is visible
   useEffect(() => {
+    if (!englishShellActive) return undefined;
+
     const refresh = () => {
       if (document.visibilityState !== 'visible') return;
       checkThemeMastery(theme)
@@ -413,7 +424,72 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
       clearInterval(id);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+  }, [theme, englishShellActive]);
+
+  const STAY_STATS_TTL_MS = 60_000;
+  const stayStatsCacheRef = useRef<{ theme: string; at: number; data: ThemeStayStats | null }>({
+    theme: '',
+    at: 0,
+    data: null,
+  });
+  const stayStatsInflightRef = useRef<Promise<void> | null>(null);
+
+  const refreshStayStats = useCallback(async (force = false) => {
+    if (!theme) return;
+    const now = Date.now();
+    const cached = stayStatsCacheRef.current;
+    if (
+      !force
+      && cached.theme === theme
+      && cached.data
+      && now - cached.at < STAY_STATS_TTL_MS
+    ) {
+      setStayStats(cached.data);
+      return;
+    }
+    if (stayStatsInflightRef.current) {
+      await stayStatsInflightRef.current;
+      return;
+    }
+    const pending = (async () => {
+      try {
+        const data = await getThemeStayStats(theme);
+        stayStatsCacheRef.current = { theme, at: Date.now(), data };
+        setStayStats(data);
+      } catch (err) {
+        console.error('Failed to load theme stay stats:', err);
+      }
+    })().finally(() => {
+      stayStatsInflightRef.current = null;
+    });
+    stayStatsInflightRef.current = pending;
+    await pending;
   }, [theme]);
+
+  const refreshTodaySession = useCallback(async () => {
+    const td = localTrainingDate();
+    try {
+      const detail = await getTrainingSessionByDate({ trainingDate: td });
+      setTodaySession(detail.session ?? null);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void refreshStayStats();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [theme, refreshStayStats]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      void refreshStayStats(true);
+    };
+    window.addEventListener('vocab-updated', handleUpdate);
+    return () => window.removeEventListener('vocab-updated', handleUpdate);
+  }, [refreshStayStats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -431,6 +507,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         } catch { parsed = {}; }
         const ef = (parsed.englishFoundation as Record<string, unknown>) || {};
         if (cancelled) return;
+        setTodaySession(detail.session ?? null);
         if (typeof ef.pronunciationNotes === 'string') setPronunciationNotes(ef.pronunciationNotes);
         if (typeof ef.grammarNotes === 'string') setGrammarNotes(ef.grammarNotes);
       } catch { /* ignore */ }
@@ -534,6 +611,12 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const legacyValue = React.useMemo<EnglishContextType>(() => ({
     activeTab, setActiveTab,
     sessionId,
+    todaySession,
+    stayStats,
+    refreshStayStats,
+    refreshTodaySession,
+    englishShellActive,
+    setEnglishShellActive,
     inlineNotice, noticeAnchor, showNotice, hideNotice,
     pronunciationNotes, setPronunciationNotes,
     grammarNotes, setGrammarNotes,
@@ -541,7 +624,8 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     ...vocabValue,
     ...mediaValue,
   }), [
-    activeTab, sessionId, inlineNotice, noticeAnchor,
+    activeTab, sessionId, todaySession, stayStats, refreshStayStats, refreshTodaySession,
+    englishShellActive, inlineNotice, noticeAnchor,
     pronunciationNotes, grammarNotes,
     themeValue, vocabValue, mediaValue
   ]);

@@ -1,4 +1,4 @@
-﻿# Design
+# Design
 
 ## Source of truth
 - Status: Active
@@ -24,7 +24,7 @@
 ## Information architecture
 - Primary navigation: Top module nav (听/说/读/写 + extensions)
 - Core routes/screens: Daily Wakeup workbench → results → Foundation trainers
-- Content hierarchy: Status/actions first, generated content next, Foundation last
+- Content hierarchy: Dashboard uses 2×2 paired rows (Roadmap|Stay, Theme|Briefing) + full-width Arsenal; equal column stretch, no dead zones
 
 ## Design principles
 - Clarity Over Clutter: one workbench for status + controls
@@ -75,10 +75,13 @@
 - Design-token constraints: Preserve `#FF5722` / `#202124` brand pair
 - Performance: No new animation libraries for this density pass
 - Performance (API / startup): Prefer removing dead or duplicate network work on the critical path; keep chatbot/assistant behavior unchanged; reuse existing inflight/TTL caches in `difyChatbot.ts` before adding new layers
+- Performance (page / tab switch): Prefer keep-alive or shared context fetches over remount-triggered duplicate APIs; do not change lock/debt redirects, mastery gates, or Dify conversation isolation semantics without an explicit product decision
 - Compatibility: Existing Dify wakeup / training APIs unchanged
-- Test/screenshot expectations: Visual check of Daily Wakeup first viewport density — no large empty band under header or beside module title; Dashboard right column must not leave a dead zone under Daily Briefing (Arsenal fills it); Network waterfall for startup + assistant open after API perf work
+- Test/screenshot expectations: Visual check of Daily Wakeup first viewport density — no large empty band under header or beside module title; Dashboard right column must not leave a dead zone under Daily Briefing (Arsenal fills it); Network waterfall for startup + assistant open after API perf work; module/tab switch should not re-fire identical stay-stats/quota/flaw-vocab when data is still fresh
 
 ## Open questions
+- [x] product / high — English sub-tabs: remount vs CSS keep-alive → lazy keep-alive shipped
+- [x] product / high — Keep English+DailyWakeup mounted when leaving top module → shipped
+- [x] product / medium — Pause `checkThemeMastery` polling when not on english → shipped
+- [ ] product / medium — Defer `rotateEmbedSessionOnRouteChange` until assistant opens (may affect cross-module Dify continuity) / product / medium
 - [ ] Whether non-english modules need the same shell density audit / product / low
-- [ ] product / high — Restore `memory_pack` injection into embed inputs (functional change) vs remove orphan `prefetchEmbedMemoryPack` from startup (perf-only)
-- [ ] product / medium — Load bubble `embed.min.js` only on first chatbot open vs deferred timer after paint

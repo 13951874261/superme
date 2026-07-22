@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Globe, Mic, Volume2, Target, PenTool, BookOpen, Radio } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import OralWarRoom from './OralWarRoom';
-import { EnglishProvider, useEnglishContext, EnglishTab } from './english/context/EnglishContext';
+import { useEnglishContext, EnglishTab } from './english/context/EnglishContext';
 import DashboardTab from './english/tabs/DashboardTab';
 import VocabTab from './english/tabs/VocabTab';
 import ListenTab from './english/tabs/ListenTab';
@@ -25,6 +25,26 @@ const SUB_TABS = [
 
 function EnglishModuleContent() {
   const { activeTab, setActiveTab, theme, sessionId, setMasteryData, showMasteryOverlay, setShowMasteryOverlay } = useEnglishContext();
+  // 首次访问才挂载，之后 keep-alive，避免未打开的 Tab 提前打接口
+  const [mountedTabs, setMountedTabs] = useState<Set<EnglishTab>>(() => new Set(['dashboard']));
+
+  useEffect(() => {
+    setMountedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
+
+  const panel = (id: EnglishTab, node: React.ReactNode) => {
+    if (!mountedTabs.has(id)) return null;
+    return (
+      <div key={id} hidden={activeTab !== id}>
+        {node}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -56,10 +76,10 @@ function EnglishModuleContent() {
       </div>
 
       <div className="animate-fade-in-scale">
-        {activeTab === 'dashboard' && <DashboardTab />}
-        {activeTab === 'vocab' && <VocabTab />}
-        {activeTab === 'listen' && <ListenTab />}
-        {activeTab === 'oral' && (
+        {panel('dashboard', <DashboardTab />)}
+        {panel('vocab', <VocabTab />)}
+        {panel('listen', <ListenTab />)}
+        {panel('oral', (
           <OralWarRoom
             embedded
             sceneTheme={theme}
@@ -80,9 +100,9 @@ function EnglishModuleContent() {
                 .catch(() => {});
             }}
           />
-        )}
-        {activeTab === 'write' && <WriteTab />}
-        {activeTab === 'impromptu' && <ImpromptuSpeechTab />}
+        ))}
+        {panel('write', <WriteTab />)}
+        {panel('impromptu', <ImpromptuSpeechTab />)}
       </div>
     </ModuleWrapper>
     </>

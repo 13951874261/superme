@@ -6,7 +6,7 @@ import PronunciationTrainer from './PronunciationTrainer';
 import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
 import { runEnglishWakeupRoutine } from '../../services/difyAPI';
-import { upsertTrainingSession, getThemeStayStats, getTrainingSessionByDate, ThemeStayStats } from '../../services/trainingAPI';
+import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
 
 interface WakeupWord {
@@ -34,7 +34,18 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function DailyWakeupModule() {
-  const { pronunciationNotes, setPronunciationNotes, grammarNotes, setGrammarNotes, theme, setTheme } = useEnglishContext();
+  const {
+    pronunciationNotes,
+    setPronunciationNotes,
+    grammarNotes,
+    setGrammarNotes,
+    theme,
+    setTheme,
+    stayStats,
+    todaySession,
+    refreshStayStats,
+    refreshTodaySession,
+  } = useEnglishContext();
   const [isOpen, setIsOpen] = useState(true);
   const [result, setResult] = useState<WakeupResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,10 +53,6 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
-
-  // 新增接口数据状态
-  const [stayStats, setStayStats] = useState<ThemeStayStats | null>(null);
-  const [todaySession, setTodaySession] = useState<any | null>(null);
   
   const startRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -71,38 +78,12 @@ export default function DailyWakeupModule() {
 
   useEffect(() => () => stopTimer(), []);
 
-  // 异步拉取真实接口数据
-  const loadStatsAndSession = async (currentTheme: string) => {
-    try {
-      const today = new Date();
-      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-      
-      const [stats, sessionDetail] = await Promise.all([
-        getThemeStayStats(currentTheme).catch(() => null),
-        getTrainingSessionByDate({ trainingDate: todayStr }).catch(() => null)
-      ]);
-      
-      if (stats) setStayStats(stats);
-      if (sessionDetail) setTodaySession(sessionDetail.session);
-    } catch (error) {
-      console.error('加载打卡状态与主题统计失败:', error);
-    }
-  };
-
-  // 防抖自动拉取
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      loadStatsAndSession(theme);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [theme]);
-
   const handleStart = async () => {
     setLoading(true);
     setNotice('正在生成今日唤醒内容...');
     try {
-      // 触发一次数据更新
-      loadStatsAndSession(theme);
+      void refreshStayStats(true);
+      void refreshTodaySession();
       const data = await runEnglishWakeupRoutine(theme);
       setResult(data);
       setNotice(`已生成主题：${data.theme || theme}`);
@@ -131,8 +112,7 @@ export default function DailyWakeupModule() {
       });
       setNotice(`打卡成功，今日练习时长 ${formatSeconds(seconds)}`);
       stopTimer();
-      // 打卡成功重新加载数据
-      await loadStatsAndSession(theme);
+      await Promise.all([refreshStayStats(true), refreshTodaySession()]);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '打卡失败');
     } finally {

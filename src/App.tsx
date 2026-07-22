@@ -20,13 +20,12 @@ import BiweeklyReviewModal from './components/modules/BiweeklyReviewModal';
 import { useBiweeklyReviewTrigger } from './hooks/useBiweeklyReviewTrigger';
 import {
   loadDifyChatbotEmbed,
-  prefetchEmbedMemoryPack,
   prepareDifyAssistantIframe,
   refreshDifyChatbotContext,
   rotateEmbedSessionOnPageLoad,
   rotateEmbedSessionOnRouteChange,
 } from './utils/difyChatbot';
-import { loadUserProfileFromServer } from './utils/profileHelper';
+import { isProfileStale, loadUserProfileFromServer } from './utils/profileHelper';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -37,6 +36,8 @@ function AppContent() {
 
   const toggleChatbot = () => {
     if (!isChatOpen) {
+      // Deferred startup load may not have finished; idempotent ensure + existing profile refresh
+      loadDifyChatbotEmbed();
       void loadUserProfileFromServer().then(() => refreshDifyChatbotContext());
     }
 
@@ -88,16 +89,30 @@ function AppContent() {
 
   useEffect(() => {
     rotateEmbedSessionOnPageLoad();
-    prefetchEmbedMemoryPack();
     void prepareDifyAssistantIframe();
-    loadDifyChatbotEmbed();
+
+    let idleId: number | undefined;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const runEmbed = () => loadDifyChatbotEmbed();
+    if (typeof requestIdleCallback === 'function') {
+      idleId = requestIdleCallback(runEmbed, { timeout: 1500 });
+    } else {
+      timeoutId = setTimeout(runEmbed, 500);
+    }
+
     const onVisible = () => {
-      if (document.visibilityState === 'visible') {
+      if (document.visibilityState === 'visible' && isProfileStale()) {
         void loadUserProfileFromServer();
       }
     };
     document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
+    return () => {
+      if (idleId !== undefined && typeof cancelIdleCallback === 'function') {
+        cancelIdleCallback(idleId);
+      }
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   useEffect(() => {

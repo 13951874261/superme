@@ -38,62 +38,53 @@ export function ArsenalPanel({
   compact = false
 }: ArsenalPanelProps) {
   return (
-    <div className={`relative animate-[fadeIn_0.3s_ease-out] h-full ${
+    <div className={`relative animate-[fadeIn_0.3s_ease-out] bg-white border border-slate-100 shadow-[0_4px_14px_rgba(0,0,0,0.012)] ${
       compact
-        ? 'bg-white rounded-2xl p-3 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-2.5'
-        : ''
+        ? 'rounded-xl p-2.5 h-full flex flex-col gap-2'
+        : 'rounded-xl px-3 py-2.5'
     }`}>
-      <div className={`flex flex-col ${compact ? 'gap-2' : 'lg:flex-row lg:items-center justify-between gap-4 mb-4'}`}>
-        <h4 className={`font-black uppercase tracking-widest text-slate-800 flex items-center ${compact ? 'text-[10px]' : 'text-sm'}`}>
-          <Target className={`${compact ? 'w-3.5 h-3.5 mr-1.5' : 'w-5 h-5 mr-3'} text-[var(--color-brand)]`} />
-          弹药补给库 {compact ? '' : '(Arsenal)'}
-        </h4>
-        <div className={`flex flex-wrap items-center ${compact ? 'gap-2' : 'gap-3'}`}>
-          <div className="flex items-center gap-1.5">
-            {!compact && <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">题材 (Genre):</span>}
-            <select
-              value={genre}
-              onChange={(e) => setGenre(e.target.value as any)}
-              className={`bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded-lg outline-none focus:border-[var(--color-brand)] cursor-pointer shadow-sm ${
-                compact ? 'px-2 py-1.5 flex-1 min-w-0' : 'px-3 py-2'
-              }`}
-              title="题材"
-            >
-              <option value="meeting">高管会议</option>
-              <option value="news">财经新闻</option>
-              <option value="podcast">深度播客</option>
-              <option value="reading">沉浸阅读</option>
-            </select>
-          </div>
-          
-          <div className="flex items-center gap-1.5">
-            {!compact && <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">难度 (Level):</span>}
-            <select
-              value={cefrLevel}
-              onChange={(e) => setCefrLevel(e.target.value as any)}
-              className={`bg-white border border-slate-200 text-slate-800 text-xs font-bold rounded-lg outline-none focus:border-[var(--color-brand)] cursor-pointer shadow-sm ${
-                compact ? 'px-2 py-1.5' : 'px-3 py-2'
-              }`}
-              title="难度"
-            >
-              <option value="A2">A2</option>
-              <option value="B1">B1</option>
-              <option value="B2">B2</option>
-              <option value="C1">C1</option>
-            </select>
-          </div>
+      <div className={`flex ${compact ? 'flex-col gap-2' : 'flex-col xl:flex-row xl:items-center gap-2.5'}`}>
+        <div className={`flex items-center gap-2 shrink-0 ${compact ? '' : 'xl:mr-1'}`}>
+          <Target className="w-3.5 h-3.5 text-[var(--color-brand)]" />
+          <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800">
+            弹药补给库
+          </h4>
+        </div>
+
+        <div className={`flex flex-wrap items-center gap-2 ${compact ? '' : 'flex-1'}`}>
+          <select
+            value={genre}
+            onChange={(e) => setGenre(e.target.value as any)}
+            className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)] cursor-pointer"
+            title="题材"
+          >
+            <option value="meeting">高管会议</option>
+            <option value="news">财经新闻</option>
+            <option value="podcast">深度播客</option>
+            <option value="reading">沉浸阅读</option>
+          </select>
+
+          <select
+            value={cefrLevel}
+            onChange={(e) => setCefrLevel(e.target.value as any)}
+            className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)] cursor-pointer"
+            title="难度"
+          >
+            <option value="A2">A2</option>
+            <option value="B1">B1</option>
+            <option value="B2">B2</option>
+            <option value="C1">C1</option>
+          </select>
 
           <button
             onClick={handleAutoGenerate}
             disabled={isAutoGenerating || isClearingAndReGenerating}
-            className={`flex items-center justify-center bg-[var(--color-brand)] text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-brand-dark)] transition-colors disabled:opacity-50 cursor-pointer shadow-md btn-press ${
-              compact ? 'px-3 py-1.5 flex-1' : 'px-5 py-2.5 text-xs'
-            }`}
+            className="flex items-center justify-center bg-[var(--color-brand)] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-brand-dark)] transition-colors disabled:opacity-50 cursor-pointer shadow-sm btn-press px-3 py-1.5"
           >
             {isAutoGenerating ? (
               <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 执行中</>
             ) : (
-              <><Zap className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> {compact ? 'AI 生成长文' : 'AI 自动生成今日长文并提纯'}</>
+              <><Zap className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> AI 生成长文并提纯</>
             )}
           </button>
 
@@ -101,15 +92,13 @@ export function ArsenalPanel({
             <button
               onClick={() => setShowClearConfirm(!showClearConfirm)}
               disabled={isAutoGenerating || isClearingAndReGenerating}
-              className={`flex items-center bg-slate-100 text-slate-700 hover:bg-red-50 hover:text-red-600 rounded-xl text-[10px] font-black uppercase tracking-widest transition-colors border border-slate-200 disabled:opacity-50 cursor-pointer shadow-sm btn-press ${
-                compact ? 'px-2.5 py-1.5' : 'px-5 py-2.5 text-xs'
-              }`}
+              className="flex items-center bg-slate-100 text-slate-700 hover:bg-red-50 hover:text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-slate-200 disabled:opacity-50 cursor-pointer btn-press px-2.5 py-1.5"
               title="清空今日提纯数据与生词，重置配额并重新运行AI生成"
             >
               {isClearingAndReGenerating ? (
                 <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin"/> 清理中</>
               ) : (
-                <><Trash2 className="w-3.5 h-3.5 mr-1 text-red-500"/> {compact ? '重置' : '清空今日数据并重新生成'}</>
+                <><Trash2 className="w-3.5 h-3.5 mr-1 text-red-500"/> 重置今日</>
               )}
             </button>
 
@@ -146,44 +135,41 @@ export function ArsenalPanel({
               </div>
             )}
           </div>
+
+          {quotaStatus && (
+            <div className={`flex items-center gap-3 ${compact ? 'w-full mt-auto pt-1 border-t border-slate-100' : 'ml-auto min-w-[14rem]'}`}>
+              <div className="flex-1 min-w-[6rem]">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">词</span>
+                  <span className="text-[10px] font-black tabular-nums text-slate-700">
+                    {quotaStatus.wordsUsed}/{quotaStatus.wordsLimit}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : 'bg-[var(--color-brand)]'}`}
+                    style={{ width: `${(quotaStatus.wordsUsed / quotaStatus.wordsLimit) * 100}%` }}
+                  />
+                </div>
+              </div>
+              <div className="flex-1 min-w-[6rem]">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">短语</span>
+                  <span className="text-[10px] font-black tabular-nums text-slate-700">
+                    {quotaStatus.phrasesUsed}/{quotaStatus.phrasesLimit}
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${quotaStatus.phrasesLeft === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
+                    style={{ width: `${(quotaStatus.phrasesUsed / quotaStatus.phrasesLimit) * 100}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {quotaStatus && (
-        <div className={`flex gap-3 bg-slate-50/80 rounded-xl border border-slate-200/60 ${
-          compact ? 'p-2.5 mt-auto' : 'gap-6 mb-6 p-5 shadow-sm rounded-2xl'
-        }`}>
-          <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">词汇配额</span>
-              <span className="text-[10px] font-black text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-100 tabular-nums shrink-0">
-                {quotaStatus.wordsUsed}/{quotaStatus.wordsLimit}
-              </span>
-            </div>
-            <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : 'bg-gradient-to-r from-[var(--color-brand)] to-[var(--color-brand-light)]'}`}
-                style={{ width: `${(quotaStatus.wordsUsed / quotaStatus.wordsLimit) * 100}%` }}
-              />
-            </div>
-          </div>
-          <div className="w-px bg-slate-200/60 shrink-0" />
-          <div className="flex flex-col gap-1 flex-1 min-w-0">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 truncate">短语配额</span>
-              <span className="text-[10px] font-black text-slate-800 bg-white px-1.5 py-0.5 rounded border border-slate-100 tabular-nums shrink-0">
-                {quotaStatus.phrasesUsed}/{quotaStatus.phrasesLimit}
-              </span>
-            </div>
-            <div className="w-full bg-slate-200/80 rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-700 ${quotaStatus.phrasesLeft === 0 ? 'bg-red-400' : 'bg-gradient-to-r from-emerald-500 to-emerald-400'}`}
-                style={{ width: `${(quotaStatus.phrasesUsed / quotaStatus.phrasesLimit) * 100}%` }}
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

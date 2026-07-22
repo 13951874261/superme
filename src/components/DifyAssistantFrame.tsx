@@ -3,7 +3,6 @@ import { Loader2 } from 'lucide-react';
 import {
   getDifyChatbotUserId,
   prepareDifyAssistantIframe,
-  prefetchEmbedMemoryPack,
 } from '../utils/difyChatbot';
 
 interface DifyAssistantFrameProps {
@@ -26,7 +25,6 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
 
     const userId = getDifyChatbotUserId();
     setSessionUserId(userId);
-    prefetchEmbedMemoryPack();
 
     prepareDifyAssistantIframe()
       .then((url) => {

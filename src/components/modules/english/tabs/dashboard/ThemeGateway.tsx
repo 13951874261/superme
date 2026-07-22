@@ -43,15 +43,17 @@ export function ThemeGateway({
   deleteCustomTheme
 }: ThemeGatewayProps) {
   return (
-    <div className="flex flex-col">
-      <span className="text-[10px] uppercase tracking-widest font-black text-gray-400 mb-1.5">当前闭环主题 <span className="text-slate-300">//</span> Theme Gateway</span>
+    <div className="flex flex-col gap-1.5">
+      <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">
+        当前闭环主题
+      </span>
 
       {themeSwitchError && (
-        <div className="flex items-start gap-3 mb-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
+        <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
-          <div className="flex-1">
-            <p className="text-[11px] font-black uppercase tracking-widest text-red-600 mb-1">跨国高管拦截指令</p>
-            <div className="text-xs font-medium leading-relaxed">{themeSwitchError}</div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-0.5">拦截指令</p>
+            <div className="text-xs font-medium leading-snug">{themeSwitchError}</div>
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); setThemeSwitchError(null); }}
@@ -60,7 +62,7 @@ export function ThemeGateway({
         </div>
       )}
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex items-center gap-1.5 flex-wrap">
         <select
           value={theme}
           onChange={async (e) => {
@@ -82,7 +84,7 @@ export function ThemeGateway({
             e.stopPropagation();
             setThemeSwitchError(null);
           }}
-          className="flex-1 min-w-[10rem] bg-[var(--color-surface-mid)] border border-[var(--color-border)] text-slate-800 text-sm font-bold rounded-xl px-3 py-2 outline-none focus:border-[var(--color-brand)] focus:shadow-[0_0_0_3px_var(--color-brand-light)] transition-all cursor-pointer"
+          className="flex-1 min-w-[8rem] bg-[var(--color-surface-mid)] border border-[var(--color-border)] text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)] focus:shadow-[0_0_0_3px_var(--color-brand-light)] transition-all cursor-pointer"
         >
           <optgroup label="系统预置主题">
             {getThemeOptions(stage as 'business' | 'all').map((o) => (
@@ -122,7 +124,7 @@ export function ThemeGateway({
                  setIsDeletingTheme(false);
               }
             }}
-            className="text-red-500 hover:text-red-700 p-2 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+            className="text-red-500 hover:text-red-700 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             title="删除当前自定义场景"
           >
             {isDeletingTheme ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -134,16 +136,15 @@ export function ThemeGateway({
             console.log('[ThemeGateway] Opening CustomThemeModal');
             setIsCustomThemeModalOpen(true);
           }}
-          className="flex items-center gap-1.5 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+          className="flex items-center gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 !px-2 !py-1.5"
         >
-          <Plus className="w-4 h-4" />
-          <span className="text-xs font-bold uppercase tracking-wider">自定义</span>
+          <Plus className="w-3.5 h-3.5" />
+          <span className="text-[10px] font-bold uppercase tracking-wider">自定义</span>
         </GhostButton>
 
-        {/* 使用新的 StatusBadge 替换硬编码红色区块，解决 P0-1 问题 */}
         <StatusBadge 
           status={masteryData?.isMastered ? 'unlocked' : 'locked'}
-          label={masteryData?.isMastered ? '已通关 (解锁下沉)' : '未达标 (强制锁定)'}
+          label={masteryData?.isMastered ? '已通关' : '未达标'}
         />
       </div>
     </div>

@@ -33,11 +33,15 @@ export default function MainContent({
   isLocked,
   onLockTrigger
 }: MainContentProps) {
-  const { theme, masteryData } = useEnglishContext();
+  const { theme, masteryData, setEnglishShellActive } = useEnglishContext();
 
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
   );
+
+  useEffect(() => {
+    setEnglishShellActive(activeModule === 'english');
+  }, [activeModule, setEnglishShellActive]);
 
   useEffect(() => {
     const handleSettingsChange = () => {
@@ -58,49 +62,46 @@ export default function MainContent({
     { id: 'entertainment', label: '高阶审美', icon: <Wine className="w-4 h-4" /> },
   ] as const;
 
-  // 渲染当前选中的模块 (专注模式)
-  const renderActiveModule = () => {
-    switch (activeModule) {
-      case 'english': return (
-        <div className="space-y-4">
-          <DailyWakeupModule />
-          <EnglishModule />
-        </div>
-      );
-      case 'listen': return (
+  // 英语壳 keep-alive：离开顶栏时隐藏不卸载，避免 flaw-vocab / stay-stats 重复请求
+  const renderActiveModule = () => (
+    <>
+      <div className="space-y-4" hidden={activeModule !== 'english'}>
+        <DailyWakeupModule />
+        <EnglishModule />
+      </div>
+      {activeModule === 'listen' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
           <ListenModule selectedDate={selectedDate} />
         </React.Suspense>
-      );
-      case 'speak': return (
+      )}
+      {activeModule === 'speak' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
           <SpeakModule />
         </React.Suspense>
-      );
-      case 'read': return (
+      )}
+      {activeModule === 'read' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
           <ReadModule />
         </React.Suspense>
-      );
-      case 'write': return (
+      )}
+      {activeModule === 'write' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
           <WriteModule />
         </React.Suspense>
-      );
-      case 'gametheory': return (
+      )}
+      {activeModule === 'gametheory' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
           <GameTheoryModule />
         </React.Suspense>
-      );
-      case 'entertainment': return (
+      )}
+      {activeModule === 'entertainment' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
           <EntertainmentModule />
         </React.Suspense>
-      );
-      case 'weekly': return <WeeklyChatModule />;
-      default: return <EnglishModule />;
-    }
-  };
+      )}
+      {activeModule === 'weekly' && <WeeklyChatModule />}
+    </>
+  );
 
   const handleTabClick = (tabId: ModuleType) => {
     if (isModulePaused(tabId)) {

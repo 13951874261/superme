@@ -35,43 +35,12 @@ export default function DashboardTab() {
     inlineNotice, noticeAnchor, setActiveTab, showNotice,
     customThemes, refreshCustomThemes,
     masteredThemes,
+    stayStats,
   } = useEnglishContext();
 
   const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
   const [isSopExpanded, setIsSopExpanded] = useState(false);
   const currentCustomTheme = customThemes?.find(c => (c.displayName || c.themeName) === theme);
-
-  const [stayStats, setStayStats] = useState<{
-    stayDays: number;
-    articleCount: number;
-    wordCount: number;
-    phraseCount: number;
-    weakPoints: { pronunciation: string; grammar: string };
-    todaySuggestion: string;
-  } | null>(null);
-
-  const loadStayStats = async () => {
-    if (!theme) return;
-    try {
-      const { getThemeStayStats } = await import('../../../../services/trainingAPI');
-      const data = await getThemeStayStats(theme);
-      setStayStats(data);
-    } catch (err) {
-      console.error('Failed to load theme stay stats:', err);
-    }
-  };
-
-  useEffect(() => {
-    loadStayStats();
-    
-    const handleUpdate = () => {
-      loadStayStats();
-    };
-    window.addEventListener('vocab-updated', handleUpdate);
-    return () => {
-      window.removeEventListener('vocab-updated', handleUpdate);
-    };
-  }, [theme]);
 
   // 主题锁定机制 - 单一数据源
   // 与 EnglishContext.tsx 中 isMastered 判定保持一致：
@@ -693,72 +662,80 @@ export default function DashboardTab() {
         <SOPGuide isSopExpanded={isSopExpanded} />
       </div>
 
-      {/* 左：路线图+主题；右：匹配/简报/弹药库填满高度，消除右侧空洞 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch">
-        <div className="lg:col-span-7 bg-white rounded-2xl p-3 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-2.5 animate-[fadeIn_0.3s_ease-out]">
-          <StrategicRoadmap
-            stage={stage}
-            handleTrackChange={handleTrackChange}
-            masteredThemes={masteredThemes}
-            customThemesCount={customThemes?.length || 0}
-            currentTheme={theme}
-          />
+      {/* 均分布局：上/中两行对开等高，弹药库通栏 */}
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-stretch">
+          <div className="lg:col-span-7 bg-white rounded-xl p-2.5 border border-slate-100 shadow-[0_4px_14px_rgba(0,0,0,0.012)] flex flex-col h-full min-h-[11rem]">
+            <StrategicRoadmap
+              stage={stage}
+              handleTrackChange={handleTrackChange}
+              masteredThemes={masteredThemes}
+              customThemesCount={customThemes?.length || 0}
+              currentTheme={theme}
+            />
+          </div>
 
-          <ThemeGateway 
-            theme={theme}
-            setTheme={setTheme}
-            themeSwitchError={themeSwitchError}
-            setThemeSwitchError={setThemeSwitchError}
-            runMasteryGate={runMasteryGate}
-            masteryData={masteryData}
-            customThemes={customThemes || []}
-            currentCustomTheme={currentCustomTheme}
-            isDeletingTheme={isDeletingTheme}
-            setIsDeletingTheme={setIsDeletingTheme}
-            setIsCustomThemeModalOpen={setIsCustomThemeModalOpen}
-            getThemeOptions={getThemeOptions}
-            stage={stage}
-            refreshCustomThemes={refreshCustomThemes}
-            showNotice={showNotice}
-            setThemeFocus={async (params) => {
-              await setThemeFocus(params).catch(() => {});
-            }}
-            deleteCustomTheme={async (id) => {
-               const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
-               return deleteCustomTheme(id);
-            }}
-          />
-        </div>
-
-        <div className="lg:col-span-5 flex flex-col gap-2.5 min-h-0 h-full">
-          <StayAnalysisPanel 
-            masteryData={masteryData}
-            impromptuPassed={impromptuPassed}
-            stayStats={stayStats}
-          />
-          <DailyBriefingCard 
-             quotaStatus={quotaStatus}
-             generatedArticle={generatedArticle}
-             extractedWordsCount={extractedWords.length}
-             extractedPhrasesCount={extractedPhrases.length}
-          />
-          <div className="flex-1 min-h-0">
-            <ArsenalPanel
-              genre={genre}
-              setGenre={setGenre}
-              cefrLevel={cefrLevel}
-              setCefrLevel={setCefrLevel}
-              isAutoGenerating={isAutoGenerating}
-              handleAutoGenerate={handleAutoGenerate}
-              isClearingAndReGenerating={isClearingAndReGenerating}
-              handleClearTodayAndReGenerate={handleClearTodayAndReGenerate}
-              showClearConfirm={showClearConfirm}
-              setShowClearConfirm={setShowClearConfirm}
-              quotaStatus={quotaStatus}
-              compact
+          <div className="lg:col-span-5 h-full min-h-[11rem] flex flex-col">
+            <StayAnalysisPanel 
+              masteryData={masteryData}
+              impromptuPassed={impromptuPassed}
+              stayStats={stayStats}
             />
           </div>
         </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-stretch">
+          <div className="lg:col-span-7 bg-white rounded-xl p-2.5 border border-slate-100 shadow-[0_4px_14px_rgba(0,0,0,0.012)] h-full min-h-[5.5rem] flex flex-col justify-center">
+            <ThemeGateway 
+              theme={theme}
+              setTheme={setTheme}
+              themeSwitchError={themeSwitchError}
+              setThemeSwitchError={setThemeSwitchError}
+              runMasteryGate={runMasteryGate}
+              masteryData={masteryData}
+              customThemes={customThemes || []}
+              currentCustomTheme={currentCustomTheme}
+              isDeletingTheme={isDeletingTheme}
+              setIsDeletingTheme={setIsDeletingTheme}
+              setIsCustomThemeModalOpen={setIsCustomThemeModalOpen}
+              getThemeOptions={getThemeOptions}
+              stage={stage}
+              refreshCustomThemes={refreshCustomThemes}
+              showNotice={showNotice}
+              setThemeFocus={async (params) => {
+                await setThemeFocus(params).catch(() => {});
+              }}
+              deleteCustomTheme={async (id) => {
+                 const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
+                 return deleteCustomTheme(id);
+              }}
+            />
+          </div>
+
+          <div className="lg:col-span-5 h-full min-h-[5.5rem] flex flex-col">
+            <DailyBriefingCard 
+               quotaStatus={quotaStatus}
+               generatedArticle={generatedArticle}
+               extractedWordsCount={extractedWords.length}
+               extractedPhrasesCount={extractedPhrases.length}
+            />
+          </div>
+        </div>
+
+        <ArsenalPanel
+          genre={genre}
+          setGenre={setGenre}
+          cefrLevel={cefrLevel}
+          setCefrLevel={setCefrLevel}
+          isAutoGenerating={isAutoGenerating}
+          handleAutoGenerate={handleAutoGenerate}
+          isClearingAndReGenerating={isClearingAndReGenerating}
+          handleClearTodayAndReGenerate={handleClearTodayAndReGenerate}
+          showClearConfirm={showClearConfirm}
+          setShowClearConfirm={setShowClearConfirm}
+          quotaStatus={quotaStatus}
+          compact={false}
+        />
       </div>
 
         {inlineNotice && noticeAnchor === 'dashboard' && (

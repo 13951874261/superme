@@ -4,6 +4,14 @@ const MEMORY_LAYERS_KEY = 'user_memory_layers';
 const PROFILE_UPDATED_AT_KEY = 'user_profile_server_updated_at';
 const ERROR_LEDGER_KEY = 'user_error_ledger';
 const USER_ID_KEY = 'super_agent_user_id';
+const PROFILE_STALE_MS = 5 * 60 * 1000;
+
+/** 本地画像时间戳是否过期（供 visibility 等场景决定是否 refetch；不改变 loadUserProfileFromServer 强制拉取语义） */
+export function isProfileStale(): boolean {
+  const updatedAt = Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
+  if (!updatedAt) return true;
+  return Date.now() - updatedAt > PROFILE_STALE_MS;
+}
 
 function sanitizeUserId(id: string): string {
   const cleaned = id.trim().replace(/[^\w\-@.]/g, '_').slice(0, 64);
