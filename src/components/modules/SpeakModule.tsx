@@ -637,7 +637,7 @@ export default function SpeakModule() {
             </div>
             <button 
               onClick={exportTheories}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 transition-all border border-slate-100"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-600 hover:text-[var(--color-brand)] bg-slate-50 hover:bg-slate-50 transition-all border border-slate-100"
               title="导出全部指南为TXT"
             >
               <Download className="w-3.5 h-3.5" /> 导出TXT
@@ -695,7 +695,7 @@ export default function SpeakModule() {
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isUploading}
-                className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-indigo-400 rounded-2xl p-4 transition-all hover:bg-indigo-50/10 group cursor-pointer"
+                className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 hover:border-[var(--color-brand)] rounded-2xl p-4 transition-all hover:bg-slate-50/10 group cursor-pointer"
               >
                 <FileText className="w-6 h-6 text-slate-400 group-hover:text-indigo-500 mb-1 transition-colors" />
                 <span className="text-[11px] font-bold text-slate-600 group-hover:text-slate-800">上传PDF/文档</span>
@@ -723,7 +723,7 @@ export default function SpeakModule() {
                 <button
                   onClick={handleUrlSubmit}
                   disabled={!uploadUrl || isUploading}
-                  className="w-full bg-slate-900 hover:bg-indigo-600 text-white text-[10px] font-black tracking-wider uppercase py-1.5 rounded-lg transition-all"
+                  className="w-full bg-slate-900 hover:bg-[var(--color-brand)] text-white text-[10px] font-black tracking-wider uppercase py-1.5 rounded-lg transition-all"
                 >
                   提取提纯
                 </button>
@@ -745,10 +745,10 @@ export default function SpeakModule() {
                 <div
                   key={m.id}
                   onClick={() => m.extractedTopic && setPromptTopic(m.extractedTopic)}
-                  className="p-4 bg-slate-50 hover:bg-indigo-50/30 rounded-2xl border border-slate-100 transition-all cursor-pointer group hover:border-indigo-200"
+                  className="p-4 bg-slate-50 hover:bg-slate-50 rounded-2xl border border-slate-100 transition-all cursor-pointer group hover:border-[var(--color-border)]"
                 >
                   <div className="flex justify-between items-start mb-1.5">
-                    <span className="text-xs font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">{m.name}</span>
+                    <span className="text-xs font-bold text-slate-800 group-hover:text-[var(--color-brand)] transition-colors">{m.name}</span>
                     <span className="text-[9px] font-mono text-slate-400">{m.createdAt}</span>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed truncate mb-2">{m.content}</p>
@@ -800,7 +800,7 @@ export default function SpeakModule() {
                   isCyberLocked && activeTab !== tab.id ? 'opacity-50 cursor-not-allowed' : ''
                 } ${
                   activeTab === tab.id 
-                    ? 'bg-indigo-600 text-white shadow-md' 
+                    ? 'bg-[var(--color-brand)] text-white shadow-md' 
                     : 'text-slate-500 hover:bg-slate-100'
                 }`}
               >
@@ -820,7 +820,7 @@ export default function SpeakModule() {
                 }}
                 className={`p-3 rounded-2xl border text-left transition-all ${
                   selectedScenario === scen.id 
-                    ? 'bg-indigo-50/50 border-indigo-300 ring-2 ring-indigo-500/10' 
+                    ? 'bg-slate-50 border-[var(--color-border)] ring-2 ring-[var(--color-brand)]/10' 
                     : 'bg-white border-slate-100 hover:border-slate-200'
                 }`}
               >
@@ -897,7 +897,7 @@ export default function SpeakModule() {
             </div>
           </div>
 
-          <div className="bg-indigo-900/5 p-5 rounded-2xl border border-indigo-100 relative mb-6">
+          <div className="bg-slate-50 p-5 rounded-2xl border border-[var(--color-border)] relative mb-6">
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider">AI 推送即兴场景</span>
               <button 
@@ -1022,7 +1022,7 @@ export default function SpeakModule() {
                 <button
                   onClick={startRecording}
                   disabled={isUploading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold shadow-md transition-all"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-[var(--color-brand)] text-white rounded-xl text-xs font-bold shadow-md transition-all"
                 >
                   <Mic className="w-3.5 h-3.5" /> 语音录入
                 </button>
@@ -1042,7 +1042,7 @@ export default function SpeakModule() {
           <button
             onClick={evaluateSpeech}
             disabled={isLoadingFeedback || (!mildInput && !aggressiveInput)}
-            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black tracking-widest text-xs uppercase rounded-2xl transition-all shadow-md shadow-indigo-600/10 disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black tracking-widest text-xs uppercase rounded-2xl transition-all shadow-md shadow-[var(--color-brand)]/10 disabled:opacity-50"
           >
             {isLoadingFeedback ? (
               <>
@@ -1088,7 +1088,7 @@ export default function SpeakModule() {
                   <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">表达分寸</span>
                   <span className="text-base font-black text-emerald-700 font-mono">{evalResult.expressionScore} / 5</span>
                 </div>
-                <div className="bg-indigo-600 text-white rounded-2xl p-2 px-4 text-center shadow-lg shadow-indigo-600/10">
+                <div className="bg-[var(--color-brand)] text-white rounded-2xl p-2 px-4 text-center shadow-lg shadow-[var(--color-brand)]/10">
                   <span className="text-[9px] font-black uppercase tracking-widest block opacity-80">总得分</span>
                   <span className="text-lg font-black font-mono">{evalResult.totalScore} / 10</span>
                 </div>
@@ -1097,12 +1097,12 @@ export default function SpeakModule() {
 
             <div className="grid grid-cols-1 gap-3 mb-6">
               {[
-                { label: '地域文化适配', score: '适配', color: 'text-indigo-600 bg-indigo-50' },
+                { label: '地域文化适配', score: '适配', color: 'text-[var(--color-brand)] bg-slate-50' },
                 { label: '角色立场定位', score: '精准', color: 'text-emerald-600 bg-emerald-50' },
                 { label: '逻辑框架完整', score: '极佳', color: 'text-amber-600 bg-amber-50' },
                 { label: '语调停顿留白', score: '良好', color: 'text-teal-600 bg-teal-50' },
                 { label: '词汇精准度', score: '极佳', color: 'text-rose-600 bg-rose-50' },
-                { label: '事实数据调用', score: '尚可', color: 'text-purple-600 bg-purple-50' }
+                { label: '事实数据调用', score: '尚可', color: 'text-[var(--color-accent)] bg-[var(--color-accent)]/10' }
               ].map((item, idx) => (
                 <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
                   <span className="text-[10px] font-bold text-slate-500">{item.label}</span>
@@ -1124,10 +1124,10 @@ export default function SpeakModule() {
 
               <div>
                 <h4 className="text-xs font-black text-indigo-600 mb-2 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3.5 bg-indigo-500 rounded-full inline-block"></span>
+                  <span className="w-1.5 h-3.5 bg-[var(--color-brand)] rounded-full inline-block"></span>
                   高维表达重构 (Framework Analysis)
                 </h4>
-                <p className="text-xs text-slate-700 leading-relaxed bg-indigo-50/30 p-4 rounded-2xl border border-indigo-100">
+                <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-[var(--color-border)]">
                   {evalResult.frameworkAnalysis}
                 </p>
               </div>
@@ -1188,7 +1188,7 @@ export default function SpeakModule() {
                       <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed ${
                           msg.sender === 'user' 
-                            ? 'bg-indigo-600 text-white rounded-br-none' 
+                            ? 'bg-[var(--color-brand)] text-white rounded-br-none' 
                             : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
                         }`}>
                           {msg.text}
@@ -1210,7 +1210,7 @@ export default function SpeakModule() {
                   <button
                     onClick={sendChatMessage}
                     disabled={isChatLoading || !chatInput.trim()}
-                    className="p-2 bg-slate-950 text-white rounded-xl hover:bg-indigo-600 transition-colors flex items-center justify-center disabled:opacity-50"
+                    className="p-2 bg-slate-950 text-white rounded-xl hover:bg-[var(--color-brand)] transition-colors flex items-center justify-center disabled:opacity-50"
                   >
                     {isChatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                   </button>
@@ -1232,7 +1232,7 @@ export default function SpeakModule() {
                       <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">今日表达收获</div>
                       <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.harvest}</div>
                     </div>
-                    <div className="bg-indigo-50/30 border border-indigo-100 rounded-2xl p-4">
+                    <div className="bg-slate-50 border border-[var(--color-border)] rounded-2xl p-4">
                       <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">明日迭代重点</div>
                       <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.tomorrowFocus}</div>
                     </div>

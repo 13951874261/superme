@@ -528,13 +528,13 @@ export default function ImpromptuSpeechTab() {
       )}
 
       {/* SOP 指南 */}
-      <div className="bg-indigo-50/30 border-l-4 border-indigo-500 rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
-        <div className="bg-indigo-600 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
+      <div className="bg-slate-50 border border-[var(--color-border)] rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
+        <div className="bg-[var(--color-brand)] text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
           <Mic className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-indigo-900 mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-indigo-800/80 font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
@@ -580,7 +580,7 @@ export default function ImpromptuSpeechTab() {
 
       {/* 录音主控区 */}
       <div className="bg-[#202124] rounded-3xl p-5 md:p-6 text-white relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -right-10 -top-10 w-48 h-48 bg-[var(--color-accent)]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -606,7 +606,7 @@ export default function ImpromptuSpeechTab() {
           {/* 进度条 */}
           <div className="w-full h-2 bg-white/10 rounded-full mb-6 overflow-hidden">
             <div
-              className="h-2 bg-gradient-to-r from-violet-500 to-[#FF5722] rounded-full transition-all"
+              className="h-2 bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -631,7 +631,7 @@ export default function ImpromptuSpeechTab() {
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">录音回放</span>
                 <button
                   onClick={togglePlayback}
-                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
+                  className="flex items-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
                 >
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   {isPlaying ? '暂停' : '播放'}
@@ -654,7 +654,7 @@ export default function ImpromptuSpeechTab() {
               <button
                 onClick={() => startRecording(elapsed > 0)}
                 disabled={isEvaluating}
-                className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
               >
                 <Mic className="w-5 h-5" /> {elapsed > 0 ? '继续录音' : '开始演讲'}
               </button>
@@ -701,7 +701,7 @@ export default function ImpromptuSpeechTab() {
               </button>
               <button
                 onClick={handleReset}
-                className="flex items-center gap-2 text-violet-300 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
+                className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" /> 重置
               </button>
@@ -713,7 +713,7 @@ export default function ImpromptuSpeechTab() {
             <div className="mt-4 flex justify-end">
                <button
                  onClick={handleReset}
-                 className="flex items-center gap-2 text-violet-300 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
+                 className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
                >
                  ↺ 开启新一轮演讲
                </button>
@@ -903,10 +903,10 @@ export default function ImpromptuSpeechTab() {
                 </div>
 
                 {/* 强调 */}
-                <div className="bg-purple-50/25 border border-purple-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                <div className="bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
                   <div className="flex items-center gap-2 pb-2 border-b border-purple-100/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
-                    <span className="font-black text-purple-700 text-xs uppercase tracking-wider">强调 // Focus</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                    <span className="font-black text-[var(--color-accent)] text-xs uppercase tracking-wider">强调 // Focus</span>
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.emphasizing.map((p, i) => (
@@ -1029,7 +1029,7 @@ export default function ImpromptuSpeechTab() {
                           ? ['自信度不足，建议录音后回听，重点标注不自信处并跟读']
                           : []
                         ).map((tip, ti) => (
-                          <span key={`conf-${ti}`} className="bg-violet-50 text-violet-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-violet-200/50">
+                          <span key={`conf-${ti}`} className="bg-[var(--color-info)]/10 text-[var(--color-info)] text-[9px] font-bold px-2 py-1 rounded-lg border border-[var(--color-info)]/25">
                             {tip}
                           </span>
                         ))}
@@ -1077,7 +1077,7 @@ export default function ImpromptuSpeechTab() {
           {exemplarText && (
             <div className="mt-5 bg-white/60 rounded-3xl p-5 md:p-6 border border-[#E9D5FF]/80 shadow-[0_10px_30px_rgba(233,213,255,0.015)] animate-[fadeIn_0.3s_ease-out]">
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-sm font-black uppercase tracking-widest text-violet-700">
+                <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-brand)]">
                   AI 高管级完美示范示范 (Optimized Speech)
                 </h4>
                 <div className="flex items-center gap-2">
@@ -1092,7 +1092,7 @@ export default function ImpromptuSpeechTab() {
               </div>
               <div 
                 ref={exemplarContainerRef}
-                className="text-[13px] leading-relaxed text-slate-850 font-serif italic bg-violet-50/50 p-5 rounded-2xl border border-violet-100 max-h-[250px] overflow-y-auto scroll-smooth"
+                className="text-[13px] leading-relaxed text-slate-850 font-serif italic bg-slate-50/80 p-5 rounded-2xl border border-[var(--color-border)] max-h-[250px] overflow-y-auto scroll-smooth"
               >
                 {exemplarSentences.map((s, idx) => (
                   <span

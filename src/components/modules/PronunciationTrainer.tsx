@@ -270,7 +270,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={isAssessing}
-          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-indigo-600 hover:bg-indigo-700 text-white"
+          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white"
           title="上传音频文件"
         >
           <Upload className="w-5 h-5" />
@@ -405,7 +405,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
             {/* 问题类型标签 */}
             <span className={`px-2 py-1 rounded text-xs font-medium ${
               lastResult.issueType === 'vowel' ? 'bg-blue-500/20 text-blue-400' :
-              lastResult.issueType === 'consonant' ? 'bg-purple-500/20 text-purple-400' :
+              lastResult.issueType === 'consonant' ? 'bg-[var(--color-info)]/20 text-[var(--color-info)]' :
               lastResult.issueType === 'stress' ? 'bg-orange-500/20 text-orange-400' :
               lastResult.issueType === 'rhythm' ? 'bg-cyan-500/20 text-cyan-400' :
               'bg-gray-500/20 text-gray-400'

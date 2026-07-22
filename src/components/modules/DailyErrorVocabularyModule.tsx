@@ -140,7 +140,7 @@ export default function DailyErrorVocabularyModule() {
 
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-5">
         <div className="flex items-center gap-3">
-          <div className="bg-indigo-600 text-white p-2.5 rounded-xl shadow-md">
+          <div className="bg-[var(--color-brand)] text-white p-2.5 rounded-xl shadow-md">
             <BookOpen className="w-5 h-5" />
           </div>
           <div className="text-left">
@@ -171,7 +171,7 @@ export default function DailyErrorVocabularyModule() {
           <p className="text-sm text-red-400 font-semibold mb-4">{error}</p>
           <button
             onClick={fetchFlawVocab}
-            className="px-5 py-2.5 bg-indigo-600 text-white text-xs font-black rounded-xl uppercase tracking-widest hover:bg-indigo-700 transition-colors"
+            className="px-5 py-2.5 bg-[var(--color-brand)] text-white text-xs font-black rounded-xl uppercase tracking-widest hover:bg-[var(--color-brand-hover)] transition-colors"
           >
             重试
           </button>
@@ -211,7 +211,7 @@ export default function DailyErrorVocabularyModule() {
                 className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   addedWords[item.word]
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-md hover:shadow-indigo-600/20'
+                    : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white shadow-md hover:shadow-[var(--color-brand)]/20'
                 }`}
               >
                 {addingWord[item.word] ? (
