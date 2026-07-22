@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Brain, Swords, ShieldAlert, Zap, Loader2, Sparkles, Plus, Trash2, 
-  Layers, AlertCircle, CheckCircle, HelpCircle, Trophy, UserCheck, Flame, Compass, X, BookOpen, Users
+  Layers, AlertCircle, CheckCircle, HelpCircle, Trophy, UserCheck, Flame, Compass, X, BookOpen, Users,
+  ChevronDown
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ModuleWrapper from './ModuleWrapper';
@@ -201,6 +202,7 @@ export default function GameTheoryModule() {
   const [simScanStep, setSimScanStep] = useState('');
   const [simResult, setSimResult] = useState<GameTheoryAnalyzeResult | null>(null);
   const [simAnimateBorder, setSimAnimateBorder] = useState(false);
+  const [simFormExpanded, setSimFormExpanded] = useState(false);
 
   const handleOpponentChange = (id: typeof simOpponentId) => {
     playClick();
@@ -250,6 +252,7 @@ export default function GameTheoryModule() {
     setSimLoading(true);
     setSimResult(null);
     setSimAnimateBorder(true);
+    setSimFormExpanded(false);
 
     playClick();
     const scanInterval = setInterval(() => playClick(), 1000);
@@ -1100,385 +1103,419 @@ export default function GameTheoryModule() {
           )}
 
           {/* TAB 3: 博弈论实操推演（人机对战） */}
-          {activeTab === 'simulation' && (
-            <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
-              {/* 左侧主控工作区：展示 Context Sheet 时折叠为 7 列，否则为 10 列 */}
-              <div className={`transition-all duration-300 lg:col-span-10 ${simLoading || simResult ? 'lg:col-span-7' : 'lg:col-span-10'}`}>
-                <div className="grid grid-cols-1 md:grid-cols-10 gap-6 items-start">
-                  
-                  {/* 左面板：对手与博弈模型选择 */}
-                  <div className="md:col-span-3 space-y-6">
-                    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)]">
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈对手选择 (Opponent Selection)</span>
-                      
-                      <div className="flex flex-col gap-1.5 mb-6">
-                        {/* 预设对手按钮 */}
-                        {SIM_OPPONENTS.map(opp => (
-                          <button
-                            key={opp.id}
-                            onClick={() => handleOpponentChange(opp.id)}
-                            className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
-                              simOpponentId === opp.id 
-                                ? 'bg-zinc-900 text-white shadow-sm' 
-                                : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
-                            }`}
-                          >
-                            {opp.name}
-                            <span className="text-[9px] opacity-75 font-normal">({opp.type})</span>
-                          </button>
-                        ))}
-                        
-                        {/* 自定义对手按钮 */}
+          {activeTab === 'simulation' && (() => {
+            const simShowResultStage = simLoading || !!simResult;
+            const simShowForm = !simShowResultStage || simFormExpanded;
+            const simOpponentLabel = simOpponentId === 'custom'
+              ? (simCustomName.trim() || '自定义对手')
+              : (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.name || '');
+            const simModelKey = simOpponentId === 'custom'
+              ? simCustomModel
+              : (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model || 'prisoner_dilemma');
+            const simModelLabel =
+              simModelKey === 'prisoner_dilemma' ? '囚徒困境演化版' :
+              simModelKey === 'pig_game' ? '智猪潜藏博弈' :
+              simModelKey === 'info_asymmetry' ? '极度信息不对称' : '冷酷触发策略';
+            const simTacticsLabel = simSelectedTactics.length > 0
+              ? simSelectedTactics.join(' · ')
+              : '未勾选对策';
+
+            const simFormBlock = (
+              <div className="grid grid-cols-1 md:grid-cols-10 gap-6 items-start">
+                {/* 左面板：对手与博弈模型选择 */}
+                <div className="md:col-span-3 space-y-6">
+                  <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)]">
+                    <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">博弈对手选择 (Opponent Selection)</span>
+                    
+                    <div className="flex flex-col gap-1.5 mb-6">
+                      {SIM_OPPONENTS.map(opp => (
                         <button
-                          onClick={() => handleOpponentChange('custom')}
+                          key={opp.id}
+                          onClick={() => handleOpponentChange(opp.id)}
                           className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
-                            simOpponentId === 'custom' 
+                            simOpponentId === opp.id 
                               ? 'bg-zinc-900 text-white shadow-sm' 
                               : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
                           }`}
                         >
-                          自定义博弈对手...
-                          <span className="text-[9px] opacity-75 font-normal">(自定义设定)</span>
+                          {opp.name}
+                          <span className="text-[9px] opacity-75 font-normal">({opp.type})</span>
                         </button>
-                      </div>
-
-                      {/* 自定义输入详情 */}
-                      {simOpponentId === 'custom' && (
-                        <div className="space-y-4 pt-4 border-t border-zinc-100">
-                          {/* 快速装配下拉菜单 */}
-                          {prototypes.length > 0 && (
-                            <div>
-                              <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">从人性档案库装配</label>
-                              <select
-                                onChange={(e) => {
-                                  const proto = prototypes.find(p => p.id === e.target.value);
-                                  if (proto) {
-                                    playClick();
-                                    setSimCustomName(proto.name);
-                                    setSimCustomType(proto.type);
-                                    if (proto.description) {
-                                      setSimCustomDilemma(`对手性格：${proto.description}\n对决危机场景：`);
-                                    }
-                                  }
-                                }}
-                                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400"
-                              >
-                                <option value="">-- 选择已有档案原型 --</option>
-                                {prototypes.map(p => (
-                                  <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-
-                          <div>
-                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">对手姓名 / 职位</label>
-                            <input
-                              type="text"
-                              value={simCustomName}
-                              onChange={(e) => setSimCustomName(e.target.value)}
-                              placeholder="如：VP James"
-                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">人性弱点分类</label>
-                            <select
-                              value={simCustomType}
-                              onChange={(e) => setSimCustomType(e.target.value)}
-                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400 cursor-pointer"
-                            >
-                              <option value="利益驱动型">利益驱动型</option>
-                              <option value="恐惧驱动型">恐惧驱动型</option>
-                              <option value="面子驱动型">面子驱动型</option>
-                              <option value="安全感驱动型">安全感驱动型</option>
-                              <option value="多疑多虑型">多疑多虑型</option>
-                              <option value="规避责任型">规避责任型</option>
-                              <option value="空降夺权型">空降夺权型</option>
-                            </select>
-                          </div>
-
-                          <div>
-                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">选择博弈模型</label>
-                            <select
-                              value={simCustomModel}
-                              onChange={(e) => setSimCustomModel(e.target.value as any)}
-                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400 cursor-pointer"
-                            >
-                              <option value="prisoner_dilemma">囚徒困境演化版</option>
-                              <option value="pig_game">智猪潜藏博弈</option>
-                              <option value="info_asymmetry">极度信息不对称</option>
-                              <option value="cold_trigger">冷酷触发策略</option>
-                            </select>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* 内置对手信息卡片 */}
-                      {simOpponentId !== 'custom' && (
-                        <div className="pt-4 border-t border-zinc-100 space-y-2">
-                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block">已选对手特征</span>
-                          <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-[10px] space-y-1.5">
-                            <div><span className="text-zinc-400 font-semibold">弱点原型：</span><span className="font-bold text-zinc-700">{SIM_OPPONENTS.find(o => o.id === simOpponentId)?.type}</span></div>
-                            <div><span className="text-zinc-400 font-semibold">推荐模型：</span><span className="font-bold text-zinc-700">{
-                              SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model === 'prisoner_dilemma' ? '囚徒困境演化版' :
-                              SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model === 'pig_game' ? '智猪潜藏博弈' :
-                              SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model === 'info_asymmetry' ? '极度信息不对称' : '冷酷触发策略'
-                            }</span></div>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* 右面板：博弈局势与反制策略录入 */}
-                  <div className="md:col-span-7 space-y-6">
-                    <div className={`bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.02)] transition-all duration-300 relative ${
-                      simAnimateBorder ? 'ring-2 ring-zinc-300' : ''
-                    }`}>
-                      {simLoading && (
-                        <div className="absolute inset-x-0 top-0 h-0.5 bg-zinc-300 animate-pulse" />
-                      )}
-
-                      <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-100">
-                        <h4 className="font-bold text-sm text-zinc-800 flex items-center gap-2">
-                          <Swords className="w-4 h-4 text-zinc-600" /> 对手施压情境与策略对抗
-                        </h4>
-                      </div>
-
-                      {/* 刁难情境/博弈局势展示与编辑 */}
-                      <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
-                        <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1.5">对手施压情境 (Opponent Crisis Scenario)</span>
-                        {simOpponentId !== 'custom' ? (
-                          <p className="text-xs text-zinc-600 leading-relaxed font-semibold">
-                            {SIM_OPPONENTS.find(o => o.id === simOpponentId)?.dilemma}
-                          </p>
-                        ) : (
-                          <textarea
-                            rows={3}
-                            value={simCustomDilemma}
-                            onChange={(e) => setSimCustomDilemma(e.target.value)}
-                            placeholder="请手写设定该对手对你施加的权力危机、刁难场景或对立博弈详情..."
-                            className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
-                            disabled={simLoading}
-                          />
-                        )}
-                      </div>
-
-                      {/* 勾选手段 */}
-                      <div className="mb-6 bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2.5">
-                          反制对策勾选 (Select Tactics):
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {['借势上位', '构建联盟', '信息垄断', '软对抗', '制衡术', '分而治之', '恩威并施', '边缘化'].map(t => {
-                            const isSelected = simSelectedTactics.includes(t);
-                            return (
-                              <button
-                                key={t}
-                                onClick={() => {
-                                  playClick();
-                                  setSimSelectedTactics(prev =>
-                                    prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                                  );
-                                }}
-                                disabled={simLoading}
-                                className={`text-[10px] py-1 px-3 rounded-full font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
-                                  isSelected
-                                    ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm'
-                                    : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50'
-                                }`}
-                              >
-                                {t}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* 玩家应对方案录入 */}
-                      <div className="space-y-2 mb-6">
-                        <label className="text-[10px] text-zinc-600 font-bold block">我的反制对策行动案 (My Tactical Strategy)</label>
-                        <textarea
-                          rows={4}
-                          value={simAnswer}
-                          onChange={(e) => setSimAnswer(e.target.value)}
-                          placeholder="例如：“在会前私下与合规总监取得利益对齐，拉拢常务副总的心腹，在对立会议上抛出无可置辩的客观单据，并不直接表态，把球踢回给对方……”"
-                          className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-4 text-xs outline-none resize-none leading-relaxed font-medium font-semibold"
-                          disabled={simLoading}
-                        />
-                      </div>
-
+                      ))}
+                      
                       <button
-                        onClick={handleStartSimPlay}
-                        disabled={simLoading || !simAnswer.trim() || (simOpponentId === 'custom' && (!simCustomName.trim() || !simCustomDilemma.trim()))}
-                        className={`w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                          simLoading
-                            ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed'
-                            : 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01]'
+                        onClick={() => handleOpponentChange('custom')}
+                        className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
+                          simOpponentId === 'custom' 
+                            ? 'bg-zinc-900 text-white shadow-sm' 
+                            : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
                         }`}
                       >
-                        {simLoading ? (
-                          <>
-                            <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                            <span>{simScanStep}</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles className="w-4 h-4 text-zinc-400" />
-                            <span>启动人机博弈对决推演</span>
-                          </>
-                        )}
+                        自定义博弈对手...
+                        <span className="text-[9px] opacity-75 font-normal">(自定义设定)</span>
                       </button>
                     </div>
+
+                    {simOpponentId === 'custom' && (
+                      <div className="space-y-4 pt-4 border-t border-zinc-100">
+                        {prototypes.length > 0 && (
+                          <div>
+                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">从人性档案库装配</label>
+                            <select
+                              onChange={(e) => {
+                                const proto = prototypes.find(p => p.id === e.target.value);
+                                if (proto) {
+                                  playClick();
+                                  setSimCustomName(proto.name);
+                                  setSimCustomType(proto.type);
+                                  if (proto.description) {
+                                    setSimCustomDilemma(`对手性格：${proto.description}\n对决危机场景：`);
+                                  }
+                                }
+                              }}
+                              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400"
+                            >
+                              <option value="">-- 选择已有档案原型 --</option>
+                              {prototypes.map(p => (
+                                <option key={p.id} value={p.id}>{p.name} ({p.type})</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">对手姓名 / 职位</label>
+                          <input
+                            type="text"
+                            value={simCustomName}
+                            onChange={(e) => setSimCustomName(e.target.value)}
+                            placeholder="如：VP James"
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">人性弱点分类</label>
+                          <select
+                            value={simCustomType}
+                            onChange={(e) => setSimCustomType(e.target.value)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400 cursor-pointer"
+                          >
+                            <option value="利益驱动型">利益驱动型</option>
+                            <option value="恐惧驱动型">恐惧驱动型</option>
+                            <option value="面子驱动型">面子驱动型</option>
+                            <option value="安全感驱动型">安全感驱动型</option>
+                            <option value="多疑多虑型">多疑多虑型</option>
+                            <option value="规避责任型">规避责任型</option>
+                            <option value="空降夺权型">空降夺权型</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">选择博弈模型</label>
+                          <select
+                            value={simCustomModel}
+                            onChange={(e) => setSimCustomModel(e.target.value as any)}
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-2 px-3 text-xs font-semibold outline-none focus:border-zinc-400 cursor-pointer"
+                          >
+                            <option value="prisoner_dilemma">囚徒困境演化版</option>
+                            <option value="pig_game">智猪潜藏博弈</option>
+                            <option value="info_asymmetry">极度信息不对称</option>
+                            <option value="cold_trigger">冷酷触发策略</option>
+                          </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {simOpponentId !== 'custom' && (
+                      <div className="pt-4 border-t border-zinc-100 space-y-2">
+                        <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block">已选对手特征</span>
+                        <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-[10px] space-y-1.5">
+                          <div><span className="text-zinc-400 font-semibold">弱点原型：</span><span className="font-bold text-zinc-700">{SIM_OPPONENTS.find(o => o.id === simOpponentId)?.type}</span></div>
+                          <div><span className="text-zinc-400 font-semibold">推荐模型：</span><span className="font-bold text-zinc-700">{simModelLabel}</span></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 右面板：博弈局势与反制策略录入 */}
+                <div className="md:col-span-7 space-y-6">
+                  <div className={`bg-white rounded-3xl p-5 md:p-6 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.02)] transition-all duration-300 relative ${
+                    simAnimateBorder ? 'ring-2 ring-zinc-300' : ''
+                  }`}>
+                    {simLoading && (
+                      <div className="absolute inset-x-0 top-0 h-0.5 bg-zinc-300 animate-pulse" />
+                    )}
+
+                    <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-100">
+                      <h4 className="font-bold text-sm text-zinc-800 flex items-center gap-2">
+                        <Swords className="w-4 h-4 text-zinc-600" /> 对手施压情境与策略对抗
+                      </h4>
+                    </div>
+
+                    <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
+                      <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1.5">对手施压情境 (Opponent Crisis Scenario)</span>
+                      {simOpponentId !== 'custom' ? (
+                        <p className="text-xs text-zinc-600 leading-relaxed font-semibold">
+                          {SIM_OPPONENTS.find(o => o.id === simOpponentId)?.dilemma}
+                        </p>
+                      ) : (
+                        <textarea
+                          rows={3}
+                          value={simCustomDilemma}
+                          onChange={(e) => setSimCustomDilemma(e.target.value)}
+                          placeholder="请手写设定该对手对你施加的权力危机、刁难场景或对立博弈详情..."
+                          className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
+                          disabled={simLoading}
+                        />
+                      )}
+                    </div>
+
+                    <div className="mb-6 bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2.5">
+                        反制对策勾选 (Select Tactics):
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {['借势上位', '构建联盟', '信息垄断', '软对抗', '制衡术', '分而治之', '恩威并施', '边缘化'].map(t => {
+                          const isSelected = simSelectedTactics.includes(t);
+                          return (
+                            <button
+                              key={t}
+                              onClick={() => {
+                                playClick();
+                                setSimSelectedTactics(prev =>
+                                  prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
+                                );
+                              }}
+                              disabled={simLoading}
+                              className={`text-[10px] py-1 px-3 rounded-full font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+                                isSelected
+                                  ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm'
+                                  : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50'
+                              }`}
+                            >
+                              {t}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 mb-6">
+                      <label className="text-[10px] text-zinc-600 font-bold block">我的反制对策行动案 (My Tactical Strategy)</label>
+                      <textarea
+                        rows={4}
+                        value={simAnswer}
+                        onChange={(e) => setSimAnswer(e.target.value)}
+                        placeholder="例如：“在会前私下与合规总监取得利益对齐，拉拢常务副总的心腹，在对立会议上抛出无可置辩的客观单据，并不直接表态，把球踢回给对方……”"
+                        className="w-full bg-zinc-50/50 border border-zinc-200 focus:border-zinc-400 rounded-xl p-4 text-xs outline-none resize-none leading-relaxed font-medium font-semibold"
+                        disabled={simLoading}
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleStartSimPlay}
+                      disabled={simLoading || !simAnswer.trim() || (simOpponentId === 'custom' && (!simCustomName.trim() || !simCustomDilemma.trim()))}
+                      className={`w-full py-4 rounded-xl text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+                        simLoading
+                          ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed'
+                          : 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01]'
+                      }`}
+                    >
+                      {simLoading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
+                          <span>{simScanStep}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4 text-zinc-400" />
+                          <span>启动人机博弈对决推演</span>
+                        </>
+                      )}
+                    </button>
                   </div>
                 </div>
               </div>
+            );
 
-              {/* 右侧 30% 上下文面板 (Context Sheet) */}
-              <AnimatePresence>
-                {(simLoading || simResult) && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 50 }}
-                    transition={{ duration: 0.3 }}
-                    className="lg:col-span-3 space-y-6"
-                  >
-                    {/* Header with X Close Button to Clear Result */}
-                    <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">实操对决评估</span>
-                      <button 
-                        onClick={() => { playClick(); setSimResult(null); }}
-                        className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-full transition-colors cursor-pointer"
-                        title="关闭评估"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+            return (
+              <div className="space-y-6">
+                {simShowResultStage && (
+                  <div className="bg-white rounded-2xl border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] overflow-hidden">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between px-4 py-3 md:px-5">
+                      <div className="min-w-0 space-y-1">
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block">实操对决评估</span>
+                        <p className="text-xs text-zinc-800 font-semibold truncate">
+                          {simOpponentLabel}
+                          <span className="text-zinc-400 font-medium"> · {simModelLabel} · {simTacticsLabel}</span>
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => { playClick(); setSimFormExpanded(v => !v); }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100 cursor-pointer"
+                        >
+                          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${simFormExpanded ? 'rotate-180' : ''}`} />
+                          {simFormExpanded ? '收起录入' : '展开录入'}
+                        </button>
+                        {simResult && (
+                          <button
+                            type="button"
+                            onClick={() => { playClick(); setSimResult(null); setSimFormExpanded(false); }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold border border-zinc-200 text-zinc-600 hover:bg-zinc-100 cursor-pointer"
+                            title="关闭评估"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                            关闭评估
+                          </button>
+                        )}
+                      </div>
                     </div>
+                  </div>
+                )}
 
-                    {/* Loading status */}
-                    {simLoading && (
-                      <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-10">
+                <AnimatePresence initial={false}>
+                  {simShowForm && (
+                    <motion.div
+                      key="sim-form"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="overflow-hidden"
+                    >
+                      {simFormBlock}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {simShowResultStage && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="space-y-5"
+                  >
+                    {simLoading && !simResult && (
+                      <div className="bg-white rounded-2xl p-10 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center">
                         <Loader2 className="w-8 h-8 animate-spin mx-auto text-zinc-500 mb-3" />
                         <p className="text-xs text-zinc-600 font-bold">{simScanStep}</p>
                       </div>
                     )}
 
-                    {/* Results details */}
                     {simResult && (
                       <>
-                        {/* 战略评估得分卡片 */}
-                        <div className="rounded-[2rem] p-6 border border-zinc-200 text-center shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] bg-zinc-50">
-                          {simResult.is_success ? (
-                            <Trophy className="w-8 h-8 mx-auto text-zinc-700 mb-3 animate-bounce" />
-                          ) : (
-                            <ShieldAlert className="w-8 h-8 mx-auto text-zinc-600 mb-3" />
-                          )}
-                          <h4 className="text-sm font-bold text-zinc-900 mb-1">
-                            {simResult.is_success ? '战略破局 ｜ 对决成功' : '遭受反噬 ｜ 对决预警'}
-                          </h4>
-                          <p className="text-zinc-500 text-[10px] font-medium mb-4 leading-relaxed">
-                            {simResult.is_success 
-                              ? '您的人机对战策略成效卓越，成功化解对手攻势并占据博弈高位。'
-                              : '您的方案被对手看穿并实施了强力反制，建议重新审视对手的人性特征缺陷与博弈边界。'
-                            }
-                          </p>
-                          <div className="bg-white border border-zinc-100 rounded-xl py-3 px-6 shadow-inner">
-                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-0.5">Deduction Strategy Score</span>
-                            <span className="text-3xl font-black font-mono tracking-tighter text-zinc-800">
-                              {simResult.score}
-                            </span>
+                        <div className="rounded-2xl p-5 md:p-6 border border-zinc-200 bg-zinc-50 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                          <div className="flex flex-col md:flex-row md:items-center gap-5">
+                            <div className="flex-1 min-w-0 text-center md:text-left">
+                              <div className="flex items-center justify-center md:justify-start gap-2 mb-2">
+                                {simResult.is_success ? (
+                                  <Trophy className="w-6 h-6 text-zinc-700" />
+                                ) : (
+                                  <ShieldAlert className="w-6 h-6 text-zinc-600" />
+                                )}
+                                <h4 className="text-base font-bold text-zinc-900">
+                                  {simResult.is_success ? '战略破局 ｜ 对决成功' : '遭受反噬 ｜ 对决预警'}
+                                </h4>
+                              </div>
+                              <p className="text-zinc-500 text-xs font-medium leading-relaxed max-w-2xl md:max-w-none">
+                                {simResult.is_success
+                                  ? '您的人机对战策略成效卓越，成功化解对手攻势并占据博弈高位。'
+                                  : '您的方案被对手看穿并实施了强力反制，建议重新审视对手的人性特征缺陷与博弈边界。'
+                                }
+                              </p>
+                            </div>
+                            <div className="bg-white border border-zinc-100 rounded-xl py-3 px-8 shadow-inner text-center shrink-0 mx-auto md:mx-0">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest block mb-0.5">Deduction Strategy Score</span>
+                              <span className="text-4xl font-black font-mono tracking-tighter text-zinc-800 tabular-nums">
+                                {simResult.score}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
-                        {/* 详细评估报告 (垂直单列排布) */}
-                        <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] space-y-6">
-                          <h3 className="text-xs font-bold text-zinc-900 flex items-center gap-2">
-                            <Compass className="w-4 h-4 text-zinc-600" /> 对局利益与人性推演报告
-                          </h3>
-
-                          {/* 利益、动机、弱点 */}
-                          <div className="space-y-4">
-                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+                          <div className="bg-white rounded-2xl p-5 md:p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] space-y-4">
+                            <h3 className="text-xs font-bold text-zinc-900 flex items-center gap-2">
+                              <Compass className="w-4 h-4 text-zinc-600" /> 对局利益与人性推演报告
+                            </h3>
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
                               <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">01 / 利益结构研判</span>
                               <p className="text-xs text-zinc-600 leading-relaxed font-medium">{simResult.stakeholder_interests}</p>
                             </div>
-                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
                               <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">02 / 人性动机透视</span>
                               <p className="text-xs text-zinc-600 leading-relaxed font-medium">{simResult.motives_analysis}</p>
                             </div>
-                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100 shadow-sm">
+                            <div className="bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
                               <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">03 / 对手防御漏洞</span>
                               <p className="text-xs text-zinc-600 leading-relaxed font-medium">{simResult.weaknesses}</p>
                             </div>
+                            <div className="bg-zinc-100 border border-zinc-200 rounded-xl p-4">
+                              <span className="text-[9px] text-zinc-800 font-bold uppercase tracking-wider block mb-1">
+                                战略对决局盘点拨
+                              </span>
+                              <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
+                                {simResult.suggestion}
+                              </p>
+                            </div>
                           </div>
 
-                          {/* 十重因果链 */}
-                          <div className="bg-white rounded-xl p-4 border border-zinc-100 shadow-inner">
-                            <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-3">
-                              长程因果传导链 (10-Layer Chain)
-                            </span>
-                            
-                            <div className="relative pl-4 border-l border-zinc-200 space-y-3">
-                              {simResult.causal_chain && simResult.causal_chain.map((step, idx) => (
-                                <div key={idx} className="relative group transition-all">
-                                  <span className="absolute -left-[21px] top-1 w-2 h-2 rounded-full border border-white bg-zinc-300 group-hover:bg-zinc-950 transition-all shadow-sm" />
-                                  <div className="flex items-start gap-2">
-                                    <span className="text-[8px] font-bold font-mono bg-zinc-50 border border-zinc-200 text-zinc-500 rounded px-1 py-0.2 shadow-sm">
-                                      L{idx + 1}
-                                    </span>
-                                    <p className="text-[11px] text-zinc-600 font-medium leading-relaxed">
-                                      {step}
-                                    </p>
+                          <div className="space-y-5">
+                            <div className="bg-white rounded-2xl p-5 md:p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
+                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-3">
+                                长程因果传导链 (10-Layer Chain)
+                              </span>
+                              <div className="relative pl-4 border-l border-zinc-200 space-y-3">
+                                {simResult.causal_chain && simResult.causal_chain.map((step, idx) => (
+                                  <div key={idx} className="relative group transition-all">
+                                    <span className="absolute -left-[21px] top-1 w-2 h-2 rounded-full border border-white bg-zinc-300 group-hover:bg-zinc-950 transition-all shadow-sm" />
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-[8px] font-bold font-mono bg-zinc-50 border border-zinc-200 text-zinc-500 rounded px-1 shadow-sm">
+                                        L{idx + 1}
+                                      </span>
+                                      <p className="text-[11px] text-zinc-600 font-medium leading-relaxed">
+                                        {step}
+                                      </p>
+                                    </div>
                                   </div>
+                                ))}
+                              </div>
+                            </div>
+
+                            {simResult.prototype_archive && (
+                              <div className="bg-zinc-900 text-zinc-100 rounded-2xl p-5 relative overflow-hidden border border-zinc-800 shadow-md">
+                                <div className="flex items-center justify-between mb-2 relative z-10">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">
+                                    对手人性归档分类
+                                  </span>
+                                  <span className="text-[8px] bg-zinc-800 border border-zinc-700 px-1.5 py-0.5 rounded font-bold text-zinc-300">
+                                    已自动存库
+                                  </span>
                                 </div>
-                              ))}
-                            </div>
-                          </div>
-
-                          {/* 对手人性归档 */}
-                          {simResult.prototype_archive && (
-                            <div className="bg-zinc-900 text-zinc-100 rounded-xl p-4 relative overflow-hidden border border-zinc-800 shadow-md">
-                              <div className="flex items-center justify-between mb-2 relative z-10">
-                                <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">
-                                  对手人性归档分类
-                                </span>
-                                <span className="text-[8px] bg-zinc-800 border border-zinc-700 px-1.5 py-0.2 rounded font-bold text-zinc-300">
-                                  已自动存库
-                                </span>
+                                <div className="relative z-10 space-y-1">
+                                  <h4 className="text-xs font-bold text-white">{simResult.prototype_archive.name}</h4>
+                                  <span className="text-[8px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded font-bold inline-block">
+                                    {simResult.prototype_archive.type}
+                                  </span>
+                                  <p className="text-[10px] text-zinc-400 font-medium leading-relaxed pt-1.5 border-t border-zinc-800/80">
+                                    {simResult.prototype_archive.description}
+                                  </p>
+                                </div>
                               </div>
-
-                              <div className="relative z-10 space-y-1">
-                                <h4 className="text-xs font-bold text-white">{simResult.prototype_archive.name}</h4>
-                                <span className="text-[8px] bg-zinc-800 text-zinc-300 px-1.5 py-0.2 rounded font-bold inline-block">
-                                  {simResult.prototype_archive.type}
-                                </span>
-                                <p className="text-[10px] text-zinc-400 font-medium leading-relaxed pt-1.5 border-t border-zinc-800/80">
-                                  {simResult.prototype_archive.description}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 导师建议 */}
-                          <div className="bg-zinc-100 border border-zinc-200 rounded-xl p-4">
-                            <span className="text-[9px] text-zinc-800 font-bold uppercase tracking-wider block mb-1">
-                              战略对决局盘点拨
-                            </span>
-                            <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
-                              {simResult.suggestion}
-                            </p>
+                            )}
                           </div>
                         </div>
                       </>
                     )}
                   </motion.div>
                 )}
-              </AnimatePresence>
-            </div>
-          )}
+              </div>
+            );
+          })()}
 
           {/* TAB 4: 顶层认知升维 */}
           {activeTab === 'ascension' && (
