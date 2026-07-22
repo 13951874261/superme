@@ -669,22 +669,22 @@ export default function DashboardTab() {
 
   return (
     <>
-      <div className="space-y-4 animate-[fadeIn_0.3s_ease-out] relative">
+      <div className="space-y-3 animate-[fadeIn_0.3s_ease-out] relative">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP — 默认收起的细条 */}
-      <div className="card-sop px-4 py-3 flex flex-col gap-3 shrink-0 shadow-sm transition-all duration-300">
+      <div className="card-sop px-3 py-2 flex flex-col gap-2 shrink-0 shadow-sm transition-all duration-300">
         <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsSopExpanded(!isSopExpanded)}>
-          <div className="flex items-center gap-2.5">
-            <div className="bg-indigo-600 text-white p-1.5 rounded-lg shadow-md">
+          <div className="flex items-center gap-2">
+            <div className="bg-indigo-600 text-white p-1 rounded-md shadow-sm">
                <Target className="w-3.5 h-3.5" />
             </div>
             <div className="text-left">
               <h5 className="eyebrow text-indigo-900/80">战术使用指南 // Tactical SOP</h5>
-              <p className="text-[10px] text-indigo-800/60 font-medium mt-0.5">点击展开/收起模块使用说明</p>
+              <p className="text-[10px] text-indigo-800/60 font-medium">点击展开/收起模块使用说明</p>
             </div>
           </div>
-          <button className="flex items-center gap-1 text-indigo-500 hover:bg-indigo-100 px-2.5 py-1 rounded-md transition-colors text-xs font-bold">
+          <button className="flex items-center gap-1 text-indigo-500 hover:bg-indigo-100 px-2 py-0.5 rounded-md transition-colors text-xs font-bold">
             {isSopExpanded ? '收起指南' : '展开指南'}
             {isSopExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
@@ -693,9 +693,9 @@ export default function DashboardTab() {
         <SOPGuide isSopExpanded={isSopExpanded} />
       </div>
 
-      {/* 首屏带 Option B：Hub | (Stay + Briefing) 同列，压缩垂直预算 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-start">
-        <div className="lg:col-span-7 bg-white rounded-3xl p-3.5 md:p-4 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-3 animate-[fadeIn_0.3s_ease-out]">
+      {/* 左：路线图+主题；右：匹配/简报/弹药库填满高度，消除右侧空洞 */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch">
+        <div className="lg:col-span-7 bg-white rounded-2xl p-3 border border-slate-100 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-2.5 animate-[fadeIn_0.3s_ease-out]">
           <StrategicRoadmap
             stage={stage}
             handleTrackChange={handleTrackChange}
@@ -730,7 +730,7 @@ export default function DashboardTab() {
           />
         </div>
 
-        <div className="lg:col-span-5 flex flex-col gap-3 min-h-0">
+        <div className="lg:col-span-5 flex flex-col gap-2.5 min-h-0 h-full">
           <StayAnalysisPanel 
             masteryData={masteryData}
             impromptuPassed={impromptuPassed}
@@ -742,22 +742,24 @@ export default function DashboardTab() {
              extractedWordsCount={extractedWords.length}
              extractedPhrasesCount={extractedPhrases.length}
           />
+          <div className="flex-1 min-h-0">
+            <ArsenalPanel
+              genre={genre}
+              setGenre={setGenre}
+              cefrLevel={cefrLevel}
+              setCefrLevel={setCefrLevel}
+              isAutoGenerating={isAutoGenerating}
+              handleAutoGenerate={handleAutoGenerate}
+              isClearingAndReGenerating={isClearingAndReGenerating}
+              handleClearTodayAndReGenerate={handleClearTodayAndReGenerate}
+              showClearConfirm={showClearConfirm}
+              setShowClearConfirm={setShowClearConfirm}
+              quotaStatus={quotaStatus}
+              compact
+            />
+          </div>
         </div>
       </div>
-
-      <ArsenalPanel
-        genre={genre}
-        setGenre={setGenre}
-        cefrLevel={cefrLevel}
-        setCefrLevel={setCefrLevel}
-        isAutoGenerating={isAutoGenerating}
-        handleAutoGenerate={handleAutoGenerate}
-        isClearingAndReGenerating={isClearingAndReGenerating}
-        handleClearTodayAndReGenerate={handleClearTodayAndReGenerate}
-        showClearConfirm={showClearConfirm}
-        setShowClearConfirm={setShowClearConfirm}
-        quotaStatus={quotaStatus}
-      />
 
         {inlineNotice && noticeAnchor === 'dashboard' && (
           <div className={`absolute right-0 top-12 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}>

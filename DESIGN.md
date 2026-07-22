@@ -76,7 +76,7 @@
 - Performance: No new animation libraries for this density pass
 - Performance (API / startup): Prefer removing dead or duplicate network work on the critical path; keep chatbot/assistant behavior unchanged; reuse existing inflight/TTL caches in `difyChatbot.ts` before adding new layers
 - Compatibility: Existing Dify wakeup / training APIs unchanged
-- Test/screenshot expectations: Visual check of Daily Wakeup first viewport density — no large empty band under header or beside module title; Network waterfall for startup + assistant open after API perf work
+- Test/screenshot expectations: Visual check of Daily Wakeup first viewport density — no large empty band under header or beside module title; Dashboard right column must not leave a dead zone under Daily Briefing (Arsenal fills it); Network waterfall for startup + assistant open after API perf work
 
 ## Open questions
 - [ ] Whether non-english modules need the same shell density audit / product / low
