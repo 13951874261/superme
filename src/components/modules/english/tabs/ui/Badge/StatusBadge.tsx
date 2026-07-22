@@ -35,11 +35,11 @@ const CONFIG = {
     pulse: false,
   },
   active: {
-    bg: 'bg-violet-50',
-    border: 'border-violet-200',
-    text: 'text-violet-700',
+    bg: 'bg-[var(--color-accent)]/10',
+    border: 'border-[var(--color-accent)]/25',
+    text: 'text-[var(--color-accent)]',
     icon: Sparkles,
-    iconColor: 'text-violet-500',
+    iconColor: 'text-[var(--color-accent)]',
     pulse: false,
   },
 } as const;
