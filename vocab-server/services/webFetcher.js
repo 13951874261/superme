@@ -1,5 +1,10 @@
+const { Agent } = require('undici');
 const { validateUrl } = require('./urlValidator');
 const { sanitizeMarkdown } = require('./markdownSanitizer');
+
+function isIpHostname(hostname) {
+  return /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
+}
 
 /**
  * Fetch webpage content and convert to Markdown.
@@ -14,8 +19,15 @@ async function fetchUrlContent(urlString) {
 
   const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
   const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://23.95.214.232/v1').replace(/\/$/, '');
+  const fetchUrl = `${endpointBase}/web/fetch`;
+  const hostname = new URL(fetchUrl).hostname;
+  // IP hosts (e.g. 23.95.214.232) present a cert for 9router.234124123.xyz only.
+  // Match IMAGE_GEN / TTS: skip TLS name check for IP or when FETCH_INSECURE_TLS=1.
+  const insecureTls = process.env.FETCH_INSECURE_TLS === '1'
+    || process.env.FETCH_INSECURE_TLS === 'true'
+    || isIpHostname(hostname);
 
-  const response = await fetch(`${endpointBase}/web/fetch`, {
+  const response = await fetch(fetchUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
@@ -26,6 +38,7 @@ async function fetchUrlContent(urlString) {
       url: urlString,
       format: 'markdown',
     }),
+    ...(insecureTls ? { dispatcher: new Agent({ connect: { rejectUnauthorized: false } }) } : {}),
   });
 
   if (!response.ok) {
