@@ -92,23 +92,23 @@ export default function Header() {
   };
 
   return (
-    <header className="w-full max-w-[1400px] mx-auto px-6 py-4 relative z-50">
-      <div className="grid grid-cols-12 items-center gap-6 p-5 md:p-6 rounded-2xl border border-slate-200/50 bg-white/85 backdrop-blur-xl shadow-[0_15px_35px_-15px_rgba(0,0,0,0.02)] min-h-[100px]">
+    <header className="w-full max-w-[1400px] mx-auto px-4 md:px-6 py-2 relative z-50">
+      <div className="grid grid-cols-12 items-center gap-3 md:gap-4 px-3 py-2.5 md:px-4 md:py-3 rounded-xl border border-slate-200/50 bg-white/85 backdrop-blur-xl shadow-[0_10px_24px_-12px_rgba(0,0,0,0.02)]">
         
         {/* 1. 左侧：品牌与叙事区 */}
-        <div className="col-span-12 xl:col-span-3 flex flex-col justify-center">
-          <h1 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-            B·AI <span className="font-normal text-slate-700 text-xl md:text-2xl">高管数字沙盘</span>
+        <div className="col-span-12 xl:col-span-3 flex flex-col justify-center min-w-0">
+          <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-1.5 leading-tight">
+            B·AI <span className="font-normal text-slate-700 text-lg md:text-xl">高管数字沙盘</span>
           </h1>
-          <p className="text-[11px] text-slate-400 leading-normal mt-2 max-w-[32ch]">
+          <p className="text-[10px] text-slate-400 leading-snug mt-0.5 max-w-[40ch] truncate xl:whitespace-normal">
             AI 做专业，你做领导；AI 做事务，你做人心；AI 做逻辑，你做格局。
           </p>
         </div>
 
         {/* 2. 中间：微操作台 */}
-        <div className="col-span-12 xl:col-span-6 flex items-center justify-center gap-5 xl:gap-6 flex-wrap xl:flex-nowrap">
+        <div className="col-span-12 xl:col-span-6 flex items-center justify-center gap-2 xl:gap-3 flex-wrap xl:flex-nowrap">
           {/* 专注模式 */}
-          <button className="h-10 px-4 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs font-medium text-slate-600 whitespace-nowrap flex-shrink-0">
+          <button className="h-8 px-3 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs font-medium text-slate-600 whitespace-nowrap flex-shrink-0">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
@@ -121,11 +121,11 @@ export default function Header() {
             <button
               type="button"
               onClick={() => setShowVoiceDropdown(!showVoiceDropdown)}
-              className="h-10 px-4 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs font-medium text-slate-600 hover:border-blue-200 cursor-pointer whitespace-nowrap"
+              className="h-8 px-3 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:border-blue-200 cursor-pointer whitespace-nowrap"
               title="设置全局发音人"
             >
               <Volume2 className="w-3.5 h-3.5 text-blue-500" />
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">全局声线 (Voice):</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">声线:</span>
               <span className="font-black text-slate-800 ml-1">
                 {(() => {
                   const matched = VOICE_OPTIONS.find(v => v.id === selectedVoice);
@@ -242,11 +242,11 @@ export default function Header() {
             <button
               type="button"
               onClick={() => setIsOpen(true)}
-              className="h-10 px-4 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-2 text-xs font-medium text-slate-600 hover:border-amber-200 cursor-pointer relative whitespace-nowrap"
+              className="h-8 px-3 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:border-amber-200 cursor-pointer relative whitespace-nowrap"
               title="查看提纯任务中心"
             >
               <Loader2 className={`w-3.5 h-3.5 text-amber-500 ${pendingCount > 0 ? 'animate-spin' : ''}`} />
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">提纯任务:</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">提纯:</span>
               <span className="font-black text-slate-800 ml-1">
                 {pendingCount > 0 ? `${pendingCount} 个进行中` : '查看队列'}
               </span>
@@ -260,14 +260,14 @@ export default function Header() {
         </div>
 
         {/* 3. 右侧：步进器演变轴 */}
-        <div className="col-span-12 xl:col-span-3 flex flex-col gap-2 xl:pl-6 xl:border-l xl:border-slate-100">
+        <div className="col-span-12 xl:col-span-3 flex flex-col gap-1 xl:pl-4 xl:border-l xl:border-slate-100">
           <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono tracking-wider">
-            <span>EVOLUTION TRACKER</span>
-            <span className="text-[11px] font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md">45% Completed</span>
+            <span>EVOLUTION</span>
+            <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md">45%</span>
           </div>
           
           {/* 进度条轨道容器：固定高度，确保圆点垂直居中 */}
-          <div className="relative h-8 mt-1">
+          <div className="relative h-7">
             {/* 进度背景条：跨越三个节点 */}
             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-slate-100 rounded-full z-0">
               <div className="h-full bg-gradient-to-r from-slate-400 to-indigo-500 rounded-full transition-all duration-1000 ease-out" style={{ width: '45%' }}></div>

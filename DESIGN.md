@@ -4,7 +4,7 @@
 - Status: Active
 - Last refreshed: 2026-07-22
 - Primary product surfaces: Daily Wakeup (每日唤醒), vocabulary mining workspace
-- Evidence reviewed: `PRODUCT.md`, `DailyWakeupModule.tsx`, module trainers
+- Evidence reviewed: `PRODUCT.md`, `DailyWakeupModule.tsx`, module trainers; startup API path in `App.tsx`, `difyChatbot.ts`, `DifyAssistantFrame.tsx`, `difyAPI.ts`, `profileHelper.ts`
 
 ## Brand
 - Personality: Professional, authoritative, focused, premium
@@ -35,14 +35,14 @@
 ## Visual language
 - Color: Primary accent `#FF5722`; secondary `#2563eb`; surfaces slate/white and `#202124`
 - Typography: System UI sans; tracked uppercase labels sparingly; mono for timers/IPA
-- Spacing/layout rhythm: Product density — related controls 8–12px; section gaps 12–16px; avoid stacked large empty cards
+- Spacing/layout rhythm: Product density — shell header compact (`py-2`, no min-height padding); content `pt-2` under tabs; module titles are single-row toolbars that fill horizontal width; related controls 8–12px; section gaps 12–16px; avoid stacked large empty cards
 - Shape/radius/elevation: `rounded-xl` workbench; soft low shadows only when elevating interaction
 - Motion: 150–250ms state transitions; timer ring updates; reduced decorative pulse
 - Imagery/iconography: Lucide icons at consistent stroke; no decorative hero imagery on tool panels
 
 ## Components
-- Existing: `ModuleWrapper`, `DailyWakeupModule`, `PronunciationTrainer`, `GrammarPolishTrainer`
-- New/changed: Merged awakening status + action workbench; Foundation textarea initial `rows=3`
+- Existing: `ModuleWrapper`, `DailyWakeupModule`, `PronunciationTrainer`, `GrammarPolishTrainer`, `Header`, `MainContent`
+- New/changed: Merged awakening status + action workbench; Foundation textarea initial `rows=3`; compact shell header; ModuleWrapper single-row title+description toolbar
 - Variants and states: idle / running / checked-in / loading
 - Token/component ownership: Keep accent tokens in CSS vars / Tailwind utilities already used
 
@@ -55,8 +55,8 @@
 
 ## Responsive behavior
 - Supported: Desktop-first; stack controls on small screens
-- Layout adaptations: Status row wraps; timer stays top-right of workbench
-- Touch/hover: Buttons keep ≥40px tap height where practical
+- Layout adaptations: Status row wraps; timer stays top-right of workbench; module description stacks under title on narrow screens
+- Touch/hover: Buttons keep ≥32px tap height on shell chips; primary CTAs ≥36px
 
 ## Interaction states
 - Loading: Spinner in primary CTA; notice text updates
@@ -74,8 +74,11 @@
 - Framework/styling: React + Tailwind; do not migrate stacks
 - Design-token constraints: Preserve `#FF5722` / `#202124` brand pair
 - Performance: No new animation libraries for this density pass
+- Performance (API / startup): Prefer removing dead or duplicate network work on the critical path; keep chatbot/assistant behavior unchanged; reuse existing inflight/TTL caches in `difyChatbot.ts` before adding new layers
 - Compatibility: Existing Dify wakeup / training APIs unchanged
-- Test/screenshot expectations: Visual check of Daily Wakeup first viewport density
+- Test/screenshot expectations: Visual check of Daily Wakeup first viewport density — no large empty band under header or beside module title; Network waterfall for startup + assistant open after API perf work
 
 ## Open questions
-- [ ] Whether ModuleWrapper compact spacing should tighten globally for all modules / product / medium
+- [ ] Whether non-english modules need the same shell density audit / product / low
+- [ ] product / high — Restore `memory_pack` injection into embed inputs (functional change) vs remove orphan `prefetchEmbedMemoryPack` from startup (perf-only)
+- [ ] product / medium — Load bubble `embed.min.js` only on first chatbot open vs deferred timer after paint

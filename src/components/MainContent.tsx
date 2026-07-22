@@ -62,7 +62,7 @@ export default function MainContent({
   const renderActiveModule = () => {
     switch (activeModule) {
       case 'english': return (
-        <div className="space-y-10">
+        <div className="space-y-4">
           <DailyWakeupModule />
           <EnglishModule />
         </div>
@@ -124,10 +124,10 @@ export default function MainContent({
     <main id="main-content" className={`flex-1 flex flex-col h-screen overflow-y-auto relative scroll-smooth font-sans transition-colors duration-300 ${bgEnabled ? 'bg-[#F8F9FA]/40 backdrop-blur-sm' : 'bg-[#F8F9FA]'}`}>
       <Header />
       
-      <div className="px-5 md:px-8 lg:px-12 mx-auto w-full max-w-[1600px] pt-8 pb-24 flex flex-col min-h-full">
+      <div className="px-4 md:px-6 lg:px-8 mx-auto w-full max-w-[1600px] pt-2 pb-16 flex flex-col min-h-full">
         
         {/* 顶部 Tab 导航 (The Execution 调度器) */}
-        <div className="mb-6 flex flex-wrap gap-2.5 border-b border-slate-200/60 pb-3">
+        <div className="mb-3 flex flex-wrap gap-1.5 border-b border-slate-200/60 pb-2">
           {TABS.map(tab => {
             const isTabLocked = (isLocked && tab.id !== 'english') || isModulePaused(tab.id);
             const isActive = activeModule === tab.id;
@@ -135,7 +135,7 @@ export default function MainContent({
               <button
                 key={tab.id}
                 onClick={() => handleTabClick(tab.id as ModuleType)}
-                className={`flex items-center gap-1.5 px-5 py-2.5 rounded-t-xl font-bold text-sm transition-all duration-200 cursor-pointer active:scale-95 active:translate-y-[1px] relative ${
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-t-lg font-bold text-sm transition-all duration-200 cursor-pointer active:scale-95 active:translate-y-[1px] relative ${
                   isActive
                     ? 'bg-white text-[var(--color-ink-primary)] border-t-2 border-[var(--color-brand)] shadow-[0_-4px_10px_rgba(0,0,0,0.02)] z-10'
                     : isTabLocked
@@ -162,7 +162,7 @@ export default function MainContent({
         </div>
 
         {/* 专属隔离：康奈尔底部笔记区 (The Summary) */}
-        <div className="mt-16 w-full relative">
+        <div className="mt-8 w-full relative">
           <SummaryArea selectedDate={selectedDate} />
         </div>
       </div>
