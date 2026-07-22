@@ -270,7 +270,7 @@ export default function Header() {
           <div className="relative h-7">
             {/* 进度背景条：跨越三个节点 */}
             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-slate-100 rounded-full z-0">
-              <div className="h-full bg-gradient-to-r from-slate-400 to-indigo-500 rounded-full transition-all duration-1000 ease-out" style={{ width: '45%' }}></div>
+              <div className="h-full bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-all duration-1000 ease-out" style={{ width: '45%' }}></div>
             </div>
 
             {/* 节点轨道：均匀分布 */}
@@ -284,11 +284,11 @@ export default function Header() {
 
               {/* 节点 2：2026 支行副行长 (当前节点) */}
               <div className="flex flex-col items-center w-16 -mt-1">
-                <div className="w-4 h-4 rounded-full bg-indigo-500 border-2 border-white shadow-md flex items-center justify-center relative">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                <div className="w-4 h-4 rounded-full bg-[var(--color-accent)] border-2 border-white shadow-md flex items-center justify-center relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-accent)] opacity-75"></span>
                   <div className="w-1.5 h-1.5 rounded-full bg-white relative z-20"></div>
                 </div>
-                <span className="text-[9px] text-indigo-500 font-bold font-mono leading-none mt-1">2026</span>
+                <span className="text-[9px] text-[var(--color-accent)] font-bold font-mono leading-none mt-1">2026</span>
                 <span className="text-[10px] font-bold text-slate-800 mt-0.5 whitespace-nowrap">支行副行长</span>
               </div>
 
