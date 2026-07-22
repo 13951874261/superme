@@ -194,7 +194,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
               ) : (
                 <button
                   onClick={handleStartProcess}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-600/15"
+                  className="w-full bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[var(--color-brand)]/15"
                 >
                   🚀 开始上传并让 AI 萃取场景
                 </button>
@@ -230,7 +230,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
 
               <button
                 onClick={handleConfirm}
-                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-indigo-600/15"
+                className="w-full bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[var(--color-brand)]/15"
               >
                 确认并立即进入此场景
               </button>
