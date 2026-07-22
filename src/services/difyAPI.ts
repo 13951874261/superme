@@ -1791,6 +1791,7 @@ export async function runCognitiveAscension(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || '升维推演引擎请求失败，请检查后端');
+  if (!data?.result) throw new Error(data?.error || '升维研判结果为空，请稍后重试');
   return data.result as CognitiveAscensionResult;
 }
 

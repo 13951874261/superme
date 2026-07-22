@@ -148,7 +148,17 @@ export default function GameTheoryModule() {
         playGentleWarning();
       }
     } catch (e) {
-      console.error(e);
+      const errMsg = e instanceof Error ? e.message : String(e);
+      const sysMsg = `【系统异常】${errMsg}`;
+      console.error('升维提交失败:', errMsg);
+      setAscResult({
+        is_passed: false,
+        depth_score: 0,
+        layer_feedback: [],
+        ultimate_law: '',
+        suggestion: sysMsg,
+      });
+      alert(sysMsg);
       playGentleWarning();
     } finally {
       setAscLoading(false);
