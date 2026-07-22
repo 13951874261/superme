@@ -75,7 +75,7 @@ export function StayAnalysisPanel({ masteryData, impromptuPassed, stayStats }: S
         <div className="bg-slate-50 border border-slate-200/60 rounded-lg p-2 flex-1 flex flex-col min-h-0">
           <div className="flex items-center justify-between border-b border-slate-200/50 pb-1 mb-1.5 shrink-0">
             <h5 className="eyebrow text-slate-800 truncate">闭环停留分析</h5>
-            <span className="text-[10px] bg-indigo-50 text-[var(--color-brand)] px-1.5 py-0.5 rounded-md font-bold shrink-0">
+            <span className="text-[10px] bg-slate-50 text-[var(--color-brand)] px-1.5 py-0.5 rounded-md font-bold shrink-0 border border-[var(--color-border)]">
               {stayStats.stayDays > 1 ? `${stayStats.stayDays} 天` : '第 1 天'}
             </span>
           </div>

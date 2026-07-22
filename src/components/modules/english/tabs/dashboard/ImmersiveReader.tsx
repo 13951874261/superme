@@ -84,7 +84,7 @@ export function ImmersiveReader({
       className={`fixed top-0 left-0 bottom-0 z-[9999] flex flex-col transition-all duration-300 ${
       leaveRoomForPanel ? '' : 'right-0'
     } ${
-      immersiveTheme === 'dark' ? 'bg-[#0f172a] text-slate-205' :
+      immersiveTheme === 'dark' ? 'bg-[var(--color-brand-dark)] text-slate-205' :
       immersiveTheme === 'parchment' ? 'bg-[#fcf8f2] text-slate-800' : 'bg-white text-slate-900'
     }`}>
       {/* Header */}

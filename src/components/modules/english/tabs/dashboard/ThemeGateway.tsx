@@ -136,7 +136,7 @@ export function ThemeGateway({
             console.log('[ThemeGateway] Opening CustomThemeModal');
             setIsCustomThemeModalOpen(true);
           }}
-          className="flex items-center gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50 !px-2 !py-1.5"
+          className="flex items-center gap-1 text-[var(--color-brand)] border-[var(--color-border)] hover:bg-slate-50 !px-2 !py-1.5"
         >
           <Plus className="w-3.5 h-3.5" />
           <span className="text-[10px] font-bold uppercase tracking-wider">自定义</span>

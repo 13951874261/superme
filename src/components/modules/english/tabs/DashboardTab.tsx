@@ -645,15 +645,15 @@ export default function DashboardTab() {
       <div className="card-sop px-3 py-2 flex flex-col gap-2 shrink-0 shadow-sm transition-all duration-300">
         <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsSopExpanded(!isSopExpanded)}>
           <div className="flex items-center gap-2">
-            <div className="bg-indigo-600 text-white p-1 rounded-md shadow-sm">
+            <div className="bg-[var(--color-brand)] text-white p-1 rounded-md shadow-sm">
                <Target className="w-3.5 h-3.5" />
             </div>
             <div className="text-left">
-              <h5 className="eyebrow text-indigo-900/80">战术使用指南 // Tactical SOP</h5>
-              <p className="text-[10px] text-indigo-800/60 font-medium">点击展开/收起模块使用说明</p>
+              <h5 className="eyebrow text-[var(--color-brand)]/80">战术使用指南 // Tactical SOP</h5>
+              <p className="text-[10px] text-[var(--color-ink-secondary)] font-medium">点击展开/收起模块使用说明</p>
             </div>
           </div>
-          <button className="flex items-center gap-1 text-indigo-500 hover:bg-indigo-100 px-2 py-0.5 rounded-md transition-colors text-xs font-bold">
+          <button className="flex items-center gap-1 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 px-2 py-0.5 rounded-md transition-colors text-xs font-bold">
             {isSopExpanded ? '收起指南' : '展开指南'}
             {isSopExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>

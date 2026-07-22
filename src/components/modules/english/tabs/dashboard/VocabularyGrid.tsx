@@ -67,7 +67,7 @@ export function VocabularyGrid({
                 return (
                   <div
                     key={word}
-                    className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-indigo-150 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
+                    className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-[var(--color-border)] rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex flex-col">
@@ -91,7 +91,7 @@ export function VocabularyGrid({
                               e.stopPropagation();
                               handleAddWordToVocab(word, false);
                             }}
-                            className="text-[9px] font-bold text-indigo-650 bg-indigo-50/80 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-indigo-100 transition-all cursor-pointer shrink-0 btn-press"
+                            className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-all cursor-pointer shrink-0 btn-press"
                             title="收录入生词本"
                           >
                             + 收录
@@ -100,7 +100,7 @@ export function VocabularyGrid({
                         <SpeakButton
                           text={word}
                           iconClassName="w-3.5 h-3.5"
-                          className="w-7 h-7 bg-indigo-50/50 text-indigo-500 hover:bg-indigo-650 hover:text-white border-none shrink-0 btn-press"
+                          className="w-7 h-7 bg-slate-50 text-[var(--color-brand)] hover:bg-[var(--color-brand)] hover:text-white border-none shrink-0 btn-press"
                         />
                       </div>
                     </div>
