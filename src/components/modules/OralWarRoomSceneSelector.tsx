@@ -104,7 +104,7 @@ export default function OralWarRoomSceneSelector({
                 onClick={() => onRoleCountFilterChange(rc)}
                 className={`px-2 py-0.5 rounded-full text-[9px] font-bold cursor-pointer transition-all
                   ${activeRoleCountFilter === rc
-                    ? 'bg-violet-600 text-white'
+                    ? 'bg-[var(--color-brand)] text-white'
                     : 'bg-[var(--color-canvas)] text-[var(--color-ink-secondary)] hover:bg-[var(--color-border)]'
                   }`}
               >
@@ -145,7 +145,7 @@ export default function OralWarRoomSceneSelector({
             <span className={`text-[8px] font-bold uppercase tracking-wider ${
               s.tier === '初阶' ? 'text-emerald-500' :
               s.tier === '高阶' ? 'text-[var(--color-accent)]' :
-              s.tier === '跨文化' ? 'text-purple-500' : 'text-amber-500'
+              s.tier === '跨文化' ? 'text-[var(--color-info)]' : 'text-amber-500'
             }`}>{s.tier}</span>
           </button>
         ))}

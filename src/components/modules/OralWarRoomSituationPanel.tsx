@@ -157,7 +157,7 @@ export default function OralWarRoomSituationPanel({
                                   </span>
                                 )}
                                 {showAssist && (
-                                  <span className="px-1.5 py-0.5 rounded-full bg-violet-200 text-violet-700 text-[8px] font-bold">
+                                  <span className="px-1.5 py-0.5 rounded-full bg-[var(--color-info)]/15 text-[var(--color-info)] text-[8px] font-bold">
                                     暗中协助
                                   </span>
                                 )}
@@ -271,8 +271,8 @@ export default function OralWarRoomSituationPanel({
 
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center gap-2 mb-2">
-                    <Globe className="w-3.5 h-3.5 text-purple-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest text-purple-600">沟通风格</span>
+                    <Globe className="w-3.5 h-3.5 text-[var(--color-accent)]" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-[var(--color-brand)]">沟通风格</span>
                   </div>
                   <p className="text-xs text-gray-600 leading-relaxed">
                     {activeScene.culturalContext.includes('Direct') && !activeScene.culturalContext.includes('委婉') ? '🔴 直接型 — 开门见山，明确表达立场' :
@@ -286,23 +286,23 @@ export default function OralWarRoomSituationPanel({
 
           {/* 跨文化语境预警 - 折叠面板 */}
           {activeScene.culturalContext && (
-            <div className="bg-purple-50 rounded-[1.5rem] xl:rounded-[2rem] border border-purple-100 shadow-sm overflow-hidden">
+            <div className="bg-[var(--color-accent)]/5 rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-accent)]/20 shadow-sm overflow-hidden">
               <button
                 onClick={() => setCulturalCollapsed(!culturalCollapsed)}
-                className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-purple-100/50 transition-colors"
+                className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-[var(--color-accent)]/10 transition-colors"
               >
-                <h3 className="text-sm font-black text-purple-900 uppercase tracking-widest flex items-center">
+                <h3 className="text-sm font-black text-[var(--color-brand)] uppercase tracking-widest flex items-center">
                   <Globe className="w-4 h-4 mr-2" /> 跨文化预警 (Cultural Context)
                 </h3>
-                {culturalCollapsed ? <ChevronDown className="w-4 h-4 text-purple-400" /> : <ChevronUp className="w-4 h-4 text-purple-400" />}
+                {culturalCollapsed ? <ChevronDown className="w-4 h-4 text-[var(--color-ink-muted)]" /> : <ChevronUp className="w-4 h-4 text-[var(--color-ink-muted)]" />}
               </button>
 
               {!culturalCollapsed && (
-                <div className="px-3 xl:px-4 pb-3 xl:pb-4 pt-0 border-t border-purple-100">
-                  <p className="text-sm text-purple-800 leading-relaxed font-medium">{activeScene.culturalContext}</p>
+                <div className="px-3 xl:px-4 pb-3 xl:pb-4 pt-0 border-t border-[var(--color-accent)]/20">
+                  <p className="text-sm text-[var(--color-brand)] leading-relaxed font-medium">{activeScene.culturalContext}</p>
                   {latestExchange.culturalSignal && (
-                    <p className="mt-3 pt-3 border-t border-purple-200 text-xs text-purple-700">
-                      <span className="font-black text-purple-500">实时信号 · </span>{latestExchange.culturalSignal}
+                    <p className="mt-3 pt-3 border-t border-[var(--color-accent)]/25 text-xs text-[var(--color-ink-secondary)]">
+                      <span className="font-black text-[var(--color-accent)]">实时信号 · </span>{latestExchange.culturalSignal}
                     </p>
                   )}
                 </div>

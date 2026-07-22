@@ -14,7 +14,7 @@ interface Props {
 }
 
 const TAB_CONFIG = {
-  relations: { label: '角色关系', icon: Target, color: 'text-purple-500' },
+  relations: { label: '角色关系', icon: Target, color: 'text-[var(--color-accent)]' },
   breakthroughs: { label: '破绽审计', icon: ClipboardList, color: 'text-amber-500' },
   notes: { label: '会话笔记', icon: BookOpen, color: 'text-[var(--color-accent)]' },
 };
@@ -22,7 +22,7 @@ const TAB_CONFIG = {
 const TYPE_CONFIG = {
   logic: { label: '逻辑破绽', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
   fact: { label: '事实矛盾', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
-  intent: { label: '意图避重', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200' },
+  intent: { label: '意图避重', color: 'text-[var(--color-accent)]', bg: 'bg-[var(--color-accent)]/10', border: 'border-[var(--color-accent)]/25' },
 };
 
 export default function OralWarRoomContextPanel({
@@ -110,7 +110,7 @@ export default function OralWarRoomContextPanel({
 
               <section>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <Target className="w-3 h-3 text-purple-500" />
+                  <Target className="w-3 h-3 text-[var(--color-accent)]" />
                   <span className="text-[9px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">角色关系</span>
                 </div>
                 <div className="space-y-2">
