@@ -5,27 +5,11 @@ import SpeakButton from '../SpeakButton';
 import PronunciationTrainer from './PronunciationTrainer';
 import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
-import { runEnglishWakeupRoutine } from '../../services/difyAPI';
+import { getTodayDailyPack, regenerateDailyPack, WakeupPayload } from '../../services/dailyPackAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
 
-interface WakeupWord {
-  word: string;
-  ipa: string;
-  pronunciation_note: string;
-  meaning_zh: string;
-  example: string;
-}
-
-interface WakeupResult {
-  theme: string;
-  vocab: WakeupWord[];
-  grammar: {
-    point: string;
-    explanation: string;
-    examples: Array<{ correct: string; incorrect: string }>;
-  };
-}
+interface WakeupResult extends WakeupPayload {}
 
 function formatSeconds(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
@@ -78,15 +62,35 @@ export default function DailyWakeupModule() {
 
   useEffect(() => () => stopTimer(), []);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const pack = await getTodayDailyPack();
+        if (cancelled) return;
+        if (pack.status === 'ready' && pack.wakeup) {
+          setResult(pack.wakeup);
+          setNotice(`已加载今日唤醒：${pack.wakeup.theme || theme}`);
+        }
+      } catch {
+        /* 非阻塞 */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const handleStart = async () => {
     setLoading(true);
-    setNotice('正在生成今日唤醒内容...');
+    setNotice(result ? '正在重新生成今日唤醒…' : '正在生成今日唤醒内容...');
     try {
       void refreshStayStats(true);
       void refreshTodaySession();
-      const data = await runEnglishWakeupRoutine(theme);
-      setResult(data);
-      setNotice(`已生成主题：${data.theme || theme}`);
+      const pack = await regenerateDailyPack('both', theme);
+      if (pack.status !== 'ready' || !pack.wakeup) {
+        throw new Error(pack.errorMessage || '生成失败');
+      }
+      setResult(pack.wakeup);
+      setNotice(`已生成主题：${pack.wakeup.theme || theme}`);
       startTimer();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '生成失败');
@@ -251,7 +255,7 @@ export default function DailyWakeupModule() {
                   className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
                 >
                   {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                  {loading ? '生成中' : '开始今日唤醒'}
+                  {loading ? '生成中' : result ? '重新开始今日唤醒' : '开始今日唤醒'}
                 </button>
                 <button
                   onClick={handleCheckIn}

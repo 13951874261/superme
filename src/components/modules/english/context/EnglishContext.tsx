@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, getThemeStayStats, CustomTheme, ThemeStayStats } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
+import { syncUserTheme } from '../../../../services/dailyPackAPI';
 import { ComparisonResult } from '../../../../types/listening';
 import { LongAudio } from '../../../../services/listeningAPI';
 
@@ -254,6 +255,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [stayStats, setStayStats] = useState<ThemeStayStats | null>(null);
   const [englishShellActive, setEnglishShellActive] = useState(true);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+  const themeSyncTimerRef = useRef<number | null>(null);
 
   const [pendingSentenceDebt, setPendingSentenceDebt] = useState<string | null>(() => {
     return localStorage.getItem('super_agent_pending_debt') || null;
@@ -310,6 +312,15 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('english_theme', theme);
+    if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
+    themeSyncTimerRef.current = window.setTimeout(() => {
+      void syncUserTheme(theme).catch((err) => {
+        console.warn('[EnglishContext] theme sync failed:', err);
+      });
+    }, 300);
+    return () => {
+      if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
+    };
   }, [theme]);
 
   

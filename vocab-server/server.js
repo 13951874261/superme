@@ -318,6 +318,10 @@ try {
   /* column may already exist */
 }
 
+const dailyPackService = require('./services/dailyPackService');
+const dailyPackCron = require('./services/dailyPackCron');
+dailyPackService.initDailyPackTables(db);
+
 function normalizeMemoryUserId(raw) {
   if (!raw) return 'default-user';
   const base = String(raw).split('@')[0].trim();
@@ -5617,6 +5621,80 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 }
 
 
+// Daily pack: theme sync + cached wakeup/flaw vocab
+app.put('/api/user/theme', (req, res) => {
+  try {
+    const { userId = 'default-user', theme } = req.body || {};
+    if (!theme || !String(theme).trim()) {
+      return res.status(400).json({ success: false, error: 'theme is required' });
+    }
+    const row = dailyPackService.upsertUserTheme(db, userId, theme);
+    res.json({ success: true, ...row });
+  } catch (error) {
+    console.error('[User Theme Sync]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/daily-pack/today', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const packDate = dailyPackService.getPackDate();
+    const row = dailyPackService.getDailyPackRow(db, userId, packDate);
+    res.json(dailyPackService.serializeDailyPack(row));
+  } catch (error) {
+    console.error('[Daily Pack Today]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/daily-pack/regenerate', async (req, res) => {
+  try {
+    const { userId = 'default-user', type = 'both', theme } = req.body || {};
+    const uid = dailyPackService.normalizeUserId(userId);
+    const packDate = dailyPackService.getPackDate();
+    const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
+    const resolvedTheme = String(theme || pref?.theme || '').trim();
+    if (!resolvedTheme) {
+      return res.status(400).json({ success: false, error: '请先选择并同步学习主题' });
+    }
+    if (type === 'flaw') {
+      const flawVocab = await dailyPackService.generateFlawVocabForUser(db, uid, null);
+      const existing = dailyPackService.getDailyPackRow(db, uid, packDate);
+      const row = dailyPackService.upsertDailyPack(db, {
+        userId: uid,
+        packDate,
+        theme: existing?.theme || resolvedTheme,
+        wakeup: existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null,
+        flawVocab,
+        source: 'manual',
+        status: 'ready',
+        errorMessage: null,
+      });
+      return res.json(dailyPackService.serializeDailyPack(row));
+    }
+    const row = await dailyPackService.generateDailyPackForUser(db, uid, resolvedTheme, 'manual');
+    res.json(dailyPackService.serializeDailyPack(row));
+  } catch (error) {
+    console.error('[Daily Pack Regenerate]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/daily-pack/cron-run', async (req, res) => {
+  try {
+    const secret = process.env.DAILY_PACK_CRON_SECRET || '';
+    if (secret && req.headers['x-cron-secret'] !== secret) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const result = await dailyPackCron.runDailyPackCronJob(db);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[Daily Pack Cron Manual]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ?????????????????????????????
 app.get('/api/daily-quota/status', (req, res) => {
   try {
@@ -7281,4 +7359,5 @@ app.listen(PORT, () => {
       console.log(`[Memory Dreaming] cluster enabled (pool=${getDreamClusterPoolSize()}, sim>=${getDreamClusterMinSimilarity()})`);
     }
   }
+  dailyPackCron.scheduleDailyPackCron(db);
 });

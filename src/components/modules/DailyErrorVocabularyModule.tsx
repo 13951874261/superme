@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { getAllWords, addWord } from '../../services/vocabAPI';
-import { generateDailyFlawVocabulary, getFallbackFlawVocab } from '../../services/difyAPI';
+import { addWord } from '../../services/vocabAPI';
+import { getTodayDailyPack, regenerateDailyPack } from '../../services/dailyPackAPI';
 import { playSuccess, playError } from '../../utils/soundEffects';
 import SpeakButton from '../SpeakButton';
 
@@ -15,89 +15,36 @@ interface FlawVocabWord {
 
 export default function DailyErrorVocabularyModule() {
   const [words, setWords] = useState<FlawVocabWord[]>([]);
-  const [sessionExclude, setSessionExclude] = useState<string[]>([]); // 记录本次刷新过的历史单词
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingWord, setAddingWord] = useState<Record<string, boolean>>({});
   const [addedWords, setAddedWords] = useState<Record<string, boolean>>({});
 
-  const fetchFlawVocab = async () => {
+  const fetchFlawVocab = async (regenerate = false) => {
     setIsLoading(true);
     setError(null);
     try {
-      // A. 获取当前生词本已有单词
-      const dbWords = await getAllWords();
-      const dbWordStrings = dbWords.map(w => w.word.toLowerCase().trim()).filter(Boolean);
+      const pack = regenerate
+        ? await regenerateDailyPack('flaw')
+        : await getTodayDailyPack();
 
-      // B. 合并生词本与本次会话已刷新单词，并去重
-      const allExclude = Array.from(new Set([...dbWordStrings, ...sessionExclude]));
-
-      // C. 调用大模型接口生成（传递最新去重单词列表以让大模型避重，限制最近 50 个词防止 token 溢出）
-      const apiExclude = allExclude.slice(-50);
-      const data = await generateDailyFlawVocabulary(apiExclude);
-
-      // D. 前端再次进行强校验排重过滤
-      const filtered = data.filter(item => {
-        const wLower = item.word.toLowerCase().trim();
-        return !dbWordStrings.includes(wLower) && !sessionExclude.includes(wLower);
-      });
-
-      // E. 如果过滤后不足 6 个词，用备用词库进行补充（同样进行排重）
-      let finalWords = [...filtered];
-      if (finalWords.length < 6) {
-        const fallbackList = getFallbackFlawVocab();
-        for (const fb of fallbackList) {
-          if (finalWords.length >= 6) break;
-          const fbLower = fb.word.toLowerCase().trim();
-          const notInDb = !dbWordStrings.includes(fbLower);
-          const notInSession = !sessionExclude.includes(fbLower);
-          const notInFinal = !finalWords.some(w => w.word.toLowerCase().trim() === fbLower);
-          if (notInDb && notInSession && notInFinal) {
-            finalWords.push(fb);
-          }
-        }
+      if (pack.status === 'ready' && Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
+        setWords(pack.flawVocab.slice(0, 6));
+        return;
       }
 
-      // F. 强力兜底：如果依然不足 6 个词（说明排除项过多导致备用池已消耗完毕），则忽略会话历史去重限制，重新使用备选词补足
-      let usedReset = false;
-      if (finalWords.length < 6) {
-        usedReset = true;
-        const fallbackList = getFallbackFlawVocab();
-        for (const fb of fallbackList) {
-          if (finalWords.length >= 6) break;
-          const fbLower = fb.word.toLowerCase().trim();
-          const notInDb = !dbWordStrings.includes(fbLower);
-          const notInFinal = !finalWords.some(w => w.word.toLowerCase().trim() === fbLower);
-          if (notInDb && notInFinal) {
-            finalWords.push(fb);
-          }
-        }
+      if (pack.status === 'missing' || pack.status === 'failed') {
+        setWords([]);
+        setError(
+          pack.status === 'failed'
+            ? (pack.errorMessage || '今日破绽词生成失败，请点击刷新重试')
+            : '今日内容准备中，可点击刷新立即生成',
+        );
+        return;
       }
 
-      // G. 终极兜底：如果用户几乎把备用词库的所有词都添加到了生词本中，导致不重复的词不足 6 个，允许重复显示生词本里的备用词补足，确保绝不出现空白卡片
-      if (finalWords.length < 6) {
-        const fallbackList = getFallbackFlawVocab();
-        for (const fb of fallbackList) {
-          if (finalWords.length >= 6) break;
-          const fbLower = fb.word.toLowerCase().trim();
-          const notInFinal = !finalWords.some(w => w.word.toLowerCase().trim() === fbLower);
-          if (notInFinal) {
-            finalWords.push(fb);
-          }
-        }
-      }
-
-      // H. 取前 6 个展示
-      const displayWords = finalWords.slice(0, 6);
-      setWords(displayWords);
-
-      // I. 记录这 6 个新展示的词汇到会话排除列表中，防止下次刷新重复；如果触发了重置，则清空之前历史，重置为仅包含这 6 个新词
-      const newSessionExclude = displayWords.map(w => w.word.toLowerCase().trim());
-      if (usedReset) {
-        setSessionExclude(newSessionExclude);
-      } else {
-        setSessionExclude(prev => Array.from(new Set([...prev, ...newSessionExclude])));
-      }
+      setWords([]);
+      setError('今日内容准备中…');
     } catch (e: any) {
       setError(e.message || '获取每日破绽词汇失败，请重试');
     } finally {
@@ -106,7 +53,7 @@ export default function DailyErrorVocabularyModule() {
   };
 
   useEffect(() => {
-    fetchFlawVocab();
+    void fetchFlawVocab(false);
   }, []);
 
   const handleAddWord = async (word: FlawVocabWord) => {
@@ -147,11 +94,11 @@ export default function DailyErrorVocabularyModule() {
             <h4 className="text-base font-black tracking-widest uppercase flex items-center gap-2">
               每日破绽词汇推送 <span className="text-indigo-400">// Daily Flaw Vocab</span>
             </h4>
-            <p className="text-xs text-slate-400 mt-1 font-medium">调用 Dify 接口动态提取与破绽分析相关的商业词汇与精准提问句式</p>
+            <p className="text-xs text-slate-400 mt-1 font-medium">今日预生成 · 可刷新</p>
           </div>
         </div>
         <button
-          onClick={fetchFlawVocab}
+          onClick={() => void fetchFlawVocab(true)}
           disabled={isLoading}
           className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-slate-700/50 cursor-pointer self-start sm:self-auto"
         >
@@ -163,14 +110,14 @@ export default function DailyErrorVocabularyModule() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider animate-pulse">正在呼叫 Dify API 动态生成破绽词汇...</span>
+          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider animate-pulse">正在加载今日破绽词汇…</span>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <AlertTriangle className="w-10 h-10 text-red-500 mb-2" />
           <p className="text-sm text-red-400 font-semibold mb-4">{error}</p>
           <button
-            onClick={fetchFlawVocab}
+            onClick={() => void fetchFlawVocab(true)}
             className="px-5 py-2.5 bg-[var(--color-brand)] text-white text-xs font-black rounded-xl uppercase tracking-widest hover:bg-[var(--color-brand-hover)] transition-colors"
           >
             重试
