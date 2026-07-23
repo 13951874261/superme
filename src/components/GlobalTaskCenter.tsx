@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTask, TaskItem } from './TaskContext';
-import { X, Video, Globe, Loader2, CheckCircle2, XCircle, Terminal, FileText, ChevronDown, ChevronUp, Download, Import } from 'lucide-react';
+import { X, Video, Globe, Loader2, CheckCircle2, XCircle, Terminal, FileText, ChevronDown, ChevronUp, Download, Import, Brain, ExternalLink } from 'lucide-react';
 
 export default function GlobalTaskCenter() {
   const { tasks, isOpen, setIsOpen, pendingCount } = useTask();
@@ -11,6 +11,15 @@ export default function GlobalTaskCenter() {
       ...prev,
       [taskId]: !prev[taskId]
     }));
+  };
+
+  const handleOpenGameTheoryHistory = (task: TaskItem) => {
+    const historyId = task.result?.historyId;
+    if (!historyId) return;
+    window.dispatchEvent(new CustomEvent('navigate-game-theory-history', {
+      detail: { historyId },
+    }));
+    setIsOpen(false);
   };
 
   const handleImport = (task: TaskItem) => {
@@ -112,9 +121,19 @@ export default function GlobalTaskCenter() {
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className={`p-2 rounded-xl shrink-0 ${
-                        task.type === 'video' ? 'bg-[#FF5722]/10 text-[#FF5722]' : 'bg-blue-50 text-blue-600'
+                        task.type === 'video'
+                          ? 'bg-[#FF5722]/10 text-[#FF5722]'
+                          : task.type === 'game_theory'
+                            ? 'bg-zinc-100 text-zinc-700'
+                            : 'bg-blue-50 text-blue-600'
                       }`}>
-                        {task.type === 'video' ? <Video className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                        {task.type === 'video' ? (
+                          <Video className="w-4 h-4" />
+                        ) : task.type === 'game_theory' ? (
+                          <Brain className="w-4 h-4" />
+                        ) : (
+                          <Globe className="w-4 h-4" />
+                        )}
                       </div>
                       <div className="min-w-0">
                         <h4 className="text-xs font-black text-gray-800 truncate" title={task.name}>
@@ -166,7 +185,18 @@ export default function GlobalTaskCenter() {
                   )}
 
                   {/* 结果操作按钮 */}
-                  {task.status === 'completed' && task.result && (
+                  {task.status === 'completed' && task.result && task.type === 'game_theory' && task.result.historyId && (
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => handleOpenGameTheoryHistory(task)}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        前往对局历史
+                      </button>
+                    </div>
+                  )}
+                  {task.status === 'completed' && task.result && task.type !== 'game_theory' && (
                     <div className="flex gap-2 mb-3">
                       <button
                         onClick={() => handleImport(task)}

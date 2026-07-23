@@ -254,6 +254,24 @@ db.prepare(`
   )
 `).run();
 
+// 博弈对局历史（案例研判 / 人机对战）
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS game_theory_history (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL DEFAULT 'default-user',
+    source_type TEXT NOT NULL,
+    title TEXT NOT NULL,
+    scene_type TEXT,
+    game_model TEXT,
+    score INTEGER,
+    is_success INTEGER,
+    suggestion TEXT,
+    causal_chain_json TEXT,
+    full_result_json TEXT,
+    created_at INTEGER
+  )
+`).run();
+
 // ???????? custom_themes ? (??????????)
 db.prepare(`
   CREATE TABLE IF NOT EXISTS custom_themes (
@@ -5789,87 +5807,235 @@ app.post('/api/grammar-polish', async (req, res) => {
 
 // ????????????????????????????????????????????????????????????????????????????
 app.post('/api/game-theory/analyze', async (req, res) => {
-  const { scene_type, game_model, case_text, user_answer, applied_tactics, user_current_profile, userId = 'default-user' } = req.body;
+  const {
+    scene_type,
+    game_model,
+    case_text,
+    user_answer,
+    applied_tactics,
+    user_current_profile,
+    userId = 'default-user',
+    source_type = 'case_analysis',
+    title = '',
+  } = req.body;
 
   if (!case_text || !user_answer) {
     return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
   }
 
-  try {
-    const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const normalizedSource = source_type === 'simulation' ? 'simulation' : 'case_analysis';
+  const titleBase = String(title || '').trim() || (normalizedSource === 'simulation' ? '人机对战沙盘' : '博弈案例研判');
+  const taskTitle = normalizedSource === 'simulation'
+    ? `人机对战: ${titleBase.slice(0, 40)}`
+    : `博弈研判: ${titleBase.slice(0, 40)}`;
 
-    const response = await fetch(`${baseUrl}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${difyApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: injectOralSystemTime({
-          scene_type,
-          game_model,
-          case_text,
-          user_answer,
-          applied_tactics: applied_tactics || '',
-          user_current_profile: user_current_profile || '',
+  const taskQueue = require('./services/taskQueue');
+  const task = taskQueue.createTask('game_theory', taskTitle);
+  taskQueue.updateTask(task.id, {
+    status: 'running',
+    progress: 10,
+    logs: ['任务已提交，请在任务中心查看进度'],
+  });
+
+  // 立即返回 taskId，后台异步执行（复用现有 TaskContext 轮询）
+  res.json({ success: true, taskId: task.id, status: task.status });
+
+  (async () => {
+    try {
+      const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+      const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接博弈模型 (Dify)...'] });
+
+      const response = await fetch(`${baseUrl}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${difyApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: injectOralSystemTime({
+            scene_type,
+            game_model,
+            case_text,
+            user_answer,
+            applied_tactics: applied_tactics || '',
+            user_current_profile: user_current_profile || '',
+          }),
+          response_mode: 'blocking',
+          user: userId,
         }),
-        response_mode: 'blocking',
-        user: userId,
-      }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error('Dify 博弈分析请求失败:', response.status, errText);
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: `Dify 请求失败: ${response.status} - ${errText}`,
+        });
+        return;
+      }
+
+      const data = await response.json();
+      taskQueue.updateTask(task.id, { progress: 80, logs: ['正在解析研判结果...'] });
+
+      const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
+      const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+
+      let parsedResult;
+      try {
+        parsedResult = JSON.parse(cleanJson);
+      } catch (e) {
+        console.error('解析 Dify 返回的 JSON 失败:', e, rawResult);
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: '博弈研判结果格式异常，无法解析 JSON',
+        });
+        return;
+      }
+
+      if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
+        const proto = parsedResult.prototype_archive;
+        const protoName = proto.name.trim();
+        const protoType = proto.type || '未分类';
+        const protoDesc = proto.description || '';
+
+        const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, protoName);
+        const now = Date.now();
+
+        if (existing) {
+          db.prepare(`
+            UPDATE personal_prototypes
+            SET type = ?, description = ?, added_at = ?
+            WHERE id = ?
+          `).run(protoType, protoDesc, now, existing.id);
+        } else {
+          const id = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO personal_prototypes (id, user_id, name, type, description, added_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+          `).run(id, userId, protoName, protoType, protoDesc, now);
+        }
+      }
+
+      const historyId = crypto.randomUUID();
+      const causalChain = Array.isArray(parsedResult.causal_chain) ? parsedResult.causal_chain : [];
+      db.prepare(`
+        INSERT INTO game_theory_history (
+          id, user_id, source_type, title, scene_type, game_model,
+          score, is_success, suggestion, causal_chain_json, full_result_json, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        historyId,
+        userId,
+        normalizedSource,
+        titleBase.slice(0, 120),
+        scene_type || '',
+        game_model || '',
+        Number(parsedResult.score) || 0,
+        parsedResult.is_success ? 1 : 0,
+        String(parsedResult.suggestion || ''),
+        JSON.stringify(causalChain),
+        JSON.stringify(parsedResult),
+        Date.now()
+      );
+
+      taskQueue.updateTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        logs: ['已写入对局历史'],
+        result: {
+          historyId,
+          sourceType: normalizedSource,
+          name: taskTitle,
+        },
+      });
+    } catch (err) {
+      console.error('博弈引擎分析异常:', err);
+      taskQueue.updateTask(task.id, {
+        status: 'failed',
+        error: '博弈分析引擎异常: ' + (err.message || String(err)),
+      });
+    }
+  })();
+});
+
+// 对局历史列表
+app.get('/api/game-theory/history', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const rows = db.prepare(`
+      SELECT id, user_id, source_type, title, scene_type, game_model,
+             score, is_success, suggestion, causal_chain_json, created_at
+      FROM game_theory_history
+      WHERE user_id = ?
+      ORDER BY created_at DESC
+      LIMIT 100
+    `).all(userId);
+
+    const items = rows.map((row) => {
+      let causal_chain = [];
+      try {
+        causal_chain = JSON.parse(row.causal_chain_json || '[]');
+      } catch (_) {
+        causal_chain = [];
+      }
+      return {
+        id: row.id,
+        user_id: row.user_id,
+        source_type: row.source_type,
+        title: row.title,
+        scene_type: row.scene_type,
+        game_model: row.game_model,
+        score: row.score,
+        is_success: !!row.is_success,
+        suggestion: row.suggestion || '',
+        causal_chain,
+        created_at: row.created_at,
+      };
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('Dify 发音纠正请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
+    res.json({ success: true, items });
+  } catch (err) {
+    console.error('获取对局历史失败:', err);
+    res.status(500).json({ success: false, error: '对局历史查询失败' });
+  }
+});
+
+// 对局历史详情（含完整结果）
+app.get('/api/game-theory/history/:id', (req, res) => {
+  try {
+    const row = db.prepare(`
+      SELECT * FROM game_theory_history WHERE id = ?
+    `).get(req.params.id);
+    if (!row) {
+      return res.status(404).json({ success: false, error: '历史记录不存在' });
     }
-
-    const data = await response.json();
-    
-    const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
-    
-    let parsedResult;
-    try {
-      parsedResult = JSON.parse(cleanJson);
-    } catch (e) {
-      console.error('解析 Dify 杩斿洖鐨?JSON 失败:', e, rawResult);
-      return res.status(500).json({ success: false, error: '博弈研判结果格式异常，无法解析 JSON' });
-    }
-
-    // ?????????????????????????????????
-    if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
-      const proto = parsedResult.prototype_archive;
-      const protoName = proto.name.trim();
-      const protoType = proto.type || '未分类';
-      const protoDesc = proto.description || '';
-
-      const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, protoName);
-      const now = Date.now();
-
-      if (existing) {
-        db.prepare(`
-          UPDATE personal_prototypes 
-          SET type = ?, description = ?, added_at = ?
-          WHERE id = ?
-        `).run(protoType, protoDesc, now, existing.id);
-      } else {
-        const id = crypto.randomUUID();
-        db.prepare(`
-          INSERT INTO personal_prototypes (id, user_id, name, type, description, added_at)
-          VALUES (?, ?, ?, ?, ?, ?)
-        `).run(id, userId, protoName, protoType, protoDesc, now);
-      }
-    }
-
+    let causal_chain = [];
+    let full_result = null;
+    try { causal_chain = JSON.parse(row.causal_chain_json || '[]'); } catch (_) {}
+    try { full_result = JSON.parse(row.full_result_json || 'null'); } catch (_) {}
     res.json({
       success: true,
-      result: parsedResult
+      item: {
+        id: row.id,
+        user_id: row.user_id,
+        source_type: row.source_type,
+        title: row.title,
+        scene_type: row.scene_type,
+        game_model: row.game_model,
+        score: row.score,
+        is_success: !!row.is_success,
+        suggestion: row.suggestion || '',
+        causal_chain,
+        full_result,
+        created_at: row.created_at,
+      },
     });
   } catch (err) {
-    console.error('博弈引擎分析异常:', err);
-    res.status(500).json({ success: false, error: '博弈分析引擎异常: ' + err.message });
+    console.error('获取对局历史详情失败:', err);
+    res.status(500).json({ success: false, error: '对局历史详情查询失败' });
   }
 });
 

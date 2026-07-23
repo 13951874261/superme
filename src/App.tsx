@@ -208,6 +208,19 @@ function AppContent() {
     return () => window.removeEventListener('toggle-right-panel', handleToggle);
   }, []);
 
+  // 任务中心 → 博弈对局历史深链
+  useEffect(() => {
+    const handleNavHistory = (e: Event) => {
+      const customEvent = e as CustomEvent<{ historyId?: string }>;
+      const historyId = customEvent.detail?.historyId;
+      if (!historyId) return;
+      sessionStorage.setItem('gt_focus_history_id', historyId);
+      setActiveModule('gametheory');
+    };
+    window.addEventListener('navigate-game-theory-history', handleNavHistory);
+    return () => window.removeEventListener('navigate-game-theory-history', handleNavHistory);
+  }, []);
+
   /**
    * 智能判定并处理左侧空白区域的点击事件，实现 70/30 黄金折叠面板的“即刻收起”
    */

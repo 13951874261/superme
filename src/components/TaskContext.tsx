@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -16,6 +16,7 @@ export interface TaskItem {
     sourceUrl?: string;
     audioUrl?: string;  // TTS 专用字段
     audioId?: string;   // TTS 专用字段
+    historyId?: string; // 博弈对局历史 ID
   } | null;
 }
 

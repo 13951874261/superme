@@ -1738,11 +1738,14 @@ export interface PersonalPrototype {
   added_at: number;
 }
 
-// 运行博弈引擎分析（调用后端代理）
+// 运行博弈引擎分析（异步：立即返回 taskId，结果写入对局历史）
 export async function runGameTheoryAnalysis(
-  inputs: GameTheoryAnalyzeInput,
+  inputs: GameTheoryAnalyzeInput & {
+    source_type?: 'case_analysis' | 'simulation';
+    title?: string;
+  },
   userId = getAppUserId()
-): Promise<GameTheoryAnalyzeResult> {
+): Promise<{ taskId: string; status: string }> {
   const res = await fetch('/api/game-theory/analyze', {
     method: 'POST',
     headers: {
@@ -1759,7 +1762,45 @@ export async function runGameTheoryAnalysis(
   if (!res.ok) {
     throw new Error(data?.error || data?.message || '博弈分析引擎请求失败');
   }
-  return data.result as GameTheoryAnalyzeResult;
+  if (!data.taskId) {
+    throw new Error('未返回任务 ID');
+  }
+  return { taskId: data.taskId as string, status: data.status as string };
+}
+
+export interface GameTheoryHistoryItem {
+  id: string;
+  user_id: string;
+  source_type: 'case_analysis' | 'simulation' | string;
+  title: string;
+  scene_type: string;
+  game_model: string;
+  score: number;
+  is_success: boolean;
+  suggestion: string;
+  causal_chain: string[];
+  created_at: number;
+  full_result?: GameTheoryAnalyzeResult | null;
+}
+
+export async function getGameTheoryHistory(userId = getAppUserId()): Promise<GameTheoryHistoryItem[]> {
+  const res = await fetch(`/api/game-theory/history?userId=${encodeURIComponent(userId)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data?.error || '获取对局历史失败');
+  }
+  return (data.items || []) as GameTheoryHistoryItem[];
+}
+
+export async function getGameTheoryHistoryDetail(
+  id: string
+): Promise<GameTheoryHistoryItem> {
+  const res = await fetch(`/api/game-theory/history/${encodeURIComponent(id)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data?.error || '获取对局历史详情失败');
+  }
+  return data.item as GameTheoryHistoryItem;
 }
 
 export interface CognitiveAscensionInput {
