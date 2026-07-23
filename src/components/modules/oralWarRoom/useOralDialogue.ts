@@ -174,7 +174,18 @@ export function useOralDialogue({
 
   const handleSendWithText = useCallback(async (forceContent: string) => {
     const rawContent = forceContent.trim();
-    if (!rawContent || isSending || isInputLocked) return;
+    if (isInputLocked) {
+      setLastNotice('⚠️ 请先完成控制论补救任务后再发言');
+      return;
+    }
+    if (isSending) {
+      setLastNotice('⚠️ 上一条消息正在发送，请稍候');
+      return;
+    }
+    if (!rawContent) {
+      setLastNotice('⚠️ 未识别到有效内容，请重试或手动输入');
+      return;
+    }
 
     const content = currentTarget && !rawContent.startsWith('@')
       ? `@${currentTarget} ${rawContent}`
@@ -251,7 +262,7 @@ export function useOralDialogue({
       scrollToBottom();
     } catch (error) {
       const msg = error instanceof Error ? error.message : '对话失败';
-      setLastNotice(msg);
+      setLastNotice(`⚠️ ${msg}`);
     } finally {
       setIsSending(false);
     }

@@ -82,6 +82,8 @@ export interface OralWarRoomChatProps {
   handleSend: () => void;
   isInputLocked: boolean;
   speechSupported: boolean;
+  speechChecked: boolean;
+  micError: string | null;
   startRecording: () => void;
   stopRecordingAndSend: () => void;
 }
@@ -131,6 +133,8 @@ export default function OralWarRoomChat({
   handleSend,
   isInputLocked,
   speechSupported,
+  speechChecked,
+  micError,
   startRecording,
   stopRecordingAndSend,
 }: OralWarRoomChatProps) {
@@ -684,7 +688,7 @@ export default function OralWarRoomChat({
 
       <div className="shrink-0 border-t border-gray-100 p-4 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.06)] z-10">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <div className="text-sm font-bold text-[#202124] truncate">{lastNotice}</div>
+          <div className={`text-sm font-bold truncate ${lastNotice.startsWith('⚠️') ? 'text-red-600' : 'text-[#202124]'}`}>{lastNotice}</div>
           <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate max-w-[40%]">
             {activeScene.conflicts.join(' / ')}
           </div>
@@ -719,7 +723,13 @@ export default function OralWarRoomChat({
             placeholder={isInputLocked ? '请先完成控制论补救任务…' : isRecording ? '正在倾听您的反击...' : 'AI 已开场，请用语音或文字回应...'}
             disabled={isSending || isInputLocked}
           />
-          <div className="absolute right-3 bottom-3 flex items-center gap-2">
+          <div className="absolute right-3 bottom-3 flex flex-col items-end gap-1">
+            {(micError || (speechChecked && !speechSupported)) && (
+              <span className={`text-[10px] max-w-[220px] text-right leading-snug ${micError ? 'text-red-500' : 'text-amber-500'}`}>
+                {micError ?? '浏览器不支持语音，请使用手动输入'}
+              </span>
+            )}
+            <div className="flex items-center gap-2">
             {/* 麦克风长按按钮 */}
             {speechSupported ? (
               <button
@@ -749,6 +759,7 @@ export default function OralWarRoomChat({
             >
               <Send className="w-4 h-4" /> 发送
             </button>
+            </div>
           </div>
         </div>
       </div>

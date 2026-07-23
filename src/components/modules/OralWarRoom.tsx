@@ -109,6 +109,8 @@ export default function OralWarRoom(props: OralWarRoomProps) {
           handleSend={session.handleSend}
           isInputLocked={session.isInputLocked}
           speechSupported={session.speechSupported}
+          speechChecked={session.speechChecked}
+          micError={session.micError}
           startRecording={session.startRecording}
           stopRecordingAndSend={session.stopRecordingAndSend}
         />
