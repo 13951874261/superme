@@ -201,6 +201,7 @@ export default function GameTheoryModule() {
   // 推演运行状态（异步提交，结果以对局历史为准）
   const [isLoading, setIsLoading] = useState(false);
   const [submitNotice, setSubmitNotice] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [pendingCaseTaskId, setPendingCaseTaskId] = useState<string | null>(null);
   const [animateBorder, setAnimateBorder] = useState(false);
 
@@ -214,6 +215,7 @@ export default function GameTheoryModule() {
   const [simSelectedTactics, setSimSelectedTactics] = useState<string[]>([]);
   const [simLoading, setSimLoading] = useState(false);
   const [simSubmitNotice, setSimSubmitNotice] = useState('');
+  const [simSubmitError, setSimSubmitError] = useState('');
   const [pendingSimTaskId, setPendingSimTaskId] = useState<string | null>(null);
   const [simAnimateBorder, setSimAnimateBorder] = useState(false);
   const [simFormExpanded, setSimFormExpanded] = useState(false);
@@ -249,6 +251,7 @@ export default function GameTheoryModule() {
     playClick();
     setSimOpponentId(id);
     setSimSubmitNotice('');
+    setSimSubmitError('');
     setSimAnswer('');
     setSimSelectedTactics([]);
     if (id !== 'custom') {
@@ -292,6 +295,7 @@ export default function GameTheoryModule() {
 
     setSimLoading(true);
     setSimSubmitNotice('');
+    setSimSubmitError('');
     setSimAnimateBorder(true);
     playClick();
 
@@ -319,14 +323,14 @@ export default function GameTheoryModule() {
         logs: ['任务已提交，请在任务中心查看进度'],
       });
       setPendingSimTaskId(taskId);
-      setSimSubmitNotice('已提交后台研判。请打开右上角「提纯任务中心」查看进度；完成后将自动跳转到「对局历史」。');
+      setSimSubmitNotice('已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。');
       setSimFormExpanded(true);
       setSimAnimateBorder(false);
       playPageTurn();
     } catch (err: any) {
       setSimAnimateBorder(false);
       playGentleWarning();
-      alert(err.message || '对决推演失败，请稍后再试');
+      setSimSubmitError(err.message || '对决推演失败，请稍后再试');
     } finally {
       setSimLoading(false);
     }
@@ -395,7 +399,9 @@ export default function GameTheoryModule() {
       } else if (task.status === 'failed') {
         clear();
         playGentleWarning();
-        alert(task.error || '博弈研判失败');
+        const msg = task.error || '博弈研判失败';
+        if (taskId === pendingCaseTaskId) setSubmitError(msg);
+        if (taskId === pendingSimTaskId) setSimSubmitError(msg);
       }
     };
     watch(pendingCaseTaskId, () => {
@@ -505,6 +511,7 @@ export default function GameTheoryModule() {
     if (!caseText.trim() || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim()) return;
     setIsLoading(true);
     setSubmitNotice('');
+    setSubmitError('');
     setAnimateBorder(true);
     playClick();
 
@@ -542,13 +549,13 @@ export default function GameTheoryModule() {
         logs: ['任务已提交，请在任务中心查看进度'],
       });
       setPendingCaseTaskId(taskId);
-      setSubmitNotice('已提交后台研判。请打开右上角「提纯任务中心」查看进度；完成后将自动跳转到「对局历史」。');
+      setSubmitNotice('已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。');
       setAnimateBorder(false);
       playPageTurn();
     } catch (err: any) {
       setAnimateBorder(false);
       playGentleWarning();
-      alert(err.message || '推演引擎出现异常，请稍后再试');
+      setSubmitError(err.message || '推演引擎出现异常，请稍后再试');
     } finally {
       setIsLoading(false);
     }
@@ -608,8 +615,7 @@ export default function GameTheoryModule() {
           {/* TAB 1: 真实高管斗争案例库 */}
           {activeTab === 'cases' && (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
-              {/* 左侧主控工作区：展示 Context Sheet 时折叠为 7 列，否则为 10 列 */}
-              <div className={`transition-all duration-300 lg:col-span-10 ${isLoading || submitNotice ? 'lg:col-span-7' : 'lg:col-span-10'}`}>
+              <div className="lg:col-span-10">
                 <div className="grid grid-cols-1 md:grid-cols-10 gap-6 items-start">
                   
                   {/* 左面板 30%：环境与案例选择 */}
@@ -809,7 +815,7 @@ export default function GameTheoryModule() {
                         {isLoading ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                            <span>正在提交到任务中心...</span>
+                            <span>提交中...</span>
                           </>
                         ) : (
                           <>
@@ -818,68 +824,70 @@ export default function GameTheoryModule() {
                           </>
                         )}
                       </button>
-                      {submitNotice && (
-                        <div className="mt-4 p-4 rounded-xl border border-zinc-200 bg-zinc-50 text-xs text-zinc-700 leading-relaxed font-medium">
-                          {submitNotice}
-                          <button
-                            type="button"
-                            onClick={() => { playClick(); setTaskCenterOpen(true); }}
-                            className="mt-2 block text-[11px] font-bold text-zinc-900 underline cursor-pointer"
-                          >
-                            打开任务中心
-                          </button>
+
+                      {(isLoading || submitNotice || submitError) && (
+                        <div
+                          className={`mt-4 rounded-2xl border px-4 py-3.5 text-xs leading-relaxed ${
+                            submitError
+                              ? 'border-red-200 bg-red-50/80 text-red-800'
+                              : 'border-zinc-200 bg-zinc-50 text-zinc-700'
+                          }`}
+                          role={submitError ? 'alert' : 'status'}
+                        >
+                          <div className="flex items-start gap-3">
+                            {isLoading ? (
+                              <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5 text-zinc-500" />
+                            ) : submitError ? (
+                              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                            ) : (
+                              <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-zinc-600" />
+                            )}
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <p className="font-semibold">
+                                {isLoading
+                                  ? '正在提交到任务中心…'
+                                  : submitError || submitNotice}
+                              </p>
+                              <div className="flex flex-wrap gap-2">
+                                {!isLoading && !submitError && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { playClick(); setTaskCenterOpen(true); }}
+                                    className="px-3 py-1.5 rounded-full bg-zinc-900 text-white text-[10px] font-bold cursor-pointer hover:bg-zinc-800"
+                                  >
+                                    打开任务中心
+                                  </button>
+                                )}
+                                {submitError && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { playClick(); setSubmitError(''); handleStartSimulation(); }}
+                                    className="px-3 py-1.5 rounded-full bg-zinc-900 text-white text-[10px] font-bold cursor-pointer hover:bg-zinc-800"
+                                  >
+                                    重试
+                                  </button>
+                                )}
+                                {(submitNotice || submitError) && !isLoading && (
+                                  <button
+                                    type="button"
+                                    onClick={() => { playClick(); setSubmitNotice(''); setSubmitError(''); }}
+                                    className="px-3 py-1.5 rounded-full border border-zinc-200 text-zinc-600 text-[10px] font-bold cursor-pointer hover:bg-white"
+                                  >
+                                    关闭
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
               </div>
-
-              <AnimatePresence>
-                {(isLoading || !!submitNotice) && (
-                  <motion.div
-                    initial={{ opacity: 0, x: 50 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 50 }}
-                    transition={{ duration: 0.3 }}
-                    className="lg:col-span-3 space-y-6"
-                  >
-                    <div className="flex items-center justify-between pb-3 border-b border-zinc-100">
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">后台任务状态</span>
-                      <button
-                        onClick={() => { playClick(); setSubmitNotice(''); }}
-                        className="p-1 text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 rounded-full transition-colors cursor-pointer"
-                        title="关闭提示"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-10 space-y-3">
-                      {isLoading ? (
-                        <Loader2 className="w-8 h-8 animate-spin mx-auto text-zinc-500" />
-                      ) : (
-                        <History className="w-8 h-8 mx-auto text-zinc-600" />
-                      )}
-                      <p className="text-xs text-zinc-600 font-bold leading-relaxed px-2">
-                        {isLoading
-                          ? '正在提交到任务中心...'
-                          : '研判已在后台运行。请到任务中心查看进度；完成后将自动进入「对局历史」。'}
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => { playClick(); setTaskCenterOpen(true); }}
-                        className="mx-auto mt-2 px-4 py-2 rounded-full bg-zinc-900 text-white text-[10px] font-bold cursor-pointer"
-                      >
-                        打开任务中心
-                      </button>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
             </div>
           )}
 
-          {/* TAB 2: 驭人术与人性档案 */}
           {/* TAB 2: 驭人术与人性档案 */}
           {activeTab === 'tactics' && (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
@@ -1082,8 +1090,8 @@ export default function GameTheoryModule() {
 
           {/* TAB 3: 博弈论实操推演（人机对战） */}
           {activeTab === 'simulation' && (() => {
-            const simShowResultStage = simLoading || !!simSubmitNotice;
-            const simShowForm = !simShowResultStage || simFormExpanded;
+            const simShowResultStage = simLoading || !!simSubmitNotice || !!simSubmitError;
+            const simShowForm = !simShowResultStage || simFormExpanded || simLoading || !!simSubmitError || !!simSubmitNotice;
             const simOpponentLabel = simOpponentId === 'custom'
               ? (simCustomName.trim() || '自定义对手')
               : (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.name || '');
@@ -1304,7 +1312,7 @@ export default function GameTheoryModule() {
                       {simLoading ? (
                         <>
                           <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                          <span>正在提交到任务中心...</span>
+                          <span>提交中...</span>
                         </>
                       ) : (
                         <>
@@ -1313,6 +1321,63 @@ export default function GameTheoryModule() {
                         </>
                       )}
                     </button>
+
+                    {(simLoading || simSubmitNotice || simSubmitError) && (
+                      <div
+                        className={`mt-4 rounded-2xl border px-4 py-3.5 text-xs leading-relaxed ${
+                          simSubmitError
+                            ? 'border-red-200 bg-red-50/80 text-red-800'
+                            : 'border-zinc-200 bg-zinc-50 text-zinc-700'
+                        }`}
+                        role={simSubmitError ? 'alert' : 'status'}
+                      >
+                        <div className="flex items-start gap-3">
+                          {simLoading ? (
+                            <Loader2 className="w-4 h-4 animate-spin shrink-0 mt-0.5 text-zinc-500" />
+                          ) : simSubmitError ? (
+                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
+                          ) : (
+                            <CheckCircle className="w-4 h-4 shrink-0 mt-0.5 text-zinc-600" />
+                          )}
+                          <div className="min-w-0 flex-1 space-y-2">
+                            <p className="font-semibold">
+                              {simLoading
+                                ? '正在提交到任务中心…'
+                                : simSubmitError || simSubmitNotice}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              {!simLoading && !simSubmitError && (
+                                <button
+                                  type="button"
+                                  onClick={() => { playClick(); setTaskCenterOpen(true); }}
+                                  className="px-3 py-1.5 rounded-full bg-zinc-900 text-white text-[10px] font-bold cursor-pointer hover:bg-zinc-800"
+                                >
+                                  打开任务中心
+                                </button>
+                              )}
+                              {simSubmitError && (
+                                <button
+                                  type="button"
+                                  onClick={() => { playClick(); setSimSubmitError(''); handleStartSimPlay(); }}
+                                  className="px-3 py-1.5 rounded-full bg-zinc-900 text-white text-[10px] font-bold cursor-pointer hover:bg-zinc-800"
+                                >
+                                  重试
+                                </button>
+                              )}
+                              {(simSubmitNotice || simSubmitError) && !simLoading && (
+                                <button
+                                  type="button"
+                                  onClick={() => { playClick(); setSimSubmitNotice(''); setSimSubmitError(''); }}
+                                  className="px-3 py-1.5 rounded-full border border-zinc-200 text-zinc-600 text-[10px] font-bold cursor-pointer hover:bg-white"
+                                >
+                                  关闭
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1358,37 +1423,6 @@ export default function GameTheoryModule() {
                     </motion.div>
                   )}
                 </AnimatePresence>
-
-                {simShowResultStage && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className="space-y-5"
-                  >
-                    {(simLoading || !!simSubmitNotice) && (
-                      <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] text-center py-10 space-y-3">
-                        {simLoading ? (
-                          <Loader2 className="w-8 h-8 animate-spin mx-auto text-zinc-500" />
-                        ) : (
-                          <History className="w-8 h-8 mx-auto text-zinc-600" />
-                        )}
-                        <p className="text-xs text-zinc-600 font-bold leading-relaxed px-2">
-                          {simLoading
-                            ? '正在提交到任务中心...'
-                            : (simSubmitNotice || '对决已在后台运行。请到任务中心查看进度；完成后将自动进入「对局历史」。')}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => { playClick(); setTaskCenterOpen(true); }}
-                          className="mx-auto mt-2 px-4 py-2 rounded-full bg-zinc-900 text-white text-[10px] font-bold cursor-pointer"
-                        >
-                          打开任务中心
-                        </button>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
               </div>
             );
           })()}
