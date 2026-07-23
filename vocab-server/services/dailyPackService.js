@@ -132,15 +132,42 @@ function buildFlawDisplayWords(rawVocab, dbWordStrings, sessionExclude = []) {
   return finalWords.slice(0, 6);
 }
 
+function getSystemFormattedTime(now = new Date()) {
+  const formatter = new Intl.DateTimeFormat('zh-CN', {
+    timeZone: PACK_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const parts = formatter.formatToParts(now);
+  const val = (type) => parts.find((p) => p.type === type)?.value || '';
+  const weekdayMap = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  // getDay() is local machine weekday; for Asia/Shanghai pack TZ use formatter weekday if available
+  const shanghaiWeekday = new Intl.DateTimeFormat('en-US', { timeZone: PACK_TZ, weekday: 'short' }).format(now);
+  const map = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  const dayIdx = map[shanghaiWeekday] ?? now.getDay();
+  return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${weekdayMap[dayIdx]}`;
+}
+
 async function callWakeupWorkflow({ theme, userId, historyExclude = '' }) {
   const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
   if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const inputs = {
+    theme,
+    history_exclude: historyExclude,
+    _system_time: getSystemFormattedTime(),
+    _system_timestamp_ms: Date.now(),
+  };
   const res = await fetch(`${baseUrl}/workflows/run`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: { theme, history_exclude: historyExclude },
+      inputs,
       response_mode: 'blocking',
       user: normalizeUserId(userId),
     }),
