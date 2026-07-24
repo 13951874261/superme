@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTask, TaskItem } from './TaskContext';
-import { X, Video, Globe, Loader2, CheckCircle2, XCircle, Terminal, FileText, ChevronDown, ChevronUp, Download, Import, Brain, ExternalLink } from 'lucide-react';
+import { X, Video, Globe, Loader2, CheckCircle2, XCircle, Terminal, FileText, ChevronDown, ChevronUp, Download, Import, Brain, ExternalLink, Headphones } from 'lucide-react';
 
 export default function GlobalTaskCenter() {
   const { tasks, isOpen, setIsOpen, pendingCount } = useTask();
@@ -20,6 +20,13 @@ export default function GlobalTaskCenter() {
       detail: { historyId },
     }));
     setIsOpen(false);
+  };
+
+  const handleOpenListenPregenerated = (task: TaskItem) => {
+    setIsOpen(false);
+    window.dispatchEvent(new CustomEvent('listen-pregenerated-ready', {
+      detail: task.result,
+    }));
   };
 
   const handleImport = (task: TaskItem) => {
@@ -125,12 +132,16 @@ export default function GlobalTaskCenter() {
                           ? 'bg-[#FF5722]/10 text-[#FF5722]'
                           : task.type === 'game_theory'
                             ? 'bg-zinc-100 text-zinc-700'
-                            : 'bg-blue-50 text-blue-600'
+                            : task.type === 'listen_backfill'
+                              ? 'bg-[#FF5722]/10 text-[#FF5722]'
+                              : 'bg-blue-50 text-blue-600'
                       }`}>
                         {task.type === 'video' ? (
                           <Video className="w-4 h-4" />
                         ) : task.type === 'game_theory' ? (
                           <Brain className="w-4 h-4" />
+                        ) : task.type === 'listen_backfill' ? (
+                          <Headphones className="w-4 h-4" />
                         ) : (
                           <Globe className="w-4 h-4" />
                         )}
@@ -185,6 +196,17 @@ export default function GlobalTaskCenter() {
                   )}
 
                   {/* 结果操作按钮 */}
+                  {task.status === 'completed' && task.result && task.type === 'listen_backfill' && (
+                    <div className="flex gap-2 mb-3">
+                      <button
+                        onClick={() => handleOpenListenPregenerated(task)}
+                        className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
+                      >
+                        <Headphones className="w-3 h-3" />
+                        在听力页查看
+                      </button>
+                    </div>
+                  )}
                   {task.status === 'completed' && task.result && task.type === 'game_theory' && task.result.historyId && (
                     <div className="flex gap-2 mb-3">
                       <button
@@ -196,7 +218,7 @@ export default function GlobalTaskCenter() {
                       </button>
                     </div>
                   )}
-                  {task.status === 'completed' && task.result && task.type !== 'game_theory' && (
+                  {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && (
                     <div className="flex gap-2 mb-3">
                       <button
                         onClick={() => handleImport(task)}

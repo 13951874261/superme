@@ -77,6 +77,11 @@ app.use('/api/temp_audio', express.static(tempAudioDir, {
   setHeaders: (res) => res.setHeader('Content-Type', 'audio/mpeg')
 }));
 
+const dailyListenAudioDir = path.join(__dirname, 'public', 'daily_listen_audio');
+const dailyLongArticlesDir = path.join(__dirname, 'public', 'daily_long_articles');
+app.use('/api/daily_listen_audio', express.static(dailyListenAudioDir));
+app.use('/api/daily_long_articles', express.static(dailyLongArticlesDir));
+
 // ?????????????????????????????
 const longAudioDir = path.join(__dirname, 'public', 'long_audio');
 if (!fs.existsSync(longAudioDir)) {
@@ -321,6 +326,8 @@ try {
 const dailyPackService = require('./services/dailyPackService');
 const dailyPackCron = require('./services/dailyPackCron');
 dailyPackService.initDailyPackTables(db);
+const dailyListenPreGenerateService = require('./services/dailyListenPreGenerateService');
+dailyListenPreGenerateService.initDailyListenTables(db);
 
 function normalizeMemoryUserId(raw) {
   if (!raw) return 'default-user';
@@ -2102,8 +2109,8 @@ function sanitizeListenMaterialScript(raw) {
   return script;
 }
 
-/** 从 Dify chat-messages SSE 流中收集完整 answer */
-async function collectDifyStreamingAnswer(wfResponse) {
+/** 从 Dify chat-messages SSE 流中收集完整 answer；sanitize=false 时保留 VOCAB_JSON 段 */
+async function collectDifyStreamingAnswer(wfResponse, { sanitize = true } = {}) {
   let finalAnswer = '';
   const decoder = new TextDecoder();
   let buffer = '';
@@ -2156,7 +2163,10 @@ async function collectDifyStreamingAnswer(wfResponse) {
     }
   };
 
-  if (!wfResponse.body) return finalAnswer.trim();
+  if (!wfResponse.body) {
+    const trimmed = finalAnswer.trim();
+    return sanitize ? sanitizeListenMaterialScript(trimmed) : trimmed;
+  }
 
   if (typeof wfResponse.body.getReader === 'function') {
     const reader = wfResponse.body.getReader();
@@ -2171,7 +2181,59 @@ async function collectDifyStreamingAnswer(wfResponse) {
     }
   }
 
-  return sanitizeListenMaterialScript(finalAnswer);
+  const trimmed = finalAnswer.trim();
+  return sanitize ? sanitizeListenMaterialScript(trimmed) : trimmed;
+}
+
+/** 同步 await Dify 长文流式生成，返回原始 answer（可含 VOCAB_JSON）；不走 taskQueue */
+async function generateListenLongScriptSync(inputs, userId = 'default-user') {
+  const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
+    || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
+    || process.env.DIFY_LISTEN_GEN_API_KEY
+    || 'app-hbRjadfxD6alF5roOKPTR8HC';
+  if (!apiKey) {
+    throw new Error('缺少关键鉴权参数 (API KEY)');
+  }
+
+  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const fetchController = new AbortController();
+  const fetchTimeout = setTimeout(() => fetchController.abort(), 30 * 60 * 1000);
+
+  let wfResponse;
+  try {
+    wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: fetchController.signal,
+      body: JSON.stringify({
+        inputs: injectOralSystemTime(inputs || {}),
+        query: 'generate',
+        response_mode: 'streaming',
+        user: userId,
+      }),
+    });
+  } finally {
+    clearTimeout(fetchTimeout);
+  }
+
+  if (!wfResponse.ok) {
+    const errText = await wfResponse.text().catch(() => '');
+    let errMsg = errText || `Dify HTTP ${wfResponse.status}`;
+    try {
+      const parsed = JSON.parse(errText);
+      errMsg = parsed.message || parsed.error || errMsg;
+    } catch (_) {}
+    throw new Error(errMsg);
+  }
+
+  const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
+  if (!answer) {
+    throw new Error('接收成功但答案为空');
+  }
+  return answer;
 }
 
 app.post('/api/listen/generate-material', async (req, res) => {
@@ -2225,8 +2287,6 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
       return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
     }
 
-    const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-
     // 引入任务队列，创建任务
     const taskQueue = require('./services/taskQueue');
     const taskTitle = inputs.theme ? `播客文稿: ${inputs.theme}` : '深度播客生成';
@@ -2239,46 +2299,10 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
     (async () => {
       try {
         taskQueue.updateTask(task.id, { progress: 10, logs: ['正在连接智库并初始化推演模型 (Dify API)...'] });
-
-        const fetchController = new AbortController();
-        // 放宽到 30 分钟，后台不受 Nginx 超时限制
-        const fetchTimeout = setTimeout(() => fetchController.abort(), 30 * 60 * 1000);
-
-        let wfResponse;
-        try {
-          wfResponse = await fetch(`${baseUrl}/chat-messages`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            signal: fetchController.signal,
-            body: JSON.stringify({
-              inputs: injectOralSystemTime(inputs),
-              query: 'generate',
-              response_mode: 'streaming',
-              user: userId,
-            }),
-          });
-        } finally {
-          clearTimeout(fetchTimeout);
-        }
-
-        if (!wfResponse.ok) {
-          const errText = await wfResponse.text().catch(() => '');
-          let errMsg = errText || `Dify HTTP ${wfResponse.status}`;
-          try {
-            const parsed = JSON.parse(errText);
-            errMsg = parsed.message || parsed.error || errMsg;
-          } catch (_) {}
-          taskQueue.updateTask(task.id, { status: 'failed', error: `模型接口出错: ${errMsg}` });
-          return;
-        }
-
         taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数据...'] });
 
-        // 原本收集流式答案的函数
-        const answer = await collectDifyStreamingAnswer(wfResponse);
+        const rawAnswer = await generateListenLongScriptSync(inputs, userId);
+        const answer = sanitizeListenMaterialScript(rawAnswer);
         if (!answer) {
           taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为空' });
           return;
@@ -2344,6 +2368,107 @@ app.get('/api/listen/long-audio/:id', (req, res) => {
     }
     res.json({ success: true, data: audio });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/listen/pregenerated', (req, res) => {
+  try {
+    const { userId, theme, genre, cefrLevel, cefr, duration, date } = req.query;
+    if (!userId || !theme || !genre || !(cefrLevel || cefr) || !duration) {
+      return res.status(400).json({ success: false, error: 'userId, theme, genre, cefrLevel, duration required' });
+    }
+    const result = dailyListenPreGenerateService.getPregeneratedCombo(db, {
+      userId, theme, genre, cefrLevel: cefrLevel || cefr, duration: Number(duration), date,
+    });
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/listen/pregenerated/backfill', async (req, res) => {
+  try {
+    const { userId, theme, genre, cefrLevel, duration, only } = req.body || {};
+    if (!userId || !theme || !genre || !cefrLevel || !duration) {
+      return res.status(400).json({ success: false, error: 'missing fields' });
+    }
+    if (!dailyListenPreGenerateService.isCacheableDuration(duration)) {
+      return res.status(400).json({ success: false, error: 'duration not cacheable; use realtime generate' });
+    }
+    const taskQueue = require('./services/taskQueue');
+    const task = taskQueue.createTask(
+      'listen_backfill',
+      `听写预生成补跑: ${theme} / ${genre} / ${cefrLevel} / ${duration}m`,
+    );
+    res.json({ success: true, taskId: task.id, status: task.status });
+
+    (async () => {
+      try {
+        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['开始后台补生成...'] });
+        const mode = only === 'audio' || only === 'article' ? only : 'both';
+        const result = await dailyListenPreGenerateService.generateOneCombo(
+          db,
+          { userId, theme, genre, cefrLevel, duration },
+          { source: 'backfill', only: mode },
+        );
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: ['补生成完成'],
+          result: {
+            status: result.status,
+            genre,
+            cefrLevel,
+            duration,
+            articleReady: result.articleStatus === 'ready',
+            audioReady: result.audioStatus === 'ready',
+            audioUrl: result.audio?.audioUrl,
+            content: result.article?.body,
+          },
+        });
+      } catch (e) {
+        taskQueue.updateTask(task.id, { status: 'failed', error: e.message });
+      }
+    })();
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/listen/pregenerated/writeback', (req, res) => {
+  try {
+    const {
+      userId, theme, genre, cefrLevel, duration, date,
+      body, vocab, phrases, audioUrl, audioPath, script,
+    } = req.body || {};
+    if (!userId || !theme || !genre || !cefrLevel || !duration) {
+      return res.status(400).json({ success: false, error: 'missing fields' });
+    }
+    const result = dailyListenPreGenerateService.writebackCombo(
+      db,
+      { userId, theme, genre, cefrLevel, duration, date },
+      { body, vocab, phrases, audioPath, audioUrl, script },
+    );
+    if (result.success === false) {
+      return res.status(400).json(result);
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.post('/api/listen/pregenerated/cron-run', async (req, res) => {
+  try {
+    const secret = process.env.DAILY_PACK_CRON_SECRET || '';
+    if (secret && req.headers['x-cron-secret'] !== secret) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const result = await dailyListenPreGenerateService.runDailyListenCronJob(db);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[Daily Listen Cron Manual]', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -5636,6 +5761,17 @@ app.put('/api/user/theme', (req, res) => {
   }
 });
 
+app.post('/api/user/login-ping', (req, res) => {
+  try {
+    const userId = req.body?.userId;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+    const result = dailyListenPreGenerateService.recordUserLogin(db, userId);
+    res.json({ success: true, ...result });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/daily-pack/today', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
@@ -6853,6 +6989,22 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     throw err;
   }
 }
+
+dailyListenPreGenerateService.setGenerators({
+  generateLongScript: async ({ theme, genre, cefr_level, duration, userId }) => {
+    return generateListenLongScriptSync({
+      theme,
+      genre,
+      cefr_level,
+      duration: String(duration),
+    }, userId);
+  },
+  synthesizeAudioFile: async (text, audioPath) => {
+    const clean = sanitizeListenMaterialScript(text);
+    const finalModel = process.env.TTS_DEFAULT_MODEL || 'edge-tts/en-US-EmmaNeural';
+    await synthesizeAndSaveAudio(clean, finalModel, audioPath, null, null);
+  },
+});
 
 // TTS ????????????????????????????????????????????? OOM ?????????
 let ttsLongLock = false;

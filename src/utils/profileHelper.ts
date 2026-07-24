@@ -712,5 +712,10 @@ export function getRecentEpisodesSummaryLocal(): string {
 export async function initializeUserSession(customUserId?: string): Promise<string> {
   const userId = ensureAppUserId(customUserId);
   await loadUserProfileFromServer(userId);
+  void fetch('/api/user/login-ping', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  }).catch(() => {});
   return userId;
 }

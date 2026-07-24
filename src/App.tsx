@@ -25,7 +25,7 @@ import {
   rotateEmbedSessionOnPageLoad,
   rotateEmbedSessionOnRouteChange,
 } from './utils/difyChatbot';
-import { isProfileStale, loadUserProfileFromServer } from './utils/profileHelper';
+import { getAppUserId, isProfileStale, loadUserProfileFromServer } from './utils/profileHelper';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -364,6 +364,17 @@ function AppContent() {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // One-shot login ping when authenticated (covers paths that skip LoginPage / initializeUserSession)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const userId = getAppUserId();
+    void fetch('/api/user/login-ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId }),
+    }).catch(() => {});
+  }, [isAuthenticated]);
 
   return (
     <EnglishProvider>

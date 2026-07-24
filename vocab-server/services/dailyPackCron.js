@@ -1,4 +1,5 @@
 const dailyPackService = require('./dailyPackService');
+const dailyListenPreGenerateService = require('./dailyListenPreGenerateService');
 
 let lastCronPackDate = null;
 
@@ -36,10 +37,15 @@ function scheduleDailyPackCron(db) {
     const packDate = dailyPackService.getPackDate();
     if (hour === 2 && minute === 0 && lastCronPackDate !== packDate) {
       lastCronPackDate = packDate;
-      runDailyPackCronJob(db).catch((e) => console.error('[DailyPack Cron] failed:', e));
+      (async () => {
+        await runDailyPackCronJob(db);
+        if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
+          await dailyListenPreGenerateService.runDailyListenCronJob(db);
+        }
+      })().catch((e) => console.error('[DailyPack/Listen Cron] failed:', e));
     }
   }, 60 * 1000);
-  console.log('[DailyPack Cron] scheduled for 02:00', dailyPackService.PACK_TZ);
+  console.log('[DailyPack Cron] scheduled for 02:00 then DailyListen', dailyPackService.PACK_TZ);
 }
 
 module.exports = { runDailyPackCronJob, scheduleDailyPackCron };

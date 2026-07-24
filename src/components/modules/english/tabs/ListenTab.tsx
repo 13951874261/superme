@@ -1,11 +1,19 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { runListeningEngine } from '../../../../services/listeningAPI';
+import {
+  fetchPregenerated,
+  submitPregeneratedBackfill,
+  writebackPregenerated,
+  type PregenStatus,
+} from '../../../../services/listenPregeneratedAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { submitReview, addWord } from '../../../../services/vocabAPI';
 import { useTask } from '../../../../components/TaskContext';
+
+const CACHEABLE_DURATIONS = [5, 15, 25];
 
 export default function ListenTab() {
   const {
@@ -38,6 +46,11 @@ export default function ListenTab() {
   const [curListenTaskId, setCurListenTaskId] = useState<string | null>(null);
   const [isAudioGenerating, setIsAudioGenerating] = useState(false);
   const [hasPlayed, setHasPlayed] = useState(false);
+  const [pregenStatus, setPregenStatus] = useState<PregenStatus | null>(null);
+  const [pregenArticleStatus, setPregenArticleStatus] = useState<string | null>(null);
+  const [pregenAudioStatus, setPregenAudioStatus] = useState<string | null>(null);
+  const [isBackfillSubmitting, setIsBackfillSubmitting] = useState(false);
+  const filterFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
 
   const [globalRateMultiplier, setGlobalRateMultiplier] = useState(
@@ -61,16 +74,135 @@ export default function ListenTab() {
   // 接入全局任务中心轮询
   const { tasks, addTask } = useTask();
 
+  const isCacheableDuration = CACHEABLE_DURATIONS.includes(listenDuration);
+
+  const writebackCache = useCallback(async (payload: {
+    body?: string;
+    audioUrl?: string;
+    script?: string;
+  }) => {
+    if (!CACHEABLE_DURATIONS.includes(listenDuration) || !theme) return;
+    try {
+      await writebackPregenerated({
+        theme,
+        genre: listenGenre,
+        cefrLevel: listenCefr,
+        duration: listenDuration,
+        body: payload.body,
+        script: payload.script ?? payload.body,
+        audioUrl: payload.audioUrl,
+      });
+    } catch (e) {
+      console.warn('[ListenTab] writeback failed', e);
+    }
+  }, [theme, listenGenre, listenCefr, listenDuration]);
+
+  const submitBackfill = async (only: 'both' | 'audio' = 'both') => {
+    if (!theme || isBackfillSubmitting) return;
+    setIsBackfillSubmitting(true);
+    try {
+      const data = await submitPregeneratedBackfill({
+        theme,
+        genre: listenGenre,
+        cefrLevel: listenCefr,
+        duration: listenDuration,
+        only,
+      });
+      addTask({
+        id: data.taskId,
+        type: 'listen_backfill',
+        name: `听写预生成补跑: ${theme} / ${listenGenre} / ${listenCefr} / ${listenDuration}m`,
+        status: 'pending',
+        progress: 0,
+        logs: ['已提交后台生成...'],
+      });
+      showNotice('listen', '已提交后台生成，请稍后在任务中心查看。', 'info');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '提交后台生成失败';
+      showNotice('listen', msg, 'error');
+    } finally {
+      setIsBackfillSubmitting(false);
+    }
+  };
+
+  const applyPregenResult = (data: Awaited<ReturnType<typeof fetchPregenerated>>) => {
+    setPregenStatus(data.status);
+    setPregenArticleStatus(data.articleStatus || null);
+    setPregenAudioStatus(data.audioStatus || null);
+    if (data.article?.body) {
+      setListenMaterial(data.article.body);
+    }
+    if (data.audio?.audioUrl) {
+      setListenAudioUrl(data.audio.audioUrl);
+      setHasPlayed(false);
+    }
+  };
+
+  const loadFromPregenerateOrRealtime = async (targetTheme: string) => {
+    setListenMaterialTheme(targetTheme);
+    setListenResult(null);
+    setListenInput('');
+    setIsTextVisible(false);
+    setHasPlayed(false);
+
+    if (!CACHEABLE_DURATIONS.includes(listenDuration)) {
+      setPregenStatus('uncached_duration');
+      setPregenArticleStatus(null);
+      setPregenAudioStatus(null);
+      await generateListenMaterial(targetTheme);
+      return;
+    }
+
+    setIsListenMaterialLoading(true);
+    setListenAudioUrl(null);
+    setCurTtsTaskId(null);
+    setCurListenTaskId(null);
+    setIsAudioGenerating(false);
+
+    try {
+      const data = await fetchPregenerated({
+        theme: targetTheme,
+        genre: listenGenre,
+        cefrLevel: listenCefr,
+        duration: listenDuration,
+      });
+      applyPregenResult(data);
+
+      if (data.status === 'ready') {
+        setIsListenMaterialLoading(false);
+        return;
+      }
+      if (data.status === 'partial' && data.articleStatus === 'ready') {
+        setIsListenMaterialLoading(false);
+        return;
+      }
+      if (data.status === 'generating') {
+        setIsListenMaterialLoading(false);
+        return;
+      }
+      // missing / failed — show banner, do not auto realtime
+      setIsListenMaterialLoading(false);
+      if (!data.article?.body) setListenMaterial('');
+    } catch (e) {
+      console.error('[ListenTab] pregenerate fetch failed', e);
+      setPregenStatus('missing');
+      setIsListenMaterialLoading(false);
+      showNotice('listen', '预生成缓存查询失败，可点击重新生成或稍后重试', 'warning');
+    }
+  };
+
   useEffect(() => {
     if (!curTtsTaskId) return;
     const task = tasks.find(t => t.id === curTtsTaskId);
     if (!task) return;
     if (task.status === 'completed' && task.result?.audioUrl) {
-      setListenAudioUrl(task.result.audioUrl);
+      const audioUrl = task.result.audioUrl as string;
+      setListenAudioUrl(audioUrl);
       setCurTtsTaskId(null);
       setIsAudioGenerating(false);
       showNotice('listen', '🎉 高保真音频后台合成成功！已为您加载播放。', 'success');
       setHasPlayed(true);
+      void writebackCache({ body: listenMaterial || undefined, audioUrl, script: listenMaterial || undefined });
       setTimeout(() => {
         audioRef.current?.play().catch(() => {
           setHasPlayed(false); // 自动播放被拦截时显示引导闪烁
@@ -86,7 +218,7 @@ export default function ListenTab() {
         showNotice('listen', `音频合成失败: ${errMsg}. 降级使用本地 TTS。`, 'error');
       }
     }
-  }, [tasks, curTtsTaskId]);
+  }, [tasks, curTtsTaskId, listenMaterial, writebackCache]);
 
   // 监听剧本生成任务 (长音频后台机制)
   useEffect(() => {
@@ -101,6 +233,7 @@ export default function ListenTab() {
       setCurListenTaskId(null);
       setIsListenMaterialLoading(false);
       showNotice('listen', '长音频剧本生成完毕！即将开始后台合成语音...', 'success');
+      void writebackCache({ body: script, script });
 
       // 自动触发 TTS 生成 (选项 A 逻辑)
       setIsAudioGenerating(true);
@@ -109,6 +242,7 @@ export default function ListenTab() {
           if (ttsRes.audioUrl) {
             setListenAudioUrl(ttsRes.audioUrl);
             setIsAudioGenerating(false);
+            void writebackCache({ body: script, script, audioUrl: ttsRes.audioUrl });
           } else if (ttsRes.taskId) {
             addTask({
               id: ttsRes.taskId,
@@ -131,7 +265,7 @@ export default function ListenTab() {
       setIsListenMaterialLoading(false);
       showNotice('listen', `剧本生成失败: ${task.error || '未知错误'}`, 'error');
     }
-  }, [tasks, curListenTaskId, listenMaterialTheme, addTask, setListenMaterial, setIsListenMaterialLoading, showNotice]);
+  }, [tasks, curListenTaskId, listenMaterialTheme, addTask, setListenMaterial, setIsListenMaterialLoading, showNotice, writebackCache]);
 
   const generateListenMaterial = async (targetTheme: string) => {
     setIsListenMaterialLoading(true);
@@ -169,6 +303,7 @@ export default function ListenTab() {
       const rawScript = typeof res === 'string' ? res : (res.script || '');
       const script = rawScript.replace(/^.*?(📝|生成完毕|沉浸式听力|阅读长篇材料).*?(\n|$)/gm, '').trim();
       setListenMaterial(script);
+      void writebackCache({ body: script, script });
 
       // 异步音频生成（默认路径，用于短音频）
       const { fetchDifyTTS } = await import('../../../../services/listeningAPI');
@@ -178,6 +313,7 @@ export default function ListenTab() {
         if (ttsRes.audioUrl) {
           setListenAudioUrl(ttsRes.audioUrl);
           setIsAudioGenerating(false);
+          void writebackCache({ body: script, script, audioUrl: ttsRes.audioUrl });
         } else if (ttsRes.taskId) {
           addTask({
             id: ttsRes.taskId,
@@ -213,9 +349,36 @@ export default function ListenTab() {
 
   useEffect(() => {
     if (activeTab === 'listen' && listenMaterialTheme !== theme) {
-      void generateListenMaterial(theme);
+      void loadFromPregenerateOrRealtime(theme);
     }
   }, [activeTab, theme, listenMaterialTheme]);
+
+  // 筛选条件变化时，仅对可缓存时长重新查预生成
+  useEffect(() => {
+    if (activeTab !== 'listen' || !theme || !listenMaterialTheme) return;
+    if (!CACHEABLE_DURATIONS.includes(listenDuration)) {
+      setPregenStatus('uncached_duration');
+      return;
+    }
+    if (filterFetchTimer.current) clearTimeout(filterFetchTimer.current);
+    filterFetchTimer.current = setTimeout(() => {
+      void loadFromPregenerateOrRealtime(theme);
+    }, 200);
+    return () => {
+      if (filterFetchTimer.current) clearTimeout(filterFetchTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only refetch on filter dims
+  }, [listenGenre, listenCefr, listenDuration, activeTab]);
+
+  useEffect(() => {
+    const handler = () => {
+      if (activeTab === 'listen' && theme && CACHEABLE_DURATIONS.includes(listenDuration)) {
+        void loadFromPregenerateOrRealtime(theme);
+      }
+    };
+    window.addEventListener('listen-pregenerated-ready', handler);
+    return () => window.removeEventListener('listen-pregenerated-ready', handler);
+  }, [activeTab, theme, listenDuration, listenGenre, listenCefr]);
 
   const handleListenAnalyze = async () => {
     if (!listenInput.trim()) {
@@ -331,9 +494,38 @@ export default function ListenTab() {
                   重新生成
                 </button>
               </div>
+              {isCacheableDuration && (pregenStatus === 'missing' || pregenStatus === 'failed') && (
+                <div className="relative z-10 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+                  <p className="text-[11px] text-white/80 flex-1 min-w-[12rem] leading-relaxed">
+                    今日该组合内容尚未准备好，可提交后台生成。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void submitBackfill('both')}
+                    disabled={isBackfillSubmitting}
+                    className="shrink-0 bg-[#FF5722] hover:bg-[#E64A19] text-white text-[10px] font-black px-4 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
+                  >
+                    {isBackfillSubmitting ? '提交中…' : '后台生成'}
+                  </button>
+                </div>
+              )}
+              {isCacheableDuration && pregenStatus === 'partial' && pregenArticleStatus === 'ready' && pregenAudioStatus !== 'ready' && (
+                <div className="relative z-10 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+                  <p className="text-[11px] text-white/80 flex-1 min-w-[12rem] leading-relaxed">
+                    音频尚未准备好，可单独提交后台生成。
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void submitBackfill('audio')}
+                    disabled={isBackfillSubmitting}
+                    className="shrink-0 bg-[#FF5722] hover:bg-[#E64A19] text-white text-[10px] font-black px-4 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
+                  >
+                    {isBackfillSubmitting ? '提交中…' : '后台生成音频'}
+                  </button>
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl mb-6 border border-white/10 relative z-10 w-full overflow-hidden">
-              {isListenMaterialLoading ? (
+            <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl mb-6 border border-white/10 relative z-10 w-full overflow-hidden">              {isListenMaterialLoading ? (
                 <div className="flex items-center gap-2 text-gray-400">
                   <Loader2 className="w-6 h-6 animate-spin" />
                   <span className="text-xs font-black uppercase tracking-widest">拦截解码中...</span>

@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef } from 'r
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
