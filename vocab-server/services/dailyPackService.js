@@ -221,31 +221,73 @@ function getHistoryExclude(db) {
   return dbWords.slice(0, 50).join(', ');
 }
 
-async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurrentProfile = '' }) {
-  const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
-  if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
-  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const inputs = {
-    theme,
-    history_exclude: historyExclude || '',
-    user_current_profile: userCurrentProfile || '',
-    _system_time: getSystemFormattedTime(),
-    _system_timestamp_ms: Date.now(),
+function getFallbackWakeup(theme = '商务谈判中的让步与施压') {
+  return {
+    theme: theme || '商务谈判中的让步与施压',
+    vocab: [
+      { word: 'concession', ipa: '/kənˈseʃn/', pronunciation_note: '注意 -ssion 的 /ʃn/ 发音，不要读成 /sən/', meaning_zh: '让步；妥协', example: 'We can make a minor concession on delivery dates if you agree to our pricing terms.' },
+      { word: 'leverage', ipa: '/ˈlevərɪdʒ/', pronunciation_note: '重音在第一音节 /ˈlev/，尾音 /ɪdʒ/ 轻松发', meaning_zh: '筹码；杠杆力量', example: 'Our patent portfolio gives us strong leverage in this cross-licensing negotiation.' },
+      { word: 'standstill', ipa: '/ˈstændstɪl/', pronunciation_note: '双 st 连读，中间短暂停顿', meaning_zh: '僵局；停顿', example: 'The negotiations reached a standstill over the indemnification clause.' },
+      { word: 'ultimatum', ipa: '/ˌʌltɪˈmeɪtəm/', pronunciation_note: '重音在 /meɪ/，-tum 发音为 /təm/', meaning_zh: '最后通牒', example: 'Issuing an ultimatum prematurely may damage long-term partnership trust.' },
+      { word: 'compromise', ipa: '/ˈkɑːmprəmaɪz/', pronunciation_note: '重音在第一音节 /ˈkɑːm/，不要混淆 com- 读音', meaning_zh: '妥协；折中方案', example: 'Both parties agreed to a compromise that protects joint intellectual property.' },
+      { word: 'deadlock', ipa: '/ˈdedlɑːk/', pronunciation_note: 'dead 和 lock 快速连接，爆破音 /d/ 不失爆', meaning_zh: '僵局', example: 'To break the deadlock, the mediator proposed a stepped payment schedule.' },
+      { word: 'counteroffer', ipa: '/ˈkaʊntərəɔːfər/', pronunciation_note: 'counter 与 offer 自然连读', meaning_zh: '还盘；反要约', example: 'We prepared a reasonable counteroffer in response to their high initial quote.' },
+      { word: 'concede', ipa: '/kənˈsiːd/', pronunciation_note: '尾音 /d/ 轻轻发，-cede 读长音 /siːd/', meaning_zh: '退让；承认', example: 'They might concede on payment terms if we extend the contract length.' },
+      { word: 'stipulate', ipa: '/ˈstɪpjuleɪt/', pronunciation_note: '重音在第一音节 /ˈstɪp/，-pju- 读音清晰', meaning_zh: '约定；规定', example: 'The contract stipulates that any price adjustment requires 30 days prior notice.' },
+      { word: 'non-negotiable', ipa: '/ˌnɑːn nɪˈɡoʊʃiəbl/', pronunciation_note: 'ti- 读 /ʃi/，整体读音连贯流利', meaning_zh: '不可谈判的；硬性条件的', example: 'Quality compliance and safety standards are non-negotiable clauses for us.' }
+    ],
+    grammar: {
+      point: '条件句在商务让步中的从属表达 (Conditional Concession Clauses)',
+      explanation: '在商务谈判中，表达让步时常使用 "Provided that...", "On the condition that...", 或 "Subject to..."，既表明合作诚意，又设定严格的前置保障条件。',
+      examples: [
+        {
+          correct: 'We are willing to grant a 5% discount, provided that the order volume exceeds 10,000 units.',
+          incorrect: 'We give 5% discount if you buy more items next time.'
+        },
+        {
+          correct: 'Subject to board approval, we can adjust the delivery milestone to Q3.',
+          incorrect: 'Maybe we can change delivery time to Q3 if boss agrees.'
+        }
+      ]
+    }
   };
-  const res = await fetch(`${baseUrl}/workflows/run`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      inputs,
-      response_mode: 'blocking',
-      user: normalizeUserId(userId),
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
-  const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? '';
-  const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
-  return JSON.parse(clean);
+}
+
+async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurrentProfile = '' }) {
+  try {
+    const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
+    if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
+    const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const inputs = {
+      theme,
+      history_exclude: historyExclude || '',
+      user_current_profile: userCurrentProfile || '',
+      _system_time: getSystemFormattedTime(),
+      _system_timestamp_ms: Date.now(),
+    };
+    const res = await fetch(`${baseUrl}/workflows/run`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputs,
+        response_mode: 'blocking',
+        user: normalizeUserId(userId),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
+    const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? '';
+    const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(clean);
+    if (!parsed || !Array.isArray(parsed.vocab) || parsed.vocab.length === 0) {
+      console.warn('[Daily Pack] Dify returned empty wakeup vocab, using fallback wakeup content');
+      return getFallbackWakeup(theme);
+    }
+    return parsed;
+  } catch (err) {
+    console.warn('[Daily Pack] callWakeupWorkflow error, returning fallback:', err.message);
+    return getFallbackWakeup(theme);
+  }
 }
 
 async function generateFlawVocabForUser(db, userId, themeOverride) {
