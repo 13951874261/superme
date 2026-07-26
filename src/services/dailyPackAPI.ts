@@ -76,18 +76,9 @@ function buildTodayInflightKey(userId: string, input: DailyPackQueryInput) {
 }
 
 export async function buildDailyPackQueryInput(theme: string): Promise<DailyPackQueryInput> {
-  const words = await getAllWords().catch(() => []);
-  const historyExclude = words
-    .slice()
-    .sort((a, b) => Number(b?.added_at || 0) - Number(a?.added_at || 0))
-    .map((item) => String(item?.word || '').toLowerCase().trim())
-    .filter(Boolean)
-    .slice(0, 50)
-    .join(', ');
-
   return {
     theme: String(theme || '').trim(),
-    historyExclude,
+    historyExclude: '',
     userCurrentProfile: getUserCurrentProfile(),
   };
 }
