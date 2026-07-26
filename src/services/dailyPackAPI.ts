@@ -80,7 +80,7 @@ export async function buildDailyPackQueryInput(theme: string): Promise<DailyPack
   const historyExclude = words
     .slice()
     .sort((a, b) => Number(b?.added_at || 0) - Number(a?.added_at || 0))
-    .map((item) => String(item?.word || '').trim())
+    .map((item) => String(item?.word || '').toLowerCase().trim())
     .filter(Boolean)
     .slice(0, 50)
     .join(', ');

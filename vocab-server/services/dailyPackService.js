@@ -17,7 +17,7 @@ function normalizeUserId(raw) {
 function computeInputSignature(theme, historyExclude, userCurrentProfile) {
   const stable = JSON.stringify({
     theme: String(theme || '').trim(),
-    history_exclude: String(historyExclude || '').trim(),
+    history_exclude: String(historyExclude || '').toLowerCase().trim(),
     user_current_profile: String(userCurrentProfile || '').trim(),
   });
   return crypto.createHash('sha256').update(stable).digest('hex').slice(0, 16);
@@ -134,13 +134,14 @@ function listUsersWithSyncedTheme(db) {
 function getDailyPackRow(db, userId, packDate, inputSignature = null) {
   const uid = normalizeUserId(userId);
   if (inputSignature !== null) {
-    return db.prepare(
+    const exact = db.prepare(
       'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
     ).get(uid, packDate, inputSignature);
+    if (exact) return exact;
   }
-  // 未传签名时取当天最新一行（兜底，供旧调用方使用）
+  // 未查到强签名时，做二级容错：若当天存在该用户 status = 'ready' 的已缓存记录，予以匹配
   return db.prepare(
-    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
+    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
   ).get(uid, packDate);
 }
 
