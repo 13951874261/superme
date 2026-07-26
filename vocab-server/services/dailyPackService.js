@@ -139,9 +139,9 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null) {
     ).get(uid, packDate, inputSignature);
     if (exact) return exact;
   }
-  // 未查到强签名时，做二级容错：若当天存在该用户 status = 'ready' 的已缓存记录，予以匹配
+  // 未查到强签名时，做二级容错：若当天存在该用户 status = 'ready' 且含有真实词汇内容的缓存记录，予以匹配
   return db.prepare(
-    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
+    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' AND wakeup_json LIKE '%\"word\"%' ORDER BY created_at DESC LIMIT 1"
   ).get(uid, packDate);
 }
 

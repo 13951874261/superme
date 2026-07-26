@@ -65,7 +65,13 @@ export default function DailyWakeupModule() {
 
   const applyPack = (pack: Awaited<ReturnType<typeof getTodayDailyPack>>) => {
     setPackStatus(pack.status);
-    if (pack.status === 'ready' && pack.wakeup) {
+    const hasValidWakeup = Boolean(
+      pack.status === 'ready' &&
+      pack.wakeup &&
+      Array.isArray(pack.wakeup.vocab) &&
+      pack.wakeup.vocab.length > 0
+    );
+    if (hasValidWakeup && pack.wakeup) {
       setResult(pack.wakeup);
       setNotice(`已加载今日唤醒：${pack.wakeup.theme || theme}`);
       return true;
@@ -76,7 +82,7 @@ export default function DailyWakeupModule() {
     } else if (pack.status === 'generating') {
       setNotice('今日内容准备中…');
     } else {
-      setNotice(`今日无缓存（${getAppUserId()}），可立即生成`);
+      setNotice(`今日无有效缓存（${getAppUserId()}），点击【开始今日唤醒】或【重新生成】即可生成`);
     }
     return false;
   };
