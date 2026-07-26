@@ -5776,13 +5776,10 @@ app.get('/api/daily-pack/today', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
     const packDate = dailyPackService.getPackDate();
-    const theme = String(req.query.theme || '').trim();
-    const historyExclude = String(req.query.historyExclude || dailyPackService.getHistoryExclude(db) || '').trim();
-    const userCurrentProfile = String(
-      req.query.userCurrentProfile || dailyPackService.getUserCurrentProfile(db, userId) || ''
-    ).trim();
-    const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
-    const row = dailyPackService.getDailyPackRow(db, userId, packDate, inputSignature);
+    const uid = dailyPackService.normalizeUserId(userId);
+    const row = db.prepare(
+      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
+    ).get(uid, packDate);
     res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
     console.error('[Daily Pack Today]', error);
