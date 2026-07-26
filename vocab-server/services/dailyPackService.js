@@ -361,6 +361,21 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
   }
 }
 
+function safeJsonParse(str, fallback = null) {
+  if (!str) return fallback;
+  try {
+    return JSON.parse(str);
+  } catch (e) {
+    try {
+      const sanitized = String(str).replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
+      return JSON.parse(sanitized);
+    } catch {
+      console.warn('[DailyPack] safeJsonParse failed:', e.message);
+      return fallback;
+    }
+  }
+}
+
 function serializeDailyPack(row) {
   if (!row) return { success: true, status: 'missing' };
   return {
@@ -370,8 +385,8 @@ function serializeDailyPack(row) {
     status: row.status,
     source: row.source,
     errorMessage: row.error_message || null,
-    wakeup: row.wakeup_json ? JSON.parse(row.wakeup_json) : null,
-    flawVocab: row.flaw_vocab_json ? JSON.parse(row.flaw_vocab_json) : null,
+    wakeup: safeJsonParse(row.wakeup_json, null),
+    flawVocab: safeJsonParse(row.flaw_vocab_json, null),
   };
 }
 
