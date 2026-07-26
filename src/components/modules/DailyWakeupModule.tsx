@@ -5,7 +5,7 @@ import SpeakButton from '../SpeakButton';
 import PronunciationTrainer from './PronunciationTrainer';
 import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
-import { getTodayDailyPack, regenerateDailyPack, WakeupPayload } from '../../services/dailyPackAPI';
+import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, buildDailyPackQueryInput } from '../../services/dailyPackAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
 
@@ -32,6 +32,7 @@ export default function DailyWakeupModule() {
   } = useEnglishContext();
   const [isOpen, setIsOpen] = useState(true);
   const [result, setResult] = useState<WakeupResult | null>(null);
+  const [packStatus, setPackStatus] = useState<'missing' | 'ready' | 'failed' | 'generating' | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -62,37 +63,94 @@ export default function DailyWakeupModule() {
 
   useEffect(() => () => stopTimer(), []);
 
+  const applyPack = (pack: Awaited<ReturnType<typeof getTodayDailyPack>>) => {
+    setPackStatus(pack.status);
+    if (pack.status === 'ready' && pack.wakeup) {
+      setResult(pack.wakeup);
+      setNotice(`已加载今日唤醒：${pack.wakeup.theme || theme}`);
+      return true;
+    }
+    setResult(null);
+    if (pack.status === 'failed') {
+      setNotice(pack.errorMessage || '今日唤醒生成失败，可立即生成');
+    } else if (pack.status === 'generating') {
+      setNotice('今日内容准备中…');
+    } else {
+      setNotice(`今日无缓存（${getAppUserId()}），可立即生成`);
+    }
+    return false;
+  };
+
+  const loadTodayPack = async (reason: string) => {
+    setNotice(`正在读取今日包…（${reason} / ${getAppUserId()}）`);
+    try {
+      const queryInput = await buildDailyPackQueryInput(theme);
+      const pack = await getTodayDailyPack(queryInput);
+      applyPack(pack);
+      return pack;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '加载失败';
+      setNotice(`读取今日包失败：${msg}（${reason} / ${getAppUserId()}）`);
+      return null;
+    }
+  };
+
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const pack = await getTodayDailyPack();
-        if (cancelled) return;
-        if (pack.status === 'ready' && pack.wakeup) {
-          setResult(pack.wakeup);
-          setNotice(`已加载今日唤醒：${pack.wakeup.theme || theme}`);
-        }
-      } catch {
-        /* 非阻塞 */
-      }
-    })();
-    return () => { cancelled = true; };
+    // 不使用 cancelled 短路：StrictMode 双挂载时，旧请求结果也应写入，避免永远停在初始 notice
+    void loadTodayPack('mount');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleStart = async () => {
+  useEffect(() => {
+    const refreshIfEmpty = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (result || loading) return;
+      void loadTodayPack('visibility');
+    };
+    document.addEventListener('visibilitychange', refreshIfEmpty);
+    window.addEventListener('focus', refreshIfEmpty);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshIfEmpty);
+      window.removeEventListener('focus', refreshIfEmpty);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, loading]);
+
+  const handleStartPractice = () => {
+    if (!result) {
+      setNotice('请先生成今日唤醒内容');
+      return;
+    }
+    void refreshStayStats(true);
+    void refreshTodaySession();
+    startTimer();
+    setNotice(`练习计时已开始：${result.theme || theme}`);
+  };
+
+  const handleRegenerate = async () => {
+    if (loading) return;
     setLoading(true);
     setNotice(result ? '正在重新生成今日唤醒…' : '正在生成今日唤醒内容...');
     try {
       void refreshStayStats(true);
       void refreshTodaySession();
-      const pack = await regenerateDailyPack('both', theme);
+      const queryInput = await buildDailyPackQueryInput(theme);
+      const pack = await regenerateDailyPack('wakeup', queryInput);
       if (pack.status !== 'ready' || !pack.wakeup) {
+        const cached = await getTodayDailyPack(queryInput).catch(() => null);
+        if (cached && applyPack(cached)) return;
         throw new Error(pack.errorMessage || '生成失败');
       }
-      setResult(pack.wakeup);
-      setNotice(`已生成主题：${pack.wakeup.theme || theme}`);
+      applyPack(pack);
       startTimer();
     } catch (error) {
+      const queryInput = await buildDailyPackQueryInput(theme).catch(() => null);
+      const cached = queryInput ? await getTodayDailyPack(queryInput).catch(() => null) : null;
+      if (cached && applyPack(cached)) {
+        startTimer();
+        return;
+      }
+      setPackStatus('failed');
       setNotice(error instanceof Error ? error.message : '生成失败');
     } finally {
       setLoading(false);
@@ -249,14 +307,35 @@ export default function DailyWakeupModule() {
                 placeholder="输入主题，例如：银团贷款"
               />
               <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={handleStart}
-                  disabled={loading}
-                  className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
-                  {loading ? '生成中' : result ? '重新开始今日唤醒' : '开始今日唤醒'}
-                </button>
+                {result ? (
+                  <>
+                    <button
+                      onClick={handleStartPractice}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      开始练习
+                    </button>
+                    <button
+                      onClick={handleRegenerate}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-xl border border-white/20 bg-white/5 text-white font-black text-xs tracking-wide hover:bg-white/10 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TimerReset className="w-3.5 h-3.5" />}
+                      {loading ? '生成中' : '重新生成'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                    {loading ? '生成中' : packStatus === 'failed' ? '立即生成' : '开始今日唤醒'}
+                  </button>
+                )}
                 <button
                   onClick={handleCheckIn}
                   disabled={checkInLoading || !result}
@@ -271,10 +350,21 @@ export default function DailyWakeupModule() {
             <div className="flex items-center justify-between gap-3 text-xs text-gray-400 border-t border-white/5 pt-2.5">
               <span className="flex items-center gap-2 min-w-0">
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-emerald-500 animate-pulse' : 'bg-gray-500'}`} />
-                <span className="truncate">{notice}</span>
+                <span className="truncate" title={notice}>{notice}</span>
               </span>
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-500 shrink-0">
-                已生成 {completedCount} 词
+              <span className="flex items-center gap-2 shrink-0">
+                {!result && (
+                  <button
+                    type="button"
+                    onClick={() => void loadTodayPack('manual')}
+                    className="text-[10px] font-black uppercase tracking-widest text-amber-400 hover:text-amber-300 cursor-pointer"
+                  >
+                    刷新今日包
+                  </button>
+                )}
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  已生成 {completedCount} 词
+                </span>
               </span>
             </div>
           </div>

@@ -9,7 +9,14 @@ async function runDailyPackCronJob(db) {
   const summary = { packDate, total: users.length, ok: 0, skipped: 0, failed: 0, errors: [] };
 
   for (const row of users) {
-    const existing = dailyPackService.getDailyPackRow(db, row.user_id, packDate);
+    const historyExclude = dailyPackService.getHistoryExclude(db);
+    const userCurrentProfile = dailyPackService.getUserCurrentProfile(db, row.user_id);
+    const inputSignature = dailyPackService.computeInputSignature(
+      row.theme,
+      historyExclude,
+      userCurrentProfile,
+    );
+    const existing = dailyPackService.getDailyPackRow(db, row.user_id, packDate, inputSignature);
     if (existing?.status === 'ready' && existing?.source === 'cron') {
       summary.skipped += 1;
       continue;
@@ -27,15 +34,27 @@ async function runDailyPackCronJob(db) {
   return summary;
 }
 
+function resolveCronHour() {
+  const raw = process.env.DAILY_PACK_CRON_HOUR;
+  if (raw === undefined || raw === '') return 2;
+  const hour = Number(raw);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) {
+    console.warn('[DailyPack Cron] invalid DAILY_PACK_CRON_HOUR=%s, fallback to 2', raw);
+    return 2;
+  }
+  return hour;
+}
+
 function scheduleDailyPackCron(db) {
   if (process.env.DAILY_PACK_CRON_ENABLED === 'false') {
     console.log('[DailyPack Cron] disabled via DAILY_PACK_CRON_ENABLED=false');
     return;
   }
+  const cronHour = resolveCronHour();
   setInterval(() => {
     const { hour, minute } = dailyPackService.getShanghaiHourMinute();
     const packDate = dailyPackService.getPackDate();
-    if (hour === 2 && minute === 0 && lastCronPackDate !== packDate) {
+    if (hour === cronHour && minute === 0 && lastCronPackDate !== packDate) {
       lastCronPackDate = packDate;
       (async () => {
         await runDailyPackCronJob(db);
@@ -45,7 +64,12 @@ function scheduleDailyPackCron(db) {
       })().catch((e) => console.error('[DailyPack/Listen Cron] failed:', e));
     }
   }, 60 * 1000);
-  console.log('[DailyPack Cron] scheduled for 02:00 then DailyListen', dailyPackService.PACK_TZ);
+  console.log(
+    '[DailyPack Cron] scheduled for %s:00 then DailyListen (%s; DAILY_PACK_CRON_HOUR=%s)',
+    String(cronHour).padStart(2, '0'),
+    dailyPackService.PACK_TZ,
+    cronHour,
+  );
 }
 
 module.exports = { runDailyPackCronJob, scheduleDailyPackCron };

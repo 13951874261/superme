@@ -5776,7 +5776,11 @@ app.get('/api/daily-pack/today', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
     const packDate = dailyPackService.getPackDate();
-    const row = dailyPackService.getDailyPackRow(db, userId, packDate);
+    const theme = String(req.query.theme || '').trim();
+    const historyExclude = String(req.query.historyExclude || '').trim();
+    const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
+    const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
+    const row = dailyPackService.getDailyPackRow(db, userId, packDate, inputSignature);
     res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
     console.error('[Daily Pack Today]', error);
@@ -5786,7 +5790,13 @@ app.get('/api/daily-pack/today', (req, res) => {
 
 app.post('/api/daily-pack/regenerate', async (req, res) => {
   try {
-    const { userId = 'default-user', type = 'both', theme } = req.body || {};
+    const {
+      userId = 'default-user',
+      type = 'both',
+      theme,
+      historyExclude,
+      userCurrentProfile,
+    } = req.body || {};
     const uid = dailyPackService.normalizeUserId(userId);
     const packDate = dailyPackService.getPackDate();
     const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
@@ -5794,23 +5804,108 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     if (!resolvedTheme) {
       return res.status(400).json({ success: false, error: '请先选择并同步学习主题' });
     }
-    if (type === 'flaw') {
-      const flawVocab = await dailyPackService.generateFlawVocabForUser(db, uid, null);
-      const existing = dailyPackService.getDailyPackRow(db, uid, packDate);
-      const row = dailyPackService.upsertDailyPack(db, {
-        userId: uid,
-        packDate,
-        theme: existing?.theme || resolvedTheme,
-        wakeup: existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null,
-        flawVocab,
-        source: 'manual',
-        status: 'ready',
-        errorMessage: null,
-      });
-      return res.json(dailyPackService.serializeDailyPack(row));
-    }
-    const row = await dailyPackService.generateDailyPackForUser(db, uid, resolvedTheme, 'manual');
-    res.json(dailyPackService.serializeDailyPack(row));
+
+    const resolvedHistoryExclude = String(historyExclude || dailyPackService.getHistoryExclude(db) || '').trim();
+    const resolvedUserCurrentProfile = String(
+      userCurrentProfile || dailyPackService.getUserCurrentProfile(db, uid) || ''
+    ).trim();
+    const inputSignature = dailyPackService.computeInputSignature(
+      resolvedTheme,
+      resolvedHistoryExclude,
+      resolvedUserCurrentProfile,
+    );
+
+    const existing = dailyPackService.getDailyPackRow(db, uid, packDate, inputSignature);
+    const existingWakeup = existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null;
+    const existingFlaw = existing?.flaw_vocab_json ? JSON.parse(existing.flaw_vocab_json) : null;
+
+    // 立刻落 generating 并返回，Dify 在后台跑，避免长连接占满浏览器/Nginx
+    const pending = dailyPackService.upsertDailyPack(db, {
+      userId: uid,
+      packDate,
+      theme: existing?.theme || resolvedTheme,
+      inputSignature,
+      wakeup: type === 'flaw' ? existingWakeup : null,
+      flawVocab: type === 'wakeup' ? existingFlaw : null,
+      source: 'manual',
+      status: 'generating',
+      errorMessage: null,
+    });
+    res.json(dailyPackService.serializeDailyPack(pending));
+
+    setImmediate(() => {
+      (async () => {
+        try {
+          if (type === 'flaw') {
+            const flawVocab = await dailyPackService.generateFlawVocabForUser(db, uid, resolvedTheme);
+            dailyPackService.upsertDailyPack(db, {
+              userId: uid,
+              packDate,
+              theme: existing?.theme || resolvedTheme,
+              inputSignature,
+              wakeup: existingWakeup,
+              flawVocab,
+              source: 'manual',
+              status: 'ready',
+              errorMessage: null,
+            });
+            return;
+          }
+          if (type === 'wakeup') {
+            const wakeup = await dailyPackService.callWakeupWorkflow({
+              theme: resolvedTheme,
+              userId: uid,
+              historyExclude: resolvedHistoryExclude,
+              userCurrentProfile: resolvedUserCurrentProfile,
+            });
+            dailyPackService.upsertDailyPack(db, {
+              userId: uid,
+              packDate,
+              theme: wakeup.theme || resolvedTheme,
+              inputSignature,
+              wakeup,
+              flawVocab: existingFlaw,
+              source: 'manual',
+              status: 'ready',
+              errorMessage: null,
+            });
+            return;
+          }
+
+          const wakeup = await dailyPackService.callWakeupWorkflow({
+            theme: resolvedTheme,
+            userId: uid,
+            historyExclude: resolvedHistoryExclude,
+            userCurrentProfile: resolvedUserCurrentProfile,
+          });
+          const flawVocab = await dailyPackService.generateFlawVocabForUser(db, uid, resolvedTheme);
+          dailyPackService.upsertDailyPack(db, {
+            userId: uid,
+            packDate,
+            theme: wakeup.theme || resolvedTheme,
+            inputSignature,
+            wakeup,
+            flawVocab,
+            source: 'manual',
+            status: 'ready',
+            errorMessage: null,
+          });
+        } catch (err) {
+          console.error('[Daily Pack Regenerate bg]', err);
+          dailyPackService.upsertDailyPack(db, {
+            userId: uid,
+            packDate,
+            theme: resolvedTheme,
+            inputSignature,
+            wakeup: type === 'flaw' ? existingWakeup : null,
+            flawVocab: type === 'wakeup' ? existingFlaw : null,
+            source: 'manual',
+            status: 'failed',
+            errorMessage: err.message || String(err),
+          });
+        }
+      })();
+    });
   } catch (error) {
     console.error('[Daily Pack Regenerate]', error);
     res.status(500).json({ success: false, error: error.message });

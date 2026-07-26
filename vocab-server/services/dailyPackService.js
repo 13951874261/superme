@@ -13,6 +13,16 @@ function normalizeUserId(raw) {
   return base || 'default-user';
 }
 
+// 稳定输入签名 — 仅对三个稳定字段哈希，时间类字段不参与缓存定位
+function computeInputSignature(theme, historyExclude, userCurrentProfile) {
+  const stable = JSON.stringify({
+    theme: String(theme || '').trim(),
+    history_exclude: String(historyExclude || '').trim(),
+    user_current_profile: String(userCurrentProfile || '').trim(),
+  });
+  return crypto.createHash('sha256').update(stable).digest('hex').slice(0, 16);
+}
+
 function getPackDate(now = new Date()) {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: PACK_TZ,
@@ -50,6 +60,7 @@ function initDailyPackTables(db) {
       user_id TEXT NOT NULL,
       pack_date TEXT NOT NULL,
       theme TEXT NOT NULL,
+      input_signature TEXT NOT NULL DEFAULT '',
       wakeup_json TEXT,
       flaw_vocab_json TEXT,
       source TEXT NOT NULL DEFAULT 'cron',
@@ -57,9 +68,44 @@ function initDailyPackTables(db) {
       error_message TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL,
-      UNIQUE(user_id, pack_date)
+      UNIQUE(user_id, pack_date, input_signature)
     )
   `).run();
+
+  // 迁移：若旧表缺少 input_signature 列，则重建（SQLite 不支持 DROP CONSTRAINT）
+  const cols = db.prepare('PRAGMA table_info(daily_packs)').all();
+  const hasSignature = cols.some((c) => c.name === 'input_signature');
+  if (!hasSignature) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE daily_packs RENAME TO daily_packs_old');
+      db.exec(`
+        CREATE TABLE daily_packs (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          pack_date TEXT NOT NULL,
+          theme TEXT NOT NULL,
+          input_signature TEXT NOT NULL DEFAULT '',
+          wakeup_json TEXT,
+          flaw_vocab_json TEXT,
+          source TEXT NOT NULL DEFAULT 'cron',
+          status TEXT NOT NULL DEFAULT 'generating',
+          error_message TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          UNIQUE(user_id, pack_date, input_signature)
+        )
+      `);
+      db.exec(`
+        INSERT INTO daily_packs
+          SELECT id, user_id, pack_date, theme, '',
+                 wakeup_json, flaw_vocab_json, source,
+                 status, error_message, created_at, updated_at
+          FROM daily_packs_old
+      `);
+      db.exec('DROP TABLE daily_packs_old');
+    })();
+    console.log('[DailyPack] migrated daily_packs: added input_signature, updated UNIQUE constraint');
+  }
 }
 
 function upsertUserTheme(db, userId, theme) {
@@ -85,11 +131,17 @@ function listUsersWithSyncedTheme(db) {
   `).all();
 }
 
-function getDailyPackRow(db, userId, packDate) {
+function getDailyPackRow(db, userId, packDate, inputSignature = null) {
   const uid = normalizeUserId(userId);
-  return db.prepare(`
-    SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ?
-  `).get(uid, packDate);
+  if (inputSignature !== null) {
+    return db.prepare(
+      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
+    ).get(uid, packDate, inputSignature);
+  }
+  // 未传签名时取当天最新一行（兜底，供旧调用方使用）
+  return db.prepare(
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
+  ).get(uid, packDate);
 }
 
 function getFallbackFlawVocab() {
@@ -153,13 +205,29 @@ function getSystemFormattedTime(now = new Date()) {
   return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${weekdayMap[dayIdx]}`;
 }
 
-async function callWakeupWorkflow({ theme, userId, historyExclude = '' }) {
+function getUserCurrentProfile(db, userId) {
+  const uid = normalizeUserId(userId);
+  try {
+    const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
+    return String(row?.profile_content || '').trim().slice(0, 280);
+  } catch {
+    return '';
+  }
+}
+
+function getHistoryExclude(db) {
+  const dbWords = getUserVocabWords(db);
+  return dbWords.slice(0, 50).join(', ');
+}
+
+async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurrentProfile = '' }) {
   const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
   if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const inputs = {
     theme,
-    history_exclude: historyExclude,
+    history_exclude: historyExclude || '',
+    user_current_profile: userCurrentProfile || '',
     _system_time: getSystemFormattedTime(),
     _system_timestamp_ms: Date.now(),
   };
@@ -185,26 +253,36 @@ async function generateFlawVocabForUser(db, userId, themeOverride) {
   const todayStr = getPackDate();
   const randomSalt = Math.floor(Math.random() * 10000);
   const randomFocus = FLAW_SUB_THEMES[Math.floor(Math.random() * FLAW_SUB_THEMES.length)];
-  const dynamicTheme = themeOverride || `identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`;
+  const userTheme = String(themeOverride || '').trim();
+  const dynamicTheme = userTheme
+    ? `${userTheme} | identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`
+    : `identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`;
+  const profile = getUserCurrentProfile(db, userId);
   try {
-    const parsed = await callWakeupWorkflow({ theme: dynamicTheme, userId, historyExclude: apiExclude });
+    const parsed = await callWakeupWorkflow({
+      theme: dynamicTheme,
+      userId,
+      historyExclude: apiExclude,
+      userCurrentProfile: profile,
+    });
     return buildFlawDisplayWords(parsed.vocab || [], dbWords);
   } catch {
     return buildFlawDisplayWords([], dbWords);
   }
 }
 
-function upsertDailyPack(db, { userId, packDate, theme, wakeup, flawVocab, source, status, errorMessage }) {
+function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, flawVocab, source, status, errorMessage }) {
   const uid = normalizeUserId(userId);
+  const sig = inputSignature || '';
   const now = Date.now();
-  const existing = getDailyPackRow(db, uid, packDate);
+  const existing = getDailyPackRow(db, uid, packDate, sig);
   const id = existing?.id || crypto.randomUUID();
   db.prepare(`
     INSERT INTO daily_packs (
-      id, user_id, pack_date, theme, wakeup_json, flaw_vocab_json,
+      id, user_id, pack_date, theme, input_signature, wakeup_json, flaw_vocab_json,
       source, status, error_message, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, pack_date) DO UPDATE SET
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, pack_date, input_signature) DO UPDATE SET
       theme = excluded.theme,
       wakeup_json = excluded.wakeup_json,
       flaw_vocab_json = excluded.flaw_vocab_json,
@@ -217,6 +295,7 @@ function upsertDailyPack(db, { userId, packDate, theme, wakeup, flawVocab, sourc
     uid,
     packDate,
     theme,
+    sig,
     wakeup ? JSON.stringify(wakeup) : null,
     flawVocab ? JSON.stringify(flawVocab) : null,
     source,
@@ -225,16 +304,21 @@ function upsertDailyPack(db, { userId, packDate, theme, wakeup, flawVocab, sourc
     existing?.created_at || now,
     now,
   );
-  return getDailyPackRow(db, uid, packDate);
+  return getDailyPackRow(db, uid, packDate, sig);
 }
 
 async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
   const packDate = getPackDate();
   const uid = normalizeUserId(userId);
+  // 生成前先计算稳定输入签名，后续所有 upsert 都使用同一个签名
+  const historyExclude = getHistoryExclude(db);
+  const profile = getUserCurrentProfile(db, uid);
+  const inputSignature = computeInputSignature(theme, historyExclude, profile);
   upsertDailyPack(db, {
     userId: uid,
     packDate,
     theme,
+    inputSignature,
     wakeup: null,
     flawVocab: null,
     source,
@@ -242,12 +326,18 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
     errorMessage: null,
   });
   try {
-    const wakeup = await callWakeupWorkflow({ theme, userId: uid });
-    const flawVocab = await generateFlawVocabForUser(db, uid, null);
+    const wakeup = await callWakeupWorkflow({
+      theme,
+      userId: uid,
+      historyExclude,
+      userCurrentProfile: profile,
+    });
+    const flawVocab = await generateFlawVocabForUser(db, uid, theme);
     return upsertDailyPack(db, {
       userId: uid,
       packDate,
       theme: wakeup.theme || theme,
+      inputSignature,
       wakeup,
       flawVocab,
       source,
@@ -259,6 +349,7 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
       userId: uid,
       packDate,
       theme,
+      inputSignature,
       wakeup: null,
       flawVocab: null,
       source,
@@ -287,6 +378,7 @@ module.exports = {
   PACK_TZ,
   FLAW_SUB_THEMES,
   normalizeUserId,
+  computeInputSignature,
   getPackDate,
   getShanghaiHourMinute,
   initDailyPackTables,
@@ -295,6 +387,8 @@ module.exports = {
   getDailyPackRow,
   getFallbackFlawVocab,
   buildFlawDisplayWords,
+  getUserCurrentProfile,
+  getHistoryExclude,
   generateFlawVocabForUser,
   generateDailyPackForUser,
   serializeDailyPack,

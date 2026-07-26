@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { addWord } from '../../services/vocabAPI';
-import { getTodayDailyPack, regenerateDailyPack } from '../../services/dailyPackAPI';
+import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack } from '../../services/dailyPackAPI';
 import { playSuccess, playError } from '../../utils/soundEffects';
 import SpeakButton from '../SpeakButton';
+import { useEnglishContext } from './english/context/EnglishContext';
 
 interface FlawVocabWord {
   word: string;
@@ -14,6 +15,7 @@ interface FlawVocabWord {
 }
 
 export default function DailyErrorVocabularyModule() {
+  const { theme } = useEnglishContext();
   const [words, setWords] = useState<FlawVocabWord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,9 +26,10 @@ export default function DailyErrorVocabularyModule() {
     setIsLoading(true);
     setError(null);
     try {
+      const queryInput = await buildDailyPackQueryInput(theme);
       const pack = regenerate
-        ? await regenerateDailyPack('flaw')
-        : await getTodayDailyPack();
+        ? await regenerateDailyPack('flaw', queryInput)
+        : await getTodayDailyPack(queryInput);
 
       if (pack.status === 'ready' && Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
         setWords(pack.flawVocab.slice(0, 6));
@@ -53,7 +56,10 @@ export default function DailyErrorVocabularyModule() {
   };
 
   useEffect(() => {
-    void fetchFlawVocab(false);
+    const timer = window.setTimeout(() => {
+      void fetchFlawVocab(false);
+    }, 800);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const handleAddWord = async (word: FlawVocabWord) => {
