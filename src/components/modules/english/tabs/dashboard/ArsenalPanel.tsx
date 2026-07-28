@@ -6,6 +6,8 @@ export interface ArsenalPanelProps {
   setGenre: (val: 'news' | 'meeting' | 'podcast' | 'reading') => void;
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1';
   setCefrLevel: (val: 'A2' | 'B1' | 'B2' | 'C1') => void;
+  duration?: '15' | '25' | '35';
+  setDuration?: (val: '15' | '25' | '35') => void;
   isAutoGenerating: boolean;
   handleAutoGenerate: () => void;
   isClearingAndReGenerating: boolean;
@@ -28,6 +30,8 @@ export function ArsenalPanel({
   setGenre,
   cefrLevel,
   setCefrLevel,
+  duration = '15',
+  setDuration,
   isAutoGenerating,
   handleAutoGenerate,
   isClearingAndReGenerating,
@@ -74,6 +78,17 @@ export function ArsenalPanel({
             <option value="B1">B1</option>
             <option value="B2">B2</option>
             <option value="C1">C1</option>
+          </select>
+
+          <select
+            value={duration}
+            onChange={(e) => setDuration && setDuration(e.target.value as any)}
+            className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)] cursor-pointer"
+            title="时长"
+          >
+            <option value="15">15分钟</option>
+            <option value="25">25分钟</option>
+            <option value="35">35分钟</option>
           </select>
 
           <button

@@ -3,9 +3,9 @@ const path = require('path');
 const crypto = require('crypto');
 const dailyPackService = require('./dailyPackService');
 
-const GENRES = ['meeting', 'news', 'podcast'];
+const GENRES = ['meeting', 'news', 'podcast', 'reading'];
 const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
-const DURATIONS = [5, 15, 25]; // minutes
+const DURATIONS = [15, 25, 35]; // minutes
 const CAPACITY_BYTES = 1024 * 1024 * 1024; // 1024MB
 const RETENTION_DAYS = 7;
 const LOGIN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;

@@ -150,9 +150,10 @@ export default function DashboardTab() {
 
   const [isArticleExpanded, setIsArticleExpanded] = useState(false);
 
-  // 题材与难度等级控制
+  // 题材、难度等级与时长控制
   const [cefrLevel, setCefrLevel] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
   const [genre, setGenre] = useState<'news' | 'meeting' | 'podcast' | 'reading'>('meeting');
+  const [duration, setDuration] = useState<'15' | '25' | '35'>('15');
 
   // 沉浸式阅读空间状态
   const [isImmersiveOpen, setIsImmersiveOpen] = useState(false);
@@ -727,6 +728,8 @@ export default function DashboardTab() {
           setGenre={setGenre}
           cefrLevel={cefrLevel}
           setCefrLevel={setCefrLevel}
+          duration={duration}
+          setDuration={setDuration}
           isAutoGenerating={isAutoGenerating}
           handleAutoGenerate={handleAutoGenerate}
           isClearingAndReGenerating={isClearingAndReGenerating}
