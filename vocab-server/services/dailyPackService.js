@@ -125,6 +125,30 @@ function upsertUserTheme(db, userId, theme) {
 }
 
 function listUsersWithSyncedTheme(db) {
+  // 兜底机制：自动检测数据库中的活跃有效用户，若未在 user_theme_prefs 登记主题，则初始化默认主题
+  try {
+    const activeUsers = db.prepare(`
+      SELECT DISTINCT user_id FROM (
+        SELECT user_id FROM vocabulary WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
+        UNION
+        SELECT user_id FROM training_sessions WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
+        UNION
+        SELECT user_id FROM daily_packs WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
+      )
+    `).all();
+
+    const defaultTheme = '商务谈判中的让步与施压';
+    for (const row of activeUsers) {
+      const uid = row.user_id;
+      const existing = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
+      if (!existing || !existing.theme || !existing.theme.trim()) {
+        upsertUserTheme(db, uid, defaultTheme);
+      }
+    }
+  } catch (e) {
+    console.warn('[dailyPackService] 活跃用户主题兜底初始化跳过:', e.message);
+  }
+
   return db.prepare(`
     SELECT user_id, theme FROM user_theme_prefs
     WHERE theme IS NOT NULL AND TRIM(theme) != ''

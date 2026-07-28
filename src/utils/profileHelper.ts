@@ -47,7 +47,9 @@ export function setAppUserId(userId: string) {
 }
 
 export function getAppUserId(): string {
-  return localStorage.getItem(USER_ID_KEY) || 'default-user';
+  const existing = localStorage.getItem(USER_ID_KEY);
+  if (existing) return existing;
+  return ensureAppUserId();
 }
 
 function getStoredProfileRaw(): string {

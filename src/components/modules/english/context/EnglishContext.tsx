@@ -314,6 +314,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('english_theme', theme);
     if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
     themeSyncTimerRef.current = window.setTimeout(() => {
+      // 静默自动向后台登记当前用户的 user_id 与 theme 绑定关系
       void syncUserTheme(theme).catch((err) => {
         console.warn('[EnglishContext] theme sync failed:', err);
       });

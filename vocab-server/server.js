@@ -5754,6 +5754,10 @@ app.put('/api/user/theme', (req, res) => {
       return res.status(400).json({ success: false, error: 'theme is required' });
     }
     const row = dailyPackService.upsertUserTheme(db, userId, theme);
+    // 异步在后台发起当日包预生成，使用户同步主题后即可享有用预推演缓存
+    void dailyPackService.generateDailyPackForUser(db, userId, theme, 'theme_sync')
+      .catch((err) => console.warn('[User Theme Sync] 后台异步预推演跳过/提示:', err.message));
+
     res.json({ success: true, ...row });
   } catch (error) {
     console.error('[User Theme Sync]', error);
