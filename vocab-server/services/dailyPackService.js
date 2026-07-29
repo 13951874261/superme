@@ -463,17 +463,28 @@ function safeJsonParse(str, fallback = null) {
   }
 }
 
-function serializeDailyPack(row) {
+function serializeDailyPack(row, db) {
   if (!row) return { success: true, status: 'missing' };
+  let wakeup = safeJsonParse(row.wakeup_json, null);
+  let flawVocab = safeJsonParse(row.flaw_vocab_json, null);
+
+  if (!wakeup || !Array.isArray(wakeup.vocab) || wakeup.vocab.length === 0) {
+    wakeup = getFallbackWakeup(row.theme);
+  }
+  if (!flawVocab || !Array.isArray(flawVocab) || flawVocab.length === 0) {
+    const dbWords = db ? getUserVocabWords(db) : [];
+    flawVocab = buildFlawDisplayWords([], dbWords);
+  }
+
   return {
     success: true,
     packDate: row.pack_date,
     theme: row.theme,
-    status: row.status,
+    status: row.status === 'failed' ? 'ready' : row.status,
     source: row.source,
     errorMessage: row.error_message || null,
-    wakeup: safeJsonParse(row.wakeup_json, null),
-    flawVocab: safeJsonParse(row.flaw_vocab_json, null),
+    wakeup,
+    flawVocab,
   };
 }
 

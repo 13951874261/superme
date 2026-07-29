@@ -5881,9 +5881,9 @@ app.get('/api/daily-pack/today', (req, res) => {
     const packDate = dailyPackService.getPackDate();
     const uid = dailyPackService.normalizeUserId(userId);
     const row = db.prepare(
-      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
+      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY updated_at DESC LIMIT 1'
     ).get(uid, packDate);
-    res.json(dailyPackService.serializeDailyPack(row));
+    res.json(dailyPackService.serializeDailyPack(row, db));
   } catch (error) {
     console.error('[Daily Pack Today]', error);
     res.status(500).json({ success: false, error: error.message });

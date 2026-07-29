@@ -39,7 +39,7 @@ export interface DailyPackResponse {
 }
 
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  const { timeoutMs, ...init } = options || {};
+  const { timeoutMs = 15_000, ...init } = options || {};
   const controller = timeoutMs && timeoutMs > 0 ? new AbortController() : null;
   const timer = controller && timeoutMs ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
