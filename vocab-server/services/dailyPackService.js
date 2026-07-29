@@ -456,6 +456,70 @@ function serializeDailyPack(row) {
   };
 }
 
+async function generateLongArticleForUser(db, userId, theme, source = 'cron', genre = 'meeting', cefrLevel = 'B1') {
+  const uid = normalizeUserId(userId);
+  const packDate = getPackDate();
+  const port = process.env.PORT || 3001;
+
+  console.log(`[LongArticle Service] Starting long article generation for user=${uid}, theme="${theme}", genre=${genre}, cefr=${cefrLevel}`);
+
+  // 检查是否已有该组条件（user, date, genre, cefrLevel）下的预生成长文
+  const existing = db.prepare(
+    'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ?'
+  ).get(uid, packDate, genre, cefrLevel);
+
+  if (existing) {
+    console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${genre}/${cefrLevel})`);
+    return { success: true, status: 'skipped', reason: 'already_generated' };
+  }
+
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        topic: theme,
+        materialText: theme,
+        userId: uid,
+        cefrLevel,
+        genre,
+        user_current_profile: getUserCurrentProfile(db, uid)
+      })
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      if (data?.quotaExceeded) {
+        console.warn(`[LongArticle Service] Quota exceeded for user=${uid}`);
+        return { success: false, status: 'quota_exceeded', message: data.message };
+      }
+      throw new Error(data.error || data.message || `HTTP ${res.status}`);
+    }
+
+    if (data.taskId) {
+      const taskId = data.taskId;
+      const startTime = Date.now();
+      while (Date.now() - startTime < 60000) {
+        await new Promise(r => setTimeout(r, 2000));
+        const statusRes = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract/status/${taskId}`);
+        const statusData = await statusRes.json().catch(() => ({}));
+        if (statusData.status === 'completed') {
+          console.log(`[LongArticle Service] Successfully completed long article task for user=${uid}`);
+          return { success: true, status: 'ready', payload: statusData };
+        } else if (statusData.status === 'failed') {
+          throw new Error(statusData.error || 'Task failed');
+        }
+      }
+      throw new Error('Task poll timeout (>60s)');
+    }
+
+    return { success: true, status: 'ready', data };
+  } catch (err) {
+    console.error(`[LongArticle Service] Failed for user=${uid}:`, err.message);
+    throw err;
+  }
+}
+
 module.exports = {
   PACK_TZ,
   FLAW_SUB_THEMES,
@@ -473,7 +537,9 @@ module.exports = {
   getHistoryExclude,
   generateFlawVocabForUser,
   generateDailyPackForUser,
+  generateLongArticleForUser,
   serializeDailyPack,
   upsertDailyPack,
   callWakeupWorkflow,
 };
+

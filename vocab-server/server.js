@@ -3046,6 +3046,25 @@ db.prepare(`
   )
 `).run();
 
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS daily_extracted_articles (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    quota_date TEXT NOT NULL,
+    theme TEXT NOT NULL,
+    genre TEXT NOT NULL,
+    cefr_level TEXT NOT NULL,
+    article TEXT NOT NULL,
+    words_json TEXT NOT NULL,
+    phrases_json TEXT NOT NULL,
+    sentences_json TEXT NOT NULL,
+    created_at INTEGER,
+    updated_at INTEGER,
+    UNIQUE(user_id, quota_date, genre, cefr_level)
+  )
+`).run();
+
+
 // ==========================================
 // 2. ???????????????????????(????????????????????????API)
 // ==========================================
@@ -4943,31 +4962,84 @@ app.post('/api/material/process-and-extract', async (req, res) => {
     }
   });
 });// ==========================================
+// 获取今日持久化的已生成长文与提纯词汇（支持按 genre 和 cefrLevel 组合条件匹配）
+// ==========================================
+app.get('/api/english/daily-extract/article', (req, res) => {
+  const { userId = 'default-user', date, genre, cefrLevel } = req.query;
+  const targetDate = String(date || new Date().toISOString().split('T')[0]);
+  const uid = dailyPackService.normalizeUserId(userId);
+
+  try {
+    let row;
+    if (genre && cefrLevel) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ?'
+      ).get(uid, targetDate, String(genre), String(cefrLevel));
+    }
+
+    if (!row) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(uid, targetDate);
+    }
+
+    if (row) {
+      return res.json({
+        success: true,
+        found: true,
+        data: {
+          article: row.article,
+          words: JSON.parse(row.words_json || '[]'),
+          phrases: JSON.parse(row.phrases_json || '[]'),
+          sentences: JSON.parse(row.sentences_json || '[]'),
+          theme: row.theme,
+          genre: row.genre,
+          cefrLevel: row.cefr_level,
+          updatedAt: row.updated_at
+        }
+      });
+    } else {
+      return res.json({
+        success: true,
+        found: false
+      });
+    }
+  } catch (error) {
+    console.error('[Daily Extract Article GET Error]', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
 // 清空今日配额与当日新增词条（生词本日清）
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
   const { userId = 'default-user' } = req.body;
   const today = new Date().toISOString().split('T')[0];
+  const uid = dailyPackService.normalizeUserId(userId);
   
-  // ?????????????????????? 00:00:00 ??????
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayStartMs = todayStart.getTime();
 
   try {
-    // 1. ?????????????????????????????
+    // 1. 清理今日新增的 ai_extracted 和 ai_phrase 词条
     const deleteWords = db.prepare("DELETE FROM vocabulary WHERE added_at >= ? AND (dict_type = 'ai_extracted' OR dict_type = 'ai_phrase')");
     const wordsResult = deleteWords.run(todayStartMs);
 
-    // 2. ????????????????
+    // 2. 重置今日配额
     const resetQuota = db.prepare("UPDATE daily_vocab_quota SET words_added = 0, phrases_added = 0 WHERE user_id = ? AND quota_date = ?");
-    const quotaResult = resetQuota.run(userId, today);
+    const quotaResult = resetQuota.run(uid, today);
 
-    console.log(`[Clear Today] User ${userId}: deleted ${wordsResult.changes} words/phrases, reset quota for ${today}`);
+    // 3. 删除今日持久化的长文及提纯记录
+    const deleteArticle = db.prepare("DELETE FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ?");
+    deleteArticle.run(uid, today);
+
+    console.log(`[Clear Today] User ${uid}: deleted ${wordsResult.changes} words/phrases, reset quota & article for ${today}`);
 
     return res.json({
       success: true,
-      message: 'Successfully cleared today\'s vocabulary entries and reset daily quota.',
+      message: 'Successfully cleared today\'s vocabulary entries, daily article and reset daily quota.',
       deletedCount: wordsResult.changes,
       quotaReset: quotaResult.changes > 0
     });
@@ -5703,6 +5775,38 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       );
     } catch (e) {
       console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
+    }
+
+    try {
+      const articleId = crypto.randomUUID();
+      const nowMs = Date.now();
+      db.prepare(`
+        INSERT INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(user_id, quota_date, genre, cefr_level) DO UPDATE SET
+          theme = excluded.theme,
+          article = excluded.article,
+          words_json = excluded.words_json,
+          phrases_json = excluded.phrases_json,
+          sentences_json = excluded.sentences_json,
+          updated_at = excluded.updated_at
+      `).run(
+        articleId,
+        userId,
+        today,
+        topic || 'General Business',
+        genre || 'meeting',
+        cefrLevel || 'B1',
+        articleText,
+        JSON.stringify(wordsToStore.map(w => w.word)),
+        JSON.stringify(phrasesToStore),
+        JSON.stringify(uniqueSentenceList),
+        nowMs,
+        nowMs
+      );
+      console.log(`[Daily Extract Async] Persisted article to SQLite for user ${userId} on ${today} (genre=${genre}, cefr=${cefrLevel}).`);
+    } catch (dbErr) {
+      console.error('[Daily Extract Async] Failed to persist daily article to database:', dbErr);
     }
 
     console.log(`[Daily Extract Async] Completed ${taskId}. User ${userId} ${today} added ${wordsAddedCount} words.`);

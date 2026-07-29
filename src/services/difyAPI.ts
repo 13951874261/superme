@@ -568,6 +568,39 @@ export async function getDailyQuotaStatus(userId = getAppUserId()): Promise<Dail
   return activeQuotaPromise;
 }
 
+export async function getDailyExtractedArticle(
+  userId = getAppUserId(),
+  genre?: string,
+  cefrLevel?: string
+): Promise<{
+  found: boolean;
+  data?: {
+    article: string;
+    words: string[];
+    phrases: string[];
+    sentences: string[];
+    theme: string;
+    genre: string;
+    cefrLevel: string;
+    updatedAt?: number;
+  };
+}> {
+  let url = `/api/english/daily-extract/article?userId=${encodeURIComponent(userId)}`;
+  if (genre) url += `&genre=${encodeURIComponent(genre)}`;
+  if (cefrLevel) url += `&cefrLevel=${encodeURIComponent(cefrLevel)}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" }
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success) {
+    throw new Error(data?.error || '获取每日长文数据失败');
+  }
+  return data;
+}
+
+
 export async function triggerEnglishMasteryExtraction(
   topic: string,
   materialText = '',
