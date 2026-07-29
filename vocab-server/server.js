@@ -4870,6 +4870,72 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
+try {
+  db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'").run();
+} catch (e) {}
+
+// ==========================================
+// 获取今日持久化的已生成长文与提纯词汇（支持按 genre, cefrLevel, duration 组合条件匹配）
+// ==========================================
+app.get('/api/english/daily-extract/article', (req, res) => {
+  const { userId = 'default-user', date, genre, cefrLevel, duration } = req.query;
+  const targetDate = String(date || new Date().toISOString().split('T')[0]);
+  const uid = dailyPackService.normalizeUserId(userId);
+
+  try {
+    let row;
+    if (genre && cefrLevel && duration) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+      ).get(uid, targetDate, String(genre), String(cefrLevel), String(duration));
+    }
+
+    if (!row && genre && cefrLevel) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(uid, targetDate, String(genre), String(cefrLevel));
+    }
+
+    if (!row) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(uid, targetDate);
+    }
+
+    if (!row) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(uid);
+    }
+
+    if (row) {
+      return res.json({
+        success: true,
+        found: true,
+        data: {
+          article: row.article,
+          words: JSON.parse(row.words_json || '[]'),
+          phrases: JSON.parse(row.phrases_json || '[]'),
+          sentences: JSON.parse(row.sentences_json || '[]'),
+          theme: row.theme,
+          genre: row.genre,
+          cefrLevel: row.cefr_level,
+          duration: row.duration || '25',
+          updatedAt: row.updated_at
+        }
+      });
+    } else {
+      return res.json({
+        success: true,
+        found: false
+      });
+    }
+  } catch (error) {
+    console.error('[Daily Extract Get Article]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
       // 写入 SQLite
       let addedCount = 0;
       const now = Date.now();
@@ -5443,6 +5509,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
     }
 
+    const resolvedProfile = String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || '').trim();
+
     const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
@@ -5461,7 +5529,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             genre: genre,
             history_exclude: historyExclude,
             user_flaws: userFlaws,
-            user_current_profile: user_current_profile || '',
+            user_current_profile: resolvedProfile,
             _system_time,
             _system_timestamp_ms,
           }),

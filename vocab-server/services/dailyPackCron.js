@@ -60,11 +60,29 @@ async function runDailyPackCronJob(db, targetUserId = null) {
       }
     }
 
-    // ── 步骤 3: AI 生成长文并提纯（即使前两步失败，长文生成依然强制运行） ──
+    // ── 步骤 3: AI 生成长文并提纯（基于 Dify 工作流多维入参矩阵，预生成多组合长文落库） ──
+    const COMBINATIONS = [
+      { genre: 'meeting', cefrLevel: 'B1', duration: '25' },
+      { genre: 'email', cefrLevel: 'B2', duration: '15' },
+      { genre: 'report', cefrLevel: 'C1', duration: '35' },
+      { genre: 'negotiation', cefrLevel: 'B2', duration: '25' },
+      { genre: 'presentation', cefrLevel: 'C1', duration: '25' },
+    ];
+
     try {
-      console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): STARTING for user=${userId}...`);
-      const longResult = await dailyPackService.generateLongArticleForUser(db, userId, theme, 'cron', 'meeting', 'B1');
-      console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): SUCCESS for user=${userId} (status=${longResult.status})`);
+      console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): STARTING for user=${userId} (${COMBINATIONS.length} combinations)...`);
+      for (const combo of COMBINATIONS) {
+        await dailyPackService.generateLongArticleForUser(
+          db,
+          userId,
+          theme,
+          'cron',
+          combo.genre,
+          combo.cefrLevel,
+          combo.duration
+        );
+      }
+      console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): SUCCESS for user=${userId}`);
       summary.step3Success += 1;
     } catch (err) {
       summary.step3Failed += 1;

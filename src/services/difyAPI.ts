@@ -571,7 +571,8 @@ export async function getDailyQuotaStatus(userId = getAppUserId()): Promise<Dail
 export async function getDailyExtractedArticle(
   userId = getAppUserId(),
   genre?: string,
-  cefrLevel?: string
+  cefrLevel?: string,
+  duration?: string
 ): Promise<{
   found: boolean;
   data?: {
@@ -582,12 +583,14 @@ export async function getDailyExtractedArticle(
     theme: string;
     genre: string;
     cefrLevel: string;
+    duration?: string;
     updatedAt?: number;
   };
 }> {
   let url = `/api/english/daily-extract/article?userId=${encodeURIComponent(userId)}`;
   if (genre) url += `&genre=${encodeURIComponent(genre)}`;
   if (cefrLevel) url += `&cefrLevel=${encodeURIComponent(cefrLevel)}`;
+  if (duration) url += `&duration=${encodeURIComponent(duration)}`;
 
   const response = await fetch(url, {
     method: "GET",

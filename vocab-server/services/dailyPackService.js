@@ -232,11 +232,20 @@ function getSystemFormattedTime(now = new Date()) {
 function getUserCurrentProfile(db, userId) {
   const uid = normalizeUserId(userId);
   try {
-    const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
-    return String(row?.profile_content || '').trim().slice(0, 280);
-  } catch {
-    return '';
+    if (db) {
+      const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
+      if (row?.profile_content && String(row.profile_content).trim()) {
+        return String(row.profile_content).trim().slice(0, 300);
+      }
+      const lastMem = db.prepare('SELECT memory_text FROM user_memories WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(uid);
+      if (lastMem?.memory_text && String(lastMem.memory_text).trim()) {
+        return String(lastMem.memory_text).trim().slice(0, 300);
+      }
+    }
+  } catch (e) {
+    console.warn('[Profile Extract] Failed to extract profile from db:', e.message);
   }
+  return '关注商务英语实践、注重表达流利度与高阶谈判沟通';
 }
 
 function getHistoryExclude(db) {
@@ -501,20 +510,19 @@ function serializeDailyPack(row, db) {
   };
 }
 
-async function generateLongArticleForUser(db, userId, theme, source = 'cron', genre = 'meeting', cefrLevel = 'B1') {
+async function generateLongArticleForUser(db, userId, theme, source = 'cron', genre = 'meeting', cefrLevel = 'B1', duration = '25') {
   const uid = normalizeUserId(userId);
   const packDate = getPackDate();
   const port = process.env.PORT || 3001;
 
-  console.log(`[LongArticle Service] Starting long article generation for user=${uid}, theme="${theme}", genre=${genre}, cefr=${cefrLevel}`);
+  console.log(`[LongArticle Service] Starting long article generation for user=${uid}, theme="${theme}", genre=${genre}, cefr=${cefrLevel}, duration=${duration}`);
 
-  // 检查是否已有该组条件（user, date, genre, cefrLevel）下的预生成长文
   const existing = db.prepare(
-    'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ?'
-  ).get(uid, packDate, genre, cefrLevel);
+    'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+  ).get(uid, packDate, genre, cefrLevel, String(duration));
 
   if (existing) {
-    console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${genre}/${cefrLevel})`);
+    console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${genre}/${cefrLevel}/${duration})`);
     return { success: true, status: 'skipped', reason: 'already_generated' };
   }
 
@@ -528,6 +536,7 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
         userId: uid,
         cefrLevel,
         genre,
+        duration: String(duration),
         user_current_profile: getUserCurrentProfile(db, uid)
       })
     });
