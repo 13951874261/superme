@@ -163,9 +163,8 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null) {
     ).get(uid, packDate, inputSignature);
     if (exact) return exact;
   }
-  // 未查到强签名时，做二级容错：若当天存在该用户 status = 'ready' 且含有真实词汇内容的缓存记录，予以匹配
   return db.prepare(
-    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' AND wakeup_json LIKE '%\"word\"%' ORDER BY created_at DESC LIMIT 1"
+    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY updated_at DESC LIMIT 1"
   ).get(uid, packDate);
 }
 
@@ -342,35 +341,57 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
   const uid = normalizeUserId(userId);
   const sig = inputSignature || '';
   const now = Date.now();
-  const existing = getDailyPackRow(db, uid, packDate, sig);
-  const id = existing?.id || crypto.randomUUID();
-  db.prepare(`
-    INSERT INTO daily_packs (
-      id, user_id, pack_date, theme, input_signature, wakeup_json, flaw_vocab_json,
-      source, status, error_message, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, pack_date, input_signature) DO UPDATE SET
-      theme = excluded.theme,
-      wakeup_json = excluded.wakeup_json,
-      flaw_vocab_json = excluded.flaw_vocab_json,
-      source = excluded.source,
-      status = excluded.status,
-      error_message = excluded.error_message,
-      updated_at = excluded.updated_at
-  `).run(
-    id,
-    uid,
-    packDate,
-    theme,
-    sig,
-    wakeup ? JSON.stringify(wakeup) : null,
-    flawVocab ? JSON.stringify(flawVocab) : null,
-    source,
-    status,
-    errorMessage || null,
-    existing?.created_at || now,
-    now,
-  );
+
+  const existing = db.prepare(
+    'SELECT id FROM daily_packs WHERE user_id = ? AND pack_date = ?'
+  ).get(uid, packDate);
+
+  if (existing) {
+    db.prepare(`
+      UPDATE daily_packs SET
+        theme = ?,
+        input_signature = ?,
+        wakeup_json = ?,
+        flaw_vocab_json = ?,
+        source = ?,
+        status = ?,
+        error_message = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      theme,
+      sig,
+      wakeup ? JSON.stringify(wakeup) : null,
+      flawVocab ? JSON.stringify(flawVocab) : null,
+      source,
+      status,
+      errorMessage || null,
+      now,
+      existing.id
+    );
+  } else {
+    const newId = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO daily_packs (
+        id, user_id, pack_date, theme, input_signature, wakeup_json, flaw_vocab_json,
+        source, status, error_message, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      newId,
+      uid,
+      packDate,
+      theme,
+      sig,
+      wakeup ? JSON.stringify(wakeup) : null,
+      flawVocab ? JSON.stringify(flawVocab) : null,
+      source,
+      status,
+      errorMessage || null,
+      now,
+      now
+    );
+  }
+
   return getDailyPackRow(db, uid, packDate, sig);
 }
 
@@ -498,9 +519,8 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
 
     if (data.taskId) {
       const taskId = data.taskId;
-      const startTime = Date.now();
-      while (Date.now() - startTime < 60000) {
-        await new Promise(r => setTimeout(r, 2000));
+      while (true) {
+        await new Promise(r => setTimeout(r, 2500));
         const statusRes = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract/status/${taskId}`);
         const statusData = await statusRes.json().catch(() => ({}));
         if (statusData.status === 'completed') {
@@ -510,7 +530,6 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
           throw new Error(statusData.error || 'Task failed');
         }
       }
-      throw new Error('Task poll timeout (>60s)');
     }
 
     return { success: true, status: 'ready', data };

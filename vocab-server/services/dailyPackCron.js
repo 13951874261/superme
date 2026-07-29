@@ -3,9 +3,18 @@ const dailyListenPreGenerateService = require('./dailyListenPreGenerateService')
 
 let lastCronPackDate = null;
 
-async function runDailyPackCronJob(db) {
+async function runDailyPackCronJob(db, targetUserId = null) {
   const packDate = dailyPackService.getPackDate();
-  const users = dailyPackService.listUsersWithSyncedTheme(db);
+  let users = dailyPackService.listUsersWithSyncedTheme(db);
+  if (targetUserId) {
+    const found = users.filter(u => u.user_id === targetUserId);
+    if (found.length > 0) {
+      users = found;
+    } else {
+      const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(targetUserId);
+      users = [{ user_id: targetUserId, theme: pref?.theme || '商务谈判：让步与施压' }];
+    }
+  }
   const summary = {
     packDate,
     totalUsers: users.length,

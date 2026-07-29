@@ -114,6 +114,7 @@ if (isProd && !fs.existsSync('/var/www/super-agent')) {
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+db.pragma('busy_timeout = 10000');
 
 // ????????vocabulary ???
 db.prepare(`
@@ -5431,9 +5432,6 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     let wfResponse;
-    const fetchController = new AbortController();
-    const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000); // 10分钟超时
-
     try {
       wfResponse = await fetch(`${baseUrl}/chat-messages`, {
         method: "POST",
@@ -5441,7 +5439,6 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           "Authorization": `Bearer ${difyApiKey}`,
           "Content-Type": "application/json",
         },
-        signal: fetchController.signal,
         body: JSON.stringify({
           inputs: injectOralSystemTime({
             theme: topic || "General Business",
@@ -5458,9 +5455,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           user: userId,
         }),
       });
-      clearTimeout(fetchTimeout);
     } catch (fetchErr) {
-      clearTimeout(fetchTimeout);
       console.error("[Daily Extract] Dify fetch 请求发起失败:", fetchErr);
       extractionTasks.set(taskId, { status: 'failed', error: `Dify 服务请求失败: ${fetchErr.message}`, createdAt: Date.now() });
       return;

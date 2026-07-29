@@ -39,27 +39,27 @@ export interface DailyPackResponse {
 }
 
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  const { timeoutMs = 30_000, ...init } = options || {};
-  const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  const { timeoutMs, ...init } = options || {};
+  const controller = timeoutMs && timeoutMs > 0 ? new AbortController() : null;
+  const timer = controller && timeoutMs ? window.setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
     const res = await fetch(path, {
       headers: { 'Content-Type': 'application/json' },
       cache: 'no-store',
       ...init,
-      signal: controller.signal,
+      ...(controller ? { signal: controller.signal } : {}),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
     return data as T;
   } catch (err) {
     const name = err instanceof Error ? err.name : '';
-    if (name === 'AbortError' || controller.signal.aborted) {
-      throw new Error(`请求超时（>${Math.round(timeoutMs / 1000)}s）`);
+    if (name === 'AbortError' || (controller && controller.signal.aborted)) {
+      throw new Error(`请求超时（>${Math.round((timeoutMs || 0) / 1000)}s）`);
     }
     throw err;
   } finally {
-    window.clearTimeout(timer);
+    if (timer) window.clearTimeout(timer);
   }
 }
 
@@ -87,7 +87,6 @@ export async function syncUserTheme(theme: string, userId = getAppUserId()) {
   return request<{ success: boolean; userId: string; theme: string }>('/api/user/theme', {
     method: 'PUT',
     body: JSON.stringify({ userId, theme }),
-    timeoutMs: 20_000,
   });
 }
 
@@ -112,7 +111,7 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
     let lastErr: unknown;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        return await request<DailyPackResponse>(path, { timeoutMs: 10_000 });
+        return await request<DailyPackResponse>(path);
       } catch (err) {
         lastErr = err;
         const msg = err instanceof Error ? err.message : '';
@@ -135,11 +134,9 @@ async function pollTodayUntilSettled(
   userId: string,
   input: DailyPackQueryInput,
   need: 'wakeup' | 'flaw' | 'both',
-  timeoutMs = 180_000,
 ): Promise<DailyPackResponse> {
-  const started = Date.now();
   let last: DailyPackResponse | null = null;
-  while (Date.now() - started < timeoutMs) {
+  while (true) {
     last = await getTodayDailyPack(input, userId);
     if (last.status === 'failed') return last;
     if (last.status === 'ready') {
@@ -150,7 +147,6 @@ async function pollTodayUntilSettled(
     }
     await new Promise((r) => setTimeout(r, 2000));
   }
-  return last || { success: false, status: 'failed', errorMessage: '等待生成超时' };
 }
 
 export async function regenerateDailyPack(
