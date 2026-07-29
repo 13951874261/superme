@@ -3873,6 +3873,21 @@ app.post('/api/dify/dict-query', async (req, res) => {
     return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
   }
 
+  const trimmedWord = String(word).trim();
+  const targetDictType = dictType || 'en_zh_bidirectional';
+
+  try {
+    const cachedRow = db.prepare(`
+      SELECT response_payload FROM dict_query_log
+      WHERE word = ? COLLATE NOCASE AND dict_type = ? AND is_success = 1
+      ORDER BY created_at DESC LIMIT 1
+    `).get(trimmedWord, targetDictType);
+    if (cachedRow?.response_payload) {
+      const parsed = JSON.parse(cachedRow.response_payload);
+      return res.json(parsed);
+    }
+  } catch (e) {}
+
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 120000;
@@ -3881,7 +3896,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
 
   try {
-    console.log(`[Dict Query] 发起查询: "${word}", 词典类型: "${dictType}"`);
+    console.log(`[Dict Query] 发起查询: "${trimmedWord}", 词典类型: "${targetDictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
