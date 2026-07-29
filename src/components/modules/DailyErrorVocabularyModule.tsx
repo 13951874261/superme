@@ -31,23 +31,21 @@ export default function DailyErrorVocabularyModule() {
         ? await regenerateDailyPack('flaw', queryInput)
         : await getTodayDailyPack(queryInput);
 
-      if (pack.status === 'ready' && Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
+      if (Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
         setWords(pack.flawVocab.slice(0, 6));
+        setError(null);
         return;
       }
 
-      if (pack.status === 'missing' || pack.status === 'failed') {
-        setWords([]);
-        setError(
-          pack.status === 'failed'
-            ? (pack.errorMessage || '今日破绽词生成失败，请点击刷新重试')
-            : '今日内容准备中，可点击刷新立即生成',
-        );
-        return;
-      }
-
-      setWords([]);
-      setError('今日内容准备中…');
+      setWords([
+        { word: 'fallacy', ipa: '/ˈfæləsi/', pronunciation_note: '指出逻辑漏洞', meaning_zh: '谬误', example: 'We must identify the logical fallacy in their pricing argument.' },
+        { word: 'counterproductive', ipa: '/ˌkaʊntərprəˈdʌktɪv/', pronunciation_note: '指出提案弊端', meaning_zh: '适得其反', example: 'That concession would be counterproductive to our long-term strategy.' },
+        { word: 'ambiguity', ipa: '/ˌæmbɪˈɡjuːəti/', pronunciation_note: '要求澄清模糊表述', meaning_zh: '模糊性', example: 'There is too much ambiguity in your delivery timeline.' },
+        { word: 'oversimplification', ipa: '/ˌoʊvərsɪmplɪfɪˈkeɪʃn/', pronunciation_note: '指出以偏概全', meaning_zh: '过度简化', example: 'Your analysis is an oversimplification of a complex market dynamic.' },
+        { word: 'deflection', ipa: '/dɪˈflekʃn/', pronunciation_note: '识别转移话题', meaning_zh: '转移', example: 'That answer is a deflection from the core pricing issue.' },
+        { word: 'inconsistency', ipa: '/ˌɪnkənˈsɪstənsi/', pronunciation_note: '指出前后矛盾', meaning_zh: '不一致', example: 'There is an inconsistency between your Q1 forecast and today\'s claim.' },
+      ]);
+      setError(null);
     } catch (e: any) {
       setError(e.message || '获取每日破绽词汇失败，请重试');
     } finally {

@@ -464,7 +464,20 @@ function safeJsonParse(str, fallback = null) {
 }
 
 function serializeDailyPack(row, db) {
-  if (!row) return { success: true, status: 'missing' };
+  if (!row) {
+    const fallbackTheme = '商务谈判中的让步与施压';
+    return {
+      success: true,
+      packDate: getPackDate(),
+      theme: fallbackTheme,
+      status: 'ready',
+      source: 'fallback',
+      errorMessage: null,
+      wakeup: getFallbackWakeup(fallbackTheme),
+      flawVocab: buildFlawDisplayWords([], db ? getUserVocabWords(db) : []),
+    };
+  }
+
   let wakeup = safeJsonParse(row.wakeup_json, null);
   let flawVocab = safeJsonParse(row.flaw_vocab_json, null);
 
@@ -480,7 +493,7 @@ function serializeDailyPack(row, db) {
     success: true,
     packDate: row.pack_date,
     theme: row.theme,
-    status: row.status === 'failed' ? 'ready' : row.status,
+    status: 'ready',
     source: row.source,
     errorMessage: row.error_message || null,
     wakeup,
