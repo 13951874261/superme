@@ -237,10 +237,6 @@ function getUserCurrentProfile(db, userId) {
       if (row?.profile_content && String(row.profile_content).trim()) {
         return String(row.profile_content).trim().slice(0, 300);
       }
-      const lastMem = db.prepare('SELECT memory_text FROM user_memories WHERE user_id = ? ORDER BY created_at DESC LIMIT 1').get(uid);
-      if (lastMem?.memory_text && String(lastMem.memory_text).trim()) {
-        return String(lastMem.memory_text).trim().slice(0, 300);
-      }
     }
   } catch (e) {
     console.warn('[Profile Extract] Failed to extract profile from db:', e.message);
@@ -517,9 +513,20 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
 
   console.log(`[LongArticle Service] Starting long article generation for user=${uid}, theme="${theme}", genre=${genre}, cefr=${cefrLevel}, duration=${duration}`);
 
-  const existing = db.prepare(
-    'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
-  ).get(uid, packDate, genre, cefrLevel, String(duration));
+  try {
+    db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'").run();
+  } catch (e) {}
+
+  let existing;
+  try {
+    existing = db.prepare(
+      'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+    ).get(uid, packDate, genre, cefrLevel, String(duration));
+  } catch (e) {
+    existing = db.prepare(
+      'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ?'
+    ).get(uid, packDate, genre, cefrLevel);
+  }
 
   if (existing) {
     console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${genre}/${cefrLevel}/${duration})`);
