@@ -5598,8 +5598,11 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           }
         } catch (readErr) {
           console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
-          return;
+          if (!answer || answer.trim().length < 50) {
+            extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+            return;
+          }
+          console.warn("[Daily Extract] 流链接中途断开，但已接收到部分内容，尝试继续解析落库...");
         }
       } else {
         try {
@@ -5609,8 +5612,11 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           }
         } catch (readErr) {
           console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
-          return;
+          if (!answer || answer.trim().length < 50) {
+            extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+            return;
+          }
+          console.warn("[Daily Extract] 流链接中途断开，但已接收到部分内容，尝试继续解析落库...");
         }
       }
       

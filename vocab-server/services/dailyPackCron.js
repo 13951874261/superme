@@ -71,19 +71,29 @@ async function runDailyPackCronJob(db, targetUserId = null) {
 
     try {
       console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): STARTING for user=${userId} (${COMBINATIONS.length} combinations)...`);
+      let successCount = 0;
       for (const combo of COMBINATIONS) {
-        await dailyPackService.generateLongArticleForUser(
-          db,
-          userId,
-          theme,
-          'cron',
-          combo.genre,
-          combo.cefrLevel,
-          combo.duration
-        );
+        try {
+          await dailyPackService.generateLongArticleForUser(
+            db,
+            userId,
+            theme,
+            'cron',
+            combo.genre,
+            combo.cefrLevel,
+            combo.duration
+          );
+          successCount++;
+        } catch (comboErr) {
+          console.warn(`[DailyPack Cron Orchestration] Combo ${combo.genre}/${combo.cefrLevel}/${combo.duration} failed (non-blocking):`, comboErr.message);
+        }
       }
-      console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): SUCCESS for user=${userId}`);
-      summary.step3Success += 1;
+      if (successCount > 0) {
+        console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): SUCCESS for user=${userId} (${successCount}/${COMBINATIONS.length} combinations generated)`);
+        summary.step3Success += 1;
+      } else {
+        throw new Error('All article combinations failed');
+      }
     } catch (err) {
       summary.step3Failed += 1;
       summary.errors.push({ userId, step: 'step3_long_article', error: err.message || String(err) });
