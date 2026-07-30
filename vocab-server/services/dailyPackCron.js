@@ -84,6 +84,7 @@ async function runDailyPackCronJob(db, targetUserId = null) {
             combo.duration
           );
           successCount++;
+          await new Promise((r) => setTimeout(r, 2000));
         } catch (comboErr) {
           console.warn(`[DailyPack Cron Orchestration] Combo ${combo.genre}/${combo.cefrLevel}/${combo.duration} failed (non-blocking):`, comboErr.message);
         }

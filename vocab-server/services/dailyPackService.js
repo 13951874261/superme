@@ -533,49 +533,58 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
     return { success: true, status: 'skipped', reason: 'already_generated' };
   }
 
-  try {
-    const res = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        topic: theme,
-        materialText: theme,
-        userId: uid,
-        cefrLevel,
-        genre,
-        duration: String(duration),
-        user_current_profile: getUserCurrentProfile(db, uid)
-      })
-    });
+  let attempts = 0;
+  while (attempts < 2) {
+    attempts++;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          topic: theme,
+          materialText: theme,
+          userId: uid,
+          cefrLevel,
+          genre,
+          duration: String(duration),
+          user_current_profile: getUserCurrentProfile(db, uid)
+        })
+      });
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.success) {
-      if (data?.quotaExceeded) {
-        console.warn(`[LongArticle Service] Quota exceeded for user=${uid}`);
-        return { success: false, status: 'quota_exceeded', message: data.message };
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) {
+        if (data?.quotaExceeded) {
+          console.warn(`[LongArticle Service] Quota exceeded for user=${uid}`);
+          return { success: false, status: 'quota_exceeded', message: data.message };
+        }
+        throw new Error(data.error || data.message || `HTTP ${res.status}`);
       }
-      throw new Error(data.error || data.message || `HTTP ${res.status}`);
-    }
 
-    if (data.taskId) {
-      const taskId = data.taskId;
-      while (true) {
-        await new Promise(r => setTimeout(r, 2500));
-        const statusRes = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract/status/${taskId}`);
-        const statusData = await statusRes.json().catch(() => ({}));
-        if (statusData.status === 'completed') {
-          console.log(`[LongArticle Service] Successfully completed long article task for user=${uid}`);
-          return { success: true, status: 'ready', payload: statusData };
-        } else if (statusData.status === 'failed') {
-          throw new Error(statusData.error || 'Task failed');
+      if (data.taskId) {
+        const taskId = data.taskId;
+        while (true) {
+          await new Promise(r => setTimeout(r, 2500));
+          const statusRes = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract/status/${taskId}`);
+          const statusData = await statusRes.json().catch(() => ({}));
+          if (statusData.status === 'completed') {
+            console.log(`[LongArticle Service] Successfully completed long article task for user=${uid}`);
+            return { success: true, status: 'ready', payload: statusData };
+          } else if (statusData.status === 'failed') {
+            throw new Error(statusData.error || 'Task failed');
+          }
         }
       }
-    }
 
-    return { success: true, status: 'ready', data };
-  } catch (err) {
-    console.error(`[LongArticle Service] Failed for user=${uid}:`, err.message);
-    throw err;
+      return { success: true, status: 'ready', data };
+    } catch (err) {
+      if (attempts < 2 && (err.message.includes('terminated') || err.message.includes('failed') || err.message.includes('fetch'))) {
+        console.warn(`[LongArticle Service] Task attempt ${attempts} failed (${err.message}). Retrying in 2s...`);
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      console.error(`[LongArticle Service] Failed for user=${uid}:`, err.message);
+      throw err;
+    }
   }
 }
 
