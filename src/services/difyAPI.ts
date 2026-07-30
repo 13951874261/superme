@@ -1036,15 +1036,26 @@ export async function getDueVocabulary(userId = getAppUserId()) {
   return Array.isArray(data) ? data : [];
 }
 
+export function mapGenreToDify(genre: string): 'news' | 'meeting' | 'podcast' | 'reading' {
+  const g = String(genre || '').toLowerCase();
+  if (['news', 'podcast', 'meeting', 'reading'].includes(g)) {
+    return g as any;
+  }
+  if (g === 'email' || g === 'report') return 'reading';
+  if (g === 'negotiation' || g === 'presentation') return 'meeting';
+  return 'meeting';
+}
+
 export async function runListenMaterialGenerator(
   theme: string,
-  genre: 'news' | 'meeting' | 'podcast',
+  genre: string,
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1',
   duration: number | 'short' | 'long',
   userId = getAppUserId()
 ): Promise<any> {
   const durationParam = typeof duration === 'number' ? `${duration}分钟` : duration;
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
+  const safeGenre = mapGenreToDify(genre);
 
   // ── 长音频（≥5 分钟）：走后端后台任务机制，立即返回 taskId ──
   if (isLong) {
@@ -1052,7 +1063,7 @@ export async function runListenMaterialGenerator(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: injectUserProfileAndTime({ theme, cefr_level: cefrLevel, genre, duration: durationParam }),
+        inputs: injectUserProfileAndTime({ theme, cefr_level: cefrLevel, genre: safeGenre, duration: durationParam }),
         userId,
       }),
     });
@@ -1079,7 +1090,7 @@ export async function runListenMaterialGenerator(
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: injectUserProfileAndTime({ theme, genre, cefr_level: cefrLevel, duration: durationParam }),
+      inputs: injectUserProfileAndTime({ theme, genre: safeGenre, cefr_level: cefrLevel, duration: durationParam }),
       userId,
     }),
   });

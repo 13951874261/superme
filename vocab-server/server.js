@@ -2237,9 +2237,24 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   return answer;
 }
 
+function mapGenreToDify(genre) {
+  const g = String(genre || '').toLowerCase();
+  if (['news', 'podcast', 'meeting', 'reading'].includes(g)) {
+    return g;
+  }
+  if (g === 'email' || g === 'report') return 'reading';
+  if (g === 'negotiation' || g === 'presentation') return 'meeting';
+  return 'meeting';
+}
+
 app.post('/api/listen/generate-material', async (req, res) => {
   try {
     const { inputs, userId = 'default-user' } = req.body;
+    const safeInputs = { ...(inputs || {}) };
+    if (safeInputs.genre) {
+      safeInputs.genre = mapGenreToDify(safeInputs.genre);
+    }
+
     const apiKey = process.env.DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ success: false, error: '后端未配置 DIFY_LISTEN_GEN_API_KEY' });
@@ -2253,7 +2268,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: inputs || {},
+        inputs: safeInputs,
         response_mode: 'blocking',
         user: userId,
       })
@@ -5495,6 +5510,11 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
+    const safeDifyGenre = mapGenreToDify(genre);
+    const genreTopicPrefix = ['email', 'report', 'negotiation', 'presentation'].includes(String(genre).toLowerCase())
+      ? `[题材: ${genre}] `
+      : '';
+
     let wfResponse;
     try {
       wfResponse = await fetch(`${baseUrl}/chat-messages`, {
@@ -5505,9 +5525,9 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         },
         body: JSON.stringify({
           inputs: injectOralSystemTime({
-            theme: topic || "General Business",
+            theme: `${genreTopicPrefix}${topic || "General Business"}`,
             cefr_level: cefrLevel,
-            genre: genre,
+            genre: safeDifyGenre,
             history_exclude: historyExclude,
             user_flaws: userFlaws,
             user_current_profile: resolvedProfile,
