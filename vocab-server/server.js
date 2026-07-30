@@ -5558,11 +5558,39 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 
     let answer = "";
     let streamError = "";
+    let fullRawBuffer = "";
+
+    function extractDifyTextFromPayload(parsed) {
+      if (!parsed || typeof parsed !== 'object') return '';
+      let str = '';
+      if (typeof parsed.answer === 'string') str += parsed.answer;
+      if (typeof parsed.text === 'string') str += parsed.text;
+      if (typeof parsed.output === 'string') str += parsed.output;
+      if (typeof parsed.delta === 'string') str += parsed.delta;
+      if (parsed.delta && typeof parsed.delta === 'object') {
+        if (typeof parsed.delta.text === 'string') str += parsed.delta.text;
+        if (typeof parsed.delta.content === 'string') str += parsed.delta.content;
+      }
+      if (parsed.data && typeof parsed.data === 'object') {
+        if (typeof parsed.data.text === 'string') str += parsed.data.text;
+        if (typeof parsed.data.answer === 'string') str += parsed.data.answer;
+        if (typeof parsed.data.output === 'string') str += parsed.data.output;
+        if (parsed.data.outputs && typeof parsed.data.outputs === 'object') {
+          const o = parsed.data.outputs;
+          if (typeof o.answer === 'string') str += o.answer;
+          if (typeof o.text === 'string') str += o.text;
+          if (typeof o.result === 'string') str += o.result;
+          if (typeof o.article === 'string') str += o.article;
+          if (typeof o.output === 'string') str += o.output;
+        }
+      }
+      return str;
+    }
 
     const contentType = wfResponse.headers.get("content-type") || "";
     if (contentType.includes("application/json")) {
       const jsonData = await wfResponse.json().catch(() => ({}));
-      answer = jsonData.answer || jsonData.text || "";
+      answer = jsonData.answer || jsonData.text || jsonData.data?.outputs?.answer || jsonData.data?.outputs?.text || jsonData.data?.outputs?.result || "";
       if (jsonData.event === 'error' || jsonData.status === 'error') {
         streamError = jsonData.message || jsonData.error || JSON.stringify(jsonData);
       }
@@ -5577,6 +5605,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
             sseBuffer += chunk;
+            fullRawBuffer += chunk;
             let lineEnd = sseBuffer.indexOf('\n');
             while (lineEnd !== -1) {
               const line = sseBuffer.substring(0, lineEnd).trim();
@@ -5589,12 +5618,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
                     if (parsed.event === 'error' || parsed.status === 'error') {
                       streamError = parsed.message || parsed.error || JSON.stringify(parsed);
                     }
-                    const chunkText =
-                      (typeof parsed.answer === 'string' ? parsed.answer : '') ||
-                      (typeof parsed.text === 'string' ? parsed.text : '') ||
-                      (typeof parsed.delta === 'string' ? parsed.delta : '') ||
-                      (parsed.data?.outputs?.answer || parsed.data?.outputs?.text || parsed.data?.outputs?.result || '');
-
+                    const chunkText = extractDifyTextFromPayload(parsed);
                     if (chunkText) {
                       answer += chunkText;
                     }
@@ -5610,6 +5634,11 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       } else {
         const text = await wfResponse.text().catch(() => "");
         answer = text;
+      }
+
+      if (!answer.trim() && fullRawBuffer.trim()) {
+        console.log('[Daily Extract Stream Fallback] 触发原始 Buffer 兜底策略...');
+        answer = fullRawBuffer.trim();
       }
     }
 
