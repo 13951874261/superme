@@ -5535,7 +5535,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             _system_timestamp_ms,
           }),
           query: "generate",
-          response_mode: "blocking",
+          response_mode: "streaming",
           user: userId,
         }),
       });
@@ -5567,50 +5567,43 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         streamError = jsonData.message || jsonData.error || JSON.stringify(jsonData);
       }
     } else {
-      const decoder = new TextDecoder();
-      let sseBuffer = "";
-
-      const parseSSELines = (text) => {
-        sseBuffer += text;
-        let lineEnd = sseBuffer.indexOf('\n');
-        while (lineEnd !== -1) {
-          const line = sseBuffer.substring(0, lineEnd).trim();
-          sseBuffer = sseBuffer.substring(lineEnd + 1);
-          if (line.startsWith("data: ")) {
-            const dataStr = line.slice(6).trim();
-            if (dataStr === "[DONE]") break;
-            try {
-              const parsed = JSON.parse(dataStr);
-              if (parsed.event === 'error' || parsed.status === 'error') {
-                streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+      if (wfResponse.body && typeof wfResponse.body.getReader === 'function') {
+        const reader = wfResponse.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            sseBuffer += chunk;
+            let lineEnd = sseBuffer.indexOf('\n');
+            while (lineEnd !== -1) {
+              const line = sseBuffer.substring(0, lineEnd).trim();
+              sseBuffer = sseBuffer.substring(lineEnd + 1);
+              if (line.startsWith("data: ")) {
+                const dataStr = line.slice(6).trim();
+                if (dataStr !== "[DONE]") {
+                  try {
+                    const parsed = JSON.parse(dataStr);
+                    if (parsed.event === 'error' || parsed.status === 'error') {
+                      streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+                    }
+                    if (typeof parsed.answer === 'string' && parsed.answer) {
+                      answer += parsed.answer;
+                    }
+                  } catch (e) {}
+                }
               }
-              if (typeof parsed.answer === 'string' && parsed.answer) {
-                answer = mergeStreamAnswer(answer, parsed.answer);
-              }
-            } catch (e) {}
-          }
-          lineEnd = sseBuffer.indexOf('\n');
-        }
-      };
-
-      if (wfResponse.body) {
-        if (typeof wfResponse.body.getReader === 'function') {
-          const reader = wfResponse.body.getReader();
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              const chunk = decoder.decode(value, { stream: true });
-              parseSSELines(chunk);
-            }
-          } catch (readErr) {
-            console.error("[Daily Extract] 强行读取流失败:", readErr);
-            if (!answer || answer.trim().length < 50) {
-              extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
-              return;
+              lineEnd = sseBuffer.indexOf('\n');
             }
           }
+        } catch (readErr) {
+          console.warn("[Daily Extract Stream] 流化传输读取结束:", readErr.message);
         }
+      } else {
+        const text = await wfResponse.text().catch(() => "");
+        answer = text;
       }
     }
 
