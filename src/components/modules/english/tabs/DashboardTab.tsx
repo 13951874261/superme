@@ -5,7 +5,7 @@ import { useEnglishContext, getThemeOptions, StageTrack } from '../context/Engli
 import StrategicRoadmap from './StrategicRoadmap';
 import CustomThemeModal from './CustomThemeModal';
 import { ThemeGateway } from './dashboard/ThemeGateway';
-import { ArsenalPanel } from './dashboard/ArsenalPanel';
+import { ArsenalPanel, GenreType } from './dashboard/ArsenalPanel';
 import { IntelBriefing } from './dashboard/IntelBriefing';
 import { DailyBriefingCard } from './dashboard/DailyBriefingCard';
 import { ImmersiveReader } from './dashboard/ImmersiveReader';
@@ -152,7 +152,7 @@ export default function DashboardTab() {
 
   // 题材、难度等级与时长控制
   const [cefrLevel, setCefrLevel] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
-  const [genre, setGenre] = useState<'news' | 'meeting' | 'podcast' | 'reading'>('meeting');
+  const [genre, setGenre] = useState<GenreType>('meeting');
   const [duration, setDuration] = useState<'15' | '25' | '35'>('15');
 
   // 沉浸式阅读空间状态
@@ -878,6 +878,37 @@ export default function DashboardTab() {
           await setThemeFocus({ theme: newThemeName }).catch(() => {});
         }}
       />
+
+      {isAutoGenerating && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-100 text-center space-y-4">
+            <div className="w-14 h-14 rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] flex items-center justify-center mx-auto">
+              <Loader2 className="w-7 h-7 animate-spin" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">
+                正在为您生成【{
+                  {
+                    meeting: '高管会议',
+                    email: '商务邮件',
+                    report: '行业研报',
+                    negotiation: '谈判拉扯',
+                    presentation: '路演汇报',
+                    reading: '沉浸阅读',
+                    news: '财经新闻'
+                  }[genre] || genre
+                } / {cefrLevel} / {duration}分钟】商业长文
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 font-medium">
+                AI 大模型正在深度解析语境并提纯核心词汇、精选短语与实战句型，预计需 15~30 秒...
+              </p>
+            </div>
+            <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+              <div className="bg-[var(--color-brand)] h-full w-2/3 animate-pulse" />
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

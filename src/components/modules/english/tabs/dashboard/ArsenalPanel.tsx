@@ -1,9 +1,11 @@
 import React from 'react';
 import { Target, Loader2, Zap, Trash2, AlertTriangle } from 'lucide-react';
 
+export type GenreType = 'news' | 'meeting' | 'podcast' | 'reading' | 'email' | 'report' | 'negotiation' | 'presentation';
+
 export interface ArsenalPanelProps {
-  genre: 'news' | 'meeting' | 'podcast' | 'reading';
-  setGenre: (val: 'news' | 'meeting' | 'podcast' | 'reading') => void;
+  genre: GenreType;
+  setGenre: (val: GenreType) => void;
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1';
   setCefrLevel: (val: 'A2' | 'B1' | 'B2' | 'C1') => void;
   duration?: '15' | '25' | '35';
@@ -63,9 +65,12 @@ export function ArsenalPanel({
             title="题材"
           >
             <option value="meeting">高管会议</option>
-            <option value="news">财经新闻</option>
-            <option value="podcast">深度播客</option>
+            <option value="email">商务邮件</option>
+            <option value="report">行业研报</option>
+            <option value="negotiation">谈判拉扯</option>
+            <option value="presentation">路演汇报</option>
             <option value="reading">沉浸阅读</option>
+            <option value="news">财经新闻</option>
           </select>
 
           <select

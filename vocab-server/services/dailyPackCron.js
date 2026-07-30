@@ -61,19 +61,33 @@ async function runDailyPackCronJob(db, targetUserId = null) {
     }
 
     // ── 步骤 3: AI 生成长文并提纯（基于 Dify 工作流多维入参矩阵，预生成多组合长文落库） ──
-    const COMBINATIONS = [
-      { genre: 'meeting', cefrLevel: 'B1', duration: '25' },
-      { genre: 'email', cefrLevel: 'B2', duration: '15' },
-      { genre: 'report', cefrLevel: 'C1', duration: '35' },
-      { genre: 'negotiation', cefrLevel: 'B2', duration: '25' },
-      { genre: 'presentation', cefrLevel: 'C1', duration: '25' },
-    ];
+    const GENRES = ['meeting', 'email', 'report', 'negotiation', 'presentation', 'reading', 'news'];
+    const CEFR_LEVELS = ['B1', 'B2', 'C1', 'A2'];
+    const DURATIONS = ['15', '25', '35'];
+
+    const COMBINATIONS = [];
+    for (const genre of GENRES) {
+      for (const cefrLevel of CEFR_LEVELS) {
+        for (const duration of DURATIONS) {
+          COMBINATIONS.push({ genre, cefrLevel, duration });
+        }
+      }
+    }
 
     try {
       console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): STARTING for user=${userId} (${COMBINATIONS.length} combinations)...`);
       let successCount = 0;
       for (const combo of COMBINATIONS) {
         try {
+          const existingCombo = db.prepare(
+            'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+          ).get(userId, packDate, combo.genre, combo.cefrLevel, combo.duration);
+
+          if (existingCombo) {
+            successCount++;
+            continue;
+          }
+
           await dailyPackService.generateLongArticleForUser(
             db,
             userId,

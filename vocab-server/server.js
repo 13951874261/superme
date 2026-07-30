@@ -4987,39 +4987,73 @@ app.get('/api/english/daily-extract/article', (req, res) => {
 
   try {
     let row;
+    let isShared = false;
+
+    // 1. 顺位 1: 优先匹配当前用户的精准组合 (genre + cefr_level + duration)
     if (genre && cefrLevel && duration) {
       row = db.prepare(
         'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
       ).get(uid, targetDate, String(genre), String(cefrLevel), String(duration));
     }
 
+    // 2. 顺位 2: 匹配当前用户的 (genre + cefr_level)
     if (!row && genre && cefrLevel) {
       row = db.prepare(
         'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
       ).get(uid, targetDate, String(genre), String(cefrLevel));
     }
 
-    if (!row) {
+    // 3. 顺位 3: 全库跨用户 0ms 共享复用匹配 (相同 genre + cefr_level + duration)
+    if (!row && genre && cefrLevel && duration) {
       row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid, targetDate);
+        'SELECT * FROM daily_extracted_articles WHERE genre = ? AND cefr_level = ? AND duration = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(String(genre), String(cefrLevel), String(duration));
+      if (row) isShared = true;
     }
 
-    if (!row) {
+    // 4. 顺位 4: 全库跨用户 0ms 共享复用匹配 (相同 genre + cefr_level)
+    if (!row && genre && cefrLevel) {
       row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid);
+        'SELECT * FROM daily_extracted_articles WHERE genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(String(genre), String(cefrLevel));
+      if (row) isShared = true;
     }
 
     if (row) {
+      const words = JSON.parse(row.words_json || '[]');
+      const phrases = JSON.parse(row.phrases_json || '[]');
+      const sentences = JSON.parse(row.sentences_json || '[]');
+
+      // 决策 3：若是共享复用的文章，自动将提纯的生词静默关联收录至当前用户 uid 的词库中
+      if (isShared && Array.isArray(words)) {
+        try {
+          const now = Date.now();
+          for (const w of words) {
+            const wordStr = typeof w === 'string' ? w.trim() : (w?.word || '');
+            if (!wordStr) continue;
+            const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
+            if (!existing) {
+              const id = crypto.randomUUID();
+              db.prepare(`
+                INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              `).run(id, wordStr, 'ai_extracted', row.theme || 'daily_extraction', JSON.stringify({ source: 'Daily Extract (Shared)', topic: row.theme }), now, now, '[]');
+            }
+          }
+        } catch (e) {
+          console.warn('[Daily Extract Article GET] 共享收录生词本异常:', e.message);
+        }
+      }
+
       return res.json({
         success: true,
         found: true,
+        isShared,
         data: {
           article: row.article,
-          words: JSON.parse(row.words_json || '[]'),
-          phrases: JSON.parse(row.phrases_json || '[]'),
-          sentences: JSON.parse(row.sentences_json || '[]'),
+          words,
+          phrases,
+          sentences,
           theme: row.theme,
           genre: row.genre,
           cefrLevel: row.cefr_level,
