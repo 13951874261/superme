@@ -4870,72 +4870,6 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-try {
-  db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'").run();
-} catch (e) {}
-
-// ==========================================
-// 获取今日持久化的已生成长文与提纯词汇（支持按 genre, cefrLevel, duration 组合条件匹配）
-// ==========================================
-app.get('/api/english/daily-extract/article', (req, res) => {
-  const { userId = 'default-user', date, genre, cefrLevel, duration } = req.query;
-  const targetDate = String(date || new Date().toISOString().split('T')[0]);
-  const uid = dailyPackService.normalizeUserId(userId);
-
-  try {
-    let row;
-    if (genre && cefrLevel && duration) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
-      ).get(uid, targetDate, String(genre), String(cefrLevel), String(duration));
-    }
-
-    if (!row && genre && cefrLevel) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid, targetDate, String(genre), String(cefrLevel));
-    }
-
-    if (!row) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid, targetDate);
-    }
-
-    if (!row) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid);
-    }
-
-    if (row) {
-      return res.json({
-        success: true,
-        found: true,
-        data: {
-          article: row.article,
-          words: JSON.parse(row.words_json || '[]'),
-          phrases: JSON.parse(row.phrases_json || '[]'),
-          sentences: JSON.parse(row.sentences_json || '[]'),
-          theme: row.theme,
-          genre: row.genre,
-          cefrLevel: row.cefr_level,
-          duration: row.duration || '25',
-          updatedAt: row.updated_at
-        }
-      });
-    } else {
-      return res.json({
-        success: true,
-        found: false
-      });
-    }
-  } catch (error) {
-    console.error('[Daily Extract Get Article]', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
       // 写入 SQLite
       let addedCount = 0;
       const now = Date.now();
@@ -5047,15 +4981,21 @@ app.get('/api/english/daily-extract/article', (req, res) => {
 // 获取今日持久化的已生成长文与提纯词汇（支持按 genre 和 cefrLevel 组合条件匹配）
 // ==========================================
 app.get('/api/english/daily-extract/article', (req, res) => {
-  const { userId = 'default-user', date, genre, cefrLevel } = req.query;
+  const { userId = 'default-user', date, genre, cefrLevel, duration } = req.query;
   const targetDate = String(date || new Date().toISOString().split('T')[0]);
   const uid = dailyPackService.normalizeUserId(userId);
 
   try {
     let row;
-    if (genre && cefrLevel) {
+    if (genre && cefrLevel && duration) {
       row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ?'
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+      ).get(uid, targetDate, String(genre), String(cefrLevel), String(duration));
+    }
+
+    if (!row && genre && cefrLevel) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
       ).get(uid, targetDate, String(genre), String(cefrLevel));
     }
 
@@ -5063,6 +5003,12 @@ app.get('/api/english/daily-extract/article', (req, res) => {
       row = db.prepare(
         'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? ORDER BY updated_at DESC LIMIT 1'
       ).get(uid, targetDate);
+    }
+
+    if (!row) {
+      row = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE user_id = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(uid);
     }
 
     if (row) {
@@ -5077,6 +5023,7 @@ app.get('/api/english/daily-extract/article', (req, res) => {
           theme: row.theme,
           genre: row.genre,
           cefrLevel: row.cefr_level,
+          duration: row.duration || '25',
           updatedAt: row.updated_at
         }
       });
@@ -5611,26 +5558,6 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           }
         }
       }
-    }
-      
-      if (sseBuffer.trim().startsWith("data: ")) {
-        const line = sseBuffer.trim();
-        const dataStr = line.slice(6).trim();
-        if (dataStr !== "[DONE]") {
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.event === 'error' || parsed.status === 'error') {
-              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
-            }
-            if (typeof parsed.answer === 'string' && parsed.answer) {
-              answer = mergeStreamAnswer(answer, parsed.answer);
-            }
-          } catch (e) {}
-        }
-      }
-    } else {
-      extractionTasks.set(taskId, { status: 'failed', error: "Streaming not supported by Dify backend", createdAt: Date.now() });
-      return;
     }
 
     if (streamError) {
