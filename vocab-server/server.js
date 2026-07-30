@@ -5534,7 +5534,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             _system_timestamp_ms,
           }),
           query: "generate",
-          response_mode: "streaming",
+          response_mode: "blocking",
           user: userId,
         }),
       });
@@ -5557,68 +5557,61 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 
     let answer = "";
     let streamError = "";
-    const decoder = new TextDecoder();
-    let sseBuffer = "";
 
-    const parseSSELines = (text) => {
-      sseBuffer += text;
-      let lineEnd = sseBuffer.indexOf('\n');
-      while (lineEnd !== -1) {
-        const line = sseBuffer.substring(0, lineEnd).trim();
-        sseBuffer = sseBuffer.substring(lineEnd + 1);
-        if (line.startsWith("data: ")) {
-          const dataStr = line.slice(6).trim();
-          if (dataStr === "[DONE]") break;
+    const contentType = wfResponse.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const jsonData = await wfResponse.json().catch(() => ({}));
+      answer = jsonData.answer || jsonData.text || "";
+      if (jsonData.event === 'error' || jsonData.status === 'error') {
+        streamError = jsonData.message || jsonData.error || JSON.stringify(jsonData);
+      }
+    } else {
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+
+      const parseSSELines = (text) => {
+        sseBuffer += text;
+        let lineEnd = sseBuffer.indexOf('\n');
+        while (lineEnd !== -1) {
+          const line = sseBuffer.substring(0, lineEnd).trim();
+          sseBuffer = sseBuffer.substring(lineEnd + 1);
+          if (line.startsWith("data: ")) {
+            const dataStr = line.slice(6).trim();
+            if (dataStr === "[DONE]") break;
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.event === 'error' || parsed.status === 'error') {
+                streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+              }
+              if (typeof parsed.answer === 'string' && parsed.answer) {
+                answer = mergeStreamAnswer(answer, parsed.answer);
+              }
+            } catch (e) {}
+          }
+          lineEnd = sseBuffer.indexOf('\n');
+        }
+      };
+
+      if (wfResponse.body) {
+        if (typeof wfResponse.body.getReader === 'function') {
+          const reader = wfResponse.body.getReader();
           try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.event === 'error' || parsed.status === 'error') {
-              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              const chunk = decoder.decode(value, { stream: true });
+              parseSSELines(chunk);
             }
-            if (parsed.message && /Server Unavailable|ConnectTimeout|\[models\]/i.test(String(parsed.message))) {
-              streamError = String(parsed.message);
+          } catch (readErr) {
+            console.error("[Daily Extract] 强行读取流失败:", readErr);
+            if (!answer || answer.trim().length < 50) {
+              extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+              return;
             }
-            if (typeof parsed.answer === 'string' && parsed.answer) {
-              answer = mergeStreamAnswer(answer, parsed.answer);
-            }
-          } catch (e) {}
-        }
-        lineEnd = sseBuffer.indexOf('\n');
-      }
-    };
-
-    if (wfResponse.body) {
-      if (typeof wfResponse.body.getReader === 'function') {
-        const reader = wfResponse.body.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            parseSSELines(chunk);
           }
-        } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          if (!answer || answer.trim().length < 50) {
-            extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
-            return;
-          }
-          console.warn("[Daily Extract] 流链接中途断开，但已接收到部分内容，尝试继续解析落库...");
-        }
-      } else {
-        try {
-          for await (const chunk of wfResponse.body) {
-            const chunkText = decoder.decode(chunk, { stream: true });
-            parseSSELines(chunkText);
-          }
-        } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          if (!answer || answer.trim().length < 50) {
-            extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
-            return;
-          }
-          console.warn("[Daily Extract] 流链接中途断开，但已接收到部分内容，尝试继续解析落库...");
         }
       }
+    }
       
       if (sseBuffer.trim().startsWith("data: ")) {
         const line = sseBuffer.trim();

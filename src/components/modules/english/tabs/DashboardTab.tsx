@@ -530,7 +530,7 @@ export default function DashboardTab() {
     const fetchPersistedArticle = async () => {
       try {
         const { getDailyExtractedArticle } = await import('../../../../services/difyAPI');
-        const durationStr = '25';
+        const durationStr = String(duration || '15');
         const res = await getDailyExtractedArticle(getAppUserId(), genre, cefrLevel, durationStr);
         if (!active) return;
 
@@ -562,7 +562,7 @@ export default function DashboardTab() {
     return () => {
       active = false;
     };
-  }, [genre, cefrLevel, theme, intelSource]);
+  }, [genre, cefrLevel, duration, theme, intelSource]);
 
 
   const handleAutoGenerate = async () => {
