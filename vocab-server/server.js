@@ -5589,8 +5589,14 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
                     if (parsed.event === 'error' || parsed.status === 'error') {
                       streamError = parsed.message || parsed.error || JSON.stringify(parsed);
                     }
-                    if (typeof parsed.answer === 'string' && parsed.answer) {
-                      answer += parsed.answer;
+                    const chunkText =
+                      (typeof parsed.answer === 'string' ? parsed.answer : '') ||
+                      (typeof parsed.text === 'string' ? parsed.text : '') ||
+                      (typeof parsed.delta === 'string' ? parsed.delta : '') ||
+                      (parsed.data?.outputs?.answer || parsed.data?.outputs?.text || parsed.data?.outputs?.result || '');
+
+                    if (chunkText) {
+                      answer += chunkText;
                     }
                   } catch (e) {}
                 }
