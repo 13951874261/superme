@@ -5369,14 +5369,67 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
 
 // ????????? daily-extract??????? taskId ????????
 app.post('/api/english/daily-extract', async (req, res) => {
-  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', user_current_profile } = req.body;
+  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration, user_current_profile } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const uid = dailyPackService.normalizeUserId(userId);
 
   try {
-    // Step 1: ????????????????????????
+    // Step 0: 先查后建机制 (缓存防重检查)
+    const durationStr = duration ? String(duration) : '25';
+    let existingArticle = db.prepare(
+      'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
+    ).get(uid, today, String(genre || 'meeting'), String(cefrLevel || 'B1'));
+
+    // 全局兜底复用检查
+    if (!existingArticle) {
+      existingArticle = db.prepare(
+        'SELECT * FROM daily_extracted_articles WHERE genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
+      ).get(String(genre || 'meeting'), String(cefrLevel || 'B1'));
+    }
+
+    if (existingArticle && existingArticle.article) {
+      console.log(`[Daily Extract Cache Hit] Found existing article for user ${uid} on ${today} (genre=${genre}, cefr=${cefrLevel}). Returning cached data directly.`);
+      const taskId = crypto.randomUUID();
+      const words = JSON.parse(existingArticle.words_json || '[]');
+      const phrases = JSON.parse(existingArticle.phrases_json || '[]');
+      const sentences = JSON.parse(existingArticle.sentences_json || '[]');
+
+      extractionTasks.set(taskId, {
+        status: 'completed',
+        createdAt: Date.now(),
+        payload: {
+          success: true,
+          quotaExceeded: false,
+          isCached: true,
+          words,
+          phrases,
+          sentences,
+          data: {
+            article: existingArticle.article,
+            words,
+            phrases,
+            sentences,
+            theme: existingArticle.theme,
+            genre: existingArticle.genre,
+            cefrLevel: existingArticle.cefr_level,
+            duration: existingArticle.duration || durationStr,
+            updatedAt: existingArticle.updated_at
+          }
+        }
+      });
+
+      return res.json({
+        success: true,
+        taskId,
+        isCached: true,
+        message: 'Existing article found for today, returning cached content directly.'
+      });
+    }
+
+    // Step 1: 配额初始化与检查
     let quotaRow = db.prepare(
       'SELECT * FROM daily_vocab_quota WHERE user_id = ? AND quota_date = ?'
-    ).get(userId, today);
+    ).get(uid, today);
 
     if (!quotaRow) {
       const id = crypto.randomUUID();

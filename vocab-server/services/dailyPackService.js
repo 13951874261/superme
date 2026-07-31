@@ -245,9 +245,32 @@ function getUserCurrentProfile(db, userId) {
 }
 
 function getHistoryExclude(db) {
+  if (!db) return '';
+  try {
+    const now = Date.now();
+    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
+    // 艾宾浩斯感知去重：
+    // 排除：未到复习时间的词汇 (next_review_date > now) 或者 7 天内新增且掌握良好的词汇 (added_at > 7天前 且 repetitions > 2)
+    // 保留：到了复习日 (next_review_date <= now) 的词汇以供巩固强化
+    const rows = db.prepare(`
+      SELECT word FROM vocabulary 
+      WHERE (next_review_date IS NOT NULL AND next_review_date > ?)
+         OR (added_at IS NOT NULL AND added_at > ? AND repetitions > 2)
+      ORDER BY added_at DESC
+      LIMIT 100
+    `).all(now, sevenDaysAgo);
+
+    if (rows && rows.length > 0) {
+      const words = rows.map((r) => String(r.word || '').toLowerCase().trim()).filter(Boolean);
+      return Array.from(new Set(words)).slice(0, 50).join(', ');
+    }
+  } catch (e) {
+    console.warn('[getHistoryExclude] Failed query via review cycle, falling back:', e.message);
+  }
   const dbWords = getUserVocabWords(db);
   return dbWords.slice(0, 50).join(', ');
 }
+
 
 function getFallbackWakeup(theme = '商务谈判中的让步与施压') {
   return {
@@ -320,19 +343,29 @@ async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurr
 
 async function generateFlawVocabForUser(db, userId, themeOverride) {
   const dbWords = getUserVocabWords(db);
-  const apiExclude = dbWords.slice(-50).join(', ');
+  const apiExclude = getHistoryExclude(db) || dbWords.slice(-50).join(', ');
   const todayStr = getPackDate();
-  const randomSalt = Math.floor(Math.random() * 10000);
-  const randomFocus = FLAW_SUB_THEMES[Math.floor(Math.random() * FLAW_SUB_THEMES.length)];
+  const uid = normalizeUserId(userId);
   const userTheme = String(themeOverride || '').trim();
+
+  // 一致性盐值：基于 userId + packDate + theme 进行 SHA256 哈希计算
+  const saltSeed = `${uid}-${todayStr}-${userTheme}`;
+  const sha256Hex = crypto.createHash('sha256').update(saltSeed).digest('hex');
+  const stableSalt = sha256Hex.slice(0, 8);
+
+  // 利用稳定盐值前几位转换整数，实现决定性焦点索引选择（避免焦点随机漂移）
+  const saltNum = parseInt(stableSalt, 16);
+  const focusIndex = isNaN(saltNum) ? 0 : (saltNum % FLAW_SUB_THEMES.length);
+  const stableFocus = FLAW_SUB_THEMES[focusIndex];
+
   const dynamicTheme = userTheme
-    ? `${userTheme} | identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`
-    : `identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`;
+    ? `${userTheme} | identifying logical flaws and business counterattack (Focus: ${stableFocus}, Date: ${todayStr}, Salt: ${stableSalt})`
+    : `identifying logical flaws and business counterattack (Focus: ${stableFocus}, Date: ${todayStr}, Salt: ${stableSalt})`;
   const profile = getUserCurrentProfile(db, userId);
   try {
     const parsed = await callWakeupWorkflow({
       theme: dynamicTheme,
-      userId,
+      userId: uid,
       historyExclude: apiExclude,
       userCurrentProfile: profile,
     });

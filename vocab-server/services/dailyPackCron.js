@@ -143,6 +143,13 @@ function scheduleDailyPackCron(db) {
     if (hour === cronHour && minute === 0 && lastCronPackDate !== packDate) {
       lastCronPackDate = packDate;
       (async () => {
+        try {
+          const cleanupService = require('./cleanupService');
+          cleanupService.checkAndCleanDatabase(db);
+        } catch (cleanupErr) {
+          console.warn('[DailyPack Cron] Database cleanup error (non-blocking):', cleanupErr.message);
+        }
+
         await runDailyPackCronJob(db);
         if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
           await dailyListenPreGenerateService.runDailyListenCronJob(db);
