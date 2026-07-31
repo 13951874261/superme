@@ -102,9 +102,9 @@ export function ArsenalPanel({
             className="flex items-center justify-center bg-[var(--color-brand)] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-brand-dark)] transition-colors disabled:opacity-50 cursor-pointer shadow-sm btn-press px-3 py-1.5"
           >
             {isAutoGenerating ? (
-              <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 执行中</>
+              <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 正在查询/生成今日内容...</>
             ) : (
-              <><Zap className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> AI 生成长文并提纯</>
+              <><Zap className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> 查询/生成今日长文</>
             )}
           </button>
 

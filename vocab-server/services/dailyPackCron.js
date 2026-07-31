@@ -1,3 +1,4 @@
+const path = require('path');
 const dailyPackService = require('./dailyPackService');
 const dailyListenPreGenerateService = require('./dailyListenPreGenerateService');
 
@@ -146,6 +147,9 @@ function scheduleDailyPackCron(db) {
         try {
           const cleanupService = require('./cleanupService');
           cleanupService.checkAndCleanDatabase(db);
+          const contentCleanupService = require('./contentCleanupService');
+          const dbPath = path.join(__dirname, '../vocab.db');
+          contentCleanupService.checkAndAutoCleanDatabase(db, dbPath);
         } catch (cleanupErr) {
           console.warn('[DailyPack Cron] Database cleanup error (non-blocking):', cleanupErr.message);
         }

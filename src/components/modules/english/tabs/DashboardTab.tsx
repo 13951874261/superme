@@ -570,7 +570,33 @@ export default function DashboardTab() {
     playScan();
     showNotice('dashboard', '正在呼叫 AI 提纯弹药...', 'info');
     try {
-      const { runListenMaterialGenerator, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
+      const { fetchExactArticleIfExists, runListenMaterialGenerator, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
+
+      // 1. 先查：优先校验数据库中是否存在匹配当前多维度组合的已生成长文
+      const exactRes = await fetchExactArticleIfExists({
+        userId: getAppUserId(),
+        genre,
+        cefrLevel,
+        duration,
+        topic: theme
+      });
+
+      if (exactRes.found && exactRes.data) {
+        showNotice('dashboard', '已成功命中库中精准生成的长文与提纯词汇（零消耗重用）', 'success');
+        setGeneratedArticle(exactRes.data.article);
+        setIsArticleExpanded(false);
+        setExtractedWords(exactRes.data.words || []);
+        setExtractedPhrases(exactRes.data.phrases || []);
+        setExtractedSentences(exactRes.data.sentences || []);
+        localStorage.setItem('super_agent_last_generated_article', exactRes.data.article);
+        localStorage.setItem('super_agent_last_generated_words', JSON.stringify(exactRes.data.words || []));
+        localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(exactRes.data.phrases || []));
+        localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(exactRes.data.sentences || []));
+        playSuccess();
+        setIsAutoGenerating(false);
+        return;
+      }
+
       let script = '';
 
       // 尝试生成一段引导语料（若工作流可用），否则跳过
@@ -581,7 +607,7 @@ export default function DashboardTab() {
         script = '';
       }
 
-      const result = await triggerEnglishMasteryExtraction(theme, script, getAppUserId(), cefrLevel, genre);
+      const result = await triggerEnglishMasteryExtraction(theme, script, getAppUserId(), cefrLevel, genre, duration);
 
       // 更新配额状态
       if (result.quota) {

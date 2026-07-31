@@ -28,7 +28,7 @@ $RemoteApiRoot = '/var/www/super-agent/vocab-server'
 $HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfE'
 $Pscp = 'C:\Program Files\PuTTY\pscp.exe'
 $Plink = 'C:\Program Files\PuTTY\plink.exe'
-$CronHour = '1'
+$CronHour = '2'
 
 $BackendFiles = @(
     'server.js',
@@ -119,17 +119,17 @@ foreach ($rel in $BackendFiles) {
 
 Write-Host '========== upsert remote DAILY_PACK_CRON_HOUR ==========' -ForegroundColor Cyan
 # Keep remote secrets; only set/replace the hour key.
-$envUpsert = @'
+$envUpsert = @"
 set -e
 ENVF=/var/www/super-agent/vocab-server/.env
-touch "$ENVF"
-if grep -q '^DAILY_PACK_CRON_HOUR=' "$ENVF"; then
-  sed -i 's/^DAILY_PACK_CRON_HOUR=.*/DAILY_PACK_CRON_HOUR=1/' "$ENVF"
+touch "`$ENVF"
+if grep -q '^DAILY_PACK_CRON_HOUR=' "`$ENVF"; then
+  sed -i 's/^DAILY_PACK_CRON_HOUR=.*/DAILY_PACK_CRON_HOUR=$CronHour/' "`$ENVF"
 else
-  printf '\nDAILY_PACK_CRON_HOUR=1\n' >> "$ENVF"
+  printf '\nDAILY_PACK_CRON_HOUR=$CronHour\n' >> "`$ENVF"
 fi
-grep '^DAILY_PACK_CRON_HOUR=' "$ENVF" | tail -n 1
-'@
+grep '^DAILY_PACK_CRON_HOUR=' "`$ENVF" | tail -n 1
+"@
 Invoke-Remote -RemoteCommand $envUpsert
 
 Write-Host '========== upload dist (frontend) ==========' -ForegroundColor Cyan

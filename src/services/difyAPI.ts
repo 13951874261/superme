@@ -603,18 +603,67 @@ export async function getDailyExtractedArticle(
   return data;
 }
 
+export async function fetchExactArticleIfExists(params: {
+  userId?: string;
+  topic?: string;
+  genre?: string;
+  cefrLevel?: string;
+  duration?: string;
+}): Promise<{
+  found: boolean;
+  isRunning?: boolean;
+  taskId?: string;
+  data?: {
+    article: string;
+    words: any[];
+    phrases: any[];
+    sentences: any[];
+    theme: string;
+    genre: string;
+    cefrLevel: string;
+    duration: string;
+    inputSignature?: string;
+    updatedAt?: number;
+  };
+}> {
+  const uid = params.userId || getAppUserId();
+  const query = new URLSearchParams({
+    userId: uid,
+    genre: params.genre || 'meeting',
+    cefrLevel: params.cefrLevel || 'B1',
+    duration: params.duration || '25',
+    topic: params.topic || ''
+  });
+
+  const response = await fetch(`/api/english/daily-extract/article/exact?${query.toString()}`, {
+    method: "GET",
+    headers: { "Content-Type": "application/json" }
+  });
+  const data = await response.json().catch(() => ({ found: false }));
+  return data;
+}
+
 
 export async function triggerEnglishMasteryExtraction(
   topic: string,
   materialText = '',
   userId = getAppUserId(),
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
-  genre: 'news' | 'meeting' | 'podcast' | 'reading' = 'meeting'
+  genre: 'news' | 'meeting' | 'podcast' | 'reading' | 'email' | 'report' | 'negotiation' | 'presentation' = 'meeting',
+  duration: '15' | '25' | '35' = '25'
 ): Promise<DailyExtractResult> {
   const response = await fetch("/api/english/daily-extract", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topic, materialText, userId, cefrLevel, genre, user_current_profile: getUserCurrentProfile() }),
+    body: JSON.stringify({
+      topic,
+      materialText,
+      userId,
+      cefrLevel,
+      genre,
+      duration,
+      user_current_profile: getUserCurrentProfile()
+    }),
   });
 
   const data = await response.json().catch(() => ({}));
