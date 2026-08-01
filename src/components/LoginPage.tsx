@@ -11,7 +11,7 @@ interface LoginPageProps {
 
 export default function LoginPage({ onUnlock }: LoginPageProps) {
   const [password, setPassword] = useState('');
-  const [userAlias, setUserAlias] = useState('');
+  const [userAlias, setUserAlias] = useState(() => getAppUserId());
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isShaking, setIsShaking] = useState(false);
@@ -152,21 +152,18 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
             )}
           </div>
 
-          {!hasExistingUserId && (
+          <div className="w-full text-left">
+            <label className="block text-[11px] font-bold text-white/50 mb-1.5 uppercase tracking-wider">
+              用户账号标识 (User ID)
+            </label>
             <input
               type="text"
-              placeholder="用户标识（可选，留空则自动生成）"
+              placeholder="请输入您的固定账号ID"
               value={userAlias}
               onChange={(e) => setUserAlias(e.target.value)}
-              className="w-full px-5 py-3.5 rounded-2xl bg-white/5 border border-white/10 text-sm text-white placeholder-white/30 outline-none transition-all duration-300 focus:border-[#FF5722]/60 focus:shadow-[0_0_20px_rgba(255,87,34,0.15)] focus:bg-white/10"
+              className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-white/30 outline-none transition-all duration-300 focus:border-[#FF5722]/60 focus:bg-white/10"
             />
-          )}
-
-          {hasExistingUserId && (
-            <p className="text-[10px] text-white/35 tracking-wider">
-              当前用户：{getAppUserId()}
-            </p>
-          )}
+          </div>
 
           {/* Error Message with micro-animation */}
           {errorMsg && (

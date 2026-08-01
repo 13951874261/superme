@@ -32,10 +32,17 @@ function generateAppUserId(): string {
  * - 首次登录且未填写：自动生成 UUID 并持久化
  */
 export function ensureAppUserId(customId?: string): string {
+  if (customId?.trim()) {
+    const sanitized = sanitizeUserId(customId);
+    localStorage.setItem(USER_ID_KEY, sanitized);
+    window.dispatchEvent(new Event('global-user-id-changed'));
+    return sanitized;
+  }
+
   const existing = localStorage.getItem(USER_ID_KEY);
   if (existing) return existing;
 
-  const userId = customId?.trim() ? sanitizeUserId(customId) : generateAppUserId();
+  const userId = generateAppUserId();
   localStorage.setItem(USER_ID_KEY, userId);
   return userId;
 }
