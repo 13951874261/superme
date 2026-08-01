@@ -204,13 +204,14 @@ try {
     if ($needBackendDeploy) {
         Write-Host ""
         Write-Host "========== Step 3: Backend Sync and Restart ==========" -ForegroundColor Cyan
-        
         if (-not $changedFiles -or @($changedFiles).Count -eq 0) {
             $changedFiles = @(
                 'vocab-server/server.js',
                 'vocab-server/services/dailyListenPreGenerateService.js',
                 'vocab-server/services/dailyPackService.js',
                 'vocab-server/services/dailyPackCron.js',
+                'vocab-server/scripts/simulate-1min-full-cron.js',
+                'vocab-server/scripts/query-1min-verify.js',
                 'vocab-server/scripts/run-full-production-ready.js',
                 'vocab-server/scripts/test-single-1min.js',
                 'vocab-server/scripts/print-schema.js'
