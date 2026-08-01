@@ -132,7 +132,7 @@ function getArticleRow(db, parts) {
     `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
   }
 
-  // 兜底 2: 若精听从表无数据，但主长文表 daily_extracted_articles 有记录，自动物理触发从表回填与音频同步
+  // 兜底 2: 若精听从表无数据，但主长文表 daily_extracted_articles 有记录，直接构造内存 Row，避免递归
   if (!row) {
     const extRow = db.prepare(`
       SELECT * FROM daily_extracted_articles
@@ -141,18 +141,23 @@ function getArticleRow(db, parts) {
     `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, String(parts.duration), parts.duration);
 
     if (extRow) {
-      try {
-        const syncRes = syncAudioFromLongArticleRow(db, extRow, 'realtime');
-        if (syncRes && syncRes.success) {
-          row = db.prepare(`
-            SELECT * FROM daily_listen_articles
-            WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
-            ORDER BY created_at DESC LIMIT 1
-          `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
-        }
-      } catch (err) {
-        console.error('[getArticleRow AutoSync Fallback Error]', err);
-      }
+      row = {
+        id: extRow.id,
+        user_id: extRow.user_id,
+        pack_date: extRow.quota_date,
+        theme: extRow.theme,
+        genre: extRow.genre,
+        cefr_level: extRow.cefr_level,
+        duration: Number(extRow.duration || parts.duration),
+        body_text: extRow.article,
+        vocab_json: extRow.words_json,
+        phrases_json: extRow.phrases_json,
+        file_path: null,
+        status: 'ready',
+        source: 'cron',
+        created_at: extRow.created_at,
+        updated_at: extRow.updated_at
+      };
     }
   }
   return row;
@@ -182,10 +187,7 @@ function resolveArticleStatus(row) {
   if (!row) return 'missing';
   if (row.status === 'generating') return 'generating';
   if (row.status === 'failed') return 'failed';
-  if (row.status === 'ready') {
-    if (row.body_text || fileOk(row.file_path)) return 'ready';
-    return 'missing'; // DB ready but file gone
-  }
+  if (row.status === 'ready') return 'ready';
   return row.status || 'missing';
 }
 
