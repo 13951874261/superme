@@ -5217,7 +5217,64 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
   }
 });
 
-// ????????? daily-extract??????? taskId ????????
+app.get('/api/english/daily-extract/article/exact', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const genre = String(req.query.genre || 'meeting').trim();
+    const cefrLevel = String(req.query.cefrLevel || 'B1').trim();
+    const duration = String(req.query.duration || '25').trim();
+    const topic = String(req.query.topic || '').trim();
+    const today = dailyPackService.getPackDate();
+
+    // 1. 优先按 user_id + quota_date + genre + cefrLevel + duration 精确查找
+    let row = db.prepare(`
+      SELECT * FROM daily_extracted_articles
+      WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
+      ORDER BY created_at DESC LIMIT 1
+    `).get(userId, today, genre, cefrLevel, duration, Number(duration));
+
+    // 2. 兜底查找当天最新该时长的物理记录
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE user_id = ? AND quota_date = ? AND (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(userId, today, duration, Number(duration));
+    }
+
+    if (!row) {
+      return res.json({ found: false });
+    }
+
+    let words = [];
+    let phrases = [];
+    let sentences = [];
+    try { words = row.words_json ? JSON.parse(row.words_json) : []; } catch {}
+    try { phrases = row.phrases_json ? JSON.parse(row.phrases_json) : []; } catch {}
+    try { sentences = row.sentences_json ? JSON.parse(row.sentences_json) : []; } catch {}
+
+    return res.json({
+      found: true,
+      data: {
+        article: row.article || '',
+        words,
+        phrases,
+        sentences,
+        theme: row.theme || topic,
+        genre: row.genre,
+        cefrLevel: row.cefr_level,
+        duration: String(row.duration),
+        inputSignature: row.input_signature,
+        updatedAt: row.updated_at,
+      }
+    });
+  } catch (error) {
+    console.error('[Daily Extract Article Exact Error]', error);
+    res.status(500).json({ found: false, error: error.message });
+  }
+});
+
+// 前台发起 daily-extract 生成请求，创建 taskId 后异步后台运行
 app.post('/api/english/daily-extract', async (req, res) => {
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
