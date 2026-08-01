@@ -5233,13 +5233,31 @@ const handleGetDailyExtractArticle = (req, res) => {
       ORDER BY created_at DESC LIMIT 1
     `).get(userId, today, genre, cefrLevel, duration, Number(duration));
 
-    // 2. 兜底查找当天最新该时长的物理记录
+    // 2. 兜底 1: 查找当前用户当天最新该时长的物理记录
     if (!row) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
         WHERE user_id = ? AND quota_date = ? AND (duration = ? OR duration = ?)
         ORDER BY created_at DESC LIMIT 1
       `).get(userId, today, duration, Number(duration));
+    }
+
+    // 3. 兜底 2: 全局跨用户按 quota_date + genre + cefrLevel + duration 查找落库记录
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE quota_date = ? AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(today, genre, cefrLevel, duration, Number(duration));
+    }
+
+    // 4. 兜底 3: 全局跨用户查找当天最新该时长的任意物理记录
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE quota_date = ? AND (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(today, duration, Number(duration));
     }
 
     if (!row) {
