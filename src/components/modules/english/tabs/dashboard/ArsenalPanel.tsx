@@ -8,8 +8,8 @@ export interface ArsenalPanelProps {
   setGenre: (val: GenreType) => void;
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1';
   setCefrLevel: (val: 'A2' | 'B1' | 'B2' | 'C1') => void;
-  duration?: '15' | '25' | '35';
-  setDuration?: (val: '15' | '25' | '35') => void;
+  duration?: '1' | '15' | '25' | '35';
+  setDuration?: (val: '1' | '15' | '25' | '35') => void;
   isAutoGenerating: boolean;
   handleAutoGenerate: () => void;
   isClearingAndReGenerating: boolean;

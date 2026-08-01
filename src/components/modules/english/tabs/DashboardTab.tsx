@@ -153,7 +153,7 @@ export default function DashboardTab() {
   // 题材、难度等级与时长控制
   const [cefrLevel, setCefrLevel] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
   const [genre, setGenre] = useState<GenreType>('meeting');
-  const [duration, setDuration] = useState<'15' | '25' | '35'>('15');
+  const [duration, setDuration] = useState<'1' | '15' | '25' | '35'>('1');
 
   // 沉浸式阅读空间状态
   const [isImmersiveOpen, setIsImmersiveOpen] = useState(false);
