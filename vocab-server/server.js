@@ -5217,7 +5217,7 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
   }
 });
 
-app.get('/api/english/daily-extract/article/exact', (req, res) => {
+const handleGetDailyExtractArticle = (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
     const genre = String(req.query.genre || 'meeting').trim();
@@ -5243,7 +5243,7 @@ app.get('/api/english/daily-extract/article/exact', (req, res) => {
     }
 
     if (!row) {
-      return res.json({ found: false });
+      return res.json({ success: true, found: false });
     }
 
     let words = [];
@@ -5253,26 +5253,32 @@ app.get('/api/english/daily-extract/article/exact', (req, res) => {
     try { phrases = row.phrases_json ? JSON.parse(row.phrases_json) : []; } catch {}
     try { sentences = row.sentences_json ? JSON.parse(row.sentences_json) : []; } catch {}
 
+    const dataPayload = {
+      article: row.article || '',
+      words,
+      phrases,
+      sentences,
+      theme: row.theme || topic,
+      genre: row.genre,
+      cefrLevel: row.cefr_level,
+      duration: String(row.duration),
+      inputSignature: row.input_signature,
+      updatedAt: row.updated_at,
+    };
+
     return res.json({
+      success: true,
       found: true,
-      data: {
-        article: row.article || '',
-        words,
-        phrases,
-        sentences,
-        theme: row.theme || topic,
-        genre: row.genre,
-        cefrLevel: row.cefr_level,
-        duration: String(row.duration),
-        inputSignature: row.input_signature,
-        updatedAt: row.updated_at,
-      }
+      data: dataPayload
     });
   } catch (error) {
-    console.error('[Daily Extract Article Exact Error]', error);
-    res.status(500).json({ found: false, error: error.message });
+    console.error('[Daily Extract Article Error]', error);
+    res.status(500).json({ success: false, found: false, error: error.message });
   }
-});
+};
+
+app.get('/api/english/daily-extract/article', handleGetDailyExtractArticle);
+app.get('/api/english/daily-extract/article/exact', handleGetDailyExtractArticle);
 
 // 前台发起 daily-extract 生成请求，创建 taskId 后异步后台运行
 app.post('/api/english/daily-extract', async (req, res) => {
