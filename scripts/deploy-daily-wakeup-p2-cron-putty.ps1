@@ -32,7 +32,10 @@ $CronHour = '2'
 
 $BackendFiles = @(
     'server.js',
-    'services/dailyPackCron.js'
+    'services/dailyPackCron.js',
+    'services/contentCleanupService.js',
+    'scripts/run-0200-cron-now.js',
+    'scripts/check-cron-health.js'
 )
 
 Set-Location $ProjectRoot
@@ -109,7 +112,7 @@ Write-Host '========== remote backup + mkdir ==========' -ForegroundColor Cyan
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 Invoke-Remote -RemoteCommand ("cp " + $RemoteApiRoot + "/server.js " + $RemoteApiRoot + "/server.js.bak-" + $timestamp + " 2>/dev/null || true")
 Invoke-Remote -RemoteCommand ("cp " + $RemoteApiRoot + "/services/dailyPackCron.js " + $RemoteApiRoot + "/services/dailyPackCron.js.bak-" + $timestamp + " 2>/dev/null || true")
-Invoke-Remote -RemoteCommand ("mkdir -p " + $RemoteApiRoot + "/services " + $RemoteWebRoot + "/dist/images/backgrounds " + $RemoteWebRoot + "/dist/assets")
+Invoke-Remote -RemoteCommand ("mkdir -p " + $RemoteApiRoot + "/services " + $RemoteApiRoot + "/scripts " + $RemoteWebRoot + "/dist/images/backgrounds " + $RemoteWebRoot + "/dist/assets")
 
 Write-Host '========== upload backend ==========' -ForegroundColor Cyan
 foreach ($rel in $BackendFiles) {

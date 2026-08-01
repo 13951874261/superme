@@ -104,7 +104,7 @@ const PORT = process.env.PORT || 3001;
 // ?? SOP?????????????????????????????/var/www/super-agent/vocab.db
 // ????????????????????????????./vocab.db
 // ==========================================
-const isProd = process.env.NODE_ENV === 'production' || __dirname.includes('/var/www') || __dirname.includes('/opt/vocab-server');
+const isProd = process.env.NODE_ENV === 'production' || __dirname.includes('/opt/vocab-server');
 const dbPath = isProd ? '/var/www/super-agent/vocab.db' : path.join(__dirname, 'vocab.db');
 
 // ??????????????????????????????????????????????????
@@ -114,7 +114,6 @@ if (isProd && !fs.existsSync('/var/www/super-agent')) {
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
-db.pragma('busy_timeout = 10000');
 
 // ????????vocabulary ???
 db.prepare(`
@@ -2237,24 +2236,9 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   return answer;
 }
 
-function mapGenreToDify(genre) {
-  const g = String(genre || '').toLowerCase();
-  if (['news', 'podcast', 'meeting', 'reading'].includes(g)) {
-    return g;
-  }
-  if (g === 'email' || g === 'report') return 'reading';
-  if (g === 'negotiation' || g === 'presentation') return 'meeting';
-  return 'meeting';
-}
-
 app.post('/api/listen/generate-material', async (req, res) => {
   try {
     const { inputs, userId = 'default-user' } = req.body;
-    const safeInputs = { ...(inputs || {}) };
-    if (safeInputs.genre) {
-      safeInputs.genre = mapGenreToDify(safeInputs.genre);
-    }
-
     const apiKey = process.env.DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ success: false, error: '后端未配置 DIFY_LISTEN_GEN_API_KEY' });
@@ -2268,7 +2252,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: safeInputs,
+        inputs: inputs || {},
         response_mode: 'blocking',
         user: userId,
       })
@@ -3061,91 +3045,6 @@ db.prepare(`
     UNIQUE(user_id, quota_date)
   )
 `).run();
-
-// daily_extracted_articles 表创建及 Migration
-(function migrateDailyExtractedArticles() {
-  db.prepare(`
-    CREATE TABLE IF NOT EXISTS daily_extracted_articles (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      quota_date TEXT NOT NULL,
-      theme TEXT NOT NULL,
-      genre TEXT NOT NULL,
-      cefr_level TEXT NOT NULL,
-      duration TEXT DEFAULT '25',
-      input_signature TEXT NOT NULL DEFAULT '',
-      article TEXT NOT NULL,
-      words_json TEXT NOT NULL,
-      phrases_json TEXT NOT NULL,
-      sentences_json TEXT NOT NULL,
-      created_at INTEGER,
-      updated_at INTEGER,
-      UNIQUE(user_id, quota_date, input_signature)
-    )
-  `).run();
-
-  // 检查是否需要从旧的 UNIQUE 约束结构迁移到新的 UNIQUE(user_id, quota_date, input_signature)
-  const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_extracted_articles'").get()?.sql || '';
-  if (tableSql && !tableSql.includes('input_signature') || tableSql.includes('UNIQUE(user_id, quota_date, genre, cefr_level)')) {
-    console.log('[Migration] Migrating daily_extracted_articles table to v2 (with input_signature & duration unique index)...');
-    try {
-      db.transaction(() => {
-        db.prepare(`
-          CREATE TABLE IF NOT EXISTS daily_extracted_articles_v2 (
-            id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            quota_date TEXT NOT NULL,
-            theme TEXT NOT NULL,
-            genre TEXT NOT NULL,
-            cefr_level TEXT NOT NULL,
-            duration TEXT DEFAULT '25',
-            input_signature TEXT NOT NULL DEFAULT '',
-            article TEXT NOT NULL,
-            words_json TEXT NOT NULL,
-            phrases_json TEXT NOT NULL,
-            sentences_json TEXT NOT NULL,
-            created_at INTEGER,
-            updated_at INTEGER,
-            UNIQUE(user_id, quota_date, input_signature)
-          )
-        `).run();
-
-        db.prepare(`
-          INSERT OR IGNORE INTO daily_extracted_articles_v2 (
-            id, user_id, quota_date, theme, genre, cefr_level, duration, input_signature,
-            article, words_json, phrases_json, sentences_json, created_at, updated_at
-          )
-          SELECT 
-            id, user_id, quota_date, theme, genre, cefr_level,
-            COALESCE(NULLIF(duration, ''), '25'),
-            COALESCE(NULLIF(input_signature, ''), LOWER(HEX(SHA256(user_id || '|' || quota_date || '|' || genre || '|' || cefr_level)))),
-            article, words_json, phrases_json, sentences_json, created_at, updated_at
-          FROM daily_extracted_articles
-        `).run();
-
-        db.prepare("DROP TABLE daily_extracted_articles").run();
-        db.prepare("ALTER TABLE daily_extracted_articles_v2 RENAME TO daily_extracted_articles").run();
-      })();
-      console.log('[Migration] Successfully migrated daily_extracted_articles to v2!');
-    } catch (migErr) {
-      console.warn('[Migration] Warning during daily_extracted_articles migration:', migErr.message);
-    }
-  }
-
-  try {
-    db.prepare("CREATE INDEX IF NOT EXISTS idx_extracted_articles_sig ON daily_extracted_articles(user_id, input_signature)").run();
-  } catch (idxErr) {}
-})();
-
-// 异步触发服务启动阶段的 DB 1G 自动裁剪与磁盘页回收检测
-try {
-  const contentCleanupService = require('./services/contentCleanupService');
-  const dbPath = path.join(__dirname, 'vocab.db');
-  setTimeout(() => {
-    contentCleanupService.checkAndAutoCleanDatabase(db, dbPath);
-  }, 5000);
-} catch (cleanInitErr) {}
-
 
 // ==========================================
 // 2. ???????????????????????(????????????????????????API)
@@ -3954,21 +3853,6 @@ app.post('/api/dify/dict-query', async (req, res) => {
     return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
   }
 
-  const trimmedWord = String(word).trim();
-  const targetDictType = dictType || 'en_zh_bidirectional';
-
-  try {
-    const cachedRow = db.prepare(`
-      SELECT response_payload FROM dict_query_log
-      WHERE word = ? COLLATE NOCASE AND dict_type = ? AND is_success = 1
-      ORDER BY created_at DESC LIMIT 1
-    `).get(trimmedWord, targetDictType);
-    if (cachedRow?.response_payload) {
-      const parsed = JSON.parse(cachedRow.response_payload);
-      return res.json(parsed);
-    }
-  } catch (e) {}
-
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 120000;
@@ -3977,7 +3861,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
 
   try {
-    console.log(`[Dict Query] 发起查询: "${trimmedWord}", 词典类型: "${targetDictType}"`);
+    console.log(`[Dict Query] 发起查询: "${word}", 词典类型: "${dictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -5058,211 +4942,32 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       });
     }
   });
-});
-
-// ==========================================
-// 计算长文 Dify 稳定入参特征签名 (排除系统时间与戳，防止无法命中缓存)
-// ==========================================
-function computeDailyArticleInputSignature({ topic, cefrLevel, genre, duration, historyExclude, userFlaws, userCurrentProfile }) {
-  const stable = JSON.stringify({
-    theme: String(topic || '').trim(),
-    cefr_level: String(cefrLevel || '').trim(),
-    genre: String(genre || '').trim().toLowerCase(),
-    duration: String(duration || '25').trim(),
-    history_exclude: String(historyExclude || '').trim().toLowerCase(),
-    user_flaws: String(userFlaws || '').trim(),
-    user_current_profile: String(userCurrentProfile || '').trim(),
-  });
-  return crypto.createHash('sha256').update(stable).digest('hex').slice(0, 16);
-}
-
-// ==========================================
-// 支撑手动点击“先查后建”的精准特征匹配查询接口
-// ==========================================
-app.get('/api/english/daily-extract/article/exact', (req, res) => {
-  const { userId = 'default-user', date, genre = 'meeting', cefrLevel = 'B1', duration = '25', topic = '', signature } = req.query;
-  const targetDate = String(date || new Date().toISOString().split('T')[0]);
-  const uid = dailyPackService.normalizeUserId(userId);
-  const inputSig = signature || computeDailyArticleInputSignature({ topic, cefrLevel, genre, duration, userId });
-
-  try {
-    // 1. 优先在数据库中精准匹配 input_signature
-    const row = db.prepare(
-      'SELECT * FROM daily_extracted_articles WHERE input_signature = ? ORDER BY updated_at DESC LIMIT 1'
-    ).get(inputSig);
-
-    if (row && row.article) {
-      const words = JSON.parse(row.words_json || '[]');
-      const phrases = JSON.parse(row.phrases_json || '[]');
-      const sentences = JSON.parse(row.sentences_json || '[]');
-      return res.json({
-        found: true,
-        isRunning: false,
-        data: {
-          article: row.article,
-          words,
-          phrases,
-          sentences,
-          theme: row.theme,
-          genre: row.genre,
-          cefrLevel: row.cefr_level,
-          duration: row.duration || String(duration),
-          inputSignature: row.input_signature,
-          updatedAt: row.updated_at
-        }
-      });
-    }
-
-    // 2. 检查是否有相同签名的生成任务在后台进行中
-    for (const [taskId, taskInfo] of extractionTasks.entries()) {
-      if (taskInfo.signature === inputSig && (taskInfo.status === 'pending' || taskInfo.status === 'processing')) {
-        return res.json({
-          found: false,
-          isRunning: true,
-          taskId,
-          message: 'Matching task currently executing in background.'
-        });
-      }
-    }
-
-    return res.json({
-      found: false,
-      isRunning: false,
-      inputSignature: inputSig,
-      message: 'No exact article found.'
-    });
-  } catch (error) {
-    console.error('[Daily Extract Exact API Error]:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ==========================================
-// 获取今日持久化的已生成长文与提纯词汇（支持多维稳定入参特征匹配）
-// ==========================================
-app.get('/api/english/daily-extract/article', (req, res) => {
-  const { userId = 'default-user', date, genre, cefrLevel, duration } = req.query;
-  const targetDate = String(date || new Date().toISOString().split('T')[0]);
-  const uid = dailyPackService.normalizeUserId(userId);
-
-  try {
-    let row;
-    let isShared = false;
-
-    // 1. 顺位 1: 优先匹配当前用户的精准组合 (genre + cefr_level + duration)
-    if (genre && cefrLevel && duration) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
-      ).get(uid, targetDate, String(genre), String(cefrLevel), String(duration));
-    }
-
-    // 2. 顺位 2: 匹配当前用户的 (genre + cefr_level)
-    if (!row && genre && cefrLevel) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid, targetDate, String(genre), String(cefrLevel));
-    }
-
-    // 3. 顺位 3: 全库跨用户 0ms 共享复用匹配 (相同 genre + cefr_level + duration)
-    if (!row && genre && cefrLevel && duration) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE genre = ? AND cefr_level = ? AND duration = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(String(genre), String(cefrLevel), String(duration));
-      if (row) isShared = true;
-    }
-
-    // 4. 顺位 4: 全库跨用户 0ms 共享复用匹配 (相同 genre + cefr_level)
-    if (!row && genre && cefrLevel) {
-      row = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(String(genre), String(cefrLevel));
-      if (row) isShared = true;
-    }
-
-    if (row) {
-      const words = JSON.parse(row.words_json || '[]');
-      const phrases = JSON.parse(row.phrases_json || '[]');
-      const sentences = JSON.parse(row.sentences_json || '[]');
-
-      // 决策 3：若是共享复用的文章，自动将提纯的生词静默关联收录至当前用户 uid 的词库中
-      if (isShared && Array.isArray(words)) {
-        try {
-          const now = Date.now();
-          for (const w of words) {
-            const wordStr = typeof w === 'string' ? w.trim() : (w?.word || '');
-            if (!wordStr) continue;
-            const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
-            if (!existing) {
-              const id = crypto.randomUUID();
-              db.prepare(`
-                INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-              `).run(id, wordStr, 'ai_extracted', row.theme || 'daily_extraction', JSON.stringify({ source: 'Daily Extract (Shared)', topic: row.theme }), now, now, '[]');
-            }
-          }
-        } catch (e) {
-          console.warn('[Daily Extract Article GET] 共享收录生词本异常:', e.message);
-        }
-      }
-
-      return res.json({
-        success: true,
-        found: true,
-        isShared,
-        data: {
-          article: row.article,
-          words,
-          phrases,
-          sentences,
-          theme: row.theme,
-          genre: row.genre,
-          cefrLevel: row.cefr_level,
-          duration: row.duration || '25',
-          updatedAt: row.updated_at
-        }
-      });
-    } else {
-      return res.json({
-        success: true,
-        found: false
-      });
-    }
-  } catch (error) {
-    console.error('[Daily Extract Article GET Error]', error);
-    return res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// ==========================================
+});// ==========================================
 // 清空今日配额与当日新增词条（生词本日清）
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
   const { userId = 'default-user' } = req.body;
   const today = new Date().toISOString().split('T')[0];
-  const uid = dailyPackService.normalizeUserId(userId);
   
+  // ?????????????????????? 00:00:00 ??????
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayStartMs = todayStart.getTime();
 
   try {
-    // 1. 清理今日新增的 ai_extracted 和 ai_phrase 词条
+    // 1. ?????????????????????????????
     const deleteWords = db.prepare("DELETE FROM vocabulary WHERE added_at >= ? AND (dict_type = 'ai_extracted' OR dict_type = 'ai_phrase')");
     const wordsResult = deleteWords.run(todayStartMs);
 
-    // 2. 重置今日配额
+    // 2. ????????????????
     const resetQuota = db.prepare("UPDATE daily_vocab_quota SET words_added = 0, phrases_added = 0 WHERE user_id = ? AND quota_date = ?");
-    const quotaResult = resetQuota.run(uid, today);
+    const quotaResult = resetQuota.run(userId, today);
 
-    // 3. 删除今日持久化的长文及提纯记录
-    const deleteArticle = db.prepare("DELETE FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ?");
-    deleteArticle.run(uid, today);
-
-    console.log(`[Clear Today] User ${uid}: deleted ${wordsResult.changes} words/phrases, reset quota & article for ${today}`);
+    console.log(`[Clear Today] User ${userId}: deleted ${wordsResult.changes} words/phrases, reset quota for ${today}`);
 
     return res.json({
       success: true,
-      message: 'Successfully cleared today\'s vocabulary entries, daily article and reset daily quota.',
+      message: 'Successfully cleared today\'s vocabulary entries and reset daily quota.',
       deletedCount: wordsResult.changes,
       quotaReset: quotaResult.changes > 0
     });
@@ -5514,67 +5219,14 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
 
 // ????????? daily-extract??????? taskId ????????
 app.post('/api/english/daily-extract', async (req, res) => {
-  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration, user_current_profile } = req.body;
+  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  const uid = dailyPackService.normalizeUserId(userId);
 
   try {
-    // Step 0: 先查后建机制 (缓存防重检查)
-    const durationStr = duration ? String(duration) : '25';
-    let existingArticle = db.prepare(
-      'SELECT * FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
-    ).get(uid, today, String(genre || 'meeting'), String(cefrLevel || 'B1'));
-
-    // 全局兜底复用检查
-    if (!existingArticle) {
-      existingArticle = db.prepare(
-        'SELECT * FROM daily_extracted_articles WHERE genre = ? AND cefr_level = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(String(genre || 'meeting'), String(cefrLevel || 'B1'));
-    }
-
-    if (existingArticle && existingArticle.article) {
-      console.log(`[Daily Extract Cache Hit] Found existing article for user ${uid} on ${today} (genre=${genre}, cefr=${cefrLevel}). Returning cached data directly.`);
-      const taskId = crypto.randomUUID();
-      const words = JSON.parse(existingArticle.words_json || '[]');
-      const phrases = JSON.parse(existingArticle.phrases_json || '[]');
-      const sentences = JSON.parse(existingArticle.sentences_json || '[]');
-
-      extractionTasks.set(taskId, {
-        status: 'completed',
-        createdAt: Date.now(),
-        payload: {
-          success: true,
-          quotaExceeded: false,
-          isCached: true,
-          words,
-          phrases,
-          sentences,
-          data: {
-            article: existingArticle.article,
-            words,
-            phrases,
-            sentences,
-            theme: existingArticle.theme,
-            genre: existingArticle.genre,
-            cefrLevel: existingArticle.cefr_level,
-            duration: existingArticle.duration || durationStr,
-            updatedAt: existingArticle.updated_at
-          }
-        }
-      });
-
-      return res.json({
-        success: true,
-        taskId,
-        isCached: true,
-        message: 'Existing article found for today, returning cached content directly.'
-      });
-    }
-
-    // Step 1: 配额初始化与检查
+    // Step 1: ????????????????????????
     let quotaRow = db.prepare(
       'SELECT * FROM daily_vocab_quota WHERE user_id = ? AND quota_date = ?'
-    ).get(uid, today);
+    ).get(userId, today);
 
     if (!quotaRow) {
       const id = crypto.randomUUID();
@@ -5659,7 +5311,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile, _system_time, _system_timestamp_ms } = requestBody;
   
   try {
-    // 构建去重历史 (history_exclude) 与薄弱点 (user_flaws)
+    // ????????????????? (history_exclude) ????????? (user_flaws)
     let historyExclude = '';
     try {
       const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
@@ -5703,30 +5355,13 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
     }
 
-    const resolvedProfile = String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || '').trim();
-
     const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    const safeDifyGenre = mapGenreToDify(genre);
-    const genreTopicPrefix = ['email', 'report', 'negotiation', 'presentation'].includes(String(genre).toLowerCase())
-      ? `[题材: ${genre}] `
-      : '';
-
-    const difyInputs = injectOralSystemTime({
-      theme: `${genreTopicPrefix}${topic || "General Business"}`,
-      cefr_level: cefrLevel,
-      genre: safeDifyGenre,
-      duration: String(duration || '25'),
-      history_exclude: historyExclude,
-      user_flaws: userFlaws,
-      user_current_profile: resolvedProfile,
-      _system_time,
-      _system_timestamp_ms,
-    });
-    console.log(`[Daily Extract Async] Dispatching to Dify workflow. duration=${difyInputs.duration}, genre=${safeDifyGenre}, cefr=${cefrLevel}`);
-
     let wfResponse;
+    const fetchController = new AbortController();
+    const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000); // 10分钟超时
+
     try {
       wfResponse = await fetch(`${baseUrl}/chat-messages`, {
         method: "POST",
@@ -5734,14 +5369,27 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           "Authorization": `Bearer ${difyApiKey}`,
           "Content-Type": "application/json",
         },
+        signal: fetchController.signal,
         body: JSON.stringify({
-          inputs: difyInputs,
+          inputs: injectOralSystemTime({
+            theme: topic || "General Business",
+            cefr_level: cefrLevel,
+            genre: genre,
+            duration: String(duration),
+            history_exclude: historyExclude,
+            user_flaws: userFlaws,
+            user_current_profile: user_current_profile || '',
+            _system_time,
+            _system_timestamp_ms,
+          }),
           query: "generate",
           response_mode: "streaming",
           user: userId,
         }),
       });
+      clearTimeout(fetchTimeout);
     } catch (fetchErr) {
+      clearTimeout(fetchTimeout);
       console.error("[Daily Extract] Dify fetch 请求发起失败:", fetchErr);
       extractionTasks.set(taskId, { status: 'failed', error: `Dify 服务请求失败: ${fetchErr.message}`, createdAt: Date.now() });
       return;
@@ -5760,88 +5408,81 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 
     let answer = "";
     let streamError = "";
-    let fullRawBuffer = "";
+    const decoder = new TextDecoder();
+    let sseBuffer = "";
 
-    function extractDifyTextFromPayload(parsed) {
-      if (!parsed || typeof parsed !== 'object') return '';
-      let str = '';
-      if (typeof parsed.answer === 'string') str += parsed.answer;
-      if (typeof parsed.text === 'string') str += parsed.text;
-      if (typeof parsed.output === 'string') str += parsed.output;
-      if (typeof parsed.delta === 'string') str += parsed.delta;
-      if (parsed.delta && typeof parsed.delta === 'object') {
-        if (typeof parsed.delta.text === 'string') str += parsed.delta.text;
-        if (typeof parsed.delta.content === 'string') str += parsed.delta.content;
-      }
-      if (parsed.data && typeof parsed.data === 'object') {
-        if (typeof parsed.data.text === 'string') str += parsed.data.text;
-        if (typeof parsed.data.answer === 'string') str += parsed.data.answer;
-        if (typeof parsed.data.output === 'string') str += parsed.data.output;
-        if (parsed.data.outputs && typeof parsed.data.outputs === 'object') {
-          const o = parsed.data.outputs;
-          if (typeof o.answer === 'string') str += o.answer;
-          if (typeof o.text === 'string') str += o.text;
-          if (typeof o.result === 'string') str += o.result;
-          if (typeof o.article === 'string') str += o.article;
-          if (typeof o.output === 'string') str += o.output;
+    const parseSSELines = (text) => {
+      sseBuffer += text;
+      let lineEnd = sseBuffer.indexOf('\n');
+      while (lineEnd !== -1) {
+        const line = sseBuffer.substring(0, lineEnd).trim();
+        sseBuffer = sseBuffer.substring(lineEnd + 1);
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === "[DONE]") break;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.event === 'error' || parsed.status === 'error') {
+              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+            }
+            if (parsed.message && /Server Unavailable|ConnectTimeout|\[models\]/i.test(String(parsed.message))) {
+              streamError = String(parsed.message);
+            }
+            if (typeof parsed.answer === 'string' && parsed.answer) {
+              answer = mergeStreamAnswer(answer, parsed.answer);
+            }
+          } catch (e) {}
         }
+        lineEnd = sseBuffer.indexOf('\n');
       }
-      return str;
-    }
+    };
 
-    const contentType = wfResponse.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const jsonData = await wfResponse.json().catch(() => ({}));
-      answer = jsonData.answer || jsonData.text || jsonData.data?.outputs?.answer || jsonData.data?.outputs?.text || jsonData.data?.outputs?.result || "";
-      if (jsonData.event === 'error' || jsonData.status === 'error') {
-        streamError = jsonData.message || jsonData.error || JSON.stringify(jsonData);
-      }
-    } else {
-      if (wfResponse.body && typeof wfResponse.body.getReader === 'function') {
+    if (wfResponse.body) {
+      if (typeof wfResponse.body.getReader === 'function') {
         const reader = wfResponse.body.getReader();
-        const decoder = new TextDecoder();
-        let sseBuffer = "";
         try {
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
-            sseBuffer += chunk;
-            fullRawBuffer += chunk;
-            let lineEnd = sseBuffer.indexOf('\n');
-            while (lineEnd !== -1) {
-              const line = sseBuffer.substring(0, lineEnd).trim();
-              sseBuffer = sseBuffer.substring(lineEnd + 1);
-              if (line.startsWith("data: ")) {
-                const dataStr = line.slice(6).trim();
-                if (dataStr !== "[DONE]") {
-                  try {
-                    const parsed = JSON.parse(dataStr);
-                    if (parsed.event === 'error' || parsed.status === 'error') {
-                      streamError = parsed.message || parsed.error || JSON.stringify(parsed);
-                    }
-                    const chunkText = extractDifyTextFromPayload(parsed);
-                    if (chunkText) {
-                      answer += chunkText;
-                    }
-                  } catch (e) {}
-                }
-              }
-              lineEnd = sseBuffer.indexOf('\n');
-            }
+            parseSSELines(chunk);
           }
         } catch (readErr) {
-          console.warn("[Daily Extract Stream] 流化传输读取结束:", readErr.message);
+          console.error("[Daily Extract] 强行读取流失败:", readErr);
+          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          return;
         }
       } else {
-        const text = await wfResponse.text().catch(() => "");
-        answer = text;
+        try {
+          for await (const chunk of wfResponse.body) {
+            const chunkText = decoder.decode(chunk, { stream: true });
+            parseSSELines(chunkText);
+          }
+        } catch (readErr) {
+          console.error("[Daily Extract] 强行读取流失败:", readErr);
+          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          return;
+        }
       }
-
-      if (!answer.trim() && fullRawBuffer.trim()) {
-        console.log('[Daily Extract Stream Fallback] 触发原始 Buffer 兜底策略...');
-        answer = fullRawBuffer.trim();
+      
+      if (sseBuffer.trim().startsWith("data: ")) {
+        const line = sseBuffer.trim();
+        const dataStr = line.slice(6).trim();
+        if (dataStr !== "[DONE]") {
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.event === 'error' || parsed.status === 'error') {
+              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
+            }
+            if (typeof parsed.answer === 'string' && parsed.answer) {
+              answer = mergeStreamAnswer(answer, parsed.answer);
+            }
+          } catch (e) {}
+        }
       }
+    } else {
+      extractionTasks.set(taskId, { status: 'failed', error: "Streaming not supported by Dify backend", createdAt: Date.now() });
+      return;
     }
 
     if (streamError) {
@@ -6065,52 +5706,6 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
     }
 
-    try {
-      const articleId = crypto.randomUUID();
-      const nowMs = Date.now();
-      const inputSig = computeDailyArticleInputSignature({
-        topic,
-        cefrLevel,
-        genre,
-        duration,
-        historyExclude,
-        userFlaws,
-        userCurrentProfile: resolvedProfile
-      });
-
-      db.prepare(`
-        INSERT INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, duration, input_signature, article, words_json, phrases_json, sentences_json, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id, quota_date, input_signature) DO UPDATE SET
-          theme = excluded.theme,
-          duration = excluded.duration,
-          input_signature = excluded.input_signature,
-          article = excluded.article,
-          words_json = excluded.words_json,
-          phrases_json = excluded.phrases_json,
-          sentences_json = excluded.sentences_json,
-          updated_at = excluded.updated_at
-      `).run(
-        articleId,
-        userId,
-        today,
-        topic || 'General Business',
-        genre || 'meeting',
-        cefrLevel || 'B1',
-        String(duration || '25'),
-        inputSig,
-        articleText,
-        JSON.stringify(wordsToStore.map(w => w.word)),
-        JSON.stringify(phrasesToStore),
-        JSON.stringify(uniqueSentenceList),
-        nowMs,
-        nowMs
-      );
-      console.log(`[Daily Extract Async] Persisted article to SQLite for user ${userId} on ${today} (genre=${genre}, cefr=${cefrLevel}, duration=${duration}, sig=${inputSig}).`);
-    } catch (dbErr) {
-      console.error('[Daily Extract Async] Failed to persist daily article to database:', dbErr);
-    }
-
     console.log(`[Daily Extract Async] Completed ${taskId}. User ${userId} ${today} added ${wordsAddedCount} words.`);
 
     const finalPayload = {
@@ -6134,6 +5729,61 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       phrasesAddedCount,
       sentencesAddedCount
     };
+
+    // 保存至 daily_extracted_articles 物理持久库
+    try {
+      const artId = crypto.randomUUID();
+      const durationVal = requestBody?.duration ? String(requestBody.duration) : (duration ? String(duration) : '25');
+      const sigVal = dailyPackService.computeDailyArticleInputSignature ? dailyPackService.computeDailyArticleInputSignature({
+        topic, materialText, userId, cefrLevel, genre, duration: durationVal
+      }) : '';
+      
+      const insertArtStmt = db.prepare(`
+        INSERT OR REPLACE INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      insertArtStmt.run(
+        artId,
+        userId,
+        today,
+        topic || 'General Business',
+        genre || 'meeting',
+        cefrLevel || 'B1',
+        articleText || '',
+        JSON.stringify(wordsToStore),
+        JSON.stringify(phrasesToStore),
+        JSON.stringify(uniqueSentenceList),
+        durationVal,
+        sigVal,
+        now,
+        now
+      );
+
+      const savedArtRow = {
+        id: artId,
+        user_id: userId,
+        quota_date: today,
+        theme: topic || 'General Business',
+        genre: genre || 'meeting',
+        cefr_level: cefrLevel || 'B1',
+        duration: durationVal,
+        article_text: articleText || '',
+        extracted_words_json: JSON.stringify(wordsToStore),
+        extracted_phrases_json: JSON.stringify(phrasesToStore),
+      };
+
+      // 即时联动：前台重新生成长文时，后台同步更新并重新合成该组合的精听 .mp3 音频 (Option A)
+      (async () => {
+        try {
+          await dailyListenPreGenerateService.syncAudioFromLongArticleRow(db, savedArtRow, 'manual');
+        } catch (syncAudioErr) {
+          console.warn('[Daily Extract] 即时同步精听音频警告:', syncAudioErr.message);
+        }
+      })().catch(e => console.error('[Daily Extract] 精听音频同步异常:', e));
+
+    } catch (dbSaveErr) {
+      console.warn('[Daily Extract] 保存 daily_extracted_articles 失败 (非阻塞):', dbSaveErr.message);
+    }
 
     extractionTasks.set(taskId, {
       status: 'completed',
@@ -6160,10 +5810,6 @@ app.put('/api/user/theme', (req, res) => {
       return res.status(400).json({ success: false, error: 'theme is required' });
     }
     const row = dailyPackService.upsertUserTheme(db, userId, theme);
-    // 异步在后台发起当日包预生成，使用户同步主题后即可享有用预推演缓存
-    void dailyPackService.generateDailyPackForUser(db, userId, theme, 'theme_sync')
-      .catch((err) => console.warn('[User Theme Sync] 后台异步预推演跳过/提示:', err.message));
-
     res.json({ success: true, ...row });
   } catch (error) {
     console.error('[User Theme Sync]', error);
@@ -6185,28 +5831,13 @@ app.post('/api/user/login-ping', (req, res) => {
 app.get('/api/daily-pack/today', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
+    const packDate = dailyPackService.getPackDate();
     const theme = String(req.query.theme || '').trim();
     const historyExclude = String(req.query.historyExclude || '').trim();
     const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
-    const packDate = dailyPackService.getPackDate();
-    const uid = dailyPackService.normalizeUserId(userId);
-
-    let row = null;
-    if (theme || historyExclude || userCurrentProfile) {
-      const inputSignature = dailyPackService.computeInputSignature(
-        theme,
-        historyExclude || dailyPackService.getHistoryExclude(db),
-        userCurrentProfile || dailyPackService.getUserCurrentProfile(db, uid)
-      );
-      row = dailyPackService.getDailyPackRow(db, uid, packDate, inputSignature);
-    }
-
-    if (!row) {
-      row = db.prepare(
-        'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY updated_at DESC LIMIT 1'
-      ).get(uid, packDate);
-    }
-    res.json(dailyPackService.serializeDailyPack(row, db));
+    const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
+    const row = dailyPackService.getDailyPackRow(db, userId, packDate, inputSignature);
+    res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
     console.error('[Daily Pack Today]', error);
     res.status(500).json({ success: false, error: error.message });
@@ -7509,6 +7140,8 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     throw err;
   }
 }
+
+global.synthesizeAndSaveAudio = synthesizeAndSaveAudio;
 
 dailyListenPreGenerateService.setGenerators({
   generateLongScript: async ({ theme, genre, cefr_level, duration, userId }) => {

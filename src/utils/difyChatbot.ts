@@ -1,6 +1,7 @@
 import {
   getAppUserId,
   getUserCurrentProfile,
+  sanitizeProfileContent,
   getCurrentFormattedTime,
   getGraphSummaryLocal,
 } from './profileHelper';
@@ -100,11 +101,9 @@ function getOrCreateEmbedSessionId(forceNew = false): string {
   return sid;
 }
 
-/** Dify sys.user_id：{登录账号}@embed-{标签页会话}，隔离 dify 域过期 conversationIdInfo */
-export function getDifyChatbotUserId(forceNewEmbedSession = false): string {
-  ensureDifyEmbedScope();
-  const sid = getOrCreateEmbedSessionId(forceNewEmbedSession);
-  return `${getAppUserId()}@embed-${sid}`;
+/** Dify sys.user_id：返回纯净的标准用户账号 ID，符合 Dify WebApp login/status 官方校验要求，彻底规避 500 */
+export function getDifyChatbotUserId(_forceNewEmbedSession = false): string {
+  return getAppUserId();
 }
 
 /** 新对话：轮换 embed 会话桶并刷新 iframe/气泡 */
@@ -197,7 +196,12 @@ async function encodeConfigToChatbotUrl(config: DifyChatbotConfig): Promise<stri
 
   await Promise.all(
     Object.entries(config.inputs).map(async ([key, value]) => {
-      params.set(key, await compressAndEncodeBase64(String(value)));
+      const valStr = String(value);
+      if (key === 'app_user_id' || key.startsWith('_system_') || valStr.length < 60) {
+        params.set(key, valStr);
+      } else {
+        params.set(key, await compressAndEncodeBase64(valStr));
+      }
     }),
   );
 
@@ -205,13 +209,23 @@ async function encodeConfigToChatbotUrl(config: DifyChatbotConfig): Promise<stri
     Object.entries(config.systemVariables)
       .filter(([, value]) => value !== undefined && String(value).trim() !== '')
       .map(async ([key, value]) => {
-        params.set(`sys.${key}`, await compressAndEncodeBase64(String(value)));
+        const valStr = String(value);
+        if (key === 'user_id' || key === 'conversation_id' || valStr.length < 60) {
+          params.set(`sys.${key}`, valStr);
+        } else {
+          params.set(`sys.${key}`, await compressAndEncodeBase64(valStr));
+        }
       }),
   );
 
   await Promise.all(
     Object.entries(config.userVariables).map(async ([key, value]) => {
-      params.set(`user.${key}`, await compressAndEncodeBase64(String(value)));
+      const valStr = String(value);
+      if (valStr.length < 60) {
+        params.set(`user.${key}`, valStr);
+      } else {
+        params.set(`user.${key}`, await compressAndEncodeBase64(valStr));
+      }
     }),
   );
 
@@ -292,9 +306,9 @@ export function buildDifyChatbotConfig(options?: {
     || '';
   const graphSummary = getGraphSummaryLocal();
   const profileBase = getUserCurrentProfile();
-  let profileWithGraph = graphSummary
-    ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}`
-    : profileBase;
+  let profileWithGraph = sanitizeProfileContent(
+    graphSummary ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}` : profileBase
+  );
   if (options?.embedCompact && profileWithGraph.length > EMBED_PROFILE_MAX_LEN) {
     profileWithGraph = profileWithGraph.slice(0, EMBED_PROFILE_MAX_LEN);
   }

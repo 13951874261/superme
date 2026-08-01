@@ -6,7 +6,7 @@ import MemoryAidPanel from './MemoryAidPanel';
 import DifyAssistantFrame from './DifyAssistantFrame';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
-import { getUserCurrentProfile, saveUserCurrentProfile } from '../utils/profileHelper';
+import { getUserCurrentProfile, saveUserCurrentProfile, sanitizeProfileContent } from '../utils/profileHelper';
 import { resetDifyChatbotSession } from '../utils/difyChatbot';
 import { playClick, playReveal, playSwitch } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
@@ -140,7 +140,10 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
   const profileLabel = (() => {
     if (!profile) return '默认';
     const locale = profile.match(/英国\s*\(UK\)|美国\s*\(US\)/)?.[0];
-    return locale || (profile.length > 16 ? `${profile.slice(0, 14)}…` : profile);
+    const clean = sanitizeProfileContent(profile);
+    if (locale) return locale;
+    if (!clean) return '已自定义';
+    return clean.length > 12 ? `${clean.slice(0, 10)}…` : clean;
   })();
 
   useEffect(() => {
@@ -162,14 +165,14 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
   }, []);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {isOpen && (
         <motion.aside
           initial={{ x: '100%' }}
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={GLOBAL_SPRING}
-          className={`h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[10050] overflow-hidden`}
+          className={`motion-layer h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[10050] overflow-hidden`}
         >
           {/* 头部 Tab 区域 */}
           <div className={`flex items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>

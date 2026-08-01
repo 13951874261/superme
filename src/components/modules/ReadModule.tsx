@@ -969,7 +969,7 @@ export default function ReadModule() {
         </div>
 
         {/* 右侧 30% Context Sheet */}
-        <AnimatePresence>
+        <AnimatePresence mode="wait">
           {showContextSheet && (
             <motion.div
               initial={{ x: '100%', opacity: 0 }}
@@ -1155,7 +1155,7 @@ export default function ReadModule() {
         </AnimatePresence>
       </div>
 
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {showSuccessBadge && (
           <motion.div
             initial={{ opacity: 0, y: -20, scale: 0.95 }}

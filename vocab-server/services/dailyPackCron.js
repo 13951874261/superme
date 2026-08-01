@@ -1,123 +1,62 @@
-const path = require('path');
 const dailyPackService = require('./dailyPackService');
 const dailyListenPreGenerateService = require('./dailyListenPreGenerateService');
 
 let lastCronPackDate = null;
 
-async function runDailyPackCronJob(db, targetUserId = null) {
+async function runDailyPackCronJob(db) {
   const packDate = dailyPackService.getPackDate();
-  let users = dailyPackService.listUsersWithSyncedTheme(db);
-  if (targetUserId) {
-    const found = users.filter(u => u.user_id === targetUserId);
-    if (found.length > 0) {
-      users = found;
-    } else {
-      const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(targetUserId);
-      users = [{ user_id: targetUserId, theme: pref?.theme || '商务谈判：让步与施压' }];
-    }
-  }
-  const summary = {
-    packDate,
-    totalUsers: users.length,
-    step12Success: 0,
-    step12Failed: 0,
-    step3Success: 0,
-    step3Failed: 0,
-    errors: []
-  };
-
-  console.log(`[DailyPack Cron Orchestration] Starting 2:00 AM daily cron pipeline for date=${packDate}, totalUsers=${users.length}`);
+  const users = dailyPackService.listUsersWithSyncedTheme(db);
+  const summary = { packDate, total: users.length, ok: 0, skipped: 0, failed: 0, errors: [] };
 
   for (const row of users) {
-    const userId = row.user_id;
-    const theme = row.theme;
-
-    console.log(`\n[DailyPack Cron Orchestration] >>> Processing user=${userId}, theme="${theme}"`);
-
-    // ── 步骤 1 & 2: 每日唤醒 + 破绽词汇 ──
     const historyExclude = dailyPackService.getHistoryExclude(db);
-    const userCurrentProfile = dailyPackService.getUserCurrentProfile(db, userId);
+    const userCurrentProfile = dailyPackService.getUserCurrentProfile(db, row.user_id);
     const inputSignature = dailyPackService.computeInputSignature(
-      theme,
+      row.theme,
       historyExclude,
       userCurrentProfile,
     );
-
-    const existingPack = dailyPackService.getDailyPackRow(db, userId, packDate, inputSignature);
-
-    if (existingPack?.status === 'ready' && existingPack?.source === 'cron') {
-      console.log(`[DailyPack Cron Orchestration] Step 1 & 2 (Wakeup/Flaw): SKIPPED (already generated for user=${userId})`);
-      summary.step12Success += 1;
-    } else {
-      try {
-        console.log(`[DailyPack Cron Orchestration] Step 1 & 2 (Wakeup/Flaw): STARTING for user=${userId}...`);
-        await dailyPackService.generateDailyPackForUser(db, userId, theme, 'cron');
-        console.log(`[DailyPack Cron Orchestration] Step 1 & 2 (Wakeup/Flaw): SUCCESS for user=${userId}`);
-        summary.step12Success += 1;
-      } catch (err) {
-        summary.step12Failed += 1;
-        summary.errors.push({ userId, step: 'step1_2_wakeup_flaw', error: err.message || String(err) });
-        console.error(`[DailyPack Cron Orchestration] Step 1 & 2 (Wakeup/Flaw): FAILED for user=${userId} (non-blocking):`, err.message);
-      }
+    const existing = dailyPackService.getDailyPackRow(db, row.user_id, packDate, inputSignature);
+    if (existing?.status === 'ready' && existing?.source === 'cron') {
+      summary.skipped += 1;
+      continue;
+    }
+    try {
+      await dailyPackService.generateDailyPackForUser(db, row.user_id, row.theme, 'cron');
+      summary.ok += 1;
+    } catch (err) {
+      summary.failed += 1;
+      summary.errors.push({ userId: row.user_id, error: err.message || String(err) });
+      console.error('[DailyPack Cron] user=%s fail: %s', row.user_id, err.message);
     }
 
-    // ── 步骤 3: AI 生成长文并提纯（基于 Dify 工作流多维入参矩阵，预生成多组合长文落库） ──
-    const GENRES = ['meeting', 'email', 'report', 'negotiation', 'presentation', 'reading', 'news'];
-    const CEFR_LEVELS = ['B1', 'B2', 'C1', 'A2'];
-    const DURATIONS = ['15', '25', '35'];
+    // Step 3: 长文预生成与精听盲听音频联动
+    const GENRES = ['meeting', 'news', 'podcast', 'reading'];
+    const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
+    const DURATIONS = [1, 15, 25, 35];
 
-    const COMBINATIONS = [];
     for (const genre of GENRES) {
       for (const cefrLevel of CEFR_LEVELS) {
         for (const duration of DURATIONS) {
-          COMBINATIONS.push({ genre, cefrLevel, duration });
-        }
-      }
-    }
-
-    try {
-      console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): STARTING for user=${userId} (${COMBINATIONS.length} combinations)...`);
-      let successCount = 0;
-      for (const combo of COMBINATIONS) {
-        try {
-          const existingCombo = db.prepare(
-            'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
-          ).get(userId, packDate, combo.genre, combo.cefrLevel, combo.duration);
-
-          if (existingCombo) {
-            successCount++;
-            continue;
+          try {
+            await dailyPackService.generateLongArticleForUser(
+              db,
+              row.user_id,
+              row.theme,
+              'cron',
+              genre,
+              cefrLevel,
+              String(duration)
+            );
+          } catch (artErr) {
+            console.warn(`[DailyPack Cron] Long article generate warn user=${row.user_id} (${genre}/${cefrLevel}/${duration}m):`, artErr.message);
           }
-
-          await dailyPackService.generateLongArticleForUser(
-            db,
-            userId,
-            theme,
-            'cron',
-            combo.genre,
-            combo.cefrLevel,
-            combo.duration
-          );
-          successCount++;
-          await new Promise((r) => setTimeout(r, 2000));
-        } catch (comboErr) {
-          console.warn(`[DailyPack Cron Orchestration] Combo ${combo.genre}/${combo.cefrLevel}/${combo.duration} failed (non-blocking):`, comboErr.message);
+          await new Promise(r => setTimeout(r, 1500));
         }
       }
-      if (successCount > 0) {
-        console.log(`[DailyPack Cron Orchestration] Step 3 (Long Article): SUCCESS for user=${userId} (${successCount}/${COMBINATIONS.length} combinations generated)`);
-        summary.step3Success += 1;
-      } else {
-        throw new Error('All article combinations failed');
-      }
-    } catch (err) {
-      summary.step3Failed += 1;
-      summary.errors.push({ userId, step: 'step3_long_article', error: err.message || String(err) });
-      console.error(`[DailyPack Cron Orchestration] Step 3 (Long Article): FAILED for user=${userId}:`, err.message);
     }
   }
-
-  console.log('\n[DailyPack Cron Orchestration] Pipeline Completed:', summary);
+  console.log('[DailyPack Cron] done', summary);
   return summary;
 }
 
@@ -144,16 +83,6 @@ function scheduleDailyPackCron(db) {
     if (hour === cronHour && minute === 0 && lastCronPackDate !== packDate) {
       lastCronPackDate = packDate;
       (async () => {
-        try {
-          const cleanupService = require('./cleanupService');
-          cleanupService.checkAndCleanDatabase(db);
-          const contentCleanupService = require('./contentCleanupService');
-          const dbPath = path.join(__dirname, '../vocab.db');
-          contentCleanupService.checkAndAutoCleanDatabase(db, dbPath);
-        } catch (cleanupErr) {
-          console.warn('[DailyPack Cron] Database cleanup error (non-blocking):', cleanupErr.message);
-        }
-
         await runDailyPackCronJob(db);
         if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
           await dailyListenPreGenerateService.runDailyListenCronJob(db);

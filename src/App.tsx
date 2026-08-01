@@ -269,11 +269,9 @@ function AppContent() {
       <TextHighlighter />
       
       {/* 主视界：flex-1 自适应，右侧面板固定 400px，避免 70vw + 400px 溢出视口 */}
-      <motion.div
-        layout
+      <div
         onClick={handleLeftAreaClick}
-        transition={GLOBAL_SPRING}
-        className={`h-screen flex overflow-hidden min-w-0 ${isRightPanelOpen ? 'flex-1' : 'w-full flex-1'}`}
+        className={`h-screen flex overflow-hidden min-w-0 transition-[flex,width] duration-300 ease-out ${isRightPanelOpen ? 'flex-1' : 'w-full flex-1'}`}
       >
         <Sidebar 
           isOpen={isSidebarOpen} 
@@ -292,7 +290,7 @@ function AppContent() {
           isLocked={isLocked}
           onLockTrigger={handleLockTrigger}
         />
-      </motion.div>
+      </div>
 
       {/* 右侧上下文及 AI 助手面板 (30% 宽度，收放微缩) */}
       <RightPanel 

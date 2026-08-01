@@ -206,8 +206,16 @@ try {
         Write-Host "========== Step 3: Backend Sync and Restart ==========" -ForegroundColor Cyan
         
         if (-not $changedFiles -or @($changedFiles).Count -eq 0) {
-            $changedFiles = @('vocab-server/server.js', 'vocab-server/services/webFetcher.js')
-            Write-Host "  -> No changed-file list; defaulting to server.js + services/webFetcher.js" -ForegroundColor Yellow
+            $changedFiles = @(
+                'vocab-server/server.js',
+                'vocab-server/services/dailyListenPreGenerateService.js',
+                'vocab-server/services/dailyPackService.js',
+                'vocab-server/services/dailyPackCron.js',
+                'vocab-server/scripts/run-full-production-ready.js',
+                'vocab-server/scripts/test-single-1min.js',
+                'vocab-server/scripts/print-schema.js'
+            )
+            Write-Host "  -> No changed-file list; defaulting to full core backend & script set" -ForegroundColor Yellow
         }
 
         Write-Host "  -> Backup server.js on remote" -ForegroundColor DarkCyan

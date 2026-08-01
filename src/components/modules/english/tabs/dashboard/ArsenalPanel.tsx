@@ -91,6 +91,7 @@ export function ArsenalPanel({
             className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)] cursor-pointer"
             title="时长"
           >
+            <option value="1">1分钟</option>
             <option value="15">15分钟</option>
             <option value="25">25分钟</option>
             <option value="35">35分钟</option>

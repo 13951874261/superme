@@ -253,6 +253,23 @@ details[open] summary ~ * {
   animation: pulseGlow 2s ease-in-out infinite;
 }
 
+/* 属性级精准过渡与高性能 Transform 工具类 */
+.motion-transform-only {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@supports (will-change: transform) {
+  .motion-transform-only {
+    will-change: transform;
+  }
+}
+
+.transition-transform-opacity {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 .interactive-card {
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -507,7 +524,37 @@ details[open] summary ~ * {
   z-index: 9999;
   opacity: 0.025;
   background-image: var(--grain-url);
-  animation: grain-shift 0.5s steps(1) infinite;
+  animation: grain-shift 1.5s steps(1) infinite;
+  will-change: transform;
+}
+
+/* 硬件加速与动画优化工具类 (渐进增强，无 GPU 硬件环境自动平滑降级) */
+@supports (will-change: transform) {
+  .motion-layer {
+    will-change: transform, opacity;
+  }
+}
+
+.motion-transform {
+  /* 使用标准渲染层提示，避免在 CPU 软件渲染器下强行创建 3D 纹理过载 */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 针对无 GPU / 低速显示更新设备与无障碍减弱动效偏好的通用回退保护 */
+@media (prefers-reduced-motion: reduce), (update: slow) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .motion-layer {
+    will-change: auto !important;
+  }
+  .grain-overlay {
+    display: none !important;
+  }
 }
 
 @keyframes grain-shift {

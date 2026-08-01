@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
 import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic, Mail } from 'lucide-react';
 import { playGentleWarning } from '../utils/soundEffects';
 
@@ -22,154 +22,103 @@ export default function CyberneticLockModal({
   emailCompleted,
   pendingSentenceDebt
 }: CyberneticLockModalProps) {
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       playGentleWarning();
+
+      if (backdropRef.current && cardRef.current) {
+        gsap.fromTo(backdropRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+        gsap.fromTo(
+          cardRef.current,
+          { opacity: 0, scale: 0.95, y: 15 },
+          { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: 'back.out(1.6)' }
+        );
+      }
     }
   }, [isOpen]);
+
+  if (!isOpen) return null;
 
   const isOralDone = oralCount >= 10;
   const isWriteDone = maxWriteScore >= 8;
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center">
-          {/* 遮罩层 */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
-          />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+      {/* 遮罩层 */}
+      <div
+        ref={backdropRef}
+        onClick={onClose}
+        className="lock-modal-backdrop absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+      />
 
-          {/* 弹窗内容 */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 15 }}
-            animate={{
-              opacity: 1,
-              scale: 1,
-              y: 0,
-              transition: { type: 'spring', damping: 24, stiffness: 200 }
-            }}
-            exit={{ opacity: 0, scale: 0.96, y: 10 }}
-            className="bg-white border border-zinc-200/80 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative z-10 mx-4 w-full"
-          >
-            {/* Elegant static icon container */}
-            <div className="w-16 h-16 bg-slate-50 text-slate-700 rounded-full flex items-center justify-center mx-auto mb-6 border border-slate-150 shadow-[0_4px_12px_rgba(0,0,0,0.02)]">
-              <Lock className="w-6 h-6 text-slate-650" />
-            </div>
-
-            <h2 className="text-xl font-bold text-slate-900 mb-2 tracking-wide flex items-center justify-center gap-2">
-              <ShieldAlert className="w-5 h-5 text-slate-600" />
-              主题目标闭环提示
-            </h2>
-            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest block mb-4">
-              Theme Target Achievement Requirement
-            </span>
-
-            {pendingSentenceDebt ? (
-              <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
-                系统检测到您有尚未结清的<strong className="text-red-500 mx-1">词汇造句债务</strong>：【{pendingSentenceDebt}】。
-                为防止认知断层，必须先完成该生词的强制造句考核，方可解锁高级模块。
-              </p>
-            ) : (
-              <p className="text-slate-500 text-xs leading-relaxed mb-6 px-4">
-                根据学习规约，当前主题的核心板块指标达成前，其他高级探索模块已锁定。
-                请先在<strong className="text-slate-900 mx-1">英语引擎</strong>中完成每日口语、写作和邮件的指标闭环。
-              </p>
-            )}
-
-            {/* Current Theme Info with Admin Style */}
-            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-5 text-left mb-6">
-              <div className="text-[10px] text-slate-450 uppercase tracking-widest font-bold mb-1.5">当前主题阵地</div>
-              <div className="text-sm font-bold text-slate-800 mb-4">{theme}</div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Oral Stat Card */}
-                <div className={`p-4 rounded-xl border transition-all ${
-                  isOralDone
-                    ? 'bg-emerald-50/50 border-emerald-100'
-                    : 'bg-slate-100/70 border-slate-200/60'
-                }`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                      <Mic className="w-3 h-3" /> 口语沙盘
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      isOralDone
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {isOralDone ? '已达标' : '未达标'}
-                    </span>
-                  </div>
-                  <div className="text-base font-bold text-slate-800">
-                    {oralCount} <span className="text-xs text-slate-400 font-normal">/ 10 轮</span>
-                  </div>
-                </div>
-
-                {/* Write Stat Card */}
-                <div className={`p-4 rounded-xl border transition-all ${
-                  isWriteDone
-                    ? 'bg-emerald-50/50 border-emerald-100'
-                    : 'bg-slate-100/70 border-slate-200/60'
-                }`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                      <BookOpen className="w-3 h-3" /> 纵深写作
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      isWriteDone
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {isWriteDone ? '已达标' : '未达标'}
-                    </span>
-                  </div>
-                  <div className="text-base font-bold text-slate-800">
-                    {maxWriteScore} <span className="text-xs text-slate-400 font-normal">/ 8 分</span>
-                  </div>
-                </div>
-
-                {/* Email Stat Card */}
-                <div className={`p-4 rounded-xl border transition-all ${
-                  emailCompleted
-                    ? 'bg-emerald-50/50 border-emerald-100'
-                    : 'bg-slate-100/70 border-slate-200/60'
-                }`}>
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] text-slate-500 font-bold uppercase tracking-widest flex items-center gap-1">
-                      <Mail className="w-3 h-3" /> 邮件闭环
-                    </span>
-                    <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                      emailCompleted
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {emailCompleted ? '已达标' : '未达标'}
-                    </span>
-                  </div>
-                  <div className="text-xs text-slate-600 font-medium">
-                    {emailCompleted ? '已完成' : '未完成'}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Button */}
-            <button
-              onClick={onClose}
-              className="w-full bg-slate-900 text-white font-bold uppercase tracking-wide py-3 rounded-xl hover:bg-slate-800 transition-colors shadow-sm cursor-pointer flex items-center justify-center gap-2 text-xs"
-            >
-              返回主题战场
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </motion.div>
+      {/* 弹窗内容 */}
+      <div
+        ref={cardRef}
+        className="lock-modal-card bg-white border border-zinc-200/80 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative z-10 mx-4 w-full"
+      >
+        {/* Elegant static icon container */}
+        <div className="w-16 h-16 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-500 shadow-sm">
+          <ShieldAlert className="w-8 h-8 stroke-[1.75]" />
         </div>
-      )}
-    </AnimatePresence>
+
+        <h3 className="text-xl font-bold text-zinc-900 mb-2">日常唤醒学习未解锁</h3>
+        <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
+          主题：<span className="font-semibold text-zinc-800">「{theme}」</span><br />
+          请先完成对应模块的训练任务，以获得全面沉浸体验。
+        </p>
+
+        {/* 校验列表 */}
+        <div className="space-y-3 text-left mb-8 bg-zinc-50/80 p-5 rounded-2xl border border-zinc-100">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <Mic className="w-4 h-4 text-zinc-400" />
+              口语对练 (≥10次)
+            </span>
+            <span className={`px-2.5 py-1 rounded-full font-semibold ${isOralDone ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {oralCount} / 10 次
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <BookOpen className="w-4 h-4 text-zinc-400" />
+              写作打分 (≥80分)
+            </span>
+            <span className={`px-2.5 py-1 rounded-full font-semibold ${isWriteDone ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {maxWriteScore > 0 ? `${maxWriteScore * 10} 分` : '未打分'}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <Mail className="w-4 h-4 text-zinc-400" />
+              商务 Email 处理
+            </span>
+            <span className={`px-2.5 py-1 rounded-full font-semibold ${emailCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {emailCompleted ? '已完成' : '未处理'}
+            </span>
+          </div>
+        </div>
+
+        {/* 提示信息 */}
+        {pendingSentenceDebt && (
+          <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700 font-medium">
+            提示：您尚有未清偿的生词卡片（债务：{pendingSentenceDebt}）。
+          </div>
+        )}
+
+        {/* 关闭按钮 */}
+        <button
+          onClick={onClose}
+          className="w-full py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] cursor-pointer"
+        >
+          <span>我知道了</span>
+          <ArrowRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
   );
 }

@@ -1,5 +1,38 @@
 import type { Transition } from 'motion/react';
 
+// ==========================================
+// 1. GSAP 专用物理缓动常数定义 (基于 Compositor 高性能线程)
+// ==========================================
+export const GSAP_SPRING_GENTLE = {
+  ease: "back.out(1.2)",
+  duration: 0.5
+};
+
+export const GSAP_SPRING_SNAPPY = {
+  ease: "power3.out",
+  duration: 0.35
+};
+
+export const GSAP_SPRING_BOUNCY = {
+  ease: "elastic.out(1, 0.4)",
+  duration: 0.6
+};
+
+export const GSAP_EASE_PREMIUM = "power4.out";
+
+export const GSAP_FADE_IN = {
+  duration: 0.3,
+  ease: GSAP_EASE_PREMIUM,
+};
+
+export const GSAP_POP_UP = {
+  ease: "back.out(1.7)",
+  duration: 0.4
+};
+
+// ==========================================
+// 2. 兼容现有 Motion / CSS Transition 的平滑导出
+// ==========================================
 export const SPRING_GENTLE: Transition = {
   type: 'spring',
   stiffness: 120,

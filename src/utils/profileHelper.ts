@@ -88,19 +88,39 @@ async function syncProfileToServer(profileContent?: string): Promise<void> {
 /**
  * 获取当前持久化的画像
  */
+/**
+ * 净化画像/记忆文本，彻底移除大模型思考链块（<think>...</think>）、残余尖括号，规避 Dify Jinja2 模板 500 报错
+ */
+export function sanitizeProfileContent(raw: string): string {
+  if (!raw) return '';
+  let cleaned = String(raw)
+    .replace(/<think[\s\S]*?<\/think>/gi, '')
+    .replace(/<thinking[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<think[\s\S]*/gi, '')
+    .replace(/<thinking[\s\S]*/gi, '')
+    .replace(/[<>]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cleaned;
+}
+
+/**
+ * 获取清洗并脱敏后的用户画像描述
+ */
 export function getUserCurrentProfile(): string {
   try {
     const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
     if (!raw) return '';
+    let resultStr = raw;
     if (raw.startsWith('[') && raw.endsWith(']')) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.join('; ');
+        resultStr = parsed.join('; ');
       }
     }
-    return raw;
+    return sanitizeProfileContent(resultStr);
   } catch (e) {
-    return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    return sanitizeProfileContent(localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '');
   }
 }
 

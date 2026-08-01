@@ -229,7 +229,7 @@ export default function Sidebar({
 
 
   return (
-    <aside className={`bg-gradient-to-br ${bgEnabled ? 'from-white/70 to-zinc-50/30' : 'from-white to-zinc-50/50'} backdrop-blur-md text-zinc-900 flex flex-col transition-all duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
+    <aside className={`motion-layer bg-gradient-to-br ${bgEnabled ? 'from-white/70 to-zinc-50/30' : 'from-white to-zinc-50/50'} backdrop-blur-md text-zinc-900 flex flex-col transition-[width,transform,opacity,box-shadow] duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem]' : 'w-0'}`}>
       <button 
         onClick={() => {
           playReveal();
@@ -270,7 +270,7 @@ export default function Sidebar({
                  {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
                </div>
                
-               <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCalendarOpen ? 'max-h-[320px] opacity-100' : 'max-h-0 opacity-0'}`}>
+               <div className={`overflow-hidden transition-[max-height,opacity] duration-500 ease-in-out ${isCalendarOpen ? 'max-h-[320px] opacity-100' : 'max-h-0 opacity-0'}`}>
                  <div className="haptic-card p-3.5">
                    {/* 顶部年月切换 */}
                    <div className="flex justify-between items-center mb-3">
@@ -349,7 +349,7 @@ export default function Sidebar({
                  {isHabitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                </div>
                
-               <div className={`overflow-hidden transition-all duration-500 ${isHabitOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
+               <div className={`overflow-hidden transition-[max-height,opacity] duration-500 ease-in-out ${isHabitOpen ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'}`}>
                  <div className="grid grid-cols-2 gap-3 py-1">
                     {Object.entries({
                       sleep: '睡眠达标',
@@ -408,7 +408,7 @@ export default function Sidebar({
                  </div>
                </div>
                
-               <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isCareerOpen ? 'max-h-[380px] opacity-100' : 'max-h-0 opacity-0'}`}>
+               <div className={`overflow-hidden transition-[max-height,opacity] duration-500 ease-in-out ${isCareerOpen ? 'max-h-[380px] opacity-100' : 'max-h-0 opacity-0'}`}>
                  <div className="p-4 haptic-card my-1 relative overflow-hidden">
                    <AnimatePresence mode="wait">
                      {!isEditingCareer ? (
@@ -569,7 +569,7 @@ export default function Sidebar({
           </button>
           
           {/* Allow full dict results: old max-h-[800px]+overflow-hidden clipped examples */}
-          <div className={`transition-all duration-500 ease-in-out ${isUtilitiesOpen ? 'max-h-[min(85vh,2400px)] mt-4 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+          <div className={`transition-[max-height,opacity,margin-top] duration-500 ease-in-out ${isUtilitiesOpen ? 'max-h-[min(85vh,2400px)] mt-4 opacity-100 overflow-y-auto' : 'max-h-0 opacity-0 overflow-hidden'}`}>
             <div className="space-y-4 pb-2">
               {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}
               <DictionaryPanel />

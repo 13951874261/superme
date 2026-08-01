@@ -62,8 +62,13 @@ $backendFiles = @(
     'vocab-server\server.js',
     'vocab-server\services\dailyPackService.js',
     'vocab-server\services\dailyPackCron.js',
+    'vocab-server\services\dailyListenPreGenerateService.js',
     'vocab-server\services\cleanupService.js',
-    'vocab-server\scripts\test-refactor-verification.js'
+    'vocab-server\scripts\test-refactor-verification.js',
+    'vocab-server\scripts\check-200-cron-readiness.js',
+    'vocab-server\scripts\query-user.js',
+    'vocab-server\scripts\migrate-db.js',
+    'vocab-server\scripts\trigger-user-cron.js'
 )
 
 foreach ($file in $backendFiles) {

@@ -68,7 +68,10 @@ function checkAndCleanDatabase(db, dbPath) {
       deletedPacks += (extraRes.changes || 0);
     }
 
-    // 3. 执行 VACUUM 真正释放 SQLite 磁盘物理文件空间
+    // 3. 清理 7 天前的精听盲听物理音频文件 (.mp3) 与离线长文文本 (.txt)
+    cleanPhysicalAudioFiles(db);
+
+    // 4. 执行 VACUUM 真正释放 SQLite 磁盘物理文件空间
     console.log('[Cleanup Audit] Reclaiming disk space with VACUUM...');
     db.exec('VACUUM');
 
@@ -92,7 +95,36 @@ function checkAndCleanDatabase(db, dbPath) {
   }
 }
 
+/**
+ * 清理 7 天前的精听盲听物理音频 (.mp3) 与离线文本文件
+ */
+function cleanPhysicalAudioFiles(db) {
+  try {
+    const audioRoot = path.join(__dirname, '../public/daily_listen_audio');
+    const limitTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    
+    if (db) {
+      const oldAudios = db.prepare('SELECT id, audio_path FROM daily_listen_audios WHERE updated_at < ? OR created_at < ?').all(limitTime, limitTime);
+      let removedFiles = 0;
+      for (const a of oldAudios) {
+        if (a.audio_path && fs.existsSync(a.audio_path)) {
+          try {
+            fs.unlinkSync(a.audio_path);
+            removedFiles++;
+          } catch {}
+        }
+      }
+      db.prepare('DELETE FROM daily_listen_audios WHERE updated_at < ? OR created_at < ?').run(limitTime, limitTime);
+      db.prepare('DELETE FROM daily_listen_articles WHERE updated_at < ? OR created_at < ?').run(limitTime, limitTime);
+      console.log(`[Cleanup Audit] Cleaned ${removedFiles} physical audio (.mp3) entries older than 7 days.`);
+    }
+  } catch (err) {
+    console.warn('[Cleanup Audit] Physical audio cleanup warning:', err.message);
+  }
+}
+
 module.exports = {
   checkAndCleanDatabase,
+  cleanPhysicalAudioFiles,
   MAX_DB_SIZE_BYTES
 };

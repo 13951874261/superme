@@ -17,7 +17,7 @@ function normalizeUserId(raw) {
 function computeInputSignature(theme, historyExclude, userCurrentProfile) {
   const stable = JSON.stringify({
     theme: String(theme || '').trim(),
-    history_exclude: String(historyExclude || '').toLowerCase().trim(),
+    history_exclude: String(historyExclude || '').trim(),
     user_current_profile: String(userCurrentProfile || '').trim(),
   });
   return crypto.createHash('sha256').update(stable).digest('hex').slice(0, 16);
@@ -125,30 +125,6 @@ function upsertUserTheme(db, userId, theme) {
 }
 
 function listUsersWithSyncedTheme(db) {
-  // 兜底机制：自动检测数据库中的活跃有效用户，若未在 user_theme_prefs 登记主题，则初始化默认主题
-  try {
-    const activeUsers = db.prepare(`
-      SELECT DISTINCT user_id FROM (
-        SELECT user_id FROM vocabulary WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
-        UNION
-        SELECT user_id FROM training_sessions WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
-        UNION
-        SELECT user_id FROM daily_packs WHERE user_id IS NOT NULL AND TRIM(user_id) != ''
-      )
-    `).all();
-
-    const defaultTheme = '商务谈判中的让步与施压';
-    for (const row of activeUsers) {
-      const uid = row.user_id;
-      const existing = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
-      if (!existing || !existing.theme || !existing.theme.trim()) {
-        upsertUserTheme(db, uid, defaultTheme);
-      }
-    }
-  } catch (e) {
-    console.warn('[dailyPackService] 活跃用户主题兜底初始化跳过:', e.message);
-  }
-
   return db.prepare(`
     SELECT user_id, theme FROM user_theme_prefs
     WHERE theme IS NOT NULL AND TRIM(theme) != ''
@@ -158,13 +134,14 @@ function listUsersWithSyncedTheme(db) {
 function getDailyPackRow(db, userId, packDate, inputSignature = null) {
   const uid = normalizeUserId(userId);
   if (inputSignature !== null) {
-    const exact = db.prepare(
+    const row = db.prepare(
       'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
     ).get(uid, packDate, inputSignature);
-    if (exact) return exact;
+    if (row) return row;
   }
+  // 兜底：未精确命中签名或未传签名时，取当天最新一行，确保前台能流畅读取物理缓存
   return db.prepare(
-    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY updated_at DESC LIMIT 1"
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
   ).get(uid, packDate);
 }
 
@@ -232,140 +209,60 @@ function getSystemFormattedTime(now = new Date()) {
 function getUserCurrentProfile(db, userId) {
   const uid = normalizeUserId(userId);
   try {
-    if (db) {
-      const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
-      if (row?.profile_content && String(row.profile_content).trim()) {
-        return String(row.profile_content).trim().slice(0, 300);
-      }
-    }
-  } catch (e) {
-    console.warn('[Profile Extract] Failed to extract profile from db:', e.message);
+    const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
+    return String(row?.profile_content || '').trim().slice(0, 280);
+  } catch {
+    return '';
   }
-  return '关注商务英语实践、注重表达流利度与高阶谈判沟通';
 }
 
 function getHistoryExclude(db) {
-  if (!db) return '';
-  try {
-    const now = Date.now();
-    const sevenDaysAgo = now - 7 * 24 * 60 * 60 * 1000;
-    // 艾宾浩斯感知去重：
-    // 排除：未到复习时间的词汇 (next_review_date > now) 或者 7 天内新增且掌握良好的词汇 (added_at > 7天前 且 repetitions > 2)
-    // 保留：到了复习日 (next_review_date <= now) 的词汇以供巩固强化
-    const rows = db.prepare(`
-      SELECT word FROM vocabulary 
-      WHERE (next_review_date IS NOT NULL AND next_review_date > ?)
-         OR (added_at IS NOT NULL AND added_at > ? AND repetitions > 2)
-      ORDER BY added_at DESC
-      LIMIT 100
-    `).all(now, sevenDaysAgo);
-
-    if (rows && rows.length > 0) {
-      const words = rows.map((r) => String(r.word || '').toLowerCase().trim()).filter(Boolean);
-      return Array.from(new Set(words)).slice(0, 50).join(', ');
-    }
-  } catch (e) {
-    console.warn('[getHistoryExclude] Failed query via review cycle, falling back:', e.message);
-  }
   const dbWords = getUserVocabWords(db);
   return dbWords.slice(0, 50).join(', ');
 }
 
-
-function getFallbackWakeup(theme = '商务谈判中的让步与施压') {
-  return {
-    theme: theme || '商务谈判中的让步与施压',
-    vocab: [
-      { word: 'concession', ipa: '/kənˈseʃn/', pronunciation_note: '注意 -ssion 的 /ʃn/ 发音，不要读成 /sən/', meaning_zh: '让步；妥协', example: 'We can make a minor concession on delivery dates if you agree to our pricing terms.' },
-      { word: 'leverage', ipa: '/ˈlevərɪdʒ/', pronunciation_note: '重音在第一音节 /ˈlev/，尾音 /ɪdʒ/ 轻松发', meaning_zh: '筹码；杠杆力量', example: 'Our patent portfolio gives us strong leverage in this cross-licensing negotiation.' },
-      { word: 'standstill', ipa: '/ˈstændstɪl/', pronunciation_note: '双 st 连读，中间短暂停顿', meaning_zh: '僵局；停顿', example: 'The negotiations reached a standstill over the indemnification clause.' },
-      { word: 'ultimatum', ipa: '/ˌʌltɪˈmeɪtəm/', pronunciation_note: '重音在 /meɪ/，-tum 发音为 /təm/', meaning_zh: '最后通牒', example: 'Issuing an ultimatum prematurely may damage long-term partnership trust.' },
-      { word: 'compromise', ipa: '/ˈkɑːmprəmaɪz/', pronunciation_note: '重音在第一音节 /ˈkɑːm/，不要混淆 com- 读音', meaning_zh: '妥协；折中方案', example: 'Both parties agreed to a compromise that protects joint intellectual property.' },
-      { word: 'deadlock', ipa: '/ˈdedlɑːk/', pronunciation_note: 'dead 和 lock 快速连接，爆破音 /d/ 不失爆', meaning_zh: '僵局', example: 'To break the deadlock, the mediator proposed a stepped payment schedule.' },
-      { word: 'counteroffer', ipa: '/ˈkaʊntərəɔːfər/', pronunciation_note: 'counter 与 offer 自然连读', meaning_zh: '还盘；反要约', example: 'We prepared a reasonable counteroffer in response to their high initial quote.' },
-      { word: 'concede', ipa: '/kənˈsiːd/', pronunciation_note: '尾音 /d/ 轻轻发，-cede 读长音 /siːd/', meaning_zh: '退让；承认', example: 'They might concede on payment terms if we extend the contract length.' },
-      { word: 'stipulate', ipa: '/ˈstɪpjuleɪt/', pronunciation_note: '重音在第一音节 /ˈstɪp/，-pju- 读音清晰', meaning_zh: '约定；规定', example: 'The contract stipulates that any price adjustment requires 30 days prior notice.' },
-      { word: 'non-negotiable', ipa: '/ˌnɑːn nɪˈɡoʊʃiəbl/', pronunciation_note: 'ti- 读 /ʃi/，整体读音连贯流利', meaning_zh: '不可谈判的；硬性条件的', example: 'Quality compliance and safety standards are non-negotiable clauses for us.' }
-    ],
-    grammar: {
-      point: '条件句在商务让步中的从属表达 (Conditional Concession Clauses)',
-      explanation: '在商务谈判中，表达让步时常使用 "Provided that...", "On the condition that...", 或 "Subject to..."，既表明合作诚意，又设定严格的前置保障条件。',
-      examples: [
-        {
-          correct: 'We are willing to grant a 5% discount, provided that the order volume exceeds 10,000 units.',
-          incorrect: 'We give 5% discount if you buy more items next time.'
-        },
-        {
-          correct: 'Subject to board approval, we can adjust the delivery milestone to Q3.',
-          incorrect: 'Maybe we can change delivery time to Q3 if boss agrees.'
-        }
-      ]
-    }
-  };
-}
-
 async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurrentProfile = '' }) {
-  try {
-    const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
-    if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
-    const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    const inputs = {
-      theme,
-      history_exclude: historyExclude || '',
-      user_current_profile: userCurrentProfile || '',
-      _system_time: getSystemFormattedTime(),
-      _system_timestamp_ms: Date.now(),
-    };
-    const res = await fetch(`${baseUrl}/workflows/run`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        inputs,
-        response_mode: 'blocking',
-        user: normalizeUserId(userId),
-      }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
-    const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? '';
-    const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(clean);
-    if (!parsed || !Array.isArray(parsed.vocab) || parsed.vocab.length === 0) {
-      console.warn('[Daily Pack] Dify returned empty wakeup vocab, using fallback wakeup content');
-      return getFallbackWakeup(theme);
-    }
-    return parsed;
-  } catch (err) {
-    console.warn('[Daily Pack] callWakeupWorkflow error, returning fallback:', err.message);
-    return getFallbackWakeup(theme);
-  }
+  const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
+  if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
+  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const inputs = {
+    theme,
+    history_exclude: historyExclude || '',
+    user_current_profile: userCurrentProfile || '',
+    _system_time: getSystemFormattedTime(),
+    _system_timestamp_ms: Date.now(),
+  };
+  const res = await fetch(`${baseUrl}/workflows/run`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      inputs,
+      response_mode: 'blocking',
+      user: normalizeUserId(userId),
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
+  const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? '';
+  const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+  return JSON.parse(clean);
 }
 
 async function generateFlawVocabForUser(db, userId, themeOverride) {
   const dbWords = getUserVocabWords(db);
-  const apiExclude = getHistoryExclude(db) || dbWords.slice(-50).join(', ');
+  const apiExclude = dbWords.slice(-50).join(', ');
   const todayStr = getPackDate();
-  const uid = normalizeUserId(userId);
+  const randomSalt = Math.floor(Math.random() * 10000);
+  const randomFocus = FLAW_SUB_THEMES[Math.floor(Math.random() * FLAW_SUB_THEMES.length)];
   const userTheme = String(themeOverride || '').trim();
-
-  // 一致性盐值：基于 userId + packDate + theme 进行 SHA256 哈希计算
-  const saltSeed = `${uid}-${todayStr}-${userTheme}`;
-  const sha256Hex = crypto.createHash('sha256').update(saltSeed).digest('hex');
-  const stableSalt = sha256Hex.slice(0, 8);
-
-  // 利用稳定盐值前几位转换整数，实现决定性焦点索引选择（避免焦点随机漂移）
-  const saltNum = parseInt(stableSalt, 16);
-  const focusIndex = isNaN(saltNum) ? 0 : (saltNum % FLAW_SUB_THEMES.length);
-  const stableFocus = FLAW_SUB_THEMES[focusIndex];
-
   const dynamicTheme = userTheme
-    ? `${userTheme} | identifying logical flaws and business counterattack (Focus: ${stableFocus}, Date: ${todayStr}, Salt: ${stableSalt})`
-    : `identifying logical flaws and business counterattack (Focus: ${stableFocus}, Date: ${todayStr}, Salt: ${stableSalt})`;
+    ? `${userTheme} | identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`
+    : `identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`;
   const profile = getUserCurrentProfile(db, userId);
   try {
     const parsed = await callWakeupWorkflow({
       theme: dynamicTheme,
-      userId: uid,
+      userId,
       historyExclude: apiExclude,
       userCurrentProfile: profile,
     });
@@ -379,57 +276,35 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
   const uid = normalizeUserId(userId);
   const sig = inputSignature || '';
   const now = Date.now();
-
-  const existing = db.prepare(
-    'SELECT id FROM daily_packs WHERE user_id = ? AND pack_date = ?'
-  ).get(uid, packDate);
-
-  if (existing) {
-    db.prepare(`
-      UPDATE daily_packs SET
-        theme = ?,
-        input_signature = ?,
-        wakeup_json = ?,
-        flaw_vocab_json = ?,
-        source = ?,
-        status = ?,
-        error_message = ?,
-        updated_at = ?
-      WHERE id = ?
-    `).run(
-      theme,
-      sig,
-      wakeup ? JSON.stringify(wakeup) : null,
-      flawVocab ? JSON.stringify(flawVocab) : null,
-      source,
-      status,
-      errorMessage || null,
-      now,
-      existing.id
-    );
-  } else {
-    const newId = crypto.randomUUID();
-    db.prepare(`
-      INSERT INTO daily_packs (
-        id, user_id, pack_date, theme, input_signature, wakeup_json, flaw_vocab_json,
-        source, status, error_message, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      newId,
-      uid,
-      packDate,
-      theme,
-      sig,
-      wakeup ? JSON.stringify(wakeup) : null,
-      flawVocab ? JSON.stringify(flawVocab) : null,
-      source,
-      status,
-      errorMessage || null,
-      now,
-      now
-    );
-  }
-
+  const existing = getDailyPackRow(db, uid, packDate, sig);
+  const id = existing?.id || crypto.randomUUID();
+  db.prepare(`
+    INSERT INTO daily_packs (
+      id, user_id, pack_date, theme, input_signature, wakeup_json, flaw_vocab_json,
+      source, status, error_message, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, pack_date, input_signature) DO UPDATE SET
+      theme = excluded.theme,
+      wakeup_json = excluded.wakeup_json,
+      flaw_vocab_json = excluded.flaw_vocab_json,
+      source = excluded.source,
+      status = excluded.status,
+      error_message = excluded.error_message,
+      updated_at = excluded.updated_at
+  `).run(
+    id,
+    uid,
+    packDate,
+    theme,
+    sig,
+    wakeup ? JSON.stringify(wakeup) : null,
+    flawVocab ? JSON.stringify(flawVocab) : null,
+    source,
+    status,
+    errorMessage || null,
+    existing?.created_at || now,
+    now,
+  );
   return getDailyPackRow(db, uid, packDate, sig);
 }
 
@@ -486,57 +361,66 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
   }
 }
 
-function safeJsonParse(str, fallback = null) {
-  if (!str) return fallback;
-  try {
-    return JSON.parse(str);
-  } catch (e) {
-    try {
-      const sanitized = String(str).replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-      return JSON.parse(sanitized);
-    } catch {
-      console.warn('[DailyPack] safeJsonParse failed:', e.message);
-      return fallback;
-    }
-  }
-}
-
-function serializeDailyPack(row, db) {
-  if (!row) {
-    const fallbackTheme = '商务谈判中的让步与施压';
-    return {
-      success: true,
-      packDate: getPackDate(),
-      theme: fallbackTheme,
-      status: 'ready',
-      source: 'fallback',
-      errorMessage: null,
-      wakeup: getFallbackWakeup(fallbackTheme),
-      flawVocab: buildFlawDisplayWords([], db ? getUserVocabWords(db) : []),
-    };
-  }
-
-  let wakeup = safeJsonParse(row.wakeup_json, null);
-  let flawVocab = safeJsonParse(row.flaw_vocab_json, null);
-
-  if (!wakeup || !Array.isArray(wakeup.vocab) || wakeup.vocab.length === 0) {
-    wakeup = getFallbackWakeup(row.theme);
-  }
-  if (!flawVocab || !Array.isArray(flawVocab) || flawVocab.length === 0) {
-    const dbWords = db ? getUserVocabWords(db) : [];
-    flawVocab = buildFlawDisplayWords([], dbWords);
-  }
-
+function serializeDailyPack(row) {
+  if (!row) return { success: true, status: 'missing' };
   return {
     success: true,
     packDate: row.pack_date,
     theme: row.theme,
-    status: 'ready',
+    status: row.status,
     source: row.source,
     errorMessage: row.error_message || null,
-    wakeup,
-    flawVocab,
+    wakeup: row.wakeup_json ? JSON.parse(row.wakeup_json) : null,
+    flawVocab: row.flaw_vocab_json ? JSON.parse(row.flaw_vocab_json) : null,
   };
+}
+
+function computeDailyArticleInputSignature({ topic, materialText, userId, cefrLevel, genre, duration }) {
+  const payload = {
+    topic: (topic || '').trim(),
+    materialText: (materialText || '').trim(),
+    userId: normalizeUserId(userId),
+    cefrLevel: String(cefrLevel || 'B1'),
+    genre: String(genre || 'meeting'),
+    duration: String(duration || '25'),
+  };
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+function postLocalJson(urlPath, payload, port = process.env.PORT || 3001) {
+  return new Promise((resolve, reject) => {
+    const http = require('http');
+    const data = JSON.stringify(payload);
+    const req = http.request({
+      hostname: '127.0.0.1',
+      port,
+      path: urlPath,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(data),
+      },
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          if (res.statusCode >= 200 && res.statusCode < 300 && json.success !== false) {
+            resolve(json);
+          } else {
+            reject(new Error(json.error || json.message || `HTTP ${res.statusCode}`));
+          }
+        } catch (e) {
+          reject(new Error(`Failed to parse response: ${body.substring(0, 100)}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.write(data);
+    req.end();
+  });
 }
 
 async function generateLongArticleForUser(db, userId, theme, source = 'cron', genre = 'meeting', cefrLevel = 'B1', duration = '25') {
@@ -546,9 +430,8 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
 
   console.log(`[LongArticle Service] Starting long article generation for user=${uid}, theme="${theme}", genre=${genre}, cefr=${cefrLevel}, duration=${duration}`);
 
-  try {
-    db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'").run();
-  } catch (e) {}
+  try { db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'").run(); } catch (e) {}
+  try { db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN input_signature TEXT DEFAULT ''").run(); } catch (e) {}
 
   let existing;
   try {
@@ -570,53 +453,22 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
   while (attempts < 2) {
     attempts++;
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          topic: theme,
-          materialText: theme,
-          userId: uid,
-          cefrLevel,
-          genre,
-          duration: String(duration),
-          user_current_profile: getUserCurrentProfile(db, uid)
-        })
-      });
+      const data = await postLocalJson('/api/english/daily-extract', {
+        topic: theme,
+        materialText: theme,
+        userId: uid,
+        cefrLevel,
+        genre,
+        duration: String(duration),
+        user_current_profile: getUserCurrentProfile(db, uid)
+      }, port);
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.success) {
-        if (data?.quotaExceeded) {
-          console.warn(`[LongArticle Service] Quota exceeded for user=${uid}`);
-          return { success: false, status: 'quota_exceeded', message: data.message };
-        }
-        throw new Error(data.error || data.message || `HTTP ${res.status}`);
-      }
-
-      if (data.taskId) {
-        const taskId = data.taskId;
-        while (true) {
-          await new Promise(r => setTimeout(r, 2500));
-          const statusRes = await fetch(`http://127.0.0.1:${port}/api/english/daily-extract/status/${taskId}`);
-          const statusData = await statusRes.json().catch(() => ({}));
-          if (statusData.status === 'completed') {
-            console.log(`[LongArticle Service] Successfully completed long article task for user=${uid}`);
-            return { success: true, status: 'ready', payload: statusData };
-          } else if (statusData.status === 'failed') {
-            throw new Error(statusData.error || 'Task failed');
-          }
-        }
-      }
-
-      return { success: true, status: 'ready', data };
+      console.log(`[LongArticle Service] Successfully completed long article task for user=${uid}`);
+      return { success: true, data };
     } catch (err) {
-      if (attempts < 2 && (err.message.includes('terminated') || err.message.includes('failed') || err.message.includes('fetch'))) {
-        console.warn(`[LongArticle Service] Task attempt ${attempts} failed (${err.message}). Retrying in 2s...`);
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      console.error(`[LongArticle Service] Failed for user=${uid}:`, err.message);
-      throw err;
+      console.warn(`[LongArticle Service] Attempt ${attempts} failed for user=${uid}:`, err.message);
+      if (attempts >= 2) throw err;
+      await new Promise(r => setTimeout(r, 2000));
     }
   }
 }
@@ -626,6 +478,7 @@ module.exports = {
   FLAW_SUB_THEMES,
   normalizeUserId,
   computeInputSignature,
+  computeDailyArticleInputSignature,
   getPackDate,
   getShanghaiHourMinute,
   initDailyPackTables,
@@ -643,4 +496,3 @@ module.exports = {
   upsertDailyPack,
   callWakeupWorkflow,
 };
-

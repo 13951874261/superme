@@ -44,20 +44,35 @@ async function main() {
   console.log('-----------------------------------------------------------\n');
 
   try {
-    // 运行编排入口：唤醒 -> 破绽 -> 长文生成并落库
+    // 0. 数据库 1G 体积自动巡检与 LRU 物理页裁剪
+    try {
+      const contentCleanupService = require('../services/contentCleanupService');
+      contentCleanupService.checkAndAutoCleanDatabase(db, dbPath);
+    } catch (cleanupErr) {
+      console.warn('⚠️ [Content Cleanup Warning]:', cleanupErr.message);
+    }
+
+    // 1. 运行编排入口：唤醒 -> 破绽 -> 长文生成并落库
     const summary = await dailyPackCron.runDailyPackCronJob(db, targetUserId);
     const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
     console.log('\n===========================================================');
-    console.log(` 🎉 后台 02:00 作业全部执行完毕！总耗时: ${durationSec} 秒`);
+    console.log(` 🎉 后台 02:00 作业模拟完成！总耗时: ${durationSec} 秒`);
     console.log('===========================================================');
     console.log(' 执行结果统计:', JSON.stringify(summary, null, 2));
 
-    // 数据库校验提示
-    const articleCount = db.prepare('SELECT COUNT(*) AS count FROM daily_extracted_articles WHERE quota_date = ?').get(packDate);
-    const packCount = db.prepare('SELECT COUNT(*) AS count FROM daily_packs WHERE pack_date = ?').get(packDate);
+    // 2. 针对指定用户或全库做精细落地校验
+    const uid = targetUserId ? dailyPackService.normalizeUserId(targetUserId) : null;
+    const articleCount = uid 
+      ? db.prepare('SELECT COUNT(*) AS count FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ?').get(uid, packDate)
+      : db.prepare('SELECT COUNT(*) AS count FROM daily_extracted_articles WHERE quota_date = ?').get(packDate);
+      
+    const packCount = uid
+      ? db.prepare('SELECT COUNT(*) AS count FROM daily_packs WHERE user_id = ? AND pack_date = ?').get(uid, packDate)
+      : db.prepare('SELECT COUNT(*) AS count FROM daily_packs WHERE pack_date = ?').get(packDate);
 
     console.log('\n📊 数据库今日落地统计:');
+    if (uid) console.log(` - 目标用户: ${uid}`);
     console.log(` - daily_packs (唤醒与破绽记录数): ${packCount?.count || 0}`);
     console.log(` - daily_extracted_articles (今日持久化长文数): ${articleCount?.count || 0}`);
     console.log('===========================================================\n');

@@ -5,7 +5,7 @@ const dailyPackService = require('./dailyPackService');
 
 const GENRES = ['meeting', 'news', 'podcast', 'reading'];
 const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
-const DURATIONS = [15, 25, 35]; // minutes
+const DURATIONS = [1, 15, 25, 35]; // minutes
 const CAPACITY_BYTES = 1024 * 1024 * 1024; // 1024MB
 const RETENTION_DAYS = 7;
 const LOGIN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -118,17 +118,60 @@ function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration }) 
 }
 
 function getArticleRow(db, parts) {
-  return db.prepare(`
+  let row = db.prepare(`
     SELECT * FROM daily_listen_articles
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
   `).get(parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
+
+  // 兜底 1: 若未根据精确主题查到，尝试按 user_id + pack_date + genre + cefr_level + duration 回退查询最新记录
+  if (!row) {
+    row = db.prepare(`
+      SELECT * FROM daily_listen_articles
+      WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
+  }
+
+  // 兜底 2: 若精听从表无数据，但主长文表 daily_extracted_articles 有记录，自动物理触发从表回填与音频同步
+  if (!row) {
+    const extRow = db.prepare(`
+      SELECT * FROM daily_extracted_articles
+      WHERE user_id=? AND quota_date=? AND genre=? AND cefr_level=? AND (duration=? OR duration=?)
+      ORDER BY created_at DESC LIMIT 1
+    `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, String(parts.duration), parts.duration);
+
+    if (extRow) {
+      try {
+        const syncRes = syncAudioFromLongArticleRow(db, extRow, 'realtime');
+        if (syncRes && syncRes.success) {
+          row = db.prepare(`
+            SELECT * FROM daily_listen_articles
+            WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
+            ORDER BY created_at DESC LIMIT 1
+          `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
+        }
+      } catch (err) {
+        console.error('[getArticleRow AutoSync Fallback Error]', err);
+      }
+    }
+  }
+  return row;
 }
 
 function getAudioRow(db, parts) {
-  return db.prepare(`
+  let row = db.prepare(`
     SELECT * FROM daily_listen_audios
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
   `).get(parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
+
+  if (!row) {
+    row = db.prepare(`
+      SELECT * FROM daily_listen_audios
+      WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
+  }
+  return row;
 }
 
 function fileOk(p) {
@@ -200,7 +243,13 @@ function getPregeneratedCombo(db, raw) {
 
 let generators = {
   generateLongScript: async () => { throw new Error('generateLongScript not injected'); },
-  synthesizeAudioFile: async () => { throw new Error('synthesizeAudioFile not injected'); },
+  synthesizeAudioFile: async (text, outputPath) => {
+    if (typeof global !== 'undefined' && typeof global.synthesizeAndSaveAudio === 'function') {
+      await global.synthesizeAndSaveAudio(text, 'edge-tts/en-US-EmmaNeural', outputPath, null, null);
+      return outputPath;
+    }
+    throw new Error('synthesizeAudioFile engine not injected');
+  },
 };
 
 function setGenerators(partial) {
@@ -464,8 +513,16 @@ function cleanupDailyListenStorage(db, { capacityBytes = CAPACITY_BYTES } = {}) 
 async function runDailyListenCronJob(db) {
   const packDate = dailyPackService.getPackDate();
   const users = listEligibleUsers(db);
-  const summary = { packDate, users: users.length, combosOk: 0, combosFail: 0, errors: [] };
+  const summary = { packDate, users: users.length, syncedFromArticles: 0, combosOk: 0, combosFail: 0, errors: [] };
   for (const u of users) {
+    // 选项 B 批次联动：在所有组合长文全量生成完毕后，统一按长文素材跑一遍音频合成批处理
+    try {
+      const syncRes = await batchSyncAudiosFromLongArticles(db, u.user_id, packDate);
+      summary.syncedFromArticles += (syncRes?.success || 0);
+    } catch (syncErr) {
+      console.warn(`[DailyListen Cron] Batch audio sync warning for user=${u.user_id}:`, syncErr.message);
+    }
+
     for (const genre of GENRES) {
       for (const cefrLevel of CEFR_LEVELS) {
         for (const duration of DURATIONS) {
@@ -490,6 +547,110 @@ async function runDailyListenCronJob(db) {
   const cleanup = cleanupDailyListenStorage(db);
   console.log('[DailyListen Cron] done', summary, cleanup);
   return { summary, cleanup };
+}
+
+/**
+ * 从单条每日长文记录直接复用文本，合成精听音频并同步写入 daily_listen_audios 与 daily_listen_articles
+ */
+async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
+  if (!row || !row.user_id) return null;
+  const uid = dailyPackService.normalizeUserId(row.user_id);
+  const packDate = row.quota_date || dailyPackService.getPackDate();
+  const theme = row.theme || '商务英语';
+  const genre = row.genre || 'meeting';
+  const cefrLevel = row.cefr_level || 'B1';
+  const duration = Number(row.duration) || 25;
+
+  const scriptText = row.article || row.article_text || row.material_text || row.body_text || '';
+  if (!scriptText) {
+    console.warn(`[ListenAudio Sync] Skip user=${uid} ${genre}/${cefrLevel}/${duration}m - article text empty`);
+    return null;
+  }
+
+  const parts = comboKeyParts({ userId: uid, packDate, theme, genre, cefrLevel, duration });
+  const baseName = `${packDate}_${parts.genre}_${parts.cefrLevel}_${parts.duration}m`;
+
+  const userDirA = path.join(ARTICLE_ROOT, parts.userId);
+  const userDirAu = path.join(AUDIO_ROOT, parts.userId);
+  fs.mkdirSync(userDirA, { recursive: true });
+  fs.mkdirSync(userDirAu, { recursive: true });
+
+  // 1. 同步保存精听文本
+  const txtPath = path.join(userDirA, `${baseName}.txt`);
+  fs.writeFileSync(txtPath, scriptText, 'utf8');
+  upsertArticle(db, parts, {
+    status: 'ready',
+    source,
+    body_text: scriptText,
+    vocab_json: row.words_json || row.extracted_words_json || '[]',
+    phrases_json: row.phrases_json || row.extracted_phrases_json || '[]',
+    file_path: txtPath,
+  });
+
+  // 2. 调用音频合成引擎，直接基于长文文本生成 .mp3 音频
+  upsertAudio(db, parts, { status: 'generating', source });
+  try {
+    const audioPath = path.join(userDirAu, `${baseName}.mp3`);
+    if (generators.synthesizeAudioFile) {
+      await generators.synthesizeAudioFile(scriptText, audioPath);
+    } else {
+      const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+      const tts = new MsEdgeTTS();
+      await tts.setMetadata('en-US-AnaNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_STEREO_MD5);
+      const stream = tts.toStream(scriptText);
+      const outStream = fs.createWriteStream(audioPath);
+      await new Promise((resolve, reject) => {
+        stream.pipe(outStream);
+        outStream.on('finish', resolve);
+        outStream.on('error', reject);
+        stream.on('error', reject);
+      });
+    }
+    const audioUrl = `/api/daily_listen_audio/${parts.userId}/${baseName}.mp3`;
+    upsertAudio(db, parts, {
+      status: 'ready',
+      source,
+      script_text: scriptText,
+      audio_path: audioPath,
+      audio_url: audioUrl,
+    });
+    console.log(`[ListenAudio Sync] ✅ Successfully synced audio for user=${uid} (${genre}/${cefrLevel}/${duration}m)`);
+    return { success: true, audioUrl };
+  } catch (e) {
+    upsertAudio(db, parts, { status: 'failed', source, error_message: e.message });
+    console.error(`[ListenAudio Sync] ❌ Audio synthesis failed for user=${uid}:`, e.message);
+    return { success: false, error: e.message };
+  }
+}
+
+/**
+ * 批处理：为某用户某天的所有已生成长文记录批量合成精听音频
+ */
+async function batchSyncAudiosFromLongArticles(db, userId, packDate) {
+  const uid = dailyPackService.normalizeUserId(userId);
+  const date = packDate || dailyPackService.getPackDate();
+
+  console.log(`\n[ListenAudio Batch Sync] Starting batch audio synthesis for user=${uid}, date=${date}...`);
+
+  const articles = db.prepare(`
+    SELECT * FROM daily_extracted_articles 
+    WHERE user_id = ? AND (quota_date = ? OR quota_date IS NULL OR quota_date = '')
+  `).all(uid, date);
+
+  let success = 0;
+  let failed = 0;
+
+  for (const article of articles) {
+    const res = await syncAudioFromLongArticleRow(db, article, 'cron');
+    if (res && res.success) {
+      success++;
+    } else {
+      failed++;
+    }
+  }
+
+  console.log(`[ListenAudio Batch Sync] Completed for user=${uid}: ${success} succeeded, ${failed} failed.\n`);
+  return { total: articles.length, success, failed };
 }
 
 module.exports = {
@@ -523,4 +684,6 @@ module.exports = {
   unlinkQuiet,
   cleanupDailyListenStorage,
   runDailyListenCronJob,
+  syncAudioFromLongArticleRow,
+  batchSyncAudiosFromLongArticles,
 };

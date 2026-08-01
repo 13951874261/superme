@@ -13,7 +13,7 @@ import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { submitReview, addWord } from '../../../../services/vocabAPI';
 import { useTask } from '../../../../components/TaskContext';
 
-const CACHEABLE_DURATIONS = [5, 15, 25];
+const CACHEABLE_DURATIONS = [1, 15, 25, 35];
 
 export default function ListenTab() {
   const {
@@ -474,24 +474,33 @@ export default function ListenTab() {
                   <option value="B2" className="text-black">B2 高阶</option>
                   <option value="C1" className="text-black">C1 母语级</option>
                 </select>
-                <div className="flex items-center gap-2 bg-black/20 px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/20 transition-all">
-                  <span className="text-[10px] text-gray-400 font-black">时长:</span>
-                  <input
-                    type="range"
-                    min="1"
-                    max="35"
-                    value={listenDuration}
-                    onChange={(e) => setListenDuration(Number(e.target.value))}
-                    className="w-20 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#FF5722]"
-                  />
-                  <span className="text-[10px] text-[#FF5722] font-black w-6 text-right">{listenDuration}m</span>
+                <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/10">
+                  <span className="text-[10px] text-gray-400 font-black px-1.5">时长:</span>
+                  {[1, 15, 25, 35].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setListenDuration(d)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-black transition-all cursor-pointer ${
+                        listenDuration === d
+                          ? 'bg-[#FF5722] text-white shadow-sm'
+                          : 'text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {d}m
+                    </button>
+                  ))}
                 </div>
                 <button
                   onClick={() => generateListenMaterial(theme)}
                   disabled={isListenMaterialLoading}
-                  className="ml-auto shrink-0 whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-4 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-all disabled:opacity-50 disabled:grayscale"
+                  className="ml-auto shrink-0 whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-all disabled:opacity-50 disabled:grayscale flex items-center gap-1.5"
                 >
-                  重新生成
+                  {isListenMaterialLoading ? (
+                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 正在查询/生成今日内容...</>
+                  ) : (
+                    <><Zap className="w-3.5 h-3.5 text-amber-300" /> 查询/生成今日精听</>
+                  )}
                 </button>
               </div>
               {isCacheableDuration && (pregenStatus === 'missing' || pregenStatus === 'failed') && (
