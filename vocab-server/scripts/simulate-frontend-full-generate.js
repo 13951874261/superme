@@ -31,12 +31,10 @@ async function main() {
   // 3. 真实触发 Dify 02:00 Cron 预生成服务 (唤醒包 + 破绽词包 + 长文 + 音频)
   console.log('\n================🤖 2. 触发真实 Dify 工作流预生成 ================');
   try {
-    await dailyListenPreGenerateService.generateFullDailyListenPack(db, {
-      now: Date.now(),
-      targetUserId: 'lzhmy',
-      force: true
-    });
-    console.log('✅ 真实 Dify 工作流预生成完成！');
+    for (const uid of targetUsers) {
+      await dailyPackService.generateDailyPack(db, uid, 'both', '商务谈判：让步与施压');
+      console.log(`✅ [Dify 唤醒包+破绽包] 真实 Dify 接口调用物理落库成功! 用户=${uid}`);
+    }
   } catch (err) {
     console.warn('⚠️ 真实 Dify 预生成产生警告/回退机制:', err.message);
   }
