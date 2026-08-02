@@ -23,6 +23,8 @@ import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { VOICE_OPTIONS } from '../../../../config/voices';
 
 
+const safeToStr = (item: any) => (typeof item === 'string' ? item : (item?.word || item?.phrase || item?.text || String(item || ''))).trim();
+
 export default function DashboardTab() {
   const {
     stage, setStage,
@@ -283,8 +285,6 @@ export default function DashboardTab() {
           }).catch(() => {});
         }
       }
-    } catch (err) {
-      // 自动翻译异常静默降级，不污染控制台
     } finally {
       pendingTranslationsRef.current.delete(keyStr);
     }
@@ -294,8 +294,6 @@ export default function DashboardTab() {
     try {
       const allWords = await getAllWords();
       const detailsMap: Record<string, any> = {};
-
-      const safeToStr = (item: any) => (typeof item === 'string' ? item : (item?.word || item?.phrase || item?.text || String(item || ''))).trim();
 
       const extractedKeys = new Set([
         ...extractedWords.map(w => safeToStr(w).toLowerCase()).filter(Boolean),
