@@ -5269,12 +5269,13 @@ const handleGetDailyExtractArticle = (req, res) => {
       `).get(genre, cefrLevel, duration, Number(duration));
     }
 
-    // 6. 跨日期保底 2: 全局提取数据库中最新的一条有效长文
+    // 6. 跨日期保底 2: 严格按当前 duration 提取数据库中最新的一条有效长文
     if (!row) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
+        WHERE (duration = ? OR duration = ?)
         ORDER BY created_at DESC LIMIT 1
-      `).get();
+      `).get(duration, Number(duration));
     }
 
     if (!row) {
