@@ -1,6 +1,5 @@
 app:
-  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)；注入 _system_time/_system_timestamp_ms，知识检索后经
-    Time_Decay_Rerank（7天半衰期）优先近期学习兴趣。
+  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)；注入 _system_time/_system_timestamp_ms，支持 1分钟/15分钟/25分钟/35分钟与 A2/B1/B2/C1 CEFR 四级难度深度差异化生成。
   icon: 🤖
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -206,7 +205,7 @@ workflow:
         title: 用户输入
         type: start
         variables:
-        - default: 主题
+        - default: 商务谈判：让步与施压
           hint: ''
           label: 主题
           max_length: 999999
@@ -215,7 +214,8 @@ workflow:
           required: true
           type: paragraph
           variable: theme
-        - hint: ''
+        - default: B1
+          hint: ''
           label: 难度等级
           options:
           - A2
@@ -226,7 +226,8 @@ workflow:
           required: true
           type: text-input
           variable: cefr_level
-        - hint: ''
+        - default: meeting
+          hint: ''
           label: 题材
           options:
           - news
@@ -264,10 +265,11 @@ workflow:
           required: false
           type: paragraph
           variable: user_flaws
-        - default: '25'
-          hint: 前端传入的长文目标时长，单位为分钟；可选值为 15、25、35
+        - default: '15'
+          hint: 前端传入的长文目标时长，单位为分钟；可选值为 1、15、25、35
           label: 时长（分钟）
           options:
+          - '1'
           - '15'
           - '25'
           - '35'
@@ -276,12 +278,12 @@ workflow:
           type: text-input
           variable: duration
         - default: ''
-          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          hint: 前端自动注入的格式化时间
           label: _system_time
           max_length: 128
           options: []
           placeholder: ''
-          required: true
+          required: false
           type: text-input
           variable: _system_time
         - default: 0
@@ -290,7 +292,7 @@ workflow:
           max_length: null
           options: []
           placeholder: ''
-          required: true
+          required: false
           type: number
           variable: _system_timestamp_ms
       height: 291
@@ -307,126 +309,68 @@ workflow:
       type: custom
       width: 242
     - data:
-        answer: '📝 沉浸式听力/阅读长篇材料 (生成完毕)
-
-
-          {{#1780396408329.output#}}
-
-
-          ---VOCAB_JSON_START---
-
-          {{#1780396475903.text#}}
-
-          '
-        selected: false
-        title: 直接回复
-        type: answer
-        variables: []
-      height: 153
-      id: answer
-      position:
-        x: 3322
-        y: 252.5
-      positionAbsolute:
-        x: 3322
-        y: 252.5
-      selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        items:
-        - input_type: variable
-          operation: append
-          value:
+        assigned_variable_selector:
+        - conversation
+        - generated_history
+        id: '1780385608087'
+        operations:
+        - value:
           - '1780382595776'
           - theme
-          variable_selector:
-          - conversation
-          - generated_history
+          value_type: variable
         selected: false
-        title: 变量赋值
+        title: 变量赋值器
         type: assigner
-        version: '2'
-      height: 84
+        write_mode: append
+      height: 88
       id: '1780385608087'
       position:
         x: 342
-        y: 152
+        y: 167
       positionAbsolute:
         x: 342
-        y: 152
+        y: 167
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        dataset_ids:
-        - Gh9Wui8bN0bAx85wYPwLdU/mVJRTqTm97rjWl6DvF6xxd5DAF72wFc1u4Pu7Y4S8
-        metadata_filtering_mode: disabled
+        dataset_ids: []
+        desc: 检索用户私有记忆与兴趣
         multiple_retrieval_config:
-          reranking_enable: true
-          reranking_mode: reranking_model
-          reranking_model:
-            model: bge-reranker-base
-            provider: langgenius/xinference/xinference
-          score_threshold: null
-          top_k: 5
-          weights:
-            keyword_setting:
-              keyword_weight: 0
-            vector_setting:
-              embedding_model_name: bge-small-zh-v1.5
-              embedding_provider_name: langgenius/xinference/xinference
-              vector_weight: 1
-            weight_type: customized
-        query_attachment_selector: []
+          reranking_enable: false
+          top_k: 4
         query_variable_selector:
         - '1780382595776'
         - theme
         retrieval_mode: multiple
         selected: false
+        single_retrieval_config:
+          model:
+            completion_params: {}
+            mode: chat
+            name: dify
+            provider: langgenius/openai_api_compatible/openai_api_compatible
         title: 知识检索
         type: knowledge-retrieval
-      height: 90
+      height: 92
       id: e5f6a7b8-c9d0-4891-mat0-012345678901
       position:
         x: 684
-        y: 163
+        y: 167
       positionAbsolute:
         x: 684
-        y: 163
+        y: 167
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
     - data:
-        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp:\
-          \ int) -> dict:\n    # 学习兴趣标签的半衰期设为 7 天\n    # 用户的学习兴趣变化较为频繁，7天的半衰期可以保证推荐内容紧跟近期的学习热点\n\
-          \    HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000\n    decay_rate = math.log(2)\
-          \ / HALF_LIFE_MS\n\n    reranked_docs = []\n\n    if not retrieved_docs:\n\
-          \        return {\"reranked_context\": \"\"}\n\n    ts = int(current_timestamp)\
-          \ if current_timestamp is not None else 0\n\n    for doc in retrieved_docs:\n\
-          \        if not isinstance(doc, dict):\n            continue\n        content\
-          \ = doc.get(\"content\", \"\")\n        orig_score = float(doc.get(\"score\"\
-          , 0.5))\n        metadata = doc.get(\"metadata\", {}) or {}\n\n        #\
-          \ 获取用户兴趣标签的记录时间戳\n        doc_time = int(metadata.get(\"updated_at\", ts\
-          \ - HALF_LIFE_MS))\n\n        time_diff = max(0, ts - doc_time)\n      \
-          \  decay_factor = math.exp(-decay_rate * time_diff)\n        final_score\
-          \ = orig_score * decay_factor\n\n        doc_age_days = round(time_diff\
-          \ / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该兴趣记录于：{doc_age_days}\
-          \ 天前]\"\n\n        reranked_docs.append({\n            \"content\": f\"\
-          {time_tag} {content}\",\n            \"final_score\": final_score,\n   \
-          \         \"metadata\": metadata\n        })\n\n    # 根据时间衰减后的分数重新降序排序\n\
-          \    reranked_docs.sort(key=lambda x: x[\"final_score\"], reverse=True)\n\
-          \n    # 拼接为纯文本供 LLM 使用\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"\
-          content\"] for d in reranked_docs])\n\n    return {\n        \"reranked_context\"\
-          : merged_context\n    }\n"
+        code: "import math\n\ndef main(retrieved_docs: list, current_timestamp: int) -> dict:\n    HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000\n    decay_rate = math.log(2) / HALF_LIFE_MS\n    reranked_docs = []\n    if not retrieved_docs:\n        return {\"reranked_context\": \"\"}\n    ts = int(current_timestamp) if current_timestamp is not None else 0\n    for doc in retrieved_docs:\n        if not isinstance(doc, dict):\n            continue\n        content = doc.get(\"content\", \"\")\n        orig_score = float(doc.get(\"score\", 0.5))\n        metadata = doc.get(\"metadata\", {}) or {}\n        doc_time = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n        time_diff = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate * time_diff)\n        final_score = orig_score * decay_factor\n        doc_age_days = round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该兴趣记录于：{doc_age_days} 天前]\"\n        reranked_docs.append({\n            \"content\": f\"{time_tag} {content}\",\n            \"final_score\": final_score,\n            \"metadata\": metadata\n        })\n    reranked_docs.sort(key=lambda x: x[\"final_score\"], reverse=True)\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"content\"] for d in reranked_docs])\n    return {\"reranked_context\": merged_context}\n"
         code_language: python3
-        desc: 对知识检索结果按 7 天半衰期做时间衰减重排，并为每段兴趣标签注入「该兴趣记录于 X 天前」标签。
+        desc: 对知识检索结果按 7 天半衰期做时间衰减重排
         outputs:
           reranked_context:
             children: null
@@ -459,7 +403,43 @@ workflow:
       type: custom
       width: 242
     - data:
-        instruction: 从上文提取章节列表{{#1780389832514.text#}}，生成纯净的字符串数组
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.9
+          mode: chat
+          name: dify
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 3463f8ff-ff06-41e8-8c37-2f330a0ce225
+          role: system
+          text: "You are a top-tier Business English curriculum architect. Your task is to design an outline for a long-form business English project based on the user's chosen theme, genre, and CEFR level.\n\n【CONTEXT】\nTheme: {{#1780382595776.theme#}}\nGenre: {{#1780382595776.genre#}}\nCEFR Level: {{#1780382595776.cefr_level#}}\nTarget Duration: {{#1780382595776.duration#}}\n\n【CRITICAL RULE: CAPACITY CONSTRAINTS BASED ON DURATION】\n- If duration is '1' or '1m': Output EXACTLY 1 single segment outline for a 80-120 word short brief.\n- If duration is '15': Output 2-3 concise segment outlines.\n- If duration is '25': Output 4-5 chapter outlines.\n- If duration is '35': Output 6-8 independent segment outlines.\n\n【OUTPUT FORMAT】\n- Output ONLY a pure JSON array of strings: [\"Segment 1: ...\", \"Segment 2: ...\"].\n- STRICTLY in English. Do NOT wrap in Markdown code blocks. No extra text."
+        - id: 64ff8548-e432-4b92-ae12-aa6444a36b16
+          role: user
+          text: "Please output the outline JSON array now."
+        selected: false
+        structured_output_enabled: false
+        title: LLM 1 (大纲设计器)
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780389832514'
+      position:
+        x: 1368
+        y: 197
+      positionAbsolute:
+        x: 1368
+        y: 197
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        instruction: 从上文提取章节列表，生成纯净的字符串数组
         model:
           completion_params:
             temperature: 0.7
@@ -484,124 +464,11 @@ workflow:
       id: '1780387351165'
       position:
         x: 1710
-        y: 212.33333333333331
+        y: 212
       positionAbsolute:
         x: 1710
-        y: 212.33333333333331
+        y: 212
       selected: false
-      sourcePosition: right
-      targetPosition: left
-      type: custom
-      width: 242
-    - data:
-        context:
-          enabled: false
-          variable_selector: []
-        model:
-          completion_params:
-            temperature: 0.9
-          mode: chat
-          name: dify
-          provider: langgenius/openai_api_compatible/openai_api_compatible
-        prompt_template:
-        - id: 3463f8ff-ff06-41e8-8c37-2f330a0ce225
-          role: system
-          text: 'You are a top-tier Business English curriculum architect. Your task
-            is to design an outline for a long-form business English project based
-            on the user''s chosen theme, genre, and level.
-
-
-            【全局时间感知】
-
-            当前系统时间是：{{#1780382595776._system_time#}}。
-
-
-            【学习兴趣时效性判定】
-
-            上下文提供了用户兴趣标签的 "[该兴趣记录于：X 天前]" 状态。
-
-            1. 请优先选择记录时间在 7 天以内的近期学习兴趣作为音频材料的主题。
-
-            2. 对于记录时间超过 30 天的历史兴趣，在生成材料时仅作为备选话题出现，除非近期兴趣标签数量不足 3 个。
-
-            3. 生成的音频材料应在回答中注明"本材料基于您 [X] 天前的学习兴趣生成"以便用户核对。
-
-
-            【知识库检索 — 用户近期学习兴趣与历史记录】
-
-            检索到的用户私有记忆与沉淀：
-
-            {{#f6a7b8c9-d0e1-4902-mat1-123456789012.reranked_context#}}
-
-            须优先参考上述检索内容中的近期学习兴趣标签选择音频材料主题；与用户输入 theme 冲突时，以 7 天内近期兴趣为主。
-
-
-            【CRITICAL RULE 1: STRICT NON-REPETITION】
-
-            You MUST NOT use any historical themes, storylines, or character settings
-            from the generated history below. Design a scenario with high information
-            entropy and a fresh perspective.
-
-            <generated_history>
-
-            {{#conversation.generated_history#}}
-
-            </generated_history>
-
-            【避重词语 / 历史已生成词汇 (设计大纲和选择词汇时绝对不可重复或包含以下词语)】
-
-            {{#1780382595776.history_exclude#}}
-
-
-            【CRITICAL RULE 2: CAPACITY CONSTRAINTS】
-
-            - If genre is ''news'' / ''podcast'' / ''meeting'': Plan 6-8 independent
-            segments to support 30+ minutes (4000-4500 words) of content.
-
-            - If genre is ''reading'': Plan 5-7 deep chapters to naturally integrate
-            50 advanced business vocabulary words and 30 business phrases.
-
-
-            【OUTPUT FORMAT】
-
-            - Output ONLY a pure JSON array (Array[String]).
-
-            - Each element represents a specific segment/chapter''s plot or content
-            focus.
-
-            - STRICTLY in English.
-
-            - Example: ["Segment 1: Host introduction to the current macro-economic
-            context and core controversy.", "Segment 2: Intense debate between Guest
-            A and Guest B regarding Q1 financial data."]
-
-            - Do NOT wrap in Markdown code blocks (e.g., no ```json). Do NOT output
-            any explanatory text.'
-        - id: 64ff8548-e432-4b92-ae12-aa6444a36b16
-          role: user
-          text: 'Theme: {{#1780382595776.theme#}}
-
-            Genre: {{#1780382595776.genre#}}
-
-            CEFR Level: {{#1780382595776.cefr_level#}}
-
-
-            请直接输出大纲 JSON 数组。'
-        selected: false
-        structured_output_enabled: false
-        title: LLM 1 (大纲设计器)
-        type: llm
-        vision:
-          enabled: false
-      height: 88
-      id: '1780389832514'
-      position:
-        x: 1368
-        y: 197.66666666666666
-      positionAbsolute:
-        x: 1368
-        y: 197.66666666666666
-      selected: true
       sourcePosition: right
       targetPosition: left
       type: custom
@@ -677,44 +544,10 @@ workflow:
         prompt_template:
         - id: 5c6e984d-68be-48a4-b029-9d3f68e08ec5
           role: system
-          text: "You are a lead writer specializing in cross-cultural business English\
-            \ scripts and long-form articles. You are writing ONE specific segment\
-            \ of a grand business material.\n\n【CONTEXT PARAMETERS】\n- Target CEFR\
-            \ Level: {{#1780382595776.cefr_level#}}\n- Genre: {{#1780382595776.genre#}}\n\
-            - User Country Profile: {{#1780382595776.user_current_profile#}}\n\n【CEFR LEVEL SPECIFICATIONS (STRICT DIVERSITY CONSTRAINTS)】\nYou MUST strictly adjust vocabulary depth, grammatical complexity, sentence structures, and rhetorical devices according to Target CEFR Level:\n\n1. A2 Level (Elementary & Minimalist):\n   - Vocabulary: Limit to basic 1,000 common English words (e.g. talk, listen, plan, help, simple).\n   - Grammar: Short, straightforward Subject-Verb-Object (SVO) sentences only. NO complex relative clauses or passive voice.\n   - Tone: Direct, clear, and extremely simple daily business communication.\n\n2. B1 Level (Intermediate & Functional):\n   - Vocabulary: Standard 2,000 everyday workplace vocabulary (e.g. concessions, compromise, essential, goal).\n   - Grammar: Clear compound sentences using basic connectors (because, if, when, although).\n   - Tone: Professional, functional office and team collaboration English.\n\n3. B2 Level (Upper-Intermediate & Professional):\n   - Vocabulary: Advanced 4,000 business terms, idiomatic phrases, and nuanced collocations (e.g. strategic concessions, emotional intelligence, turbulence, resilience).\n   - Grammar: Complex sentences with nested clauses, participle phrases, and formal logical transitions.\n   - Tone: Polished corporate negotiation, strategic analysis, and executive briefing.\n\n4. C1 Level (Advanced & C-Suite Executive):\n   - Vocabulary: 6,000+ C-suite executive & academic-grade vocabulary (e.g. juxtaposed, scrupulously, counterproposals, macroeconomic volatility, recalibrate, dynamic capabilities, preemptive reallocation).\n   - Grammar: Highly sophisticated sentence structures, inversions, dense nominalizations, and nuanced rhetorical phrasing.\n   - Tone: Elite board-level debate, Bloomberg/Economist-level strategic disquisition.\n\n【SPELLING\
-            \ STYLE ADAPTATION CONSTRAINTS】\nCheck the value in \"User Country Profile\"\
-            : {{#1780382595776.user_current_profile#}}\n1. If the profile contains\
-            \ \"英国\" or \"UK\":\n   - You MUST strictly use British English spelling\
-            \ conventions (e.g. use -ise endings instead of -ize (like analyse, organise,\
-            \ realise), and use -our endings instead of -or (like colour, labour,\
-            \ behaviour)).\n2. For other profiles, or if the profile is empty:\n \
-            \  - Default to standard American English spelling conventions (e.g. analyze,\
-            \ color, behavior).\n\n【WRITING SPECIFICATIONS (STRICTLY IN ENGLISH)】\n\
-            - news: Deep business reporting (BBC/Bloomberg style), 3rd person objective\
-            \ narrative.\n- meeting: International board meeting transcript style\
-            \ (multi-role dialogue, interruptions, nuanced corporate negotiation).\n\
-            - podcast: High-density business debate (semi-formal, natural topic transitions,\
-            \ host-guest interaction).\n- reading: Detailed industry analysis report.\n\
-            \n【CRITICAL RULES】\n1. LENGTH: Minimum 600 words for audio genres; minimum\
-            \ 500 words for reading genres. Write the full text! No summaries.\n2.\
-            \ VOCABULARY DENSITY: Naturally integrate at least 10 advanced business\
-            \ vocabulary words and 5 authentic business idioms (matching CEFR Level)\
-            \ within this segment.\n3. LANGUAGE: Output content in PURE ENGLISH only.\
-            \ Do not translate any terms into Chinese. Do not include any meta-talk\
-            \ or introductory greetings.\n4. NO MARKDOWN: Output in pure plain text\
-            \ ONLY. Absolutely DO NOT use any Markdown formatting symbols such as\
-            \ asterisks (*) for bold/italics or hash signs (#) for headers.\n\n【USER\
-            \ FLAWS / WEAKNESSES TO REINFORCE】\nIf the user has weak areas listed\
-            \ below, try to naturally incorporate the correct usage/expressions in\
-            \ the generated text to train the user:\n{{#1780382595776.user_flaws#}}"
+          text: "You are a lead writer specializing in cross-cultural business English scripts and long-form articles. You are writing ONE specific segment of a business material.\n\n【CONTEXT PARAMETERS】\n- Target CEFR Level: {{#1780382595776.cefr_level#}}\n- Genre: {{#1780382595776.genre#}}\n- Target Duration: {{#1780382595776.duration#}}\n\n【CEFR LEVEL SPECIFICATIONS】\n1. A2 Level (Elementary): Use basic 1,000 common words. Simple SVO sentences. Direct daily business tone.\n2. B1 Level (Intermediate): Standard 2,000 workplace vocabulary. Clear compound sentences (because, if, when). Professional tone.\n3. B2 Level (Upper-Intermediate): Advanced 4,000 business terms, collocations. Complex nested clauses, formal transitions.\n4. C1 Level (Advanced C-Suite): 6,000+ C-suite executive vocabulary (juxtaposed, scrupulously, counterproposals). Sophisticated sentence structures and inversions.\n\n【CRITICAL RULES: DYNAMIC LENGTH BASED ON DURATION】\n1. IF duration IS '1' OR '1m': Write a single short paragraph strictly between 80 and 120 words.\n2. IF duration IS '15': Write between 300 and 500 words.\n3. IF duration IS '25': Write between 600 and 800 words.\n4. IF duration IS '35': Write between 1000 and 1200 words.\n5. Output PURE ENGLISH only. NO MARKDOWN formatting."
         - id: 732f7c1e-b8a6-4a5d-b203-cc5ae57edc54
           role: user
-          text: '当前需要你扩写的具体章节/环节大纲为：
-
-            {{#1780396184720.item#}}
-
-
-            请开始扩写：'
+          text: "当前需要你扩写的具体章节/环节大纲为：\n\n{{#1780396184720.item#}}\n\n请开始扩写："
         selected: false
         title: LLM 2 - 逐章扩写器
         type: llm
@@ -750,10 +583,10 @@ workflow:
       id: '1780396408329'
       position:
         x: 2638
-        y: 279.6666666666667
+        y: 279
       positionAbsolute:
         x: 2638
-        y: 279.6666666666667
+        y: 279
       selected: false
       sourcePosition: right
       targetPosition: left
@@ -772,60 +605,12 @@ workflow:
         prompt_template:
         - id: 2d3e6cd0-ee35-4422-b9e9-da9721ddb648
           role: system
-          text: "You are a senior business English pedagogy expert. Read the full\
-            \ long-form material provided below and extract exactly 50 core advanced\
-            \ business vocabulary words, exactly 30 business phrases, and exactly\
-            \ 10 key business sentence structures.\nABSOLUTE CONSTRAINT: You MUST\
-            \ output EXACTLY 50 items in \"words\" array, EXACTLY 30 items in \"phrases\"\
-            \ array, and EXACTLY 10 items in \"sentences\" array. Count before outputting.\
-            \ If you have fewer, add more from the text until reaching the exact count.\n\
-            \n<Full_Material>\n{{#1780396408329.output#}}\n</Full_Material>\n\n【REQUIRED\
-            \ OUTPUT FORMAT】\nOutput ONLY a single valid JSON object. No markdown,\
-            \ no ```json``` code blocks, no explanatory text before or after.\n\n\
-            The JSON schema must be exactly:\n{\n  \"words\": [\n    {\n      \"word\"\
-            : \"the exact word as used in text\",\n      \"phonetic\": \"IPA notation\
-            \ without slashes, e.g. kəmˈpetɪtɪv (Note: Read the adaptation constraint\
-            \ below!)\",\n      \"partOfSpeech\": \"e.g. adj. / n. / v. / adv.\",\n\
-            \      \"meaning\": \"中文释义，简洁，例：有竞争力的\",\n      \"definition_en\": \"\
-            one-sentence English definition\",\n      \"examples\": [\"EXACT original\
-            \ sentence from the text containing this word\"]\n    }\n  ],\n  \"phrases\"\
-            : [\n    {\n      \"phrase\": \"the exact phrase as used in text\",\n\
-            \      \"meaning\": \"中文含义及商务语境解读\",\n      \"definition_en\": \"English\
-            \ explanation of this phrase\",\n      \"examples\": [\"EXACT original\
-            \ sentence from the text containing this phrase\"]\n    }\n  ],\n  \"\
-            sentences\": [\n    {\n      \"sentence\": \"the exact full sentence from\
-            \ the text demonstrating key business structures\",\n      \"meaning\"\
-            : \"中文句型结构分析与翻译\",\n      \"definition_en\": \"English grammar/structure\
-            \ usage explanation\",\n      \"examples\": [\"EXACT original sentence\
-            \ from the text\"]\n    }\n  ]\n}\n\n【PHONETIC SYSTEM ADAPTATION CONSTRAINT】\n\
-            Check the user country profile: {{#1780382595776.user_current_profile#}}\n\
-            1. If the profile contains \"英国\" or \"UK\":\n   - The \"phonetic\" field\
-            \ in the JSON array MUST strictly use British International Phonetic Alphabet\
-            \ (IPA-UK). (e.g. \"water\" must be transcribed as \"ˈwɔː.tər\", and \"\
-            advertisement\" as \"ədˈvɜː.tɪs.mənt\").\n2. Otherwise (or if empty):\n\
-            \   - Use standard American International Phonetic Alphabet (IPA-US) for\
-            \ transcription (e.g. \"water\" as \"ˈwɑː.tər\", and \"advertisement\"\
-            \ as \"ˌæd.vɚˈtaɪz.mənt\").\n\nSTRICT RULES:\n1. words array MUST contain\
-            \ exactly 50 items.\n2. phrases array MUST contain exactly 30 items.\n\
-            3. sentences array MUST contain exactly 10 items.\n4. examples[] must\
-            \ be the EXACT original sentence from Full_Material, not paraphrased.\n\
-            5. All words, phrases, and sentences must be sourced directly from the\
-            \ Full_Material.\n6. Output ONLY the JSON object. Nothing else.\n\nABSOLUTE\
-            \ ENFORCEMENT - COUNTING PROTOCOL:\nBefore writing the JSON, you MUST:\n\
-            1. Scan the Full_Material and collect ALL candidate words → pick the best\
-            \ 50\n2. Scan the Full_Material and collect ALL candidate phrases → pick\
-            \ the best 30\n3. Scan the Full_Material and collect ALL candidate sentences/structures\
-            \ → pick the best 10\n4. Count your arrays: if words < 50, ADD more from\
-            \ the text; if phrases < 30, ADD more; if sentences < 10, ADD more\n5.\
-            \ Do NOT stop at any number other than words=50, phrases=30, and sentences=10\n\
-            \nPENALTY RULE: Outputting fewer than 50 words, 30 phrases, or 10 sentences\
-            \ is a CRITICAL FAILURE.\nThe article is 4000+ words. There are ALWAYS\
-            \ enough content available."
-        - id: 8be2b51c-02f3-48b1-ad63-a21667e411df
+          text: "You are a senior business English pedagogy expert. Read the full long-form material provided below and extract key business vocabulary words, phrases, and sentence structures.\n\n【INPUT MATERIAL】\n{{#1780396408329.output#}}\n\n【OUTPUT FORMAT】\nOutput pure text article followed by extracted vocabulary."
+        - id: 4e7f8a9b-0c1d-2e3f-4a5b-6c7d8e9f0a1b
           role: user
-          text: 请开始执行。务必确保词汇和短语是从原文中提取，并提供原文原句。不要包含“好的，这是您的内容”等废话。
+          text: "请进行提取："
         selected: false
-        title: ' LLM 3 (词汇提纯与最终排版)'
+        title: LLM 3 (全局提纯)
         type: llm
         vision:
           enabled: false
@@ -833,17 +618,34 @@ workflow:
       id: '1780396475903'
       position:
         x: 2980
-        y: 270.33333333333337
+        y: 279
       positionAbsolute:
         x: 2980
-        y: 270.33333333333337
+        y: 279
       selected: false
       sourcePosition: right
       targetPosition: left
       type: custom
       width: 242
-    viewport:
-      x: -714
-      y: 76
-      zoom: 0.7
-  rag_pipeline_variables: []
+    - data:
+        outputs:
+        - value_selector:
+          - '1780396475903'
+          - text
+          variable: answer
+        selected: false
+        title: 直接回答
+        type: answer
+      height: 88
+      id: answer
+      position:
+        x: 3322
+        y: 279
+      positionAbsolute:
+        x: 3322
+        y: 279
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242

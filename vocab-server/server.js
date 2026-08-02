@@ -5006,6 +5006,10 @@ function injectOralSystemTime(inputs = {}) {
   if (base._system_timestamp_ms == null || base._system_timestamp_ms === '') {
     base._system_timestamp_ms = Date.now();
   }
+  if (!base.theme) base.theme = '商务谈判：让步与施压';
+  if (!base.genre) base.genre = 'meeting';
+  if (!base.cefr_level) base.cefr_level = 'B1';
+  if (!base.duration) base.duration = '15';
   return base;
 }
 
