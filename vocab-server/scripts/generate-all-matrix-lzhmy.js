@@ -117,6 +117,7 @@ async function main() {
             body = `${body} Furthermore, detailed operational guidelines require continuous alignment across department heads to optimize resource utilization and risk control. In-depth quantitative metrics further validate market expansion projections across North American and European markets over the next five fiscal quarters. Consequently, executive leadership maintains a bullish outlook on long-term enterprise valuation and sustainable competitive advantage.`;
           }
 
+          // 同时写 daily_extracted_articles 主长文表
           db.prepare(`
             INSERT OR REPLACE INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -126,6 +127,18 @@ async function main() {
             JSON.stringify(['strategic flexibility', 'firm pressure', 'operational targets']),
             JSON.stringify([body.split('.')[0] + '.']),
             duration, `sig_${duration}m_${genre}_${cefrLevel}`, now, now
+          );
+
+          // 同时写 daily_listen_articles 听力长文表
+          const listenArtId = crypto.randomUUID();
+          db.prepare(`
+            INSERT OR REPLACE INTO daily_listen_articles (id, user_id, pack_date, theme, genre, cefr_level, duration, body_text, vocab_json, phrases_json, status, source, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            listenArtId, uid, packDate, '商务谈判：让步与施压', genre, cefrLevel, durInt, body,
+            JSON.stringify([{ word: 'strategy' }, { word: 'leverage' }, { word: 'concession' }]),
+            JSON.stringify(['strategic flexibility', 'firm pressure', 'operational targets']),
+            'ready', 'cron', now, now
           );
 
           const audioId = crypto.randomUUID();
