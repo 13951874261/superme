@@ -56,10 +56,7 @@ export default function DailyErrorVocabularyModule() {
   };
 
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      void fetchFlawVocab(false);
-    }, 800);
-    return () => window.clearTimeout(timer);
+    void fetchFlawVocab(false);
   }, []);
 
   const handleAddWord = async (word: FlawVocabWord) => {

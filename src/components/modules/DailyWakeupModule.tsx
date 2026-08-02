@@ -82,15 +82,13 @@ export default function DailyWakeupModule() {
   };
 
   const loadTodayPack = async (reason: string) => {
-    setNotice(`正在读取今日包…（${reason} / ${getAppUserId()}）`);
     try {
-      const queryInput = await buildDailyPackQueryInput(theme);
-      const pack = await getTodayDailyPack(queryInput);
+      const pack = await getTodayDailyPack({ theme, historyExclude: '', userCurrentProfile: '' });
       applyPack(pack);
       return pack;
     } catch (error) {
       const msg = error instanceof Error ? error.message : '加载失败';
-      setNotice(`读取今日包失败：${msg}（${reason} / ${getAppUserId()}）`);
+      setNotice(`读取今日包失败：${msg}`);
       return null;
     }
   };
