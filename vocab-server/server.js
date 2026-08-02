@@ -5259,13 +5259,30 @@ const handleGetDailyExtractArticle = (req, res) => {
       `).get(today, genre, cefrLevel, duration, Number(duration));
     }
 
-    // 4. 兜底 3: 全局跨用户按 genre + cefr_level + duration 查找最新历史记录
+    // 5. 终极强物理保底 1: 强制从 lzhmy 账号下按 genre + cefr_level + duration 提取物理落库记录
     if (!row) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
-        WHERE genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
+        WHERE user_id IN ('lzhmy', 'lzhumy') AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
         ORDER BY created_at DESC LIMIT 1
       `).get(genre, cefrLevel, duration, Number(duration));
+    }
+
+    // 6. 终极强物理保底 2: 全表提取任意已就绪的 1分钟 / 物理预生成正文
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(duration, Number(duration));
+    }
+
+    // 7. 终极强物理保底 3: 全表无视条件的物理终极记录
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        ORDER BY created_at DESC LIMIT 1
+      `).get();
     }
 
     if (!row) {
