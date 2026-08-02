@@ -32,7 +32,7 @@ async function main() {
   console.log('\n================🤖 2. 触发真实 Dify 工作流预生成 ================');
   try {
     for (const uid of targetUsers) {
-      await dailyPackService.generateDailyPack(db, uid, 'both', '商务谈判：让步与施压');
+      await dailyPackService.generateDailyPackForUser(db, uid, 'both', '商务谈判：让步与施压');
       console.log(`✅ [Dify 唤醒包+破绽包] 真实 Dify 接口调用物理落库成功! 用户=${uid}`);
     }
   } catch (err) {
