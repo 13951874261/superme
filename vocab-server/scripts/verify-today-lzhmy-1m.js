@@ -18,15 +18,24 @@ if (packs.length > 0) {
   console.log(`❌ [唤醒包+破绽词包] 结论: 未找到用户 ${targetUser} 的记录`);
 }
 
-// 2. 检查 1 分钟短长文正文 (7体裁 * 4难度 = 28条)
-const articles = db.prepare(`
+// 2. 检查 1 分钟商业短长文正文 (7体裁 * 4难度 = 28条)
+let articles = db.prepare(`
   SELECT genre AS 体裁, cefr_level AS 难度, duration AS 时长, length(article) as 正文字节数, article AS 正文首句
   FROM daily_extracted_articles
   WHERE user_id = ? AND (duration = 1 OR duration = '1')
   ORDER BY genre, cefr_level
 `).all(targetUser);
 
-console.log(`\n📄 2. 1分钟商业短长文正文主表 (daily_extracted_articles):`);
+if (articles.length === 0) {
+  articles = db.prepare(`
+    SELECT genre AS 体裁, cefr_level AS 难度, duration AS 时长, length(body_text) as 正文字节数, body_text AS 正文首句
+    FROM daily_listen_articles
+    WHERE user_id = ? AND (duration = 1 OR duration = '1')
+    ORDER BY genre, cefr_level
+  `).all(targetUser);
+}
+
+console.log(`\n📄 2. 1分钟商业短长文正文主表 (daily_extracted_articles / daily_listen_articles):`);
 if (articles.length > 0) {
   console.table(articles.map(a => ({
     ...a,
