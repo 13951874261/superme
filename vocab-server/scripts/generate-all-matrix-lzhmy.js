@@ -15,6 +15,7 @@ async function main() {
   // 1. 物理清空测试账号的已有数据
   db.prepare("DELETE FROM daily_packs WHERE user_id IN ('lzhmy', 'lzhumy')").run();
   db.prepare("DELETE FROM daily_extracted_articles WHERE user_id IN ('lzhmy', 'lzhumy')").run();
+  db.prepare("DELETE FROM daily_listen_articles WHERE user_id IN ('lzhmy', 'lzhumy')").run();
   db.prepare("DELETE FROM daily_listen_audios WHERE user_id IN ('lzhmy', 'lzhumy')").run();
 
   // 2. 绑定主题
@@ -108,8 +109,12 @@ async function main() {
         for (const cefrLevel of CEFR_LEVELS) {
           const artId = crypto.randomUUID();
           let body = baseArticles[genre][cefrLevel];
-          // 根据不同时长展开篇幅
-          if (duration === '15') {
+          
+          // 严格区分不同时长的正文篇幅！
+          if (duration === '1') {
+            // 1分钟：保持纯粹标准的精简 1 分钟英文正文
+            body = baseArticles[genre][cefrLevel];
+          } else if (duration === '15') {
             body = `${body} Furthermore, detailed operational guidelines require continuous alignment across department heads to optimize resource utilization and risk control.`;
           } else if (duration === '25') {
             body = `${body} Furthermore, detailed operational guidelines require continuous alignment across department heads to optimize resource utilization and risk control. In-depth quantitative metrics further validate market expansion projections across North American and European markets over the next five fiscal quarters.`;
