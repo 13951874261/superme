@@ -26,6 +26,8 @@ export function VocabularyGrid({
     return null;
   }
 
+  const safeStr = (v: any) => (typeof v === 'string' ? v : (v?.word || v?.phrase || v?.text || String(v || ''))).trim();
+
   const getDisplayMeaning = (text?: string) => {
     const val = (text || '').trim();
     if (!val) return '';
@@ -45,7 +47,9 @@ export function VocabularyGrid({
           </h5>
           <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
             <div className="grid grid-cols-1 sm:grid-cols-1 gap-3.5">
-              {extractedWords.map((word) => {
+              {extractedWords.map((rawWordItem) => {
+                const word = safeStr(rawWordItem);
+                if (!word) return null;
                 const details = vocabDetailsMap[word.toLowerCase().trim()];
                 const phonetic = details?.phonetic || '';
 
@@ -133,10 +137,12 @@ export function VocabularyGrid({
           </h5>
           <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
             <div className="space-y-3">
-              {extractedPhrases.map((phrase, idx) => {
-                const details = vocabDetailsMap[phrase.toLowerCase().trim()];
+              {extractedPhrases.map((rawPhraseItem, idx) => {
+                const phrase = safeStr(rawPhraseItem);
+                if (!phrase) return null;
+                const cleanKey = phrase.toLowerCase();
+                const details = vocabDetailsMap[cleanKey];
                 let rawMeaning = getDisplayMeaning(details?.meaning);
-                const cleanKey = phrase.toLowerCase().trim();
                 const isPhraseStored = !!vocabDetailsMap[cleanKey];
 
                 if (!rawMeaning) {
@@ -217,10 +223,12 @@ export function VocabularyGrid({
           </h5>
           <div className="flex-1 overflow-y-auto pr-2 mt-4" style={{ scrollbarWidth: 'thin' }}>
             <div className="space-y-3">
-              {extractedSentences.map((phrase, idx) => {
-                const details = vocabDetailsMap[phrase.toLowerCase().trim()];
+              {extractedSentences.map((rawSentenceItem, idx) => {
+                const phrase = safeStr(rawSentenceItem);
+                if (!phrase) return null;
+                const cleanKey = phrase.toLowerCase();
+                const details = vocabDetailsMap[cleanKey];
                 let rawMeaning = getDisplayMeaning(details?.meaning);
-                const cleanKey = phrase.toLowerCase().trim();
 
                 if (!rawMeaning) {
                   if (asyncMeanings[cleanKey]?.meaning) {
