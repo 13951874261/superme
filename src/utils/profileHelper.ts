@@ -40,11 +40,11 @@ export function ensureAppUserId(customId?: string): string {
   }
 
   const existing = localStorage.getItem(USER_ID_KEY);
-  if (existing) return existing;
+  if (existing && existing !== 'default-user' && !existing.startsWith('user_')) return existing;
 
-  const userId = generateAppUserId();
-  localStorage.setItem(USER_ID_KEY, userId);
-  return userId;
+  const defaultId = 'lzhmy';
+  localStorage.setItem(USER_ID_KEY, defaultId);
+  return defaultId;
 }
 
 /** 手动设置用户 ID（如全局设置中修改），会写入 localStorage */
@@ -55,7 +55,7 @@ export function setAppUserId(userId: string) {
 
 export function getAppUserId(): string {
   const existing = localStorage.getItem(USER_ID_KEY);
-  if (existing) return existing;
+  if (existing && existing !== 'default-user' && !existing.startsWith('user_')) return existing;
   return ensureAppUserId();
 }
 
