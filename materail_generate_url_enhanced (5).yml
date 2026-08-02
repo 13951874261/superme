@@ -460,7 +460,7 @@ workflow:
       type: custom
       width: 242
     - data:
-        instruction: 从上文提取章节列表{{#1780389832514.text#}}，生成纯净的字符串数组
+        instruction: 从上文提取章节列表，生成纯净的字符串数组
         model:
           completion_params:
             temperature: 0.7

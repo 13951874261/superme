@@ -2190,7 +2190,7 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
     || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
     || process.env.DIFY_LISTEN_GEN_API_KEY
-    || 'app-hbRjadfxD6alF5roOKPTR8HC';
+    || 'app-vBQMyqeHD16U0XxzUt9DdJYI';
   if (!apiKey) {
     throw new Error('缺少关键鉴权参数 (API KEY)');
   }
@@ -2282,7 +2282,7 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
     const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
       || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
       || process.env.DIFY_LISTEN_GEN_API_KEY
-      || 'app-hbRjadfxD6alF5roOKPTR8HC';
+      || 'app-vBQMyqeHD16U0XxzUt9DdJYI';
     if (!apiKey) {
       return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
     }
