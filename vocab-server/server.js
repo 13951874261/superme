@@ -5219,30 +5219,34 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
 
 const handleGetDailyExtractArticle = (req, res) => {
   try {
-    const userId = req.query.userId || 'default-user';
+    const rawUserId = req.query.userId || 'default-user';
     const genre = String(req.query.genre || 'meeting').trim();
     const cefrLevel = String(req.query.cefrLevel || 'B1').trim();
-    const duration = String(req.query.duration || '25').trim();
-    const topic = String(req.query.topic || '').trim();
+    const duration = String(req.query.duration || '1').trim();
     const today = dailyPackService.getPackDate();
 
-    // 1. 优先按 user_id + quota_date + genre + cefrLevel + duration 精确查找
+    // 兼顾账号别名 (lzhmy / lzhumy)
+    const userIds = [rawUserId];
+    if (rawUserId === 'lzhmy') userIds.push('lzhumy');
+    if (rawUserId === 'lzhumy') userIds.push('lzhmy');
+
+    // 1. 优先按 user_id + quota_date + genre + cefr_level + duration 精确查找
     let row = db.prepare(`
       SELECT * FROM daily_extracted_articles
-      WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
+      WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND quota_date = ? AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
       ORDER BY created_at DESC LIMIT 1
-    `).get(userId, today, genre, cefrLevel, duration, Number(duration));
+    `).get(...userIds, today, genre, cefrLevel, duration, Number(duration));
 
-    // 2. 兜底 1: 查找当前用户当天最新该时长的物理记录
+    // 2. 兜底 1: 按 user_id + genre + cefr_level + duration 查找最新历史记录
     if (!row) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
-        WHERE user_id = ? AND quota_date = ? AND (duration = ? OR duration = ?)
+        WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
         ORDER BY created_at DESC LIMIT 1
-      `).get(userId, today, duration, Number(duration));
+      `).get(...userIds, genre, cefrLevel, duration, Number(duration));
     }
 
-    // 3. 兜底 2: 全局跨用户按 quota_date + genre + cefrLevel + duration 查找落库记录
+    // 3. 兜底 2: 全局跨用户按 quota_date + genre + cefr_level + duration 查找物理落库记录
     if (!row) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
@@ -5251,31 +5255,13 @@ const handleGetDailyExtractArticle = (req, res) => {
       `).get(today, genre, cefrLevel, duration, Number(duration));
     }
 
-    // 4. 兜底 3: 全局跨用户查找当天最新该时长的任意物理记录
-    if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE quota_date = ? AND (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(today, duration, Number(duration));
-    }
-
-    // 5. 跨日期保底 1: 查找该时长、该体裁/难度的最新物理历史长文（解决跨天无当日记录问题）
+    // 4. 兜底 3: 全局跨用户按 genre + cefr_level + duration 查找最新历史记录
     if (!row) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
         WHERE genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
         ORDER BY created_at DESC LIMIT 1
       `).get(genre, cefrLevel, duration, Number(duration));
-    }
-
-    // 6. 跨日期保底 2: 严格按当前 duration 提取数据库中最新的一条有效长文
-    if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(duration, Number(duration));
     }
 
     if (!row) {
