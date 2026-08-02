@@ -139,10 +139,22 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null) {
     ).get(uid, packDate, inputSignature);
     if (row) return row;
   }
-  // 兜底：未精确命中签名或未传签名时，取当天最新一行，确保前台能流畅读取物理缓存
-  return db.prepare(
+  // 1. 用户当天最新物理记录
+  let row = db.prepare(
     'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
   ).get(uid, packDate);
+  if (row) return row;
+
+  // 2. 跨账号当天最新 ready 记录保底
+  row = db.prepare(
+    "SELECT * FROM daily_packs WHERE pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
+  ).get(packDate);
+  if (row) return row;
+
+  // 3. 全局历史最新 ready 记录终极保底
+  return db.prepare(
+    "SELECT * FROM daily_packs WHERE status = 'ready' ORDER BY created_at DESC LIMIT 1"
+  ).get();
 }
 
 function getFallbackFlawVocab() {
