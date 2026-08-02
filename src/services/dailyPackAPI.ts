@@ -125,7 +125,7 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
     let lastErr: unknown;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
       try {
-        return await request<DailyPackResponse>(path, { timeoutMs: 10_000 });
+        return await request<DailyPackResponse>(path, { timeoutMs: 45_000 });
       } catch (err) {
         lastErr = err;
         const msg = err instanceof Error ? err.message : '';

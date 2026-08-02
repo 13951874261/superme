@@ -5930,19 +5930,33 @@ app.post('/api/user/login-ping', (req, res) => {
 
 app.get('/api/daily-pack/today', (req, res) => {
   try {
-    const userId = req.query.userId || 'default-user';
+    const rawUserId = req.query.userId || 'default-user';
     const theme = String(req.query.theme || '商务谈判：让步与施压').trim();
+
+    // 兼顾账号别名
+    const userIds = [rawUserId];
+    if (rawUserId === 'lzhmy') userIds.push('lzhumy');
+    if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
     // 自动保障前台用户及其选择的主题写入 user_theme_prefs 物理表
     try {
-      if (theme) dailyPackService.upsertUserTheme(db, userId, theme);
+      if (theme) {
+        for (const u of userIds) dailyPackService.upsertUserTheme(db, u, theme);
+      }
     } catch (e) {}
 
     const packDate = dailyPackService.getPackDate();
-    const historyExclude = String(req.query.historyExclude || '').trim();
-    const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
-    const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
-    const row = dailyPackService.getDailyPackRow(db, userId, packDate, inputSignature);
+    let row = null;
+
+    for (const u of userIds) {
+      row = dailyPackService.getDailyPackRow(db, u, packDate, null);
+      if (row) break;
+    }
+
+    if (!row) {
+      row = dailyPackService.getDailyPackRow(db, 'default-user', packDate, null);
+    }
+
     res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
     console.error('[Daily Pack Today]', error);
