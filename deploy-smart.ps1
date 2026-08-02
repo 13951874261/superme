@@ -212,6 +212,9 @@ try {
                 'vocab-server/services/dailyPackCron.js',
                 'vocab-server/scripts/simulate-1min-full-cron.js',
                 'vocab-server/scripts/query-1min-verify.js',
+                'vocab-server/scripts/upsert-user.js',
+                'vocab-server/scripts/locate-data.js',
+                'vocab-server/scripts/print-articles.js',
                 'vocab-server/scripts/run-full-production-ready.js',
                 'vocab-server/scripts/test-single-1min.js',
                 'vocab-server/scripts/print-schema.js'
