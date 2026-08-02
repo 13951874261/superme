@@ -10,7 +10,7 @@ const dailyPackService = require('../services/dailyPackService');
 async function main() {
   const targetUser = 'lzhmy';
   const packDate = dailyPackService.getPackDate();
-  console.log(`\n🚀 [全组合 16种 1分钟短长文预生成] 用户: [${targetUser}] | 时长固定: [1分钟] | 日期: ${packDate}`);
+  console.log(`\n🚀 [全量 28种 1分钟 100% 精准体裁短长文生成] 用户: [${targetUser}] | 时长: [1分钟] | 日期: ${packDate}`);
 
   // 1. 确保 user_theme_prefs 物理表绑定
   let themeRow = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(targetUser);
@@ -42,75 +42,87 @@ async function main() {
   db.prepare(`
     INSERT OR REPLACE INTO daily_packs (id, user_id, pack_date, theme, wakeup_json, flaw_vocab_json, status, input_signature, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(packId, targetUser, packDate, theme, JSON.stringify(wakeupJson), JSON.stringify(flawJson), 'ready', 'sig_1m_all_combos', now, now);
-  console.log('[2/3] ✅ 唤醒与破绽词包写入成功');
+  `).run(packId, targetUser, packDate, theme, JSON.stringify(wakeupJson), JSON.stringify(flawJson), 'ready', 'sig_1m_28combos', now, now);
 
-  // 3. 穷举 4 种体裁 * 4 种难度 = 16 种全新且内容、难度完全不同的 1 分钟短长文与 mp3
+  // 3. 7 种完全独立的精准体裁 矩阵
   const articlesMatrix = {
     meeting: {
       A2: "In simple team meetings, we talk about prices and work plans carefully. Everyone must listen to their managers and find good ways to work together easily.",
-      B1: "During modern business negotiations, making small concessions while keeping key requests is essential. Teams should discuss clear goals and compromise when necessary to achieve agreements.",
-      B2: "In high-level business negotiations, making strategic concessions while maintaining firm pressure is essential. Parties must analyze core interests, identify flexible boundaries, and communicate with high emotional intelligence.",
-      C1: "Navigating high-stakes commercial negotiations necessitates calculated concessions juxtaposed with unrelenting strategic leverage. Negotiators must scrupulously evaluate underlying motives and articulate nuanced counterproposals."
+      B1: "During board meetings, directors evaluate project budgets and set upcoming operational targets. Teams coordinate closely to ensure execution timelines stay on schedule.",
+      B2: "In executive committee meetings, senior leaders align corporate strategy with Q3 performance metrics, identifying operational bottlenecks and allocating key capital resources.",
+      C1: "Convening the executive board, leaders scrupulously assess strategic risks and capital allocations, juxtaposing short-term earnings targets against long-term competitive positioning."
     },
-    news: {
-      A2: "Big companies are opening new shops this week. Customers are buying electronics and online products quickly because prices are lower now.",
-      B1: "Recent market reports show that tech supply chains are adapting to new trends. Companies are improving production plans and looking for reliable international suppliers.",
-      B2: "Industry analysis indicates that global tech supply chains are adapting to rapid market shifts. Executive teams are re-evaluating risk models and optimizing global sourcing strategies.",
-      C1: "Global macroeconomic volatility has impelled enterprise leaders to recalibrate operational frameworks, hedge foreign exchange exposure, and institute resilient supply networks."
+    email: {
+      A2: "Dear Team, please send me the sales report by 5 PM today. Thank you for your hard work and help with this project.",
+      B1: "Dear Partner, regarding our contract discussion, we propose updating section 3 to reflect current delivery schedules and agreed pricing terms.",
+      B2: "Dear Stakeholders, this email summarizes our strategic posture following recent regulatory changes, outlining immediate operational adjustments and compliance steps.",
+      C1: "Dear Board Members, hereunder is our comprehensive memorandum detailing the preemptive acquisition framework and cross-border tax optimization structures."
     },
-    podcast: {
-      A2: "Welcome to our morning show. Today we talk about daily office work and team habits. Good habits help workers finish tasks faster every day.",
-      B1: "Welcome back. Today we discuss effective team communication in modern offices. Good leaders focus on active listening and giving clear feedback to team members.",
-      B2: "Welcome back. Today we discuss leadership under high-pressure scenarios. Successful executives emphasize clarity, active listening, and decisive action in complex economic environments.",
-      C1: "Welcome to executive insights. Today we dissect adaptive leadership paradigms. Prominent CEOs cultivate organizational agility, foster psychological safety, and orchestrate transformative shifts."
+    report: {
+      A2: "This market report shows that online shopping is growing fast in Asia. Customers like buying electronics and clothes using mobile phones.",
+      B1: "Recent industry reports indicate that renewable energy investments are driving tech sector expansion, creating new commercial opportunities for agile market entrants.",
+      B2: "Quarterly industry research highlights key growth vectors across emerging cloud computing markets, emphasizing subscription revenue stability and enterprise adoption rates.",
+      C1: "Empirical macroeconomic research underscores persistent structural shifts within global semiconductor supply chains, forecasting capital expenditure trends through 2030."
+    },
+    negotiation: {
+      A2: "We want a lower price for these goods, but the seller wants a longer contract. We need to compromise carefully today.",
+      B1: "During commercial negotiations, we offered flexible payment terms in exchange for volume discounts, reaching a balanced agreement for both parties.",
+      B2: "In high-stakes commercial negotiations, making strategic concessions while maintaining firm pressure is essential to achieve mutual gain without compromising core boundaries.",
+      C1: "Navigating high-stakes commercial bargaining necessitates calculated concessions juxtaposed with unrelenting strategic leverage, evaluating underlying motives to articulate nuanced counterproposals."
+    },
+    presentation: {
+      A2: "Welcome everyone. Today I will show you our new product features and explain how they help customers save time every day.",
+      B1: "Good morning investors. Today's presentation focuses on our market expansion plan for 2026, highlighting user acquisition growth and financial milestones.",
+      B2: "Welcome stakeholders. Our roadshow presentation demonstrates key financial projections, unit economics, and scalable business models for international markets.",
+      C1: "Esteemed venture partners, this investor presentation delineates our disruptive technology roadmap, projected EBITDA margins, and strategic expansion into enterprise markets."
     },
     reading: {
-      A2: "Good business plans help teams save money and time. When employees work together nicely, projects finish quickly and customers stay happy.",
-      B1: "Strategic planning helps growing companies navigate daily market challenges. Aligning team efforts with corporate goals ensures steady growth and long-term customer satisfaction.",
-      B2: "Strategic flexibility enables modern organizations to navigate market turbulence. By aligning operational capabilities with strategic vision, enterprises sustain resilience and foster innovation.",
-      C1: "Organizational longevity relies upon dynamic capabilities that assimilate nascent technologies. Disruption management requires preemptive resource reallocation and proactive stakeholder alignment."
+      A2: "Good business planning helps companies save money and time. When employees work together nicely, projects finish quickly and customers stay happy.",
+      B1: "Strategic planning helps growing companies navigate daily market challenges effectively. Aligning team efforts with corporate goals ensures steady growth.",
+      B2: "Strategic flexibility enables modern organizations to navigate market turbulence. By aligning operational capabilities with strategic vision, enterprises sustain resilience.",
+      C1: "Organizational longevity relies upon dynamic capabilities that assimilate nascent technologies. Disruption management requires preemptive resource reallocation."
+    },
+    news: {
+      A2: "Big retail stores are opening new locations across the country today. Customers are buying products quickly because discount prices are lower now.",
+      B1: "Financial news reports indicate that central bank interest rate decisions are influencing stock indices, prompting corporate CFOs to adjust capital allocation plans.",
+      B2: "Bloomberg news reports highlight that global tech supply chains are adapting to rapid market shifts, with executive teams re-evaluating risk models.",
+      C1: "Macroeconomic headlines report that currency volatility has impelled enterprise leaders to recalibrate operational frameworks and institute resilient supply networks."
     }
   };
 
-  const GENRES = ['meeting', 'news', 'podcast', 'reading', 'report', 'negotiation', 'email', 'presentation'];
+  const GENRES = ['meeting', 'email', 'report', 'negotiation', 'presentation', 'reading', 'news'];
   const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
 
-  for (const rawGenre of GENRES) {
-    let lookupGenre = rawGenre;
-    if (rawGenre === 'report') lookupGenre = 'news';
-    if (rawGenre === 'negotiation' || rawGenre === 'presentation') lookupGenre = 'meeting';
-    if (rawGenre === 'email') lookupGenre = 'reading';
-
+  for (const genre of GENRES) {
     for (const cefrLevel of CEFR_LEVELS) {
       const artId = crypto.randomUUID();
-      const body = articlesMatrix[lookupGenre][cefrLevel];
+      const body = articlesMatrix[genre][cefrLevel];
       db.prepare(`
         INSERT OR REPLACE INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        artId, targetUser, packDate, theme, rawGenre, cefrLevel, body,
+        artId, targetUser, packDate, theme, genre, cefrLevel, body,
         JSON.stringify([{ word: 'strategy' }, { word: 'leverage' }]),
         JSON.stringify(['strategic flexibility', 'firm pressure']),
         JSON.stringify([body.split('.')[0] + '.']),
-        '1', `sig_1m_${rawGenre}_${cefrLevel}`, now, now
+        '1', `sig_1m_${genre}_${cefrLevel}`, now, now
       );
 
       const audioId = crypto.randomUUID();
-      const audioUrl = `/api/daily_listen_audio/${targetUser}/${packDate}_${rawGenre}_${cefrLevel}_1m.mp3`;
+      const audioUrl = `/api/daily_listen_audio/${targetUser}/${packDate}_${genre}_${cefrLevel}_1m.mp3`;
       db.prepare(`
         INSERT OR REPLACE INTO daily_listen_audios (id, user_id, pack_date, theme, genre, cefr_level, duration, audio_url, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(audioId, targetUser, packDate, theme, rawGenre, cefrLevel, 1, audioUrl, 'ready', now, now);
+      `).run(audioId, targetUser, packDate, theme, genre, cefrLevel, 1, audioUrl, 'ready', now, now);
     }
   }
 
-  console.log('[3/3] ✅ 用户 lzhmy 的 16 种组合 (4体裁 * 4难度) 1分钟短长文及音频预生成全量完成!');
+  console.log('[3/3] ✅ 用户 lzhmy 的 7种体裁 * 4种难度 = 28种 100% 精准英文短长文预生成全量完成!');
 
-  console.log(`\n================== 16种组合物理落库精确核查报告 [用户: ${targetUser}] ==================`);
-  const articles = db.prepare("SELECT genre, cefr_level, duration, length(article) as char_cnt, article FROM daily_extracted_articles WHERE user_id = 'lzhmy' AND (duration = 1 OR duration = '1')").all();
+  console.log(`\n================== 28种精准组合物理落库核查报告 [用户: ${targetUser}] ==================`);
+  const articles = db.prepare("SELECT genre, cefr_level, duration, length(article) as char_cnt, article FROM daily_extracted_articles WHERE user_id = 'lzhmy' AND (duration = 1 OR duration = '1') ORDER BY genre, cefr_level").all();
   console.table(articles);
-  console.log(`总计生成组合数: ${articles.length} 条 (预期 16 条)`);
+  console.log(`总计生成组合数: ${articles.length} 条 (预期 28 条)`);
   console.log('===================================================================================\n');
 }
 
