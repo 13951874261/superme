@@ -265,9 +265,10 @@ workflow:
           type: paragraph
           variable: user_flaws
         - default: '25'
-          hint: 前端传入的长文目标时长，单位为分钟；可选值为 15、25、35
+          hint: 前端传入的长文目标时长，单位为分钟；可选值为 1、15、25、35
           label: 时长（分钟）
           options:
+          - '1'
           - '15'
           - '25'
           - '35'
@@ -293,7 +294,7 @@ workflow:
           required: true
           type: number
           variable: _system_timestamp_ms
-      height: 291
+      height: 317
       id: '1780382595776'
       position:
         x: 0
@@ -553,13 +554,21 @@ workflow:
             {{#1780382595776.history_exclude#}}
 
 
-            【CRITICAL RULE 2: CAPACITY CONSTRAINTS】
+            【CRITICAL RULE 2: DYNAMIC CAPACITY CONSTRAINTS BASED ON DURATION】
 
-            - If genre is ''news'' / ''podcast'' / ''meeting'': Plan 6-8 independent
-            segments to support 30+ minutes (4000-4500 words) of content.
+            Check Target Duration (duration): {{#1780382595776.duration#}}
 
-            - If genre is ''reading'': Plan 5-7 deep chapters to naturally integrate
-            50 advanced business vocabulary words and 30 business phrases.
+            - If duration is ''1'' or ''1m'': Plan EXACTLY 1 single ultra-short concise
+            segment focus (for a 80-120 word short brief).
+
+            - If duration is ''15'': Plan 2-3 concise segments to support 15 minutes
+            of content (300-500 words).
+
+            - If duration is ''25'': Plan 4-5 chapters to support 25 minutes of content
+            (600-800 words).
+
+            - If duration is ''35'': Plan 6-8 independent segments to support 35+
+            minutes of content (1000-1200 words).
 
 
             【OUTPUT FORMAT】
@@ -677,36 +686,7 @@ workflow:
         prompt_template:
         - id: 5c6e984d-68be-48a4-b029-9d3f68e08ec5
           role: system
-          text: "You are a lead writer specializing in cross-cultural business English\
-            \ scripts and long-form articles. You are writing ONE specific segment\
-            \ of a grand business material.\n\n【CONTEXT PARAMETERS】\n- Target CEFR\
-            \ Level: {{#1780382595776.cefr_level#}}\n- Genre: {{#1780382595776.genre#}}\n\
-            - User Country Profile: {{#1780382595776.user_current_profile#}}\n\n【CEFR LEVEL SPECIFICATIONS (STRICT DIVERSITY CONSTRAINTS)】\nYou MUST strictly adjust vocabulary depth, grammatical complexity, sentence structures, and rhetorical devices according to Target CEFR Level:\n\n1. A2 Level (Elementary & Minimalist):\n   - Vocabulary: Limit to basic 1,000 common English words (e.g. talk, listen, plan, help, simple).\n   - Grammar: Short, straightforward Subject-Verb-Object (SVO) sentences only. NO complex relative clauses or passive voice.\n   - Tone: Direct, clear, and extremely simple daily business communication.\n\n2. B1 Level (Intermediate & Functional):\n   - Vocabulary: Standard 2,000 everyday workplace vocabulary (e.g. concessions, compromise, essential, goal).\n   - Grammar: Clear compound sentences using basic connectors (because, if, when, although).\n   - Tone: Professional, functional office and team collaboration English.\n\n3. B2 Level (Upper-Intermediate & Professional):\n   - Vocabulary: Advanced 4,000 business terms, idiomatic phrases, and nuanced collocations (e.g. strategic concessions, emotional intelligence, turbulence, resilience).\n   - Grammar: Complex sentences with nested clauses, participle phrases, and formal logical transitions.\n   - Tone: Polished corporate negotiation, strategic analysis, and executive briefing.\n\n4. C1 Level (Advanced & C-Suite Executive):\n   - Vocabulary: 6,000+ C-suite executive & academic-grade vocabulary (e.g. juxtaposed, scrupulously, counterproposals, macroeconomic volatility, recalibrate, dynamic capabilities, preemptive reallocation).\n   - Grammar: Highly sophisticated sentence structures, inversions, dense nominalizations, and nuanced rhetorical phrasing.\n   - Tone: Elite board-level debate, Bloomberg/Economist-level strategic disquisition.\n\n【SPELLING\
-            \ STYLE ADAPTATION CONSTRAINTS】\nCheck the value in \"User Country Profile\"\
-            : {{#1780382595776.user_current_profile#}}\n1. If the profile contains\
-            \ \"英国\" or \"UK\":\n   - You MUST strictly use British English spelling\
-            \ conventions (e.g. use -ise endings instead of -ize (like analyse, organise,\
-            \ realise), and use -our endings instead of -or (like colour, labour,\
-            \ behaviour)).\n2. For other profiles, or if the profile is empty:\n \
-            \  - Default to standard American English spelling conventions (e.g. analyze,\
-            \ color, behavior).\n\n【WRITING SPECIFICATIONS (STRICTLY IN ENGLISH)】\n\
-            - news: Deep business reporting (BBC/Bloomberg style), 3rd person objective\
-            \ narrative.\n- meeting: International board meeting transcript style\
-            \ (multi-role dialogue, interruptions, nuanced corporate negotiation).\n\
-            - podcast: High-density business debate (semi-formal, natural topic transitions,\
-            \ host-guest interaction).\n- reading: Detailed industry analysis report.\n\
-            \n【CRITICAL RULES】\n1. LENGTH: Minimum 600 words for audio genres; minimum\
-            \ 500 words for reading genres. Write the full text! No summaries.\n2.\
-            \ VOCABULARY DENSITY: Naturally integrate at least 10 advanced business\
-            \ vocabulary words and 5 authentic business idioms (matching CEFR Level)\
-            \ within this segment.\n3. LANGUAGE: Output content in PURE ENGLISH only.\
-            \ Do not translate any terms into Chinese. Do not include any meta-talk\
-            \ or introductory greetings.\n4. NO MARKDOWN: Output in pure plain text\
-            \ ONLY. Absolutely DO NOT use any Markdown formatting symbols such as\
-            \ asterisks (*) for bold/italics or hash signs (#) for headers.\n\n【USER\
-            \ FLAWS / WEAKNESSES TO REINFORCE】\nIf the user has weak areas listed\
-            \ below, try to naturally incorporate the correct usage/expressions in\
-            \ the generated text to train the user:\n{{#1780382595776.user_flaws#}}"
+          text: "You are a lead writer specializing in cross-cultural business English scripts and long-form articles. You are writing ONE specific segment of a business material.\n\n【CONTEXT PARAMETERS】\n- Target CEFR Level: {{#1780382595776.cefr_level#}}\n- Genre: {{#1780382595776.genre#}}\n- Target Duration (duration): {{#1780382595776.duration#}}\n- User Country Profile: {{#1780382595776.user_current_profile#}}\n\n【CEFR LEVEL SPECIFICATIONS (STRICT DIVERSITY CONSTRAINTS)】\nYou MUST strictly adjust vocabulary depth, grammatical complexity, sentence structures, and rhetorical devices according to Target CEFR Level:\n\n1. A2 Level (Elementary & Minimalist):\n   - Vocabulary: Limit to basic 1,000 common English words (e.g. talk, listen, plan, help, simple).\n   - Grammar: Short, straightforward Subject-Verb-Object (SVO) sentences only. NO complex relative clauses or passive voice.\n   - Tone: Direct, clear, and extremely simple daily business communication.\n\n2. B1 Level (Intermediate & Functional):\n   - Vocabulary: Standard 2,000 everyday workplace vocabulary (e.g. concessions, compromise, essential, goal).\n   - Grammar: Clear compound sentences using basic connectors (because, if, when, although).\n   - Tone: Professional, functional office and team collaboration English.\n\n3. B2 Level (Upper-Intermediate & Professional):\n   - Vocabulary: Advanced 4,000 business terms, idiomatic phrases, and nuanced collocations (e.g. strategic concessions, emotional intelligence, turbulence, resilience).\n   - Grammar: Complex sentences with nested clauses, participle phrases, and formal logical transitions.\n   - Tone: Polished corporate negotiation, strategic analysis, and executive briefing.\n\n4. C1 Level (Advanced & C-Suite Executive):\n   - Vocabulary: 6,000+ C-suite executive & academic-grade vocabulary (e.g. juxtaposed, scrupulously, counterproposals, macroeconomic volatility, recalibrate, dynamic capabilities, preemptive reallocation).\n   - Grammar: Highly sophisticated sentence structures, inversions, dense nominalizations, and nuanced rhetorical phrasing.\n   - Tone: Elite board-level debate, Bloomberg/Economist-level strategic disquisition.\n\n【CRITICAL RULES: DYNAMIC LENGTH BASED ON DURATION】\nCheck Target Duration (duration): {{#1780382595776.duration#}}\n1. IF duration IS '1' OR '1m':\n   - STRICT LENGTH: Write a single short paragraph/dialogue. Total word count MUST be strictly between 80 and 120 words. Do NOT exceed 120 words!\n2. IF duration IS '15':\n   - Total word count MUST be between 300 and 500 words.\n3. IF duration IS '25':\n   - Total word count MUST be between 600 and 800 words.\n4. IF duration IS '35':\n   - Total word count MUST be between 1000 and 1200 words.\n5. VOCABULARY DENSITY: Integrate authentic business vocabulary matching CEFR Level.\n6. LANGUAGE: Output content in PURE ENGLISH only. Do not translate any terms into Chinese. Do not include any meta-talk or introductory greetings.\n7. NO MARKDOWN: Output in pure plain text ONLY. Absolutely DO NOT use any Markdown formatting symbols such as asterisks (*) for bold/italics or hash signs (#) for headers.\n\n【USER FLAWS / WEAKNESSES TO REINFORCE】\nIf the user has weak areas listed below, try to naturally incorporate the correct usage/expressions in the generated text to train the user:\n{{#1780382595776.user_flaws#}}"
         - id: 732f7c1e-b8a6-4a5d-b203-cc5ae57edc54
           role: user
           text: '当前需要你扩写的具体章节/环节大纲为：
@@ -843,7 +823,7 @@ workflow:
       type: custom
       width: 242
     viewport:
-      x: -714
-      y: 76
+      x: -330
+      y: 145
       zoom: 0.7
   rag_pipeline_variables: []

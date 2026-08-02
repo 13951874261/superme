@@ -530,7 +530,7 @@ export default function DashboardTab() {
     const fetchPersistedArticle = async () => {
       try {
         const { getDailyExtractedArticle } = await import('../../../../services/difyAPI');
-        const durationStr = String(duration || '15');
+        const durationStr = String(duration || '1');
         const res = await getDailyExtractedArticle(getAppUserId(), genre, cefrLevel, durationStr);
         if (!active) return;
 
@@ -545,6 +545,9 @@ export default function DashboardTab() {
           localStorage.setItem('super_agent_last_generated_words', JSON.stringify(res.data.words || []));
           localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(res.data.phrases || []));
           localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(res.data.sentences || []));
+        } else {
+          // 未查到新匹配记录时清空陈旧历史
+          setGeneratedArticle('');
         }
       } catch (e) {
         // 静默降级
