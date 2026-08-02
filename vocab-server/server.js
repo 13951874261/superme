@@ -5918,8 +5918,19 @@ app.put('/api/user/theme', (req, res) => {
 app.post('/api/user/login-ping', (req, res) => {
   try {
     const userId = req.body?.userId;
+    const theme = req.body?.theme || '商务谈判：让步与施压';
     if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+
+    // 1. 记录登录日志
     const result = dailyListenPreGenerateService.recordUserLogin(db, userId);
+
+    // 2. 自动将前台用户输入的用户名与其主题写入 user_theme_prefs 物理表
+    try {
+      dailyPackService.upsertUserTheme(db, userId, theme);
+    } catch (e) {
+      console.warn('[login-ping] upsertUserTheme fail:', e.message);
+    }
+
     res.json({ success: true, ...result });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -5929,8 +5940,14 @@ app.post('/api/user/login-ping', (req, res) => {
 app.get('/api/daily-pack/today', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
+    const theme = String(req.query.theme || '商务谈判：让步与施压').trim();
+
+    // 自动保障前台用户及其选择的主题写入 user_theme_prefs 物理表
+    try {
+      if (theme) dailyPackService.upsertUserTheme(db, userId, theme);
+    } catch (e) {}
+
     const packDate = dailyPackService.getPackDate();
-    const theme = String(req.query.theme || '').trim();
     const historyExclude = String(req.query.historyExclude || '').trim();
     const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
     const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);

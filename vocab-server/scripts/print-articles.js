@@ -4,13 +4,18 @@ const path = require('path');
 const dbPath = path.join(__dirname, '../vocab.db');
 const db = new Database(dbPath);
 
-const rows = db.prepare(`
-  SELECT id, user_id, quota_date, genre, cefr_level, duration, article 
-  FROM daily_extracted_articles 
-  ORDER BY created_at DESC LIMIT 10
-`).all();
+console.log('--- 物理表 user_theme_prefs 全量查验 ---');
+try {
+  const prefs = db.prepare('SELECT * FROM user_theme_prefs').all();
+  console.log(prefs);
+} catch (e) {
+  console.error(e.message);
+}
 
-console.log('--- 数据库 daily_extracted_articles 全量落库核查 ---');
-rows.forEach((r, idx) => {
-  console.log(`[${idx+1}] User: "${r.user_id}" | Date: ${r.quota_date} | Genre: ${r.genre} | Level: ${r.cefr_level} | Duration: ${r.duration}`);
-});
+console.log('\n--- 物理表 daily_packs 当天记录 ---');
+try {
+  const packs = db.prepare('SELECT id, user_id, pack_date, theme, status FROM daily_packs WHERE pack_date = "2026-08-02"').all();
+  console.log(packs);
+} catch (e) {
+  console.error(e.message);
+}
