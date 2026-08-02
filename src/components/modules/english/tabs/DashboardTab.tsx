@@ -295,10 +295,12 @@ export default function DashboardTab() {
       const allWords = await getAllWords();
       const detailsMap: Record<string, any> = {};
 
+      const safeToStr = (item: any) => (typeof item === 'string' ? item : (item?.word || item?.phrase || item?.text || String(item || ''))).trim();
+
       const extractedKeys = new Set([
-        ...extractedWords.map(w => w.toLowerCase().trim()),
-        ...extractedPhrases.map(p => p.toLowerCase().trim()),
-        ...extractedSentences.map(s => s.toLowerCase().trim())
+        ...extractedWords.map(w => safeToStr(w).toLowerCase()).filter(Boolean),
+        ...extractedPhrases.map(p => safeToStr(p).toLowerCase()).filter(Boolean),
+        ...extractedSentences.map(s => safeToStr(s).toLowerCase()).filter(Boolean)
       ]);
 
       allWords.forEach((item) => {
@@ -336,9 +338,9 @@ export default function DashboardTab() {
     const translateAndBatchSave = async () => {
       // 收集待翻译的生词、短语、句型
       const allTextItems = [
-        ...extractedWords.map(w => w.trim()),
-        ...extractedPhrases.map(p => p.trim()),
-        ...extractedSentences.map(s => s.trim())
+        ...extractedWords.map(w => safeToStr(w)),
+        ...extractedPhrases.map(p => safeToStr(p)),
+        ...extractedSentences.map(s => safeToStr(s))
       ].filter(Boolean);
 
       const uniqueWords = [...new Set(allTextItems)];

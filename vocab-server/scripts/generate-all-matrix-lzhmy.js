@@ -128,7 +128,7 @@ async function main() {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             artId, uid, packDate, '商务谈判：让步与施压', genre, cefrLevel, body,
-            JSON.stringify([{ word: 'strategy' }, { word: 'leverage' }, { word: 'concession' }]),
+            JSON.stringify(['strategy', 'leverage', 'concession']),
             JSON.stringify(['strategic flexibility', 'firm pressure', 'operational targets']),
             JSON.stringify([body.split('.')[0] + '.']),
             duration, `sig_${duration}m_${genre}_${cefrLevel}`, now, now
@@ -141,7 +141,7 @@ async function main() {
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `).run(
             listenArtId, uid, packDate, '商务谈判：让步与施压', genre, cefrLevel, durInt, body,
-            JSON.stringify([{ word: 'strategy' }, { word: 'leverage' }, { word: 'concession' }]),
+            JSON.stringify(['strategy', 'leverage', 'concession']),
             JSON.stringify(['strategic flexibility', 'firm pressure', 'operational targets']),
             'ready', 'cron', now, now
           );
