@@ -5260,6 +5260,23 @@ const handleGetDailyExtractArticle = (req, res) => {
       `).get(today, duration, Number(duration));
     }
 
+    // 5. 跨日期保底 1: 查找该时长、该体裁/难度的最新物理历史长文（解决跨天无当日记录问题）
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(genre, cefrLevel, duration, Number(duration));
+    }
+
+    // 6. 跨日期保底 2: 全局提取数据库中最新的一条有效长文
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        ORDER BY created_at DESC LIMIT 1
+      `).get();
+    }
+
     if (!row) {
       return res.json({ success: true, found: false });
     }
