@@ -73,30 +73,35 @@ async function main() {
     }
   };
 
-  const GENRES = ['meeting', 'news', 'podcast', 'reading'];
+  const GENRES = ['meeting', 'news', 'podcast', 'reading', 'report', 'negotiation', 'email', 'presentation'];
   const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
 
-  for (const genre of GENRES) {
+  for (const rawGenre of GENRES) {
+    let lookupGenre = rawGenre;
+    if (rawGenre === 'report') lookupGenre = 'news';
+    if (rawGenre === 'negotiation' || rawGenre === 'presentation') lookupGenre = 'meeting';
+    if (rawGenre === 'email') lookupGenre = 'reading';
+
     for (const cefrLevel of CEFR_LEVELS) {
       const artId = crypto.randomUUID();
-      const body = articlesMatrix[genre][cefrLevel];
+      const body = articlesMatrix[lookupGenre][cefrLevel];
       db.prepare(`
         INSERT OR REPLACE INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        artId, targetUser, packDate, theme, genre, cefrLevel, body,
+        artId, targetUser, packDate, theme, rawGenre, cefrLevel, body,
         JSON.stringify([{ word: 'strategy' }, { word: 'leverage' }]),
         JSON.stringify(['strategic flexibility', 'firm pressure']),
         JSON.stringify([body.split('.')[0] + '.']),
-        '1', `sig_1m_${genre}_${cefrLevel}`, now, now
+        '1', `sig_1m_${rawGenre}_${cefrLevel}`, now, now
       );
 
       const audioId = crypto.randomUUID();
-      const audioUrl = `/api/daily_listen_audio/${targetUser}/${packDate}_${genre}_${cefrLevel}_1m.mp3`;
+      const audioUrl = `/api/daily_listen_audio/${targetUser}/${packDate}_${rawGenre}_${cefrLevel}_1m.mp3`;
       db.prepare(`
         INSERT OR REPLACE INTO daily_listen_audios (id, user_id, pack_date, theme, genre, cefr_level, duration, audio_url, status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(audioId, targetUser, packDate, theme, genre, cefrLevel, 1, audioUrl, 'ready', now, now);
+      `).run(audioId, targetUser, packDate, theme, rawGenre, cefrLevel, 1, audioUrl, 'ready', now, now);
     }
   }
 

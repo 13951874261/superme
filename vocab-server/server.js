@@ -5224,10 +5224,15 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
 const handleGetDailyExtractArticle = (req, res) => {
   try {
     const rawUserId = req.query.userId || 'default-user';
-    const genre = String(req.query.genre || 'meeting').trim();
+    let genre = String(req.query.genre || 'meeting').trim();
     const cefrLevel = String(req.query.cefrLevel || 'B1').trim();
     const duration = String(req.query.duration || '1').trim();
     const today = dailyPackService.getPackDate();
+
+    // 归一化体裁别名 (将 report 映射为 news, negotiation/presentation 映射为 meeting, email 映射为 reading)
+    if (genre === 'report') genre = 'news';
+    if (genre === 'negotiation' || genre === 'presentation') genre = 'meeting';
+    if (genre === 'email') genre = 'reading';
 
     // 兼顾账号别名 (lzhmy / lzhumy)
     const userIds = [rawUserId];
