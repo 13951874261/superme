@@ -140,16 +140,11 @@ function findUserDailyPackByDate(db, userId, packDate) {
 
 function getDailyPackRow(db, userId, packDate, inputSignature = null) {
   const uid = normalizeUserId(userId);
-  if (inputSignature !== null) {
-    const row = db.prepare(
-      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
-    ).get(uid, packDate, inputSignature);
-    if (row) return row;
-  }
-  // 仅找当前用户当天 ready 包；取消跨用户 / 全局历史兜底
+  // D1: 有签名则精确命中；无签名不宽回退到「任意 ready」
+  if (inputSignature === null || inputSignature === undefined) return undefined;
   return db.prepare(
-    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
-  ).get(uid, packDate);
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
+  ).get(uid, packDate, inputSignature);
 }
 
 function getFallbackFlawVocab() {
@@ -283,8 +278,10 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
   const uid = normalizeUserId(userId);
   const sig = inputSignature || '';
   const now = Date.now();
-  // 同用户同日只保留一行：按 user_id + pack_date 定位，签名变化则 UPDATE 旧行
-  const existing = findUserDailyPackByDate(db, uid, packDate);
+  // D1: 按 user_id + pack_date + input_signature 独立行
+  const existing = db.prepare(
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
+  ).get(uid, packDate, sig);
   const wakeupJson = wakeup ? JSON.stringify(wakeup) : null;
   const flawVocabJson = flawVocab ? JSON.stringify(flawVocab) : null;
   const errorMsg = errorMessage || null;
@@ -293,7 +290,6 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
     db.prepare(`
       UPDATE daily_packs SET
         theme = ?,
-        input_signature = ?,
         wakeup_json = ?,
         flaw_vocab_json = ?,
         source = ?,
@@ -303,7 +299,6 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
       WHERE id = ?
     `).run(
       theme,
-      sig,
       wakeupJson,
       flawVocabJson,
       source,
@@ -312,7 +307,9 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
       now,
       existing.id,
     );
-    return findUserDailyPackByDate(db, uid, packDate);
+    return db.prepare(
+      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
+    ).get(uid, packDate, sig);
   }
 
   const id = crypto.randomUUID();
@@ -335,7 +332,9 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
     now,
     now,
   );
-  return findUserDailyPackByDate(db, uid, packDate);
+  return db.prepare(
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
+  ).get(uid, packDate, sig);
 }
 
 async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
@@ -367,7 +366,7 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
     return upsertDailyPack(db, {
       userId: uid,
       packDate,
-      theme: wakeup.theme || theme,
+      theme,
       inputSignature,
       wakeup,
       flawVocab,
@@ -415,6 +414,28 @@ function computeDailyArticleInputSignature({ topic, materialText, userId, cefrLe
     duration: String(duration || '25'),
   };
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
+/** L1: 长文 Dify 稳定入参签名（不含 _system_*） */
+function computeListenArticleInputSignature({
+  theme,
+  genre,
+  cefrLevel,
+  duration,
+  historyExclude = '',
+  userFlaws = '',
+  userCurrentProfile = '',
+}) {
+  const stable = JSON.stringify({
+    theme: String(theme || '').trim(),
+    genre: String(genre || '').trim(),
+    cefr_level: String(cefrLevel || '').trim(),
+    duration: String(duration ?? ''),
+    history_exclude: String(historyExclude || '').trim(),
+    user_flaws: String(userFlaws || '').trim(),
+    user_current_profile: String(userCurrentProfile || '').trim(),
+  });
+  return crypto.createHash('sha256').update(stable).digest('hex').slice(0, 16);
 }
 
 function postLocalJson(urlPath, payload, port = process.env.PORT || 3001) {
@@ -509,6 +530,7 @@ module.exports = {
   normalizeUserId,
   computeInputSignature,
   computeDailyArticleInputSignature,
+  computeListenArticleInputSignature,
   getPackDate,
   getShanghaiHourMinute,
   initDailyPackTables,

@@ -2413,8 +2413,21 @@ app.get('/api/listen/pregenerated', (req, res) => {
     if (!userId || !theme || !genre || !(cefrLevel || cefr) || !duration) {
       return res.status(400).json({ success: false, error: 'userId, theme, genre, cefrLevel, duration required' });
     }
+    const historyExclude = String(req.query.historyExclude ?? dailyPackService.getHistoryExclude(db) ?? '').trim();
+    const userFlaws = String(req.query.userFlaws || '').trim();
+    const userCurrentProfile = String(
+      req.query.userCurrentProfile ?? dailyPackService.getUserCurrentProfile(db, userId) ?? '',
+    ).trim();
     const result = dailyListenPreGenerateService.getPregeneratedCombo(db, {
-      userId, theme, genre, cefrLevel: cefrLevel || cefr, duration: Number(duration), date,
+      userId,
+      theme,
+      genre,
+      cefrLevel: cefrLevel || cefr,
+      duration: Number(duration),
+      date,
+      historyExclude,
+      userFlaws,
+      userCurrentProfile,
     });
     res.json(result);
   } catch (e) {
@@ -5289,54 +5302,130 @@ const handleGetDailyExtractArticle = (req, res) => {
     const topic = String(req.query.topic || req.query.theme || '').trim();
     const today = dailyPackService.getPackDate();
 
-    // 兼顾账号别名 (lzhmy / lzhumy)
     const userIds = [rawUserId];
     if (rawUserId === 'lzhmy') userIds.push('lzhumy');
     if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
-    // 1. 优先按 user_id + quota_date + genre + cefr_level + duration 精确查找
-    let row = db.prepare(`
-      SELECT * FROM daily_extracted_articles
-      WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND quota_date = ? AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
-      ORDER BY created_at DESC LIMIT 1
-    `).get(...userIds, today, genre, cefrLevel, duration, Number(duration));
+    // L1: 与生成同源重算 history/flaws/profile（前端可只传 theme）
+    let historyExclude = String(req.query.historyExclude || '').trim();
+    let userFlaws = String(req.query.userFlaws || '').trim();
+    const userCurrentProfile = String(
+      req.query.userCurrentProfile
+      || dailyPackService.getUserCurrentProfile(db, rawUserId)
+      || '',
+    ).trim();
 
-    let cacheSource = 'daily_extracted_articles';
+    if (topic && !historyExclude) {
+      try {
+        const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
+        const historyRows = db.prepare(`
+          SELECT keywords FROM generation_history
+          WHERE user_id = ? AND theme = ? AND generated_at > ?
+          ORDER BY generated_at DESC
+        `).all(rawUserId, topic, cutoff);
+        const allKeywords = [];
+        for (const row of historyRows) {
+          try {
+            const kw = JSON.parse(row.keywords || '[]');
+            if (Array.isArray(kw)) allKeywords.push(...kw);
+          } catch {}
+        }
+        historyExclude = [...new Set(allKeywords)].slice(0, 30).join(', ');
+      } catch (_) {}
+    }
+    if (topic && !userFlaws) {
+      try {
+        const session = db.prepare(`
+          SELECT extra_json FROM training_sessions
+          WHERE user_id = ? ORDER BY training_date DESC LIMIT 1
+        `).get(rawUserId);
+        if (session?.extra_json) {
+          const extra = JSON.parse(session.extra_json);
+          const ef = extra.englishFoundation || {};
+          const flaws = [];
+          if (ef.pronunciationNotes) flaws.push(`发音问题: ${ef.pronunciationNotes}`);
+          if (ef.grammarNotes) flaws.push(`语法问题: ${ef.grammarNotes}`);
+          userFlaws = flaws.join('; ');
+        }
+      } catch (_) {}
+    }
 
-    // 2. 兜底：当前用户当日 daily_listen_articles（登录预生成/补跑写入）
-    if (!row) {
-      const listen = db.prepare(`
-        SELECT * FROM daily_listen_articles
+    const inputSignature = dailyPackService.computeListenArticleInputSignature({
+      theme: topic,
+      genre,
+      cefrLevel,
+      duration,
+      historyExclude,
+      userFlaws,
+      userCurrentProfile,
+    });
+
+    let row = null;
+    if (topic) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
         WHERE user_id IN (${userIds.map(() => '?').join(',')})
-          AND pack_date = ?
+          AND quota_date = ?
+          AND theme = ?
           AND genre = ?
           AND cefr_level = ?
           AND (duration = ? OR duration = ?)
-          AND status = 'ready'
-        ORDER BY updated_at DESC LIMIT 1
-      `).get(...userIds, today, genre, cefrLevel, Number(duration), duration);
-      if (listen) {
-        let words = [];
-        let phrases = [];
-        try {
-          words = listen.vocab_json ? JSON.parse(listen.vocab_json) : [];
-        } catch (_) {}
-        try {
-          phrases = listen.phrases_json ? JSON.parse(listen.phrases_json) : [];
-        } catch (_) {}
-        row = {
-          article: listen.body_text || '',
-          words_json: JSON.stringify(words),
-          phrases_json: JSON.stringify(phrases),
-          sentences_json: '[]',
-          theme: listen.theme || topic,
-          genre: listen.genre,
-          cefr_level: listen.cefr_level,
-          duration: listen.duration,
-          input_signature: null,
-          updated_at: listen.updated_at,
-        };
-        cacheSource = 'daily_listen_articles';
+          AND COALESCE(input_signature, '') = ?
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration), inputSignature);
+    }
+
+    let cacheSource = 'daily_extracted_articles';
+
+    if (!row && topic) {
+      const listenHistory = dailyPackService.getHistoryExclude(db);
+      const listenSig = dailyPackService.computeListenArticleInputSignature({
+        theme: topic,
+        genre,
+        cefrLevel,
+        duration,
+        historyExclude: listenHistory,
+        userFlaws: '',
+        userCurrentProfile,
+      });
+      const sigCandidates = [...new Set([inputSignature, listenSig])];
+      for (const sig of sigCandidates) {
+        const listen = db.prepare(`
+          SELECT * FROM daily_listen_articles
+          WHERE user_id IN (${userIds.map(() => '?').join(',')})
+            AND pack_date = ?
+            AND theme = ?
+            AND genre = ?
+            AND cefr_level = ?
+            AND (duration = ? OR duration = ?)
+            AND COALESCE(input_signature, '') = ?
+            AND status = 'ready'
+          ORDER BY updated_at DESC LIMIT 1
+        `).get(...userIds, today, topic, genre, cefrLevel, Number(duration), duration, sig);
+        if (listen) {
+          let words = [];
+          let phrases = [];
+          try {
+            words = listen.vocab_json ? JSON.parse(listen.vocab_json) : [];
+          } catch (_) {}
+          try {
+            phrases = listen.phrases_json ? JSON.parse(listen.phrases_json) : [];
+          } catch (_) {}
+          row = {
+            article: listen.body_text || '',
+            words_json: JSON.stringify(words),
+            phrases_json: JSON.stringify(phrases),
+            sentences_json: '[]',
+            theme: listen.theme || topic,
+            genre: listen.genre,
+            cefr_level: listen.cefr_level,
+            duration: listen.duration,
+            input_signature: listen.input_signature || sig,
+            updated_at: listen.updated_at,
+          };
+          cacheSource = 'daily_listen_articles';
+          break;
+        }
       }
     }
 
@@ -5896,9 +5985,16 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     try {
       const artId = crypto.randomUUID();
       const durationVal = requestBody?.duration ? String(requestBody.duration) : (duration ? String(duration) : '25');
-      const sigVal = dailyPackService.computeDailyArticleInputSignature ? dailyPackService.computeDailyArticleInputSignature({
-        topic, materialText, userId, cefrLevel, genre, duration: durationVal
-      }) : '';
+      const profileForSig = String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || '').trim();
+      const sigVal = dailyPackService.computeListenArticleInputSignature({
+        theme: topic || 'General Business',
+        genre: genre || 'meeting',
+        cefrLevel: cefrLevel || 'B1',
+        duration: durationVal,
+        historyExclude,
+        userFlaws,
+        userCurrentProfile: profileForSig,
+      });
       
       const insertArtStmt = db.prepare(`
         INSERT OR REPLACE INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at)
@@ -6002,6 +6098,8 @@ app.get('/api/daily-pack/today', (req, res) => {
   try {
     const rawUserId = req.query.userId || 'default-user';
     const theme = String(req.query.theme || '商务谈判：让步与施压').trim();
+    const historyExclude = String(req.query.historyExclude || '').trim();
+    const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
 
     // 兼顾账号别名
     const userIds = [rawUserId];
@@ -6016,10 +6114,11 @@ app.get('/api/daily-pack/today', (req, res) => {
     } catch (e) {}
 
     const packDate = dailyPackService.getPackDate();
+    const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
     let row = null;
 
     for (const u of userIds) {
-      row = dailyPackService.getDailyPackRow(db, u, packDate, null);
+      row = dailyPackService.getDailyPackRow(db, u, packDate, inputSignature);
       if (row) break;
     }
 
@@ -6066,7 +6165,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     const pending = dailyPackService.upsertDailyPack(db, {
       userId: uid,
       packDate,
-      theme: existing?.theme || resolvedTheme,
+      theme: resolvedTheme,
       inputSignature,
       wakeup: type === 'flaw' ? existingWakeup : null,
       flawVocab: type === 'wakeup' ? existingFlaw : null,
@@ -6084,7 +6183,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
             dailyPackService.upsertDailyPack(db, {
               userId: uid,
               packDate,
-              theme: existing?.theme || resolvedTheme,
+              theme: resolvedTheme,
               inputSignature,
               wakeup: existingWakeup,
               flawVocab,
@@ -6104,7 +6203,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
             dailyPackService.upsertDailyPack(db, {
               userId: uid,
               packDate,
-              theme: wakeup.theme || resolvedTheme,
+              theme: resolvedTheme,
               inputSignature,
               wakeup,
               flawVocab: existingFlaw,
@@ -6125,7 +6224,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
           dailyPackService.upsertDailyPack(db, {
             userId: uid,
             packDate,
-            theme: wakeup.theme || resolvedTheme,
+            theme: resolvedTheme,
             inputSignature,
             wakeup,
             flawVocab,

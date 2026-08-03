@@ -83,7 +83,9 @@ export default function DailyWakeupModule() {
 
   const loadTodayPack = async (reason: string) => {
     try {
-      const pack = await getTodayDailyPack({ theme, historyExclude: '', userCurrentProfile: '' });
+      // D1: 与破绽/生成共用稳定入参，避免空 history 与满 history 两套签名
+      const queryInput = await buildDailyPackQueryInput(theme);
+      const pack = await getTodayDailyPack(queryInput);
       applyPack(pack);
       return pack;
     } catch (error) {

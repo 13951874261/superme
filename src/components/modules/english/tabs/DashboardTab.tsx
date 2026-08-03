@@ -531,7 +531,7 @@ export default function DashboardTab() {
       try {
         const { getDailyExtractedArticle } = await import('../../../../services/difyAPI');
         const durationStr = String(duration || '1');
-        const res = await getDailyExtractedArticle(getAppUserId(), genre, cefrLevel, durationStr);
+        const res = await getDailyExtractedArticle(getAppUserId(), genre, cefrLevel, durationStr, theme);
         if (!active) return;
 
         if (res.found && res.data?.article) {

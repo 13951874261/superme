@@ -572,7 +572,8 @@ export async function getDailyExtractedArticle(
   userId = getAppUserId(),
   genre?: string,
   cefrLevel?: string,
-  duration?: string
+  duration?: string,
+  theme?: string,
 ): Promise<{
   found: boolean;
   data?: {
@@ -591,6 +592,7 @@ export async function getDailyExtractedArticle(
   if (genre) url += `&genre=${encodeURIComponent(genre)}`;
   if (cefrLevel) url += `&cefrLevel=${encodeURIComponent(cefrLevel)}`;
   if (duration) url += `&duration=${encodeURIComponent(duration)}`;
+  if (theme) url += `&theme=${encodeURIComponent(theme)}`;
 
   const response = await fetch(url, {
     method: "GET",

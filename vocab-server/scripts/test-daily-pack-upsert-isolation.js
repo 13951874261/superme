@@ -49,7 +49,7 @@ function testUpsertDoesNotReuseOtherUserId() {
   assert.strictEqual(count, 2, '应保留他人包并新增本人包');
 }
 
-function testSignatureChangeUpdatesSameUserDayRow() {
+function testDifferentSignaturesCreateSeparateRows() {
   const db = createDb();
   const packDate = '2026-08-03';
   const first = dailyPackService.upsertDailyPack(db, {
@@ -76,13 +76,13 @@ function testSignatureChangeUpdatesSameUserDayRow() {
     errorMessage: null,
   });
 
-  assert.strictEqual(second.id, first.id, '同用户同日签名变化应 UPDATE 旧行');
+  assert.notStrictEqual(second.id, first.id, '不同签名应独立行');
   assert.strictEqual(second.input_signature, 'sig-new');
   assert.strictEqual(second.theme, '主题B');
   const count = db.prepare(
     'SELECT COUNT(*) AS c FROM daily_packs WHERE user_id = ? AND pack_date = ?'
   ).get('lzhmy', packDate).c;
-  assert.strictEqual(count, 1, '同用户同日只能保留一行');
+  assert.strictEqual(count, 2, '同用户同日不同签名两行');
 }
 
 function testGetDailyPackRowDoesNotFallbackAcrossUsers() {
@@ -97,8 +97,8 @@ function testGetDailyPackRowDoesNotFallbackAcrossUsers() {
     status: 'ready',
   });
 
-  const row = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, null);
-  assert.strictEqual(row, undefined, '不得回退到任意用户当天 ready 包');
+  const row = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, 'sig-other');
+  assert.strictEqual(row, undefined, '不得读到其他用户同签名包');
 }
 
 function testGetDailyPackRowDoesNotFallbackToGlobalHistory() {
@@ -112,11 +112,11 @@ function testGetDailyPackRowDoesNotFallbackToGlobalHistory() {
     status: 'ready',
   });
 
-  const row = dailyPackService.getDailyPackRow(db, 'lzhmy', '2026-08-03', 'any-sig');
-  assert.strictEqual(row, undefined, '不得回退到全局历史最新 ready 包');
+  const row = dailyPackService.getDailyPackRow(db, 'lzhmy', '2026-08-03', 'sig-old');
+  assert.strictEqual(row, undefined, '不得回退到其他日期');
 }
 
-function testGetDailyPackRowReturnsCurrentUserReadyOnly() {
+function testGetDailyPackRowExactSignatureOnly() {
   const db = createDb();
   const packDate = '2026-08-03';
   insertPack(db, {
@@ -129,25 +129,20 @@ function testGetDailyPackRowReturnsCurrentUserReadyOnly() {
   });
 
   const byNull = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, null);
-  assert.strictEqual(byNull, undefined, '无 signature 时只找本人当天 ready，不返回 generating');
-
-  db.prepare("UPDATE daily_packs SET status = 'ready' WHERE id = 'mine-generating'").run();
-  const ready = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, null);
-  assert.ok(ready);
-  assert.strictEqual(ready.id, 'mine-generating');
-  assert.strictEqual(ready.status, 'ready');
+  assert.strictEqual(byNull, undefined, '无 signature 不得宽回退');
 
   const byExact = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, 'sig-gen');
   assert.ok(byExact, '精确签名匹配应返回本人记录（含任意状态）');
+  assert.strictEqual(byExact.id, 'mine-generating');
 }
 
 function main() {
   const tests = [
     ['upsert 不复用他人 id', testUpsertDoesNotReuseOtherUserId],
-    ['签名变化 UPDATE 同日旧行', testSignatureChangeUpdatesSameUserDayRow],
+    ['不同签名独立行', testDifferentSignaturesCreateSeparateRows],
     ['读不回退跨用户', testGetDailyPackRowDoesNotFallbackAcrossUsers],
     ['读不回退全局历史', testGetDailyPackRowDoesNotFallbackToGlobalHistory],
-    ['读仅本人当天 ready', testGetDailyPackRowReturnsCurrentUserReadyOnly],
+    ['读仅精确签名', testGetDailyPackRowExactSignatureOnly],
   ];
 
   let failed = 0;

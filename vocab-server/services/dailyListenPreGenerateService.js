@@ -92,6 +92,84 @@ function initDailyListenTables(db) {
       UNIQUE(user_id, pack_date, theme, genre, cefr_level, duration)
     )
   `).run();
+
+  ensureListenInputSignatureSchema(db);
+}
+
+function ensureListenInputSignatureSchema(db) {
+  for (const table of ['daily_listen_articles', 'daily_listen_audios']) {
+    const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!cols.some((c) => c.name === 'input_signature')) {
+      db.exec(`ALTER TABLE ${table} ADD COLUMN input_signature TEXT NOT NULL DEFAULT ''`);
+    }
+  }
+
+  const articleSql = String(
+    db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_listen_articles'`).get()?.sql || '',
+  );
+  if (articleSql && !/input_signature/i.test(articleSql.split('UNIQUE')[1] || '')) {
+    db.exec(`
+      CREATE TABLE daily_listen_articles_l1 (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        pack_date TEXT NOT NULL,
+        theme TEXT NOT NULL,
+        genre TEXT NOT NULL,
+        cefr_level TEXT NOT NULL,
+        duration INTEGER NOT NULL,
+        body_text TEXT,
+        vocab_json TEXT,
+        phrases_json TEXT,
+        file_path TEXT,
+        status TEXT NOT NULL DEFAULT 'missing',
+        source TEXT NOT NULL DEFAULT 'cron',
+        error_message TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        input_signature TEXT NOT NULL DEFAULT '',
+        UNIQUE(user_id, pack_date, theme, genre, cefr_level, duration, input_signature)
+      );
+      INSERT INTO daily_listen_articles_l1
+        (id,user_id,pack_date,theme,genre,cefr_level,duration,body_text,vocab_json,phrases_json,file_path,status,source,error_message,created_at,updated_at,input_signature)
+      SELECT id,user_id,pack_date,theme,genre,cefr_level,duration,body_text,vocab_json,phrases_json,file_path,status,source,error_message,created_at,updated_at,COALESCE(input_signature,'')
+      FROM daily_listen_articles;
+      DROP TABLE daily_listen_articles;
+      ALTER TABLE daily_listen_articles_l1 RENAME TO daily_listen_articles;
+    `);
+  }
+
+  const audioSql = String(
+    db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_listen_audios'`).get()?.sql || '',
+  );
+  if (audioSql && !/input_signature/i.test(audioSql.split('UNIQUE')[1] || '')) {
+    db.exec(`
+      CREATE TABLE daily_listen_audios_l1 (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        pack_date TEXT NOT NULL,
+        theme TEXT NOT NULL,
+        genre TEXT NOT NULL,
+        cefr_level TEXT NOT NULL,
+        duration INTEGER NOT NULL,
+        script_text TEXT,
+        audio_path TEXT,
+        audio_url TEXT,
+        status TEXT NOT NULL DEFAULT 'missing',
+        source TEXT NOT NULL DEFAULT 'cron',
+        error_message TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        input_signature TEXT NOT NULL DEFAULT '',
+        UNIQUE(user_id, pack_date, theme, genre, cefr_level, duration, input_signature)
+      );
+      INSERT INTO daily_listen_audios_l1
+        (id,user_id,pack_date,theme,genre,cefr_level,duration,script_text,audio_path,audio_url,status,source,error_message,created_at,updated_at,input_signature)
+      SELECT id,user_id,pack_date,theme,genre,cefr_level,duration,script_text,audio_path,audio_url,status,source,error_message,created_at,updated_at,COALESCE(input_signature,'')
+      FROM daily_listen_audios;
+      DROP TABLE daily_listen_audios;
+      ALTER TABLE daily_listen_audios_l1 RENAME TO daily_listen_audios;
+    `);
+  }
 }
 
 function recordUserLogin(db, userId, at = Date.now()) {
@@ -157,77 +235,58 @@ function isCacheableDuration(duration) {
   return DURATIONS.includes(Number(duration));
 }
 
-function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration }) {
+function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration, historyExclude, userFlaws, userCurrentProfile, inputSignature }) {
+  const themeVal = String(theme || '').trim();
+  const genreVal = String(genre || '').trim();
+  const cefrVal = String(cefrLevel || '').trim();
+  const durationVal = Number(duration);
+  const historyVal = String(historyExclude || '').trim();
+  const flawsVal = String(userFlaws || '').trim();
+  const profileVal = String(userCurrentProfile || '').trim();
+  const sig = inputSignature || dailyPackService.computeListenArticleInputSignature({
+    theme: themeVal,
+    genre: genreVal,
+    cefrLevel: cefrVal,
+    duration: durationVal,
+    historyExclude: historyVal,
+    userFlaws: flawsVal,
+    userCurrentProfile: profileVal,
+  });
   return {
     userId: dailyPackService.normalizeUserId(userId),
     packDate,
-    theme: String(theme || '').trim(),
-    genre,
-    cefrLevel,
-    duration: Number(duration),
+    theme: themeVal,
+    genre: genreVal,
+    cefrLevel: cefrVal,
+    duration: durationVal,
+    historyExclude: historyVal,
+    userFlaws: flawsVal,
+    userCurrentProfile: profileVal,
+    inputSignature: sig,
   };
 }
 
 function getArticleRow(db, parts) {
-  let row = db.prepare(`
+  // L1: 精确命中 theme + combo + input_signature；无宽兜底
+  return db.prepare(`
     SELECT * FROM daily_listen_articles
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
-  `).get(parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
-
-  // 兜底 1: 若未根据精确主题查到，尝试按 user_id + pack_date + genre + cefr_level + duration 回退查询最新记录
-  if (!row) {
-    row = db.prepare(`
-      SELECT * FROM daily_listen_articles
-      WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
-      ORDER BY created_at DESC LIMIT 1
-    `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
-  }
-
-  // 兜底 2: 若精听从表无数据，但主长文表 daily_extracted_articles 有记录，直接构造内存 Row，避免递归
-  if (!row) {
-    const extRow = db.prepare(`
-      SELECT * FROM daily_extracted_articles
-      WHERE user_id=? AND quota_date=? AND genre=? AND cefr_level=? AND (duration=? OR duration=?)
-      ORDER BY created_at DESC LIMIT 1
-    `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, String(parts.duration), parts.duration);
-
-    if (extRow) {
-      row = {
-        id: extRow.id,
-        user_id: extRow.user_id,
-        pack_date: extRow.quota_date,
-        theme: extRow.theme,
-        genre: extRow.genre,
-        cefr_level: extRow.cefr_level,
-        duration: Number(extRow.duration || parts.duration),
-        body_text: extRow.article,
-        vocab_json: extRow.words_json,
-        phrases_json: extRow.phrases_json,
-        file_path: null,
-        status: 'ready',
-        source: 'cron',
-        created_at: extRow.created_at,
-        updated_at: extRow.updated_at
-      };
-    }
-  }
-  return row;
+      AND COALESCE(input_signature, '')=?
+  `).get(
+    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+    parts.inputSignature || '',
+  );
 }
 
 function getAudioRow(db, parts) {
-  let row = db.prepare(`
+  return db.prepare(`
     SELECT * FROM daily_listen_audios
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
-  `).get(parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
-
-  if (!row) {
-    row = db.prepare(`
-      SELECT * FROM daily_listen_audios
-      WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
-      ORDER BY created_at DESC LIMIT 1
-    `).get(parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration);
-  }
-  return row;
+      AND COALESCE(input_signature, '')=?
+  `).get(
+    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+    parts.inputSignature || '',
+  );
 }
 
 function fileOk(p) {
@@ -317,11 +376,13 @@ function newId() {
 
 function upsertArticle(db, parts, fields) {
   const now = Date.now();
+  const sig = parts.inputSignature || '';
   const existing = getArticleRow(db, parts);
   if (existing) {
     db.prepare(`
       UPDATE daily_listen_articles SET
-        body_text=?, vocab_json=?, phrases_json=?, file_path=?, status=?, source=?, error_message=?, updated_at=?
+        body_text=?, vocab_json=?, phrases_json=?, file_path=?, status=?, source=?, error_message=?,
+        input_signature=?, updated_at=?
       WHERE id=?
     `).run(
       fields.body_text !== undefined ? fields.body_text : existing.body_text,
@@ -331,6 +392,7 @@ function upsertArticle(db, parts, fields) {
       fields.status,
       fields.source !== undefined ? fields.source : existing.source,
       fields.error_message !== undefined ? fields.error_message : null,
+      sig,
       now,
       existing.id,
     );
@@ -339,23 +401,25 @@ function upsertArticle(db, parts, fields) {
   const id = newId();
   db.prepare(`
     INSERT INTO daily_listen_articles
-    (id,user_id,pack_date,theme,genre,cefr_level,duration,body_text,vocab_json,phrases_json,file_path,status,source,error_message,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id,user_id,pack_date,theme,genre,cefr_level,duration,body_text,vocab_json,phrases_json,file_path,status,source,error_message,created_at,updated_at,input_signature)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     id, parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     fields.body_text || null, fields.vocab_json || null, fields.phrases_json || null, fields.file_path || null,
-    fields.status, fields.source || 'cron', fields.error_message || null, now, now,
+    fields.status, fields.source || 'cron', fields.error_message || null, now, now, sig,
   );
   return id;
 }
 
 function upsertAudio(db, parts, fields) {
   const now = Date.now();
+  const sig = parts.inputSignature || '';
   const existing = getAudioRow(db, parts);
   if (existing) {
     db.prepare(`
       UPDATE daily_listen_audios SET
-        script_text=?, audio_path=?, audio_url=?, status=?, source=?, error_message=?, updated_at=?
+        script_text=?, audio_path=?, audio_url=?, status=?, source=?, error_message=?,
+        input_signature=?, updated_at=?
       WHERE id=?
     `).run(
       fields.script_text !== undefined ? fields.script_text : existing.script_text,
@@ -364,6 +428,7 @@ function upsertAudio(db, parts, fields) {
       fields.status,
       fields.source !== undefined ? fields.source : existing.source,
       fields.error_message !== undefined ? fields.error_message : null,
+      sig,
       now,
       existing.id,
     );
@@ -372,12 +437,12 @@ function upsertAudio(db, parts, fields) {
   const id = newId();
   db.prepare(`
     INSERT INTO daily_listen_audios
-    (id,user_id,pack_date,theme,genre,cefr_level,duration,script_text,audio_path,audio_url,status,source,error_message,created_at,updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id,user_id,pack_date,theme,genre,cefr_level,duration,script_text,audio_path,audio_url,status,source,error_message,created_at,updated_at,input_signature)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     id, parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     fields.script_text || null, fields.audio_path || null, fields.audio_url || null,
-    fields.status, fields.source || 'cron', fields.error_message || null, now, now,
+    fields.status, fields.source || 'cron', fields.error_message || null, now, now, sig,
   );
   return id;
 }
@@ -473,17 +538,21 @@ function upsertExtractedArticleMirror(db, parts, {
   try {
     const now = Date.now();
     const durationVal = String(parts.duration);
+    const sig = parts.inputSignature || '';
     const existing = db.prepare(`
       SELECT id FROM daily_extracted_articles
-      WHERE user_id=? AND quota_date=? AND genre=? AND cefr_level=? AND (duration=? OR duration=?)
+      WHERE user_id=? AND quota_date=? AND theme=? AND genre=? AND cefr_level=?
+        AND (duration=? OR duration=?) AND COALESCE(input_signature,'')=?
       ORDER BY updated_at DESC LIMIT 1
     `).get(
       parts.userId,
       parts.packDate,
+      parts.theme,
       parts.genre,
       parts.cefrLevel,
       durationVal,
       parts.duration,
+      sig,
     );
     const id = existing?.id || crypto.randomUUID();
     db.prepare(`
@@ -503,7 +572,7 @@ function upsertExtractedArticleMirror(db, parts, {
       JSON.stringify(phrases || []),
       JSON.stringify(sentences || []),
       durationVal,
-      '',
+      sig,
       now,
       now,
     );
@@ -514,7 +583,21 @@ function upsertExtractedArticleMirror(db, parts, {
 
 async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}) {
   const packDate = raw.packDate || dailyPackService.getPackDate();
-  const parts = comboKeyParts({ ...raw, packDate, cefrLevel: raw.cefrLevel || raw.cefr });
+  const historyExclude = raw.historyExclude !== undefined
+    ? String(raw.historyExclude || '').trim()
+    : dailyPackService.getHistoryExclude(db);
+  const userFlaws = String(raw.userFlaws || '').trim();
+  const userCurrentProfile = raw.userCurrentProfile !== undefined
+    ? String(raw.userCurrentProfile || '').trim()
+    : dailyPackService.getUserCurrentProfile(db, raw.userId);
+  const parts = comboKeyParts({
+    ...raw,
+    packDate,
+    cefrLevel: raw.cefrLevel || raw.cefr,
+    historyExclude,
+    userFlaws,
+    userCurrentProfile,
+  });
   if (!isCacheableDuration(parts.duration)) throw new Error('duration not cacheable');
 
   const userDirA = path.join(ARTICLE_ROOT, parts.userId);
@@ -532,24 +615,15 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
         genre: parts.genre,
         cefr_level: parts.cefrLevel,
         duration: String(parts.duration),
+        history_exclude: parts.historyExclude,
+        user_flaws: parts.userFlaws,
+        user_current_profile: parts.userCurrentProfile,
         userId: parts.userId,
       });
       let { vocab, phrases, sentences } = parseVocabFromRaw(rawScript);
       script = typeof rawScript === 'string' ? rawScript : String(rawScript || '');
       const body = script.split(/---VOCAB_JSON_START---/i)[0].trim();
 
-      // C: 长文应用未附带 VOCAB_JSON 时，复用抽词注入器回填（失败不阻断正文 ready）
-      if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)
-        && typeof generators.extractVocabFromArticle === 'function') {
-        try {
-          const extracted = await generators.extractVocabFromArticle({
-            body,
-            theme: parts.theme,
-            genre: parts.genre,
-            cefr_level: parts.cefrLevel,
-            duration: String(parts.duration),
-            userId: parts.userId,
-          });
       // C: 长文应用未附带 VOCAB_JSON 时，复用抽词注入器回填（失败不阻断正文 ready）
       if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)
         && typeof generators.extractVocabFromArticle === 'function') {
@@ -570,7 +644,6 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
             if (Array.isArray(extracted.phrases) && extracted.phrases.length) phrases = extracted.phrases;
             if (Array.isArray(extracted.sentences) && extracted.sentences.length) sentences = extracted.sentences;
           }
-          // C2
           if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
             console.warn(
               `[DailyListen] vocab still empty after extract user=${parts.userId} `
@@ -580,20 +653,6 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
             console.log(
               `[DailyListen] vocab filled user=${parts.userId} `
               + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m words=${vocab.length} phrases=${phrases.length}`,
-            );
-          }
-        } catch (extractErr) {
-          console.warn(
-            `[DailyListen] extractVocabFromArticle failed user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m:`,
-            extractErr.message,
-          );
-        }
-      }
-          // C2
-          if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
-            console.warn(
-              `[DailyListen] vocab still empty after extract user=${parts.userId} `
-              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m source=${source}`,
             );
           }
         } catch (extractErr) {
