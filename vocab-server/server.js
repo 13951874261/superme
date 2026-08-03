@@ -2471,6 +2471,30 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
   }
 });
 
+/** C3: 仅补词表，不重跑文章/TTS */
+app.post('/api/listen/pregenerated/backfill-vocab', async (req, res) => {
+  try {
+    const { userId, theme, genre, cefrLevel, duration, force } = req.body || {};
+    if (!userId || !theme || !genre || !cefrLevel || !duration) {
+      return res.status(400).json({ success: false, error: 'missing fields' });
+    }
+    const result = await dailyListenPreGenerateService.backfillVocabForCombo(db, {
+      userId,
+      theme,
+      genre,
+      cefrLevel,
+      duration,
+      force: force === true,
+    });
+    if (!result.success) {
+      return res.status(500).json(result);
+    }
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.post('/api/listen/pregenerated/writeback', (req, res) => {
   try {
     const {
@@ -7307,7 +7331,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 
 global.synthesizeAndSaveAudio = synthesizeAndSaveAudio;
 
-/** C: 监听长文无 VOCAB_JSON 时，用 mastery 应用对正文抽词（只取词表，不改正文） */
+/** C1: 与 daily-extract 相同的 mastery 调用；只解析词表，不覆盖 listen 正文 */
 async function extractVocabFromListenArticle({
   body,
   theme,
@@ -7320,8 +7344,11 @@ async function extractVocabFromListenArticle({
     || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY
     || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const material = String(body || '').slice(0, 12000);
-  if (!material.trim()) return { vocab: [], phrases: [], sentences: [] };
+  // body 仅用于校验有正文；mastery 与 daily-extract 一样靠 theme/genre/cefr/duration 生成并带 VOCAB_JSON
+  if (!String(body || '').trim()) {
+    console.warn('[DailyListen] extractVocab skip: empty body');
+    return { vocab: [], phrases: [], sentences: [] };
+  }
 
   const fetchController = new AbortController();
   const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000);
@@ -7337,20 +7364,14 @@ async function extractVocabFromListenArticle({
       body: JSON.stringify({
         inputs: injectOralSystemTime({
           theme: theme || '商务谈判：让步与施压',
-          genre: genre || 'meeting',
           cefr_level: cefr_level || 'B1',
+          genre: genre || 'meeting',
           duration: String(duration || '1'),
+          history_exclude: '',
+          user_flaws: '',
+          user_current_profile: '',
         }),
-        query: [
-          'Extract business vocabulary from the material below.',
-          'Keep the article unchanged; output the material first, then',
-          '---VOCAB_JSON_START---',
-          'JSON with keys words, phrases, sentences',
-          '---VOCAB_JSON_END---',
-          '',
-          'MATERIAL:',
-          material,
-        ].join('\n'),
+        query: 'generate',
         response_mode: 'streaming',
         user: userId,
       }),
@@ -7365,7 +7386,24 @@ async function extractVocabFromListenArticle({
   }
 
   const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
-  return dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
+  const parsed = dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
+  const vocabN = Array.isArray(parsed.vocab) ? parsed.vocab.length : 0;
+  const phraseN = Array.isArray(parsed.phrases) ? parsed.phrases.length : 0;
+  const sentN = Array.isArray(parsed.sentences) ? parsed.sentences.length : 0;
+  // C2: 空结果明确打点，便于对照 mastery 是否吐出 VOCAB_JSON
+  if (vocabN === 0 && phraseN === 0) {
+    const hasMarker = /---VOCAB_JSON_START---/i.test(answer || '');
+    console.warn(
+      `[DailyListen] extractVocab empty user=${userId} ${genre}/${cefr_level}/${duration}m `
+      + `answerLen=${(answer || '').length} hasVocabMarker=${hasMarker}`,
+    );
+  } else {
+    console.log(
+      `[DailyListen] extractVocab ok user=${userId} ${genre}/${cefr_level}/${duration}m `
+      + `words=${vocabN} phrases=${phraseN} sentences=${sentN}`,
+    );
+  }
+  return parsed;
 }
 
 dailyListenPreGenerateService.setGenerators({

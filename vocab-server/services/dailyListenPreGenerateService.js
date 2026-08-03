@@ -540,6 +540,13 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
             if (Array.isArray(extracted.phrases) && extracted.phrases.length) phrases = extracted.phrases;
             if (Array.isArray(extracted.sentences) && extracted.sentences.length) sentences = extracted.sentences;
           }
+          // C2
+          if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
+            console.warn(
+              `[DailyListen] vocab still empty after extract user=${parts.userId} `
+              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m source=${source}`,
+            );
+          }
         } catch (extractErr) {
           console.warn(
             `[DailyListen] extractVocabFromArticle failed user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m:`,
@@ -596,6 +603,88 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
   }
 
   return getPregeneratedCombo(db, { ...parts, date: packDate });
+}
+
+/**
+ * C3: 仅补词表（不重跑 TTS）。对已有 ready 正文调用 extractVocabFromArticle 后写回。
+ */
+async function backfillVocabForCombo(db, raw) {
+  const packDate = raw.packDate || raw.date || dailyPackService.getPackDate();
+  const parts = comboKeyParts({ ...raw, packDate, cefrLevel: raw.cefrLevel || raw.cefr });
+  const art = getArticleRow(db, parts);
+  if (!art || art.status !== 'ready' || !String(art.body_text || '').trim()) {
+    return {
+      success: false,
+      error: 'ready article body required',
+      articleStatus: art?.status || 'missing',
+    };
+  }
+
+  let existingVocab = [];
+  let existingPhrases = [];
+  try { existingVocab = art.vocab_json ? JSON.parse(art.vocab_json) : []; } catch (_) {}
+  try { existingPhrases = art.phrases_json ? JSON.parse(art.phrases_json) : []; } catch (_) {}
+  if ((!raw.force) && existingVocab.length > 0 && existingPhrases.length > 0) {
+    return {
+      success: true,
+      skipped: true,
+      reason: 'vocab_already_present',
+      vocabCount: existingVocab.length,
+      phraseCount: existingPhrases.length,
+    };
+  }
+
+  if (typeof generators.extractVocabFromArticle !== 'function') {
+    return { success: false, error: 'extractVocabFromArticle not injected' };
+  }
+
+  const extracted = await generators.extractVocabFromArticle({
+    body: art.body_text,
+    theme: parts.theme,
+    genre: parts.genre,
+    cefr_level: parts.cefrLevel,
+    duration: String(parts.duration),
+    userId: parts.userId,
+  });
+  const vocab = Array.isArray(extracted?.vocab) ? extracted.vocab : [];
+  const phrases = Array.isArray(extracted?.phrases) ? extracted.phrases : [];
+  const sentences = Array.isArray(extracted?.sentences) ? extracted.sentences : [];
+
+  if (vocab.length === 0 && phrases.length === 0) {
+    console.warn(
+      `[DailyListen] backfillVocab empty user=${parts.userId} `
+      + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m`,
+    );
+    return {
+      success: false,
+      error: 'extract returned empty vocab/phrases',
+      vocabCount: 0,
+      phraseCount: 0,
+    };
+  }
+
+  upsertArticle(db, parts, {
+    status: 'ready',
+    source: art.source || 'backfill-vocab',
+    body_text: art.body_text,
+    vocab_json: JSON.stringify(vocab),
+    phrases_json: JSON.stringify(phrases),
+    file_path: art.file_path,
+  });
+  upsertExtractedArticleMirror(db, parts, {
+    body: art.body_text,
+    vocab,
+    phrases,
+    sentences,
+  });
+
+  return {
+    success: true,
+    skipped: false,
+    vocabCount: vocab.length,
+    phraseCount: phrases.length,
+    sentenceCount: sentences.length,
+  };
 }
 
 function writebackCombo(db, raw, { body, vocab, phrases, audioPath, audioUrl, script } = {}) {
@@ -1120,6 +1209,7 @@ module.exports = {
   stripMarkdownJsonFence,
   upsertExtractedArticleMirror,
   generateOneCombo,
+  backfillVocabForCombo,
   writebackCombo,
   dirSize,
   unlinkQuiet,
