@@ -5,8 +5,24 @@ let lastCronPackDate = null;
 
 async function runDailyPackCronJob(db) {
   const packDate = dailyPackService.getPackDate();
-  const users = dailyPackService.listUsersWithSyncedTheme(db);
-  const summary = { packDate, total: users.length, ok: 0, skipped: 0, failed: 0, errors: [] };
+  const users = dailyListenPreGenerateService.listCronTargetUsers(db);
+  const summary = {
+    packDate,
+    total: users.length,
+    fallback: users.some((u) => u.fallback),
+    ok: 0,
+    skipped: 0,
+    failed: 0,
+    errors: [],
+  };
+  if (users.length === 0) {
+    console.warn('[DailyPack Cron] no cron target users (no login logs)');
+  } else if (summary.fallback) {
+    console.warn(
+      '[DailyPack Cron] no active users in window; fallback to latest login user=%s',
+      users[0].user_id,
+    );
+  }
 
   for (const row of users) {
     const historyExclude = dailyPackService.getHistoryExclude(db);

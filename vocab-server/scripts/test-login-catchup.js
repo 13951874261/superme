@@ -670,6 +670,7 @@ async function testCronTraversalSummarySourceAndCleanup() {
     assert.deepStrictEqual(result.summary, {
       packDate: dailyPackService.getPackDate(),
       users: 2,
+      fallback: false,
       syncedFromArticles: 4,
       combosOk: 6,
       combosFail: 1,

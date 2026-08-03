@@ -11,6 +11,7 @@ const LOGIN_CATCHUP_DURATIONS = [1];
 const CAPACITY_BYTES = 1024 * 1024 * 1024; // 1024MB
 const RETENTION_DAYS = 7;
 const LOGIN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_CRON_THEME = '商务谈判：让步与施压';
 
 function resolveListenDurations(options = {}) {
   if (Array.isArray(options.durations) && options.durations.length > 0) {
@@ -104,8 +105,8 @@ function recordUserLogin(db, userId, at = Date.now()) {
   return { userId: uid, loggedAt: at };
 }
 
-function listEligibleUsers(db, now = Date.now()) {
-  const since = now - LOGIN_WINDOW_MS;
+function listEligibleUsers(db, now = Date.now(), windowMs = LOGIN_WINDOW_MS) {
+  const since = now - windowMs;
   return db.prepare(`
     SELECT p.user_id, p.theme
     FROM user_theme_prefs p
@@ -115,6 +116,41 @@ function listEligibleUsers(db, now = Date.now()) {
         WHERE l.user_id = p.user_id AND l.logged_at >= ?
       )
   `).all(since);
+}
+
+/**
+ * R3 统一选人：近 N 天登录且有 theme；若为空则回退「最近登录 1 人」。
+ * A2：不合并账号别名，按字面 user_id。
+ */
+function listCronTargetUsers(db, now = Date.now(), { windowMs = LOGIN_WINDOW_MS, defaultTheme = DEFAULT_CRON_THEME } = {}) {
+  const primary = listEligibleUsers(db, now, windowMs);
+  if (primary.length > 0) {
+    return primary.map((row) => ({
+      user_id: row.user_id,
+      theme: row.theme,
+      fallback: false,
+    }));
+  }
+
+  const latest = db.prepare(`
+    SELECT user_id, MAX(logged_at) AS last_login
+    FROM user_login_logs
+    GROUP BY user_id
+    ORDER BY last_login DESC
+    LIMIT 1
+  `).get();
+  if (!latest?.user_id) return [];
+
+  const pref = db.prepare(`
+    SELECT theme FROM user_theme_prefs
+    WHERE user_id = ? AND theme IS NOT NULL AND TRIM(theme) != ''
+  `).get(latest.user_id);
+
+  return [{
+    user_id: latest.user_id,
+    theme: pref?.theme || defaultTheme,
+    fallback: true,
+  }];
 }
 
 function isCacheableDuration(duration) {
@@ -761,8 +797,24 @@ function scheduleUserDailyCatchup(db, { userId, theme }) {
 
 async function runDailyListenCronJob(db) {
   const packDate = dailyPackService.getPackDate();
-  const users = listEligibleUsers(db);
-  const summary = { packDate, users: users.length, syncedFromArticles: 0, combosOk: 0, combosFail: 0, errors: [] };
+  const users = listCronTargetUsers(db);
+  const summary = {
+    packDate,
+    users: users.length,
+    fallback: users.some((u) => u.fallback),
+    syncedFromArticles: 0,
+    combosOk: 0,
+    combosFail: 0,
+    errors: [],
+  };
+  if (users.length === 0) {
+    console.warn('[DailyListen Cron] no cron target users (no login logs)');
+  } else if (summary.fallback) {
+    console.warn(
+      '[DailyListen Cron] no active users in window; fallback to latest login user=%s',
+      users[0].user_id,
+    );
+  }
   for (const user of users) {
     const userSummary = await runCoordinatedUserListen(
       db,
@@ -912,6 +964,7 @@ module.exports = {
   CAPACITY_BYTES,
   RETENTION_DAYS,
   LOGIN_WINDOW_MS,
+  DEFAULT_CRON_THEME,
   AUDIO_ROOT,
   ARTICLE_ROOT,
   resolveListenDurations,
@@ -919,6 +972,7 @@ module.exports = {
   ensureDirs,
   recordUserLogin,
   listEligibleUsers,
+  listCronTargetUsers,
   isCacheableDuration,
   comboKeyParts,
   getArticleRow,
