@@ -296,6 +296,7 @@ function getPregeneratedCombo(db, raw) {
 
 let generators = {
   generateLongScript: async () => { throw new Error('generateLongScript not injected'); },
+  extractVocabFromArticle: null,
   synthesizeAudioFile: async (text, outputPath) => {
     if (typeof global !== 'undefined' && typeof global.synthesizeAndSaveAudio === 'function') {
       await global.synthesizeAndSaveAudio(text, 'edge-tts/en-US-EmmaNeural', outputPath, null, null);
@@ -381,19 +382,118 @@ function upsertAudio(db, parts, fields) {
   return id;
 }
 
+function stripMarkdownJsonFence(text) {
+  let clean = String(text || '').trim();
+  if (clean.toLowerCase().startsWith('```json')) clean = clean.slice(7);
+  else if (clean.startsWith('```')) clean = clean.slice(3);
+  if (clean.endsWith('```')) clean = clean.slice(0, -3);
+  return clean.trim();
+}
+
+function normalizePhraseList(raw) {
+  if (!raw) return [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((p) => {
+    if (typeof p === 'string') return p;
+    if (p && typeof p === 'object') return p.phrase || p.phrase_text || p.text || p.word || '';
+    return '';
+  }).map((s) => String(s).trim()).filter(Boolean);
+}
+
+function normalizeSentenceList(raw) {
+  if (!raw) return [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map((s) => {
+    if (typeof s === 'string') return s;
+    if (s && typeof s === 'object') return s.sentence || s.word || s.text || '';
+    return '';
+  }).map((s) => String(s).trim()).filter(Boolean);
+}
+
 function parseVocabFromRaw(raw) {
-  if (!raw || typeof raw !== 'string') return { vocab: [], phrases: [] };
+  const empty = { vocab: [], phrases: [], sentences: [] };
+  if (!raw || typeof raw !== 'string') return empty;
   const m = raw.split(/---VOCAB_JSON_START---/i);
-  if (m.length < 2) return { vocab: [], phrases: [] };
+  if (m.length < 2) return empty;
   try {
-    const jsonPart = m[1].split(/---VOCAB_JSON_END---/i)[0].trim();
+    let jsonPart = m[1].split(/---VOCAB_JSON_END---/i)[0].trim();
+    // 无 END 标记时，尽量截到第一个独立 JSON 对象
+    jsonPart = stripMarkdownJsonFence(jsonPart);
+    if (!jsonPart.startsWith('{') && !jsonPart.startsWith('[')) {
+      const brace = jsonPart.indexOf('{');
+      const bracket = jsonPart.indexOf('[');
+      const start = [brace, bracket].filter((i) => i >= 0).sort((a, b) => a - b)[0];
+      if (start == null) return empty;
+      jsonPart = jsonPart.slice(start);
+    }
+    // 去掉尾部非 JSON 噪声：从末尾找最后一个 } 或 ]
+    const lastObj = Math.max(jsonPart.lastIndexOf('}'), jsonPart.lastIndexOf(']'));
+    if (lastObj >= 0) jsonPart = jsonPart.slice(0, lastObj + 1);
+
     const parsed = JSON.parse(jsonPart);
-    return {
-      vocab: parsed.vocab || parsed.words || [],
-      phrases: parsed.phrases || parsed.phrase || [],
-    };
+    let vocab = [];
+    if (Array.isArray(parsed)) vocab = parsed;
+    else if (Array.isArray(parsed.words)) vocab = parsed.words;
+    else if (Array.isArray(parsed.vocab)) vocab = parsed.vocab;
+
+    const phrases = normalizePhraseList(
+      Array.isArray(parsed) ? [] : (parsed.phrases || parsed.phrase || []),
+    );
+    const sentences = normalizeSentenceList(
+      Array.isArray(parsed) ? [] : (parsed.sentences || []),
+    );
+    return { vocab, phrases, sentences };
   } catch {
-    return { vocab: [], phrases: [] };
+    return empty;
+  }
+}
+
+function upsertExtractedArticleMirror(db, parts, {
+  body,
+  vocab = [],
+  phrases = [],
+  sentences = [],
+} = {}) {
+  if (!db || typeof db.prepare !== 'function') return;
+  try {
+    const now = Date.now();
+    const durationVal = String(parts.duration);
+    const existing = db.prepare(`
+      SELECT id FROM daily_extracted_articles
+      WHERE user_id=? AND quota_date=? AND genre=? AND cefr_level=? AND (duration=? OR duration=?)
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(
+      parts.userId,
+      parts.packDate,
+      parts.genre,
+      parts.cefrLevel,
+      durationVal,
+      parts.duration,
+    );
+    const id = existing?.id || crypto.randomUUID();
+    db.prepare(`
+      INSERT OR REPLACE INTO daily_extracted_articles (
+        id, user_id, quota_date, theme, genre, cefr_level, article,
+        words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      parts.userId,
+      parts.packDate,
+      parts.theme,
+      parts.genre,
+      parts.cefrLevel,
+      body || '',
+      JSON.stringify(vocab || []),
+      JSON.stringify(phrases || []),
+      JSON.stringify(sentences || []),
+      durationVal,
+      '',
+      now,
+      now,
+    );
+  } catch (e) {
+    console.warn('[DailyListen] mirror daily_extracted_articles failed:', e.message);
   }
 }
 
@@ -419,18 +519,50 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
         duration: String(parts.duration),
         userId: parts.userId,
       });
-      const { vocab, phrases } = parseVocabFromRaw(rawScript);
+      let { vocab, phrases, sentences } = parseVocabFromRaw(rawScript);
       script = typeof rawScript === 'string' ? rawScript : String(rawScript || '');
       const body = script.split(/---VOCAB_JSON_START---/i)[0].trim();
+
+      // C: 长文应用未附带 VOCAB_JSON 时，复用抽词注入器回填（失败不阻断正文 ready）
+      if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)
+        && typeof generators.extractVocabFromArticle === 'function') {
+        try {
+          const extracted = await generators.extractVocabFromArticle({
+            body,
+            theme: parts.theme,
+            genre: parts.genre,
+            cefr_level: parts.cefrLevel,
+            duration: String(parts.duration),
+            userId: parts.userId,
+          });
+          if (extracted) {
+            if (Array.isArray(extracted.vocab) && extracted.vocab.length) vocab = extracted.vocab;
+            if (Array.isArray(extracted.phrases) && extracted.phrases.length) phrases = extracted.phrases;
+            if (Array.isArray(extracted.sentences) && extracted.sentences.length) sentences = extracted.sentences;
+          }
+        } catch (extractErr) {
+          console.warn(
+            `[DailyListen] extractVocabFromArticle failed user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m:`,
+            extractErr.message,
+          );
+        }
+      }
+
       const filePath = path.join(userDirA, `${baseName}.txt`);
       fs.writeFileSync(filePath, body, 'utf8');
       upsertArticle(db, parts, {
         status: 'ready',
         source,
         body_text: body,
-        vocab_json: JSON.stringify(vocab),
-        phrases_json: JSON.stringify(phrases),
+        vocab_json: JSON.stringify(vocab || []),
+        phrases_json: JSON.stringify(phrases || []),
         file_path: filePath,
+      });
+      upsertExtractedArticleMirror(db, parts, {
+        body,
+        vocab: vocab || [],
+        phrases: phrases || [],
+        sentences: sentences || [],
       });
       script = body;
     } catch (e) {
@@ -985,6 +1117,8 @@ module.exports = {
   upsertArticle,
   upsertAudio,
   parseVocabFromRaw,
+  stripMarkdownJsonFence,
+  upsertExtractedArticleMirror,
   generateOneCombo,
   writebackCombo,
   dirSize,

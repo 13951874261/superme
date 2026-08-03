@@ -2072,16 +2072,12 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
 // ==========================================
 
 /** 合并 Dify SSE 流式 answer：兼容增量 delta 与全量 cumulative 两种模式 */
-function mergeStreamAnswer(current, incoming) {
-  if (!incoming || typeof incoming !== 'string') return current;
-  const next = incoming.trim();
-  if (!next) return current;
-  if (!current) return next;
-  if (next === current) return current;
-  if (next.startsWith(current)) return next;
-  if (current.startsWith(next)) return current;
-  return current + incoming;
-}
+const {
+  mergeStreamAnswer,
+  estimateEnglishWordCount,
+  softWordLimitForDuration,
+  isOverSoftWordLimit,
+} = require('./services/difyStreamMerge');
 
 /** 将 Dify / 下游模型错误转为可操作的提示（daily-extract、completion 等共用） */
 function formatDifyModelError(raw) {
@@ -2208,44 +2204,71 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   }
 
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const fetchController = new AbortController();
-  const fetchTimeout = setTimeout(() => fetchController.abort(), 30 * 60 * 1000);
+  const duration = String((inputs && inputs.duration) || '1');
+  const maxAttempts = 2; // 超软上限时重试 1 次；仍超则 D1：落库可用 + warning
+  let lastAnswer = '';
 
-  let wfResponse;
-  try {
-    wfResponse = await fetch(`${baseUrl}/chat-messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      signal: fetchController.signal,
-      body: JSON.stringify({
-        inputs: injectOralSystemTime(inputs || {}),
-        query: 'generate',
-        response_mode: 'streaming',
-        user: userId,
-      }),
-    });
-  } finally {
-    clearTimeout(fetchTimeout);
-  }
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const fetchController = new AbortController();
+    const fetchTimeout = setTimeout(() => fetchController.abort(), 30 * 60 * 1000);
+    const query = attempt === 1
+      ? 'generate'
+      : `generate again: keep duration=${duration} minutes, much shorter, target under ${softWordLimitForDuration(duration)} English words`;
 
-  if (!wfResponse.ok) {
-    const errText = await wfResponse.text().catch(() => '');
-    let errMsg = errText || `Dify HTTP ${wfResponse.status}`;
+    let wfResponse;
     try {
-      const parsed = JSON.parse(errText);
-      errMsg = parsed.message || parsed.error || errMsg;
-    } catch (_) {}
-    throw new Error(errMsg);
+      wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        signal: fetchController.signal,
+        body: JSON.stringify({
+          inputs: injectOralSystemTime(inputs || {}),
+          query,
+          response_mode: 'streaming',
+          user: userId,
+        }),
+      });
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
+
+    if (!wfResponse.ok) {
+      const errText = await wfResponse.text().catch(() => '');
+      let errMsg = errText || `Dify HTTP ${wfResponse.status}`;
+      try {
+        const parsed = JSON.parse(errText);
+        errMsg = parsed.message || parsed.error || errMsg;
+      } catch (_) {}
+      throw new Error(errMsg);
+    }
+
+    const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
+    if (!answer) {
+      throw new Error('接收成功但答案为空');
+    }
+    lastAnswer = answer;
+
+    const bodyOnly = answer.split(/---VOCAB_JSON_START---/i)[0];
+    const words = estimateEnglishWordCount(bodyOnly);
+    const limit = softWordLimitForDuration(duration);
+    if (!isOverSoftWordLimit(bodyOnly, duration)) {
+      if (attempt > 1) {
+        console.warn(
+          `[DailyListen] length retry ok duration=${duration}m words=${words} limit=${limit} attempt=${attempt}`,
+        );
+      }
+      return answer;
+    }
+
+    console.warn(
+      `[DailyListen] over soft word limit duration=${duration}m words=${words} limit=${limit} attempt=${attempt}/${maxAttempts} (D1: keep if final)`,
+    );
   }
 
-  const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
-  if (!answer) {
-    throw new Error('接收成功但答案为空');
-  }
-  return answer;
+  return lastAnswer;
 }
 
 app.post('/api/listen/generate-material', async (req, res) => {
@@ -7284,6 +7307,67 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 
 global.synthesizeAndSaveAudio = synthesizeAndSaveAudio;
 
+/** C: 监听长文无 VOCAB_JSON 时，用 mastery 应用对正文抽词（只取词表，不改正文） */
+async function extractVocabFromListenArticle({
+  body,
+  theme,
+  genre,
+  cefr_level,
+  duration,
+  userId = 'default-user',
+} = {}) {
+  const apiKey = process.env.DIFY_ENGLISH_MASTERY_KEY
+    || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY
+    || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
+  const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const material = String(body || '').slice(0, 12000);
+  if (!material.trim()) return { vocab: [], phrases: [], sentences: [] };
+
+  const fetchController = new AbortController();
+  const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000);
+  let wfResponse;
+  try {
+    wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      signal: fetchController.signal,
+      body: JSON.stringify({
+        inputs: injectOralSystemTime({
+          theme: theme || '商务谈判：让步与施压',
+          genre: genre || 'meeting',
+          cefr_level: cefr_level || 'B1',
+          duration: String(duration || '1'),
+        }),
+        query: [
+          'Extract business vocabulary from the material below.',
+          'Keep the article unchanged; output the material first, then',
+          '---VOCAB_JSON_START---',
+          'JSON with keys words, phrases, sentences',
+          '---VOCAB_JSON_END---',
+          '',
+          'MATERIAL:',
+          material,
+        ].join('\n'),
+        response_mode: 'streaming',
+        user: userId,
+      }),
+    });
+  } finally {
+    clearTimeout(fetchTimeout);
+  }
+
+  if (!wfResponse.ok) {
+    const errText = await wfResponse.text().catch(() => '');
+    throw new Error(errText || `Dify vocab extract HTTP ${wfResponse.status}`);
+  }
+
+  const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
+  return dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
+}
+
 dailyListenPreGenerateService.setGenerators({
   generateLongScript: async ({ theme, genre, cefr_level, duration, userId }) => {
     return generateListenLongScriptSync({
@@ -7293,6 +7377,7 @@ dailyListenPreGenerateService.setGenerators({
       duration: String(duration),
     }, userId);
   },
+  extractVocabFromArticle: extractVocabFromListenArticle,
   synthesizeAudioFile: async (text, audioPath) => {
     const clean = sanitizeListenMaterialScript(text);
     const finalModel = process.env.TTS_DEFAULT_MODEL || 'edge-tts/en-US-EmmaNeural';
