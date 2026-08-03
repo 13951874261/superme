@@ -5933,13 +5933,14 @@ app.post('/api/user/login-ping', (req, res) => {
     const result = dailyListenPreGenerateService.recordUserLogin(db, userId);
 
     // 2. 自动将前台用户输入的用户名与其主题写入 user_theme_prefs 物理表
-    try {
-      dailyPackService.upsertUserTheme(db, userId, theme);
-    } catch (e) {
-      console.warn('[login-ping] upsertUserTheme fail:', e.message);
-    }
+    dailyPackService.upsertUserTheme(db, userId, theme);
 
-    res.json({ success: true, ...result });
+    // 3. 异步补齐当日生成，不阻塞登录响应
+    void dailyListenPreGenerateService.scheduleUserDailyCatchup(db, { userId, theme }).catch((error) => {
+      console.warn(`[login-ping] catch-up failed for user=${userId}:`, error);
+    });
+
+    res.json({ success: true, catchupScheduled: true, ...result });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }

@@ -13,6 +13,11 @@ const LOGIN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const ROOT = path.join(__dirname, '..');
 const AUDIO_ROOT = path.join(ROOT, 'public', 'daily_listen_audio');
 const ARTICLE_ROOT = path.join(ROOT, 'public', 'daily_long_articles');
+const userListenTails = new Map();
+const userCatchupTasks = new Map();
+const CATCHUP_CONCURRENCY = 2;
+const catchupQueue = [];
+let activeCatchups = 0;
 
 function ensureDirs() {
   for (const d of [AUDIO_ROOT, ARTICLE_ROOT]) {
@@ -512,41 +517,218 @@ function cleanupDailyListenStorage(db, { capacityBytes = CAPACITY_BYTES } = {}) 
   return { cutoffDate, totalBytes: total };
 }
 
-async function runDailyListenCronJob(db) {
-  const packDate = dailyPackService.getPackDate();
-  const users = listEligibleUsers(db);
-  const summary = { packDate, users: users.length, syncedFromArticles: 0, combosOk: 0, combosFail: 0, errors: [] };
-  for (const u of users) {
-    // 选项 B 批次联动：在所有组合长文全量生成完毕后，统一按长文素材跑一遍音频合成批处理
-    try {
-      const syncRes = await batchSyncAudiosFromLongArticles(db, u.user_id, packDate);
-      summary.syncedFromArticles += (syncRes?.success || 0);
-    } catch (syncErr) {
-      console.warn(`[DailyListen Cron] Batch audio sync warning for user=${u.user_id}:`, syncErr.message);
-    }
+async function runDailyListenForUser(
+  db,
+  user,
+  { packDate = dailyPackService.getPackDate(), source = 'cron', skipReadyAudio = false } = {},
+) {
+  const userId = dailyPackService.normalizeUserId(user?.user_id || user?.userId || user);
+  const theme = String(user?.theme || '').trim();
+  const summary = { packDate, userId, syncedFromArticles: 0, combosOk: 0, combosFail: 0, errors: [] };
 
-    for (const genre of GENRES) {
-      for (const cefrLevel of CEFR_LEVELS) {
-        for (const duration of DURATIONS) {
-          const existing = getPregeneratedCombo(db, {
-            userId: u.user_id, theme: u.theme, genre, cefrLevel, duration, date: packDate,
-          });
-          if (existing.status === 'ready') continue;
-          try {
-            await generateOneCombo(db, {
-              userId: u.user_id, theme: u.theme, genre, cefrLevel, duration, packDate,
-            }, { source: 'cron' });
-            summary.combosOk += 1;
-          } catch (e) {
-            summary.combosFail += 1;
-            summary.errors.push({ userId: u.user_id, genre, cefrLevel, duration, error: e.message });
-            console.error('[DailyListen Cron]', e.message);
-          }
+  // 选项 B 批次联动：在所有组合长文全量生成完毕后，统一按长文素材跑一遍音频合成批处理
+  try {
+    const syncRes = await batchSyncAudiosFromLongArticles(
+      db,
+      userId,
+      packDate,
+      source,
+      { skipReadyAudio },
+    );
+    summary.syncedFromArticles += (syncRes?.success || 0);
+  } catch (syncErr) {
+    console.warn(`[DailyListen] Batch audio sync warning for user=${userId}:`, syncErr.message);
+  }
+
+  for (const genre of GENRES) {
+    for (const cefrLevel of CEFR_LEVELS) {
+      for (const duration of DURATIONS) {
+        const existing = getPregeneratedCombo(db, {
+          userId, theme, genre, cefrLevel, duration, date: packDate,
+        });
+        if (existing.status === 'ready') continue;
+        try {
+          await generateOneCombo(db, {
+            userId, theme, genre, cefrLevel, duration, packDate,
+          }, { source });
+          summary.combosOk += 1;
+        } catch (e) {
+          summary.combosFail += 1;
+          summary.errors.push({ userId, genre, cefrLevel, duration, error: e.message });
+          console.error('[DailyListen]', e.message);
         }
       }
     }
   }
-  const cleanup = cleanupDailyListenStorage(db);
+
+  return summary;
+}
+
+function drainCatchupQueue() {
+  while (activeCatchups < CATCHUP_CONCURRENCY && catchupQueue.length > 0) {
+    const item = catchupQueue.shift();
+    activeCatchups++;
+    Promise.resolve()
+      .then(item.work)
+      .then(item.resolve, item.reject)
+      .finally(() => {
+        activeCatchups--;
+        drainCatchupQueue();
+      });
+  }
+}
+
+function enqueueCatchupTask(work) {
+  return new Promise((resolve, reject) => {
+    catchupQueue.push({ work, resolve, reject });
+    drainCatchupQueue();
+  });
+}
+
+function runCoordinatedUserListen(db, user, options) {
+  const packDate = options.packDate;
+  const userId = user?.user_id || user?.userId || user;
+  const uid = dailyPackService.normalizeUserId(userId);
+  const taskKey = `${uid}:${packDate}`;
+  const previous = userListenTails.get(taskKey) || Promise.resolve();
+  const task = previous
+    .catch(() => undefined)
+    .then(() => module.exports.runDailyListenForUser(db, user, options))
+    .catch((error) => {
+      console.error(`[Daily Listen Task] user=${uid} date=${packDate} failed:`, error);
+      throw error;
+    });
+
+  userListenTails.set(taskKey, task);
+  const cleanup = () => {
+    if (userListenTails.get(taskKey) === task) {
+      userListenTails.delete(taskKey);
+    }
+  };
+  task.then(cleanup, cleanup);
+  return task;
+}
+
+function createCatchupRecord(db, uid, theme, requestedDate) {
+  let resolve;
+  let reject;
+  const promise = new Promise((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return {
+    db,
+    uid,
+    theme,
+    requestedDate,
+    executionDate: null,
+    promise,
+    resolve,
+    reject,
+  };
+}
+
+function startCatchupRecord(state, record) {
+  state.active = record;
+  const task = enqueueCatchupTask(async () => {
+    const packDate = dailyPackService.getPackDate();
+    record.executionDate = packDate;
+    const pack = record.db.prepare(`
+      SELECT * FROM daily_packs
+      WHERE user_id = ? AND pack_date = ?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(record.uid, packDate);
+    const packGenerated = pack?.status !== 'ready';
+    if (packGenerated) {
+      await dailyPackService.generateDailyPackForUser(
+        record.db,
+        record.uid,
+        record.theme,
+        'login-catchup',
+      );
+    }
+
+    const listen = await runCoordinatedUserListen(
+      record.db,
+      { user_id: record.uid, theme: record.theme },
+      { packDate, source: 'login-catchup', skipReadyAudio: true },
+    );
+    return {
+      status: 'completed',
+      userId: record.uid,
+      packDate,
+      packGenerated,
+      listen,
+    };
+  });
+
+  const advance = () => {
+    if (state.active !== record) return;
+    const nextEntry = state.followUps.entries().next();
+    if (!nextEntry.done) {
+      const [date, nextRecord] = nextEntry.value;
+      state.followUps.delete(date);
+      startCatchupRecord(state, nextRecord);
+    } else if (userCatchupTasks.get(record.uid) === state) {
+      userCatchupTasks.delete(record.uid);
+    }
+  };
+
+  task.then(
+    (result) => {
+      record.resolve(result);
+      advance();
+    },
+    (error) => {
+      console.error(
+        `[Daily User Task] user=${record.uid} date=${record.executionDate || record.requestedDate} failed:`,
+        error,
+      );
+      record.reject(error);
+      advance();
+    },
+  );
+}
+
+function scheduleUserDailyCatchup(db, { userId, theme }) {
+  const uid = dailyPackService.normalizeUserId(userId);
+  const requestedDate = dailyPackService.getPackDate();
+  let state = userCatchupTasks.get(uid);
+  if (state) {
+    if (state.active.executionDate === null || state.active.executionDate === requestedDate) {
+      return state.active.promise;
+    }
+    const pendingFollowUp = state.followUps.get(requestedDate);
+    if (pendingFollowUp) return pendingFollowUp.promise;
+
+    const followUp = createCatchupRecord(db, uid, theme, requestedDate);
+    state.followUps.set(requestedDate, followUp);
+    return followUp.promise;
+  }
+
+  state = { active: null, followUps: new Map() };
+  userCatchupTasks.set(uid, state);
+  const record = createCatchupRecord(db, uid, theme, requestedDate);
+  startCatchupRecord(state, record);
+  return record.promise;
+}
+
+async function runDailyListenCronJob(db) {
+  const packDate = dailyPackService.getPackDate();
+  const users = listEligibleUsers(db);
+  const summary = { packDate, users: users.length, syncedFromArticles: 0, combosOk: 0, combosFail: 0, errors: [] };
+  for (const user of users) {
+    const userSummary = await runCoordinatedUserListen(
+      db,
+      user,
+      { packDate, source: 'cron' },
+    );
+    summary.syncedFromArticles += userSummary.syncedFromArticles;
+    summary.combosOk += userSummary.combosOk;
+    summary.combosFail += userSummary.combosFail;
+    summary.errors.push(...userSummary.errors);
+  }
+  const cleanup = module.exports.cleanupDailyListenStorage(db);
   console.log('[DailyListen Cron] done', summary, cleanup);
   return { summary, cleanup };
 }
@@ -628,7 +810,13 @@ async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
 /**
  * 批处理：为某用户某天的所有已生成长文记录批量合成精听音频
  */
-async function batchSyncAudiosFromLongArticles(db, userId, packDate) {
+async function batchSyncAudiosFromLongArticles(
+  db,
+  userId,
+  packDate,
+  source = 'cron',
+  { skipReadyAudio = false } = {},
+) {
   const uid = dailyPackService.normalizeUserId(userId);
   const date = packDate || dailyPackService.getPackDate();
 
@@ -641,9 +829,24 @@ async function batchSyncAudiosFromLongArticles(db, userId, packDate) {
 
   let success = 0;
   let failed = 0;
+  let skipped = 0;
 
   for (const article of articles) {
-    const res = await syncAudioFromLongArticleRow(db, article, 'cron');
+    if (skipReadyAudio) {
+      const parts = comboKeyParts({
+        userId: uid,
+        packDate: article.quota_date || date,
+        theme: article.theme || '商务英语',
+        genre: article.genre || 'meeting',
+        cefrLevel: article.cefr_level || 'B1',
+        duration: Number(article.duration) || 25,
+      });
+      if (resolveAudioStatus(getAudioRow(db, parts)) === 'ready') {
+        skipped++;
+        continue;
+      }
+    }
+    const res = await syncAudioFromLongArticleRow(db, article, source);
     if (res && res.success) {
       success++;
     } else {
@@ -652,7 +855,7 @@ async function batchSyncAudiosFromLongArticles(db, userId, packDate) {
   }
 
   console.log(`[ListenAudio Batch Sync] Completed for user=${uid}: ${success} succeeded, ${failed} failed.\n`);
-  return { total: articles.length, success, failed };
+  return { total: articles.length, success, failed, skipped };
 }
 
 module.exports = {
@@ -685,6 +888,8 @@ module.exports = {
   dirSize,
   unlinkQuiet,
   cleanupDailyListenStorage,
+  runDailyListenForUser,
+  scheduleUserDailyCatchup,
   runDailyListenCronJob,
   syncAudioFromLongArticleRow,
   batchSyncAudiosFromLongArticles,

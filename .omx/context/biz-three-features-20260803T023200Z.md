@@ -1,0 +1,21 @@
+# Context Snapshot: biz-three-features
+
+- Task statement: 以业务语言澄清三大功能——今日唤醒、破绽词汇、长文及对应音频；复述并分析后进入 deep-interview 规格化。
+- Desired outcome: 可执行、可验收的业务规格（非本模式直接实现）
+- Stated solution: 用户以业务语言描述三模块目标、核心场景、业务规则与体验原则
+- Probable intent hypothesis: 可能是(1)相对现有实现做差距对齐/增强规格，(2)从零产品定义，(3)为后续规划/验证提供业务真源；待 Intent 轮确认
+- Known facts/evidence [from-code]:
+  - `DailyWakeupModule` + `daily_packs` + UTC+8 02:00 cron 已存在（见 deep-interview-daily-pack-cron）
+  - 破绽词走同一 daily-pack 路径；排除已学词、手动重生已有合同
+  - 长文/精听：`daily_listen_*` 预生成、7 天清理、容量上限、缓存未命中按需路径已有计划/部分实现（DESIGN.md、2026-07-24 plan）
+  - 用户手册 6.1 唤醒为「热词+跟读+格言」，与本次业务描述「词汇+语法+跟读+打卡」不完全一致
+  - 手册中「破绽」多指洞察沙盘人性破绽，与本次「逻辑谬误词汇」语义可能冲突
+- Constraints: AGENTS.md 中文、确认后改代码；deep-interview 禁止本模式直接实现；Standard 档 threshold≤0.20 max 12
+- Unknowns/open questions: 本轮访谈的真实意图；三功能是新建/增强/验收；打卡是否新建；语法点是否新增；逻辑谬误库是否已有；与现有手册/代码以谁为准
+- Decision-boundary unknowns: 未开始
+- Likely codebase touchpoints: DailyWakeupModule、DailyErrorVocabulary/flaw-vocab、ListenTab、dailyPack*、dailyListenPreGenerate*、taskQueue、user_maual.md
+- Relevant repo docs/rules/context inspected: AGENTS.md、docs/user_maual.md §6.1、DESIGN.md Listen 段、.omx/specs/deep-interview-daily-pack-cron.md、.omx/context/daily-auto-gen-framework-*、docs/superpowers/plans/2026-07-24-daily-listen-pregenerate.md
+- Terminology or doc/code conflicts found:
+  - 「破绽」：手册=洞察沙盘人性破绽；用户本次=逻辑谬误攻防词汇
+  - 「今日唤醒」内容组成：手册≠本次业务描述
+- Prompt-safe initial-context summary status: not_needed

@@ -25,7 +25,12 @@ import {
   rotateEmbedSessionOnPageLoad,
   rotateEmbedSessionOnRouteChange,
 } from './utils/difyChatbot';
-import { getAppUserId, isProfileStale, loadUserProfileFromServer } from './utils/profileHelper';
+import {
+  getAppUserId,
+  isProfileStale,
+  loadUserProfileFromServer,
+  recordUserLoginPing,
+} from './utils/profileHelper';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
@@ -367,11 +372,9 @@ export default function App() {
   useEffect(() => {
     if (!isAuthenticated) return;
     const userId = getAppUserId();
-    void fetch('/api/user/login-ping', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId }),
-    }).catch(() => {});
+    void recordUserLoginPing(userId).catch((error) => {
+      console.warn(`[App] login ping failed for userId=${userId}:`, error);
+    });
   }, [isAuthenticated]);
 
   return (

@@ -738,13 +738,22 @@ export function getRecentEpisodesSummaryLocal(): string {
 /**
  * 登录成功后调用：确定 userId 并从后端拉取该用户的画像/记忆
  */
-export async function initializeUserSession(customUserId?: string): Promise<string> {
-  const userId = ensureAppUserId(customUserId);
-  await loadUserProfileFromServer(userId);
-  void fetch('/api/user/login-ping', {
+export async function recordUserLoginPing(userId: string): Promise<void> {
+  const res = await fetch('/api/user/login-ping', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
-  }).catch(() => {});
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json?.success) {
+    const detail = json?.error ? `: ${json.error}` : '';
+    throw new Error(`login-ping failed for userId=${userId}: HTTP ${res.status}${detail}`);
+  }
+}
+
+export async function initializeUserSession(customUserId?: string): Promise<string> {
+  const userId = ensureAppUserId(customUserId);
+  await recordUserLoginPing(userId);
+  await loadUserProfileFromServer(userId);
   return userId;
 }
