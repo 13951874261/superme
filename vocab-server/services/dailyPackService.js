@@ -131,6 +131,13 @@ function listUsersWithSyncedTheme(db) {
   `).all();
 }
 
+function findUserDailyPackByDate(db, userId, packDate) {
+  const uid = normalizeUserId(userId);
+  return db.prepare(
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
+  ).get(uid, packDate);
+}
+
 function getDailyPackRow(db, userId, packDate, inputSignature = null) {
   const uid = normalizeUserId(userId);
   if (inputSignature !== null) {
@@ -139,22 +146,10 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null) {
     ).get(uid, packDate, inputSignature);
     if (row) return row;
   }
-  // 1. 用户当天最新物理记录
-  let row = db.prepare(
-    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? ORDER BY created_at DESC LIMIT 1'
-  ).get(uid, packDate);
-  if (row) return row;
-
-  // 2. 跨账号当天最新 ready 记录保底
-  row = db.prepare(
-    "SELECT * FROM daily_packs WHERE pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
-  ).get(packDate);
-  if (row) return row;
-
-  // 3. 全局历史最新 ready 记录终极保底
+  // 仅找当前用户当天 ready 包；取消跨用户 / 全局历史兜底
   return db.prepare(
-    "SELECT * FROM daily_packs WHERE status = 'ready' ORDER BY created_at DESC LIMIT 1"
-  ).get();
+    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
+  ).get(uid, packDate);
 }
 
 function getFallbackFlawVocab() {
@@ -288,36 +283,59 @@ function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, 
   const uid = normalizeUserId(userId);
   const sig = inputSignature || '';
   const now = Date.now();
-  const existing = getDailyPackRow(db, uid, packDate, sig);
-  const id = existing?.id || crypto.randomUUID();
+  // 同用户同日只保留一行：按 user_id + pack_date 定位，签名变化则 UPDATE 旧行
+  const existing = findUserDailyPackByDate(db, uid, packDate);
+  const wakeupJson = wakeup ? JSON.stringify(wakeup) : null;
+  const flawVocabJson = flawVocab ? JSON.stringify(flawVocab) : null;
+  const errorMsg = errorMessage || null;
+
+  if (existing?.id) {
+    db.prepare(`
+      UPDATE daily_packs SET
+        theme = ?,
+        input_signature = ?,
+        wakeup_json = ?,
+        flaw_vocab_json = ?,
+        source = ?,
+        status = ?,
+        error_message = ?,
+        updated_at = ?
+      WHERE id = ?
+    `).run(
+      theme,
+      sig,
+      wakeupJson,
+      flawVocabJson,
+      source,
+      status,
+      errorMsg,
+      now,
+      existing.id,
+    );
+    return findUserDailyPackByDate(db, uid, packDate);
+  }
+
+  const id = crypto.randomUUID();
   db.prepare(`
     INSERT INTO daily_packs (
       id, user_id, pack_date, theme, input_signature, wakeup_json, flaw_vocab_json,
       source, status, error_message, created_at, updated_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(user_id, pack_date, input_signature) DO UPDATE SET
-      theme = excluded.theme,
-      wakeup_json = excluded.wakeup_json,
-      flaw_vocab_json = excluded.flaw_vocab_json,
-      source = excluded.source,
-      status = excluded.status,
-      error_message = excluded.error_message,
-      updated_at = excluded.updated_at
   `).run(
     id,
     uid,
     packDate,
     theme,
     sig,
-    wakeup ? JSON.stringify(wakeup) : null,
-    flawVocab ? JSON.stringify(flawVocab) : null,
+    wakeupJson,
+    flawVocabJson,
     source,
     status,
-    errorMessage || null,
-    existing?.created_at || now,
+    errorMsg,
+    now,
     now,
   );
-  return getDailyPackRow(db, uid, packDate, sig);
+  return findUserDailyPackByDate(db, uid, packDate);
 }
 
 async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
@@ -496,6 +514,7 @@ module.exports = {
   initDailyPackTables,
   upsertUserTheme,
   listUsersWithSyncedTheme,
+  findUserDailyPackByDate,
   getDailyPackRow,
   getFallbackFlawVocab,
   buildFlawDisplayWords,
