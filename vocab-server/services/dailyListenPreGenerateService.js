@@ -413,39 +413,54 @@ function normalizeSentenceList(raw) {
 function parseVocabFromRaw(raw) {
   const empty = { vocab: [], phrases: [], sentences: [] };
   if (!raw || typeof raw !== 'string') return empty;
-  const m = raw.split(/---VOCAB_JSON_START---/i);
-  if (m.length < 2) return empty;
-  try {
-    let jsonPart = m[1].split(/---VOCAB_JSON_END---/i)[0].trim();
-    // 无 END 标记时，尽量截到第一个独立 JSON 对象
-    jsonPart = stripMarkdownJsonFence(jsonPart);
-    if (!jsonPart.startsWith('{') && !jsonPart.startsWith('[')) {
-      const brace = jsonPart.indexOf('{');
-      const bracket = jsonPart.indexOf('[');
-      const start = [brace, bracket].filter((i) => i >= 0).sort((a, b) => a - b)[0];
-      if (start == null) return empty;
-      jsonPart = jsonPart.slice(start);
-    }
-    // 去掉尾部非 JSON 噪声：从末尾找最后一个 } 或 ]
-    const lastObj = Math.max(jsonPart.lastIndexOf('}'), jsonPart.lastIndexOf(']'));
-    if (lastObj >= 0) jsonPart = jsonPart.slice(0, lastObj + 1);
 
-    const parsed = JSON.parse(jsonPart);
+  const fromParsed = (parsed) => {
     let vocab = [];
     if (Array.isArray(parsed)) vocab = parsed;
-    else if (Array.isArray(parsed.words)) vocab = parsed.words;
-    else if (Array.isArray(parsed.vocab)) vocab = parsed.vocab;
-
+    else if (parsed && Array.isArray(parsed.words)) vocab = parsed.words;
+    else if (parsed && Array.isArray(parsed.vocab)) vocab = parsed.vocab;
     const phrases = normalizePhraseList(
-      Array.isArray(parsed) ? [] : (parsed.phrases || parsed.phrase || []),
+      parsed && !Array.isArray(parsed) ? (parsed.phrases || parsed.phrase || []) : [],
     );
     const sentences = normalizeSentenceList(
-      Array.isArray(parsed) ? [] : (parsed.sentences || []),
+      parsed && !Array.isArray(parsed) ? (parsed.sentences || []) : [],
     );
     return { vocab, phrases, sentences };
-  } catch {
-    return empty;
+  };
+
+  const tryParse = (jsonPart) => {
+    try {
+      let clean = stripMarkdownJsonFence(jsonPart);
+      if (!clean.startsWith('{') && !clean.startsWith('[')) {
+        const brace = clean.indexOf('{');
+        const bracket = clean.indexOf('[');
+        const start = [brace, bracket].filter((i) => i >= 0).sort((a, b) => a - b)[0];
+        if (start == null) return null;
+        clean = clean.slice(start);
+      }
+      const lastObj = Math.max(clean.lastIndexOf('}'), clean.lastIndexOf(']'));
+      if (lastObj >= 0) clean = clean.slice(0, lastObj + 1);
+      return fromParsed(JSON.parse(clean));
+    } catch {
+      return null;
+    }
+  };
+
+  // 1) 标准标记块
+  const m = raw.split(/---VOCAB_JSON_START---/i);
+  if (m.length >= 2) {
+    const got = tryParse(m[1].split(/---VOCAB_JSON_END---/i)[0]);
+    if (got && (got.vocab.length || got.phrases.length || got.sentences.length)) return got;
   }
+
+  // 2) 兜底：全文里找带 words/phrases 的 JSON 对象
+  const candidates = raw.match(/\{[\s\S]{20,}?\}/g) || [];
+  for (let i = candidates.length - 1; i >= 0; i -= 1) {
+    const got = tryParse(candidates[i]);
+    if (got && (got.vocab.length || got.phrases.length || got.sentences.length)) return got;
+  }
+
+  return empty;
 }
 
 function upsertExtractedArticleMirror(db, parts, {
@@ -535,11 +550,45 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
             duration: String(parts.duration),
             userId: parts.userId,
           });
+      // C: 长文应用未附带 VOCAB_JSON 时，复用抽词注入器回填（失败不阻断正文 ready）
+      if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)
+        && typeof generators.extractVocabFromArticle === 'function') {
+        try {
+          console.log(
+            `[DailyListen] extractVocab start user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m`,
+          );
+          const extracted = await generators.extractVocabFromArticle({
+            body,
+            theme: parts.theme,
+            genre: parts.genre,
+            cefr_level: parts.cefrLevel,
+            duration: String(parts.duration),
+            userId: parts.userId,
+          });
           if (extracted) {
             if (Array.isArray(extracted.vocab) && extracted.vocab.length) vocab = extracted.vocab;
             if (Array.isArray(extracted.phrases) && extracted.phrases.length) phrases = extracted.phrases;
             if (Array.isArray(extracted.sentences) && extracted.sentences.length) sentences = extracted.sentences;
           }
+          // C2
+          if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
+            console.warn(
+              `[DailyListen] vocab still empty after extract user=${parts.userId} `
+              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m source=${source}`,
+            );
+          } else {
+            console.log(
+              `[DailyListen] vocab filled user=${parts.userId} `
+              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m words=${vocab.length} phrases=${phrases.length}`,
+            );
+          }
+        } catch (extractErr) {
+          console.warn(
+            `[DailyListen] extractVocabFromArticle failed user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m:`,
+            extractErr.message,
+          );
+        }
+      }
           // C2
           if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
             console.warn(
