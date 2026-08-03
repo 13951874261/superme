@@ -5239,6 +5239,7 @@ const handleGetDailyExtractArticle = (req, res) => {
     const genre = String(req.query.genre || 'meeting').trim();
     const cefrLevel = String(req.query.cefrLevel || 'B1').trim();
     const duration = String(req.query.duration || '1').trim();
+    const topic = String(req.query.topic || req.query.theme || '').trim();
     const today = dailyPackService.getPackDate();
 
     // 兼顾账号别名 (lzhmy / lzhumy)
@@ -5253,52 +5254,47 @@ const handleGetDailyExtractArticle = (req, res) => {
       ORDER BY created_at DESC LIMIT 1
     `).get(...userIds, today, genre, cefrLevel, duration, Number(duration));
 
-    // 2. 兜底 1: 按 user_id + genre + cefr_level + duration 查找最新历史记录
-    if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE user_id IN (${userIds.map(() => '?').join(',')}) AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(...userIds, genre, cefrLevel, duration, Number(duration));
-    }
+    let cacheSource = 'daily_extracted_articles';
 
-    // 3. 兜底 2: 全局跨用户按 quota_date + genre + cefr_level + duration 查找物理落库记录
+    // 2. 兜底：当前用户当日 daily_listen_articles（登录预生成/补跑写入）
     if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE quota_date = ? AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(today, genre, cefrLevel, duration, Number(duration));
-    }
-
-    // 5. 终极强物理保底 1: 强制从 lzhmy 账号下按 genre + cefr_level + duration 提取物理落库记录
-    if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE user_id IN ('lzhmy', 'lzhumy') AND genre = ? AND cefr_level = ? AND (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(genre, cefrLevel, duration, Number(duration));
-    }
-
-    // 6. 终极强物理保底 2: 全表提取任意已就绪的 1分钟 / 物理预生成正文
-    if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(duration, Number(duration));
-    }
-
-    // 7. 终极强物理保底 3: 全表无视条件的物理终极记录
-    if (!row) {
-      row = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        ORDER BY created_at DESC LIMIT 1
-      `).get();
+      const listen = db.prepare(`
+        SELECT * FROM daily_listen_articles
+        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+          AND pack_date = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+          AND status = 'ready'
+        ORDER BY updated_at DESC LIMIT 1
+      `).get(...userIds, today, genre, cefrLevel, Number(duration), duration);
+      if (listen) {
+        let words = [];
+        let phrases = [];
+        try {
+          words = listen.vocab_json ? JSON.parse(listen.vocab_json) : [];
+        } catch (_) {}
+        try {
+          phrases = listen.phrases_json ? JSON.parse(listen.phrases_json) : [];
+        } catch (_) {}
+        row = {
+          article: listen.body_text || '',
+          words_json: JSON.stringify(words),
+          phrases_json: JSON.stringify(phrases),
+          sentences_json: '[]',
+          theme: listen.theme || topic,
+          genre: listen.genre,
+          cefr_level: listen.cefr_level,
+          duration: listen.duration,
+          input_signature: null,
+          updated_at: listen.updated_at,
+        };
+        cacheSource = 'daily_listen_articles';
+      }
     }
 
     if (!row) {
-      return res.json({ success: true, found: false });
+      return res.json({ success: true, found: false, cacheSource: null });
     }
 
     let words = [];
@@ -5313,12 +5309,13 @@ const handleGetDailyExtractArticle = (req, res) => {
       words,
       phrases,
       sentences,
-      theme: row.theme || topic,
+      theme: row.theme || topic || '',
       genre: row.genre,
       cefrLevel: row.cefr_level,
       duration: String(row.duration),
       inputSignature: row.input_signature,
       updatedAt: row.updated_at,
+      cacheSource,
     };
 
     return res.json({
@@ -5947,12 +5944,8 @@ app.post('/api/user/login-ping', (req, res) => {
     // 2. 自动将前台用户输入的用户名与其主题写入 user_theme_prefs 物理表
     dailyPackService.upsertUserTheme(db, userId, theme);
 
-    // 3. 异步补齐当日生成，不阻塞登录响应
-    void dailyListenPreGenerateService.scheduleUserDailyCatchup(db, { userId, theme }).catch((error) => {
-      console.warn(`[login-ping] catch-up failed for user=${userId}:`, error);
-    });
-
-    res.json({ success: true, catchupScheduled: true, ...result });
+    // N1: 登录不再触发异步补跑；缺包由手动生成或 02:00 cron 负责
+    res.json({ success: true, catchupScheduled: false, ...result });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -5983,10 +5976,7 @@ app.get('/api/daily-pack/today', (req, res) => {
       if (row) break;
     }
 
-    if (!row) {
-      row = dailyPackService.getDailyPackRow(db, 'default-user', packDate, null);
-    }
-
+    // 仅返回当前用户（含别名）缓存；不再回退 default-user
     res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
     console.error('[Daily Pack Today]', error);

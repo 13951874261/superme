@@ -74,9 +74,9 @@ export default function DailyWakeupModule() {
     if (pack.status === 'failed') {
       setNotice(pack.errorMessage || '今日唤醒生成失败，可立即生成');
     } else if (pack.status === 'generating') {
-      setNotice('今日内容准备中…');
+      setNotice('暂无可用缓存，请点击「刷新今日包」手动生成');
     } else {
-      setNotice(`今日无缓存（${getAppUserId()}），可立即生成`);
+      setNotice(`暂无缓存（${getAppUserId()}），请点击「刷新今日包」手动生成`);
     }
     return false;
   };

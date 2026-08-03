@@ -17,20 +17,15 @@ function extract(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test('login-ping starts catch-up without awaiting and handles rejection', () => {
+test('login-ping records login and theme without scheduling catch-up', () => {
   const route = extract(
     read('vocab-server/server.js'),
     "app.post('/api/user/login-ping'",
     "app.get('/api/daily-pack/today'",
   );
 
-  assert.match(route, /dailyListenPreGenerateService\.scheduleUserDailyCatchup\(db,\s*\{\s*userId,\s*theme\s*\}\)/);
-  assert.doesNotMatch(route, /await\s+dailyListenPreGenerateService\.scheduleUserDailyCatchup/);
-  assert.match(
-    route,
-    /void\s+dailyListenPreGenerateService\.scheduleUserDailyCatchup\([\s\S]*?\)\.catch\(\(error\)\s*=>\s*\{[\s\S]*?console\.(?:warn|error)/,
-  );
-  assert.match(route, /res\.json\(\{\s*success:\s*true,\s*catchupScheduled:\s*true,\s*\.\.\.result\s*\}\)/);
+  assert.doesNotMatch(route, /scheduleUserDailyCatchup/);
+  assert.match(route, /res\.json\(\{\s*success:\s*true,\s*catchupScheduled:\s*false,\s*\.\.\.result\s*\}\)/);
 });
 
 test('login-ping keeps both database writes inside the 500 boundary', () => {

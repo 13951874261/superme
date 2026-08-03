@@ -41,13 +41,13 @@ export default function DailyErrorVocabularyModule() {
         setError(
           pack.status === 'failed'
             ? (pack.errorMessage || '今日破绽词生成失败，请点击刷新重试')
-            : '今日内容准备中，可点击刷新立即生成',
+            : '暂无缓存，请点击「刷新词汇」手动生成',
         );
         return;
       }
 
       setWords([]);
-      setError('今日内容准备中…');
+      setError('暂无缓存，请点击「刷新词汇」手动生成');
     } catch (e: any) {
       setError(e.message || '获取每日破绽词汇失败，请重试');
     } finally {

@@ -123,14 +123,14 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
   const path = `/api/daily-pack/today?${q.toString()}`;
   const job = (async () => {
     let lastErr: unknown;
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        return await request<DailyPackResponse>(path, { timeoutMs: 45_000 });
+        return await request<DailyPackResponse>(path, { timeoutMs: 5_000 });
       } catch (err) {
         lastErr = err;
         const msg = err instanceof Error ? err.message : '';
-        if (!msg.includes('请求超时') || attempt === 3) break;
-        await new Promise((r) => setTimeout(r, 500 * attempt));
+        if (!msg.includes('请求超时') || attempt === 2) break;
+        await new Promise((r) => setTimeout(r, 200 * attempt));
       }
     }
     throw lastErr instanceof Error ? lastErr : new Error('读取今日包失败');
