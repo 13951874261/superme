@@ -2110,7 +2110,13 @@ function sanitizeListenMaterialScript(raw) {
 }
 
 /** 从 Dify chat-messages SSE 流中收集完整 answer；sanitize=false 时保留 VOCAB_JSON 段 */
-async function collectDifyStreamingAnswer(wfResponse, { sanitize = true } = {}) {
+async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTimeoutMs } = {}) {
+  const { readWithIdleTimeout } = require('./services/streamIdleTimeout');
+  const idleMs = Number(
+    idleTimeoutMs
+      || process.env.DIFY_STREAM_IDLE_TIMEOUT_MS
+      || 120000,
+  );
   let finalAnswer = '';
   const decoder = new TextDecoder();
   let buffer = '';
@@ -2168,17 +2174,23 @@ async function collectDifyStreamingAnswer(wfResponse, { sanitize = true } = {}) 
     return sanitize ? sanitizeListenMaterialScript(trimmed) : trimmed;
   }
 
-  if (typeof wfResponse.body.getReader === 'function') {
-    const reader = wfResponse.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      parseChunk(decoder.decode(value, { stream: true }));
+  async function* bodyChunks() {
+    if (typeof wfResponse.body.getReader === 'function') {
+      const reader = wfResponse.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        yield value;
+      }
+    } else {
+      for await (const chunk of wfResponse.body) {
+        yield chunk;
+      }
     }
-  } else {
-    for await (const chunk of wfResponse.body) {
-      parseChunk(decoder.decode(chunk, { stream: true }));
-    }
+  }
+
+  for await (const value of readWithIdleTimeout(bodyChunks(), { idleTimeoutMs: idleMs })) {
+    parseChunk(decoder.decode(value, { stream: true }));
   }
 
   const trimmed = finalAnswer.trim();
@@ -6927,8 +6939,9 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
 
   return new Promise((resolve, reject) => {
     const args = [...prefixArgs, '--voice', voice, '--file', tmpTextFile, '--write-media', tmpMediaFile];
-    // 放宽超时到 5 分钟 (300000 ms)
-    const proc = execFile(command, args, { timeout: 300000 }, (err) => {
+    // edge-tts 超时默认 10 分钟（登录补跑仅 1 分钟稿；可用 TTS_EDGE_TIMEOUT_MS 覆盖）
+    const edgeTimeoutMs = Number(process.env.TTS_EDGE_TIMEOUT_MS || 600000);
+    const proc = execFile(command, args, { timeout: edgeTimeoutMs }, (err) => {
       if (fs.existsSync(tmpTextFile)) fs.unlinkSync(tmpTextFile);
       if (err) {
         if (fs.existsSync(tmpMediaFile)) fs.unlinkSync(tmpMediaFile);

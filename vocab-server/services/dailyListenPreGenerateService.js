@@ -6,9 +6,19 @@ const dailyPackService = require('./dailyPackService');
 const GENRES = ['meeting', 'news', 'podcast', 'reading'];
 const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
 const DURATIONS = [1, 15, 25, 35]; // minutes
+/** 登录补跑仅生成 1 分钟组合（4 体裁 × 4 等级 = 16）；全量时长留给 cron */
+const LOGIN_CATCHUP_DURATIONS = [1];
 const CAPACITY_BYTES = 1024 * 1024 * 1024; // 1024MB
 const RETENTION_DAYS = 7;
 const LOGIN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+function resolveListenDurations(options = {}) {
+  if (Array.isArray(options.durations) && options.durations.length > 0) {
+    return options.durations.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d > 0);
+  }
+  if (options.source === 'login-catchup') return [...LOGIN_CATCHUP_DURATIONS];
+  return [...DURATIONS];
+}
 
 const ROOT = path.join(__dirname, '..');
 const AUDIO_ROOT = path.join(ROOT, 'public', 'daily_listen_audio');
@@ -520,11 +530,30 @@ function cleanupDailyListenStorage(db, { capacityBytes = CAPACITY_BYTES } = {}) 
 async function runDailyListenForUser(
   db,
   user,
-  { packDate = dailyPackService.getPackDate(), source = 'cron', skipReadyAudio = false } = {},
+  {
+    packDate = dailyPackService.getPackDate(),
+    source = 'cron',
+    skipReadyAudio = false,
+    durations,
+  } = {},
 ) {
   const userId = dailyPackService.normalizeUserId(user?.user_id || user?.userId || user);
   const theme = String(user?.theme || '').trim();
-  const summary = { packDate, userId, syncedFromArticles: 0, combosOk: 0, combosFail: 0, errors: [] };
+  const durationList = resolveListenDurations({ source, durations });
+  const summary = {
+    packDate,
+    userId,
+    source,
+    durations: durationList,
+    syncedFromArticles: 0,
+    combosOk: 0,
+    combosFail: 0,
+    errors: [],
+  };
+
+  console.log(
+    `[DailyListen] start user=${userId} date=${packDate} source=${source} durations=${durationList.join(',')}`,
+  );
 
   // 选项 B 批次联动：在所有组合长文全量生成完毕后，统一按长文素材跑一遍音频合成批处理
   try {
@@ -542,25 +571,37 @@ async function runDailyListenForUser(
 
   for (const genre of GENRES) {
     for (const cefrLevel of CEFR_LEVELS) {
-      for (const duration of DURATIONS) {
-        const existing = getPregeneratedCombo(db, {
+      for (const duration of durationList) {
+        const existing = module.exports.getPregeneratedCombo(db, {
           userId, theme, genre, cefrLevel, duration, date: packDate,
         });
         if (existing.status === 'ready') continue;
+        console.log(
+          `[DailyListen] combo start user=${userId} ${genre}/${cefrLevel}/${duration}m source=${source}`,
+        );
         try {
-          await generateOneCombo(db, {
+          await module.exports.generateOneCombo(db, {
             userId, theme, genre, cefrLevel, duration, packDate,
           }, { source });
           summary.combosOk += 1;
+          console.log(
+            `[DailyListen] combo ok user=${userId} ${genre}/${cefrLevel}/${duration}m source=${source}`,
+          );
         } catch (e) {
           summary.combosFail += 1;
           summary.errors.push({ userId, genre, cefrLevel, duration, error: e.message });
-          console.error('[DailyListen]', e.message);
+          console.error(
+            `[DailyListen] combo fail user=${userId} ${genre}/${cefrLevel}/${duration}m:`,
+            e.message,
+          );
         }
       }
     }
   }
 
+  console.log(
+    `[DailyListen] done user=${userId} source=${source} ok=${summary.combosOk} fail=${summary.combosFail}`,
+  );
   return summary;
 }
 
@@ -651,7 +692,12 @@ function startCatchupRecord(state, record) {
     const listen = await runCoordinatedUserListen(
       record.db,
       { user_id: record.uid, theme: record.theme },
-      { packDate, source: 'login-catchup', skipReadyAudio: true },
+      {
+        packDate,
+        source: 'login-catchup',
+        skipReadyAudio: true,
+        durations: [...LOGIN_CATCHUP_DURATIONS],
+      },
     );
     return {
       status: 'completed',
@@ -862,11 +908,13 @@ module.exports = {
   GENRES,
   CEFR_LEVELS,
   DURATIONS,
+  LOGIN_CATCHUP_DURATIONS,
   CAPACITY_BYTES,
   RETENTION_DAYS,
   LOGIN_WINDOW_MS,
   AUDIO_ROOT,
   ARTICLE_ROOT,
+  resolveListenDurations,
   initDailyListenTables,
   ensureDirs,
   recordUserLogin,

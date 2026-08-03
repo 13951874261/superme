@@ -365,10 +365,14 @@ async function testCronAndCatchupShareUserDateLock() {
 
     assert.strictEqual(cronStateBeforeRelease, 'waiting', 'cron 应等待同用户当天已进行的 catch-up');
     assert.deepStrictEqual(
-      calls.map((options) => ({ source: options.source, skipReadyAudio: options.skipReadyAudio || false })),
+      calls.map((options) => ({
+        source: options.source,
+        skipReadyAudio: options.skipReadyAudio || false,
+        durations: options.durations || null,
+      })),
       [
-        { source: 'login-catchup', skipReadyAudio: true },
-        { source: 'cron', skipReadyAudio: false },
+        { source: 'login-catchup', skipReadyAudio: true, durations: [1] },
+        { source: 'cron', skipReadyAudio: false, durations: null },
       ],
       'cron 应在 catch-up 后按自己的 options 再执行',
     );
@@ -415,10 +419,14 @@ async function testCronFirstCatchupStillGeneratesMissingPack() {
     assert.strictEqual(observedPackCalls, 1, 'cron-first 时 catch-up 仍应独立补生成 daily pack');
     assert.strictEqual(observedListenCalls, 1, 'cron 与 catch-up 监听阶段不得并发');
     assert.deepStrictEqual(
-      listenCalls.map((options) => ({ source: options.source, skipReadyAudio: options.skipReadyAudio || false })),
+      listenCalls.map((options) => ({
+        source: options.source,
+        skipReadyAudio: options.skipReadyAudio || false,
+        durations: options.durations || null,
+      })),
       [
-        { source: 'cron', skipReadyAudio: false },
-        { source: 'login-catchup', skipReadyAudio: true },
+        { source: 'cron', skipReadyAudio: false, durations: null },
+        { source: 'login-catchup', skipReadyAudio: true, durations: [1] },
       ],
       'catch-up 应在 cron 后按自己的 options 再执行',
     );
