@@ -4,9 +4,10 @@
  *
  * P2 正式：
  *   - 跳过已 ready 的 article/audio（不 force 重跑）
- *   - 文章并发 ARTICLE_CONCURRENCY（默认 2）
+ *   - 文章并发 ARTICLE_CONCURRENCY（默认 1，小 VPS 稳态）
  *   - 音频并发 AUDIO_CONCURRENCY（默认 1）
  *   - 先跑完全部缺口文章，再跑缺口音频
+ *   - 自动重置卡住的 generating（空 body）以便重试
  *
  * T1 测试：
  *   MODE=test → 默认 ONLY_COMBOS=meeting:B1；可 SKIP_AUDIO=1 只验文章链路
@@ -25,7 +26,7 @@
  *   SKIP_CLEAR=1 | SKIP_PACK=1 | SKIP_AUDIO=1
  *   MODE=test|prod（默认 prod）
  *   ONLY_COMBOS=meeting:A2,meeting:B1
- *   ARTICLE_CONCURRENCY=2  AUDIO_CONCURRENCY=1
+ *   ARTICLE_CONCURRENCY=1  AUDIO_CONCURRENCY=1
  *   ARTICLE_TIMEOUT_MS / AUDIO_TIMEOUT_MS（默认 12min / 15min）
  *   FORCE_REGEN=1  # 强制重跑（忽略 ready 跳过）
  */
@@ -41,7 +42,7 @@ const SKIP_PACK = process.env.SKIP_PACK === '1';
 const SKIP_AUDIO = process.env.SKIP_AUDIO === '1';
 const FORCE_REGEN = process.env.FORCE_REGEN === '1';
 const MODE = String(process.env.MODE || 'prod').trim().toLowerCase();
-const ARTICLE_CONCURRENCY = Math.max(1, Number(process.env.ARTICLE_CONCURRENCY || 2));
+const ARTICLE_CONCURRENCY = Math.max(1, Number(process.env.ARTICLE_CONCURRENCY || 1));
 const AUDIO_CONCURRENCY = Math.max(1, Number(process.env.AUDIO_CONCURRENCY || 1));
 const ARTICLE_TIMEOUT_MS = Number(process.env.ARTICLE_TIMEOUT_MS || 12 * 60 * 1000);
 const AUDIO_TIMEOUT_MS = Number(process.env.AUDIO_TIMEOUT_MS || 15 * 60 * 1000);
@@ -173,7 +174,7 @@ function readComboReadyFromDb(theme, combo) {
   try {
     const packDate = shanghaiDate();
     const art = db.prepare(`
-      SELECT status, length(COALESCE(body_text,'')) AS body_len
+      SELECT id, status, length(COALESCE(body_text,'')) AS body_len
       FROM daily_listen_articles
       WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration IN (?, ?)
       ORDER BY updated_at DESC LIMIT 1
@@ -190,6 +191,37 @@ function readComboReadyFromDb(theme, combo) {
   } finally {
     db.close();
   }
+}
+
+/** 重置卡住的 generating（空/极短 body），便于 backfill 重试 */
+function resetStuckGenerating(theme, combos) {
+  const db = openDb();
+  let n = 0;
+  try {
+    const packDate = shanghaiDate();
+    const stmt = db.prepare(`
+      UPDATE daily_listen_articles
+      SET status='failed', error_message=?, updated_at=?
+      WHERE id=? AND status='generating' AND length(COALESCE(body_text,''))<=50
+    `);
+    for (const combo of combos) {
+      const art = db.prepare(`
+        SELECT id, status, length(COALESCE(body_text,'')) AS body_len
+        FROM daily_listen_articles
+        WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration IN (?, ?)
+        ORDER BY updated_at DESC LIMIT 1
+      `).get(USER_ID, packDate, theme, combo.genre, combo.cefrLevel, combo.duration, String(combo.duration));
+      if (art && art.status === 'generating' && Number(art.body_len || 0) <= 50) {
+        stmt.run('stuck generating reset by simulate', Date.now(), art.id);
+        n += 1;
+        console.log(`[reset] ${comboKey(combo)}: stuck generating → failed`);
+      }
+    }
+  } finally {
+    db.close();
+  }
+  if (n === 0) console.log('[reset] no stuck generating rows');
+  return n;
 }
 
 function backupAndClear(db) {
@@ -369,6 +401,8 @@ async function waitPackReady(theme, historyExclude, userCurrentProfile, timeoutM
 }
 
 async function runListenPhase(theme, combos) {
+  resetStuckGenerating(theme, combos);
+
   const articleNeed = [];
   const audioNeed = [];
 

@@ -180,6 +180,141 @@ async function testGenerateBackfillsVocabWhenMissing() {
   }
 }
 
+async function openMemoryDb() {
+  let Database;
+  try {
+    Database = require('better-sqlite3');
+  } catch {
+    return null;
+  }
+  let dbReal;
+  try {
+    dbReal = new Database(':memory:');
+  } catch (e) {
+    console.log('SKIP sqlite:', e.message.split('\n')[0]);
+    return null;
+  }
+  dailyListen.initDailyListenTables(dbReal);
+  dbReal.prepare(`
+    CREATE TABLE IF NOT EXISTS daily_extracted_articles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      quota_date TEXT,
+      theme TEXT,
+      genre TEXT,
+      cefr_level TEXT,
+      article TEXT,
+      words_json TEXT,
+      phrases_json TEXT,
+      sentences_json TEXT,
+      duration TEXT,
+      input_signature TEXT,
+      created_at INTEGER,
+      updated_at INTEGER
+    )
+  `).run();
+  return dbReal;
+}
+
+/** D-A: 抽词挂起时，正文仍应在超时后 ready，且整段不卡死 */
+async function testReadyWhenExtractHangs() {
+  const dbReal = await openMemoryDb();
+  if (!dbReal) {
+    console.log('SKIP ready-when-extract-hangs (no sqlite)');
+    return;
+  }
+  const prevTimeout = process.env.EXTRACT_VOCAB_TIMEOUT_MS;
+  process.env.EXTRACT_VOCAB_TIMEOUT_MS = '150';
+  const userId = `hang-test-${Date.now()}`;
+  dailyListen.setGenerators({
+    generateLongScript: async () => 'Hang test body about negotiation tactics.',
+    synthesizeAudioFile: async () => {},
+    extractVocabFromArticle: () => new Promise(() => {}), // never resolves
+  });
+  try {
+    const t0 = Date.now();
+    await dailyListen.generateOneCombo(
+      dbReal,
+      { userId, theme: '商务谈判：让步与施压', genre: 'podcast', cefrLevel: 'A2', duration: 1, packDate: '2026-08-04' },
+      { source: 'backfill', only: 'article' },
+    );
+    const elapsed = Date.now() - t0;
+    assert.ok(elapsed < 3000, `应在抽词超时后尽快返回, elapsed=${elapsed}`);
+    const row = dbReal.prepare(`
+      SELECT status, length(COALESCE(body_text,'')) AS bl FROM daily_listen_articles
+      WHERE user_id=? AND pack_date=? AND genre='podcast' AND cefr_level='A2'
+    `).get(userId, '2026-08-04');
+    assert.strictEqual(row.status, 'ready', '抽词挂起时正文仍应 ready');
+    assert.ok(Number(row.bl) > 10, 'ready 行应已有 body');
+  } finally {
+    if (prevTimeout === undefined) delete process.env.EXTRACT_VOCAB_TIMEOUT_MS;
+    else process.env.EXTRACT_VOCAB_TIMEOUT_MS = prevTimeout;
+    dailyListen.setGenerators({
+      generateLongScript: async () => { throw new Error('generateLongScript not injected'); },
+      synthesizeAudioFile: async () => { throw new Error('synthesizeAudioFile not injected'); },
+      extractVocabFromArticle: null,
+    });
+    try { dbReal.close(); } catch (_) {}
+  }
+}
+
+/** D-A: 抽词进行中时 DB 已是 ready（正文优先落库） */
+async function testReadyBeforeExtractFinishes() {
+  const dbReal = await openMemoryDb();
+  if (!dbReal) {
+    console.log('SKIP ready-before-extract (no sqlite)');
+    return;
+  }
+  const prevTimeout = process.env.EXTRACT_VOCAB_TIMEOUT_MS;
+  process.env.EXTRACT_VOCAB_TIMEOUT_MS = '5000';
+  const userId = `order-test-${Date.now()}`;
+  let sawReadyDuringExtract = false;
+  dailyListen.setGenerators({
+    generateLongScript: async () => 'Order test body without vocab markers.',
+    synthesizeAudioFile: async () => {},
+    extractVocabFromArticle: async () => {
+      for (let i = 0; i < 40; i += 1) {
+        const row = dbReal.prepare(`
+          SELECT status, length(COALESCE(body_text,'')) AS bl FROM daily_listen_articles
+          WHERE user_id=? AND pack_date=? AND genre='podcast' AND cefr_level='B1'
+        `).get(userId, '2026-08-04');
+        if (row && row.status === 'ready' && Number(row.bl) > 10) {
+          sawReadyDuringExtract = true;
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 25));
+      }
+      return {
+        vocab: [{ word: 'order' }],
+        phrases: ['in order'],
+        sentences: ['Keep order.'],
+      };
+    },
+  });
+  try {
+    await dailyListen.generateOneCombo(
+      dbReal,
+      { userId, theme: '商务谈判：让步与施压', genre: 'podcast', cefrLevel: 'B1', duration: 1, packDate: '2026-08-04' },
+      { source: 'backfill', only: 'article' },
+    );
+    assert.ok(sawReadyDuringExtract, '抽词尚未结束时 DB 就应已 ready');
+    const row = dbReal.prepare(`
+      SELECT vocab_json FROM daily_listen_articles
+      WHERE user_id=? AND pack_date=? AND genre='podcast' AND cefr_level='B1'
+    `).get(userId, '2026-08-04');
+    assert.ok(JSON.parse(row.vocab_json || '[]').length >= 1, '抽词成功后应写回 vocab');
+  } finally {
+    if (prevTimeout === undefined) delete process.env.EXTRACT_VOCAB_TIMEOUT_MS;
+    else process.env.EXTRACT_VOCAB_TIMEOUT_MS = prevTimeout;
+    dailyListen.setGenerators({
+      generateLongScript: async () => { throw new Error('generateLongScript not injected'); },
+      synthesizeAudioFile: async () => { throw new Error('synthesizeAudioFile not injected'); },
+      extractVocabFromArticle: null,
+    });
+    try { dbReal.close(); } catch (_) {}
+  }
+}
+
 async function main() {
   testParseFenceJson();
   console.log('PASS parse fence json');
@@ -189,6 +324,10 @@ async function main() {
   console.log('PASS parse missing empty');
   await testGenerateBackfillsVocabWhenMissing();
   console.log('PASS generate backfill vocab');
+  await testReadyWhenExtractHangs();
+  console.log('PASS ready when extract hangs');
+  await testReadyBeforeExtractFinishes();
+  console.log('PASS ready before extract finishes');
   console.log('OK parse-vocab-and-backfill');
 }
 

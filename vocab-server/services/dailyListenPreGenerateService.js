@@ -374,6 +374,28 @@ function newId() {
   return crypto.randomBytes(16).toString('hex');
 }
 
+/** 抽词超时（毫秒）。默认 90s；0=不超时；SKIP_EXTRACT_VOCAB=1 可跳过抽词 */
+function getExtractVocabTimeoutMs() {
+  const n = Number(process.env.EXTRACT_VOCAB_TIMEOUT_MS);
+  if (Number.isFinite(n) && n >= 0) return n;
+  return 90 * 1000;
+}
+
+async function raceWithTimeout(promise, ms, label) {
+  if (!ms || ms <= 0) return promise;
+  let timer;
+  try {
+    return await Promise.race([
+      Promise.resolve(promise),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 function upsertArticle(db, parts, fields) {
   const now = Date.now();
   const sig = parts.inputSignature || '';
@@ -624,45 +646,7 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
       script = typeof rawScript === 'string' ? rawScript : String(rawScript || '');
       const body = script.split(/---VOCAB_JSON_START---/i)[0].trim();
 
-      // C: 长文应用未附带 VOCAB_JSON 时，复用抽词注入器回填（失败不阻断正文 ready）
-      if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)
-        && typeof generators.extractVocabFromArticle === 'function') {
-        try {
-          console.log(
-            `[DailyListen] extractVocab start user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m`,
-          );
-          const extracted = await generators.extractVocabFromArticle({
-            body,
-            theme: parts.theme,
-            genre: parts.genre,
-            cefr_level: parts.cefrLevel,
-            duration: String(parts.duration),
-            userId: parts.userId,
-          });
-          if (extracted) {
-            if (Array.isArray(extracted.vocab) && extracted.vocab.length) vocab = extracted.vocab;
-            if (Array.isArray(extracted.phrases) && extracted.phrases.length) phrases = extracted.phrases;
-            if (Array.isArray(extracted.sentences) && extracted.sentences.length) sentences = extracted.sentences;
-          }
-          if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
-            console.warn(
-              `[DailyListen] vocab still empty after extract user=${parts.userId} `
-              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m source=${source}`,
-            );
-          } else {
-            console.log(
-              `[DailyListen] vocab filled user=${parts.userId} `
-              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m words=${vocab.length} phrases=${phrases.length}`,
-            );
-          }
-        } catch (extractErr) {
-          console.warn(
-            `[DailyListen] extractVocabFromArticle failed user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m:`,
-            extractErr.message,
-          );
-        }
-      }
-
+      // D-A: 正文优先落库 ready，抽词后置（带超时），避免 extract 卡死导致 generating 空 body
       const filePath = path.join(userDirA, `${baseName}.txt`);
       fs.writeFileSync(filePath, body, 'utf8');
       upsertArticle(db, parts, {
@@ -680,6 +664,65 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
         sentences: sentences || [],
       });
       script = body;
+
+      const needExtract = (!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)
+        && typeof generators.extractVocabFromArticle === 'function'
+        && process.env.SKIP_EXTRACT_VOCAB !== '1';
+      if (needExtract) {
+        try {
+          const timeoutMs = getExtractVocabTimeoutMs();
+          console.log(
+            `[DailyListen] extractVocab start user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m timeoutMs=${timeoutMs}`,
+          );
+          const extracted = await raceWithTimeout(
+            generators.extractVocabFromArticle({
+              body,
+              theme: parts.theme,
+              genre: parts.genre,
+              cefr_level: parts.cefrLevel,
+              duration: String(parts.duration),
+              userId: parts.userId,
+            }),
+            timeoutMs,
+            'extractVocab',
+          );
+          if (extracted) {
+            if (Array.isArray(extracted.vocab) && extracted.vocab.length) vocab = extracted.vocab;
+            if (Array.isArray(extracted.phrases) && extracted.phrases.length) phrases = extracted.phrases;
+            if (Array.isArray(extracted.sentences) && extracted.sentences.length) sentences = extracted.sentences;
+          }
+          if ((!vocab || vocab.length === 0) && (!phrases || phrases.length === 0)) {
+            console.warn(
+              `[DailyListen] vocab still empty after extract user=${parts.userId} `
+              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m source=${source}`,
+            );
+          } else {
+            console.log(
+              `[DailyListen] vocab filled user=${parts.userId} `
+              + `${parts.genre}/${parts.cefrLevel}/${parts.duration}m words=${vocab.length} phrases=${phrases.length}`,
+            );
+            upsertArticle(db, parts, {
+              status: 'ready',
+              source,
+              body_text: body,
+              vocab_json: JSON.stringify(vocab || []),
+              phrases_json: JSON.stringify(phrases || []),
+              file_path: filePath,
+            });
+            upsertExtractedArticleMirror(db, parts, {
+              body,
+              vocab: vocab || [],
+              phrases: phrases || [],
+              sentences: sentences || [],
+            });
+          }
+        } catch (extractErr) {
+          console.warn(
+            `[DailyListen] extractVocabFromArticle failed user=${parts.userId} ${parts.genre}/${parts.cefrLevel}/${parts.duration}m:`,
+            extractErr.message,
+          );
+        }
+      }
     } catch (e) {
       upsertArticle(db, parts, { status: 'failed', source, error_message: e.message });
       throw e;
@@ -1316,6 +1359,8 @@ module.exports = {
   parseVocabFromRaw,
   stripMarkdownJsonFence,
   upsertExtractedArticleMirror,
+  getExtractVocabTimeoutMs,
+  raceWithTimeout,
   generateOneCombo,
   backfillVocabForCombo,
   writebackCombo,
