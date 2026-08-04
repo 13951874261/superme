@@ -1,40 +1,54 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-webpage-purify-500.md",
+  "sourceBrief": ".omx/specs/deep-interview-lzhmy-daily-pack-missing.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for webpage-purify-500 recovery",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for lzhmy-daily-pack-missing",
   "status": "active",
-  "createdAt": "2026-07-21T17:01:00Z",
-  "note": "Created manually: omx CLI unavailable in Cursor runtime",
+  "createdAt": "2026-08-04T12:01:00Z",
+  "supersedes": "webpage-purify-500 (2026-07-21 manual plan)",
+  "note": "Created manually: omx CLI unavailable in Cursor runtime; prior webpage-purify plan superseded by user handoff to ultragoal option 1",
   "goals": [
     {
       "id": "G001",
-      "title": "Diagnose production fetch failed",
-      "objective": "On production, prove why /api/materials/fetch-url returns error fetch failed via server curl to 9router /web/fetch and/or vocab service logs.",
+      "title": "Align daily-pack cache-key read path",
+      "objective": "Fix frontend buildDailyPackQueryInput / today read so lzhmy no longer misses ready packs due to 500ms empty history or case-mismatched historyExclude; keep D1 stable fields (theme, history_exclude, user_current_profile).",
       "status": "pending",
       "acceptance": [
-        "Documented connectivity or log evidence aligned with fetch failed"
+        "Empty-history race no longer causes false missing when a ready pack exists for the stable key",
+        "Frontend and backend historyExclude normalization agree (e.g. case) for the same vocab snapshot"
       ]
     },
     {
       "id": "G002",
-      "title": "Fix root cause",
-      "objective": "Apply minimal env/proxy/code fix so vocab-server can complete upstream web fetch without changing out-of-scope features.",
+      "title": "Ensure complete wakeup+flaw pack generation",
+      "objective": "Make cron/manual generation write both wakeup (10 words) and flawVocab (6 words) under one stable input_signature; avoid split partial packs across signatures.",
       "status": "pending",
       "acceptance": [
-        "Local or server-side fetchUrlContent succeeds for https://example.com"
+        "A single ready daily_packs row for the stable key contains both wakeup.vocab length 10 and flawVocab length 6",
+        "Regenerate type=both (or equivalent) does not leave the other half null on the same signature"
       ]
     },
     {
       "id": "G003",
-      "title": "Deploy and verify production",
-      "objective": "Deploy fix, restart super-agent-vocab, verify production POST /api/materials/fetch-url returns success with non-empty markdown.",
+      "title": "Ready minimal listen set meeting/B1/1 + news/B1/1",
+      "objective": "Ensure lzhmy has ready long article + audio for meeting/B1/1 and news/B1/1 using Dify-aligned listen input signatures; no expansion beyond this whitelist.",
       "status": "pending",
       "acceptance": [
-        "Production curl/API success for example.com",
-        "No unrelated material-pipeline/UI changes"
+        "meeting/B1/1 article+audio ready for lzhmy",
+        "news/B1/1 article+audio ready for lzhmy"
+      ]
+    },
+    {
+      "id": "G004",
+      "title": "Ops backfill today + acceptance verify",
+      "objective": "Run one ops backfill against production true DB /var/www/super-agent/vocab.db for lzhmy whitelist assets; verify English page acceptance without refresh; confirm U1 still holds on miss.",
+      "status": "pending",
+      "acceptance": [
+        "Production lzhmy has complete wakeup+flaw for today under the frontend stable key",
+        "Production meeting/B1/1 and news/B1/1 ready",
+        "Documented verification evidence for acceptance criteria 1-5"
       ]
     }
   ]

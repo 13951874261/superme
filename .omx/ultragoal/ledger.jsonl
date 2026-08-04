@@ -1,1 +1,3 @@
 {"ts":"2026-07-21T17:01:00Z","event":"plan_created","evidence":"Manual ultragoal artifacts from deep-interview-webpage-purify-500; omx CLI unavailable"}
+{"ts":"2026-08-04T12:01:00Z","event":"plan_created","plan":"lzhmy-daily-pack-missing","evidence":"Manual ultragoal create-goals from deep-interview-lzhmy-daily-pack-missing; superseded webpage-purify-500; omx CLI unavailable"}
+{"ts":"2026-08-04T12:01:00Z","event":"plan_superseded","from":"webpage-purify-500","to":"lzhmy-daily-pack-missing","evidence":"User selected ultragoal handoff option 1 for new deep-interview spec"}
