@@ -322,6 +322,21 @@ function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
   }
 }
 
+/** 从混杂文本中提取可 JSON.parse 的片段（```json 块或最外侧 {}） */
+function extractJsonFromString(raw: unknown): string {
+  const rawStr = String(raw ?? '').trim();
+  const jsonBlockMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (jsonBlockMatch?.[1]) {
+    return jsonBlockMatch[1].trim();
+  }
+  const startIdx = rawStr.indexOf('{');
+  const endIdx = rawStr.lastIndexOf('}');
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    return rawStr.substring(startIdx, endIdx + 1).trim();
+  }
+  return rawStr.replace(/```json/gi, '').replace(/```/g, '').trim();
+}
+
 const REQUEST_TIMEOUT_MS = 10_000;
 const inflightGetRequests = new Map<string, Promise<unknown>>();
 
@@ -1792,11 +1807,11 @@ export async function runCognitivePenetrationEngine(inputs: CognitivePenetration
 
   const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
   try {
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleanJson) as CognitivePenetrationResult;
+    // 健壮提取：优先 ```json 块，否则按最外侧 {} 切除杂质后再 parse
+    return JSON.parse(extractJsonFromString(rawResult)) as CognitivePenetrationResult;
   } catch (e) {
     console.error('[difyAPI] 解析认知穿透结果的 JSON 格式失败:', e, rawResult);
-    throw new Error('AI 错题集生成失败，返回的不是有效 JSON');
+    throw new Error('AI 穿透解码失败，返回的不是有效 JSON');
   }
 }
 

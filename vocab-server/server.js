@@ -4676,8 +4676,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // 轮询 Dify 文档索引状态，等待向量化完成
       // ---------------------------------------------------------
       let isIndexed = false;
-      // 最多等待 40 轮（每轮 3 秒），总计 120 秒超时
-      for (let i = 0; i < 40; i++) {
+      // 最多等待 100 轮（每轮 3 秒），总计 300 秒（5分钟）超时
+      for (let i = 0; i < 100; i++) {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
@@ -4705,7 +4705,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       }
 
       if (!isIndexed) {
-        throw new Error('Dify indexing timeout (>120s).');
+        throw new Error('Dify indexing timeout (>300s).');
       }
 
       taskQueue.updateTask(task.id, {
