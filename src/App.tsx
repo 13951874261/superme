@@ -171,9 +171,7 @@ function AppContent() {
   }, []);
 
   const isLocked = (isInterceptorEnabled && !masteryData._isInitial && (
-    masteryData.oralCount < 10 ||
-    masteryData.maxWriteScore < 8 ||
-    !masteryData.emailCompleted
+    false /* 战略路线图达标不再进行强制锁定 */
   )) || !!pendingSentenceDebt || shouldForceModal;
 
   // 当触发控制论强制锁定且当前不在英语引擎时，强行重定向至英语引擎
