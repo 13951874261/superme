@@ -274,7 +274,7 @@ function AppContent() {
       {/* 主视界：flex-1 自适应，右侧面板固定 400px，避免 70vw + 400px 溢出视口 */}
       <div
         onClick={handleLeftAreaClick}
-        className={`h-screen flex overflow-hidden min-w-0 transition-[flex,width] duration-300 ease-out ${isRightPanelOpen ? 'flex-1' : 'w-full flex-1'}`}
+        className={`h-screen flex overflow-hidden min-w-0 ${isRightPanelOpen ? 'flex-1' : 'w-full flex-1'}`}
       >
         <Sidebar 
           isOpen={isSidebarOpen} 

@@ -122,7 +122,7 @@ export default function MainContent({
 
 
   return (
-    <main id="main-content" className={`flex-1 flex flex-col h-screen overflow-y-auto relative scroll-smooth font-sans transition-colors duration-300 ${bgEnabled ? 'bg-[#F8F9FA]/40 backdrop-blur-sm' : 'bg-[#F8F9FA]'}`}>
+    <main id="main-content" className={`flex-1 flex flex-col h-screen overflow-y-auto relative scroll-smooth font-sans transition-colors duration-300 ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
       <Header />
       
       <div className="px-4 md:px-6 lg:px-8 mx-auto w-full max-w-[1600px] pt-2 pb-16 flex flex-col min-h-full">
