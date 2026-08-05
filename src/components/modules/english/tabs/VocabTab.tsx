@@ -3,7 +3,7 @@ import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, 
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { submitReview, getAllWords, getReviewWords } from '../../../../services/vocabAPI';
+import { submitReview, getAllWords, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
@@ -76,9 +76,7 @@ export default function VocabTab() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [isFallback, setIsFallback] = useState(false); // true=全量练习模式，false=今日复习模式
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
-  const [onlyCurrentTheme, setOnlyCurrentTheme] = useState(() => {
-    return localStorage.getItem('only_current_theme') !== 'false';
-  });
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Anki 闪卡拼写状态
   const [isFlipped, setIsFlipped] = useState(false);
@@ -86,16 +84,28 @@ export default function VocabTab() {
   const [isSpellError, setIsSpellError] = useState(false);
 
   const reloadVocab = useCallback(async () => {
-    setLoadingDueWords(true);
+    // Cache-first：毫秒级出队
+    const cached = readReviewLightCache();
+    if (cached && cached.length > 0) {
+      setDueWords(cached);
+      setIsFallback(false);
+      setLoadingDueWords(false);
+      setIsSyncing(true);
+    } else {
+      setLoadingDueWords(true);
+    }
+
     try {
-      const data = await getReviewWords();
+      const data = await getReviewWords({ light: true });
       if (Array.isArray(data) && data.length > 0) {
         setDueWords(data);
+        writeReviewLightCache(data);
         setIsFallback(false);
       } else {
-        const allData = await getAllWords().catch(() => []);
+        const allData = await getAllWords({ light: true }).catch(() => []);
         setDueWords(allData);
         setIsFallback(true);
+        if (allData.length === 0) clearReviewLightCache();
       }
       setCurrentWordIdx(0);
       setSentenceInput('');
@@ -103,11 +113,14 @@ export default function VocabTab() {
       setIsFlipped(false);
       setSpellInput('');
     } catch {
-      const allData = await getAllWords().catch(() => []);
-      setDueWords(allData);
-      setIsFallback(allData.length > 0);
+      if (!(cached && cached.length > 0)) {
+        const allData = await getAllWords({ light: true }).catch(() => []);
+        setDueWords(allData);
+        setIsFallback(allData.length > 0);
+      }
     } finally {
       setLoadingDueWords(false);
+      setIsSyncing(false);
     }
   }, [setDueWords, setCurrentWordIdx, setSentenceInput, setLoadingDueWords]);
 
@@ -116,14 +129,6 @@ export default function VocabTab() {
       reloadVocab();
     }
   }, [activeTab, vocabZone, reloadVocab]);
-
-  // 当切换到 vocab 页面或全局切换 theme 时，默认强制将 onlyCurrentTheme 设为 true
-  useEffect(() => {
-    if (activeTab === 'vocab') {
-      setOnlyCurrentTheme(true);
-      localStorage.setItem('only_current_theme', 'true');
-    }
-  }, [activeTab, theme]);
 
   // 当 theme 改变时，重置当前学习进度，防止因词库过滤导致索引越界
   useEffect(() => {
@@ -137,6 +142,7 @@ export default function VocabTab() {
   // 监听全局 vocab-updated 事件
   useEffect(() => {
     const handleUpdate = () => {
+      clearReviewLightCache();
       if (activeTab === 'vocab') {
         reloadVocab();
       }
@@ -145,29 +151,35 @@ export default function VocabTab() {
     return () => window.removeEventListener('vocab-updated', handleUpdate);
   }, [activeTab, reloadVocab]);
 
-  // 双区过滤逻辑：使用 VocabEntry.category 字段（'business' | 'general'）
-  // 注意：dict_type 是字典类型（如 en-zh），不是分区标记，不可用于过滤
-  // category 默认为 'business'，存量词均在政商务区可见
-  // 修复：如果词没有 category 字段（存量数据），两区都可见（保守处理）
+  // 双区过滤：保留分区；今日复习不按主题过滤（与艾宾浩斯同源）
   const filteredWords = useMemo(() => {
     return dueWords.filter(w => {
-      // 1. 双区过滤
       const cat = w.category;
-      let matchesZone = true;
       if (cat) {
-        matchesZone = vocabZone === 'business' ? cat === 'business' : cat === 'general';
+        return vocabZone === 'business' ? cat === 'business' : cat === 'general';
       }
-      if (!matchesZone) return false;
-
-      // 2. 仅限当前主题过滤
-      if (onlyCurrentTheme) {
-        return w.category === theme || w.payload?.theme === theme;
-      }
-      return true;
+      return vocabZone === 'business';
     });
-  }, [dueWords, vocabZone, onlyCurrentTheme, theme]);
+  }, [dueWords, vocabZone]);
 
   const currentWord = useMemo(() => filteredWords[currentWordIdx], [filteredWords, currentWordIdx]);
+
+  // 轻量条目按需补全完整 payload
+  useEffect(() => {
+    const id = currentWord?.id;
+    const needsHydrate = Boolean(currentWord?._light);
+    if (!id || !needsHydrate) return;
+    let cancelled = false;
+    getVocabItem(id)
+      .then((full) => {
+        if (cancelled || !full) return;
+        setDueWords((prev) => prev.map((w) => (w.id === id ? { ...full, _light: false } : w)));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentWord?.id, currentWord?._light, setDueWords]);
 
   // 适配词典视图所需的 payload 结构
   const adaptedWord = useMemo(() => adaptWordPayload(currentWord), [currentWord]);
@@ -324,7 +336,7 @@ export default function VocabTab() {
         }`}>
           {isFallback
             ? <><Library className="w-3.5 h-3.5 shrink-0" /> 全量练习模式 — 今日无到期词，已加载全部词库（{filteredWords.length} 词）供随时练习。复习提交后将更新 SM-2 记忆算法。</>
-            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — {filteredWords.length} 个待复习单词已到期，完成并提交评估将写入 SM-2 周期。</>
+            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — {filteredWords.length} 个待复习单词已到期，完成并提交评估将写入 SM-2 周期。{isSyncing ? ' · 同步中…' : ''}</>
           }
         </div>
       )}
@@ -520,25 +532,8 @@ export default function VocabTab() {
           onClose={() => setShowCustomCardModal(false)}
           onSuccess={async () => {
             setShowCustomCardModal(false);
-            setLoadingDueWords(true);
-            try {
-              const data = await getReviewWords();
-              if (Array.isArray(data) && data.length > 0) {
-                setDueWords(data);
-                setIsFallback(false);
-              } else {
-                const allData = await getAllWords().catch(() => []);
-                setDueWords(allData);
-                setIsFallback(true);
-              }
-              setCurrentWordIdx(0);
-              setSentenceInput('');
-              setEvalResult(null);
-            } catch (err) {
-              console.error(err);
-            } finally {
-              setLoadingDueWords(false);
-            }
+            clearReviewLightCache();
+            await reloadVocab();
           }}
         />
       )}

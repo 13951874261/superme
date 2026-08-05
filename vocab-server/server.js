@@ -167,6 +167,16 @@ try {
   // ???????????????
 }
 
+// 复习/列表查询索引（无损性能）
+try {
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review ON vocabulary(next_review_date, repetitions)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at ON vocabulary(added_at)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_word_nocase ON vocabulary(word COLLATE NOCASE)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_category ON vocabulary(category)').run();
+} catch (err) {
+  console.warn('Migration: vocabulary indexes skipped:', err?.message || err);
+}
+
 // ??????????????????????????????????????????
 db.prepare(`
   CREATE TABLE IF NOT EXISTS dict_query_log (
@@ -2889,9 +2899,70 @@ app.get('/api/vocab/stats', (req, res) => {
   }
 });
 
+function mapLightVocabRow(r) {
+  let phonetic = '';
+  let pos = '';
+  let meaning = '';
+  try {
+    if (r.phonetic != null || r.pos != null || r.meaning != null) {
+      phonetic = r.phonetic || '';
+      pos = r.pos || '';
+      meaning = r.meaning || '';
+    } else if (r.payload) {
+      const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
+      phonetic = p.phonetic || '';
+      pos = p.pos || p.partOfSpeech || '';
+      meaning = p.definition || p.translation_main || p.meaning || p.meaning_zh || '';
+      if (!meaning && Array.isArray(p.definitions_en) && p.definitions_en[0]) {
+        meaning = String(p.definitions_en[0]);
+      }
+    }
+  } catch (_) {}
+  return {
+    id: r.id,
+    word: r.word,
+    dict_type: r.dict_type,
+    category: r.category,
+    scene_type: r.scene_type,
+    added_at: r.added_at,
+    repetitions: r.repetitions,
+    ease_factor: r.ease_factor,
+    interval_days: r.interval_days,
+    next_review_date: r.next_review_date,
+    last_review_date: r.last_review_date,
+    review_history: [],
+    payload: {
+      phonetic,
+      pos,
+      meaning,
+      definition: meaning,
+      translation_main: meaning,
+      meaning_zh: meaning,
+    },
+    _light: true,
+  };
+}
+
+const LIGHT_SELECT = `
+  id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date,
+  json_extract(payload, '$.phonetic') as phonetic,
+  COALESCE(json_extract(payload, '$.pos'), json_extract(payload, '$.partOfSpeech')) as pos,
+  COALESCE(
+    json_extract(payload, '$.definition'),
+    json_extract(payload, '$.translation_main'),
+    json_extract(payload, '$.meaning'),
+    json_extract(payload, '$.meaning_zh')
+  ) as meaning
+`;
+
 // ???????????????
 app.get('/api/vocab/list', (req, res) => {
   try {
+    const light = String(req.query.light || '') === '1';
+    if (light) {
+      const rows = db.prepare(`SELECT ${LIGHT_SELECT} FROM vocabulary ORDER BY added_at DESC`).all();
+      return res.json(rows.map(mapLightVocabRow));
+    }
     const rows = db.prepare('SELECT * FROM vocabulary ORDER BY added_at DESC').all();
     const formatted = rows.map(r => ({
       ...r,
@@ -2908,8 +2979,30 @@ app.get('/api/vocab/list', (req, res) => {
 app.get('/api/vocab/review', (req, res) => {
   try {
     const now = Date.now();
+    const light = String(req.query.light || '') === '1';
+    if (light) {
+      const rows = db.prepare(
+        `SELECT ${LIGHT_SELECT} FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC`
+      ).all(now);
+      return res.json(rows.map(mapLightVocabRow));
+    }
     const rows = db.prepare('SELECT * FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC').all(now);
     res.json(rows.map(r => ({ ...r, payload: r.payload ? JSON.parse(r.payload) : {} })));
+  } catch (error) {
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 单条完整词条（轻量列表按需补全 payload）
+app.get('/api/vocab/item/:id', (req, res) => {
+  try {
+    const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Word not found' });
+    res.json({
+      ...row,
+      payload: row.payload ? JSON.parse(row.payload) : {},
+      review_history: row.review_history ? JSON.parse(row.review_history) : [],
+    });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });
   }

@@ -1,13 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, AlertCircle, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
 import SpeakButton from './SpeakButton';
-import { getStats, getAllWords, deleteWord, manualIntervention, getEbbinghausData, VocabEntry, VocabStats, EbbinghausData } from '../services/vocabAPI';
+import {
+  getStats,
+  getAllWords,
+  getReviewWords,
+  getVocabItem,
+  deleteWord,
+  manualIntervention,
+  getEbbinghausData,
+  VocabEntry,
+  VocabStats,
+  EbbinghausData,
+  clearReviewLightCache,
+  readReviewLightCache,
+  writeReviewLightCache,
+} from '../services/vocabAPI';
 import FlashCard from './FlashCard';
 import CustomCardModal from './CustomCardModal';
 import MemoryAidPanel from './MemoryAidPanel';
 import EbbinghausChart from './EbbinghausChart';
 import VocabExportControl from './VocabExportControl';
 import { getWordTranslation } from '../utils/vocabCsvExport';
+
+const LIST_VIEWPORT_H = 550;
+const ROW_ESTIMATE_H = 92;
 
 // ==========================================
 // 生词本内联详情展示组件 (手风琴展开内容)
@@ -21,6 +38,16 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
   const [ebbinghausData, setEbbinghausData] = useState<EbbinghausData | null>(null);
   const [ebbLoading, setEbbLoading] = useState(false);
   const [ebbError, setEbbError] = useState<string | null>(null);
+  const [fullWord, setFullWord] = useState<VocabEntry>(word);
+
+  useEffect(() => {
+    setFullWord(word);
+    if (word._light) {
+      getVocabItem(word.id)
+        .then((item) => setFullWord({ ...item, _light: false }))
+        .catch(() => {});
+    }
+  }, [word]);
 
   useEffect(() => {
     if (activeTab === 'ebbinghaus' && !ebbinghausData) {
@@ -40,8 +67,8 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
     }
   }, [activeTab, word.id, ebbinghausData]);
 
-  const payload = word.payload || {};
-  const translation = getWordTranslation(word);
+  const payload = fullWord.payload || {};
+  const translation = getWordTranslation(fullWord);
 
   return (
     <div className="bg-slate-50/70 border-t border-slate-100 p-4 space-y-3 cursor-default" onClick={(e) => e.stopPropagation()}>
@@ -135,6 +162,10 @@ export default function VocabularyBook() {
   const [exportHint, setExportHint] = useState<string | null>(null);
 
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
+  const [peekId, setPeekId] = useState<string | null>(null);
+  const [dueWords, setDueWords] = useState<VocabEntry[]>([]);
+  const [scrollTop, setScrollTop] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const loadStats = useCallback(async () => {
     try {
@@ -149,8 +180,18 @@ export default function VocabularyBook() {
   const loadWords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const list = await getAllWords();
+      const cached = readReviewLightCache();
+      if (cached) setDueWords(cached);
+
+      const [list, review] = await Promise.all([
+        getAllWords({ light: true }),
+        getReviewWords({ light: true }).catch(() => cached || []),
+      ]);
       setWords(list);
+      if (Array.isArray(review)) {
+        setDueWords(review);
+        writeReviewLightCache(review);
+      }
     } catch {
       // ignore
     } finally {
@@ -160,15 +201,32 @@ export default function VocabularyBook() {
 
   useEffect(() => {
     loadStats();
+    // 预热到期队列缓存，供词汇矩阵毫秒级首屏
+    const cached = readReviewLightCache();
+    if (cached) setDueWords(cached);
+    getReviewWords({ light: true })
+      .then((review) => {
+        setDueWords(review);
+        setStats((prev) => ({ ...prev, dueToday: review.length }));
+      })
+      .catch(() => {});
     const timer = setInterval(loadStats, 60000);
     return () => clearInterval(timer);
   }, [loadStats]);
 
   useEffect(() => {
     const handleUpdate = () => {
+      clearReviewLightCache();
       loadStats();
       if (isExpanded) {
         loadWords();
+      } else {
+        getReviewWords({ light: true })
+          .then((review) => {
+            setDueWords(review);
+            setStats((prev) => ({ ...prev, dueToday: review.length }));
+          })
+          .catch(() => {});
       }
     };
     window.addEventListener('vocab-updated', handleUpdate);
@@ -181,10 +239,30 @@ export default function VocabularyBook() {
     if (next) loadWords();
   };
 
+  const filteredWords = useMemo(
+    () => words.filter((w) => w.category === vocabTab || (!w.category && vocabTab === 'business')),
+    [words, vocabTab]
+  );
+
+  const dueInZone = useMemo(
+    () =>
+      dueWords.filter((w) => w.category === vocabTab || (!w.category && vocabTab === 'business')).length,
+    [dueWords, vocabTab]
+  );
+
+  const startIdx = Math.max(0, Math.floor(scrollTop / ROW_ESTIMATE_H) - 3);
+  const visibleCount = Math.ceil(LIST_VIEWPORT_H / ROW_ESTIMATE_H) + 6;
+  const endIdx = Math.min(filteredWords.length, startIdx + visibleCount);
+  const virtualSlice = filteredWords.slice(startIdx, endIdx);
+  const padTop = startIdx * ROW_ESTIMATE_H;
+  const padBottom = Math.max(0, (filteredWords.length - endIdx) * ROW_ESTIMATE_H);
+
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     await deleteWord(id);
+    clearReviewLightCache();
     setWords(prev => prev.filter(w => w.id !== id));
+    setDueWords(prev => prev.filter(w => w.id !== id));
     loadStats();
   };
 
@@ -192,6 +270,7 @@ export default function VocabularyBook() {
     e.stopPropagation();
     try {
       await manualIntervention(id, action);
+      clearReviewLightCache();
       loadStats();
       loadWords();
     } catch {
@@ -306,13 +385,13 @@ export default function VocabularyBook() {
                 >
                   + 制卡
                 </button>
-                {stats.dueToday > 0 && (
+                {dueInZone > 0 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); setShowFlashCard(true); }}
                     className="flex items-center gap-1.5 bg-[#FF5722] text-white text-[11px] font-bold px-3.5 py-1.5 rounded-lg hover:bg-[#E64A19] transition shadow-sm shadow-[#FF5722]/20"
                   >
                     <Brain className="w-3.5 h-3.5" />
-                    复习 {stats.dueToday}
+                    复习 {dueInZone}
                   </button>
                 )}
               </div>
@@ -324,30 +403,45 @@ export default function VocabularyBook() {
               </div>
             )}
 
-            <div className="divide-y divide-gray-50 border-t border-gray-100 max-h-[550px] overflow-y-auto scrollbar-thin">
+            <div
+              ref={listRef}
+              className="divide-y divide-gray-50 border-t border-gray-100 max-h-[550px] overflow-y-auto scrollbar-thin"
+              onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
+            >
               {isLoading ? (
                 <div className="text-center text-gray-400 text-xs py-6">加载中...</div>
-              ) : words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).length === 0 ? (
+              ) : filteredWords.length === 0 ? (
                 <div className="text-center text-gray-400 text-xs py-6">
                   暂无词条，从词典查询后点击「收录」添加
                 </div>
               ) : (
-                words.filter(w => w.category === vocabTab || (!w.category && vocabTab === 'business')).map(word => {
+                <div style={{ paddingTop: padTop, paddingBottom: padBottom }}>
+                  {virtualSlice.map(word => {
                   const payload = word.payload || {};
                   const pos = payload.pos || '';
                   const phonetic = payload.phonetic || '';
                   const translation = getWordTranslation(word);
                   const isOpened = expandedWordId === word.id;
+                  const isPeek = peekId === word.id;
 
                   return (
-                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition">
+                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition" style={{ minHeight: ROW_ESTIMATE_H }}>
                       <div
                         onClick={() => handleWordClick(word)}
+                        onMouseEnter={() => setPeekId(word.id)}
+                        onMouseLeave={() => setPeekId((id) => (id === word.id ? null : id))}
                         className={`flex items-center justify-between px-4 py-3 cursor-pointer group transition-colors ${isOpened ? 'bg-amber-50/40' : ''}`}
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            <div className="font-bold text-[#202124] text-sm min-w-0 truncate">
+                            <div
+                              className={`font-bold text-[#202124] text-sm min-w-0 ${isPeek || isOpened ? 'whitespace-normal break-words' : 'truncate'}`}
+                              title={word.word}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPeekId((id) => (id === word.id ? null : word.id));
+                              }}
+                            >
                               {word.word}
                             </div>
                             {pos && (
@@ -356,7 +450,10 @@ export default function VocabularyBook() {
                               </span>
                             )}
                             {phonetic && (
-                              <span className="text-[10px] font-mono text-slate-400 select-none truncate max-w-[90px] shrink">
+                              <span
+                                className={`text-[10px] font-mono text-slate-400 select-none shrink ${isPeek || isOpened ? 'whitespace-normal break-all' : 'truncate max-w-[90px]'}`}
+                                title={phonetic}
+                              >
                                 [{phonetic}]
                               </span>
                             )}
@@ -364,7 +461,10 @@ export default function VocabularyBook() {
                           </div>
 
                           {translation && (
-                            <div className="text-xs text-slate-600 truncate mt-0.5 max-w-[85%] font-medium">
+                            <div
+                              className={`text-xs text-slate-600 mt-0.5 font-medium ${isPeek || isOpened ? 'whitespace-normal break-words' : 'truncate max-w-[85%]'}`}
+                              title={translation}
+                            >
                               {translation}
                             </div>
                           )}
@@ -444,7 +544,8 @@ export default function VocabularyBook() {
                       )}
                     </div>
                   );
-                })
+                })}
+                </div>
               )}
             </div>
 
@@ -467,8 +568,10 @@ export default function VocabularyBook() {
           onClose={() => setShowCustomCardModal(false)}
           onSuccess={() => {
             setShowCustomCardModal(false);
+            clearReviewLightCache();
             loadStats();
             if (isExpanded) loadWords();
+            window.dispatchEvent(new Event('vocab-updated'));
           }}
         />
       )}
