@@ -1,4 +1,4 @@
-# 本轮：Agnes 生图接口 — 仅上传 server.js + .env 并重启后端
+# 本轮：Agnes 生图接口 (国内直连版) — 仅上传 server.js + .env 并重启后端
 # 用法: powershell -ExecutionPolicy Bypass -File "D:\cursor\work\super-agent\scripts\upload-agnes-image-gen.ps1"
 # 可选: -UseSystemSSH
 

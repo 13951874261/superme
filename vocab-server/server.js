@@ -4602,7 +4602,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
     // ??????????????????
     setImmediate(async () => {
       try {
-        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.com/v1';
+        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.cn/v1';
         const apiKey = process.env.IMAGE_GEN_API_KEY || 'sk-97VoIHRT895EXhp0fSJWhQUMjzzMUyPMQsgmYLgVB0XFymkp';
         const models = (process.env.IMAGE_GEN_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
         if (models.length === 0) models.push(...DEFAULT_IMAGE_GEN_MODELS);
