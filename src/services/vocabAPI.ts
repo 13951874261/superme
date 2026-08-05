@@ -206,27 +206,23 @@ export async function getStats(): Promise<VocabStats> {
 /** 获取所有词条列表（默认轻量，避免 6k 全 payload） */
 export async function getAllWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
-  return request<VocabEntry[]>(light ? '/list?light=1' : '/list', { timeoutMs: 30000, silent: true });
+  // 禁止默认打全量 /list：6000 条带 payload 会拖垮服务
+  return request<VocabEntry[]>(light ? '/list?light=1' : '/list', {
+    timeoutMs: light ? 20000 : 60000,
+    silent: true,
+  });
 }
 
 /** 获取今日待复习词条（默认轻量 + 写缓存） */
 export async function getReviewWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
-  try {
-    const data = await request<VocabEntry[]>(light ? '/review?light=1' : '/review', {
-      timeoutMs: 20000,
-      silent: true,
-    });
-    if (light && Array.isArray(data)) writeReviewLightCache(data);
-    return data;
-  } catch (err) {
-    // light 失败时回退完整 review，避免卡死入口
-    if (light) {
-      const data = await request<VocabEntry[]>('/review', { timeoutMs: 30000, silent: true });
-      return data;
-    }
-    throw err;
-  }
+  // 注意：light 失败时绝不能回退全量 /review（5939×payload 会堵死后端）
+  const data = await request<VocabEntry[]>(light ? '/review?light=1' : '/review', {
+    timeoutMs: light ? 20000 : 60000,
+    silent: true,
+  });
+  if (light && Array.isArray(data)) writeReviewLightCache(data);
+  return data;
 }
 
 /** 按 id 取完整词条（补全 payload） */

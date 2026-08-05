@@ -3,7 +3,7 @@ import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, 
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { submitReview, getAllWords, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache } from '../../../../services/vocabAPI';
+import { submitReview, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
@@ -102,10 +102,10 @@ export default function VocabTab() {
         writeReviewLightCache(data);
         setIsFallback(false);
       } else {
-        const allData = await getAllWords({ light: true }).catch(() => []);
-        setDueWords(allData);
-        setIsFallback(true);
-        if (allData.length === 0) clearReviewLightCache();
+        // 无到期词：进入空态，禁止再拉全量 list（会打满后端）
+        setDueWords([]);
+        setIsFallback(false);
+        clearReviewLightCache();
       }
       setCurrentWordIdx(0);
       setSentenceInput('');
@@ -113,10 +113,10 @@ export default function VocabTab() {
       setIsFlipped(false);
       setSpellInput('');
     } catch {
+      // 保留缓存；无缓存则空态，绝不回退全量 list/review
       if (!(cached && cached.length > 0)) {
-        const allData = await getAllWords({ light: true }).catch(() => []);
-        setDueWords(allData);
-        setIsFallback(allData.length > 0);
+        setDueWords([]);
+        setIsFallback(false);
       }
     } finally {
       setLoadingDueWords(false);
