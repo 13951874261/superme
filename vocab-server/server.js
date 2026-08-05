@@ -2047,6 +2047,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
     port: parsedUrl.port || (isHttps ? 443 : 80),
     path: parsedUrl.pathname + parsedUrl.search,
     method: 'POST',
+    family: 4,
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${apiKey}`,
