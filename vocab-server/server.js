@@ -1929,8 +1929,8 @@ function calculateNextReview(quality, repetitions, easeFactor, interval) {
 }
 
 const DEFAULT_IMAGE_GEN_MODELS = [
-  'nb/nanobanana-flash',
-  'nb/nanobanana-pro'
+  'agnes-image-2.1-flash',
+  'agnes-image-2.0-flash'
 ];
 
 function extractGeneratedImageUrl(responseData) {
@@ -1971,6 +1971,17 @@ function extractGeneratedImageUrl(responseData) {
 }
 
 function buildImageGenerationPayload(model, prompt) {
+  if (model === 'agnes-image-2.1-flash' || model === 'agnes-image-2.0-flash') {
+    return {
+      model,
+      prompt,
+      size: '1024x768',
+      extra_body: {
+        response_format: 'url',
+      },
+    };
+  }
+
   if (model === 'nb/nanobanana-flash' || model === 'nb/nanobanana-pro') {
     return {
       model,
@@ -2006,12 +2017,10 @@ function buildImageGenerationPayload(model, prompt) {
   return {
     model,
     prompt,
-    n: 1,
-    size: 'auto',
-    quality: 'auto',
-    background: 'auto',
-    image_detail: 'high',
-    output_format: 'png',
+    size: '1024x768',
+    extra_body: {
+      response_format: 'url',
+    },
   };
 }
 
@@ -4592,12 +4601,12 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
     // ??????????????????
     setImmediate(async () => {
       try {
-        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://23.95.214.232/v1';
-        const apiKey = process.env.IMAGE_GEN_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+        const baseUrl = process.env.IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.com/v1';
+        const apiKey = process.env.IMAGE_GEN_API_KEY || 'sk-97VoIHRT895EXhp0fSJWhQUMjzzMUyPMQsgmYLgVB0XFymkp';
         const models = (process.env.IMAGE_GEN_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
         if (models.length === 0) models.push(...DEFAULT_IMAGE_GEN_MODELS);
 
-        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 9router /v1/images/generations'] });
+        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 Agnes /v1/images/generations'] });
         console.log(`[generate-image] prompt: "${memoryAids.image_prompt}", models: [${models.join(', ')}]`);
 
         let imageUrl = '';
