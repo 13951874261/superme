@@ -593,34 +593,51 @@ details[open] summary ~ * {
   opacity: 1;
 }
 
-/* 极致考究的超长单词/短语悬浮平滑滚动机制 */
-.word-scroll-container {
+/* 极致考究的超长单词/短语悬浮平缓滚动气泡机制 */
+.word-tooltip-container {
+  max-width: 260px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  display: block;
-  width: 100%;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  background-color: #202124;
+  color: #ffffff;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 16px -6px rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.1);
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.word-scroll-text {
+/* 仅在父级 group-hover 且子级 tooltip 激活时展现并滚动 */
+.group\/word:hover .word-tooltip-container {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.word-tooltip-text {
   display: inline-block;
   white-space: nowrap;
-  transition: transform 0.25s ease-out;
 }
 
-/* 仅在 hover 且内容确实超出时（通过 calc 公式）执行平滑滚动动画 */
-.word-scroll-container:hover .word-scroll-text {
-  animation: word-marquee 6s cubic-bezier(0.25, 1, 0.5, 1) infinite alternate;
-  padding-right: 16px;
+.group\/word:hover .word-tooltip-text {
+  animation: tooltip-marquee 7s linear infinite alternate;
+  padding-right: 12px;
 }
 
-@keyframes word-marquee {
-  0%, 15% {
+@keyframes tooltip-marquee {
+  0%, 20% {
     transform: translateX(0);
   }
-  85%, 100% {
-    /* calc(-100% + 100%) 精确偏移溢出宽度 */
-    transform: translateX(calc(-100% + 100%));
+  80%, 100% {
+    transform: translateX(calc(-100% + 236px)); /* 260px - 24px padding */
   }
 }
+
 

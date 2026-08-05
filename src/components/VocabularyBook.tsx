@@ -438,9 +438,9 @@ export default function VocabularyBook() {
                       >
                         <div className="flex-1 min-w-0 pr-1.5">
                           <div className="flex items-center gap-1.5 w-full">
-                            <div className="flex-1 min-w-0 word-scroll-container">
+                            <div className="flex-1 min-w-0 relative group/word py-0.5">
                               <div
-                                className="word-scroll-text font-extrabold text-zinc-800 text-sm cursor-pointer"
+                                className="font-extrabold text-zinc-800 text-sm truncate cursor-pointer select-text"
                                 title={word.word}
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -449,6 +449,13 @@ export default function VocabularyBook() {
                               >
                                 {word.word}
                               </div>
+                              {word.word.length > 12 && (
+                                <div className="word-tooltip-container">
+                                  <span className="word-tooltip-text font-black font-mono">
+                                    {word.word}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                             {pos && (
                               <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold shrink-0 select-none">
