@@ -24,7 +24,8 @@ import {
   Sliders,
   Check,
   Send,
-  Copy
+  Copy,
+  X
 } from 'lucide-react';
 import { runSpeakInfluenceEngine, transcribeAudioWithWhisper } from '../../services/difyAPI';
 import { playSuccessCyber, playErrorCyber, playHeartbeat, playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
@@ -1067,10 +1068,22 @@ export default function SpeakModule() {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="fixed top-0 right-0 w-[30%] bg-slate-50 border-l border-slate-200 h-full p-5 shadow-2xl flex flex-col gap-4 overflow-y-auto z-50"
+          className="fixed top-0 right-0 w-[30%] bg-slate-50 border-l border-slate-200 h-full shadow-2xl flex flex-col z-50"
           onClick={(e) => e.stopPropagation()}
         >
-          <button onClick={() => setShowContextSheet(false)} className="self-end text-slate-400 hover:text-slate-800 p-2">关闭</button>
+          {/* 固定头部与关闭按钮 */}
+          <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
+            <span className="text-xs font-black text-slate-700 uppercase tracking-widest">教练深度评估</span>
+            <button
+              onClick={() => setShowContextSheet(false)}
+              className="text-slate-400 hover:text-slate-800 p-1 rounded-lg hover:bg-slate-100 transition-colors flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* 可滚动内容区域 */}
+          <div className="flex-1 overflow-y-auto min-h-0 p-5">
           <div className="bg-white rounded-3xl border border-emerald-100 shadow-[0_15px_40px_rgba(16,185,129,0.05)] p-6 relative overflow-hidden transition-all duration-500 animate-[fadeIn_0.5s_ease-out]">
             <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-500 animate-pulse"></div>
 
@@ -1242,6 +1255,7 @@ export default function SpeakModule() {
 
             </div>
           </div>
+          </div> {/* 可滚动区域容器闭合 */}
         </motion.div>
       )}
       </AnimatePresence>
