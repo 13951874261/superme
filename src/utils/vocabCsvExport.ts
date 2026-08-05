@@ -44,6 +44,58 @@ export function filterWordsForExport(
   }
 }
 
+export function getItemType(word: VocabEntry): string {
+  const payload = word.payload || {};
+  if (payload.is_sentence === true) return '句子 (Sentence)';
+  if (payload.is_phrase === true) return '短语 (Phrase)';
+
+  const text = (word.word || '').trim();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+
+  if (wordCount > 4) return '句子 (Sentence)';
+  if (wordCount > 1) return '短语 (Phrase)';
+  return '单词 (Word)';
+}
+
+/** 按行对齐提取例句中/英；缺一侧时补空串，避免错位 */
+export function getExampleSentences(word: VocabEntry): { en: string; zh: string } {
+  const payload = word.payload || {};
+  const sources = [
+    payload.example_sentences,
+    payload.scenarios,
+    payload.business_examples,
+    payload.examples,
+  ];
+  const examples = sources.find((s) => Array.isArray(s) && s.length > 0) || [];
+  if (!Array.isArray(examples)) return { en: '', zh: '' };
+
+  const enList: string[] = [];
+  const zhList: string[] = [];
+
+  examples.forEach((ex) => {
+    if (typeof ex === 'string') {
+      const en = ex.trim();
+      if (!en) return;
+      enList.push(en);
+      zhList.push('');
+      return;
+    }
+    if (typeof ex === 'object' && ex !== null) {
+      const en = String(
+        (ex as any).en || (ex as any).example_en || (ex as any).sentence || (ex as any).example || ''
+      ).trim();
+      const zh = String(
+        (ex as any).zh || (ex as any).translation || (ex as any).example_zh || ''
+      ).trim();
+      if (!en && !zh) return;
+      enList.push(en);
+      zhList.push(zh);
+    }
+  });
+
+  return { en: enList.join('\n'), zh: zhList.join('\n') };
+}
+
 function escapeCsvCell(value: string): string {
   if (/[",\n\r]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -51,13 +103,16 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
-/** 表头与规格列一致：word / translation / phonetic / pos / 复习字段 */
+/** 表头：word / type / translation / phonetic / pos / 例句中英 / 复习字段 */
 export function buildVocabCsv(words: VocabEntry[]): string {
   const headers = [
     'word',
+    'type',
     'translation',
     'phonetic',
     'pos',
+    'example_sentences_en',
+    'example_sentences_zh',
     'repetitions',
     'next_review_date',
     'due_today',
@@ -65,11 +120,15 @@ export function buildVocabCsv(words: VocabEntry[]): string {
   const now = Date.now();
   const rows = words.map((w) => {
     const payload = w.payload || {};
+    const examples = getExampleSentences(w);
     const cells = [
       w.word || '',
+      getItemType(w),
       getWordTranslation(w),
       String(payload.phonetic || ''),
       String(payload.pos || ''),
+      examples.en,
+      examples.zh,
       String(w.repetitions ?? ''),
       w.next_review_date ? new Date(w.next_review_date).toISOString() : '',
       isDueToday(w, now) ? 'yes' : 'no',

@@ -346,8 +346,17 @@ export default function VocabTab() {
               {/* 情报卡片标题 */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
-                  <span className="inline-block px-3 py-1 bg-slate-150 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-md border border-slate-200">Target Acquisition</span>
-                  <span className="ml-3 text-xs font-black text-gray-500 uppercase tracking-widest">[ {currentWordIdx + 1} / {filteredWords.length} ]</span>
+                  {!isFlipped ? (
+                    <>
+                      <span className="inline-block px-3 py-1 bg-slate-150 text-[#FF5722] text-[10px] font-black uppercase tracking-widest rounded-md border border-slate-200">Target Acquisition</span>
+                      <span className="ml-3 text-xs font-black text-gray-500 uppercase tracking-widest">[ {currentWordIdx + 1} / {filteredWords.length} ]</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase tracking-widest rounded-md border border-emerald-250/30">Target Revealed</span>
+                      <span className="ml-3 text-lg font-black text-[#FF5722] tracking-wide select-all">{currentWord.word}</span>
+                    </>
+                  )}
                 </div>
                 {isFlipped && (
                   <SpeakButton text={currentWord.word} title={`播放 ${currentWord.word}`} className="w-8 h-8 bg-slate-100 text-slate-600 hover:bg-[#FF5722] hover:text-white border border-slate-200 rounded-lg flex items-center justify-center shrink-0" iconClassName="w-4 h-4" />
@@ -377,6 +386,16 @@ export default function VocabTab() {
                     <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest text-center mt-3">
                       Press <span className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded">Enter</span> to check
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playPageTurn();
+                        setIsFlipped(true);
+                      }}
+                      className="mt-4 text-xs font-bold text-slate-400 hover:text-[#FF5722] hover:underline transition-colors flex items-center justify-center gap-1 mx-auto cursor-pointer"
+                    >
+                      <span>不记得了，直接翻转查看释义与原词 →</span>
+                    </button>
                   </div>
                 </div>
               ) : (
