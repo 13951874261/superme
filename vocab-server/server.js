@@ -2900,24 +2900,6 @@ app.get('/api/vocab/stats', (req, res) => {
 });
 
 function mapLightVocabRow(r) {
-  let phonetic = '';
-  let pos = '';
-  let meaning = '';
-  try {
-    if (r.phonetic != null || r.pos != null || r.meaning != null) {
-      phonetic = r.phonetic || '';
-      pos = r.pos || '';
-      meaning = r.meaning || '';
-    } else if (r.payload) {
-      const p = typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
-      phonetic = p.phonetic || '';
-      pos = p.pos || p.partOfSpeech || '';
-      meaning = p.definition || p.translation_main || p.meaning || p.meaning_zh || '';
-      if (!meaning && Array.isArray(p.definitions_en) && p.definitions_en[0]) {
-        meaning = String(p.definitions_en[0]);
-      }
-    }
-  } catch (_) {}
   return {
     id: r.id,
     word: r.word,
@@ -2931,28 +2913,14 @@ function mapLightVocabRow(r) {
     next_review_date: r.next_review_date,
     last_review_date: r.last_review_date,
     review_history: [],
-    payload: {
-      phonetic,
-      pos,
-      meaning,
-      definition: meaning,
-      translation_main: meaning,
-      meaning_zh: meaning,
-    },
+    payload: {},
     _light: true,
   };
 }
 
+// 轻量列表：只取标量列，禁止 json_extract（6000 行会打满事件循环导致全站超时）
 const LIGHT_SELECT = `
-  id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date,
-  json_extract(payload, '$.phonetic') as phonetic,
-  COALESCE(json_extract(payload, '$.pos'), json_extract(payload, '$.partOfSpeech')) as pos,
-  COALESCE(
-    json_extract(payload, '$.definition'),
-    json_extract(payload, '$.translation_main'),
-    json_extract(payload, '$.meaning'),
-    json_extract(payload, '$.meaning_zh')
-  ) as meaning
+  id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date
 `;
 
 // ???????????????
@@ -2971,6 +2939,7 @@ app.get('/api/vocab/list', (req, res) => {
     }));
     res.json(formatted);
   } catch (error) {
+    console.error('[vocab/list]', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
@@ -2989,6 +2958,7 @@ app.get('/api/vocab/review', (req, res) => {
     const rows = db.prepare('SELECT * FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC').all(now);
     res.json(rows.map(r => ({ ...r, payload: r.payload ? JSON.parse(r.payload) : {} })));
   } catch (error) {
+    console.error('[vocab/review]', error);
     res.status(500).json({ error: 'Database error' });
   }
 });

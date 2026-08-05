@@ -136,9 +136,10 @@ export interface DictResult {
 }
 
 
-async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
-  const timeoutMs = options?.timeoutMs ?? 5000;
-  const { timeoutMs: _t, ...fetchOpts } = options || {};
+async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number; silent?: boolean }): Promise<T> {
+  const timeoutMs = options?.timeoutMs ?? 8000;
+  const silent = options?.silent === true;
+  const { timeoutMs: _t, silent: _s, ...fetchOpts } = options || {};
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -156,9 +157,12 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
     interceptOutputText(data);
     return data;
   } catch (err: any) {
+    const isAbort = err?.name === 'AbortError';
     console.error('[vocabAPI] Vocab request exception:', path, err);
-    playError();
-    showToast({ message: err.name === 'AbortError' ? '词库请求超时' : err.message, type: 'error' });
+    if (!silent && !isAbort) {
+      playError();
+      showToast({ message: err.message || '词库请求失败', type: 'error' });
+    }
     throw err;
   } finally {
     window.clearTimeout(timer);
@@ -196,26 +200,38 @@ export function clearReviewLightCache(): void {
 
 /** 获取统计：总词数 + 今日待复习数 */
 export async function getStats(): Promise<VocabStats> {
-  return request<VocabStats>('/stats');
+  return request<VocabStats>('/stats', { timeoutMs: 8000, silent: true });
 }
 
 /** 获取所有词条列表（默认轻量，避免 6k 全 payload） */
 export async function getAllWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
-  return request<VocabEntry[]>(light ? '/list?light=1' : '/list', { timeoutMs: 15000 });
+  return request<VocabEntry[]>(light ? '/list?light=1' : '/list', { timeoutMs: 30000, silent: true });
 }
 
 /** 获取今日待复习词条（默认轻量 + 写缓存） */
 export async function getReviewWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
-  const data = await request<VocabEntry[]>(light ? '/review?light=1' : '/review', { timeoutMs: 10000 });
-  if (light && Array.isArray(data)) writeReviewLightCache(data);
-  return data;
+  try {
+    const data = await request<VocabEntry[]>(light ? '/review?light=1' : '/review', {
+      timeoutMs: 20000,
+      silent: true,
+    });
+    if (light && Array.isArray(data)) writeReviewLightCache(data);
+    return data;
+  } catch (err) {
+    // light 失败时回退完整 review，避免卡死入口
+    if (light) {
+      const data = await request<VocabEntry[]>('/review', { timeoutMs: 30000, silent: true });
+      return data;
+    }
+    throw err;
+  }
 }
 
 /** 按 id 取完整词条（补全 payload） */
 export async function getVocabItem(id: string): Promise<VocabEntry> {
-  return request<VocabEntry>(`/item/${encodeURIComponent(id)}`);
+  return request<VocabEntry>(`/item/${encodeURIComponent(id)}`, { timeoutMs: 8000, silent: true });
 }
 
 /** 收录词条 */
