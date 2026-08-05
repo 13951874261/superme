@@ -437,16 +437,18 @@ export default function VocabularyBook() {
                         className={`flex items-start justify-between px-3.5 py-2.5 cursor-pointer group transition-colors ${isOpened ? 'bg-amber-50/40' : ''}`}
                       >
                         <div className="flex-1 min-w-0 pr-1.5">
-                          <div className="flex items-center gap-1.5 flex-wrap">
-                            <div
-                              className="font-extrabold text-zinc-800 text-sm break-words whitespace-normal leading-snug"
-                              title={word.word}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPeekId((id) => (id === word.id ? null : word.id));
-                              }}
-                            >
-                              {word.word}
+                          <div className="flex items-center gap-1.5 w-full">
+                            <div className="flex-1 min-w-0 word-scroll-container">
+                              <div
+                                className="word-scroll-text font-extrabold text-zinc-800 text-sm cursor-pointer"
+                                title={word.word}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPeekId((id) => (id === word.id ? null : word.id));
+                                }}
+                              >
+                                {word.word}
+                              </div>
                             </div>
                             {pos && (
                               <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold shrink-0 select-none">
@@ -455,7 +457,7 @@ export default function VocabularyBook() {
                             )}
                             {phonetic && (
                               <span
-                                className="text-[10px] font-mono text-slate-400 select-none break-all whitespace-normal"
+                                className="text-[10px] font-mono text-slate-400 select-none truncate max-w-[80px] shrink-0"
                                 title={phonetic}
                               >
                                 [{phonetic}]
