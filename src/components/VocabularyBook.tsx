@@ -429,17 +429,17 @@ export default function VocabularyBook() {
                   const isPeek = peekId === word.id;
 
                   return (
-                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-gray-50/40 transition" style={{ minHeight: ROW_ESTIMATE_H }}>
+                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-zinc-500/5 transition-all" style={{ minHeight: ROW_ESTIMATE_H }}>
                       <div
                         onClick={() => handleWordClick(word)}
                         onMouseEnter={() => setPeekId(word.id)}
                         onMouseLeave={() => setPeekId((id) => (id === word.id ? null : id))}
-                        className={`flex items-center justify-between px-4 py-3 cursor-pointer group transition-colors ${isOpened ? 'bg-amber-50/40' : ''}`}
+                        className={`flex items-start justify-between px-3.5 py-2.5 cursor-pointer group transition-colors ${isOpened ? 'bg-amber-50/40' : ''}`}
                       >
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 min-w-0 pr-1.5">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <div
-                              className={`font-bold text-[#202124] text-sm min-w-0 ${isPeek || isOpened ? 'whitespace-normal break-words' : 'truncate'}`}
+                              className="font-extrabold text-zinc-800 text-sm break-words whitespace-normal leading-snug"
                               title={word.word}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -449,24 +449,24 @@ export default function VocabularyBook() {
                               {word.word}
                             </div>
                             {pos && (
-                              <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-medium shrink-0 select-none">
+                              <span className="text-[9px] bg-slate-100 text-slate-500 px-1 py-0.5 rounded font-bold shrink-0 select-none">
                                 {pos}
                               </span>
                             )}
                             {phonetic && (
                               <span
-                                className={`text-[10px] font-mono text-slate-400 select-none shrink ${isPeek || isOpened ? 'whitespace-normal break-all' : 'truncate max-w-[90px]'}`}
+                                className="text-[10px] font-mono text-slate-400 select-none break-all whitespace-normal"
                                 title={phonetic}
                               >
                                 [{phonetic}]
                               </span>
                             )}
-                            <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-6 h-6 flex-shrink-0" iconClassName="w-3 h-3" />
+                            <SpeakButton text={word.word} title={`播放 ${word.word}`} className="w-5 h-5 flex-shrink-0" iconClassName="w-2.5 h-2.5" />
                           </div>
 
                           {translation && (
                             <div
-                              className={`text-xs text-slate-600 mt-0.5 font-medium ${isPeek || isOpened ? 'whitespace-normal break-words' : 'truncate max-w-[85%]'}`}
+                              className="text-xs text-slate-600 mt-1 font-medium break-words whitespace-normal leading-relaxed pl-0.5"
                               title={translation}
                             >
                               {translation}
@@ -475,21 +475,21 @@ export default function VocabularyBook() {
 
                           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                             {word.repetitions === 999 ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 select-none shrink-0">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-600 select-none shrink-0">
                                 已掌握
                               </span>
                             ) : word.next_review_date <= Date.now() ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-orange-500 text-white select-none shrink-0">
-                                今日
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-orange-500 text-white select-none shrink-0">
+                                今日待复习
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-medium bg-slate-100 text-slate-500 select-none shrink-0">
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-500 select-none shrink-0">
                                 {formatNextReview(word.next_review_date)}
                               </span>
                             )}
                             {word.repetitions > 0 && word.repetitions !== 999 && (
-                              <span className="text-[8px] text-slate-400 shrink-0">
-                                #{word.repetitions}
+                              <span className="text-[8px] text-slate-400 font-mono tracking-tight shrink-0">
+                                #{word.repetitions}次复习
                               </span>
                             )}
                           </div>
