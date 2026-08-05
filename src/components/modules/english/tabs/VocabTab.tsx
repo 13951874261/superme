@@ -77,6 +77,7 @@ export default function VocabTab() {
   const [isFallback, setIsFallback] = useState(false); // true=全量练习模式，false=今日复习模式
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [syncNotice, setSyncNotice] = useState<string | null>(null);
 
   // Anki 闪卡拼写状态
   const [isFlipped, setIsFlipped] = useState(false);
@@ -85,7 +86,7 @@ export default function VocabTab() {
 
   const reloadVocab = useCallback(async () => {
     // Cache-first：毫秒级出队
-    const cached = readReviewLightCache();
+    const cached = readReviewLightCache(vocabZone);
     if (cached && cached.length > 0) {
       setDueWords(cached);
       setIsFallback(false);
@@ -96,16 +97,23 @@ export default function VocabTab() {
     }
 
     try {
-      const data = await getReviewWords({ light: true });
+      let data;
+      try {
+        data = await getReviewWords(vocabZone, { light: true });
+      } catch {
+        data = await getReviewWords(vocabZone, { light: true });
+      }
       if (Array.isArray(data) && data.length > 0) {
         setDueWords(data);
-        writeReviewLightCache(data);
+        writeReviewLightCache(vocabZone, data);
         setIsFallback(false);
+        setSyncNotice(null);
       } else {
         // 无到期词：进入空态，禁止再拉全量 list（会打满后端）
         setDueWords([]);
         setIsFallback(false);
-        clearReviewLightCache();
+        clearReviewLightCache(vocabZone);
+        setSyncNotice(null);
       }
       setCurrentWordIdx(0);
       setSentenceInput('');
@@ -113,16 +121,20 @@ export default function VocabTab() {
       setIsFlipped(false);
       setSpellInput('');
     } catch {
-      // 保留缓存；无缓存则空态，绝不回退全量 list/review
+      // 保留缓存；无缓存显示明确错误态，绝不回退全量 list/review
       if (!(cached && cached.length > 0)) {
         setDueWords([]);
         setIsFallback(false);
+        setSyncNotice('连接失败，请重新加载今日待复习词条。');
+      } else {
+        setDueWords(cached);
+        setSyncNotice(`网络暂不可用，正在使用上次同步的 ${cached.length} 个复习词。`);
       }
     } finally {
       setLoadingDueWords(false);
       setIsSyncing(false);
     }
-  }, [setDueWords, setCurrentWordIdx, setSentenceInput, setLoadingDueWords]);
+  }, [setDueWords, setCurrentWordIdx, setSentenceInput, setLoadingDueWords, vocabZone]);
 
   useEffect(() => {
     if (activeTab === 'vocab') {
@@ -142,27 +154,27 @@ export default function VocabTab() {
   // 监听全局 vocab-updated 事件
   useEffect(() => {
     const handleUpdate = () => {
-      clearReviewLightCache();
+      clearReviewLightCache(vocabZone);
       if (activeTab === 'vocab') {
         reloadVocab();
       }
     };
     window.addEventListener('vocab-updated', handleUpdate);
     return () => window.removeEventListener('vocab-updated', handleUpdate);
-  }, [activeTab, reloadVocab]);
+  }, [activeTab, reloadVocab, vocabZone]);
 
-  // 双区过滤：保留分区；今日复习不按主题过滤（与艾宾浩斯同源）
-  const filteredWords = useMemo(() => {
-    return dueWords.filter(w => {
-      const cat = w.category;
-      if (cat) {
-        return vocabZone === 'business' ? cat === 'business' : cat === 'general';
-      }
-      return vocabZone === 'business';
-    });
-  }, [dueWords, vocabZone]);
+  // 接口已按当前分区分页，避免客户端对单页结果二次过滤。
+  const filteredWords = dueWords;
 
   const currentWord = useMemo(() => filteredWords[currentWordIdx], [filteredWords, currentWordIdx]);
+
+  const advanceWord = () => {
+    if (currentWordIdx + 1 >= filteredWords.length) {
+      void reloadVocab();
+      return;
+    }
+    setCurrentWordIdx((index) => index + 1);
+  };
 
   // 轻量条目按需补全完整 payload
   useEffect(() => {
@@ -321,7 +333,7 @@ export default function VocabTab() {
               收录由「精听盲听 → 划线入库」、口语沙盘截获黑话等日常场景中手动标记的词汇（社交/应急/文化破冰通用）。数据来源：精听划线 + 口语截获 → 生词本 API（/api/vocab）。
             </span>
           )}
-          <span className="ml-2 text-gray-500">｜ 无分区标记的存量词两区均可见。</span>
+          <span className="ml-2 text-gray-500">｜ 存量提取词已统一归入政商务区。</span>
         </div>
       </div>
 
@@ -336,8 +348,16 @@ export default function VocabTab() {
         }`}>
           {isFallback
             ? <><Library className="w-3.5 h-3.5 shrink-0" /> 全量练习模式 — 今日无到期词，已加载全部词库（{filteredWords.length} 词）供随时练习。复习提交后将更新 SM-2 记忆算法。</>
-            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — {filteredWords.length} 个待复习单词已到期，完成并提交评估将写入 SM-2 周期。{isSyncing ? ' · 同步中…' : ''}</>
+            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — 第 {currentWordIdx + 1} / {filteredWords.length} 个待复习单词，完成并提交评估将写入 SM-2 周期。{isSyncing ? ' · 同步中…' : ''}</>
           }
+        </div>
+      )}
+      {syncNotice && (
+        <div className="self-stretch mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+          {syncNotice}
+          {syncNotice.startsWith('连接失败') && (
+            <button onClick={reloadVocab} className="ml-3 font-bold underline">重新加载</button>
+          )}
         </div>
       )}
       {loadingDueWords ? (
@@ -480,7 +500,7 @@ export default function VocabTab() {
                     onClick={() => {
                       setEvalResult(null);
                       setSentenceInput('');
-                      setCurrentWordIdx((p) => p + 1);
+                        advanceWord();
                       setIsFlipped(false);
                       setSpellInput('');
                     }}
@@ -502,7 +522,7 @@ export default function VocabTab() {
                         setPendingSentenceDebt(currentWord.word);
                         setEvalResult(null);
                         setSentenceInput('');
-                        setCurrentWordIdx((p) => p + 1);
+                        advanceWord();
                         setIsFlipped(false);
                         setSpellInput('');
                       }}
@@ -532,7 +552,7 @@ export default function VocabTab() {
           onClose={() => setShowCustomCardModal(false)}
           onSuccess={async () => {
             setShowCustomCardModal(false);
-            clearReviewLightCache();
+            clearReviewLightCache(vocabZone);
             await reloadVocab();
           }}
         />

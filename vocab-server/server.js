@@ -177,6 +177,19 @@ try {
   console.warn('Migration: vocabulary indexes skipped:', err?.message || err);
 }
 
+try {
+  const result = db.prepare(`
+    UPDATE vocabulary
+    SET category = 'business'
+    WHERE category IS NULL OR category NOT IN ('business', 'general')
+  `).run();
+  if (result.changes > 0) {
+    console.log(`[Vocab] normalized ${result.changes} legacy categories to business`);
+  }
+} catch (err) {
+  console.warn('Migration: vocabulary category normalization skipped:', err?.message || err);
+}
+
 // ??????????????????????????????????????????
 db.prepare(`
   CREATE TABLE IF NOT EXISTS dict_query_log (
@@ -2923,6 +2936,10 @@ const LIGHT_SELECT = `
   id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date
 `;
 
+function parseVocabCategory(value) {
+  return value === 'business' || value === 'general' ? value : null;
+}
+
 // ???????????????
 app.get('/api/vocab/list', (req, res) => {
   try {
@@ -2930,11 +2947,23 @@ app.get('/api/vocab/list', (req, res) => {
     if (light) {
       const limit = Number(req.query.limit);
       const offset = Math.max(0, Number(req.query.offset) || 0);
+      const category = parseVocabCategory(req.query.category);
       if (Number.isInteger(limit) && limit > 0) {
         const pageSize = Math.min(limit, 100);
-        const rows = db.prepare(
-          `SELECT ${LIGHT_SELECT} FROM vocabulary ORDER BY added_at DESC LIMIT ? OFFSET ?`
-        ).all(pageSize + 1, offset);
+        const rows = category
+          ? db.prepare(`
+              SELECT ${LIGHT_SELECT}
+              FROM vocabulary
+              WHERE category = ?
+              ORDER BY added_at DESC
+              LIMIT ? OFFSET ?
+            `).all(category, pageSize + 1, offset)
+          : db.prepare(`
+              SELECT ${LIGHT_SELECT}
+              FROM vocabulary
+              ORDER BY added_at DESC
+              LIMIT ? OFFSET ?
+            `).all(pageSize + 1, offset);
         return res.json({
           items: rows.slice(0, pageSize).map(mapLightVocabRow),
           hasMore: rows.length > pageSize,
@@ -2963,11 +2992,25 @@ app.get('/api/vocab/review', (req, res) => {
     const light = String(req.query.light || '') === '1';
     if (light) {
       const limit = Number(req.query.limit);
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      const category = parseVocabCategory(req.query.category);
       if (Number.isInteger(limit) && limit > 0) {
         const pageSize = Math.min(limit, 100);
-        const rows = db.prepare(
-          `SELECT ${LIGHT_SELECT} FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC LIMIT ?`
-        ).all(now, pageSize + 1);
+        const rows = category
+          ? db.prepare(`
+              SELECT ${LIGHT_SELECT}
+              FROM vocabulary
+              WHERE next_review_date <= ? AND repetitions < 999 AND category = ?
+              ORDER BY next_review_date ASC
+              LIMIT ? OFFSET ?
+            `).all(now, category, pageSize + 1, offset)
+          : db.prepare(`
+              SELECT ${LIGHT_SELECT}
+              FROM vocabulary
+              WHERE next_review_date <= ? AND repetitions < 999
+              ORDER BY next_review_date ASC
+              LIMIT ? OFFSET ?
+            `).all(now, pageSize + 1, offset);
         return res.json({
           items: rows.slice(0, pageSize).map(mapLightVocabRow),
           hasMore: rows.length > pageSize,
@@ -5010,6 +5053,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           payload = item.payload;
           if (!payload.source) payload.source = 'Material Upload';
         }
+        payload = { ...payload, topic: payload.topic || topic || '' };
 
         const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
         if (!existing) {
@@ -5017,7 +5061,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           db.prepare(`
             INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, wordStr, dictType, topic || 'material_extraction', JSON.stringify(payload), now, now, '[]');
+          `).run(id, wordStr, dictType, 'business', JSON.stringify(payload), now, now, '[]');
           addedCount++;
         } else {
           // 已存在则仅在 payload 较空时覆盖更新
@@ -5026,7 +5070,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
             db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
               dictType,
-              topic || 'material_extraction',
+              'business',
               JSON.stringify(payload),
               existing.id
             );
@@ -5062,7 +5106,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         db.prepare(`
           INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, cleanSent, 'ai_sentence', topic || 'material_extraction', JSON.stringify(sentPayload), now, now, '[]');
+        `).run(id, cleanSent, 'ai_sentence', 'business', JSON.stringify(sentPayload), now, now, '[]');
         addedSentenceCount++;
       }
 
@@ -5968,7 +6012,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           db.prepare(`
             INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, w, 'ai_extracted', topic || 'daily_extraction', JSON.stringify(payload), now, now, '[]');
+          `).run(id, w, 'ai_extracted', 'business', JSON.stringify(payload), now, now, '[]');
           wordsAddedCount++;
         }
       }
@@ -5988,7 +6032,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           db.prepare(`
             INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, p, 'ai_phrase', topic || 'daily_extraction', JSON.stringify({ source: 'Daily Extract', topic, type: 'phrase' }), now, now, '[]');
+          `).run(id, p, 'ai_phrase', 'business', JSON.stringify({ source: 'Daily Extract', topic, type: 'phrase' }), now, now, '[]');
           phrasesAddedCount++;
         }
       }
@@ -6010,7 +6054,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           db.prepare(`
             INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, s, 'ai_sentence', topic || 'daily_extraction', JSON.stringify({ source: 'Daily Extract', topic, type: 'sentence' }), now, now, '[]');
+          `).run(id, s, 'ai_sentence', 'business', JSON.stringify({ source: 'Daily Extract', topic, type: 'sentence' }), now, now, '[]');
           sentencesAddedCount++;
         }
       }

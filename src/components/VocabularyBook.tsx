@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, AlertCircle, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import {
@@ -179,63 +179,61 @@ export default function VocabularyBook() {
     }
   }, []);
 
-  const loadWords = useCallback(async (append = false) => {
+  const loadWords = useCallback(async (append = false, category = vocabTab) => {
     setIsLoading(true);
     try {
-      const cached = readReviewLightCache();
+      const cached = readReviewLightCache(category);
       if (cached) setDueWords(cached);
 
       const { list, review } = await loadExpandedVocab(
-        () => getVocabPage(append ? words.length : 0),
+        () => getVocabPage(category, append ? words.length : 0),
         cached,
-        () => getReviewWords({ light: true }).catch(() => [])
+        () => getReviewWords(category, { light: true }).catch(() => [])
       );
       setWords(prev => append ? [...prev, ...list.items] : list.items);
       setHasMoreWords(list.hasMore);
       if (Array.isArray(review)) {
         setDueWords(review);
-        writeReviewLightCache(review);
+        writeReviewLightCache(category, review);
       }
     } catch {
       // ignore
     } finally {
       setIsLoading(false);
     }
-  }, [words.length]);
+  }, [vocabTab, words.length]);
 
   useEffect(() => {
     loadStats();
     // 预热到期队列缓存，供词汇矩阵毫秒级首屏
-    const cached = readReviewLightCache();
+    const cached = readReviewLightCache(vocabTab);
     if (cached) setDueWords(cached);
-    getReviewWords({ light: true })
+    getReviewWords(vocabTab, { light: true })
       .then((review) => {
         setDueWords(review);
-        setStats((prev) => ({ ...prev, dueToday: review.length }));
       })
       .catch(() => {});
     const timer = setInterval(loadStats, 60000);
     return () => clearInterval(timer);
-  }, [loadStats]);
+  }, [loadStats, vocabTab]);
 
   useEffect(() => {
     const handleUpdate = () => {
-      clearReviewLightCache();
+      clearReviewLightCache(vocabTab);
       loadStats();
       if (isExpanded) {
         loadWords();
       } else {
-        getReviewWords({ light: true })
+        getReviewWords(vocabTab, { light: true })
           .then((review) => {
             setDueWords(review);
-            setStats((prev) => ({ ...prev, dueToday: review.length }));
           })
           .catch(() => {});
       }
     };
     window.addEventListener('vocab-updated', handleUpdate);
     return () => window.removeEventListener('vocab-updated', handleUpdate);
-  }, [loadStats, loadWords, isExpanded]);
+  }, [loadStats, loadWords, isExpanded, vocabTab]);
 
   const handleExpand = () => {
     const next = !isExpanded;
@@ -243,16 +241,8 @@ export default function VocabularyBook() {
     if (next) loadWords();
   };
 
-  const filteredWords = useMemo(
-    () => words.filter((w) => w.category === vocabTab || (!w.category && vocabTab === 'business')),
-    [words, vocabTab]
-  );
-
-  const dueInZone = useMemo(
-    () =>
-      dueWords.filter((w) => w.category === vocabTab || (!w.category && vocabTab === 'business')).length,
-    [dueWords, vocabTab]
-  );
+  const filteredWords = words;
+  const dueInZone = dueWords.length;
 
   const startIdx = Math.max(0, Math.floor(scrollTop / ROW_ESTIMATE_H) - 3);
   const visibleCount = Math.ceil(LIST_VIEWPORT_H / ROW_ESTIMATE_H) + 6;
@@ -264,7 +254,7 @@ export default function VocabularyBook() {
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     await deleteWord(id);
-    clearReviewLightCache();
+    clearReviewLightCache(vocabTab);
     setWords(prev => prev.filter(w => w.id !== id));
     setDueWords(prev => prev.filter(w => w.id !== id));
     loadStats();
@@ -274,7 +264,7 @@ export default function VocabularyBook() {
     e.stopPropagation();
     try {
       await manualIntervention(id, action);
-      clearReviewLightCache();
+      clearReviewLightCache(vocabTab);
       loadStats();
       loadWords();
     } catch {
@@ -292,6 +282,16 @@ export default function VocabularyBook() {
     setShowFlashCard(false);
     loadStats();
     if (isExpanded) loadWords();
+  };
+
+  const selectVocabTab = (category: 'business' | 'general') => {
+    if (category === vocabTab) return;
+    setVocabTab(category);
+    setWords([]);
+    setDueWords([]);
+    setHasMoreWords(false);
+    setScrollTop(0);
+    loadWords(false, category);
   };
 
   const formatNextReview = (ts: number) => {
@@ -352,11 +352,11 @@ export default function VocabularyBook() {
             <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-gray-50 flex-wrap">
               <div className="flex bg-gray-100 p-1 rounded-lg">
                 <button
-                  onClick={(e) => { e.stopPropagation(); setVocabTab('business'); }}
+                  onClick={(e) => { e.stopPropagation(); selectVocabTab('business'); }}
                   className={`text-[10px] font-bold px-3 py-1 rounded-md uppercase tracking-wider transition-all ${vocabTab === 'business' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                 >政商务区</button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setVocabTab('general'); }}
+                  onClick={(e) => { e.stopPropagation(); selectVocabTab('general'); }}
                   className={`text-[10px] font-bold px-3 py-1 rounded-md uppercase tracking-wider transition-all ${vocabTab === 'general' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}
                 >全场景区</button>
               </div>
@@ -582,7 +582,7 @@ export default function VocabularyBook() {
           onClose={() => setShowCustomCardModal(false)}
           onSuccess={() => {
             setShowCustomCardModal(false);
-            clearReviewLightCache();
+            clearReviewLightCache(vocabTab);
             loadStats();
             if (isExpanded) loadWords();
             window.dispatchEvent(new Event('vocab-updated'));

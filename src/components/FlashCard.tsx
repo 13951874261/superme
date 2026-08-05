@@ -42,7 +42,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const loadWords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const page = await getReviewPage(50);
+      const page = await getReviewPage('business', 50, 0);
       setWords(page.items);
       setCurrentIndex(0);
       setSession({ total: page.items.length, done: 0, results: [] });
@@ -77,7 +77,9 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       setSession(prev => ({ ...prev, done: newDone, results: newResults }));
 
       if (currentIndex + 1 >= words.length) {
-        const nextPage = await getReviewPage(50);
+        // 已提交的词会被移出到期队列，下一批必须从更新后的队列首项读取，
+        // 否则 offset 会跳过尚未复习的词。
+        const nextPage = await getReviewPage('business', 50, 0);
         if (nextPage.items.length === 0) {
           setIsFinished(true);
           setSession(prev => ({ ...prev, done: newDone, results: newResults }));

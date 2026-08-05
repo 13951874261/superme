@@ -38,6 +38,8 @@ export interface VocabPage {
   hasMore: boolean;
 }
 
+export type VocabCategory = 'business' | 'general';
+
 export interface DictQueryParams {
   word: string;
   dictType: string;
@@ -176,11 +178,13 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
   }
 }
 
-const REVIEW_LIGHT_CACHE_KEY = 'sa_vocab_review_light_v1';
+function reviewLightCacheKey(category: VocabCategory): string {
+  return `sa_vocab_review_light_v1:${category}`;
+}
 
-export function readReviewLightCache(): VocabEntry[] | null {
+export function readReviewLightCache(category: VocabCategory): VocabEntry[] | null {
   try {
-    const raw = sessionStorage.getItem(REVIEW_LIGHT_CACHE_KEY);
+    const raw = sessionStorage.getItem(reviewLightCacheKey(category));
     if (!raw) return null;
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : null;
@@ -189,17 +193,17 @@ export function readReviewLightCache(): VocabEntry[] | null {
   }
 }
 
-export function writeReviewLightCache(words: VocabEntry[]): void {
+export function writeReviewLightCache(category: VocabCategory, words: VocabEntry[]): void {
   try {
-    sessionStorage.setItem(REVIEW_LIGHT_CACHE_KEY, JSON.stringify(words));
+    sessionStorage.setItem(reviewLightCacheKey(category), JSON.stringify(words));
   } catch {
     // quota / private mode
   }
 }
 
-export function clearReviewLightCache(): void {
+export function clearReviewLightCache(category: VocabCategory): void {
   try {
-    sessionStorage.removeItem(REVIEW_LIGHT_CACHE_KEY);
+    sessionStorage.removeItem(reviewLightCacheKey(category));
   } catch {
     // ignore
   }
@@ -224,39 +228,51 @@ export async function getAllWords(options?: { light?: boolean }): Promise<VocabE
   );
 }
 
-export async function getVocabPage(offset: number, limit = 50): Promise<VocabPage> {
+export async function getVocabPage(
+  category: VocabCategory,
+  offset: number,
+  limit = 50,
+): Promise<VocabPage> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
   const safeOffset = Math.max(Math.floor(offset), 0);
-  const path = `/list?light=1&limit=${safeLimit}&offset=${safeOffset}`;
-  return vocabRequestDeduper.run(`list:page:${safeOffset}:${safeLimit}`, () =>
+  const path = `/list?light=1&category=${category}&limit=${safeLimit}&offset=${safeOffset}`;
+  return vocabRequestDeduper.run(`list:page:${category}:${safeOffset}:${safeLimit}`, () =>
     request<VocabPage>(path, { timeoutMs: 20000, silent: true })
   );
 }
 
-export async function getReviewPage(limit = 50): Promise<VocabPage> {
+export async function getReviewPage(
+  category: VocabCategory,
+  limit = 50,
+  offset = 0,
+): Promise<VocabPage> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
-  const path = `/review?light=1&limit=${safeLimit}`;
-  return vocabRequestDeduper.run(`review:page:${safeLimit}`, () =>
+  const safeOffset = Math.max(Math.floor(offset), 0);
+  const path = `/review?light=1&category=${category}&limit=${safeLimit}&offset=${safeOffset}`;
+  return vocabRequestDeduper.run(`review:page:${category}:${safeLimit}:${safeOffset}`, () =>
     request<VocabPage>(path, { timeoutMs: 20000, silent: true })
   );
 }
 
 /** 获取今日待复习词条（默认轻量 + 写缓存） */
-export async function getReviewWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
+export async function getReviewWords(
+  category: VocabCategory,
+  options?: { light?: boolean },
+): Promise<VocabEntry[]> {
   const light = options?.light !== false;
   // 注意：light 失败时绝不能回退全量 /review（5939×payload 会堵死后端）
   if (light) {
-    const page = await getReviewPage(50);
-    writeReviewLightCache(page.items);
+    const page = await getReviewPage(category, 50);
+    writeReviewLightCache(category, page.items);
     return page.items;
   }
-  const data = await vocabRequestDeduper.run(`review:${light ? 'light' : 'full'}`, () =>
-    request<VocabEntry[]>(light ? '/review?light=1' : '/review', {
+  const data = await vocabRequestDeduper.run(`review:${category}:${light ? 'light' : 'full'}`, () =>
+    request<VocabEntry[]>(light ? `/review?light=1&category=${category}` : `/review?category=${category}`, {
       timeoutMs: light ? 20000 : 60000,
       silent: true,
     })
   );
-  if (light && Array.isArray(data)) writeReviewLightCache(data);
+  if (light && Array.isArray(data)) writeReviewLightCache(category, data);
   return data;
 }
 
