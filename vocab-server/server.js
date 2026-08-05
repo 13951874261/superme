@@ -2928,6 +2928,18 @@ app.get('/api/vocab/list', (req, res) => {
   try {
     const light = String(req.query.light || '') === '1';
     if (light) {
+      const limit = Number(req.query.limit);
+      const offset = Math.max(0, Number(req.query.offset) || 0);
+      if (Number.isInteger(limit) && limit > 0) {
+        const pageSize = Math.min(limit, 100);
+        const rows = db.prepare(
+          `SELECT ${LIGHT_SELECT} FROM vocabulary ORDER BY added_at DESC LIMIT ? OFFSET ?`
+        ).all(pageSize + 1, offset);
+        return res.json({
+          items: rows.slice(0, pageSize).map(mapLightVocabRow),
+          hasMore: rows.length > pageSize,
+        });
+      }
       const rows = db.prepare(`SELECT ${LIGHT_SELECT} FROM vocabulary ORDER BY added_at DESC`).all();
       return res.json(rows.map(mapLightVocabRow));
     }
@@ -2950,6 +2962,17 @@ app.get('/api/vocab/review', (req, res) => {
     const now = Date.now();
     const light = String(req.query.light || '') === '1';
     if (light) {
+      const limit = Number(req.query.limit);
+      if (Number.isInteger(limit) && limit > 0) {
+        const pageSize = Math.min(limit, 100);
+        const rows = db.prepare(
+          `SELECT ${LIGHT_SELECT} FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC LIMIT ?`
+        ).all(now, pageSize + 1);
+        return res.json({
+          items: rows.slice(0, pageSize).map(mapLightVocabRow),
+          hasMore: rows.length > pageSize,
+        });
+      }
       const rows = db.prepare(
         `SELECT ${LIGHT_SELECT} FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC`
       ).all(now);

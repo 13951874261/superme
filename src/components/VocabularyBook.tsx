@@ -3,7 +3,7 @@ import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, AlertCircle, Rotate
 import SpeakButton from './SpeakButton';
 import {
   getStats,
-  getAllWords,
+  getVocabPage,
   getReviewWords,
   getVocabItem,
   deleteWord,
@@ -16,6 +16,7 @@ import {
   readReviewLightCache,
   writeReviewLightCache,
 } from '../services/vocabAPI';
+import { loadExpandedVocab } from '../services/vocabLoadCoordinator';
 import FlashCard from './FlashCard';
 import CustomCardModal from './CustomCardModal';
 import MemoryAidPanel from './MemoryAidPanel';
@@ -155,6 +156,7 @@ export default function VocabularyBook() {
   const [words, setWords] = useState<VocabEntry[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasMoreWords, setHasMoreWords] = useState(false);
   const [showFlashCard, setShowFlashCard] = useState(false);
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
   const [editingWord, setEditingWord] = useState<VocabEntry | null>(null);
@@ -177,17 +179,19 @@ export default function VocabularyBook() {
     }
   }, []);
 
-  const loadWords = useCallback(async () => {
+  const loadWords = useCallback(async (append = false) => {
     setIsLoading(true);
     try {
       const cached = readReviewLightCache();
       if (cached) setDueWords(cached);
 
-      const [list, review] = await Promise.all([
-        getAllWords({ light: true }),
-        getReviewWords({ light: true }).catch(() => cached || []),
-      ]);
-      setWords(list);
+      const { list, review } = await loadExpandedVocab(
+        () => getVocabPage(append ? words.length : 0),
+        cached,
+        () => getReviewWords({ light: true }).catch(() => [])
+      );
+      setWords(prev => append ? [...prev, ...list.items] : list.items);
+      setHasMoreWords(list.hasMore);
       if (Array.isArray(review)) {
         setDueWords(review);
         writeReviewLightCache(review);
@@ -197,7 +201,7 @@ export default function VocabularyBook() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [words.length]);
 
   useEffect(() => {
     loadStats();
@@ -547,6 +551,16 @@ export default function VocabularyBook() {
                 })}
                 </div>
               )}
+            {!isLoading && hasMoreWords && (
+              <div className="border-t border-gray-100 p-3 text-center">
+                <button
+                  onClick={() => loadWords(true)}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  加载更多
+                </button>
+              </div>
+            )}
             </div>
 
             {!isLoading && stats.dueToday === 0 && stats.total > 0 && (

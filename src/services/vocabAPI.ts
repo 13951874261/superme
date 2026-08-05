@@ -6,8 +6,10 @@
 import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 import { playError } from '../utils/soundEffects';
 import { showToast } from '../components/Toast';
+import { createRequestDeduper } from './vocabRequestDeduper';
 
 const API_BASE = '/api/vocab';
+const vocabRequestDeduper = createRequestDeduper();
 
 export interface VocabEntry {
   id: string;
@@ -29,6 +31,11 @@ export interface VocabEntry {
 export interface VocabStats {
   total: number;
   dueToday: number;
+}
+
+export interface VocabPage {
+  items: VocabEntry[];
+  hasMore: boolean;
 }
 
 export interface DictQueryParams {
@@ -200,27 +207,55 @@ export function clearReviewLightCache(): void {
 
 /** 获取统计：总词数 + 今日待复习数 */
 export async function getStats(): Promise<VocabStats> {
-  return request<VocabStats>('/stats', { timeoutMs: 8000, silent: true });
+  return vocabRequestDeduper.run('stats', () =>
+    request<VocabStats>('/stats', { timeoutMs: 8000, silent: true })
+  );
 }
 
 /** 获取所有词条列表（默认轻量，避免 6k 全 payload） */
 export async function getAllWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
   // 禁止默认打全量 /list：6000 条带 payload 会拖垮服务
-  return request<VocabEntry[]>(light ? '/list?light=1' : '/list', {
-    timeoutMs: light ? 20000 : 60000,
-    silent: true,
-  });
+  return vocabRequestDeduper.run(`list:${light ? 'light' : 'full'}`, () =>
+    request<VocabEntry[]>(light ? '/list?light=1' : '/list', {
+      timeoutMs: light ? 20000 : 60000,
+      silent: true,
+    })
+  );
+}
+
+export async function getVocabPage(offset: number, limit = 50): Promise<VocabPage> {
+  const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
+  const safeOffset = Math.max(Math.floor(offset), 0);
+  const path = `/list?light=1&limit=${safeLimit}&offset=${safeOffset}`;
+  return vocabRequestDeduper.run(`list:page:${safeOffset}:${safeLimit}`, () =>
+    request<VocabPage>(path, { timeoutMs: 20000, silent: true })
+  );
+}
+
+export async function getReviewPage(limit = 50): Promise<VocabPage> {
+  const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
+  const path = `/review?light=1&limit=${safeLimit}`;
+  return vocabRequestDeduper.run(`review:page:${safeLimit}`, () =>
+    request<VocabPage>(path, { timeoutMs: 20000, silent: true })
+  );
 }
 
 /** 获取今日待复习词条（默认轻量 + 写缓存） */
 export async function getReviewWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
   // 注意：light 失败时绝不能回退全量 /review（5939×payload 会堵死后端）
-  const data = await request<VocabEntry[]>(light ? '/review?light=1' : '/review', {
-    timeoutMs: light ? 20000 : 60000,
-    silent: true,
-  });
+  if (light) {
+    const page = await getReviewPage(50);
+    writeReviewLightCache(page.items);
+    return page.items;
+  }
+  const data = await vocabRequestDeduper.run(`review:${light ? 'light' : 'full'}`, () =>
+    request<VocabEntry[]>(light ? '/review?light=1' : '/review', {
+      timeoutMs: light ? 20000 : 60000,
+      silent: true,
+    })
+  );
   if (light && Array.isArray(data)) writeReviewLightCache(data);
   return data;
 }

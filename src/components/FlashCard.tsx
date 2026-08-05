@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout } from 'lucide-react';
 import SpeakButton from './SpeakButton';
-import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
+import { getReviewPage, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
@@ -42,9 +42,11 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const loadWords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const list = await getReviewWords();
-      setWords(list);
-      setSession({ total: list.length, done: 0, results: [] });
+      const page = await getReviewPage(50);
+      setWords(page.items);
+      setCurrentIndex(0);
+      setSession({ total: page.items.length, done: 0, results: [] });
+      setIsFinished(page.items.length === 0);
     } finally {
       setIsLoading(false);
     }
@@ -75,8 +77,16 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       setSession(prev => ({ ...prev, done: newDone, results: newResults }));
 
       if (currentIndex + 1 >= words.length) {
-        setIsFinished(true);
-        setSession(prev => ({ ...prev, done: newDone, results: newResults }));
+        const nextPage = await getReviewPage(50);
+        if (nextPage.items.length === 0) {
+          setIsFinished(true);
+          setSession(prev => ({ ...prev, done: newDone, results: newResults }));
+        } else {
+          setWords(nextPage.items);
+          setCurrentIndex(0);
+          setSession({ total: nextPage.items.length, done: 0, results: [] });
+          setIsFlipped(false);
+        }
       } else {
         setCurrentIndex(prev => prev + 1);
         setIsFlipped(false);
