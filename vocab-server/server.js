@@ -8024,12 +8024,15 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       const fileName = (req.body.file_name || req.body.fileName || 'audio.mp3');
       tempFilePath = require('path').join(os.tmpdir(), `stt-${Date.now()}-${fileName}`);
 
-      // 支持相对路径（Dify 内部文件 URL 可能是 /files/... 形式）
-      let targetUrl = bodyFileUrl;
-      if (bodyFileUrl.startsWith('/')) {
-        const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-        const origin = new URL(difyBase).origin;
-        targetUrl = origin + bodyFileUrl;
+      // 将 Dify Docker 内部地址替换为公网可访问地址
+      const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+      const difyOrigin = new URL(difyBase).origin;
+      let targetUrl = bodyFileUrl
+        .replace(/^http:\/\/api:\d+/, difyOrigin)   // api:5001 → 公网域名
+        .replace(/^http:\/\/localhost:\d+/, difyOrigin); // localhost:xxx → 公网域名
+      // 相对路径补全
+      if (targetUrl.startsWith('/')) {
+        targetUrl = difyOrigin + targetUrl;
       }
 
       console.log('[STT URL] 正在从 Dify 下载音频文件:', targetUrl);
