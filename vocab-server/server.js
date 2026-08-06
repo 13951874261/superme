@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
@@ -167,8 +167,7 @@ try {
   // ???????????????
 }
 
-// 复习/列表查询索引（无损性能）
-try {
+// 澶嶄範/鍒楄〃鏌ヨ绱㈠紩锛堟棤鎹熸€ц兘锛?try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review ON vocabulary(next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at ON vocabulary(added_at)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_word_nocase ON vocabulary(word COLLATE NOCASE)').run();
@@ -282,8 +281,7 @@ db.prepare(`
   )
 `).run();
 
-// 博弈对局历史（案例研判 / 人机对战）
-db.prepare(`
+// 鍗氬紙瀵瑰眬鍘嗗彶锛堟渚嬬爺鍒?/ 浜烘満瀵规垬锛?db.prepare(`
   CREATE TABLE IF NOT EXISTS game_theory_history (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL DEFAULT 'default-user',
@@ -379,7 +377,7 @@ function mergeProfileNarrative(existing, delta) {
 
 function splitProfileSegments(text) {
   return String(text || '')
-    .split(/[;；]\s*/)
+    .split(/[;锛沒\s*/)
     .map((s) => s.trim())
     .filter(Boolean);
 }
@@ -387,7 +385,7 @@ function splitProfileSegments(text) {
 function normalizeProfileSegment(text) {
   return String(text || '')
     .toLowerCase()
-    .replace(/标记:[^\s;；]+/gi, '')
+    .replace(/鏍囪:[^\s;锛沒+/gi, '')
     .replace(/\s+/g, '')
     .slice(0, 500);
 }
@@ -519,7 +517,7 @@ async function mergeProfileWithDedupe(existing, delta, userId, meta = {}) {
   return dedupeProfileLocal(prev, next).mergedProfile;
 }
 
-const MANUAL_PROFILE_COMPRESS_DELTA = '【手动压缩】对已有画像全文做语义去重与精炼，合并重复主题，保留最新信息；忽略本条提示本身。';
+const MANUAL_PROFILE_COMPRESS_DELTA = '銆愭墜鍔ㄥ帇缂┿€戝宸叉湁鐢诲儚鍏ㄦ枃鍋氳涔夊幓閲嶄笌绮剧偧锛屽悎骞堕噸澶嶄富棰橈紝淇濈暀鏈€鏂颁俊鎭紱蹇界暐鏈潯鎻愮ず鏈韩銆?;
 
 async function compressProfileContent(profileContent, userId) {
   const text = String(profileContent || '').trim();
@@ -593,17 +591,17 @@ function mergeL3Vars(existing, delta) {
 function inferL3VarsDeltaFromText(text) {
   const delta = {};
   const raw = String(text || '');
-  if (/澳式|澳大利亚|\(AU\)|\bAU\b|澳洲/i.test(raw)) {
+  if (/婢冲紡|婢冲ぇ鍒╀簹|\(AU\)|\bAU\b|婢虫床/i.test(raw)) {
     delta.accent = 'AU';
-  } else if (/英音|英国|\(UK\)|\bUK\b|\[profile:\s*uk\]/i.test(raw)) {
+  } else if (/鑻遍煶|鑻卞浗|\(UK\)|\bUK\b|\[profile:\s*uk\]/i.test(raw)) {
     delta.accent = 'UK';
     delta.spelling_variant = 'UK';
-  } else if (/美音|美国|\(US\)|\bUS\b|\[profile:\s*us\]/i.test(raw)) {
+  } else if (/缇庨煶|缇庡浗|\(US\)|\bUS\b|\[profile:\s*us\]/i.test(raw)) {
     delta.accent = 'US';
     delta.spelling_variant = 'US';
   }
-  if (/即兴/.test(raw) && /表达|口语/.test(raw)) {
-    delta.training_goal = '即兴表达';
+  if (/鍗冲叴/.test(raw) && /琛ㄨ揪|鍙ｈ/.test(raw)) {
+    delta.training_goal = '鍗冲叴琛ㄨ揪';
   }
   return delta;
 }
@@ -652,7 +650,7 @@ function formatEpisodeLine(episode, index) {
     || '',
   ).trim().slice(0, 180);
   if (!text) return null;
-  return `${index + 1}. [${source}${at ? `·${at}` : ''}] ${text}`;
+  return `${index + 1}. [${source}${at ? `路${at}` : ''}] ${text}`;
 }
 
 function buildMemoryContextForUser(userId) {
@@ -661,7 +659,7 @@ function buildMemoryContextForUser(userId) {
   const memoryLayers = parseJsonObject(row?.memory_layers, {});
   const ledger = parseJsonObject(row?.error_ledger, {});
   const profileSummary = String(row?.profile_content || '').trim().slice(0, 600)
-    || '暂无用户画像摘要。';
+    || '鏆傛棤鐢ㄦ埛鐢诲儚鎽樿銆?;
 
   const episodeLines = (Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [])
     .slice(0, 5)
@@ -669,7 +667,7 @@ function buildMemoryContextForUser(userId) {
     .filter(Boolean);
   const recentEpisodesSummary = episodeLines.length
     ? episodeLines.join('\n')
-    : '暂无近期情景记忆。';
+    : '鏆傛棤杩戞湡鎯呮櫙璁板繂銆?;
 
   const errorParts = [];
   for (const cat of ['oral', 'listening', 'vocab']) {
@@ -680,11 +678,11 @@ function buildMemoryContextForUser(userId) {
       if (cat === 'listening') return e.pattern || e.reason;
       return e.word;
     }).filter(Boolean);
-    if (top.length) errorParts.push(`${cat}: ${top.join('、')}`);
+    if (top.length) errorParts.push(`${cat}: ${top.join('銆?)}`);
   }
   const errorLedgerSummary = errorParts.length
     ? errorParts.join('; ')
-    : '暂无结构化短板记录。';
+    : '鏆傛棤缁撴瀯鍖栫煭鏉胯褰曘€?;
 
   const graphSummary = formatGraphSummary(memoryLayers);
 
@@ -697,12 +695,12 @@ function normalizeGraphNodeName(name) {
 
 function formatGraphSummary(memoryLayers) {
   const graph = memoryLayers?.l2_graph;
-  if (!graph || typeof graph !== 'object') return '暂无关系记忆。';
+  if (!graph || typeof graph !== 'object') return '鏆傛棤鍏崇郴璁板繂銆?;
   const relations = Array.isArray(graph.relations) ? graph.relations.slice(0, 8) : [];
-  if (!relations.length) return '暂无关系记忆。';
+  if (!relations.length) return '鏆傛棤鍏崇郴璁板繂銆?;
   return relations.map((r, i) => {
     const ev = r.evidence ? ` (${String(r.evidence).slice(0, 60)})` : '';
-    return `${i + 1}. ${r.from} —[${r.rel}]→ ${r.to}${ev}`;
+    return `${i + 1}. ${r.from} 鈥擺${r.rel}]鈫?${r.to}${ev}`;
   }).join('\n');
 }
 
@@ -730,7 +728,7 @@ function mergeGraphMemory(existing, { entities = [], relations = [] }, source = 
     if (!r || typeof r !== 'object') continue;
     const from = normalizeGraphNodeName(r.from);
     const to = normalizeGraphNodeName(r.to);
-    const rel = String(r.rel || r.relation || '关联').trim().slice(0, 40);
+    const rel = String(r.rel || r.relation || '鍏宠仈').trim().slice(0, 40);
     if (!from || !to) continue;
     const evidence = String(r.evidence || '').trim().slice(0, 200);
     const key = `${from}|${rel}|${to}`;
@@ -758,7 +756,7 @@ function mergeGraphMemory(existing, { entities = [], relations = [] }, source = 
   };
 }
 
-/** LLM 未输出 relations 时，从 episode/画像文本规则合成基础图谱 */
+/** LLM 鏈緭鍑?relations 鏃讹紝浠?episode/鐢诲儚鏂囨湰瑙勫垯鍚堟垚鍩虹鍥捐氨 */
 function fallbackGraphFromMemory(pending, profileContent, profileDelta) {
   const entities = [];
   const relations = [];
@@ -774,29 +772,29 @@ function fallbackGraphFromMemory(pending, profileContent, profileDelta) {
     if (!entities.some((e) => e.name === name)) entities.push({ name, type });
   };
   const pushRel = (from, rel, to, evidence) => {
-    pushEntity(from, from === '用户' ? 'person' : 'concept');
+    pushEntity(from, from === '鐢ㄦ埛' ? 'person' : 'concept');
     pushEntity(to, 'concept');
     relations.push({ from, rel, to, evidence: String(evidence || corpus).slice(0, 120) });
   };
 
-  pushEntity('用户', 'person');
+  pushEntity('鐢ㄦ埛', 'person');
   const evidence = texts[0] || corpus;
-  if (/英音|英国|\(UK\)|\bUK\b/i.test(corpus)) {
-    pushRel('用户', '偏好', '英音', evidence);
+  if (/鑻遍煶|鑻卞浗|\(UK\)|\bUK\b/i.test(corpus)) {
+    pushRel('鐢ㄦ埛', '鍋忓ソ', '鑻遍煶', evidence);
   }
-  if (/美音|美国|\(US\)|\bUS\b/i.test(corpus)) {
-    pushRel('用户', '偏好', '美音', evidence);
+  if (/缇庨煶|缇庡浗|\(US\)|\bUS\b/i.test(corpus)) {
+    pushRel('鐢ㄦ埛', '鍋忓ソ', '缇庨煶', evidence);
   }
-  if (/即兴/.test(corpus) && /逻辑|表达/.test(corpus)) {
-    pushRel('用户', '正在练习', '即兴表达逻辑链', evidence);
+  if (/鍗冲叴/.test(corpus) && /閫昏緫|琛ㄨ揪/.test(corpus)) {
+    pushRel('鐢ㄦ埛', '姝ｅ湪缁冧範', '鍗冲叴琛ㄨ揪閫昏緫閾?, evidence);
   }
 
   return { entities, relations };
 }
 
-/** 从 LLM 已输出的 semantics 合成关系（工作流未返回 relations 时的兜底） */
+/** 浠?LLM 宸茶緭鍑虹殑 semantics 鍚堟垚鍏崇郴锛堝伐浣滄祦鏈繑鍥?relations 鏃剁殑鍏滃簳锛?*/
 function graphFromSemantics(semantics) {
-  const entities = [{ name: '用户', type: 'person' }];
+  const entities = [{ name: '鐢ㄦ埛', type: 'person' }];
   const relations = [];
   if (!Array.isArray(semantics)) return { entities, relations };
 
@@ -805,12 +803,12 @@ function graphFromSemantics(semantics) {
     const pattern = String(sem.pattern || sem.tag?.split(':').slice(1).join(':') || '').trim();
     if (!pattern) continue;
     const category = String(sem.category || 'general').trim();
-    const rel = category === 'oral' ? '正在练习' : category === 'general' ? '特征' : '短板';
+    const rel = category === 'oral' ? '姝ｅ湪缁冧範' : category === 'general' ? '鐗瑰緛' : '鐭澘';
     if (!entities.some((e) => e.name === pattern)) {
       entities.push({ name: pattern, type: 'concept' });
     }
     relations.push({
-      from: '用户',
+      from: '鐢ㄦ埛',
       rel,
       to: pattern,
       evidence: String(sem.evidence || pattern).slice(0, 120),
@@ -821,24 +819,24 @@ function graphFromSemantics(semantics) {
 
 function composeMemorySummaryForPrompt(memoryCtx) {
   const parts = [memoryCtx.recentEpisodesSummary];
-  if (memoryCtx.graphSummary && memoryCtx.graphSummary !== '暂无关系记忆。') {
-    parts.push(`关系记忆（Graph）：\n${memoryCtx.graphSummary}`);
+  if (memoryCtx.graphSummary && memoryCtx.graphSummary !== '鏆傛棤鍏崇郴璁板繂銆?) {
+    parts.push(`鍏崇郴璁板繂锛圙raph锛夛細\n${memoryCtx.graphSummary}`);
   }
   return parts.join('\n\n');
 }
 
 const ACCENT_AUTHORITY_LABELS = {
-  AU: '澳式口音',
-  UK: '英音',
-  US: '美式口音',
+  AU: '婢冲紡鍙ｉ煶',
+  UK: '鑻遍煶',
+  US: '缇庡紡鍙ｉ煶',
 };
 
 function resolveAuthoritativeAccent(profileText, l3Vars) {
   const p = String(profileText || '');
-  const ausCount = (p.match(/澳式|澳大利亚/g) || []).length;
-  const ukCount = (p.match(/英音|英式/g) || []).length;
+  const ausCount = (p.match(/婢冲紡|婢冲ぇ鍒╀簹/g) || []).length;
+  const ukCount = (p.match(/鑻遍煶|鑻卞紡/g) || []).length;
   if (ausCount > 0 && ausCount >= ukCount) return 'AU';
-  if (/美式/.test(p)) return 'US';
+  if (/缇庡紡/.test(p)) return 'US';
   if (ukCount > 0) return 'UK';
   const l3 = l3Vars?.accent;
   if (l3 === 'AU' || l3 === 'UK' || l3 === 'US') return l3;
@@ -851,7 +849,7 @@ function filterStaleUkAccentLines(text, authAccent) {
   const cleanSegment = (seg) => {
     const s = String(seg || '').trim();
     if (!s) return '';
-    if (/英音|英式|accent\s*=\s*UK/i.test(s) && !/澳式|澳大利亚/.test(s)) return '';
+    if (/鑻遍煶|鑻卞紡|accent\s*=\s*UK/i.test(s) && !/婢冲紡|婢冲ぇ鍒╀簹/.test(s)) return '';
     return s.replace(/\baccent=UK\b/gi, 'accent=AU');
   };
 
@@ -887,25 +885,25 @@ function buildMemoryPackForLlm(userId, query) {
   const sections = [];
   if (authLabel) {
     sections.push(
-      `【口音偏好（权威）】用户练口语偏好${authLabel}。`
-      + '若下文 graph/episode/向量库/旧侧写/L3 出现与此冲突的其他口音表述，一律以本行为准，视为过期记录。',
+      `銆愬彛闊冲亸濂斤紙鏉冨▉锛夈€戠敤鎴风粌鍙ｈ鍋忓ソ${authLabel}銆俙
+      + '鑻ヤ笅鏂?graph/episode/鍚戦噺搴?鏃т晶鍐?L3 鍑虹幇涓庢鍐茬獊鐨勫叾浠栧彛闊宠〃杩帮紝涓€寰嬩互鏈涓哄噯锛岃涓鸿繃鏈熻褰曘€?,
     );
   }
   if (recallContext) {
-    sections.push(`【结构化即时召回】\n${recallContext}`);
+    sections.push(`銆愮粨鏋勫寲鍗虫椂鍙洖銆慭n${recallContext}`);
   }
   const ctxParts = [];
-  if (profileSummary && profileSummary !== '暂无用户画像摘要。') {
-    ctxParts.push(`【用户画像】\n${profileSummary}`);
+  if (profileSummary && profileSummary !== '鏆傛棤鐢ㄦ埛鐢诲儚鎽樿銆?) {
+    ctxParts.push(`銆愮敤鎴风敾鍍忋€慭n${profileSummary}`);
   }
-  if (recentEpisodesSummary && recentEpisodesSummary !== '暂无近期情景记忆。') {
-    ctxParts.push(`【近期情景】\n${recentEpisodesSummary}`);
+  if (recentEpisodesSummary && recentEpisodesSummary !== '鏆傛棤杩戞湡鎯呮櫙璁板繂銆?) {
+    ctxParts.push(`銆愯繎鏈熸儏鏅€慭n${recentEpisodesSummary}`);
   }
-  if (errorLedgerSummary && errorLedgerSummary !== '暂无结构化短板记录。') {
-    ctxParts.push(`【训练短板】\n${errorLedgerSummary}`);
+  if (errorLedgerSummary && errorLedgerSummary !== '鏆傛棤缁撴瀯鍖栫煭鏉胯褰曘€?) {
+    ctxParts.push(`銆愯缁冪煭鏉裤€慭n${errorLedgerSummary}`);
   }
-  if (graphSummary && graphSummary !== '暂无关系记忆。') {
-    ctxParts.push(`【关系记忆】\n${graphSummary}`);
+  if (graphSummary && graphSummary !== '鏆傛棤鍏崇郴璁板繂銆?) {
+    ctxParts.push(`銆愬叧绯昏蹇嗐€慭n${graphSummary}`);
   }
   const l3 = ctx.memoryLayers?.l3_vars;
   if (l3 && typeof l3 === 'object') {
@@ -914,18 +912,18 @@ function buildMemoryPackForLlm(userId, query) {
       l3Copy.accent = 'AU';
     }
     if (l3Copy.accent) {
-      ctxParts.push(`【L3变量】\naccent=${l3Copy.accent}${l3Copy.training_goal ? `\ntraining_goal=${l3Copy.training_goal}` : ''}`);
+      ctxParts.push(`銆怢3鍙橀噺銆慭naccent=${l3Copy.accent}${l3Copy.training_goal ? `\ntraining_goal=${l3Copy.training_goal}` : ''}`);
     }
   }
   if (ctxParts.length) {
-    sections.push(`【画像与关系上下文】\n${ctxParts.join('\n\n')}`);
+    sections.push(`銆愮敾鍍忎笌鍏崇郴涓婁笅鏂囥€慭n${ctxParts.join('\n\n')}`);
   }
   return sections.join('\n\n').trim();
 }
 
 function buildRecallQueryFromUserQuery(query) {
   const q = String(query || '').trim();
-  const keywords = ['口音', '英式', '英音', '澳式', '美式', '偏好', '习惯', '目标', '边界'];
+  const keywords = ['鍙ｉ煶', '鑻卞紡', '鑻遍煶', '婢冲紡', '缇庡紡', '鍋忓ソ', '涔犳儻', '鐩爣', '杈圭晫'];
   const found = keywords.filter((kw) => q.includes(kw));
   return found.length ? found.join(' ') : (q.slice(0, 80) || 'memory');
 }
@@ -937,7 +935,7 @@ function normalizeRecallQuery(query) {
 function recallQueryTokens(query) {
   const q = normalizeRecallQuery(query);
   if (!q) return [];
-  const parts = q.split(/[\s,，;；、。！？!?]+/).filter((t) => t.length >= 2);
+  const parts = q.split(/[\s,锛?锛涖€併€傦紒锛??]+/).filter((t) => t.length >= 2);
   if (!parts.length) return [q];
   return parts;
 }
@@ -1034,7 +1032,7 @@ function recallMemoryForUser(userId, query, topK = 5) {
       pushRecallHit(hits, seen, {
         kind: 'graph',
         score: score + entityBoost,
-        text: `${r.from} —[${r.rel}]→ ${r.to}`.slice(0, 180),
+        text: `${r.from} 鈥擺${r.rel}]鈫?${r.to}`.slice(0, 180),
         at: Number(r.at || 0),
         key: `graph:${r.from}|${r.rel}|${r.to}`,
       });
@@ -1045,7 +1043,7 @@ function recallMemoryForUser(userId, query, topK = 5) {
   const items = hits.slice(0, limit);
   const context = items.length
     ? items.map((item, i) => {
-      const src = item.source ? ` · ${item.source}` : '';
+      const src = item.source ? ` 路 ${item.source}` : '';
       return `${i + 1}. [${item.kind}${src}] ${item.text}`;
     }).join('\n')
     : '';
@@ -1220,7 +1218,7 @@ function buildDreamClusterLabel(batch) {
   if (!Array.isArray(batch) || !batch.length) return '';
   const source = String(batch[0].source || 'unknown').trim() || 'unknown';
   const hint = episodeClusterText(batch[0]).slice(0, 24);
-  return `${source}·${hint}·${batch.length}条`;
+  return `${source}路${hint}路${batch.length}鏉;
 }
 
 function selectDreamingBatchFromPending(pending, batchSize) {
@@ -1285,8 +1283,8 @@ async function postEpisodeSummaryToKb(userId, episode, profileContent) {
   const dreamDate = episode._dreamed_at
     ? new Date(episode._dreamed_at).toISOString().slice(0, 10)
     : new Date().toISOString().slice(0, 10);
-  const title = `Dreaming摘要·${userId}·${dreamDate}`.slice(0, 120);
-  const text = `[用户 ${userId} · ${episode.source || 'unknown'}]\n${summary}\n\n画像上下文: ${String(profileContent || '').slice(0, 300)}`;
+  const title = `Dreaming鎽樿路${userId}路${dreamDate}`.slice(0, 120);
+  const text = `[鐢ㄦ埛 ${userId} 路 ${episode.source || 'unknown'}]\n${summary}\n\n鐢诲儚涓婁笅鏂? ${String(profileContent || '').slice(0, 300)}`;
 
   const response = await fetch(`${baseUrl}/datasets/${datasetId}/document/create-by-text`, {
     method: 'POST',
@@ -1923,7 +1921,7 @@ function calculateNextReview(quality, repetitions, easeFactor, interval) {
 
   // ???????????????????ease factor??
   easeFactor = easeFactor + (0.1 - (5 - quality) * (0.02 + (5 - quality) * 0.008));
-  if (easeFactor < 1.3) easeFactor = 1.3; // 下限
+  if (easeFactor < 1.3) easeFactor = 1.3; // 涓嬮檺
 
   return { repetitions, easeFactor, interval };
 }
@@ -2032,7 +2030,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
   try {
     parsedUrl = new URL(requestUrl);
   } catch (err) {
-    return { ok: false, error: `无效的请求地址: ${requestUrl}` };
+    return { ok: false, error: `鏃犳晥鐨勮姹傚湴鍧€: ${requestUrl}` };
   }
 
   const isHttps = parsedUrl.protocol === 'https:';
@@ -2067,14 +2065,14 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
         } catch (error) {
           resolve({
             ok: false,
-            error: `生图服务返回数据解析失败 (HTTP ${res.statusCode}): ${rawText.substring(0, 200) || '无法解析的响应内容'}`
+            error: `鐢熷浘鏈嶅姟杩斿洖鏁版嵁瑙ｆ瀽澶辫触 (HTTP ${res.statusCode}): ${rawText.substring(0, 200) || '鏃犳硶瑙ｆ瀽鐨勫搷搴斿唴瀹?}`
           });
           return;
         }
 
         if (res.statusCode < 200 || res.statusCode >= 300) {
           const errMsg = responseData?.error?.message || responseData?.error || responseData?.message || JSON.stringify(responseData).substring(0, 200);
-          resolve({ ok: false, error: `生图服务返回错误状态码 (${res.statusCode}): ${errMsg}` });
+          resolve({ ok: false, error: `鐢熷浘鏈嶅姟杩斿洖閿欒鐘舵€佺爜 (${res.statusCode}): ${errMsg}` });
           return;
         }
 
@@ -2082,7 +2080,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
         if (!imageUrl) {
           resolve({
             ok: false,
-            error: `生图成功但未找到图片地址或 Base64 数据: ${JSON.stringify(responseData).substring(0, 200)}`
+            error: `鐢熷浘鎴愬姛浣嗘湭鎵惧埌鍥剧墖鍦板潃鎴?Base64 鏁版嵁: ${JSON.stringify(responseData).substring(0, 200)}`
           });
           return;
         }
@@ -2092,7 +2090,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
     });
 
     req.on('error', (error) => {
-      resolve({ ok: false, error: `生图服务连接失败 (${model} @ ${baseUrl}): ${error.message || error}` });
+      resolve({ ok: false, error: `鐢熷浘鏈嶅姟杩炴帴澶辫触 (${model} @ ${baseUrl}): ${error.message || error}` });
     });
 
     req.write(JSON.stringify(payload));
@@ -2104,7 +2102,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
 // ?????????????????????????????????????????
 // ==========================================
 
-/** 合并 Dify SSE 流式 answer：兼容增量 delta 与全量 cumulative 两种模式 */
+/** 鍚堝苟 Dify SSE 娴佸紡 answer锛氬吋瀹瑰閲?delta 涓庡叏閲?cumulative 涓ょ妯″紡 */
 const {
   mergeStreamAnswer,
   estimateEnglishWordCount,
@@ -2112,33 +2110,33 @@ const {
   isOverSoftWordLimit,
 } = require('./services/difyStreamMerge');
 
-/** 将 Dify / 下游模型错误转为可操作的提示（daily-extract、completion 等共用） */
+/** 灏?Dify / 涓嬫父妯″瀷閿欒杞负鍙搷浣滅殑鎻愮ず锛坉aily-extract銆乧ompletion 绛夊叡鐢級 */
 function formatDifyModelError(raw) {
   const text = String(raw || '').trim();
-  if (!text) return 'Dify 模型调用失败，未返回错误详情';
+  if (!text) return 'Dify 妯″瀷璋冪敤澶辫触锛屾湭杩斿洖閿欒璇︽儏';
   if (/Server Unavailable|ConnectTimeout|23\.95\.214\.232|38000|Max retries exceeded/i.test(text)) {
     return [
-      'Dify 下游 LLM 推理服务不可用（23.95.214.232:38000 连接超时）。',
-      '长文生成应用：materail_generate_url_enhanced',
-      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默认 app-OShKY1EcVuLFkuxrpO28ZB0A）',
-      '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL，或重启 38000 端口推理服务。',
+      'Dify 涓嬫父 LLM 鎺ㄧ悊鏈嶅姟涓嶅彲鐢紙23.95.214.232:38000 杩炴帴瓒呮椂锛夈€?,
+      '闀挎枃鐢熸垚搴旂敤锛歮aterail_generate_url_enhanced',
+      '閴存潈鐜鍙橀噺锛欴IFY_ENGLISH_MASTERY_KEY锛堥粯璁?app-OShKY1EcVuLFkuxrpO28ZB0A锛?,
+      '璇峰湪 Dify 鈫?璁剧疆 鈫?妯″瀷渚涘簲鍟?鈫?OpenAI-API-compatible 妫€鏌?Base URL锛屾垨閲嶅惎 38000 绔彛鎺ㄧ悊鏈嶅姟銆?,
     ].join(' ');
   }
-  if (/^\[models\]/i.test(text)) return `Dify 模型调用失败: ${text}`;
+  if (/^\[models\]/i.test(text)) return `Dify 妯″瀷璋冪敤澶辫触: ${text}`;
   return text;
 }
 
-/** 清洗听力长文稿：去掉 Dify 模板头与词汇 JSON 段，仅保留可朗读正文 */
+/** 娓呮礂鍚姏闀挎枃绋匡細鍘绘帀 Dify 妯℃澘澶翠笌璇嶆眹 JSON 娈碉紝浠呬繚鐣欏彲鏈楄姝ｆ枃 */
 function sanitizeListenMaterialScript(raw) {
   if (!raw || typeof raw !== 'string') return '';
   let script = raw.trim();
-  script = script.replace(/^📝[^\n]*\n+/m, '');
-  script = script.replace(/^[^\n]*(生成完毕|沉浸式听力|阅读长篇材料)[^\n]*\n+/m, '');
+  script = script.replace(/^馃摑[^\n]*\n+/m, '');
+  script = script.replace(/^[^\n]*(鐢熸垚瀹屾瘯|娌夋蹈寮忓惉鍔泑闃呰闀跨瘒鏉愭枡)[^\n]*\n+/m, '');
   script = script.split(/---VOCAB_JSON_START---/i)[0].trim();
   return script;
 }
 
-/** 从 Dify chat-messages SSE 流中收集完整 answer；sanitize=false 时保留 VOCAB_JSON 段 */
+/** 浠?Dify chat-messages SSE 娴佷腑鏀堕泦瀹屾暣 answer锛泂anitize=false 鏃朵繚鐣?VOCAB_JSON 娈?*/
 async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTimeoutMs } = {}) {
   const { readWithIdleTimeout } = require('./services/streamIdleTimeout');
   const idleMs = Number(
@@ -2226,19 +2224,19 @@ async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTim
   return sanitize ? sanitizeListenMaterialScript(trimmed) : trimmed;
 }
 
-/** 同步 await Dify 长文流式生成，返回原始 answer（可含 VOCAB_JSON）；不走 taskQueue */
+/** 鍚屾 await Dify 闀挎枃娴佸紡鐢熸垚锛岃繑鍥炲師濮?answer锛堝彲鍚?VOCAB_JSON锛夛紱涓嶈蛋 taskQueue */
 async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
     || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
     || process.env.DIFY_LISTEN_GEN_API_KEY
     || 'app-vBQMyqeHD16U0XxzUt9DdJYI';
   if (!apiKey) {
-    throw new Error('缺少关键鉴权参数 (API KEY)');
+    throw new Error('缂哄皯鍏抽敭閴存潈鍙傛暟 (API KEY)');
   }
 
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const duration = String((inputs && inputs.duration) || '1');
-  const maxAttempts = 2; // 超软上限时重试 1 次；仍超则 D1：落库可用 + warning
+  const maxAttempts = 2; // 瓒呰蒋涓婇檺鏃堕噸璇?1 娆★紱浠嶈秴鍒?D1锛氳惤搴撳彲鐢?+ warning
   let lastAnswer = '';
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -2280,7 +2278,7 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
 
     const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
     if (!answer) {
-      throw new Error('接收成功但答案为空');
+      throw new Error('鎺ユ敹鎴愬姛浣嗙瓟妗堜负绌?);
     }
     lastAnswer = answer;
 
@@ -2309,7 +2307,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
     const { inputs, userId = 'default-user' } = req.body;
     const apiKey = process.env.DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ success: false, error: '后端未配置 DIFY_LISTEN_GEN_API_KEY' });
+      return res.status(500).json({ success: false, error: '鍚庣鏈厤缃?DIFY_LISTEN_GEN_API_KEY' });
     }
     const difyUrl = `${process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'}/completion-messages`;
     
@@ -2333,7 +2331,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
     }
     
     if (!data.answer) {
-      return res.status(500).json({ success: false, error: 'Dify 未返回听力材料正文，请检查 listen_material_generator 应用配置' });
+      return res.status(500).json({ success: false, error: 'Dify 鏈繑鍥炲惉鍔涙潗鏂欐鏂囷紝璇锋鏌?listen_material_generator 搴旂敤閰嶇疆' });
     }
     
     res.json({ success: true, answer: data.answer });
@@ -2352,37 +2350,36 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
       || process.env.DIFY_LISTEN_GEN_API_KEY
       || 'app-vBQMyqeHD16U0XxzUt9DdJYI';
     if (!apiKey) {
-      return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
+      return res.status(500).json({ success: false, error: '缂哄皯鍏抽敭閴存潈鍙傛暟 (API KEY)' });
     }
 
-    // 引入任务队列，创建任务
-    const taskQueue = require('./services/taskQueue');
-    const taskTitle = inputs.theme ? `播客文稿: ${inputs.theme}` : '深度播客生成';
+    // 寮曞叆浠诲姟闃熷垪锛屽垱寤轰换鍔?    const taskQueue = require('./services/taskQueue');
+    const taskTitle = inputs.theme ? `鎾鏂囩: ${inputs.theme}` : '娣卞害鎾鐢熸垚';
     const task = taskQueue.createTask('material', taskTitle);
 
-    // 立即响应给前端 taskId，由前端使用全局的 TaskContext 接管轮询
+    // 绔嬪嵆鍝嶅簲缁欏墠绔?taskId锛岀敱鍓嶇浣跨敤鍏ㄥ眬鐨?TaskContext 鎺ョ杞
     res.json({ success: true, taskId: task.id, status: task.status });
 
-    // ========= 以下进入异步后台执行，不会阻塞客户端连接 =========
+    // ========= 浠ヤ笅杩涘叆寮傛鍚庡彴鎵ц锛屼笉浼氶樆濉炲鎴风杩炴帴 =========
     (async () => {
       try {
-        taskQueue.updateTask(task.id, { progress: 10, logs: ['正在连接智库并初始化推演模型 (Dify API)...'] });
-        taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数据...'] });
+        taskQueue.updateTask(task.id, { progress: 10, logs: ['姝ｅ湪杩炴帴鏅哄簱骞跺垵濮嬪寲鎺ㄦ紨妯″瀷 (Dify API)...'] });
+        taskQueue.updateTask(task.id, { progress: 30, logs: ['鎴愬姛杩炴帴锛屾ā鍨嬫鍦ㄦ祦寮忎笅鍙戝墽鏈暟鎹?..'] });
 
         const rawAnswer = await generateListenLongScriptSync(inputs, userId);
         const answer = sanitizeListenMaterialScript(rawAnswer);
         if (!answer) {
-          taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为空' });
+          taskQueue.updateTask(task.id, { status: 'failed', error: '鎺ユ敹鎴愬姛浣嗙瓟妗堜负绌? });
           return;
         }
         if (answer.length < 500) {
           console.warn(`[generate-material-long] suspiciously short script (${answer.length} chars) for task ${task.id}`);
         }
 
-        // 保存生成的文稿内容给前端提取 (保存在 task.result.content)
+        // 淇濆瓨鐢熸垚鐨勬枃绋垮唴瀹圭粰鍓嶇鎻愬彇 (淇濆瓨鍦?task.result.content)
         taskQueue.updateTask(task.id, { 
           progress: 100, 
-          logs: [`长音频剧本生成圆满完成！（${answer.length} 字符）`], 
+          logs: [`闀块煶棰戝墽鏈敓鎴愬渾婊″畬鎴愶紒锛?{answer.length} 瀛楃锛塦], 
           status: 'completed', 
           result: { content: answer } 
         });
@@ -2390,9 +2387,9 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
       } catch (error) {
         console.error('generate-material-long background task error:', error);
         const msg = error.name === 'AbortError'
-          ? '后台任务因超时被中止 (30分钟拦截机制)'
+          ? '鍚庡彴浠诲姟鍥犺秴鏃惰涓 (30鍒嗛挓鎷︽埅鏈哄埗)'
           : error.message;
-        taskQueue.updateTask(task.id, { status: 'failed', error: `后台生成异常: ${msg}` });
+        taskQueue.updateTask(task.id, { status: 'failed', error: `鍚庡彴鐢熸垚寮傚父: ${msg}` });
       }
     })();
 
@@ -2480,13 +2477,13 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.createTask(
       'listen_backfill',
-      `听写预生成补跑: ${theme} / ${genre} / ${cefrLevel} / ${duration}m`,
+      `鍚啓棰勭敓鎴愯ˉ璺? ${theme} / ${genre} / ${cefrLevel} / ${duration}m`,
     );
     res.json({ success: true, taskId: task.id, status: task.status });
 
     (async () => {
       try {
-        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['开始后台补生成...'] });
+        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['寮€濮嬪悗鍙拌ˉ鐢熸垚...'] });
         const mode = only === 'audio' || only === 'article' ? only : 'both';
         const result = await dailyListenPreGenerateService.generateOneCombo(
           db,
@@ -2496,7 +2493,7 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'completed',
           progress: 100,
-          logs: ['补生成完成'],
+          logs: ['琛ョ敓鎴愬畬鎴?],
           result: {
             status: result.status,
             genre,
@@ -2517,7 +2514,7 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
   }
 });
 
-/** C3: 仅补词表，不重跑文章/TTS */
+/** C3: 浠呰ˉ璇嶈〃锛屼笉閲嶈窇鏂囩珷/TTS */
 app.post('/api/listen/pregenerated/backfill-vocab', async (req, res) => {
   try {
     const { userId, theme, genre, cefrLevel, duration, force } = req.body || {};
@@ -2630,10 +2627,10 @@ app.get('/api/user/memory/recall', (req, res) => {
     const query = req.query.query || req.query.q || '';
     const topK = req.query.topK || req.query.top_k || 5;
     if (!userId) {
-      return res.status(400).json({ success: false, error: '缺少 userId。' });
+      return res.status(400).json({ success: false, error: '缂哄皯 userId銆? });
     }
     if (!String(query).trim()) {
-      return res.status(400).json({ success: false, error: '缺少 query。' });
+      return res.status(400).json({ success: false, error: '缂哄皯 query銆? });
     }
     const data = recallMemoryForUser(userId, query, topK);
     res.json({ success: true, data });
@@ -2648,13 +2645,13 @@ app.get('/api/user/memory/pack-for-llm', (req, res) => {
     const query = req.query.query || req.query.q || '';
     const format = String(req.query.format || 'json').trim().toLowerCase();
     if (!userId) {
-      return res.status(400).json({ success: false, error: '缺少 userId。' });
+      return res.status(400).json({ success: false, error: '缂哄皯 userId銆? });
     }
     const text = buildMemoryPackForLlm(userId, query);
     if (format === 'text') {
-      return res.type('text/plain; charset=utf-8').send(text || '（本轮未检索到结构化记忆。）');
+      return res.type('text/plain; charset=utf-8').send(text || '锛堟湰杞湭妫€绱㈠埌缁撴瀯鍖栬蹇嗐€傦級');
     }
-    res.json({ success: true, data: { text: text || '（本轮未检索到结构化记忆。）' } });
+    res.json({ success: true, data: { text: text || '锛堟湰杞湭妫€绱㈠埌缁撴瀯鍖栬蹇嗐€傦級' } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2701,14 +2698,14 @@ app.post('/api/user/profile/compress', async (req, res) => {
     const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
     const input = String(profileContent ?? row?.profile_content ?? '').trim();
     if (!input) {
-      return res.status(400).json({ success: false, error: '画像内容为空，无法压缩。' });
+      return res.status(400).json({ success: false, error: '鐢诲儚鍐呭涓虹┖锛屾棤娉曞帇缂┿€? });
     }
 
     const beforeLen = input.length;
     const compressed = await compressProfileContent(input, uid);
     const mergedProfile = String(compressed.mergedProfile || '').trim();
     if (!mergedProfile) {
-      return res.status(500).json({ success: false, error: '压缩结果为空，请稍后重试。' });
+      return res.status(500).json({ success: false, error: '鍘嬬缉缁撴灉涓虹┖锛岃绋嶅悗閲嶈瘯銆? });
     }
 
     if (save) {
@@ -2734,7 +2731,7 @@ app.post('/api/user/profile/compress', async (req, res) => {
     });
   } catch (err) {
     console.error('[Profile Compress] error:', err);
-    res.status(500).json({ success: false, error: err.message || '画像压缩失败' });
+    res.status(500).json({ success: false, error: err.message || '鐢诲儚鍘嬬缉澶辫触' });
   }
 });
 
@@ -2841,14 +2838,14 @@ app.get('/api/user/memory/provenance/:userId/:episodeId', (req, res) => {
     const uid = normalizeMemoryUserId(req.params.userId);
     const episodeId = String(req.params.episodeId || '').trim();
     if (!episodeId) {
-      return res.status(400).json({ success: false, error: '缺少 episodeId。' });
+      return res.status(400).json({ success: false, error: '缂哄皯 episodeId銆? });
     }
     const row = db.prepare('SELECT memory_layers FROM user_memories WHERE user_id = ?').get(uid);
     const memoryLayers = parseJsonObject(row?.memory_layers, {});
     const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
     const episode = episodes.find((ep) => String(ep._id) === episodeId);
     if (!episode) {
-      return res.status(404).json({ success: false, error: 'episode 未找到。' });
+      return res.status(404).json({ success: false, error: 'episode 鏈壘鍒般€? });
     }
     const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
     const l1 = episode.source_l1_id
@@ -2878,7 +2875,7 @@ app.post('/api/user/error-ledger/append', (req, res) => {
   const now = Date.now();
 
   if (!category || !Array.isArray(entries) || entries.length === 0) {
-    return res.status(400).json({ success: false, error: '缺少 category 或 entries。' });
+    return res.status(400).json({ success: false, error: '缂哄皯 category 鎴?entries銆? });
   }
 
   try {
@@ -2941,8 +2938,7 @@ function mapLightVocabRow(r) {
   };
 }
 
-// 轻量列表：只取标量列，禁止 json_extract（6000 行会打满事件循环导致全站超时）
-const LIGHT_SELECT = `
+// 杞婚噺鍒楄〃锛氬彧鍙栨爣閲忓垪锛岀姝?json_extract锛?000 琛屼細鎵撴弧浜嬩欢寰幆瀵艰嚧鍏ㄧ珯瓒呮椂锛?const LIGHT_SELECT = `
   id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date
 `;
 
@@ -3039,8 +3035,7 @@ app.get('/api/vocab/review', (req, res) => {
   }
 });
 
-// 单条完整词条（轻量列表按需补全 payload）
-app.get('/api/vocab/item/:id', (req, res) => {
+// 鍗曟潯瀹屾暣璇嶆潯锛堣交閲忓垪琛ㄦ寜闇€琛ュ叏 payload锛?app.get('/api/vocab/item/:id', (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Word not found' });
@@ -3065,7 +3060,7 @@ app.post('/api/vocab/add', (req, res) => {
     // ??????
     const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
     if (existing) {
-      return res.json({ success: false, message: '词条已存在', id: existing.id });
+      return res.json({ success: false, message: '璇嶆潯宸插瓨鍦?, id: existing.id });
     }
 
     const id = crypto.randomUUID();
@@ -3076,7 +3071,7 @@ app.post('/api/vocab/add', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, word, dictType, actualCategory, scene_type, JSON.stringify(payload || {}), now, now, '[]', 0, 1, 2.5);
     
-    res.json({ success: true, id, message: '存入成功' });
+    res.json({ success: true, id, message: '瀛樺叆鎴愬姛' });
   } catch (error) {
     console.error(error);
     res.status(500).json({ success: false, error: 'Database error' });
@@ -3144,7 +3139,7 @@ app.put('/api/vocab/move/:id', (req, res) => {
     const id = req.params.id;
     const { category } = req.body;
     db.prepare('UPDATE vocabulary SET category = ? WHERE id = ?').run(category, id);
-    res.json({ success: true, message: '迁移成功' });
+    res.json({ success: true, message: '杩佺Щ鎴愬姛' });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });
   }
@@ -3167,7 +3162,7 @@ app.put('/api/vocab/update/:id', (req, res) => {
     const { word, category, payload } = req.body;
     db.prepare('UPDATE vocabulary SET word = ?, category = ?, payload = ? WHERE id = ?')
       .run(word, category, JSON.stringify(payload || {}), id);
-    res.json({ success: true, message: '迁移成功' });
+    res.json({ success: true, message: '杩佺Щ鎴愬姛' });
   } catch (error) {
     console.error('Update vocab error:', error);
     res.status(500).json({ error: 'Database error' });
@@ -3481,7 +3476,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
   const { themeName, file, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!themeName || !file) {
-    return res.status(400).json({ success: false, error: '缺少必要参数 themeName 或 file' });
+    return res.status(400).json({ success: false, error: '缂哄皯蹇呰鍙傛暟 themeName 鎴?file' });
   }
 
   const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
@@ -3489,29 +3484,29 @@ app.post('/api/theme/custom-add', async (req, res) => {
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
-    // 1. 使用固定 ID 访问 Knowleage_Pro_Scenarios，并清空现有文档
+    // 1. 浣跨敤鍥哄畾 ID 璁块棶 Knowleage_Pro_Scenarios锛屽苟娓呯┖鐜版湁鏂囨。
     const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
-    console.log('[Custom Theme] 正在清空 Knowleage_Pro_Scenarios 知识库...');
+    console.log('[Custom Theme] 姝ｅ湪娓呯┖ Knowleage_Pro_Scenarios 鐭ヨ瘑搴?..');
     const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
     });
-    if (!docsResponse.ok) throw new Error(`获取知识库文档列表失败 (HTTP ${docsResponse.status})`);
+    if (!docsResponse.ok) throw new Error(`鑾峰彇鐭ヨ瘑搴撴枃妗ｅ垪琛ㄥけ璐?(HTTP ${docsResponse.status})`);
     const docsData = await docsResponse.json();
     const docIds = docsData.data?.map(d => d.id) || [];
 
     if (docIds.length > 0) {
-      console.log(`[Custom Theme] 发现 ${docIds.length} 个旧文档，正在删除...`);
+      console.log(`[Custom Theme] 鍙戠幇 ${docIds.length} 涓棫鏂囨。锛屾鍦ㄥ垹闄?..`);
       await Promise.all(docIds.map(async docId => {
         const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
           method: 'DELETE',
           headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
         });
-        if (!delRes.ok) console.warn(`[Custom Theme] 删除文档 ${docId} 失败 (HTTP ${delRes.status})`);
+        if (!delRes.ok) console.warn(`[Custom Theme] 鍒犻櫎鏂囨。 ${docId} 澶辫触 (HTTP ${delRes.status})`);
       }));
-      console.log('[Custom Theme] 知识库已清空');
+      console.log('[Custom Theme] 鐭ヨ瘑搴撳凡娓呯┖');
     } else {
-      console.log('[Custom Theme] 知识库为空，无需清空');
+      console.log('[Custom Theme] 鐭ヨ瘑搴撲负绌猴紝鏃犻渶娓呯┖');
     }
 
     // 2. ???????????????????????????????????????????????????????????????????
@@ -3553,7 +3548,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
     
     if (!uploadResponse.ok) {
       const errText = await uploadResponse.text();
-      throw new Error(`Dify 文件入库失败: ${errText}`);
+      throw new Error(`Dify 鏂囦欢鍏ュ簱澶辫触: ${errText}`);
     }
 
     const uploadData = await uploadResponse.json();
@@ -3561,10 +3556,10 @@ app.post('/api/theme/custom-add', async (req, res) => {
     const batchId = uploadData.batch; 
 
     if (!documentId || !batchId) {
-      throw new Error('文件已发送，但未从 Dify 拿到 batch ID 导致无法跟踪');
+      throw new Error('鏂囦欢宸插彂閫侊紝浣嗘湭浠?Dify 鎷垮埌 batch ID 瀵艰嚧鏃犳硶璺熻釜');
     }
 
-    console.log(`[Custom Theme] 文档上传成功 (ID: ${documentId}, Batch: ${batchId})，正在轮询向量化进度...`);
+    console.log(`[Custom Theme] 鏂囨。涓婁紶鎴愬姛 (ID: ${documentId}, Batch: ${batchId})锛屾鍦ㄨ疆璇㈠悜閲忓寲杩涘害...`);
 
     // 3. ???????????????????
     let isIndexed = false;
@@ -3581,21 +3576,21 @@ app.post('/api/theme/custom-add', async (req, res) => {
       const docInfo = statusData.data?.[0];
       
       if (docInfo) {
-        console.log(`[Custom Theme] 第 ${i + 1} 次进度扫描: status = ${docInfo.indexing_status}`);
+        console.log(`[Custom Theme] 绗?${i + 1} 娆¤繘搴︽壂鎻? status = ${docInfo.indexing_status}`);
         if (docInfo.indexing_status === 'completed') {
           isIndexed = true;
           break;
         } else if (docInfo.indexing_status === 'error') {
-          throw new Error('Dify 向量化切分报错，请前往后台查看原因');
+          throw new Error('Dify 鍚戦噺鍖栧垏鍒嗘姤閿欙紝璇峰墠寰€鍚庡彴鏌ョ湅鍘熷洜');
         }
       }
     }
 
     if (!isIndexed) {
-      throw new Error('Dify 向量化索引超时 (>120s)。');
+      throw new Error('Dify 鍚戦噺鍖栫储寮曡秴鏃?(>120s)銆?);
     }
 
-    console.log(`[Custom Theme] 向量化装载完毕，调用主题萃取工作流...`);
+    console.log(`[Custom Theme] 鍚戦噺鍖栬杞藉畬姣曪紝璋冪敤涓婚钀冨彇宸ヤ綔娴?..`);
 
     // 4. ????????? A ??????????
     const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
@@ -3616,7 +3611,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
     });
     
     const wfData = await wfResponse.json();
-    if (!wfResponse.ok) throw new Error(`工作流执行失败: ${JSON.stringify(wfData)}`);
+    if (!wfResponse.ok) throw new Error(`宸ヤ綔娴佹墽琛屽け璐? ${JSON.stringify(wfData)}`);
     
     const outputs = wfData?.data?.outputs || {};
     const extractedThemeName = outputs.theme_name || themeName;
@@ -3627,14 +3622,14 @@ app.post('/api/theme/custom-add', async (req, res) => {
     try {
       extractedWords = typeof extractedWordsRaw === 'string' ? JSON.parse(extractedWordsRaw) : extractedWordsRaw;
     } catch (e) {
-      console.error("解析 extracted_words 失败", e);
+      console.error("瑙ｆ瀽 extracted_words 澶辫触", e);
     }
     
     let keyPhrases = [];
     try {
       keyPhrases = typeof keyPhrasesRaw === 'string' ? JSON.parse(keyPhrasesRaw) : keyPhrasesRaw;
     } catch (e) {
-      console.error("解析 key_phrases 失败", e);
+      console.error("瑙ｆ瀽 key_phrases 澶辫触", e);
     }
 
     // 5. ?????? custom_themes ?
@@ -3832,8 +3827,8 @@ app.get('/api/theme/stay-stats', (req, res) => {
     `).get(`%${escapedTheme}%`);
     const phraseCount = phraseCountRow ? phraseCountRow.count : 0;
 
-    let weakPoints = { pronunciation: '暂无发音问题记录', grammar: '暂无语法问题记录' };
-    let todaySuggestion = '建议：完成今日单词的英汉双向熟练度默写，并进行流式长文听力精听。';
+    let weakPoints = { pronunciation: '鏆傛棤鍙戦煶闂璁板綍', grammar: '鏆傛棤璇硶闂璁板綍' };
+    let todaySuggestion = '寤鸿锛氬畬鎴愪粖鏃ュ崟璇嶇殑鑻辨眽鍙屽悜鐔熺粌搴﹂粯鍐欙紝骞惰繘琛屾祦寮忛暱鏂囧惉鍔涚簿鍚€?;
 
     const latestSession = db.prepare(`
       SELECT extra_json FROM training_sessions 
@@ -3849,7 +3844,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
         if (ef.grammarNotes) weakPoints.grammar = ef.grammarNotes;
         
         if (ef.pronunciationNotes || ef.grammarNotes) {
-          todaySuggestion = `今日针对性建议：重点纠正【${ef.pronunciationNotes || '无特殊发音问题'}】的发音习惯；在口语/写作练习中刻意运用【${ef.grammarNotes || '无语法偏差'}】的修正方案。`;
+          todaySuggestion = `浠婃棩閽堝鎬у缓璁細閲嶇偣绾犳銆?{ef.pronunciationNotes || '鏃犵壒娈婂彂闊抽棶棰?}銆戠殑鍙戦煶涔犳儻锛涘湪鍙ｈ/鍐欎綔缁冧範涓埢鎰忚繍鐢ㄣ€?{ef.grammarNotes || '鏃犺娉曞亸宸?}銆戠殑淇鏂规銆俙;
         }
       } catch {}
     }
@@ -3871,7 +3866,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-// Dify embed 会话校验：有效则返回 conversation_id 供 iframe URL；renew=1 时创建新会话
+// Dify embed 浼氳瘽鏍￠獙锛氭湁鏁堝垯杩斿洖 conversation_id 渚?iframe URL锛況enew=1 鏃跺垱寤烘柊浼氳瘽
 app.get('/api/dify/embed-session', async (req, res) => {
   const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
   const conversationId = typeof req.query.conversationId === 'string'
@@ -3880,7 +3875,7 @@ app.get('/api/dify/embed-session', async (req, res) => {
   const renew = req.query.renew === '1';
 
   if (!userId) {
-    return res.status(400).json({ message: '缺少 userId 参数。' });
+    return res.status(400).json({ message: '缂哄皯 userId 鍙傛暟銆? });
   }
 
   const apiKey = process.env.DIFY_CHATBOT_API_KEY
@@ -3982,12 +3977,11 @@ app.get('/api/dify/embed-session', async (req, res) => {
     return res.json({ conversationId: null, stale: false, forceNew: true, reason: 'no_conversation' });
   } catch (err) {
     console.error('[embed-session] error:', err);
-    return res.status(500).json({ message: err.message || 'embed 会话校验失败' });
+    return res.status(500).json({ message: err.message || 'embed 浼氳瘽鏍￠獙澶辫触' });
   }
 });
 
-// mychat 对话代理：服务端拉取 memory_pack 注入 Dify inputs（规避工作流 HTTP 节点丢 body）
-app.post('/api/dify/mychat/chat', async (req, res) => {
+// mychat 瀵硅瘽浠ｇ悊锛氭湇鍔＄鎷夊彇 memory_pack 娉ㄥ叆 Dify inputs锛堣閬垮伐浣滄祦 HTTP 鑺傜偣涓?body锛?app.post('/api/dify/mychat/chat', async (req, res) => {
   const {
     query,
     conversationId = null,
@@ -3997,7 +3991,7 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
   } = req.body || {};
 
   if (!query || typeof query !== 'string') {
-    return res.status(400).json({ message: '缺少 query 参数。' });
+    return res.status(400).json({ message: '缂哄皯 query 鍙傛暟銆? });
   }
 
   const apiKey = process.env.DIFY_CHATBOT_API_KEY
@@ -4023,9 +4017,8 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
     app_user_id: uid,
     memory_pack: packText,
   };
-  // 将 memory_pack 嵌入 sys.query，规避 Dify 工作流 paragraph/跨节点变量丢失
-  const difyQuery = packText
-    ? `[结构化记忆]\n${packText}\n\n[用户问题]\n${query}`
+  // 灏?memory_pack 宓屽叆 sys.query锛岃閬?Dify 宸ヤ綔娴?paragraph/璺ㄨ妭鐐瑰彉閲忎涪澶?  const difyQuery = packText
+    ? `[缁撴瀯鍖栬蹇哴\n${packText}\n\n[鐢ㄦ埛闂]\n${query}`
     : query;
 
   try {
@@ -4052,11 +4045,11 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error('[mychat/chat] error:', err);
-    return res.status(500).json({ message: err.message || 'mychat 对话代理失败' });
+    return res.status(500).json({ message: err.message || 'mychat 瀵硅瘽浠ｇ悊澶辫触' });
   }
 });
 
-// 词典查询：后端代理 Dify dict_tool_workflow，避免前端暴露 API Key
+// 璇嶅吀鏌ヨ锛氬悗绔唬鐞?Dify dict_tool_workflow锛岄伩鍏嶅墠绔毚闇?API Key
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
 
@@ -4072,7 +4065,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
 
   try {
-    console.log(`[Dict Query] 发起查询: "${word}", 词典类型: "${dictType}"`);
+    console.log(`[Dict Query] 鍙戣捣鏌ヨ: "${word}", 璇嶅吀绫诲瀷: "${dictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -4097,7 +4090,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.warn(`[Dict Query] Dify 工作流返回错误 (${response.status}):`, errText);
+      console.warn(`[Dict Query] Dify 宸ヤ綔娴佽繑鍥為敊璇?(${response.status}):`, errText);
 
       try {
         db.prepare(`
@@ -4106,14 +4099,14 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: `Dify 工作流调用失败: HTTP ${response.status}` });
+      return res.json({ ok: false, fallback: true, message: `Dify 宸ヤ綔娴佽皟鐢ㄥけ璐? HTTP ${response.status}` });
     }
 
     const data = await response.json();
     const resultStr = data?.data?.outputs?.result;
 
     if (!resultStr) {
-      console.warn('[Dict Query] 工作流输出缺少 result 字段:', data);
+      console.warn('[Dict Query] 宸ヤ綔娴佽緭鍑虹己灏?result 瀛楁:', data);
 
       try {
         db.prepare(`
@@ -4122,14 +4115,14 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: 'Dify 工作流未返回有效结果，请稍后重试' });
+      return res.json({ ok: false, fallback: true, message: 'Dify 宸ヤ綔娴佹湭杩斿洖鏈夋晥缁撴灉锛岃绋嶅悗閲嶈瘯' });
     }
 
     let parsedResult;
     try {
       parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
     } catch (e) {
-      console.warn('[Dict Query] 解析 result JSON 失败:', e.message);
+      console.warn('[Dict Query] 瑙ｆ瀽 result JSON 澶辫触:', e.message);
 
       try {
         db.prepare(`
@@ -4138,7 +4131,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: '词典结果格式异常，无法解析' });
+      return res.json({ ok: false, fallback: true, message: '璇嶅吀缁撴灉鏍煎紡寮傚父锛屾棤娉曡В鏋? });
     }
 
     try {
@@ -4148,22 +4141,21 @@ app.post('/api/dify/dict-query', async (req, res) => {
       `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), Date.now());
     } catch (logErr) {}
 
-    console.log(`[Dict Query] 词条 "${word}" 查询成功，字段:`, Object.keys(parsedResult?.payload || {}));
+    console.log(`[Dict Query] 璇嶆潯 "${word}" 鏌ヨ鎴愬姛锛屽瓧娈?`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
     const isTimeout = error.name === 'AbortError' || /aborted/i.test(error.message || '');
-    console.warn('[Dict Query] 查询失败:', error.message);
+    console.warn('[Dict Query] 鏌ヨ澶辫触:', error.message);
     const message = isTimeout
-      ? `词典查询超时（${DICT_QUERY_TIMEOUT_MS / 1000} 秒），工作流仍在运行中，请稍后重试`
-      : `词典查询失败: ${error.message}`;
+      ? `璇嶅吀鏌ヨ瓒呮椂锛?{DICT_QUERY_TIMEOUT_MS / 1000} 绉掞級锛屽伐浣滄祦浠嶅湪杩愯涓紝璇风◢鍚庨噸璇昤
+      : `璇嶅吀鏌ヨ澶辫触: ${error.message}`;
     return res.json({ ok: false, fallback: true, message });
   } finally {
     clearTimeout(timeoutId);
   }
 });
 
-// 辅助函数：从混杂文本中提取可 JSON.parse 的片段（```json 块或最外侧 {}）
-function extractJsonFromString(raw) {
+// 杈呭姪鍑芥暟锛氫粠娣锋潅鏂囨湰涓彁鍙栧彲 JSON.parse 鐨勭墖娈碉紙```json 鍧楁垨鏈€澶栦晶 {}锛?function extractJsonFromString(raw) {
   const rawStr = String(raw ?? '').trim();
   const jsonBlockMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/i);
   if (jsonBlockMatch && jsonBlockMatch[1]) {
@@ -4188,7 +4180,7 @@ app.post('/api/dify/write-review', async (req, res) => {
   const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
-    console.log(`[Write Review] 开始进行书面批阅评估，主题: "${theme}"`);
+    console.log(`[Write Review] 寮€濮嬭繘琛屼功闈㈡壒闃呰瘎浼帮紝涓婚: "${theme}"`);
 
     const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
@@ -4210,16 +4202,16 @@ app.post('/api/dify/write-review', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Write Review] Dify 服务器返回错误(${response.status}):`, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 接口异常: ${response.status}`, details: errText });
+      console.error(`[Write Review] Dify 鏈嶅姟鍣ㄨ繑鍥為敊璇?${response.status}):`, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 鎺ュ彛寮傚父: ${response.status}`, details: errText });
     }
 
     const data = await response.json();
     const resultStr = data?.data?.outputs?.result;
 
     if (!resultStr) {
-      console.warn('[Write Review] 工作流未返回 result 字段:', data);
-      return res.status(500).json({ success: false, error: 'Dify 工作流未返回正确的 result 字段' });
+      console.warn('[Write Review] 宸ヤ綔娴佹湭杩斿洖 result 瀛楁:', data);
+      return res.status(500).json({ success: false, error: 'Dify 宸ヤ綔娴佹湭杩斿洖姝ｇ‘鐨?result 瀛楁' });
     }
 
     let parsedResult;
@@ -4228,8 +4220,8 @@ app.post('/api/dify/write-review', async (req, res) => {
         ? resultStr
         : JSON.parse(extractJsonFromString(resultStr));
     } catch (e) {
-      console.error('[Write Review] 解析 result JSON 失败:', e, resultStr);
-      return res.status(500).json({ success: false, error: '工作流结果解析异常，返回数据非合法 JSON' });
+      console.error('[Write Review] 瑙ｆ瀽 result JSON 澶辫触:', e, resultStr);
+      return res.status(500).json({ success: false, error: '宸ヤ綔娴佺粨鏋滆В鏋愬紓甯革紝杩斿洖鏁版嵁闈炲悎娉?JSON' });
     }
 
     const responseData = {
@@ -4239,14 +4231,14 @@ app.post('/api/dify/write-review', async (req, res) => {
       optimized_version: parsedResult.optimized_version || ''
     };
 
-    console.log(`[Write Review] 批阅成功，已清理并返回纯 JSON 数据`);
+    console.log(`[Write Review] 鎵归槄鎴愬姛锛屽凡娓呯悊骞惰繑鍥炵函 JSON 鏁版嵁`);
     return res.json({
       success: true,
       data: responseData
     });
   } catch (error) {
-    console.error('[Write Review] 服务端请求异常', error);
-    return res.status(500).json({ success: false, error: `服务器内部异常: ${error.message}` });
+    console.error('[Write Review] 鏈嶅姟绔姹傚紓甯?, error);
+    return res.status(500).json({ success: false, error: `鏈嶅姟鍣ㄥ唴閮ㄥ紓甯? ${error.message}` });
   }
 });
 
@@ -4262,12 +4254,12 @@ app.get('/api/dify/dict-coverage', (req, res) => {
     const levelCounts = {
       'CET-4': 0,
       'CET-6': 0,
-      '考研': 0,
+      '鑰冪爺': 0,
       'TOEFL': 0,
       'GRE': 0,
       'BUSINESS': 0,
-      '考研': 0,
-      '未分类': 0
+      '鑰冪爺': 0,
+      '鏈垎绫?: 0
     };
     
     rows.forEach(r => {
@@ -4277,9 +4269,9 @@ app.get('/api/dify/dict-coverage', (req, res) => {
         if (level && levelCounts[level] !== undefined) {
           levelCounts[level]++;
         } else if (level) {
-          levelCounts['其他']++;
+          levelCounts['鍏朵粬']++;
         } else {
-          levelCounts['其他']++;
+          levelCounts['鍏朵粬']++;
         }
       } catch (e) {}
     });
@@ -4327,15 +4319,15 @@ async function checkAndEnrichPlaceholderPayload(row) {
   // ???????????????
   const hasPlaceholder = 
     !payload.meaning || 
-    payload.meaning === '待复习补充' || 
-    payload.meaning === '待复习补充' || 
+    payload.meaning === '寰呭涔犺ˉ鍏? || 
+    payload.meaning === '寰呭涔犺ˉ鍏? || 
     (payload.phonetic && payload.phonetic.includes('??')) ||
-    (payload.definition_en && payload.definition_en.includes('精准定义')) ||
-    (payload.business_note && payload.business_note.includes('特定商环境')) ||
-    (Array.isArray(payload.examples) && payload.examples.some(ex => typeof ex === 'string' && ex.includes('例句1')));
+    (payload.definition_en && payload.definition_en.includes('绮惧噯瀹氫箟')) ||
+    (payload.business_note && payload.business_note.includes('鐗瑰畾鍟嗙幆澧?)) ||
+    (Array.isArray(payload.examples) && payload.examples.some(ex => typeof ex === 'string' && ex.includes('渚嬪彞1')));
 
   if (hasPlaceholder) {
-    console.log(`[Payload Enrich] 检测到词条 "${row.word}" (ID: ${row.id}) 使用了占位符 payload，正在启动静默字典查询纠正...`);
+    console.log(`[Payload Enrich] 妫€娴嬪埌璇嶆潯 "${row.word}" (ID: ${row.id}) 浣跨敤浜嗗崰浣嶇 payload锛屾鍦ㄥ惎鍔ㄩ潤榛樺瓧鍏告煡璇㈢籂姝?..`);
     const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
@@ -4368,7 +4360,7 @@ async function checkAndEnrichPlaceholderPayload(row) {
           if (parsedResult && parsedResult.ok && parsedResult.payload) {
             const dp = parsedResult.payload;
             
-            let meaning = dp.translation_main || (Array.isArray(dp.definitions_en) ? dp.definitions_en[0] : '待复习补充');
+            let meaning = dp.translation_main || (Array.isArray(dp.definitions_en) ? dp.definitions_en[0] : '寰呭涔犺ˉ鍏?);
             let definition_en = Array.isArray(dp.definitions_en) ? dp.definitions_en.join('; ') : (dp.definition || '');
             let business_note = dp.business_notes || '';
             let examples = [];
@@ -4397,17 +4389,17 @@ async function checkAndEnrichPlaceholderPayload(row) {
               definition_en: definition_en,
               business_note: business_note,
               examples: examples,
-              source: '自动纠正净化'
+              source: '鑷姩绾犳鍑€鍖?
             };
 
             db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(newPayload), row.id);
-            console.log(`[Payload Enrich] 成功更新词条 "${row.word}" 数据库 payload`);
+            console.log(`[Payload Enrich] 鎴愬姛鏇存柊璇嶆潯 "${row.word}" 鏁版嵁搴?payload`);
             return newPayload;
           }
         }
       }
     } catch (err) {
-      console.error(`[Payload Enrich] 静默字典查询及更新失败 for "${row.word}":`, err);
+      console.error(`[Payload Enrich] 闈欓粯瀛楀吀鏌ヨ鍙婃洿鏂板け璐?for "${row.word}":`, err);
     }
   }
 
@@ -4609,7 +4601,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
     }
 
     const taskQueue = require('./services/taskQueue');
-    const taskName = `生成记忆图片: ${row.word}`;
+    const taskName = `鐢熸垚璁板繂鍥剧墖: ${row.word}`;
     const task = taskQueue.createTask('image-gen', taskName);
 
     // ???????? task ID ??????
@@ -4623,7 +4615,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         const models = (process.env.IMAGE_GEN_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
         if (models.length === 0) models.push(...DEFAULT_IMAGE_GEN_MODELS);
 
-        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 Agnes /v1/images/generations'] });
+        taskQueue.updateTask(task.id, { status: 'running', logs: ['寮€濮嬭皟鐢?Agnes /v1/images/generations'] });
         console.log(`[generate-image] prompt: "${memoryAids.image_prompt}", models: [${models.join(', ')}]`);
 
         let imageUrl = '';
@@ -4632,19 +4624,19 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
 
         for (const model of models) {
           console.log(`[generate-image] try model=${model}`);
-          taskQueue.updateTask(task.id, { logs: [`尝试模型: ${model}`] });
+          taskQueue.updateTask(task.id, { logs: [`灏濊瘯妯″瀷: ${model}`] });
 
           const result = await tryGenerateImageOnce(baseUrl, apiKey, model, memoryAids.image_prompt);
           if (result.ok) {
             imageUrl = result.imageUrl;
             downloadUrl = result.downloadUrl;
             console.log(`[generate-image] success model=${model} url=${imageUrl}`);
-            taskQueue.updateTask(task.id, { logs: [`模型 ${model} 成功`] });
+            taskQueue.updateTask(task.id, { logs: [`妯″瀷 ${model} 鎴愬姛`] });
             break;
           } else {
             lastError = result.error;
             console.log(`[generate-image] model ${model} failed: ${lastError}`);
-            taskQueue.updateTask(task.id, { logs: [`模型 ${model} 失败: ${lastError}`] });
+            taskQueue.updateTask(task.id, { logs: [`妯″瀷 ${model} 澶辫触: ${lastError}`] });
           }
         }
 
@@ -4652,7 +4644,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
           console.error('[generate-image] all models failed');
           taskQueue.updateTask(task.id, {
             status: 'failed',
-            error: `所有生图模型均失败，最后错误: ${lastError}`
+            error: `鎵€鏈夌敓鍥炬ā鍨嬪潎澶辫触锛屾渶鍚庨敊璇? ${lastError}`
           });
           return;
         }
@@ -4672,7 +4664,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
             image_url: imageUrl,
             download_url: downloadUrl,
           },
-          logs: ['图片生成与入库完成']
+          logs: ['鍥剧墖鐢熸垚涓庡叆搴撳畬鎴?]
         });
       } catch (err) {
         console.error('[generate-image async] Error:', err);
@@ -4686,25 +4678,24 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
   }
 });
 
-// 处理材料提纯解析请求（真实 Dify 联动：找库 -> 清空 -> 上传 -> 工作流抽提）
+// 澶勭悊鏉愭枡鎻愮函瑙ｆ瀽璇锋眰锛堢湡瀹?Dify 鑱斿姩锛氭壘搴?-> 娓呯┖ -> 涓婁紶 -> 宸ヤ綔娴佹娊鎻愶級
 app.post('/api/material/process-and-extract', async (req, res) => {
   const { topic, userId, files, user_current_profile } = req.body;
 
   if (!files || files.length === 0) {
-    return res.status(400).json({ success: false, error: '未提供可处理的上传文件' });
+    return res.status(400).json({ success: false, error: '鏈彁渚涘彲澶勭悊鐨勪笂浼犳枃浠? });
   }
 
   const taskQueue = require('./services/taskQueue');
-  const taskName = `材料提纯: ${files[0]?.fileName || '未知文件'}`;
+  const taskName = `鏉愭枡鎻愮函: ${files[0]?.fileName || '鏈煡鏂囦欢'}`;
   const task = taskQueue.createTask('material', taskName);
 
-  // 立即返回 taskId，后续在后台异步执行
+  // 绔嬪嵆杩斿洖 taskId锛屽悗缁湪鍚庡彴寮傛鎵ц
   res.json({ success: true, taskId: task.id, status: task.status });
 
-  // 异步执行材料上传与知识库写入流程
+  // 寮傛鎵ц鏉愭枡涓婁紶涓庣煡璇嗗簱鍐欏叆娴佺▼
   setImmediate(async () => {
-    // 创建 Dify 知识库文档，轮询索引状态，触发提纯工作流，写入生词本
-    const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+    // 鍒涘缓 Dify 鐭ヨ瘑搴撴枃妗ｏ紝杞绱㈠紩鐘舵€侊紝瑙﹀彂鎻愮函宸ヤ綔娴侊紝鍐欏叆鐢熻瘝鏈?    const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
     const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
@@ -4712,71 +4703,65 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'running',
         progress: 5,
-        logs: ['[进度] 正在初始化提取任务...']
+        logs: ['[杩涘害] 姝ｅ湪鍒濆鍖栨彁鍙栦换鍔?..']
       });
 
       // ---------------------------------------------------------
-      // 使用固定 ID 直接访问 Knowleage_Pro_Scenarios 知识库
-      // ---------------------------------------------------------
+      // 浣跨敤鍥哄畾 ID 鐩存帴璁块棶 Knowleage_Pro_Scenarios 鐭ヨ瘑搴?      // ---------------------------------------------------------
       const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
       // ---------------------------------------------------------
-      // 批量删除旧文档（如果存在）
-      // ---------------------------------------------------------
+      // 鎵归噺鍒犻櫎鏃ф枃妗ｏ紙濡傛灉瀛樺湪锛?      // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 20,
-        logs: ['[进度] 正在清空 Knowleage_Pro_Scenarios 知识库...']
+        logs: ['[杩涘害] 姝ｅ湪娓呯┖ Knowleage_Pro_Scenarios 鐭ヨ瘑搴?..']
       });
       const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
       });
-      if (!docsResponse.ok) throw new Error(`获取知识库文档列表失败 (HTTP ${docsResponse.status})`);
+      if (!docsResponse.ok) throw new Error(`鑾峰彇鐭ヨ瘑搴撴枃妗ｅ垪琛ㄥけ璐?(HTTP ${docsResponse.status})`);
       const docsData = await docsResponse.json();
       const docIds = docsData.data?.map(d => d.id) || [];
 
-      // 异步并行删除所有旧文档
+      // 寮傛骞惰鍒犻櫎鎵€鏈夋棫鏂囨。
       if (docIds.length > 0) {
         taskQueue.updateTask(task.id, {
           progress: 30,
-          logs: [`[进度] 发现已存在 ${docIds.length} 个旧文档，正在清空...`]
+          logs: [`[杩涘害] 鍙戠幇宸插瓨鍦?${docIds.length} 涓棫鏂囨。锛屾鍦ㄦ竻绌?..`]
         });
         await Promise.all(docIds.map(async docId => {
           const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
           });
-          if (!delRes.ok) console.warn(`[警告] 删除旧文档 ${docId} 失败 (HTTP ${delRes.status})`);
+          if (!delRes.ok) console.warn(`[璀﹀憡] 鍒犻櫎鏃ф枃妗?${docId} 澶辫触 (HTTP ${delRes.status})`);
         }));
         taskQueue.updateTask(task.id, {
           progress: 40,
-          logs: ['[进度] 旧文档清空完成']
+          logs: ['[杩涘害] 鏃ф枃妗ｆ竻绌哄畬鎴?]
         });
       } else {
         taskQueue.updateTask(task.id, {
           progress: 40,
-          logs: ['[进度] 知识库为空，无需清空']
+          logs: ['[杩涘害] 鐭ヨ瘑搴撲负绌猴紝鏃犻渶娓呯┖']
         });
       }
 
       // ---------------------------------------------------------
-      // 准备上传文件到 Dify 知识库
-      // ---------------------------------------------------------
+      // 鍑嗗涓婁紶鏂囦欢鍒?Dify 鐭ヨ瘑搴?      // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 45,
-        logs: ['[进度] 正在解析 Base64 格式的上传材料...']
+        logs: ['[杩涘害] 姝ｅ湪瑙ｆ瀽 Base64 鏍煎紡鐨勪笂浼犳潗鏂?..']
       });
       const fileObj = files[0];
       const base64Data = fileObj.content || fileObj.base64 || '';
       const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
-      // Node 18+ 使用全局 Blob 构造 FormData（兼容浏览器和 Node 环境）
-      const blob = new Blob([buffer], { type: 'application/octet-stream' });
+      // Node 18+ 浣跨敤鍏ㄥ眬 Blob 鏋勯€?FormData锛堝吋瀹规祻瑙堝櫒鍜?Node 鐜锛?      const blob = new Blob([buffer], { type: 'application/octet-stream' });
       const formData = new FormData();
       formData.append('file', blob, fileObj.fileName || 'upload_material.pdf');
-      // 使用 Hierarchical 模式保留文档结构（段+子段）
-      // 配置解析规则：预处理（去多余空格）、父段落模式、子段分割
-      formData.append('data', JSON.stringify({
+      // 浣跨敤 Hierarchical 妯″紡淇濈暀鏂囨。缁撴瀯锛堟+瀛愭锛?      // 閰嶇疆瑙ｆ瀽瑙勫垯锛氶澶勭悊锛堝幓澶氫綑绌烘牸锛夈€佺埗娈佃惤妯″紡銆佸瓙娈靛垎鍓?      formData.append('data', JSON.stringify({
         indexing_technique: 'high_quality',
         doc_form: 'hierarchical_model',
         process_rule: {
@@ -4801,7 +4786,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 50,
-        logs: ['[进度] 正在上传解析后的材料到 Dify 知识库...']
+        logs: ['[杩涘害] 姝ｅ湪涓婁紶瑙ｆ瀽鍚庣殑鏉愭枡鍒?Dify 鐭ヨ瘑搴?..']
       });
       const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
         method: 'POST',
@@ -4811,7 +4796,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       if (!uploadResponse.ok) {
         const errText = await uploadResponse.text();
-        throw new Error(`Dify 文件上传失败: ${errText}`);
+        throw new Error(`Dify 鏂囦欢涓婁紶澶辫触: ${errText}`);
       }
 
       const uploadData = await uploadResponse.json();
@@ -4819,20 +4804,18 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const batchId = uploadData.batch;
 
       if (!documentId || !batchId) {
-        throw new Error('未能从 Dify 响应中获取 document / batch ID');
+        throw new Error('鏈兘浠?Dify 鍝嶅簲涓幏鍙?document / batch ID');
       }
 
       taskQueue.updateTask(task.id, {
         progress: 55,
-        logs: [`[进度] 导入文档成功 (ID: ${documentId}, Batch: ${batchId})，正在开始索引...`]
+        logs: [`[杩涘害] 瀵煎叆鏂囨。鎴愬姛 (ID: ${documentId}, Batch: ${batchId})锛屾鍦ㄥ紑濮嬬储寮?..`]
       });
 
       // ---------------------------------------------------------
-      // 轮询 Dify 文档索引状态，等待向量化完成
-      // ---------------------------------------------------------
+      // 杞 Dify 鏂囨。绱㈠紩鐘舵€侊紝绛夊緟鍚戦噺鍖栧畬鎴?      // ---------------------------------------------------------
       let isIndexed = false;
-      // 最多等待 100 轮（每轮 3 秒），总计 300 秒（5分钟）超时
-      for (let i = 0; i < 100; i++) {
+      // 鏈€澶氱瓑寰?100 杞紙姣忚疆 3 绉掞級锛屾€昏 300 绉掞紙5鍒嗛挓锛夎秴鏃?      for (let i = 0; i < 100; i++) {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
@@ -4840,21 +4823,19 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
         });
 
-        if (!statusRes.ok) continue; // 本轮状态查询失败则跳过，继续下一轮
-        const statusData = await statusRes.json();
-        // 获取单个文档的索引状态（pending / indexing / completed / error）
-        const docInfo = statusData.data?.[0];
+        if (!statusRes.ok) continue; // 鏈疆鐘舵€佹煡璇㈠け璐ュ垯璺宠繃锛岀户缁笅涓€杞?        const statusData = await statusRes.json();
+        // 鑾峰彇鍗曚釜鏂囨。鐨勭储寮曠姸鎬侊紙pending / indexing / completed / error锛?        const docInfo = statusData.data?.[0];
 
         if (docInfo) {
           taskQueue.updateTask(task.id, {
             progress: Math.min(68, 55 + i),
-            logs: [`[进度] 第 ${i + 1} 轮获取 Dify 索引状态: ${docInfo.indexing_status}`]
+            logs: [`[杩涘害] 绗?${i + 1} 杞幏鍙?Dify 绱㈠紩鐘舵€? ${docInfo.indexing_status}`]
           });
           if (docInfo.indexing_status === 'completed') {
             isIndexed = true;
             break;
           } else if (docInfo.indexing_status === 'error') {
-            throw new Error('Dify 文档索引失败，请检查上传文件或知识库配置');
+            throw new Error('Dify 鏂囨。绱㈠紩澶辫触锛岃妫€鏌ヤ笂浼犳枃浠舵垨鐭ヨ瘑搴撻厤缃?);
           }
         }
       }
@@ -4865,12 +4846,11 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 70,
-        logs: ['[进度] 知识库文档向量化就绪，准备提纯...']
+        logs: ['[杩涘害] 鐭ヨ瘑搴撴枃妗ｅ悜閲忓寲灏辩华锛屽噯澶囨彁绾?..']
       });
 
-      // --- 展示用正文：优先本地抽取原文；Dify 分段仅作回退（分段拼接会改段落结构）---
-      // Dify knowledge create-by-file / hierarchical 用于检索提纯，不宜作为阅读器展示源。
-      let articleText = "";
+      // --- 灞曠ず鐢ㄦ鏂囷細浼樺厛鏈湴鎶藉彇鍘熸枃锛汥ify 鍒嗘浠呬綔鍥為€€锛堝垎娈垫嫾鎺ヤ細鏀规钀界粨鏋勶級---
+      // Dify knowledge create-by-file / hierarchical 鐢ㄤ簬妫€绱㈡彁绾紝涓嶅疁浣滀负闃呰鍣ㄥ睍绀烘簮銆?      let articleText = "";
       let originalText = "";
       const uploadedFileName = fileObj.fileName || '';
       try {
@@ -4880,21 +4860,21 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         if (isPlainText && buffer.length > 0) {
           originalText = buffer.toString('utf-8');
           taskQueue.updateTask(task.id, {
-            logs: ['[进度] 纯文本材料，已直接解码为展示原文']
+            logs: ['[杩涘害] 绾枃鏈潗鏂欙紝宸茬洿鎺ヨВ鐮佷负灞曠ず鍘熸枃']
           });
         } else if (isPdf && buffer.length > 0) {
           const pdfParse = require('pdf-parse');
           const pdfData = await pdfParse(buffer);
           originalText = String(pdfData?.text || '').replace(/\r\n/g, '\n').trim();
           taskQueue.updateTask(task.id, {
-            logs: [`[进度] PDF 本地抽文本完成（约 ${originalText.length} 字），用于沉浸式阅读展示`]
+            logs: [`[杩涘害] PDF 鏈湴鎶芥枃鏈畬鎴愶紙绾?${originalText.length} 瀛楋級锛岀敤浜庢矇娴稿紡闃呰灞曠ず`]
           });
         }
       } catch (e) {
-        console.warn('[Material] 本地抽取原文失败，将回退 Dify 分段:', e.message);
+        console.warn('[Material] 鏈湴鎶藉彇鍘熸枃澶辫触锛屽皢鍥為€€ Dify 鍒嗘:', e.message);
         originalText = '';
         taskQueue.updateTask(task.id, {
-          logs: [`[进度] 本地原文抽取失败（${e.message}），回退 Dify 分段拼接`]
+          logs: [`[杩涘害] 鏈湴鍘熸枃鎶藉彇澶辫触锛?{e.message}锛夛紝鍥為€€ Dify 鍒嗘鎷兼帴`]
         });
       }
 
@@ -4910,19 +4890,18 @@ app.post('/api/material/process-and-extract', async (req, res) => {
             const segments = segmentsData.data || [];
             articleText = segments.map(s => s.content || '').join('\n\n');
           } else {
-            console.warn("[Material] 获取文档分段失败", segmentsRes.status);
+            console.warn("[Material] 鑾峰彇鏂囨。鍒嗘澶辫触", segmentsRes.status);
           }
         } catch (e) {
-          console.error("[Material] 获取文档分段异常:", e.message);
+          console.error("[Material] 鑾峰彇鏂囨。鍒嗘寮傚父:", e.message);
         }
       }
 
       // ---------------------------------------------------------
-      // 运行 Dify 英文商业实战材料提纯工作流
-      // ---------------------------------------------------------
+      // 杩愯 Dify 鑻辨枃鍟嗕笟瀹炴垬鏉愭枡鎻愮函宸ヤ綔娴?      // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 75,
-        logs: ['[进度] 正在运行 Dify 提纯工作流提取核心词句...']
+        logs: ['[杩涘害] 姝ｅ湪杩愯 Dify 鎻愮函宸ヤ綔娴佹彁鍙栨牳蹇冭瘝鍙?..']
       });
       const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
         method: 'POST',
@@ -4942,11 +4921,11 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       if (!wfResponse.ok) {
         const errText = await wfResponse.text().catch(() => '');
-        throw new Error(`提纯工作流失败 (HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
+        throw new Error(`鎻愮函宸ヤ綔娴佸け璐?(HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
       }
       const wfData = await wfResponse.json();
 
-      // 从工作流 outputs 中提取词汇和句型结果
+      // 浠庡伐浣滄祦 outputs 涓彁鍙栬瘝姹囧拰鍙ュ瀷缁撴灉
       const outputs = wfData?.data?.outputs || {};
       const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
 
@@ -4954,7 +4933,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       if (Array.isArray(rawExtracted)) {
         extractedItems = rawExtracted;
       } else if (typeof rawExtracted === 'string') {
-        // 尝试将字符串结果解析为 JSON 格式
+        // 灏濊瘯灏嗗瓧绗︿覆缁撴灉瑙ｆ瀽涓?JSON 鏍煎紡
         let cleanJson = rawExtracted.trim();
         if (cleanJson.startsWith('\`\`\`json')) cleanJson = cleanJson.substring(7);
         else if (cleanJson.startsWith('\`\`\`')) cleanJson = cleanJson.substring(3);
@@ -4976,15 +4955,15 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           }
           if (Array.isArray(parsed)) extractedItems = parsed;
         } catch (e) {
-          // 解析失败时按逗号/换行粗分
-          extractedItems = rawExtracted.split(/[,，、\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
+          // 瑙ｆ瀽澶辫触鏃舵寜閫楀彿/鎹㈣绮楀垎
+          extractedItems = rawExtracted.split(/[,锛屻€乗n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 500);
         }
       }
 
-      // 根据 extractedItems 中每项的 category 字段补充布尔标记
+      // 鏍规嵁 extractedItems 涓瘡椤圭殑 category 瀛楁琛ュ厖甯冨皵鏍囪
       for (const item of extractedItems) {
         if (typeof item === 'object' && item !== null) {
-          // 若模型已给出 category，则同步到 is_phrase / is_sentence
+          // 鑻ユā鍨嬪凡缁欏嚭 category锛屽垯鍚屾鍒?is_phrase / is_sentence
           if (item.category === 'word') item.is_phrase = false;
           else if (item.category === 'phrase') item.is_phrase = true;
           else if (item.category === 'sentence') item.is_sentence = true;
@@ -4995,14 +4974,13 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       let phrasesToReturn = [];
       let sentencesToReturn = [];
 
-      // 按词数规则分类
-      for (const item of extractedItems) {
+      // 鎸夎瘝鏁拌鍒欏垎绫?      for (const item of extractedItems) {
         const isObject = typeof item === 'object' && item !== null;
         const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : item;
         const cleanStr = String(wordStr).trim();
         if (!cleanStr) continue;
 
-        // 统一走词数分类，决定写入词/词组/句型
+        // 缁熶竴璧拌瘝鏁板垎绫伙紝鍐冲畾鍐欏叆璇?璇嶇粍/鍙ュ瀷
         let dictType = classifyByWordCount(cleanStr);
 
         if (dictType === 'ai_sentence') {
@@ -5014,37 +4992,31 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // 合并词汇和词组，准备写入数据库
-      const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
+      // 鍚堝苟璇嶆眹鍜岃瘝缁勶紝鍑嗗鍐欏叆鏁版嵁搴?      const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
 
       taskQueue.updateTask(task.id, {
         progress: 85,
-        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词本...`]
+        logs: [`[杩涘害] 鎻愬彇鍒?${vocabToInsert.length} 涓瘝姹囧拰 ${sentencesToReturn.length} 涓彞瀛愶紝姝ｅ湪鎺掗噸鍐欏叆 SQLite 鐢熻瘝鏈?..`]
       });
 
       /**
-       * 计算字符串中的英文单词数（用于分类词汇/词组/句型）
-       * @param {string} str - 输入字符串
-       * @returns {number} 单词数量
+       * 璁＄畻瀛楃涓蹭腑鐨勮嫳鏂囧崟璇嶆暟锛堢敤浜庡垎绫昏瘝姹?璇嶇粍/鍙ュ瀷锛?       * @param {string} str - 杈撳叆瀛楃涓?       * @returns {number} 鍗曡瘝鏁伴噺
        */
       function countWords(str) {
         if (!str || typeof str !== 'string') return 0;
         return str
           .trim()
-          .replace(/[.!?,;:'"()[\]{}]/g, '')   // 去掉常见标点
-          .split(/\s+/)                           // 按空白分词
-          .filter(w => w.length > 0)             // 去掉空段
+          .replace(/[.!?,;:'"()[\]{}]/g, '')   // 鍘绘帀甯歌鏍囩偣
+          .split(/\s+/)                           // 鎸夌┖鐧藉垎璇?          .filter(w => w.length > 0)             // 鍘绘帀绌烘
           .length;
       }
 
       /**
-       * 按英文单词数粗分类型
-       * - ai_extracted：约 1 个词
-       * - ai_phrase：至少 2 个词且不以句号结尾
-       * - ai_sentence：以 . ! ? 结尾且至少 5 个词
+       * 鎸夎嫳鏂囧崟璇嶆暟绮楀垎绫诲瀷
+       * - ai_extracted锛氱害 1 涓瘝
+       * - ai_phrase锛氳嚦灏?2 涓瘝涓斾笉浠ュ彞鍙风粨灏?       * - ai_sentence锛氫互 . ! ? 缁撳熬涓旇嚦灏?5 涓瘝
        *
-       * @param {string} wordStr - 待分类文本
-       * @returns {'ai_extracted'|'ai_phrase'|'ai_sentence'}
+       * @param {string} wordStr - 寰呭垎绫绘枃鏈?       * @returns {'ai_extracted'|'ai_phrase'|'ai_sentence'}
        */
       function classifyByWordCount(wordStr) {
         const trimmed = String(wordStr || '').trim();
@@ -5062,7 +5034,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // 写入 SQLite
+      // 鍐欏叆 SQLite
       let addedCount = 0;
       const now = Date.now();
       for (const item of vocabToInsert) {
@@ -5070,10 +5042,10 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
         if (!wordStr) continue;
 
-        // 再次按词数分类，决定 dict_type
+        // 鍐嶆鎸夎瘝鏁板垎绫伙紝鍐冲畾 dict_type
         const dictType = classifyByWordCount(wordStr);
 
-        // 组装 payload
+        // 缁勮 payload
         let payload = { source: 'Material Upload' };
         if (isObject && item.payload) {
           payload = item.payload;
@@ -5090,8 +5062,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           `).run(id, wordStr, dictType, 'business', JSON.stringify(payload), now, now, '[]');
           addedCount++;
         } else {
-          // 已存在则仅在 payload 较空时覆盖更新
-          let oldPayload = {};
+          // 宸插瓨鍦ㄥ垯浠呭湪 payload 杈冪┖鏃惰鐩栨洿鏂?          let oldPayload = {};
           try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
           if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
             db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
@@ -5104,7 +5075,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // ===== 写入句型（dict_type = 'ai_sentence'） =====
+      // ===== 鍐欏叆鍙ュ瀷锛坉ict_type = 'ai_sentence'锛?=====
       let addedSentenceCount = 0;
       for (const item of sentencesToReturn) {
         const isObject = typeof item === 'object' && item !== null;
@@ -5114,8 +5085,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         const cleanSent = String(sentenceStr).trim();
         if (!cleanSent || cleanSent.length > 500) continue;
 
-        // 用前 50 字符做 LIKE 前缀排重，避免重复长句
-        const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
+        // 鐢ㄥ墠 50 瀛楃鍋?LIKE 鍓嶇紑鎺掗噸锛岄伩鍏嶉噸澶嶉暱鍙?        const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
         const existingSent = db.prepare(
           "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
         ).get(`${probe}%`);
@@ -5136,8 +5106,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         addedSentenceCount++;
       }
 
-      // 组装完成结果并标记任务完成
-      taskQueue.updateTask(task.id, {
+      // 缁勮瀹屾垚缁撴灉骞舵爣璁颁换鍔″畬鎴?      taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,
         result: {
@@ -5158,7 +5127,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
             }
           ]
         },
-        logs: ['[完成] Dify 提纯分析与生词本写入全部顺利完成！艾宾浩斯复习引擎已刷新']
+        logs: ['[瀹屾垚] Dify 鎻愮函鍒嗘瀽涓庣敓璇嶆湰鍐欏叆鍏ㄩ儴椤哄埄瀹屾垚锛佽壘瀹炬旦鏂涔犲紩鎿庡凡鍒锋柊']
       });
 
     } catch (error) {
@@ -5166,12 +5135,12 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'failed',
         progress: 100,
-        logs: [`[错误] 提纯分析失败: ${error.message}`]
+        logs: [`[閿欒] 鎻愮函鍒嗘瀽澶辫触: ${error.message}`]
       });
     }
   });
 });// ==========================================
-// 清空今日配额与当日新增词条（生词本日清）
+// 娓呯┖浠婃棩閰嶉涓庡綋鏃ユ柊澧炶瘝鏉★紙鐢熻瘝鏈棩娓咃級
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
   const { userId = 'default-user' } = req.body;
@@ -5206,8 +5175,7 @@ app.post('/api/english/clear-today', (req, res) => {
 });
 
 // ==========================================
-// 多角色沙盘：English_Oral_Sandbox v10 时间 inputs 注入（与前端 profileHelper 对齐）
-// ==========================================
+// 澶氳鑹叉矙鐩橈細English_Oral_Sandbox v10 鏃堕棿 inputs 娉ㄥ叆锛堜笌鍓嶇 profileHelper 瀵归綈锛?// ==========================================
 function getOralSystemFormattedTime() {
   const now = new Date();
   const formatter = new Intl.DateTimeFormat('zh-CN', {
@@ -5222,7 +5190,7 @@ function getOralSystemFormattedTime() {
   });
   const parts = formatter.formatToParts(now);
   const val = (type) => parts.find((p) => p.type === type)?.value || '';
-  const weekdayMap = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  const weekdayMap = ['鏄熸湡鏃?, '鏄熸湡涓€', '鏄熸湡浜?, '鏄熸湡涓?, '鏄熸湡鍥?, '鏄熸湡浜?, '鏄熸湡鍏?];
   return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${weekdayMap[now.getDay()]}`;
 }
 
@@ -5234,7 +5202,7 @@ function injectOralSystemTime(inputs = {}) {
   if (base._system_timestamp_ms == null || base._system_timestamp_ms === '') {
     base._system_timestamp_ms = Date.now();
   }
-  if (!base.theme) base.theme = '商务谈判：让步与施压';
+  if (!base.theme) base.theme = '鍟嗗姟璋堝垽锛氳姝ヤ笌鏂藉帇';
   if (!base.genre) base.genre = 'meeting';
   if (!base.cefr_level) base.cefr_level = 'B1';
   if (!base.duration) base.duration = '15';
@@ -5242,8 +5210,7 @@ function injectOralSystemTime(inputs = {}) {
 }
 
 // ==========================================
-// 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow）
-// API Key 仅保存在服务端 DIFY_ORAL_API_KEY
+// 澶氳鑹叉矙鐩橈細涓诲璇濅唬鐞嗭紙English_Oral_Sandbox Chatflow锛?// API Key 浠呬繚瀛樺湪鏈嶅姟绔?DIFY_ORAL_API_KEY
 // ==========================================
 app.post('/api/english/oral/chat', async (req, res) => {
   const {
@@ -5254,7 +5221,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
   } = req.body || {};
 
   if (!query || typeof query !== 'string') {
-    return res.status(400).json({ message: '缺少 query 参数。' });
+    return res.status(400).json({ message: '缂哄皯 query 鍙傛暟銆? });
   }
 
   const apiKey = process.env.DIFY_ORAL_API_KEY
@@ -5288,13 +5255,12 @@ app.post('/api/english/oral/chat', async (req, res) => {
     return res.json(data);
   } catch (err) {
     console.error('[oral/chat] error:', err);
-    return res.status(500).json({ message: err.message || '口语沙盘对话代理失败' });
+    return res.status(500).json({ message: err.message || '鍙ｈ娌欑洏瀵硅瘽浠ｇ悊澶辫触' });
   }
 });
 
 // ==========================================
-// 多角色沙盘：破绽识别判定（走 English_Oral_Sandbox Chatflow）
-// API Key: DIFY_ORAL_API_KEY / VITE_DIFY_ORAL_API_KEY（与口语沙盘主对话相同）
+// 澶氳鑹叉矙鐩橈細鐮寸唤璇嗗埆鍒ゅ畾锛堣蛋 English_Oral_Sandbox Chatflow锛?// API Key: DIFY_ORAL_API_KEY / VITE_DIFY_ORAL_API_KEY锛堜笌鍙ｈ娌欑洏涓诲璇濈浉鍚岋級
 // ==========================================
 app.post('/api/english/breakthrough/submit', async (req, res) => {
   const {
@@ -5308,13 +5274,13 @@ app.post('/api/english/breakthrough/submit', async (req, res) => {
   } = req.body || {};
 
   if (!selectedText || !type) {
-    return res.status(400).json({ correct: false, feedback: '缺少划词内容或破绽类型。' });
+    return res.status(400).json({ correct: false, feedback: '缂哄皯鍒掕瘝鍐呭鎴栫牬缁界被鍨嬨€? });
   }
 
   const typeLabels = {
-    logic: '逻辑破绽',
-    fact: '事实矛盾',
-    intent: '意图避重',
+    logic: '閫昏緫鐮寸唤',
+    fact: '浜嬪疄鐭涚浘',
+    intent: '鎰忓浘閬块噸',
   };
 
   const apiKey = process.env.DIFY_ORAL_API_KEY
@@ -5324,18 +5290,15 @@ app.post('/api/english/breakthrough/submit', async (req, res) => {
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
 
-  const query = `[系统指令：破绽识别判定 — 仅输出 JSON，不要 Markdown]
-场景：${sceneTitle || '多角色沙盘'}
-消息ID：${messageId || 'unknown'}
-用户划词：${String(selectedText).slice(0, 500)}
-用户标记类型：${typeLabels[type] || type}
-AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
+  const query = `[绯荤粺鎸囦护锛氱牬缁借瘑鍒垽瀹?鈥?浠呰緭鍑?JSON锛屼笉瑕?Markdown]
+鍦烘櫙锛?{sceneTitle || '澶氳鑹叉矙鐩?}
+娑堟伅ID锛?{messageId || 'unknown'}
+鐢ㄦ埛鍒掕瘝锛?{String(selectedText).slice(0, 500)}
+鐢ㄦ埛鏍囪绫诲瀷锛?{typeLabels[type] || type}
+AI 鍩嬭鐮寸唤锛坒law_point锛夛細${String(flawPoint).slice(0, 800)}
 
-判定规则：
-1. 用户划词是否覆盖或指向 flaw_point 中的关键矛盾片段；
-2. 用户选择的破绽类型（logic/fact/intent）是否与 flaw_point 描述的谬误类型一致。
-
-只输出一行合法 JSON：{"correct":true或false,"feedback":"不超过80字的中文说明"}`;
+鍒ゅ畾瑙勫垯锛?1. 鐢ㄦ埛鍒掕瘝鏄惁瑕嗙洊鎴栨寚鍚?flaw_point 涓殑鍏抽敭鐭涚浘鐗囨锛?2. 鐢ㄦ埛閫夋嫨鐨勭牬缁界被鍨嬶紙logic/fact/intent锛夋槸鍚︿笌 flaw_point 鎻忚堪鐨勮艾璇被鍨嬩竴鑷淬€?
+鍙緭鍑轰竴琛屽悎娉?JSON锛歿"correct":true鎴杅alse,"feedback":"涓嶈秴杩?0瀛楃殑涓枃璇存槑"}`;
 
   try {
     const response = await fetch(`${baseUrl}/chat-messages`, {
@@ -5346,7 +5309,7 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
       },
       body: JSON.stringify({
         inputs: injectOralSystemTime({
-          scene_title: sceneTitle || '多角色沙盘',
+          scene_title: sceneTitle || '澶氳鑹叉矙鐩?,
           role_judgement: type,
           intent_judgement: 'breakthrough_audit',
         }),
@@ -5362,7 +5325,7 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
       console.error('[breakthrough/submit] Dify error:', response.status, data);
       return res.status(response.status).json({
         correct: false,
-        feedback: data.message || data.error || `Dify 判定失败 (${response.status})`,
+        feedback: data.message || data.error || `Dify 鍒ゅ畾澶辫触 (${response.status})`,
       });
     }
 
@@ -5381,34 +5344,34 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
     if (parsed && typeof parsed.correct === 'boolean') {
       return res.json({
         correct: parsed.correct,
-        feedback: String(parsed.feedback || (parsed.correct ? '破绽标记正确。' : '破绽类型不匹配。')),
+        feedback: String(parsed.feedback || (parsed.correct ? '鐮寸唤鏍囪姝ｇ‘銆? : '鐮寸唤绫诲瀷涓嶅尮閰嶃€?)),
       });
     }
 
-    // Dify 未返回 JSON 时做本地回退
+    // Dify 鏈繑鍥?JSON 鏃跺仛鏈湴鍥為€€
     const flaw = String(flawPoint).toLowerCase();
     const selection = String(selectedText).toLowerCase();
     const typeKeywords = {
-      logic: ['causal', 'fallacy', 'overgeneral', 'equivalence', 'logic', '因果', '以偏概全', '虚假'],
-      fact: ['contradict', 'vague', 'data', 'fact', 'factual_vague', '矛盾', '模糊', '数据'],
-      intent: ['evad', 'avoid', 'shift', 'intent', 'intent_evade', '避重', '推诿', '转移'],
+      logic: ['causal', 'fallacy', 'overgeneral', 'equivalence', 'logic', '鍥犳灉', '浠ュ亸姒傚叏', '铏氬亣'],
+      fact: ['contradict', 'vague', 'data', 'fact', 'factual_vague', '鐭涚浘', '妯＄硦', '鏁版嵁'],
+      intent: ['evad', 'avoid', 'shift', 'intent', 'intent_evade', '閬块噸', '鎺ㄨ', '杞Щ'],
     };
     const typeMatch = (typeKeywords[type] || []).some((kw) => flaw.includes(kw));
     const textOverlap = selection.length >= 3 && (
       flaw.includes(selection.slice(0, Math.min(20, selection.length)))
       || selection.split(/\s+/).some((w) => w.length > 4 && flaw.includes(w))
     );
-    const correct = Boolean(flaw && flaw !== '未识别到破绽' && (typeMatch || textOverlap));
+    const correct = Boolean(flaw && flaw !== '鏈瘑鍒埌鐮寸唤' && (typeMatch || textOverlap));
 
     return res.json({
       correct,
       feedback: correct
-        ? '已识别破绽（本地回退判定），请用英语发起针对性提问。'
-        : '标记与 AI 埋设破绽不匹配，请重新划词。',
+        ? '宸茶瘑鍒牬缁斤紙鏈湴鍥為€€鍒ゅ畾锛夛紝璇风敤鑻辫鍙戣捣閽堝鎬ф彁闂€?
+        : '鏍囪涓?AI 鍩嬭鐮寸唤涓嶅尮閰嶏紝璇烽噸鏂板垝璇嶃€?,
     });
   } catch (err) {
     console.error('[breakthrough/submit] error:', err);
-    return res.status(500).json({ correct: false, feedback: '破绽判定服务异常，请稍后重试。' });
+    return res.status(500).json({ correct: false, feedback: '鐮寸唤鍒ゅ畾鏈嶅姟寮傚父锛岃绋嶅悗閲嶈瘯銆? });
   }
 });
 
@@ -5422,7 +5385,7 @@ const extractionTasks = new Map();
 setInterval(() => {
   const now = Date.now();
   for (const [taskId, task] of extractionTasks.entries()) {
-    if (now - task.createdAt > 2 * 60 * 60 * 1000) { // 超过2小时清理
+    if (now - task.createdAt > 2 * 60 * 60 * 1000) { // 瓒呰繃2灏忔椂娓呯悊
       extractionTasks.delete(taskId);
     }
   }
@@ -5462,8 +5425,7 @@ const handleGetDailyExtractArticle = (req, res) => {
     if (rawUserId === 'lzhmy') userIds.push('lzhumy');
     if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
-    // L1: 与生成同源重算 history/flaws/profile（前端可只传 theme）
-    let historyExclude = String(req.query.historyExclude || '').trim();
+    // L1: 涓庣敓鎴愬悓婧愰噸绠?history/flaws/profile锛堝墠绔彲鍙紶 theme锛?    let historyExclude = String(req.query.historyExclude || '').trim();
     let userFlaws = String(req.query.userFlaws || '').trim();
     const userCurrentProfile = String(
       req.query.userCurrentProfile
@@ -5499,8 +5461,8 @@ const handleGetDailyExtractArticle = (req, res) => {
           const extra = JSON.parse(session.extra_json);
           const ef = extra.englishFoundation || {};
           const flaws = [];
-          if (ef.pronunciationNotes) flaws.push(`发音问题: ${ef.pronunciationNotes}`);
-          if (ef.grammarNotes) flaws.push(`语法问题: ${ef.grammarNotes}`);
+          if (ef.pronunciationNotes) flaws.push(`鍙戦煶闂: ${ef.pronunciationNotes}`);
+          if (ef.grammarNotes) flaws.push(`璇硶闂: ${ef.grammarNotes}`);
           userFlaws = flaws.join('; ');
         }
       } catch (_) {}
@@ -5624,8 +5586,7 @@ const handleGetDailyExtractArticle = (req, res) => {
 app.get('/api/english/daily-extract/article', handleGetDailyExtractArticle);
 app.get('/api/english/daily-extract/article/exact', handleGetDailyExtractArticle);
 
-// 前台发起 daily-extract 生成请求，创建 taskId 后异步后台运行
-app.post('/api/english/daily-extract', async (req, res) => {
+// 鍓嶅彴鍙戣捣 daily-extract 鐢熸垚璇锋眰锛屽垱寤?taskId 鍚庡紓姝ュ悗鍙拌繍琛?app.post('/api/english/daily-extract', async (req, res) => {
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
 
@@ -5739,7 +5700,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       }
       historyExclude = [...new Set(allKeywords)].slice(0, 30).join(', ');
     } catch (e) {
-      console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
+      console.warn('[Daily Extract] 鏋勫缓鍘婚噸涓婁笅鏂囧け璐?', e.message);
     }
 
     let userFlaws = '';
@@ -5754,12 +5715,12 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         const extra = JSON.parse(session.extra_json);
         const ef = extra.englishFoundation || {};
         const flaws = [];
-        if (ef.pronunciationNotes) flaws.push(`发音问题: ${ef.pronunciationNotes}`);
-        if (ef.grammarNotes) flaws.push(`语法问题: ${ef.grammarNotes}`);
+        if (ef.pronunciationNotes) flaws.push(`鍙戦煶闂: ${ef.pronunciationNotes}`);
+        if (ef.grammarNotes) flaws.push(`璇硶闂: ${ef.grammarNotes}`);
         userFlaws = flaws.join('; ');
       }
     } catch (e) {
-      console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
+      console.warn('[Daily Extract] 鏋勫缓钖勫急鐐逛笂涓嬫枃澶辫触:', e.message);
     }
 
     const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
@@ -5767,7 +5728,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 
     let wfResponse;
     const fetchController = new AbortController();
-    const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000); // 10分钟超时
+    const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000); // 10鍒嗛挓瓒呮椂
 
     try {
       wfResponse = await fetch(`${baseUrl}/chat-messages`, {
@@ -5797,8 +5758,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       clearTimeout(fetchTimeout);
     } catch (fetchErr) {
       clearTimeout(fetchTimeout);
-      console.error("[Daily Extract] Dify fetch 请求发起失败:", fetchErr);
-      extractionTasks.set(taskId, { status: 'failed', error: `Dify 服务请求失败: ${fetchErr.message}`, createdAt: Date.now() });
+      console.error("[Daily Extract] Dify fetch 璇锋眰鍙戣捣澶辫触:", fetchErr);
+      extractionTasks.set(taskId, { status: 'failed', error: `Dify 鏈嶅姟璇锋眰澶辫触: ${fetchErr.message}`, createdAt: Date.now() });
       return;
     }
 
@@ -5855,8 +5816,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             parseSSELines(chunk);
           }
         } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          console.error("[Daily Extract] 寮鸿璇诲彇娴佸け璐?", readErr);
+          extractionTasks.set(taskId, { status: 'failed', error: `鏁版嵁娴佽鍙栧紓甯? ${readErr.message}`, createdAt: Date.now() });
           return;
         }
       } else {
@@ -5866,8 +5827,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             parseSSELines(chunkText);
           }
         } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          console.error("[Daily Extract] 寮鸿璇诲彇娴佸け璐?", readErr);
+          extractionTasks.set(taskId, { status: 'failed', error: `鏁版嵁娴佽鍙栧紓甯? ${readErr.message}`, createdAt: Date.now() });
           return;
         }
       }
@@ -5916,7 +5877,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     if (!articleText.trim()) {
       extractionTasks.set(taskId, {
         status: 'failed',
-        error: formatDifyModelError(answer || 'Dify 流式响应为空，未生成长文正文'),
+        error: formatDifyModelError(answer || 'Dify 娴佸紡鍝嶅簲涓虹┖锛屾湭鐢熸垚闀挎枃姝ｆ枃'),
         createdAt: Date.now(),
       });
       return;
@@ -5985,7 +5946,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         sentenceList.push(...item.examples);
       }
       const w = item.word ? item.word.trim() : '';
-      const isSentenceHeuristic = w.length > 30 && (/[.!?。！？]$/.test(w) || w.split(' ').length >= 5);
+      const isSentenceHeuristic = w.length > 30 && (/[.!?銆傦紒锛焆$/.test(w) || w.split(' ').length >= 5);
       
       if (item.is_sentence || isSentenceHeuristic) {
         sentenceList.push(item.word);
@@ -6000,7 +5961,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         const text = typeof p === 'string' ? p : (p.phrase || p.phrase_text || p.sentence || p.text || "");
         if (text) {
            const cleanText = text.trim();
-           const isSentenceHeuristic = cleanText.length > 30 && (/[.!?。！？]$/.test(cleanText) || cleanText.split(' ').length >= 5);
+           const isSentenceHeuristic = cleanText.length > 30 && (/[.!?銆傦紒锛焆$/.test(cleanText) || cleanText.split(' ').length >= 5);
            if (isSentenceHeuristic || p.is_sentence) {
              sentenceList.push(cleanText);
            } else {
@@ -6110,7 +6071,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         JSON.stringify(wordsToStore.map(w => w.word))
       );
     } catch (e) {
-      console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
+      console.warn('[Daily Extract] 鏋勫缓鍘婚噸涓婁笅鏂囧け璐?', e.message);
     }
 
     console.log(`[Daily Extract Async] Completed ${taskId}. User ${userId} ${today} added ${wordsAddedCount} words.`);
@@ -6137,8 +6098,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       sentencesAddedCount
     };
 
-    // 保存至 daily_extracted_articles 物理持久库
-    try {
+    // 淇濆瓨鑷?daily_extracted_articles 鐗╃悊鎸佷箙搴?    try {
       const artId = crypto.randomUUID();
       const durationVal = requestBody?.duration ? String(requestBody.duration) : (duration ? String(duration) : '25');
       const profileForSig = String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || '').trim();
@@ -6186,17 +6146,17 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         extracted_phrases_json: JSON.stringify(phrasesToStore),
       };
 
-      // 即时联动：前台重新生成长文时，后台同步更新并重新合成该组合的精听 .mp3 音频 (Option A)
+      // 鍗虫椂鑱斿姩锛氬墠鍙伴噸鏂扮敓鎴愰暱鏂囨椂锛屽悗鍙板悓姝ユ洿鏂板苟閲嶆柊鍚堟垚璇ョ粍鍚堢殑绮惧惉 .mp3 闊抽 (Option A)
       (async () => {
         try {
           await dailyListenPreGenerateService.syncAudioFromLongArticleRow(db, savedArtRow, 'manual');
         } catch (syncAudioErr) {
-          console.warn('[Daily Extract] 即时同步精听音频警告:', syncAudioErr.message);
+          console.warn('[Daily Extract] 鍗虫椂鍚屾绮惧惉闊抽璀﹀憡:', syncAudioErr.message);
         }
-      })().catch(e => console.error('[Daily Extract] 精听音频同步异常:', e));
+      })().catch(e => console.error('[Daily Extract] 绮惧惉闊抽鍚屾寮傚父:', e));
 
     } catch (dbSaveErr) {
-      console.warn('[Daily Extract] 保存 daily_extracted_articles 失败 (非阻塞):', dbSaveErr.message);
+      console.warn('[Daily Extract] 淇濆瓨 daily_extracted_articles 澶辫触 (闈為樆濉?:', dbSaveErr.message);
     }
 
     extractionTasks.set(taskId, {
@@ -6234,16 +6194,15 @@ app.put('/api/user/theme', (req, res) => {
 app.post('/api/user/login-ping', (req, res) => {
   try {
     const userId = req.body?.userId;
-    const theme = req.body?.theme || '商务谈判：让步与施压';
+    const theme = req.body?.theme || '鍟嗗姟璋堝垽锛氳姝ヤ笌鏂藉帇';
     if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
 
-    // 1. 记录登录日志
+    // 1. 璁板綍鐧诲綍鏃ュ織
     const result = dailyListenPreGenerateService.recordUserLogin(db, userId);
 
-    // 2. 自动将前台用户输入的用户名与其主题写入 user_theme_prefs 物理表
-    dailyPackService.upsertUserTheme(db, userId, theme);
+    // 2. 鑷姩灏嗗墠鍙扮敤鎴疯緭鍏ョ殑鐢ㄦ埛鍚嶄笌鍏朵富棰樺啓鍏?user_theme_prefs 鐗╃悊琛?    dailyPackService.upsertUserTheme(db, userId, theme);
 
-    // N1: 登录不再触发异步补跑；缺包由手动生成或 02:00 cron 负责
+    // N1: 鐧诲綍涓嶅啀瑙﹀彂寮傛琛ヨ窇锛涚己鍖呯敱鎵嬪姩鐢熸垚鎴?02:00 cron 璐熻矗
     res.json({ success: true, catchupScheduled: false, ...result });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -6253,17 +6212,16 @@ app.post('/api/user/login-ping', (req, res) => {
 app.get('/api/daily-pack/today', (req, res) => {
   try {
     const rawUserId = req.query.userId || 'default-user';
-    const theme = String(req.query.theme || '商务谈判：让步与施压').trim();
+    const theme = String(req.query.theme || '鍟嗗姟璋堝垽锛氳姝ヤ笌鏂藉帇').trim();
     const historyExclude = String(req.query.historyExclude || '').trim();
     const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
 
-    // 兼顾账号别名
+    // 鍏奸【璐﹀彿鍒悕
     const userIds = [rawUserId];
     if (rawUserId === 'lzhmy') userIds.push('lzhumy');
     if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
-    // 自动保障前台用户及其选择的主题写入 user_theme_prefs 物理表
-    try {
+    // 鑷姩淇濋殰鍓嶅彴鐢ㄦ埛鍙婂叾閫夋嫨鐨勪富棰樺啓鍏?user_theme_prefs 鐗╃悊琛?    try {
       if (theme) {
         for (const u of userIds) dailyPackService.upsertUserTheme(db, u, theme);
       }
@@ -6278,7 +6236,7 @@ app.get('/api/daily-pack/today', (req, res) => {
       if (row) break;
     }
 
-    // 仅返回当前用户（含别名）缓存；不再回退 default-user
+    // 浠呰繑鍥炲綋鍓嶇敤鎴凤紙鍚埆鍚嶏級缂撳瓨锛涗笉鍐嶅洖閫€ default-user
     res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
     console.error('[Daily Pack Today]', error);
@@ -6300,7 +6258,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
     const resolvedTheme = String(theme || pref?.theme || '').trim();
     if (!resolvedTheme) {
-      return res.status(400).json({ success: false, error: '请先选择并同步学习主题' });
+      return res.status(400).json({ success: false, error: '璇峰厛閫夋嫨骞跺悓姝ュ涔犱富棰? });
     }
 
     const resolvedHistoryExclude = String(historyExclude || dailyPackService.getHistoryExclude(db) || '').trim();
@@ -6317,7 +6275,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     const existingWakeup = existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null;
     const existingFlaw = existing?.flaw_vocab_json ? JSON.parse(existing.flaw_vocab_json) : null;
 
-    // 立刻落 generating 并返回，Dify 在后台跑，避免长连接占满浏览器/Nginx
+    // 绔嬪埢钀?generating 骞惰繑鍥烇紝Dify 鍦ㄥ悗鍙拌窇锛岄伩鍏嶉暱杩炴帴鍗犳弧娴忚鍣?Nginx
     const pending = dailyPackService.upsertDailyPack(db, {
       userId: uid,
       packDate,
@@ -6472,7 +6430,7 @@ app.post('/api/dify/run-english-mastery', (req, res) => {
     success: true,
     message: "Successfully initiated training session (Mock).",
     topic: topic,
-    result: { scene: "模拟测试局", content: "这是仿真系统返回的训练数据..." }
+    result: { scene: "妯℃嫙娴嬭瘯灞€", content: "杩欐槸浠跨湡绯荤粺杩斿洖鐨勮缁冩暟鎹?.." }
   });
 });
 
@@ -6483,14 +6441,14 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
   const { targetText, recognizedText, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!targetText) {
-    return res.status(400).json({ success: false, error: '缺少目标文本 (targetText)' });
+    return res.status(400).json({ success: false, error: '缂哄皯鐩爣鏂囨湰 (targetText)' });
   }
 
   try {
     const difyApiKey = process.env.DIFY_PRONUNCIATION_API_KEY;
     if (!difyApiKey) {
-      console.error('缺少 DIFY_PRONUNCIATION_API_KEY 环境变量');
-      return res.status(500).json({ success: false, error: '服务端未配置发音纠正 API Key' });
+      console.error('缂哄皯 DIFY_PRONUNCIATION_API_KEY 鐜鍙橀噺');
+      return res.status(500).json({ success: false, error: '鏈嶅姟绔湭閰嶇疆鍙戦煶绾犳 API Key' });
     }
 
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
@@ -6513,12 +6471,12 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Dify 发音纠正请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
+      console.error('Dify 鍙戦煶绾犳璇锋眰澶辫触:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 璇锋眰澶辫触: ${response.status} - ${errText}` });
     }
 
     const data = await response.json();
-    console.log('Dify 原始返回:', JSON.stringify(data, null, 2));
+    console.log('Dify 鍘熷杩斿洖:', JSON.stringify(data, null, 2));
 
     // ???????????? - ??????????????????????? JSON
     const outputs = data?.data?.outputs ?? {};
@@ -6526,7 +6484,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
     const score = typeof outputs.score === 'number' ? outputs.score : 0;
     const phonetic = typeof outputs.phonetic === 'string' ? outputs.phonetic : '';
     const issueType = typeof outputs.issue_type === 'string' ? outputs.issue_type : 'other';
-    const analysis = typeof outputs.analysis === 'string' ? outputs.analysis : '评测完成';
+    const analysis = typeof outputs.analysis === 'string' ? outputs.analysis : '璇勬祴瀹屾垚';
     const suggestion = typeof outputs.suggestion === 'string' ? outputs.suggestion : '';
 
     res.json({
@@ -6536,13 +6494,13 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
       issueType,
       analysis,
       suggestion,
-      correctionNote: `${analysis}銆?{suggestion}`,
+      correctionNote: `${analysis}閵?{suggestion}`,
       target_text: targetText,
       recognized_text: recognizedText || '',
     });
   } catch (err) {
-    console.error('发音纠正 API 异常:', err);
-    res.status(500).json({ success: false, error: '发音纠正服务异常' });
+    console.error('鍙戦煶绾犳 API 寮傚父:', err);
+    res.status(500).json({ success: false, error: '鍙戦煶绾犳鏈嶅姟寮傚父' });
   }
 });
 
@@ -6554,7 +6512,7 @@ app.post('/api/grammar-polish', async (req, res) => {
   const { originalText, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!originalText) {
-    return res.status(400).json({ success: false, error: '缺少原始文本 (originalText)' });
+    return res.status(400).json({ success: false, error: '缂哄皯鍘熷鏂囨湰 (originalText)' });
   }
 
   try {
@@ -6580,31 +6538,31 @@ app.post('/api/grammar-polish', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Dify 发音纠正请求失败:', response.status, errText);
+      console.error('Dify 鍙戦煶绾犳璇锋眰澶辫触:', response.status, errText);
       let errorMsg = errText;
       try {
         const errObj = JSON.parse(errText);
         if (errObj.code === "not_chat_app") {
-           errorMsg = "Dify 工作流配置错误: 请使用 workflow 模式的 API 路径 (/workflows/run)";
+           errorMsg = "Dify 宸ヤ綔娴侀厤缃敊璇? 璇蜂娇鐢?workflow 妯″紡鐨?API 璺緞 (/workflows/run)";
         }
       } catch(e) {}
 
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errorMsg}` });
+      return res.status(response.status).json({ success: false, error: `Dify 璇锋眰澶辫触: ${response.status} - ${errorMsg}` });
     }
 
     const data = await response.json();
-    console.log('Dify 原始返回:', JSON.stringify(data, null, 2));
+    console.log('Dify 鍘熷杩斿洖:', JSON.stringify(data, null, 2));
 
     // ?? Grammar_Polish_Engine.yml ??????????????????????????????????????polished_result
-    const polishedText = data?.data?.outputs?.polished_result || '未获取到润色结果，请检查工作流配置。';
+    const polishedText = data?.data?.outputs?.polished_result || '鏈幏鍙栧埌娑﹁壊缁撴灉锛岃妫€鏌ュ伐浣滄祦閰嶇疆銆?;
 
     res.json({
       success: true,
       polishedText
     });
   } catch (err) {
-    console.error('发音纠正 API 异常:', err);
-    res.status(500).json({ success: false, error: '发音纠正服务异常' });
+    console.error('鍙戦煶绾犳 API 寮傚父:', err);
+    res.status(500).json({ success: false, error: '鍙戦煶绾犳鏈嶅姟寮傚父' });
   }
 });
 
@@ -6627,32 +6585,31 @@ app.post('/api/game-theory/analyze', async (req, res) => {
   } = req.body;
 
   if (!case_text || !user_answer) {
-    return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
+    return res.status(400).json({ success: false, error: '鏈帴鏀跺埌鏈夋晥鏂囦欢鏁版嵁' });
   }
 
   const normalizedSource = source_type === 'simulation' ? 'simulation' : 'case_analysis';
-  const titleBase = String(title || '').trim() || (normalizedSource === 'simulation' ? '人机对战沙盘' : '博弈案例研判');
+  const titleBase = String(title || '').trim() || (normalizedSource === 'simulation' ? '浜烘満瀵规垬娌欑洏' : '鍗氬紙妗堜緥鐮斿垽');
   const taskTitle = normalizedSource === 'simulation'
-    ? `人机对战: ${titleBase.slice(0, 40)}`
-    : `博弈研判: ${titleBase.slice(0, 40)}`;
+    ? `浜烘満瀵规垬: ${titleBase.slice(0, 40)}`
+    : `鍗氬紙鐮斿垽: ${titleBase.slice(0, 40)}`;
 
   const taskQueue = require('./services/taskQueue');
   const task = taskQueue.createTask('game_theory', taskTitle);
   taskQueue.updateTask(task.id, {
     status: 'running',
     progress: 10,
-    logs: ['任务已提交，请在任务中心查看进度'],
+    logs: ['浠诲姟宸叉彁浜わ紝璇峰湪浠诲姟涓績鏌ョ湅杩涘害'],
   });
 
-  // 立即返回 taskId，后台异步执行（复用现有 TaskContext 轮询）
-  res.json({ success: true, taskId: task.id, status: task.status });
+  // 绔嬪嵆杩斿洖 taskId锛屽悗鍙板紓姝ユ墽琛岋紙澶嶇敤鐜版湁 TaskContext 杞锛?  res.json({ success: true, taskId: task.id, status: task.status });
 
   (async () => {
     try {
       const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
       const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接博弈模型 (Dify)...'] });
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['姝ｅ湪杩炴帴鍗氬紙妯″瀷 (Dify)...'] });
 
       const response = await fetch(`${baseUrl}/workflows/run`, {
         method: 'POST',
@@ -6676,16 +6633,16 @@ app.post('/api/game-theory/analyze', async (req, res) => {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error('Dify 博弈分析请求失败:', response.status, errText);
+        console.error('Dify 鍗氬紙鍒嗘瀽璇锋眰澶辫触:', response.status, errText);
         taskQueue.updateTask(task.id, {
           status: 'failed',
-          error: `Dify 请求失败: ${response.status} - ${errText}`,
+          error: `Dify 璇锋眰澶辫触: ${response.status} - ${errText}`,
         });
         return;
       }
 
       const data = await response.json();
-      taskQueue.updateTask(task.id, { progress: 80, logs: ['正在解析研判结果...'] });
+      taskQueue.updateTask(task.id, { progress: 80, logs: ['姝ｅ湪瑙ｆ瀽鐮斿垽缁撴灉...'] });
 
       const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
       const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
@@ -6694,10 +6651,10 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       try {
         parsedResult = JSON.parse(cleanJson);
       } catch (e) {
-        console.error('解析 Dify 返回的 JSON 失败:', e, rawResult);
+        console.error('瑙ｆ瀽 Dify 杩斿洖鐨?JSON 澶辫触:', e, rawResult);
         taskQueue.updateTask(task.id, {
           status: 'failed',
-          error: '博弈研判结果格式异常，无法解析 JSON',
+          error: '鍗氬紙鐮斿垽缁撴灉鏍煎紡寮傚父锛屾棤娉曡В鏋?JSON',
         });
         return;
       }
@@ -6705,7 +6662,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
         const proto = parsedResult.prototype_archive;
         const protoName = proto.name.trim();
-        const protoType = proto.type || '未分类';
+        const protoType = proto.type || '鏈垎绫?;
         const protoDesc = proto.description || '';
 
         const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, protoName);
@@ -6751,7 +6708,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,
-        logs: ['已写入对局历史'],
+        logs: ['宸插啓鍏ュ灞€鍘嗗彶'],
         result: {
           historyId,
           sourceType: normalizedSource,
@@ -6759,16 +6716,16 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         },
       });
     } catch (err) {
-      console.error('博弈引擎分析异常:', err);
+      console.error('鍗氬紙寮曟搸鍒嗘瀽寮傚父:', err);
       taskQueue.updateTask(task.id, {
         status: 'failed',
-        error: '博弈分析引擎异常: ' + (err.message || String(err)),
+        error: '鍗氬紙鍒嗘瀽寮曟搸寮傚父: ' + (err.message || String(err)),
       });
     }
   })();
 });
 
-// 对局历史列表
+// 瀵瑰眬鍘嗗彶鍒楄〃
 app.get('/api/game-theory/history', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
@@ -6805,19 +6762,18 @@ app.get('/api/game-theory/history', (req, res) => {
 
     res.json({ success: true, items });
   } catch (err) {
-    console.error('获取对局历史失败:', err);
-    res.status(500).json({ success: false, error: '对局历史查询失败' });
+    console.error('鑾峰彇瀵瑰眬鍘嗗彶澶辫触:', err);
+    res.status(500).json({ success: false, error: '瀵瑰眬鍘嗗彶鏌ヨ澶辫触' });
   }
 });
 
-// 对局历史详情（含完整结果）
-app.get('/api/game-theory/history/:id', (req, res) => {
+// 瀵瑰眬鍘嗗彶璇︽儏锛堝惈瀹屾暣缁撴灉锛?app.get('/api/game-theory/history/:id', (req, res) => {
   try {
     const row = db.prepare(`
       SELECT * FROM game_theory_history WHERE id = ?
     `).get(req.params.id);
     if (!row) {
-      return res.status(404).json({ success: false, error: '历史记录不存在' });
+      return res.status(404).json({ success: false, error: '鍘嗗彶璁板綍涓嶅瓨鍦? });
     }
     let causal_chain = [];
     let full_result = null;
@@ -6841,8 +6797,8 @@ app.get('/api/game-theory/history/:id', (req, res) => {
       },
     });
   } catch (err) {
-    console.error('获取对局历史详情失败:', err);
-    res.status(500).json({ success: false, error: '对局历史详情查询失败' });
+    console.error('鑾峰彇瀵瑰眬鍘嗗彶璇︽儏澶辫触:', err);
+    res.status(500).json({ success: false, error: '瀵瑰眬鍘嗗彶璇︽儏鏌ヨ澶辫触' });
   }
 });
 
@@ -6876,26 +6832,25 @@ function parseBiweeklyReviewXml(rawText) {
     const intensify = inner.match(/<intensify_modules>([\s\S]*?)<\/intensify_modules>/);
     const focus = inner.match(/<new_focus_areas>([\s\S]*?)<\/new_focus_areas>/);
     if (pause?.[1]?.trim()) {
-      trainingAdjustment.pauseModules = pause[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      trainingAdjustment.pauseModules = pause[1].split(/[,锛?锛沒/).map((s) => s.trim()).filter(Boolean);
     }
     if (intensify?.[1]?.trim()) {
-      trainingAdjustment.intensifyModules = intensify[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      trainingAdjustment.intensifyModules = intensify[1].split(/[,锛?锛沒/).map((s) => s.trim()).filter(Boolean);
     }
     if (focus?.[1]?.trim()) {
-      trainingAdjustment.newFocusAreas = focus[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      trainingAdjustment.newFocusAreas = focus[1].split(/[,锛?锛沒/).map((s) => s.trim()).filter(Boolean);
     }
   }
 
   return {
     analysis: (analysisMatch ? analysisMatch[1] : text).trim(),
-    shortDebilitatingFactors: (factorsMatch ? factorsMatch[1] : '缺乏开创力').trim(),
+    shortDebilitatingFactors: (factorsMatch ? factorsMatch[1] : '缂轰箯寮€鍒涘姏').trim(),
     difficultyAdjustment,
     trainingAdjustment,
   };
 }
 
-// 两周一度的专属复盘与弱点扫描（Biweekly Review Workflow）
-app.post('/api/biweekly-review/analyze', async (req, res) => {
+// 涓ゅ懆涓€搴︾殑涓撳睘澶嶇洏涓庡急鐐规壂鎻忥紙Biweekly Review Workflow锛?app.post('/api/biweekly-review/analyze', async (req, res) => {
   const {
     practicalTest,
     goalAlignment,
@@ -6906,7 +6861,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
   } = req.body || {};
 
   if (!practicalTest || !goalAlignment || !weaknessScan || !tacticalDispatch) {
-    return res.status(400).json({ success: false, error: '请完整填写四个维度的复盘表单。' });
+    return res.status(400).json({ success: false, error: '璇峰畬鏁村～鍐欏洓涓淮搴︾殑澶嶇洏琛ㄥ崟銆? });
   }
 
   try {
@@ -6942,7 +6897,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify biweekly review error:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 复盘工作流失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 澶嶇洏宸ヤ綔娴佸け璐? ${response.status}` });
     }
 
     const data = await response.json();
@@ -6952,7 +6907,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
     res.json({ success: true, ...parsed });
   } catch (err) {
     console.error('Biweekly review proxy error:', err);
-    res.status(500).json({ success: false, error: '复盘分析代理失败: ' + err.message });
+    res.status(500).json({ success: false, error: '澶嶇洏鍒嗘瀽浠ｇ悊澶辫触: ' + err.message });
   }
 });
 
@@ -6977,12 +6932,12 @@ function parseWeeklyChatEnhancedXml(rawText) {
     const generalFocus = pushBlock.match(/<general_focus>([\s\S]*?)<\/general_focus>/)?.[1]?.trim();
 
     if (yuxin) {
-      nextWeekPush.yuxinGameTheory = yuxin.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      nextWeekPush.yuxinGameTheory = yuxin.split(/[,锛?锛沒/).map((s) => s.trim()).filter(Boolean);
     }
     if (oralScenario) {
       nextWeekPush.oralSandbox = {
         scenario: oralScenario,
-        roles: oralRoles || '我 + 业务助攻 + 施压方 + 关键决策人',
+        roles: oralRoles || '鎴?+ 涓氬姟鍔╂敾 + 鏂藉帇鏂?+ 鍏抽敭鍐崇瓥浜?,
         focus: oralFocus || oralScenario,
         difficulty: oralDifficulty ? Number(oralDifficulty) : 4,
       };
@@ -6991,27 +6946,26 @@ function parseWeeklyChatEnhancedXml(rawText) {
       nextWeekPush.impromptuSpeech = {
         topic: impromptuTopic,
         targetLevels: impromptuLevels
-          ? impromptuLevels.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean)
+          ? impromptuLevels.split(/[,锛?锛沒/).map((s) => s.trim()).filter(Boolean)
           : [],
-        format: '结构化即兴表达',
+        format: '缁撴瀯鍖栧嵆鍏磋〃杈?,
       };
     }
     if (generalFocus) {
-      nextWeekPush.generalFocus = generalFocus.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      nextWeekPush.generalFocus = generalFocus.split(/[,锛?锛沒/).map((s) => s.trim()).filter(Boolean);
     }
   }
 
   return {
     analysis: pick('analysis') || text.trim(),
-    nextWeekPreview: pick('preview') || '已为您重组下周训练课表',
+    nextWeekPreview: pick('preview') || '宸蹭负鎮ㄩ噸缁勪笅鍛ㄨ缁冭琛?,
     nextWeekPush,
     coreThemes: pick('core_themes'),
     profileFactors: pick('profile_factors') || pick('factors') || '',
   };
 }
 
-// 每周夜话增强工作流（Weekly Chat Enhanced Workflow）
-app.post('/api/weekly-chat/enhanced', async (req, res) => {
+// 姣忓懆澶滆瘽澧炲己宸ヤ綔娴侊紙Weekly Chat Enhanced Workflow锛?app.post('/api/weekly-chat/enhanced', async (req, res) => {
   const {
     userText,
     selectedDirections,
@@ -7020,7 +6974,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
   } = req.body || {};
 
   if (!userText || typeof userText !== 'string') {
-    return res.status(400).json({ success: false, error: '缺少心智投喂文本。' });
+    return res.status(400).json({ success: false, error: '缂哄皯蹇冩櫤鎶曞杺鏂囨湰銆? });
   }
 
   try {
@@ -7056,7 +7010,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify weekly chat enhanced error:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 夜话工作流失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 澶滆瘽宸ヤ綔娴佸け璐? ${response.status}` });
     }
 
     const data = await response.json();
@@ -7066,7 +7020,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
     res.json({ success: true, ...parsed });
   } catch (err) {
     console.error('Weekly chat enhanced proxy error:', err);
-    res.status(500).json({ success: false, error: '夜话增强代理失败: ' + err.message });
+    res.status(500).json({ success: false, error: '澶滆瘽澧炲己浠ｇ悊澶辫触: ' + err.message });
   }
 });
 
@@ -7074,7 +7028,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
 app.post('/api/game-theory/ascension', async (req, res) => {
   const { event_text, layers, dimension, user_current_profile, userId = 'default-user' } = req.body;
   if (!event_text || !Array.isArray(layers) || layers.length < 5) {
-    return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
+    return res.status(400).json({ success: false, error: '璇峰畬鎴愯嚦灏?5 灞傚洜鏋滄帹婕斿悗鍐嶆彁浜? });
   }
   try {
     const difyApiKey = process.env.VITE_DIFY_COGNITIVE_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
@@ -7100,8 +7054,8 @@ app.post('/api/game-theory/ascension', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error('Dify 发音纠正请求失败:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 请求失败: ${response.status} - ${errText}` });
+      console.error('Dify 鍙戦煶绾犳璇锋眰澶辫触:', response.status, errText);
+      return res.status(response.status).json({ success: false, error: `Dify 璇锋眰澶辫触: ${response.status} - ${errText}` });
     }
 
     const data = await response.json();
@@ -7112,14 +7066,14 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     try {
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
-      console.error('解析 Dify 升维引擎返回的 JSON 失败:', e, raw);
-      return res.status(500).json({ success: false, error: '升维研判结果格式异常，无法解析 JSON' });
+      console.error('瑙ｆ瀽 Dify 鍗囩淮寮曟搸杩斿洖鐨?JSON 澶辫触:', e, raw);
+      return res.status(500).json({ success: false, error: '鍗囩淮鐮斿垽缁撴灉鏍煎紡寮傚父锛屾棤娉曡В鏋?JSON' });
     }
 
     res.json({ success: true, result: parsedResult });
   } catch (err) {
-    console.error('博弈引擎分析异常:', err);
-    res.status(500).json({ success: false, error: '博弈分析引擎异常: ' + err.message });
+    console.error('鍗氬紙寮曟搸鍒嗘瀽寮傚父:', err);
+    res.status(500).json({ success: false, error: '鍗氬紙鍒嗘瀽寮曟搸寮傚父: ' + err.message });
   }
 });
 
@@ -7184,8 +7138,7 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 // ????? 404
 
 /**
- * TTS 网关错误（外部 TTS 服务不可达时抛出）
- */
+ * TTS 缃戝叧閿欒锛堝閮?TTS 鏈嶅姟涓嶅彲杈炬椂鎶涘嚭锛? */
 class TtsGatewayError extends Error {
   constructor(message) {
     super(message);
@@ -7195,8 +7148,7 @@ class TtsGatewayError extends Error {
 }
 
 /**
- * 解析 edge-tts 可执行命令（支持 EDGE_TTS_BIN、~/.local/bin、python3 -m edge_tts）
- */
+ * 瑙ｆ瀽 edge-tts 鍙墽琛屽懡浠わ紙鏀寔 EDGE_TTS_BIN銆亊/.local/bin銆乸ython3 -m edge_tts锛? */
 function getEdgeTtsCommand() {
   if (process.env.EDGE_TTS_BIN) {
     const parts = process.env.EDGE_TTS_BIN.trim().split(/\s+/);
@@ -7210,11 +7162,9 @@ function getEdgeTtsCommand() {
 }
 
 /**
- * 本地 Edge TTS：调用 edge-tts CLI 或 python3 -m edge_tts 生成 MP3
- * @param {string} text 待合成文本
- * @param {string} voice 语音名
- * @param {AbortSignal|null} signal
- * @returns {Promise<Buffer>} MP3 数据
+ * 鏈湴 Edge TTS锛氳皟鐢?edge-tts CLI 鎴?python3 -m edge_tts 鐢熸垚 MP3
+ * @param {string} text 寰呭悎鎴愭枃鏈? * @param {string} voice 璇煶鍚? * @param {AbortSignal|null} signal
+ * @returns {Promise<Buffer>} MP3 鏁版嵁
  */
 async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   const { execFile } = require('child_process');
@@ -7226,13 +7176,12 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   const tmpMediaFile = path.join(os.tmpdir(), `edge_tts_${tmpId}.mp3`);
   const tmpTextFile = path.join(os.tmpdir(), `edge_tts_${tmpId}.txt`);
   
-  // 将极长的文本写入临时文件，防止命令行因过长或包含特殊字符报错
+  // 灏嗘瀬闀跨殑鏂囨湰鍐欏叆涓存椂鏂囦欢锛岄槻姝㈠懡浠よ鍥犺繃闀挎垨鍖呭惈鐗规畩瀛楃鎶ラ敊
   fs.writeFileSync(tmpTextFile, text, 'utf8');
 
   return new Promise((resolve, reject) => {
     const args = [...prefixArgs, '--voice', voice, '--file', tmpTextFile, '--write-media', tmpMediaFile];
-    // edge-tts 超时默认 10 分钟（登录补跑仅 1 分钟稿；可用 TTS_EDGE_TIMEOUT_MS 覆盖）
-    const edgeTimeoutMs = Number(process.env.TTS_EDGE_TIMEOUT_MS || 600000);
+    // edge-tts 瓒呮椂榛樿 10 鍒嗛挓锛堢櫥褰曡ˉ璺戜粎 1 鍒嗛挓绋匡紱鍙敤 TTS_EDGE_TIMEOUT_MS 瑕嗙洊锛?    const edgeTimeoutMs = Number(process.env.TTS_EDGE_TIMEOUT_MS || 600000);
     const proc = execFile(command, args, { timeout: edgeTimeoutMs }, (err) => {
       if (fs.existsSync(tmpTextFile)) fs.unlinkSync(tmpTextFile);
       if (err) {
@@ -7244,10 +7193,10 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
         fs.unlinkSync(tmpMediaFile);
         resolve(data);
       } catch (readErr) {
-        reject(new Error(`音频读取失败: ${readErr.message}`));
+        reject(new Error(`闊抽璇诲彇澶辫触: ${readErr.message}`));
       }
     });
-    // 处理外部 signal 打断
+    // 澶勭悊澶栭儴 signal 鎵撴柇
     if (signal) {
       signal.addEventListener('abort', () => {
         proc.kill();
@@ -7341,12 +7290,11 @@ function formatTtsFetchError(err) {
 }
 
 /**
- * 核心：分块合成并按序追加写入磁盘（流式写入，避免大内存峰值）
- * @param {string} cleanInput 已清洗文本
- * @param {string} finalModel TTS 模型
- * @param {string} audioPath 目标 mp3 文件路径
- * @param {string|null} taskId 异步任务ID，传入则更新进度
- * @param {AbortSignal|null} signal 可选的 AbortSignal
+ * 鏍稿績锛氬垎鍧楀悎鎴愬苟鎸夊簭杩藉姞鍐欏叆纾佺洏锛堟祦寮忓啓鍏ワ紝閬垮厤澶у唴瀛樺嘲鍊硷級
+ * @param {string} cleanInput 宸叉竻娲楁枃鏈? * @param {string} finalModel TTS 妯″瀷
+ * @param {string} audioPath 鐩爣 mp3 鏂囦欢璺緞
+ * @param {string|null} taskId 寮傛浠诲姟ID锛屼紶鍏ュ垯鏇存柊杩涘害
+ * @param {AbortSignal|null} signal 鍙€夌殑 AbortSignal
  */
 async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId = null, signal = null) {
   const chunkCacheDir = audioPath + '.chunks';
@@ -7356,7 +7304,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   const ttsUpstreamUrls = getTtsUpstreamUrls();
   const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
-  const gatewayFailed = { value: false }; // 标记是否走了本地 fallback
+  const gatewayFailed = { value: false }; // 鏍囪鏄惁璧颁簡鏈湴 fallback
   const preferEdgeTts = finalModel.startsWith('edge-tts/');
 
   // ?????????????????????? 2000 ??????????????????????????????????
@@ -7412,10 +7360,10 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     // ?????????????
     fs.rmSync(chunkCacheDir, { recursive: true, force: true });
     if (taskQueue && taskId) {
-      taskQueue.updateTask(taskId, { progress: 100, logs: ['全部片段已完成（从缓存恢复）'] });
+      taskQueue.updateTask(taskId, { progress: 100, logs: ['鍏ㄩ儴鐗囨宸插畬鎴愶紙浠庣紦瀛樻仮澶嶏級'] });
     }
     if (!isValidCachedAudio(audioPath)) {
-      throw new Error('从缓存合并后音频文件无效（0 字节）');
+      throw new Error('浠庣紦瀛樺悎骞跺悗闊抽鏂囦欢鏃犳晥锛? 瀛楄妭锛?);
     }
     return;
   }
@@ -7439,7 +7387,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
       if (taskQueue && taskId) {
         taskQueue.updateTask(taskId, {
           progress: Math.round((nextWrite / total) * 100),
-          logs: [`分块 ${nextWrite}/${total} 已写入`]
+          logs: [`鍒嗗潡 ${nextWrite}/${total} 宸插啓鍏]
         });
       }
     }
@@ -7454,7 +7402,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         flush();
       }
       if (taskQueue && taskId) {
-        taskQueue.updateTask(taskId, { logs: [`分块 ${idx + 1}/${total} 从缓存恢复`] });
+        taskQueue.updateTask(taskId, { logs: [`鍒嗗潡 ${idx + 1}/${total} 浠庣紦瀛樻仮澶峘] });
       }
       continue;
     }
@@ -7477,7 +7425,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           } catch (edgeErr) {
             console.warn('[TTS] edge-tts primary failed, trying upstream:', edgeErr.message);
             if (taskQueue && taskId) {
-              taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 本地 edge-tts 失败，尝试上游网关...`] });
+              taskQueue.updateTask(taskId, { logs: [`绗?${attempt} 娆? 鏈湴 edge-tts 澶辫触锛屽皾璇曚笂娓哥綉鍏?..`] });
             }
           }
         }
@@ -7515,14 +7463,13 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           pendingMap.set(idx, chunkData);
           flush();
           lastErr = null;
-          break; // 合成成功，跳出重试
-        }
+          break; // 鍚堟垚鎴愬姛锛岃烦鍑洪噸璇?        }
 
         // 502/504 ????????? -> ??????? Edge TTS ???????????
         if (r.status === 502 || r.status === 504) {
           console.warn(`[TTS] Gateway error ${r.status}, trying fallback...`);
           if (taskQueue && taskId) {
-            taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 网关错误 ${r.status}，尝试备用合成...`] });
+            taskQueue.updateTask(taskId, { logs: [`绗?${attempt} 娆? 缃戝叧閿欒 ${r.status}锛屽皾璇曞鐢ㄥ悎鎴?..`] });
           }
           try {
             const fallbackResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
@@ -7534,9 +7481,9 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           } catch (fallbackErr) {
             console.error('[TTS] Fallback failed:', fallbackErr.message);
             if (taskQueue && taskId) {
-              taskQueue.updateTask(taskId, { logs: [`备用合成失败: ${fallbackErr.message}`] });
+              taskQueue.updateTask(taskId, { logs: [`澶囩敤鍚堟垚澶辫触: ${fallbackErr.message}`] });
             }
-            lastErr = new TtsGatewayError(`主服务 ${r.status}，备用合成也失败: ${fallbackErr.message}`);
+            lastErr = new TtsGatewayError(`涓绘湇鍔?${r.status}锛屽鐢ㄥ悎鎴愪篃澶辫触: ${fallbackErr.message}`);
             continue;
           }
         }
@@ -7553,7 +7500,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000);
         if (taskQueue && taskId) {
           taskQueue.updateTask(taskId, {
-            logs: [`分块 ${idx + 1}/${total} 第${attempt}次失败，${Math.round(delay/1000)}秒后重试...`]
+            logs: [`鍒嗗潡 ${idx + 1}/${total} 绗?{attempt}娆″け璐ワ紝${Math.round(delay/1000)}绉掑悗閲嶈瘯...`]
           });
         }
         await new Promise(r => setTimeout(r, delay));
@@ -7563,7 +7510,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     if (lastErr) {
       // ????????????????????
       fs.rmSync(chunkCacheDir, { recursive: true, force: true });
-      throw new Error(`分块 ${idx + 1}/${total} 合成失败: ${lastErr?.message}`);
+      throw new Error(`鍒嗗潡 ${idx + 1}/${total} 鍚堟垚澶辫触: ${lastErr?.message}`);
     }
   }
 
@@ -7571,7 +7518,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   fs.rmSync(chunkCacheDir, { recursive: true, force: true });
 
   if (!isValidCachedAudio(audioPath)) {
-    throw new Error('合成完成但音频文件无效（0 字节）');
+    throw new Error('鍚堟垚瀹屾垚浣嗛煶棰戞枃浠舵棤鏁堬紙0 瀛楄妭锛?);
   }
   } catch (err) {
     removeInvalidCachedAudio(audioPath);
@@ -7586,7 +7533,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 
 global.synthesizeAndSaveAudio = synthesizeAndSaveAudio;
 
-/** C1: 与 daily-extract 相同的 mastery 调用；只解析词表，不覆盖 listen 正文 */
+/** C1: 涓?daily-extract 鐩稿悓鐨?mastery 璋冪敤锛涘彧瑙ｆ瀽璇嶈〃锛屼笉瑕嗙洊 listen 姝ｆ枃 */
 async function extractVocabFromListenArticle({
   body,
   theme,
@@ -7599,7 +7546,7 @@ async function extractVocabFromListenArticle({
     || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY
     || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  // body 仅用于校验有正文；mastery 与 daily-extract 一样靠 theme/genre/cefr/duration 生成并带 VOCAB_JSON
+  // body 浠呯敤浜庢牎楠屾湁姝ｆ枃锛沵astery 涓?daily-extract 涓€鏍烽潬 theme/genre/cefr/duration 鐢熸垚骞跺甫 VOCAB_JSON
   if (!String(body || '').trim()) {
     console.warn('[DailyListen] extractVocab skip: empty body');
     return { vocab: [], phrases: [], sentences: [] };
@@ -7618,7 +7565,7 @@ async function extractVocabFromListenArticle({
       signal: fetchController.signal,
       body: JSON.stringify({
         inputs: injectOralSystemTime({
-          theme: theme || '商务谈判：让步与施压',
+          theme: theme || '鍟嗗姟璋堝垽锛氳姝ヤ笌鏂藉帇',
           cefr_level: cefr_level || 'B1',
           genre: genre || 'meeting',
           duration: String(duration || '1'),
@@ -7645,7 +7592,7 @@ async function extractVocabFromListenArticle({
   const vocabN = Array.isArray(parsed.vocab) ? parsed.vocab.length : 0;
   const phraseN = Array.isArray(parsed.phrases) ? parsed.phrases.length : 0;
   const sentN = Array.isArray(parsed.sentences) ? parsed.sentences.length : 0;
-  // C2: 空结果明确打点，便于对照 mastery 是否吐出 VOCAB_JSON
+  // C2: 绌虹粨鏋滄槑纭墦鐐癸紝渚夸簬瀵圭収 mastery 鏄惁鍚愬嚭 VOCAB_JSON
   if (vocabN === 0 && phraseN === 0) {
     const hasMarker = /---VOCAB_JSON_START---/i.test(answer || '');
     console.warn(
@@ -7688,15 +7635,15 @@ app.post('/api/tts/speech', async (req, res) => {
     if (!input) return res.status(400).json({ error: 'Missing input text' });
 
     const finalModel = model || 'edge-tts/en-US-EmmaNeural';
-    // 移除 Emoji
+    // 绉婚櫎 Emoji
     let cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
     cleanInput = sanitizeListenMaterialScript(cleanInput);
     
-    // 针对纯英文 TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩溃 (NoAudioReceived)
+    // 閽堝绾嫳鏂?TTS 妯″瀷锛岃繃婊ゆ帀涓枃瀛楃鍙婂叏瑙掓爣鐐癸紝閬垮厤 edge-tts 閬囧埌鏃犳硶鍙戦煶鐨勫瓧绗﹀穿婧?(NoAudioReceived)
     if (finalModel.includes('/en-') || finalModel.startsWith('en-')) {
       cleanInput = cleanInput.replace(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g, '').trim();
       
-      // 熔断机制：如果过滤后没有任何有效字母或数字，直接返回空音频，防止 edge-tts 读空气报错 500
+      // 鐔旀柇鏈哄埗锛氬鏋滆繃婊ゅ悗娌℃湁浠讳綍鏈夋晥瀛楁瘝鎴栨暟瀛楋紝鐩存帴杩斿洖绌洪煶棰戯紝闃叉 edge-tts 璇荤┖姘旀姤閿?500
       if (!/[a-zA-Z0-9]/.test(cleanInput)) {
         return res.json({ success: true, audioId: 'empty', audioUrl: null, duration: 0 });
       }
@@ -7729,31 +7676,31 @@ app.post('/api/tts/speech', async (req, res) => {
         return res.status(429).json({
           success: false,
           code: 'TTS_LOCKED',
-          message: '当前有音频正在合成中，请稍后再试（预计 3~10 分钟）'
+          message: '褰撳墠鏈夐煶棰戞鍦ㄥ悎鎴愪腑锛岃绋嶅悗鍐嶈瘯锛堥璁?3~10 鍒嗛挓锛?
         });
       }
       ttsLongLock = true;
 
       const taskQueue = require('./services/taskQueue');
-      const task = taskQueue.createTask('tts', `高保真音频合成 (${cleanInput.length}字符)`);
+      const task = taskQueue.createTask('tts', `楂樹繚鐪熼煶棰戝悎鎴?(${cleanInput.length}瀛楃)`);
 
       // ?????????????? try/catch ???? res.json??????????????????????????
       try {
         res.json({ success: true, taskId: task.id, status: 'pending', audioUrl: null });
       } catch (e) {
         ttsLongLock = false;
-        return; // 客户端已断开
+        return; // 瀹㈡埛绔凡鏂紑
       }
 
       // ?????????setImmediate ???????????????????? Express ????
       setImmediate(async () => {
         try {
-          taskQueue.updateTask(task.id, { status: 'running', logs: [`开始异步合成，总字符: ${cleanInput.length}`] });
+          taskQueue.updateTask(task.id, { status: 'running', logs: [`寮€濮嬪紓姝ュ悎鎴愶紝鎬诲瓧绗? ${cleanInput.length}`] });
           await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, task.id);
           taskQueue.updateTask(task.id, {
             status: 'completed', progress: 100,
             result: { audioId: md5, audioUrl },
-          logs: ['音频合成完成']
+          logs: ['闊抽鍚堟垚瀹屾垚']
           });
         } catch (err) {
           console.error('[TTS Async] Failed:', err);
@@ -7785,10 +7732,10 @@ app.post('/api/tts/speech', async (req, res) => {
       return res.status(502).json({
         success: false,
         code: error.code,
-        message: '语音合成服务暂不可用，请稍后重试'
+        message: '璇煶鍚堟垚鏈嶅姟鏆備笉鍙敤锛岃绋嶅悗閲嶈瘯'
       });
     }
-    if (error.message && error.message.includes('当前有音频正在合成')) {
+    if (error.message && error.message.includes('褰撳墠鏈夐煶棰戞鍦ㄥ悎鎴?)) {
       return res.status(429).json({
         success: false,
         code: 'TTS_LOCKED',
@@ -7798,7 +7745,7 @@ app.post('/api/tts/speech', async (req, res) => {
     res.status(500).json({
       success: false,
       code: 'TTS_INTERNAL_ERROR',
-      message: error.message || '语音合成内部错误'
+      message: error.message || '璇煶鍚堟垚鍐呴儴閿欒'
     });
   }
 });
@@ -7811,7 +7758,7 @@ app.get('/api/tts/task/:id', (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.getTask(req.params.id);
     if (!task) {
-      return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+      return res.status(404).json({ success: false, error: '浠诲姟涓嶅瓨鍦ㄦ垨宸茶繃鏈? });
     }
 
     // ?????????????????? URL
@@ -7830,7 +7777,7 @@ app.get('/api/tts/task/:id', (req, res) => {
       return res.json({
         success: true,
         status: 'failed',
-        error: task.error || '未知错误',
+        error: task.error || '鏈煡閿欒',
         logs: task.logs
       });
     }
@@ -7855,7 +7802,7 @@ app.post('/api/materials/fetch-url', async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: url' });
+      return res.status(400).json({ success: false, error: '缂哄皯蹇呰鍙傛暟: url' });
     }
 
     const { fetchUrlContent } = require('./services/webFetcher');
@@ -7888,7 +7835,7 @@ app.post('/api/materials/upload-chunk', upload.single('chunk'), async (req, res)
     const file = req.file;
 
     if (!uploadId || chunkIndex === undefined || !file) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, chunkIndex 或 chunk' });
+      return res.status(400).json({ success: false, error: '缂哄皯蹇呰鍙傛暟: uploadId, chunkIndex 鎴?chunk' });
     }
 
     const sessionDir = path.join(chunkDir, uploadId);
@@ -7913,12 +7860,12 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     const { uploadId, fileName, language = 'auto', subtitle = '', totalChunks } = req.body;
 
     if (!uploadId || !fileName || !totalChunks) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, fileName 或 totalChunks' });
+      return res.status(400).json({ success: false, error: '缂哄皯蹇呰鍙傛暟: uploadId, fileName 鎴?totalChunks' });
     }
 
     const sessionDir = path.join(chunkDir, uploadId);
     if (!fs.existsSync(sessionDir)) {
-    return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
+    return res.status(400).json({ success: false, error: '鏈帴鏀跺埌鏈夋晥鏂囦欢鏁版嵁' });
     }
 
     // ??????????????????????????????????????
@@ -7927,11 +7874,10 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     const finalFilePath = path.join(uploadDir, finalFileName);
 
     // ??? appendFileSync ?????????
-    fs.writeFileSync(finalFilePath, ''); // 创建或清空文件
-    for (let i = 0; i < totalChunks; i++) {
+    fs.writeFileSync(finalFilePath, ''); // 鍒涘缓鎴栨竻绌烘枃浠?    for (let i = 0; i < totalChunks; i++) {
       const chunkPath = path.join(sessionDir, String(i));
       if (!fs.existsSync(chunkPath)) {
-        return res.status(400).json({ success: false, error: `合并失败: 缺少第 ${i} 块分片` });
+        return res.status(400).json({ success: false, error: `鍚堝苟澶辫触: 缂哄皯绗?${i} 鍧楀垎鐗嘸 });
       }
       const data = fs.readFileSync(chunkPath);
       fs.appendFileSync(finalFilePath, data);
@@ -7948,7 +7894,7 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     const { startTranscribeTask } = require('./services/videoTranscriber');
 
     // ??????????????
-    const taskName = `上传视频(分片): ${fileName}`;
+    const taskName = `涓婁紶瑙嗛(鍒嗙墖): ${fileName}`;
     const task = taskQueue.createTask('video', taskName);
 
     // ??????????????????? HTTP ?????
@@ -7976,7 +7922,7 @@ app.post('/api/materials/upload-direct', upload.single('video'), (req, res) => {
   try {
     const file = req.file;
     if (!file) {
-    return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
+    return res.status(400).json({ success: false, error: '鏈帴鏀跺埌鏈夋晥鏂囦欢鏁版嵁' });
     }
 
     // ????????????????????????????????????????????????
@@ -8008,14 +7954,14 @@ app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) 
     const file = req.file;
     
     if (!url && !file) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或上传 video 文件' });
+      return res.status(400).json({ success: false, error: '缂哄皯蹇呰鍙傛暟: 蹇呴』鎻愪緵 url 鎴栦笂浼?video 鏂囦欢' });
     }
 
     const taskQueue = require('./services/taskQueue');
     const { startTranscribeTask } = require('./services/videoTranscriber');
 
     // ??????????????
-    const taskName = url ? `网页视频: ${url}` : `上传视频: ${file.originalname || '未命名视频'}`;
+    const taskName = url ? `缃戦〉瑙嗛: ${url}` : `涓婁紶瑙嗛: ${file.originalname || '鏈懡鍚嶈棰?}`;
     const task = taskQueue.createTask('video', taskName);
 
     // ??????????????????? HTTP ?????
@@ -8054,7 +8000,7 @@ app.get('/api/tasks/:taskId', (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.getTask(req.params.taskId);
     if (!task) {
-      return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+      return res.status(404).json({ success: false, error: '浠诲姟涓嶅瓨鍦ㄦ垨宸茶繃鏈? });
     }
     res.json({ success: true, ...task });
   } catch (error) {
@@ -8064,14 +8010,50 @@ app.get('/api/tasks/:taskId', (req, res) => {
 
 // Whisper ????????????? API???????????????? 9router ??????? CORS ??????????
 app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
+  let fileObj = null;        // 声明在 try 外，finally 可访问
+  let tempFilePath = null;   // 记录通过 URL 下载的临时文件路径
+
   try {
     console.log('[DEBUG STT] Files received:', req.files);
     console.log('[DEBUG STT] Body:', req.body);
-    console.log('[DEBUG STT] Headers:', req.headers);
+    console.log('[DEBUG STT] Content-Type:', req.headers['content-type']);
 
-    let fileObj = req.file;
-    if (!fileObj && req.files && req.files.length > 0) {
-      fileObj = req.files[0];
+    // ── 方案 A：JSON body 含 file_url（Dify 工作流传参方式）────────────────
+    const bodyFileUrl = req.body && (req.body.file_url || req.body.fileUrl);
+    if (bodyFileUrl) {
+      const fileName = (req.body.file_name || req.body.fileName || 'audio.mp3');
+      tempFilePath = require('path').join(os.tmpdir(), `stt-${Date.now()}-${fileName}`);
+
+      // 支持相对路径（Dify 内部文件 URL 可能是 /files/... 形式）
+      let targetUrl = bodyFileUrl;
+      if (bodyFileUrl.startsWith('/')) {
+        const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+        const origin = new URL(difyBase).origin;
+        targetUrl = origin + bodyFileUrl;
+      }
+
+      console.log('[STT URL] 正在从 Dify 下载音频文件:', targetUrl);
+      const dlRes = await fetch(targetUrl, {
+        headers: { 'Authorization': req.headers.authorization || '' }
+      });
+      if (!dlRes.ok) {
+        throw new Error(`Dify 文件下载失败: HTTP ${dlRes.status}`);
+      }
+      const buf = await dlRes.arrayBuffer();
+      fs.writeFileSync(tempFilePath, Buffer.from(buf));
+      fileObj = {
+        path: tempFilePath,
+        mimetype: dlRes.headers.get('content-type') || 'audio/mpeg',
+        originalname: fileName
+      };
+      console.log('[STT URL] 文件下载完成，大小:', buf.byteLength, 'bytes');
+    } else {
+      // ── 方案 B：multipart form-data（前端直接上传）────────────────────────
+      if (req.file) {
+        fileObj = req.file;
+      } else if (req.files && req.files.length > 0) {
+        fileObj = req.files[0];
+      }
     }
 
     if (!fileObj) {
@@ -8095,7 +8077,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
 
       for (const config of modelsToTry) {
         try {
-          console.log(`[STT Polling] 正在尝试调用接口，模型: ${config.model}`);
+          console.log(`[STT Polling] 姝ｅ湪灏濊瘯璋冪敤鎺ュ彛锛屾ā鍨? ${config.model}`);
           let response;
           let data;
 
@@ -8129,15 +8111,15 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
           }  
           if (response.ok && data && (data.text || typeof data === 'object')) {
             successData = data;
-            console.log(`[STT Polling] 模型 ${config.model} 调用成功`);
+            console.log(`[STT Polling] 妯″瀷 ${config.model} 璋冪敤鎴愬姛`);
             break;
           } else {
             const errStr = data?.error?.message || data?.error || JSON.stringify(data);
-            console.warn(`[STT Polling] 模型 ${config.model} 失败，状态码: ${response.status}, 详情: ${errStr}`);
+            console.warn(`[STT Polling] 妯″瀷 ${config.model} 澶辫触锛岀姸鎬佺爜: ${response.status}, 璇︽儏: ${errStr}`);
             lastError = new Error(`Model ${config.model} status ${response.status}: ${errStr}`);
           }
         } catch (err) {
-          console.warn(`[STT Polling] 模型 ${config.model} 请求异常:`, err.message);
+          console.warn(`[STT Polling] 妯″瀷 ${config.model} 璇锋眰寮傚父:`, err.message);
           lastError = err;
         }
       }
@@ -8145,21 +8127,26 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       if (successData) {
         return res.json(successData);
       } else {
-        console.error('[STT Polling] 所有语音转文字接口均调用失败。');
+        console.error('[STT Polling] 鎵€鏈夎闊宠浆鏂囧瓧鎺ュ彛鍧囪皟鐢ㄥけ璐ャ€?);
         return res.status(500).json({ error: 'All transcription APIs failed.', details: lastError?.message });
       }
     } else {
-      throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
+      throw new Error('鏈嶅姟鍣?Node.js 鐗堟湰杈冧綆锛屼笉鏀寔鍘熺敓鐨?FormData锛岃鍗囩骇 Node.js 鑷?18.0 鎴栨洿楂樼増鏈€?);
     }
   } catch (error) {
     console.error('Whisper 中转失败:', error);
     return res.status(500).json({ error: error.message });
   } finally {
-    if (fileObj && fileObj.path && fs.existsSync(fileObj.path)) {
-      try {
-        fs.unlinkSync(fileObj.path);
-      } catch (unlinkErr) {
-        console.warn('清理临时音频文件失败:', unlinkErr.message);
+    // 清理通过 URL 下载的临时文件
+    if (tempFilePath && fs.existsSync(tempFilePath)) {
+      try { fs.unlinkSync(tempFilePath); } catch (e) {}
+    }
+    // 清理 multipart 上传的临时文件
+    if (req.files && Array.isArray(req.files)) {
+      for (const f of req.files) {
+        if (f.path && fs.existsSync(f.path)) {
+          try { fs.unlinkSync(f.path); } catch (e) {}
+        }
       }
     }
   }

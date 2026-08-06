@@ -1,4 +1,4 @@
-app:
+﻿app:
   description: MP32text
   icon: "🤖"
   icon_background: "#FFEAD5"
@@ -210,10 +210,14 @@ workflow:
           type: no-auth
         body:
           data:
-          - id: file-upload-adio
-            key: file
-            type: file
-            value: "{{#1786003547092.adio#}}"
+          - id: file-url-field
+            key: file_url
+            type: text
+            value: "{{#1786003547092.adio.url#}}"
+          - id: file-name-field
+            key: file_name
+            type: text
+            value: "{{#1786003547092.adio.name#}}"
           type: form-data
         desc: "调用本地高精度 CPU 语音转文字 API (whisper.cpp) 进行音频转译"
         headers: ""
