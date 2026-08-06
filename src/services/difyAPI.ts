@@ -1280,7 +1280,7 @@ export async function runWriteGovernanceReview(params: {
   try {
     // 从 Dify workflow 输出中提取 analysis_result 字段
     const rawResult = data?.data?.outputs?.analysis_result ?? data?.answer ?? '';
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```$/gm, '').trim();
+    const cleanJson = extractJsonFromString(rawResult);
 
     const parsed = JSON.parse(cleanJson) as Record<string, unknown>;
 

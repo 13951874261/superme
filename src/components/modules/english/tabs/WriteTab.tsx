@@ -246,7 +246,10 @@ export default function WriteTab() {
 【训练模块】: ${moduleLabel}
 【写作意图】: ${writeIntent || '无特定意图'}
 ${activeModule === 'limit_challenge' ? `【极限挑战参数】: ${limitChallengeType === 'expand' ? '充分延展论点' : `压缩至 ${limitChallengeType.split('_')[1]} 字`}` : ''}
-${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的草稿与上述卓越文本的格式、站位、分寸进行找差与对比，并在 L2/L3 中详细指出)` : ''}
+${benchmarkText
+  ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的草稿与上述卓越文本的格式、站位、分寸进行找差与对比，并在 L2/L3 中详细指出)`
+  : `【提示】: 用户未提供特定的对标优秀文本。请根据通用的高级商务公文或政商写作标准，对用户的草稿在格式合规、逻辑结构、条理分寸以及战略站位方面进行全面的评估、打分并给出重构改写建议。`
+}
 `.trim();
 
     // 【Write Governance 集成】根据模块类型选择 Governance 或通用评测
@@ -257,7 +260,12 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
         governanceResult = await runWriteGovernanceReview({
           taskType: 'document_correction',
           originalText: writingText,
-          additionalParams: writeIntent || '',
+          additionalParams: [
+            writeIntent || '',
+            benchmarkText
+              ? `【对标卓越文本】:\n${benchmarkText}`
+              : '【提示】: 用户未提供对标文本，请按通用高级政商/公文标准进行三级批改与重构建议。',
+          ].filter(Boolean).join('\n'),
         });
       } catch (govErr) {
         console.warn('[WriteGovernance] Governance 调用失败，降级到通用评测:', govErr);
@@ -291,8 +299,16 @@ ${benchmarkText ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的
       
       // 兜底复盘数据
       const feedbackData = {
-        coreIssues: issues.length ? issues : [`草稿在“${moduleLabel}”规范下的表述细度或站位高度与对标要求仍有偏离。`],
-        nextFocus: focuses.length ? focuses : [`建议参考左侧卓越文本的典型句式和分寸感，进行精准句法移植。`]
+        coreIssues: issues.length ? issues : [
+          benchmarkText
+            ? `草稿在“${moduleLabel}”规范下的表述细度或站位高度与对标要求仍有偏离。`
+            : `草稿在“${moduleLabel}”规范下的格式合规、逻辑条理或战略站位仍有提升空间。`
+        ],
+        nextFocus: focuses.length ? focuses : [
+          benchmarkText
+            ? `建议参考左侧卓越文本的典型句式和分寸感，进行精准句法移植。`
+            : `建议按通用高级商务/政商写作标准，优先修正结构层次与关键措辞分寸。`
+        ]
       };
       setDailyFeedback(feedbackData);
       localStorage.setItem('write_daily_feedback', JSON.stringify(feedbackData));

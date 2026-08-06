@@ -4162,6 +4162,21 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 });
 
+// 辅助函数：从混杂文本中提取可 JSON.parse 的片段（```json 块或最外侧 {}）
+function extractJsonFromString(raw) {
+  const rawStr = String(raw ?? '').trim();
+  const jsonBlockMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/i);
+  if (jsonBlockMatch && jsonBlockMatch[1]) {
+    return jsonBlockMatch[1].trim();
+  }
+  const startIdx = rawStr.indexOf('{');
+  const endIdx = rawStr.lastIndexOf('}');
+  if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+    return rawStr.substring(startIdx, endIdx + 1).trim();
+  }
+  return rawStr.replace(/```json/gi, '').replace(/```/g, '').trim();
+}
+
 // ????????????????????????? (???? Dify ???????????????)
 app.post('/api/dify/write-review', async (req, res) => {
   const { user_text, mail_intent, theme, user_current_profile } = req.body;
@@ -4209,8 +4224,9 @@ app.post('/api/dify/write-review', async (req, res) => {
 
     let parsedResult;
     try {
-      const cleanJson = String(resultStr).replace(/```json/g, '').replace(/```/g, '').trim();
-      parsedResult = JSON.parse(cleanJson);
+      parsedResult = typeof resultStr === 'object' && resultStr !== null
+        ? resultStr
+        : JSON.parse(extractJsonFromString(resultStr));
     } catch (e) {
       console.error('[Write Review] 解析 result JSON 失败:', e, resultStr);
       return res.status(500).json({ success: false, error: '工作流结果解析异常，返回数据非合法 JSON' });
