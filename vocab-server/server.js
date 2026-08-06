@@ -8074,7 +8074,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
     const bodyFileUrl = req.body && (req.body.file_url || req.body.fileUrl);
     if (bodyFileUrl) {
       const fileName = req.body.file_name || req.body.fileName || 'audio.mp3';
-      tempFilePath = require('path').join(os.tmpdir(), `stt-${Date.now()}-${fileName}`);
+      tempFilePath = require('path').join(require('os').tmpdir(), `stt-${Date.now()}-${fileName}`);
 
       // 将 Dify 内部主机名替换为公网可访问域名
       const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
