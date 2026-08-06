@@ -30,6 +30,7 @@ import {
 import { runSpeakInfluenceEngine, transcribeAudioWithWhisper } from '../../services/difyAPI';
 import { playSuccessCyber, playErrorCyber, playHeartbeat, playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
 import Confetti from '../Confetti';
+import SpeakButton from '../SpeakButton';
 import { getUserCurrentProfile } from '../../utils/profileHelper';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -387,6 +388,9 @@ export default function SpeakModule() {
 
 
   const startRecording = async (e?: React.MouseEvent | React.TouchEvent) => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      return;
+    }
     recordingStartTimeRef.current = Date.now();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -466,7 +470,7 @@ export default function SpeakModule() {
         return;
       }
     }
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
@@ -1052,26 +1056,41 @@ export default function SpeakModule() {
             />
             
             <div className="absolute right-4 bottom-4 flex items-center gap-2">
-              {isRecording ? (
-                <button
-                  onClick={() => stopRecording()}
-                  onMouseUp={(e) => stopRecording(e)}
-                  onTouchEnd={(e) => stopRecording(e)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md animate-pulse"
-                >
-                  <MicOff className="w-3.5 h-3.5" /> 停止录音
-                </button>
-              ) : (
-                <button
-                  onClick={() => startRecording()}
-                  onMouseDown={(e) => startRecording(e)}
-                  onTouchStart={(e) => startRecording(e)}
-                  disabled={isUploading}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-[var(--color-brand)] text-white rounded-xl text-xs font-bold shadow-md transition-all"
-                >
-                  <Mic className="w-3.5 h-3.5" /> 语音录入
-                </button>
-              )}
+              <button
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  if (!isRecording) startRecording(e);
+                }}
+                onMouseUp={(e) => {
+                  e.preventDefault();
+                  if (isRecording) stopRecording(e);
+                }}
+                onTouchStart={(e) => {
+                  e.preventDefault();
+                  if (!isRecording) startRecording(e);
+                }}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  if (isRecording) stopRecording(e);
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (isRecording) {
+                    stopRecording();
+                  } else {
+                    startRecording();
+                  }
+                }}
+                disabled={isUploading}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer ${
+                  isRecording
+                    ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse'
+                    : 'bg-slate-900 hover:bg-[var(--color-brand)] text-white'
+                }`}
+              >
+                {isRecording ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+                {isRecording ? '停止录音' : '语音录入'}
+              </button>
             </div>
           </div>
 
@@ -1190,10 +1209,13 @@ export default function SpeakModule() {
               </div>
 
               <div>
-                <h4 className="text-xs font-black text-emerald-600 mb-2 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3.5 bg-emerald-500 rounded-full inline-block"></span>
-                  满分实战话术 (Golden Script)
-                </h4>
+                <div className="flex items-center justify-between gap-3 mb-2">
+                  <h4 className="text-xs font-black text-emerald-600 flex items-center gap-1.5">
+                    <span className="w-1.5 h-3.5 bg-emerald-500 rounded-full inline-block"></span>
+                    满分实战话术 (Golden Script)
+                  </h4>
+                  <SpeakButton text={evalResult.revisedVersion} title="播放实战话术" />
+                </div>
                 <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 relative">
                   <p className="text-slate-800 text-xs font-medium leading-relaxed font-serif italic mb-4">
                     "{evalResult.revisedVersion}"

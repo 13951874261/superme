@@ -1746,7 +1746,7 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
 
   const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
   try {
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
+    const cleanJson = extractJsonFromString(rawResult);
     return JSON.parse(cleanJson) as SpeakInfluenceResult;
   } catch (e) {
     console.error('[difyAPI] 解析教练返回的 JSON 格式失败:', e, rawResult);

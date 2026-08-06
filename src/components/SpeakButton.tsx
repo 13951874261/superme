@@ -28,8 +28,8 @@ function splitIntoSentences(text: string): string[] {
     .split(/(?<!\b(?:Mr|Ms|Mrs|Dr|Co|Ltd|Inc|e\.g|i\.e|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Assoc|Univ|Prof|Dept))(?<=[.?!])\s+|\n+/i)
     .map(s => s.trim())
     .filter(Boolean)
-    // 强制丢弃完全没有英文字母/数字的句子（比如纯中文的提示语或单纯的标点），防止它们进入播放队列
-    .filter(s => /[a-zA-Z0-9]/.test(s));
+    // 强制丢弃完全没有英文字母/数字/中文字符的句子（比如单纯的标点），防止它们进入播放队列
+    .filter(s => /[a-zA-Z0-9一-龥]/.test(s));
 }
 
 // 播放音频缓存（缓存 URL 字符串，避免复用已失效的 Audio 对象导致 416 错误）
@@ -216,10 +216,13 @@ export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' 
   const content = normalizeSpeakText(text);
   if (!content) return false;
 
-  // 安全阀：如果内容中没有任何英文字母或数字（例如纯中文或符号），直接忽略朗读请求，避免触发无效的空 TTS
-  if (!/[a-zA-Z0-9]/.test(content)) return false;
+  // 安全阀：如果内容中没有任何英文字母、数字或中文字符，直接忽略
+  if (!/[a-zA-Z0-9一-龥]/.test(content)) return false;
 
-  const voiceCode = getGlobalVoiceId();
+  const userVoiceCode = getGlobalVoiceId();
+  // 智能语言检测：如果包含中文字符，对于该段话直接使用中文女声，否则使用用户设置的声线
+  const isChinese = /[一-龥]/.test(content);
+  const voiceCode = isChinese ? 'zh-CN-XiaoxiaoNeural' : userVoiceCode;
   const model = buildTtsModel(voiceCode);
 
   // Toggle 功能：如果是相同内容正在播放，再次点击则停止播放

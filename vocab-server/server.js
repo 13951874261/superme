@@ -8075,6 +8075,7 @@ app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) =>
       const originalName = req.file.originalname || 'audio.mp3';
 
       const modelsToTry = [
+        { model: 'local/whisper-cpu', url: 'http://127.0.0.1:8080/inference' },
         { model: 'groq/whisper-large-v3', response_format: 'json' },
         { model: 'openai/whisper-1', response_format: 'json' },
         { model: 'aai/universal-3-pro' }
@@ -8086,24 +8087,37 @@ app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) =>
       for (const config of modelsToTry) {
         try {
           console.log(`[STT Polling] 正在尝试调用接口，模型: ${config.model}`);
-          const formData = new globalThis.FormData();
-          const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
-          
-          formData.append('file', blob, originalName);
-          formData.append('model', config.model);
-          if (config.response_format) {
-            formData.append('response_format', config.response_format);
-          }
+          let response;
+          let data;
 
-          const response = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
-            method: 'POST',
-            headers: {
-              'Authorization': req.headers.authorization || 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
-            },
-            body: formData,
-          });
+          if (config.model === 'local/whisper-cpu') {
+            const formData = new globalThis.FormData();
+            const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
+            formData.append('file', blob, originalName);
 
-          const data = await response.json().catch(() => ({}));
+            response = await fetch(config.url, {
+              method: 'POST',
+              body: formData,
+            });
+            data = await response.json().catch(() => ({}));
+          } else {
+            const formData = new globalThis.FormData();
+            const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
+            formData.append('file', blob, originalName);
+            formData.append('model', config.model);
+            if (config.response_format) {
+              formData.append('response_format', config.response_format);
+            }
+
+            response = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
+              method: 'POST',
+              headers: {
+                'Authorization': req.headers.authorization || 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
+              },
+              body: formData,
+            });
+            data = await response.json().catch(() => ({}));
+          }  
           if (response.ok && data && (data.text || typeof data === 'object')) {
             successData = data;
             console.log(`[STT Polling] 模型 ${config.model} 调用成功`);
