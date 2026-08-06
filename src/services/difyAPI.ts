@@ -2299,25 +2299,34 @@ export async function clearTodayQuotaAndData(userId = getAppUserId()): Promise<{
 }
 
 /**
- * 高精度语音转文字 (Whisper) 接口
+ * 语音转文字：经本站后端代理调用 Dify /audio-to-text（Key 仅存服务端）
  */
 export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = getAppUserId()): Promise<string> {
+  const mime = (audioBlob.type || '').toLowerCase();
+  const extByMime: Record<string, string> = {
+    'audio/mp3': 'mp3',
+    'audio/mpeg': 'mp3', // 官方拒 audio/mpeg；扩展名用 mp3，仍可能 415，需录制端尽量产出允许类型
+    'audio/mpga': 'mpga',
+    'audio/m4a': 'm4a',
+    'audio/wav': 'wav',
+    'audio/wave': 'wav',
+    'audio/x-wav': 'wav',
+    'audio/amr': 'amr',
+  };
+  const ext = extByMime[mime] || 'mp3';
+
   const formData = new FormData();
-  // Whisper-1 接口强制要求传递 file 字段，格式这里转换为 mp3 规范以保障兼容性
-  formData.append('file', audioBlob, 'audio.mp3');
-  // 由后端中转接口轮询确定具体的模型与参数，这里仅作为原始文件流上传
+  formData.append('file', audioBlob, `audio.${ext}`);
+  formData.append('user', userId || 'default-user');
 
   const res = await fetch('/api/audio/transcriptions', {
     method: 'POST',
-    headers: {
-      'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
-    },
     body: formData,
   });
 
   if (!res.ok) {
     const errText = await res.text().catch(() => '');
-    throw new Error(`Whisper 语音转文字失败 (${res.status}): ${errText}`);
+    throw new Error(`语音转文字失败 (${res.status}): ${errText}`);
   }
 
   const data = await res.json().catch(() => ({}));

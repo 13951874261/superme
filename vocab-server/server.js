@@ -8068,6 +8068,11 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
   let tempFilePath = null;
 
   try {
+    const sttApiKey = process.env.DIFY_STT_API_KEY;
+    if (!sttApiKey) {
+      return res.status(500).json({ error: 'Server missing DIFY_STT_API_KEY' });
+    }
+
     console.log('[DEBUG STT] Files received:', req.files);
     console.log('[DEBUG STT] Body:', req.body);
 
@@ -8088,7 +8093,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
 
       console.log('[STT URL] 正在从 Dify 下载音频文件:', targetUrl);
       const dlRes = await fetch(targetUrl, {
-        headers: { 'Authorization': req.headers.authorization || 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313' }
+        headers: { 'Authorization': `Bearer ${sttApiKey}` }
       });
       if (!dlRes.ok) {
         throw new Error(`Dify 文件下载失败: HTTP ${dlRes.status}`);
@@ -8115,80 +8120,46 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
 
     if (typeof globalThis.FormData !== 'undefined') {
       const fileBuffer = fs.readFileSync(fileObj.path);
-      const mimeType = fileObj.mimetype;
+      const mimeType = fileObj.mimetype || 'audio/mp3';
       const originalName = fileObj.originalname || 'audio.mp3';
+      const userId = (req.body && (req.body.user || req.body.userId)) || 'default-user';
 
-      const modelsToTry = [
-        { model: 'local/whisper-cpu', url: 'http://127.0.0.1:8080/inference' },
-        { model: 'groq/whisper-large-v3', response_format: 'json' },
-        { model: 'openai/whisper-1', response_format: 'json' },
-        { model: 'aai/universal-3-pro' }
-      ];
+      const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-      let lastError = null;
-      let successData = null;
+      console.log(`[STT Dify] 正在发送音频至 Dify: ${originalName}, mimetype: ${mimeType}, user: ${userId}`);
 
-      for (const config of modelsToTry) {
-        try {
-          console.log(`[STT Polling] 正在尝试调用接口，模型: ${config.model}`);
-          let response;
-          let data;
+      const formData = new globalThis.FormData();
+      const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
+      formData.append('file', blob, originalName);
+      formData.append('user', String(userId));
 
-          if (config.model === 'local/whisper-cpu') {
-            const formData = new globalThis.FormData();
-            const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
-            formData.append('file', blob, originalName);
+      const response = await fetch(`${difyBase}/audio-to-text`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${sttApiKey}`,
+        },
+        body: formData,
+      });
 
-            response = await fetch(config.url, {
-              method: 'POST',
-              body: formData,
-            });
-            data = await response.json().catch(() => ({}));
-          } else {
-            const formData = new globalThis.FormData();
-            const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
-            formData.append('file', blob, originalName);
-            formData.append('model', config.model);
-            if (config.response_format) {
-              formData.append('response_format', config.response_format);
-            }
+      const data = await response.json().catch(() => ({}));
 
-            response = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
-              method: 'POST',
-              headers: {
-                'Authorization': req.headers.authorization || 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
-              },
-              body: formData,
-            });
-            data = await response.json().catch(() => ({}));
-          }
-
-          if (response.ok && data && (data.text || typeof data === 'object')) {
-            successData = data;
-            console.log(`[STT Polling] 模型 ${config.model} 调用成功`);
-            break;
-          } else {
-            const errStr = data?.error?.message || data?.error || JSON.stringify(data);
-            console.warn(`[STT Polling] 模型 ${config.model} 失败，状态码: ${response.status}, 详情: ${errStr}`);
-            lastError = new Error(`Model ${config.model} status ${response.status}: ${errStr}`);
-          }
-        } catch (err) {
-          console.warn(`[STT Polling] 模型 ${config.model} 请求异常:`, err.message);
-          lastError = err;
-        }
+      if (!response.ok) {
+        const errStr = data?.error?.message || data?.error || JSON.stringify(data);
+        console.error(`[STT Dify] 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
+        return res.status(response.status).json(
+          typeof data === 'object' && data ? data : { error: 'Dify audio-to-text failed.' }
+        );
       }
 
-      if (successData) {
-        return res.json(successData);
-      } else {
-        console.error('[STT Polling] 所有语音转文字接口均调用失败。');
-        return res.status(500).json({ error: 'All transcription APIs failed.', details: lastError?.message });
-      }
+      console.log('[STT Dify] 接口调用成功');
+      return res.json({
+        text: typeof data.text === 'string' ? data.text.trim() : '',
+      });
     } else {
       throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
     }
   } catch (error) {
-    console.error('Whisper 中转失败:', error);
+    console.error('Dify STT 中转失败:', error);
     return res.status(500).json({ error: error.message });
   } finally {
     if (tempFilePath && fs.existsSync(tempFilePath)) {
