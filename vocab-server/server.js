@@ -8063,16 +8063,25 @@ app.get('/api/tasks/:taskId', (req, res) => {
 });
 
 // Whisper ????????????? API???????????????? 9router ??????? CORS ??????????
-app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) => {
+app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
   try {
-    if (!req.file) {
+    console.log('[DEBUG STT] Files received:', req.files);
+    console.log('[DEBUG STT] Body:', req.body);
+    console.log('[DEBUG STT] Headers:', req.headers);
+
+    let fileObj = req.file;
+    if (!fileObj && req.files && req.files.length > 0) {
+      fileObj = req.files[0];
+    }
+
+    if (!fileObj) {
       return res.status(400).json({ error: 'No audio file uploaded.' });
     }
 
     if (typeof globalThis.FormData !== 'undefined') {
-      const fileBuffer = fs.readFileSync(req.file.path);
-      const mimeType = req.file.mimetype;
-      const originalName = req.file.originalname || 'audio.mp3';
+      const fileBuffer = fs.readFileSync(fileObj.path);
+      const mimeType = fileObj.mimetype;
+      const originalName = fileObj.originalname || 'audio.mp3';
 
       const modelsToTry = [
         { model: 'local/whisper-cpu', url: 'http://127.0.0.1:8080/inference' },
@@ -8146,9 +8155,9 @@ app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) =>
     console.error('Whisper 中转失败:', error);
     return res.status(500).json({ error: error.message });
   } finally {
-    if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+    if (fileObj && fileObj.path && fs.existsSync(fileObj.path)) {
       try {
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(fileObj.path);
       } catch (unlinkErr) {
         console.warn('清理临时音频文件失败:', unlinkErr.message);
       }
