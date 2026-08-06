@@ -94,7 +94,8 @@ const THEORIES: TheoryItem[] = [
 const SCENARIOS = [
   { id: 'gov', label: '体制内职场', desc: '注重稳健、结论前置、严防越界、用语委婉探讨' },
   { id: 'mnc', label: '跨国企业 (外企)', desc: '注重效率、因果清晰、直述商业价值、用语专业直接' },
-  { id: 'social', label: '通用社交', desc: '注重情感链接、利益共存、幽默风趣、化解冲突' }
+  { id: 'social', label: '通用社交', desc: '注重情感链接、利益共存、幽默风趣、化解冲突' },
+  { id: 'custom', label: '自定义场景', desc: '输入您想演练的具体人际博弈、商务谈判或日常对话主题' }
 ];
 
 const DIMENSIONS = {
@@ -158,6 +159,7 @@ export default function SpeakModule() {
   const audioChunksRef = useRef<Blob[]>([]);
   const recognitionRef = useRef<any>(null);
   const recognitionTextRef = useRef<string>('');
+  const recordingStartTimeRef = useRef<number>(0);
 
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   const [evalResult, setEvalResult] = useState<{
@@ -309,7 +311,9 @@ export default function SpeakModule() {
     URL.revokeObjectURL(url);
   };
 
-  const generateAITopic = () => {
+  const generateAITopic = (forcedScenario?: string) => {
+    const activeScenario = forcedScenario || selectedScenario;
+
     const rType = DIMENSIONS.types[Math.floor(Math.random() * DIMENSIONS.types.length)];
     const rPurpose = DIMENSIONS.purposes[Math.floor(Math.random() * DIMENSIONS.purposes.length)];
     const rRole = DIMENSIONS.roles[Math.floor(Math.random() * DIMENSIONS.roles.length)];
@@ -323,6 +327,11 @@ export default function SpeakModule() {
     setDimStructure(rStructure);
     setDimTransparency(rTransparency);
     setDimLogic(rLogic);
+
+    if (activeScenario === 'custom') {
+      resetTimer();
+      return;
+    }
 
     const profile = getUserCurrentProfile();
     const keywords = ['直属总监', '总监', '压制', '退缩', '汇报', '口语分寸', '分寸感'];
@@ -369,7 +378,7 @@ export default function SpeakModule() {
         ]
       };
 
-      const sceneTopics = topics[selectedScenario] || topics.mnc;
+      const sceneTopics = topics[activeScenario] || topics.mnc;
       const selectedTopic = sceneTopics[Math.floor(Math.random() * sceneTopics.length)];
       setPromptTopic(selectedTopic);
     }
@@ -377,7 +386,8 @@ export default function SpeakModule() {
   };
 
 
-  const startRecording = async () => {
+  const startRecording = async (e?: React.MouseEvent | React.TouchEvent) => {
+    recordingStartTimeRef.current = Date.now();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream);
@@ -448,7 +458,14 @@ export default function SpeakModule() {
     }
   };
 
-  const stopRecording = () => {
+  const stopRecording = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e && (e.type === 'mouseup' || e.type === 'touchend')) {
+      const duration = Date.now() - recordingStartTimeRef.current;
+      if (duration < 300) {
+        // 按压时间过短则判定为普通点击意图，交由 click 事件统一处理，不执行停止
+        return;
+      }
+    }
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
@@ -811,13 +828,19 @@ export default function SpeakModule() {
             ))}
           </div>
 
-          <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             {SCENARIOS.map((scen) => (
               <button
                 key={scen.id}
                 onClick={() => {
                   setSelectedScenario(scen.id);
-                  generateAITopic();
+                  if (scen.id === 'custom') {
+                    setPromptTopic('日常 1VS1 闲聊对话：在轻松的环境下探讨周末野营或日常生活方案，我需要向 AI 陈述建议并获得针对性社交表达修饰。');
+                    setMatchedFactor('');
+                    generateAITopic(scen.id);
+                  } else {
+                    generateAITopic(scen.id);
+                  }
                 }}
                 className={`p-3 rounded-2xl border text-left transition-all ${
                   selectedScenario === scen.id 
@@ -900,15 +923,32 @@ export default function SpeakModule() {
 
           <div className="bg-slate-50 p-5 rounded-2xl border border-[var(--color-border)] relative mb-6">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider">AI 推送即兴场景</span>
+              <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider">
+                {selectedScenario === 'custom' ? '自定义演练场景' : 'AI 推送即兴场景'}
+              </span>
+              {selectedScenario === 'custom' && (
+                <span className="text-[9px] bg-indigo-50 text-indigo-600 font-black px-1.5 py-0.5 rounded border border-indigo-150 animate-pulse ml-2 mr-auto">
+                  自定义编辑模式
+                </span>
+              )}
               <button 
-                onClick={generateAITopic}
+                onClick={() => generateAITopic()}
                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1"
               >
-                <RefreshCw className="w-3.5 h-3.5" /> 换一题
+                <RefreshCw className="w-3.5 h-3.5" /> {selectedScenario === 'custom' ? '刷新维度' : '换一题'}
               </button>
             </div>
-            <p className="text-xs font-black text-slate-800 leading-relaxed">{promptTopic}</p>
+            {selectedScenario === 'custom' ? (
+              <textarea
+                rows={2}
+                value={promptTopic}
+                onChange={(e) => setPromptTopic(e.target.value)}
+                className="w-full text-xs font-black text-slate-800 bg-white border border-slate-200 rounded-xl p-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none"
+                placeholder="请输入您的自定义演练场景与角色背景..."
+              />
+            ) : (
+              <p className="text-xs font-black text-slate-800 leading-relaxed">{promptTopic}</p>
+            )}
           </div>
 
           <div className="flex items-center justify-between bg-slate-50 p-4 rounded-2xl border border-slate-100">
@@ -1014,14 +1054,18 @@ export default function SpeakModule() {
             <div className="absolute right-4 bottom-4 flex items-center gap-2">
               {isRecording ? (
                 <button
-                  onClick={stopRecording}
+                  onClick={() => stopRecording()}
+                  onMouseUp={(e) => stopRecording(e)}
+                  onTouchEnd={(e) => stopRecording(e)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md animate-pulse"
                 >
                   <MicOff className="w-3.5 h-3.5" /> 停止录音
                 </button>
               ) : (
                 <button
-                  onClick={startRecording}
+                  onClick={() => startRecording()}
+                  onMouseDown={(e) => startRecording(e)}
+                  onTouchStart={(e) => startRecording(e)}
                   disabled={isUploading}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-[var(--color-brand)] text-white rounded-xl text-xs font-bold shadow-md transition-all"
                 >
