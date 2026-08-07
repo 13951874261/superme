@@ -8124,35 +8124,104 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       const originalName = fileObj.originalname || 'audio.mp3';
       const userId = (req.body && (req.body.user || req.body.userId)) || 'default-user';
 
-// 优先尝试本地 whisper.cpp 部署的 whisper-server 服务 (127.0.0.1:8080/inference)
-      console.log(`[STT Local] 正在发送音频至本地 whisper-server: ${originalName}, mimetype: ${mimeType}`);
-      let localSuccess = false;
+// 优先调用指定的 Dify Chatflow (MP32text 工作流)
+      // apikey: app-MrSRWkapzFXkejLY4FhP1xDu, base_url: https://dify.234124123.xyz/v1
+      console.log(`[STT Chatflow] 正在将音频上传至 Dify 文件中心: ${originalName}`);
+      let chatflowSuccess = false;
       let recognizedText = '';
 
       try {
-        const localFormData = new globalThis.FormData();
-        const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
-        localFormData.append('file', localBlob, originalName);
+        const difyBaseUrl = 'https://dify.234124123.xyz/v1';
+        const chatflowApiKey = 'app-MrSRWkapzFXkejLY4FhP1xDu';
 
-        const localResponse = await fetch('http://127.0.0.1:8080/inference', {
+        // 1.1 上传音频文件
+        const uploadFormData = new globalThis.FormData();
+        const uploadBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
+        uploadFormData.append('file', uploadBlob, originalName);
+        uploadFormData.append('user', userId);
+
+        const uploadResponse = await fetch(`${difyBaseUrl}/files/upload`, {
           method: 'POST',
-          body: localFormData,
+          headers: {
+            'Authorization': `Bearer ${chatflowApiKey}`,
+          },
+          body: uploadFormData,
         });
 
-        if (localResponse.ok) {
-          const localData = await localResponse.json().catch(() => ({}));
-          recognizedText = typeof localData.text === 'string' ? localData.text.trim() : '';
-          localSuccess = true;
-          console.log('[STT Local] 本地 whisper-server 识别成功:', recognizedText);
-          return res.json({ text: recognizedText });
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          const fileId = uploadData.id;
+          console.log(`[STT Chatflow] 上传成功，文件 ID: ${fileId}，开始启动 Chatflow...`);
+
+          // 1.2 运行 Chatflow 并发送消息
+          const chatResponse = await fetch(`${difyBaseUrl}/chat-messages`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${chatflowApiKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              inputs: {
+                adio: {
+                  transfer_method: 'local_file',
+                  upload_file_id: fileId,
+                  type: 'audio'
+                }
+              },
+              query: 'start',
+              response_mode: 'blocking',
+              user: userId
+            }),
+          });
+
+          if (chatResponse.ok) {
+            const chatData = await chatResponse.json();
+            recognizedText = typeof chatData.answer === 'string' ? chatData.answer.trim() : '';
+            chatflowSuccess = true;
+            console.log('[STT Chatflow] 运行成功，得到结果:', recognizedText);
+            return res.json({ text: recognizedText });
+          } else {
+            const errBody = await chatResponse.text().catch(() => '');
+            console.warn(`[STT Chatflow] 运行 Chatflow 失败，状态码: ${chatResponse.status}, 详情: ${errBody}`);
+          }
         } else {
-          console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
+          const errBody = await uploadResponse.text().catch(() => '');
+          console.warn(`[STT Chatflow] 上传音频文件失败，状态码: ${uploadResponse.status}, 详情: ${errBody}`);
         }
-      } catch (localErr) {
-        console.warn('[STT Local] 本地 whisper-server 调用失败或未运行，将回退至 Dify STT:', localErr.message);
+      } catch (chatflowErr) {
+        console.warn('[STT Chatflow] 运行 Dify Chatflow 发生异常，将进入降级管道:', chatflowErr.message);
       }
 
-      if (!localSuccess) {
+      // 降级 1: 尝试本地 whisper.cpp 部署的 whisper-server 服务 (127.0.0.1:8080/inference)
+      let localSuccess = false;
+      if (!chatflowSuccess) {
+        console.log(`[STT Local] 正在发送音频至本地 whisper-server: ${originalName}, mimetype: ${mimeType}`);
+        try {
+          const localFormData = new globalThis.FormData();
+          const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
+          localFormData.append('file', localBlob, originalName);
+
+          const localResponse = await fetch('http://127.0.0.1:8080/inference', {
+            method: 'POST',
+            body: localFormData,
+          });
+
+          if (localResponse.ok) {
+            const localData = await localResponse.json().catch(() => ({}));
+            recognizedText = typeof localData.text === 'string' ? localData.text.trim() : '';
+            localSuccess = true;
+            console.log('[STT Local] 本地 whisper-server 识别成功:', recognizedText);
+            return res.json({ text: recognizedText });
+          } else {
+            console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
+          }
+        } catch (localErr) {
+          console.warn('[STT Local] 本地 whisper-server 调用失败或未运行，将回退至 Dify STT:', localErr.message);
+        }
+      }
+
+      // 降级 2: 退回原本 Dify 接口的 audio-to-text
+      if (!chatflowSuccess && !localSuccess) {
         const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
         console.log(`[STT Dify] 正在发送音频至 Dify: ${originalName}, mimetype: ${mimeType}, user: ${userId}`);
         const formData = new globalThis.FormData();
