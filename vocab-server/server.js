@@ -8124,37 +8124,65 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       const originalName = fileObj.originalname || 'audio.mp3';
       const userId = (req.body && (req.body.user || req.body.userId)) || 'default-user';
 
-      const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+// 优先尝试本地 whisper.cpp 部署的 whisper-server 服务 (127.0.0.1:8080/inference)
+      console.log(`[STT Local] 正在发送音频至本地 whisper-server: ${originalName}, mimetype: ${mimeType}`);
+      let localSuccess = false;
+      let recognizedText = '';
 
-      console.log(`[STT Dify] 正在发送音频至 Dify: ${originalName}, mimetype: ${mimeType}, user: ${userId}`);
+      try {
+        const localFormData = new globalThis.FormData();
+        const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
+        localFormData.append('file', localBlob, originalName);
 
-      const formData = new globalThis.FormData();
-      const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
-      formData.append('file', blob, originalName);
-      formData.append('user', String(userId));
+        const localResponse = await fetch('http://127.0.0.1:8080/inference', {
+          method: 'POST',
+          body: localFormData,
+        });
 
-      const response = await fetch(`${difyBase}/audio-to-text`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${sttApiKey}`,
-        },
-        body: formData,
-      });
-
-      const data = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        const errStr = data?.error?.message || data?.error || JSON.stringify(data);
-        console.error(`[STT Dify] 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
-        return res.status(response.status).json(
-          typeof data === 'object' && data ? data : { error: 'Dify audio-to-text failed.' }
-        );
+        if (localResponse.ok) {
+          const localData = await localResponse.json().catch(() => ({}));
+          recognizedText = typeof localData.text === 'string' ? localData.text.trim() : '';
+          localSuccess = true;
+          console.log('[STT Local] 本地 whisper-server 识别成功:', recognizedText);
+          return res.json({ text: recognizedText });
+        } else {
+          console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
+        }
+      } catch (localErr) {
+        console.warn('[STT Local] 本地 whisper-server 调用失败或未运行，将回退至 Dify STT:', localErr.message);
       }
 
-      console.log('[STT Dify] 接口调用成功');
-      return res.json({
-        text: typeof data.text === 'string' ? data.text.trim() : '',
-      });
+      if (!localSuccess) {
+        const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+        console.log(`[STT Dify] 正在发送音频至 Dify: ${originalName}, mimetype: ${mimeType}, user: ${userId}`);
+        const formData = new globalThis.FormData();
+        const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
+        formData.append('file', blob, originalName);
+        formData.append('user', String(userId));
+
+        const response = await fetch(`${difyBase}/audio-to-text`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${sttApiKey}`,
+          },
+          body: formData,
+        });
+
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          const errStr = data?.error?.message || data?.error || JSON.stringify(data);
+          console.error(`[STT Dify] 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
+          return res.status(response.status).json(
+            typeof data === 'object' && data ? data : { error: 'Dify audio-to-text failed.' }
+          );
+        }
+
+        console.log('[STT Dify] 接口调用成功');
+        return res.json({
+          text: typeof data.text === 'string' ? data.text.trim() : '',
+        });
+      }
     } else {
       throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
     }
