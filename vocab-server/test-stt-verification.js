@@ -17,31 +17,23 @@ async function runTests() {
   }
 
   // 模拟一个简易音频文件 (wav/mp3)
-  const tempWav = path.join(__dirname, 'test-temp.wav');
-  // 写入最简 WAV 头部/数据以便进行接口测试
-  const wavHeader = Buffer.alloc(44);
-  wavHeader.write('RIFF', 0);
-  wavHeader.writeUInt32LE(36, 4); // File size - 8
-  wavHeader.write('WAVE', 8);
-  wavHeader.write('fmt ', 12);
-  wavHeader.writeUInt32LE(16, 16); // Subchunk1Size
-  wavHeader.writeUInt16LE(1, 20);  // AudioFormat (PCM)
-  wavHeader.writeUInt16LE(1, 22);  // NumChannels
-  wavHeader.writeUInt32LE(8000, 24); // SampleRate
-  wavHeader.writeUInt32LE(8000 * 1 * 1, 28); // ByteRate
-  wavHeader.writeUInt16LE(1, 32);  // BlockAlign
-  wavHeader.writeUInt16LE(8, 34);  // BitsPerSample
-  wavHeader.write('data', 36);
-  wavHeader.writeUInt32LE(0, 40);  // Subchunk2Size
-  fs.writeFileSync(tempWav, wavHeader);
+  // 使用真实音频文件 test2.mp3
+  const audioPath = fs.existsSync(path.join(__dirname, 'test2.mp3'))
+    ? path.join(__dirname, 'test2.mp3')
+    : path.join(__dirname, '../test2.mp3');
+
+  if (!fs.existsSync(audioPath)) {
+    console.error('错误: 找不到真实测试音频 test2.mp3, 路径:', audioPath);
+    process.exit(1);
+  }
 
   try {
     // 1. 正常 STT 测试
     console.log('\n[测试 1] 正常 STT 代理测试...');
     const formData = new globalThis.FormData();
-    const fileBuffer = fs.readFileSync(tempWav);
-    const blob = new globalThis.Blob([fileBuffer], { type: 'audio/wav' });
-    formData.append('file', blob, 'test-temp.wav');
+    const fileBuffer = fs.readFileSync(audioPath);
+    const blob = new globalThis.Blob([fileBuffer], { type: 'audio/mp3' });
+    formData.append('file', blob, 'test2.mp3');
     formData.append('user', 'test-automation-user');
 
     const res = await fetch(`${apiBase}/api/audio/transcriptions`, {
@@ -68,9 +60,8 @@ async function runTests() {
   } catch (error) {
     console.error('测试执行中捕获到异常:', error);
   } finally {
-    if (fs.existsSync(tempWav)) {
-      fs.unlinkSync(tempWav);
-    }
+    // 无需清理真实音频文件
+  }
   }
 }
 
