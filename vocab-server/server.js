@@ -8063,6 +8063,66 @@ app.get('/api/tasks/:taskId', (req, res) => {
 });
 
 // Whisper ????????????? API???????????????? 9router ??????? CORS ??????????
+
+// 语音转译文本智能润色与纠错接口 (调用 23.95.214.232/v1)
+async function callPolishLLM(rawText) {
+  return new Promise((resolve, reject) => {
+    const https = require('https');
+    const url = 'https://23.95.214.232/v1/chat/completions';
+    const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
+    
+    const requestBody = JSON.stringify({
+      model: 'dify',
+      messages: [
+        {
+          role: 'system',
+          content: '你是一个专业的中英文语音识别（STT）原始文本智能纠错与润色助手。\n\n你的任务是纠正从语音识别接口转写出来的原始文本，使其在保持原意和口语语气的准则下，更加符合阅读习惯。\n\n请严格遵循以下规则进行处理：\n1. **自适应语言处理**：根据输入的文本语言（中文或英文），自动应用对应的语法、拼写和标点规则。如果中英文混杂，保持混杂形式并分别优化。\n2. **错别字与同音字纠正**：\n   - 英文：纠正拼写错误、单复数、时态以及发音相近的英文单词。\n   - 中文：纠正同音错别字（如将“地/的/得”用法规范化，纠正类似“报销”听成“包销”等逻辑语境错字）。\n3. **标点与分句补全**：STT 转写的文本往往缺乏标点符号。请结合上下文的停顿和语气，补充合适的标点符号（中文使用全角标点，英文使用半角标点）。\n4. **保留原意与语气**：\n   - 绝对不要重写句子。必须保留第一人称、口语化表达、叹词以及原有的情感色彩，不要强行修改为官僚化或过于书面的词汇。\n   - 适当合并因说话停顿被切碎的句子，使其通顺。\n5. **严格的输出限制**：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何前缀（例如“纠正后：”）、解释性文字、旁白说明、双引号（""）或 markdown 格式标记。'
+        },
+        {
+          role: 'user',
+          content: `原始转录文本：\n"""\n${rawText}\n"""`
+        }
+      ],
+      temperature: 0.7
+    });
+
+    const options = {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(requestBody)
+      },
+      rejectUnauthorized: false // 关键设置：忽略自签名或 IP HTTPS 证书校验
+    };
+
+    const req = https.request(url, options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          try {
+            const json = JSON.parse(data);
+            const polishedText = json.choices[0].message.content.trim();
+            resolve(polishedText);
+          } catch (e) {
+            reject(new Error(`JSON 解析失败: ${e.message}`));
+          }
+        } else {
+          reject(new Error(`LLM 接口返回错误码: ${res.statusCode}, 响应: ${data}`));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      reject(err);
+    });
+
+    req.write(requestBody);
+    req.end();
+  });
+}
+
 app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
   let fileObj = null;
   let tempFilePath = null;
@@ -8124,133 +8184,80 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       const originalName = fileObj.originalname || 'audio.mp3';
       const userId = (req.body && (req.body.user || req.body.userId)) || 'default-user';
 
-// 优先调用指定的 Dify Chatflow (MP32text 工作流)
-      // apikey: app-MrSRWkapzFXkejLY4FhP1xDu, base_url: https://dify.234124123.xyz/v1
-      console.log(`[STT Chatflow] 正在将音频上传至 Dify 文件中心: ${originalName}`);
-      let chatflowSuccess = false;
-      let recognizedText = '';
+// 2.1 优先通过本地 whisper-server 获取原始转译文本
+      let rawText = '';
+      let rawSuccess = false;
 
+      console.log(`[STT Local] 正在发送音频至本地 whisper-server 进行初步识别: ${originalName}`);
       try {
-        const difyBaseUrl = 'https://dify.234124123.xyz/v1';
-        const chatflowApiKey = 'app-MrSRWkapzFXkejLY4FhP1xDu';
+        const localFormData = new globalThis.FormData();
+        const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
+        localFormData.append('file', localBlob, originalName);
 
-        // 1.1 上传音频文件
-        const uploadFormData = new globalThis.FormData();
-        const uploadBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
-        uploadFormData.append('file', uploadBlob, originalName);
-        uploadFormData.append('user', userId);
-
-        const uploadResponse = await fetch(`${difyBaseUrl}/files/upload`, {
+        const localResponse = await fetch('http://127.0.0.1:8080/inference', {
           method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${chatflowApiKey}`,
-          },
-          body: uploadFormData,
+          body: localFormData,
         });
 
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          const fileId = uploadData.id;
-          console.log(`[STT Chatflow] 上传成功，文件 ID: ${fileId}，开始启动 Chatflow...`);
+        if (localResponse.ok) {
+          const localData = await localResponse.json().catch(() => ({}));
+          rawText = typeof localData.text === 'string' ? localData.text.trim() : '';
+          rawSuccess = true;
+          console.log('[STT Local] 本地 whisper-server 原始识别成功:', rawText);
+        } else {
+          console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
+        }
+      } catch (localErr) {
+        console.warn('[STT Local] 本地 whisper-server 调用失败，将降级使用 Dify STT:', localErr.message);
+      }
 
-          // 1.2 运行 Chatflow 并发送消息
-          const chatResponse = await fetch(`${difyBaseUrl}/chat-messages`, {
+      // 2.2 降级方案: 使用原本 Dify 接口的 audio-to-text 获取原始识别文本
+      if (!rawSuccess) {
+        const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+        console.log(`[STT Dify] 正在降级发送音频至 Dify 接口: ${originalName}`);
+        try {
+          const formData = new globalThis.FormData();
+          const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
+          formData.append('file', blob, originalName);
+          formData.append('user', String(userId));
+
+          const response = await fetch(`${difyBase}/audio-to-text`, {
             method: 'POST',
             headers: {
-              'Authorization': `Bearer ${chatflowApiKey}`,
-              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${sttApiKey}`,
             },
-            body: JSON.stringify({
-              inputs: {
-                adio: {
-                  transfer_method: 'local_file',
-                  upload_file_id: fileId,
-                  type: 'audio'
-                }
-              },
-              query: 'start',
-              response_mode: 'blocking',
-              user: userId
-            }),
+            body: formData,
           });
 
-          if (chatResponse.ok) {
-            const chatData = await chatResponse.json();
-            recognizedText = typeof chatData.answer === 'string' ? chatData.answer.trim() : '';
-            chatflowSuccess = true;
-            console.log('[STT Chatflow] 运行成功，得到结果:', recognizedText);
-            return res.json({ text: recognizedText });
+          if (response.ok) {
+            const data = await response.json().catch(() => ({}));
+            rawText = typeof data.text === 'string' ? data.text.trim() : '';
+            rawSuccess = true;
+            console.log('[STT Dify] Dify STT 原始识别成功:', rawText);
           } else {
-            const errBody = await chatResponse.text().catch(() => '');
-            console.warn(`[STT Chatflow] 运行 Chatflow 失败，状态码: ${chatResponse.status}, 详情: ${errBody}`);
+            const errData = await response.json().catch(() => ({}));
+            const errStr = errData?.error?.message || errData?.error || JSON.stringify(errData);
+            console.error(`[STT Dify] Dify STT 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
           }
-        } else {
-          const errBody = await uploadResponse.text().catch(() => '');
-          console.warn(`[STT Chatflow] 上传音频文件失败，状态码: ${uploadResponse.status}, 详情: ${errBody}`);
+        } catch (difyErr) {
+          console.error('[STT Dify] 降级 Dify 接口也发生异常:', difyErr.message);
         }
-      } catch (chatflowErr) {
-        console.warn('[STT Chatflow] 运行 Dify Chatflow 发生异常，将进入降级管道:', chatflowErr.message);
       }
 
-      // 降级 1: 尝试本地 whisper.cpp 部署的 whisper-server 服务 (127.0.0.1:8080/inference)
-      let localSuccess = false;
-      if (!chatflowSuccess) {
-        console.log(`[STT Local] 正在发送音频至本地 whisper-server: ${originalName}, mimetype: ${mimeType}`);
+      // 2.3 调用 IP 级 OpenAI 接口进行大语言模型智能润色与纠错
+      if (rawSuccess && rawText) {
+        console.log(`[STT Polish] 正在将原始文本发送至大模型进行润色: "${rawText}"`);
         try {
-          const localFormData = new globalThis.FormData();
-          const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
-          localFormData.append('file', localBlob, originalName);
-
-          const localResponse = await fetch('http://127.0.0.1:8080/inference', {
-            method: 'POST',
-            body: localFormData,
-          });
-
-          if (localResponse.ok) {
-            const localData = await localResponse.json().catch(() => ({}));
-            recognizedText = typeof localData.text === 'string' ? localData.text.trim() : '';
-            localSuccess = true;
-            console.log('[STT Local] 本地 whisper-server 识别成功:', recognizedText);
-            return res.json({ text: recognizedText });
-          } else {
-            console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
-          }
-        } catch (localErr) {
-          console.warn('[STT Local] 本地 whisper-server 调用失败或未运行，将回退至 Dify STT:', localErr.message);
+          const polishedText = await callPolishLLM(rawText);
+          console.log(`[STT Polish] 润色成功: "${polishedText}"`);
+          return res.json({ text: polishedText });
+        } catch (polishErr) {
+          console.warn('[STT Polish] 大模型润色失败，将降级直接返回原始文本:', polishErr.message);
+          return res.json({ text: rawText });
         }
-      }
-
-      // 降级 2: 退回原本 Dify 接口的 audio-to-text
-      if (!chatflowSuccess && !localSuccess) {
-        const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-        console.log(`[STT Dify] 正在发送音频至 Dify: ${originalName}, mimetype: ${mimeType}, user: ${userId}`);
-        const formData = new globalThis.FormData();
-        const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
-        formData.append('file', blob, originalName);
-        formData.append('user', String(userId));
-
-        const response = await fetch(`${difyBase}/audio-to-text`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${sttApiKey}`,
-          },
-          body: formData,
-        });
-
-        const data = await response.json().catch(() => ({}));
-
-        if (!response.ok) {
-          const errStr = data?.error?.message || data?.error || JSON.stringify(data);
-          console.error(`[STT Dify] 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
-          return res.status(response.status).json(
-            typeof data === 'object' && data ? data : { error: 'Dify audio-to-text failed.' }
-          );
-        }
-
-        console.log('[STT Dify] 接口调用成功');
-        return res.json({
-          text: typeof data.text === 'string' ? data.text.trim() : '',
-        });
+      } else {
+        console.log('[STT Result] 识别出的原始文本为空，直接返回');
+        return res.json({ text: rawText || '' });
       }
     } else {
       throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
