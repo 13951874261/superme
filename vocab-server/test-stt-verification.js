@@ -62,7 +62,6 @@ async function runTests() {
   } finally {
     // 无需清理真实音频文件
   }
-  }
 }
 
 runTests();
