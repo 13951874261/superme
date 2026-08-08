@@ -237,16 +237,16 @@ export default function Header() {
             </AnimatePresence>
           </div>
 
-          {/* 提纯任务中心 */}
+          {/* 后台任务中心 */}
           <div className="relative inline-block text-left flex-shrink-0">
             <button
               type="button"
               onClick={() => setIsOpen(true)}
               className="h-8 px-3 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:border-amber-200 cursor-pointer relative whitespace-nowrap"
-              title="查看提纯任务中心"
+              title="查看后台任务中心"
             >
               <Loader2 className={`w-3.5 h-3.5 text-amber-500 ${pendingCount > 0 ? 'animate-spin' : ''}`} />
-              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">提纯:</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">后台任务:</span>
               <span className="font-black text-slate-800 ml-1">
                 {pendingCount > 0 ? `${pendingCount} 个进行中` : '查看队列'}
               </span>

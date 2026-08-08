@@ -134,7 +134,7 @@ if (now in Asia/Shanghai is 02:00–02:01 && not yet ran today) {
    - 标记 `generating` → 调 wakeup + flaw → 写 `ready` 或 `failed`
 4. 日志：`[DailyPack Cron] user=X ok|fail reason=...`
 
-**失败策略（非目标确认）：** 不建可视化重试队列；失败记 `status=failed` + 日志；用户可手动「重新生成」。
+**失败策略（已更新 2026-08-08）：** 业务失败仍记 `status=failed`；结构化执行日志与用户级重跑见 `.omx/specs/deep-interview-daily-cron-task-logs.md` / 后台任务中心（不再将「失败队列 UI」列为非目标）。
 
 **未同步主题用户：** 跳过；首次登录同步主题后，**次日** 02:00 纳入（符合 interview 决策 C）。
 

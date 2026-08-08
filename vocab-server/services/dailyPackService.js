@@ -438,30 +438,28 @@ function computeListenArticleInputSignature({
   return crypto.createHash('sha256').update(stable).digest('hex').slice(0, 16);
 }
 
-function postLocalJson(urlPath, payload, port = process.env.PORT || 3001) {
+function requestLocalJson(method, urlPath, payload = null, port = process.env.PORT || 3001) {
   return new Promise((resolve, reject) => {
     const http = require('http');
-    const data = JSON.stringify(payload);
+    const data = payload == null ? null : JSON.stringify(payload);
+    const headers = { Accept: 'application/json' };
+    if (data != null) {
+      headers['Content-Type'] = 'application/json';
+      headers['Content-Length'] = Buffer.byteLength(data);
+    }
     const req = http.request({
       hostname: '127.0.0.1',
       port,
       path: urlPath,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
-      },
+      method,
+      headers,
     }, (res) => {
       let body = '';
       res.on('data', chunk => body += chunk);
       res.on('end', () => {
         try {
-          const json = JSON.parse(body);
-          if (res.statusCode >= 200 && res.statusCode < 300 && json.success !== false) {
-            resolve(json);
-          } else {
-            reject(new Error(json.error || json.message || `HTTP ${res.statusCode}`));
-          }
+          const json = body ? JSON.parse(body) : {};
+          resolve({ statusCode: res.statusCode, json });
         } catch (e) {
           reject(new Error(`Failed to parse response: ${body.substring(0, 100)}`));
         }
@@ -469,9 +467,46 @@ function postLocalJson(urlPath, payload, port = process.env.PORT || 3001) {
     });
 
     req.on('error', (err) => reject(err));
-    req.write(data);
+    if (data != null) req.write(data);
     req.end();
   });
+}
+
+function postLocalJson(urlPath, payload, port = process.env.PORT || 3001) {
+  return requestLocalJson('POST', urlPath, payload, port).then(({ statusCode, json }) => {
+    if (statusCode >= 200 && statusCode < 300 && json.success !== false) {
+      return json;
+    }
+    throw new Error(json.error || json.message || `HTTP ${statusCode}`);
+  });
+}
+
+async function waitForExtractTask(taskId, {
+  port = process.env.PORT || 3001,
+  timeoutMs = Number(process.env.DAILY_EXTRACT_AWAIT_TIMEOUT_MS || 10 * 60 * 1000),
+  pollMs = 2000,
+} = {}) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const { statusCode, json } = await requestLocalJson(
+      'GET',
+      `/api/english/daily-extract/status/${encodeURIComponent(taskId)}`,
+      null,
+      port,
+    );
+    if (statusCode === 404) {
+      throw new Error('task_lost');
+    }
+    const status = json.status || (json.success === false ? 'failed' : null);
+    if (status === 'completed') {
+      return { status: 'completed', data: json };
+    }
+    if (status === 'failed') {
+      throw new Error(json.error || 'extract failed');
+    }
+    await new Promise((r) => setTimeout(r, pollMs));
+  }
+  throw new Error('timeout');
 }
 
 async function generateLongArticleForUser(db, userId, theme, source = 'cron', genre = 'meeting', cefrLevel = 'B1', duration = '25') {
@@ -504,6 +539,7 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
   while (attempts < 2) {
     attempts++;
     try {
+      // Cron/rerun adapter: accept taskId then await terminal; disable detached TTS sync
       const data = await postLocalJson('/api/english/daily-extract', {
         topic: theme,
         materialText: theme,
@@ -511,11 +547,19 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
         cefrLevel,
         genre,
         duration: String(duration),
-        user_current_profile: getUserCurrentProfile(db, uid)
+        user_current_profile: getUserCurrentProfile(db, uid),
+        businessPackDate: packDate,
+        skipListenAudioSync: source === 'cron' || source === 'user_rerun' || source === 'manual_api',
+        triggerSource: source,
       }, port);
 
+      if (!data?.taskId) {
+        throw new Error('daily-extract missing taskId');
+      }
+      await waitForExtractTask(data.taskId, { port });
+
       console.log(`[LongArticle Service] Successfully completed long article task for user=${uid}`);
-      return { success: true, data };
+      return { success: true, data, taskId: data.taskId };
     } catch (err) {
       console.warn(`[LongArticle Service] Attempt ${attempts} failed for user=${uid}:`, err.message);
       if (attempts >= 2) throw err;
@@ -545,6 +589,7 @@ module.exports = {
   generateFlawVocabForUser,
   generateDailyPackForUser,
   generateLongArticleForUser,
+  waitForExtractTask,
   serializeDailyPack,
   upsertDailyPack,
   callWakeupWorkflow,

@@ -266,64 +266,27 @@ function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration, hi
   };
 }
 
-function getUserAliasList(userId) {
-  const uid = dailyPackService.normalizeUserId(userId);
-  const list = [uid];
-  if (uid === 'lzhmy') list.push('lzhumy');
-  if (uid === 'lzhumy') list.push('lzhmy');
-  return list;
-}
-
 function getArticleRow(db, parts) {
-  const userIds = getUserAliasList(parts.userId);
-  const placeholders = userIds.map(() => '?').join(',');
-  
-  // A. 精确匹配
-  let row = db.prepare(
+  // L1: exact theme + combo + input_signature
+  return db.prepare(`
     SELECT * FROM daily_listen_articles
-    WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
+    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
       AND COALESCE(input_signature, '')=?
-    ORDER BY created_at DESC LIMIT 1
-  ).get(
-    ...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+  `).get(
+    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     parts.inputSignature || '',
   );
-
-  // B. 降级模糊匹配（忽略签名差异，仅以基础维度和状态为准）
-  if (!row) {
-    row = db.prepare(
-      SELECT * FROM daily_listen_articles
-      WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=? AND status='ready'
-      ORDER BY created_at DESC LIMIT 1
-    ).get(...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
-  }
-  return row;
 }
 
 function getAudioRow(db, parts) {
-  const userIds = getUserAliasList(parts.userId);
-  const placeholders = userIds.map(() => '?').join(',');
-
-  // A. 精确匹配
-  let row = db.prepare(
+  return db.prepare(`
     SELECT * FROM daily_listen_audios
-    WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
+    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
       AND COALESCE(input_signature, '')=?
-    ORDER BY created_at DESC LIMIT 1
-  ).get(
-    ...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+  `).get(
+    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     parts.inputSignature || '',
   );
-
-  // B. 降级模糊匹配（忽略签名差异，仅以基础维度和状态为准）
-  if (!row) {
-    row = db.prepare(
-      SELECT * FROM daily_listen_audios
-      WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=? AND status='ready'
-      ORDER BY created_at DESC LIMIT 1
-    ).get(...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
-  }
-  return row;
 }
 
 function fileOk(p) {

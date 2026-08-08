@@ -95,4 +95,3 @@ U*、I*、E-A–K、O* 通过；Security 全勾；I-reg 证明 taskQueue 零 dif
 - **R2** Architect：I10b/c, I-skip, I-stitch, I-listen, I-audit, I-auth, I-reg, U-snap, U-date, O-date, harness note  
 - **R3** I8 全量 orphan；I-stitch-users；I-unique  
 - **R4** Critic APPROVE：E-GSAP；I-rerun-scope
-*** End Patch

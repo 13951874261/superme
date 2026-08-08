@@ -1,54 +1,91 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-lzhmy-daily-pack-missing.md",
+  "sourceBrief": ".omx/plans/prd-daily-cron-task-logs.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for lzhmy-daily-pack-missing",
-  "status": "active",
-  "createdAt": "2026-08-04T12:01:00Z",
-  "supersedes": "webpage-purify-500 (2026-07-21 manual plan)",
-  "note": "Created manually: omx CLI unavailable in Cursor runtime; prior webpage-purify plan superseded by user handoff to ultragoal option 1",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for daily-cron-task-logs",
+  "status": "complete",
+  "createdAt": "2026-08-08T12:23:00Z",
+  "supersedes": "lzhmy-daily-pack-missing (2026-08-04)",
+  "note": "Created manually: omx CLI unavailable in Cursor runtime; user chose ultragoal option 1 after ralplan consensus APPROVE",
   "goals": [
     {
       "id": "G001",
-      "title": "Align daily-pack cache-key read path",
-      "objective": "Fix frontend buildDailyPackQueryInput / today read so lzhmy no longer misses ready packs due to 500ms empty history or case-mismatched historyExclude; keep D1 stable fields (theme, history_exclude, user_current_profile).",
-      "status": "pending",
+      "title": "DB + dailyCronRunService core",
+      "objective": "Create SQLite tables daily_cron_runs/steps/log_events with UNIQUE(cron_tick_id,user_id); implement sanitize, retention (7d), startup interrupt all running, audit_health helpers.",
+      "status": "complete",
       "acceptance": [
-        "Empty-history race no longer causes false missing when a ready pack exists for the stable key",
-        "Frontend and backend historyExclude normalization agree (e.g. case) for the same vocab snapshot"
+        "Tables created on server init",
+        "sanitize strips Bearer/API keys",
+        "retention deletes pack_date older than 7 Shanghai days but keeps running",
+        "startup marks all running runs/steps failed/interrupted"
       ]
     },
     {
       "id": "G002",
-      "title": "Ensure complete wakeup+flaw pack generation",
-      "objective": "Make cron/manual generation write both wakeup (10 words) and flawVocab (6 words) under one stable input_signature; avoid split partial packs across signatures.",
-      "status": "pending",
+      "title": "Instrument pack/flaw + short-circuit skipped tree",
+      "objective": "Emit cron_tick_id; materialize per-user runs at loop entry; instrument wakeup/flaw; on pack ready continue mark wakeup/flaw/64 leaves skipped.",
+      "status": "complete",
       "acceptance": [
-        "A single ready daily_packs row for the stable key contains both wakeup.vocab length 10 and flawVocab length 6",
-        "Regenerate type=both (or equivalent) does not leave the other half null on the same signature"
+        "One per-user run per tick with cron_tick_id",
+        "Short-circuit writes 64 skipped long_article steps + skipped wakeup/flaw",
+        "Progress denominator 67 for standard runs"
       ]
     },
     {
       "id": "G003",
-      "title": "Ready minimal listen set meeting/B1/1 + news/B1/1",
-      "objective": "Ensure lzhmy has ready long article + audio for meeting/B1/1 and news/B1/1 using Dify-aligned listen input signatures; no expansion beyond this whitelist.",
-      "status": "pending",
+      "title": "Long-article Cron adapter await extract",
+      "objective": "Cron/rerun-only adapter awaits extractionTasks terminal; disable detached TTS on cron path; timeout/task_lost handling.",
+      "status": "complete",
       "acceptance": [
-        "meeting/B1/1 article+audio ready for lzhmy",
-        "news/B1/1 article+audio ready for lzhmy"
+        "Step not completed on HTTP accept alone",
+        "Timeout and task_lost map to failed steps",
+        "No detached TTS from cron long-article path"
       ]
     },
     {
       "id": "G004",
-      "title": "Ops backfill today + acceptance verify",
-      "objective": "Run one ops backfill against production true DB /var/www/super-agent/vocab.db for lzhmy whitelist assets; verify English page acceptance without refresh; confirm U1 still holds on miss.",
-      "status": "pending",
+      "title": "Listen stitch + single owner",
+      "objective": "runDailyListenCronJob(db,{cron_tick_id}) iterates frozen user set; OPEN miss no INSERT; listen owns audio.",
+      "status": "complete",
       "acceptance": [
-        "Production lzhmy has complete wakeup+flaw for today under the frontend stable key",
-        "Production meeting/B1/1 and news/B1/1 ready",
-        "Documented verification evidence for acceptance criteria 1-5"
+        "Pack+Listen same run_id for same tick+user",
+        "Drifted listCronTargetUsers does not create second run",
+        "UNIQUE(cron_tick_id,user_id) enforced"
+      ]
+    },
+    {
+      "id": "G005",
+      "title": "APIs + dual rerun executors",
+      "objective": "GET list/detail + POST rerun with owner 404; all_current vs failed_snapshot; 15s idempotency; snapshot executors forbid resolvers.",
+      "status": "complete",
+      "acceptance": [
+        "Cross-user detail/rerun 404",
+        "failed_snapshot does not call resolvers/random",
+        "Double-click creates one run"
+      ]
+    },
+    {
+      "id": "G006",
+      "title": "Frontend task center merge",
+      "objective": "Rename to 后台任务; merge cron runs into GlobalTaskCenter without TaskItem side-effects; dual-layer input UI; rerun confirms.",
+      "status": "complete",
+      "acceptance": [
+        "Header/drawer copy updated",
+        "Cron card shows 4 modules; no 64 top cards",
+        "taskQueue.js and /api/tasks zero behavior change"
+      ]
+    },
+    {
+      "id": "G007",
+      "title": "Tests + docs + quality gate",
+      "objective": "Cover test-spec critical IDs; sync old cron non-goal + user manual naming; final cleanup/review gate.",
+      "status": "complete",
+      "acceptance": [
+        "Automated tests for sanitize, owner, skip tree, snapshot, retention",
+        "Docs updated",
+        "Final review APPROVE/CLEAR"
       ]
     }
   ]

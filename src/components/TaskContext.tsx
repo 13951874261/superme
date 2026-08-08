@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { fetchDailyCronRuns, DailyCronRunSummary } from '../services/dailyCronAPI';
+import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
@@ -14,19 +16,25 @@ export interface TaskItem {
     mimeType?: string;
     sourceType?: string;
     sourceUrl?: string;
-    audioUrl?: string;  // TTS 专用字段
-    audioId?: string;   // TTS 专用字段
-    historyId?: string; // 博弈对局历史 ID
+    audioUrl?: string;
+    audioId?: string;
+    historyId?: string;
+    article?: string;
+    words?: unknown[];
+    phrases?: unknown[];
+    sentences?: unknown[];
   } | null;
 }
 
 interface TaskContextType {
   tasks: TaskItem[];
+  cronRuns: DailyCronRunSummary[];
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   addTask: (task: TaskItem) => void;
   startPolling: (id: string) => void;
   fetchTasks: () => Promise<void>;
+  fetchCronRuns: () => Promise<void>;
   pendingCount: number;
 }
 
@@ -36,9 +44,19 @@ const API_BASE = '';
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [cronRuns, setCronRuns] = useState<DailyCronRunSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const activePolls = useRef<Set<string>>(new Set());
-  const lastGlobalPollTimeRef = useRef<number>(0); // 全局轮询节流时间戳 ref
+  const lastGlobalPollTimeRef = useRef<number>(0);
+
+  const fetchCronRuns = useCallback(async () => {
+    try {
+      const runs = await fetchDailyCronRuns(7, getAppUserId());
+      setCronRuns(runs);
+    } catch (e) {
+      console.error('Failed to fetch daily cron runs:', e);
+    }
+  }, []);
 
   const fetchTasks = async () => {
     try {
@@ -47,7 +65,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const data = await response.json();
         if (data.success && Array.isArray(data.tasks)) {
           setTasks(data.tasks);
-          // 自动重连轮询那些尚未完成的后台任务
           data.tasks.forEach((task: TaskItem) => {
             if ((task.status === 'pending' || task.status === 'running') && !activePolls.current.has(task.id)) {
               startPolling(task.id);
@@ -62,7 +79,17 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     fetchTasks();
-  }, []);
+    fetchCronRuns();
+  }, [fetchCronRuns]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    fetchCronRuns();
+    const t = setInterval(() => {
+      fetchCronRuns();
+    }, 5000);
+    return () => clearInterval(t);
+  }, [isOpen, fetchCronRuns]);
 
   const addTask = (task: TaskItem) => {
     setTasks((prev) => [task, ...prev]);
@@ -76,7 +103,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     activePolls.current.add(id);
 
     const interval = setInterval(async () => {
-      // 节流：确保全局轮询之间有一定间隔，避免短时间内并发过多请求
       const now = Date.now();
       if (now - lastGlobalPollTimeRef.current < 1000) {
         return;
@@ -109,22 +135,18 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             clearInterval(interval);
             activePolls.current.delete(id);
             if (data.status === 'completed') {
-              // 触发自定义事件通知词本更新
               window.dispatchEvent(new CustomEvent('vocab-updated'));
 
-              // 识别是否为材料提纯任务 (根据 data.result 结构判断)
               if (data.result && (data.result.article || data.result.words)) {
                 const result = data.result;
                 const taskName = data.name || data.taskName || '未命名材料';
 
-                // 写入 Dashboard 专用的 localStorage 键
                 localStorage.setItem('super_agent_last_generated_article', result.article || '');
                 localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words || []));
                 localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases || []));
                 localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences || []));
                 localStorage.setItem('super_agent_intel_source', `材料提纯: ${taskName}`);
 
-                // 通知 DashboardTab 刷新 + 触发 onExtractionSuccess 回调（含 toast + 音效）
                 window.dispatchEvent(new CustomEvent('intel-data-refreshed'));
                 window.dispatchEvent(new CustomEvent('extraction-success', {
                   detail: {
@@ -136,7 +158,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 }));
               }
 
-              // 视频转写完成后自动导入并提纯（跳过手动点击"导入并提纯"）
               if (data.type === 'video' && data.result?.content) {
                 window.dispatchEvent(new CustomEvent('import-virtual-material', {
                   detail: {
@@ -168,18 +189,21 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, 5000);
   };
 
-  // 当前进行中的任务数
-  const pendingCount = tasks.filter((t) => t.status === 'pending' || t.status === 'running').length;
+  const taskPending = tasks.filter((t) => t.status === 'pending' || t.status === 'running').length;
+  const cronPending = cronRuns.filter((r) => r.status === 'pending' || r.status === 'running').length;
+  const pendingCount = taskPending + cronPending;
 
   return (
     <TaskContext.Provider
       value={{
         tasks,
+        cronRuns,
         isOpen,
         setIsOpen,
         addTask,
         startPolling,
         fetchTasks,
+        fetchCronRuns,
         pendingCount,
       }}
     >

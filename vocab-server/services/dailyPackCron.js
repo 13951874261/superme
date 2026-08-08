@@ -1,13 +1,79 @@
 const dailyPackService = require('./dailyPackService');
 const dailyListenPreGenerateService = require('./dailyListenPreGenerateService');
+const dailyCronRunService = require('./dailyCronRunService');
 
 let lastCronPackDate = null;
 
+function buildWakeupFlawInputSources({ theme, historyExclude, userCurrentProfile, userId }) {
+  return [
+    dailyCronRunService.buildInputSource({
+      name: 'theme',
+      value: theme,
+      friendlyDescription: '从用户主题偏好表读取当前学习主题',
+      sourceType: 'database',
+      sourceRef: 'user_theme_prefs.theme via listCronTargetUsers',
+      queryRule: '近7天登录且 theme 非空；否则回退最近登录用户',
+      transform: 'trim',
+      fallback: '商务谈判：让步与施压',
+    }),
+    dailyCronRunService.buildInputSource({
+      name: 'history_exclude',
+      value: historyExclude,
+      sensitive: true,
+      valuePreview: String(historyExclude || '').split(', ').slice(0, 3).join(', ') + (historyExclude ? '…' : ''),
+      friendlyDescription: '从生词库按最近添加时间取最多50个词，逗号拼接',
+      sourceType: 'database',
+      sourceRef: 'vocabulary.word via getHistoryExclude()',
+      queryRule: 'ORDER BY added_at DESC（当前实现未按 user_id 过滤）',
+      transform: 'slice(0,50).join(", ")',
+      fallback: "''",
+    }),
+    dailyCronRunService.buildInputSource({
+      name: 'user_current_profile',
+      value: userCurrentProfile,
+      sensitive: true,
+      friendlyDescription: '从用户记忆画像读取并截断',
+      sourceType: 'database',
+      sourceRef: 'user_memories.profile_content via getUserCurrentProfile()',
+      queryRule: `user_id = ${dailyCronRunService.normalizeUserId(userId)}`,
+      transform: 'trim().slice(0,280)',
+      fallback: "''",
+    }),
+    dailyCronRunService.buildInputSource({
+      name: '_system_time',
+      value: '(runtime)',
+      friendlyDescription: '服务端按上海时区格式化当前时间',
+      sourceType: 'runtime',
+      sourceRef: 'getSystemFormattedTime()',
+      transform: 'Asia/Shanghai formatted string',
+      fallback: 'n/a',
+    }),
+    dailyCronRunService.buildInputSource({
+      name: '_system_timestamp_ms',
+      value: '(runtime Date.now())',
+      friendlyDescription: '服务端调用时的毫秒时间戳',
+      sourceType: 'runtime',
+      sourceRef: 'Date.now()',
+      fallback: 'n/a',
+    }),
+    dailyCronRunService.buildInputSource({
+      name: 'user',
+      value: dailyCronRunService.normalizeUserId(userId),
+      friendlyDescription: 'Dify 外层用户标识（去邮箱后缀）',
+      sourceType: 'runtime',
+      sourceRef: 'normalizeUserId(userId)',
+      fallback: 'default-user',
+    }),
+  ];
+}
+
 async function runDailyPackCronJob(db) {
   const packDate = dailyPackService.getPackDate();
+  const cronTickId = dailyCronRunService.createCronTickId();
   const users = dailyListenPreGenerateService.listCronTargetUsers(db);
   const summary = {
     packDate,
+    cronTickId,
     total: users.length,
     fallback: users.some((u) => u.fallback),
     ok: 0,
@@ -24,54 +90,196 @@ async function runDailyPackCronJob(db) {
     );
   }
 
+  console.log('[DailyPack Cron] tick=%s packDate=%s users=%s', cronTickId, packDate, users.length);
+
   for (const row of users) {
     const historyExclude = dailyPackService.getHistoryExclude(db);
-    const userCurrentProfile = dailyPackService.getUserCurrentProfile(db, row.user_id);
+    const userCurrentProfile = dailyCronRunService.sanitizeCronLogPayload(
+      dailyPackService.getUserCurrentProfile(db, row.user_id),
+    );
     const inputSignature = dailyPackService.computeInputSignature(
       row.theme,
       historyExclude,
       userCurrentProfile,
     );
+    const inputSources = buildWakeupFlawInputSources({
+      theme: row.theme,
+      historyExclude,
+      userCurrentProfile,
+      userId: row.user_id,
+    });
+    const inputsSnapshot = {
+      theme: row.theme,
+      history_exclude: historyExclude,
+      user_current_profile: userCurrentProfile,
+      input_signature: inputSignature,
+      response_mode: 'blocking',
+      user: dailyCronRunService.normalizeUserId(row.user_id),
+    };
+
+    const run = dailyCronRunService.createPerUserRun(db, {
+      cronTickId,
+      userId: row.user_id,
+      packDate,
+      triggerSource: 'cron',
+    });
+    dailyCronRunService.appendLogEvent(db, {
+      runId: run.id,
+      level: 'info',
+      message: 'per-user run materialized',
+      context: { cronTickId, userId: row.user_id, packDate },
+    });
+
     const existing = dailyPackService.getDailyPackRow(db, row.user_id, packDate, inputSignature);
     if (existing?.status === 'ready' && existing?.source === 'cron') {
+      // PRD: keep continue behavior; mark wakeup/flaw/64 leaves skipped; Listen still runs later
+      dailyCronRunService.writeShortCircuitSkippedTree(db, {
+        runId: run.id,
+        userId: row.user_id,
+        reason: 'daily_pack_ready_cron_cache',
+        inputs: inputsSnapshot,
+        inputSources,
+      });
       summary.skipped += 1;
       continue;
     }
+
+    const wakeupStep = dailyCronRunService.upsertStep(db, {
+      runId: run.id,
+      userId: row.user_id,
+      module: 'wakeup',
+      status: 'running',
+      inputs: inputsSnapshot,
+      inputSources,
+    });
+    const flawStep = dailyCronRunService.upsertStep(db, {
+      runId: run.id,
+      userId: row.user_id,
+      module: 'flaw',
+      status: 'running',
+      inputs: { ...inputsSnapshot, note: 'flaw uses dynamicTheme + slice(-50) inside generateFlawVocabForUser' },
+      inputSources,
+    });
+
     try {
       await dailyPackService.generateDailyPackForUser(db, row.user_id, row.theme, 'cron');
+      dailyCronRunService.upsertStep(db, {
+        id: wakeupStep.id,
+        runId: run.id,
+        userId: row.user_id,
+        module: 'wakeup',
+        status: 'completed',
+        progress: 100,
+        finishedAt: Date.now(),
+        resultSummary: { ok: true },
+      });
+      dailyCronRunService.upsertStep(db, {
+        id: flawStep.id,
+        runId: run.id,
+        userId: row.user_id,
+        module: 'flaw',
+        status: 'completed',
+        progress: 100,
+        finishedAt: Date.now(),
+        resultSummary: { ok: true },
+      });
       summary.ok += 1;
     } catch (err) {
+      const msg = err.message || String(err);
+      dailyCronRunService.upsertStep(db, {
+        id: wakeupStep.id,
+        runId: run.id,
+        userId: row.user_id,
+        module: 'wakeup',
+        status: 'failed',
+        progress: 100,
+        errorMessage: msg,
+        finishedAt: Date.now(),
+      });
+      dailyCronRunService.upsertStep(db, {
+        id: flawStep.id,
+        runId: run.id,
+        userId: row.user_id,
+        module: 'flaw',
+        status: 'failed',
+        progress: 100,
+        errorMessage: msg,
+        finishedAt: Date.now(),
+      });
       summary.failed += 1;
-      summary.errors.push({ userId: row.user_id, error: err.message || String(err) });
+      summary.errors.push({ userId: row.user_id, error: msg });
       console.error('[DailyPack Cron] user=%s fail: %s', row.user_id, err.message);
     }
 
-    // Step 3: 长文预生成与精听盲听音频联动
-    const GENRES = ['meeting', 'news', 'podcast', 'reading'];
-    const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
-    const DURATIONS = [1, 15, 25, 35];
+    // Step 3: 长文预生成（G003 将改为 await extract 终态；此处先写步骤并调用现有路径）
+    const GENRES = dailyCronRunService.LONG_GENRES;
+    const CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
+    const DURATIONS = dailyCronRunService.LONG_DURATIONS;
 
     for (const genre of GENRES) {
       for (const cefrLevel of CEFR_LEVELS) {
         for (const duration of DURATIONS) {
+          const comboKey = `${genre}|${cefrLevel}|${duration}`;
+          const step = dailyCronRunService.upsertStep(db, {
+            runId: run.id,
+            userId: row.user_id,
+            module: 'long_article',
+            comboKey,
+            status: 'running',
+            inputs: {
+              theme: row.theme,
+              genre,
+              cefr_level: cefrLevel,
+              duration: String(duration),
+            },
+          });
           try {
-            await dailyPackService.generateLongArticleForUser(
+            const result = await dailyPackService.generateLongArticleForUser(
               db,
               row.user_id,
               row.theme,
               'cron',
               genre,
               cefrLevel,
-              String(duration)
+              String(duration),
             );
+            const skipped = result?.status === 'skipped';
+            dailyCronRunService.upsertStep(db, {
+              id: step.id,
+              runId: run.id,
+              userId: row.user_id,
+              module: 'long_article',
+              comboKey,
+              status: skipped ? 'skipped' : 'completed',
+              progress: 100,
+              finishedAt: Date.now(),
+              resultSummary: result || { ok: true },
+              errorMessage: skipped ? (result?.reason || 'already_generated') : null,
+            });
           } catch (artErr) {
+            const msg = artErr.message || String(artErr);
+            dailyCronRunService.upsertStep(db, {
+              id: step.id,
+              runId: run.id,
+              userId: row.user_id,
+              module: 'long_article',
+              comboKey,
+              status: 'failed',
+              progress: 100,
+              finishedAt: Date.now(),
+              errorMessage: msg === 'timeout' || msg === 'task_lost' ? msg : msg,
+              resultSummary: { reason: msg === 'timeout' || msg === 'task_lost' ? msg : 'extract_failed' },
+            });
             console.warn(`[DailyPack Cron] Long article generate warn user=${row.user_id} (${genre}/${cefrLevel}/${duration}m):`, artErr.message);
           }
           await new Promise(r => setTimeout(r, 1500));
         }
       }
     }
+
+    dailyCronRunService.refreshRunAggregation(db, run.id);
   }
+
   console.log('[DailyPack Cron] done', summary);
   return summary;
 }
@@ -99,9 +307,11 @@ function scheduleDailyPackCron(db) {
     if (hour === cronHour && minute === 0 && lastCronPackDate !== packDate) {
       lastCronPackDate = packDate;
       (async () => {
-        await runDailyPackCronJob(db);
+        const packSummary = await runDailyPackCronJob(db);
         if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
-          await dailyListenPreGenerateService.runDailyListenCronJob(db);
+          await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+            cronTickId: packSummary.cronTickId,
+          });
         }
       })().catch((e) => console.error('[DailyPack/Listen Cron] failed:', e));
     }
