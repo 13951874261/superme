@@ -359,6 +359,20 @@ try {
 const dailyPackService = require('./services/dailyPackService');
 const dailyPackCron = require('./services/dailyPackCron');
 dailyPackService.initDailyPackTables(db);
+const dailyCronRunService = require('./services/dailyCronRunService');
+dailyCronRunService.initDailyCronRunTables(db);
+try {
+  const interrupted = dailyCronRunService.markInterruptedRunning(db);
+  if (interrupted.runsInterrupted || interrupted.stepsInterrupted) {
+    console.log('[DailyCronRun] startup interrupt', interrupted);
+  }
+  const cleaned = dailyCronRunService.cleanupOldCronRuns(db);
+  if (cleaned.deletedRuns) {
+    console.log('[DailyCronRun] retention cleanup', cleaned);
+  }
+} catch (e) {
+  console.warn('[DailyCronRun] startup maintenance failed:', e.message);
+}
 const dailyListenPreGenerateService = require('./services/dailyListenPreGenerateService');
 dailyListenPreGenerateService.initDailyListenTables(db);
 
@@ -5472,12 +5486,21 @@ const handleGetDailyExtractArticle = (req, res) => {
     if (rawUserId === 'lzhmy') userIds.push('lzhumy');
     if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
-    // L1: 与生成同源重算 history/flaws/profile（前端可只传 theme）
+    // ????????????????????????????
+    let hostUserId = rawUserId;
+    if (rawUserId === 'lzhmy' || rawUserId === 'lzhumy') {
+      try {
+        const hasLzhumy = db.prepare("SELECT 1 FROM user_memories WHERE user_id = 'lzhumy' AND TRIM(COALESCE(profile_content, '')) != ''").get();
+        hostUserId = hasLzhumy ? 'lzhumy' : 'lzhmy';
+      } catch (_) {}
+    }
+
+    // L1: ??????? history/flaws/profile?????? theme?
     let historyExclude = String(req.query.historyExclude || '').trim();
     let userFlaws = String(req.query.userFlaws || '').trim();
     const userCurrentProfile = String(
       req.query.userCurrentProfile
-      || dailyPackService.getUserCurrentProfile(db, rawUserId)
+      || dailyPackService.getUserCurrentProfile(db, hostUserId)
       || '',
     ).trim();
 
@@ -5488,7 +5511,7 @@ const handleGetDailyExtractArticle = (req, res) => {
           SELECT keywords FROM generation_history
           WHERE user_id = ? AND theme = ? AND generated_at > ?
           ORDER BY generated_at DESC
-        `).all(rawUserId, topic, cutoff);
+        `).all(hostUserId, topic, cutoff);
         const allKeywords = [];
         for (const row of historyRows) {
           try {
@@ -5504,13 +5527,13 @@ const handleGetDailyExtractArticle = (req, res) => {
         const session = db.prepare(`
           SELECT extra_json FROM training_sessions
           WHERE user_id = ? ORDER BY training_date DESC LIMIT 1
-        `).get(rawUserId);
+        `).get(hostUserId);
         if (session?.extra_json) {
           const extra = JSON.parse(session.extra_json);
           const ef = extra.englishFoundation || {};
           const flaws = [];
-          if (ef.pronunciationNotes) flaws.push(`发音问题: ${ef.pronunciationNotes}`);
-          if (ef.grammarNotes) flaws.push(`语法问题: ${ef.grammarNotes}`);
+          if (ef.pronunciationNotes) flaws.push(`????: ${ef.pronunciationNotes}`);
+          if (ef.grammarNotes) flaws.push(`????: ${ef.grammarNotes}`);
           userFlaws = flaws.join('; ');
         }
       } catch (_) {}
@@ -5565,28 +5588,22 @@ const handleGetDailyExtractArticle = (req, res) => {
             AND cefr_level = ?
             AND (duration = ? OR duration = ?)
             AND COALESCE(input_signature, '') = ?
-            AND status = 'ready'
-          ORDER BY updated_at DESC LIMIT 1
-        `).get(...userIds, today, topic, genre, cefrLevel, Number(duration), duration, sig);
-        if (listen) {
-          let words = [];
-          let phrases = [];
-          try {
-            words = listen.vocab_json ? JSON.parse(listen.vocab_json) : [];
-          } catch (_) {}
-          try {
-            phrases = listen.phrases_json ? JSON.parse(listen.phrases_json) : [];
-          } catch (_) {}
+          ORDER BY created_at DESC LIMIT 1
+        `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration), sig);
+        if (listen?.status === 'ready' && listen.body_text) {
           row = {
-            article: listen.body_text || '',
-            words_json: JSON.stringify(words),
-            phrases_json: JSON.stringify(phrases),
-            sentences_json: '[]',
-            theme: listen.theme || topic,
+            id: listen.id,
+            user_id: listen.user_id,
+            quota_date: listen.pack_date,
+            theme: listen.theme,
             genre: listen.genre,
             cefr_level: listen.cefr_level,
+            article: listen.body_text,
+            words_json: listen.vocab_json,
+            phrases_json: listen.phrases_json,
+            sentences_json: '[]',
             duration: listen.duration,
-            input_signature: listen.input_signature || sig,
+            input_signature: listen.input_signature,
             updated_at: listen.updated_at,
           };
           cacheSource = 'daily_listen_articles';
@@ -5596,24 +5613,20 @@ const handleGetDailyExtractArticle = (req, res) => {
     }
 
     if (!row) {
-      return res.json({ success: true, found: false, cacheSource: null });
+      return res.json({ success: true, found: false });
     }
 
-    let words = [];
-    let phrases = [];
-    let sentences = [];
-    try { words = row.words_json ? JSON.parse(row.words_json) : []; } catch {}
-    try { phrases = row.phrases_json ? JSON.parse(row.phrases_json) : []; } catch {}
-    try { sentences = row.sentences_json ? JSON.parse(row.sentences_json) : []; } catch {}
-
     const dataPayload = {
-      article: row.article || '',
-      words,
-      phrases,
-      sentences,
-      theme: row.theme || topic || '',
+      id: row.id,
+      userId: row.user_id,
+      quotaDate: row.quota_date,
+      theme: row.theme,
       genre: row.genre,
       cefrLevel: row.cefr_level,
+      article: row.article,
+      words: JSON.parse(row.words_json || '[]'),
+      phrases: JSON.parse(row.phrases_json || '[]'),
+      sentences: JSON.parse(row.sentences_json || '[]'),
       duration: String(row.duration),
       inputSignature: row.input_signature,
       updatedAt: row.updated_at,
@@ -5630,7 +5643,6 @@ const handleGetDailyExtractArticle = (req, res) => {
     res.status(500).json({ success: false, found: false, error: error.message });
   }
 };
-
 app.get('/api/english/daily-extract/article', handleGetDailyExtractArticle);
 app.get('/api/english/daily-extract/article/exact', handleGetDailyExtractArticle);
 
@@ -6219,14 +6231,16 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         extracted_phrases_json: JSON.stringify(phrasesToStore),
       };
 
-      // 即时联动：前台重新生成长文时，后台同步更新并重新合成该组合的精听 .mp3 音频 (Option A)
-      (async () => {
-        try {
-          await dailyListenPreGenerateService.syncAudioFromLongArticleRow(db, savedArtRow, 'manual');
-        } catch (syncAudioErr) {
-          console.warn('[Daily Extract] 即时同步精听音频警告:', syncAudioErr.message);
-        }
-      })().catch(e => console.error('[Daily Extract] 精听音频同步异常:', e));
+      // 即时联动：前台手动生成时同步精听音频；Cron/重跑路径禁用（Listen 模块为唯一 owner）
+      if (!requestBody?.skipListenAudioSync) {
+        (async () => {
+          try {
+            await dailyListenPreGenerateService.syncAudioFromLongArticleRow(db, savedArtRow, 'manual');
+          } catch (syncAudioErr) {
+            console.warn('[Daily Extract] 即时同步精听音频警告:', syncAudioErr.message);
+          }
+        })().catch(e => console.error('[Daily Extract] 精听音频同步异常:', e));
+      }
 
     } catch (dbSaveErr) {
       console.warn('[Daily Extract] 保存 daily_extracted_articles 失败 (非阻塞):', dbSaveErr.message);
@@ -6280,6 +6294,15 @@ app.post('/api/user/login-ping', (req, res) => {
     res.json({ success: true, catchupScheduled: false, ...result });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.get('/api/system/date', (req, res) => {
+  try {
+    const shanghaiDate = dailyPackService.getPackDate();
+    res.json({ success: true, date: shanghaiDate });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -6453,6 +6476,273 @@ app.post('/api/daily-pack/cron-run', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (error) {
     console.error('[Daily Pack Cron Manual]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
+// 每日 Cron 运行日志（独立于 taskQueue）
+// ==========================================
+app.get('/api/daily-cron/runs', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const days = Number(req.query.days || 7);
+    const runs = dailyCronRunService.listRunsForUser(db, userId, { days });
+    const items = runs.map((run) => {
+      const steps = db.prepare(
+        'SELECT * FROM daily_cron_steps WHERE run_id = ?',
+      ).all(run.id);
+      return dailyCronRunService.serializeRunSummary(run, steps);
+    });
+    res.json({ success: true, runs: items });
+  } catch (error) {
+    console.error('[DailyCron runs]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/daily-cron/runs/:runId', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const detail = dailyCronRunService.getRunDetailForUser(db, req.params.runId, userId);
+    if (!detail.ok) {
+      return res.status(404).json({ success: false, error: 'not found' });
+    }
+    const steps = detail.steps.map((s) => ({
+      id: s.id,
+      module: s.module,
+      comboKey: s.combo_key,
+      status: s.status,
+      progress: s.progress,
+      error: s.error_message,
+      inputs: dailyCronRunService.parseJsonSafe(s.inputs_json),
+      inputSources: dailyCronRunService.parseJsonSafe(s.input_sources_json),
+      resultSummary: dailyCronRunService.parseJsonSafe(s.result_summary_json),
+      startedAt: s.started_at,
+      finishedAt: s.finished_at,
+    }));
+    const events = detail.events.map((e) => ({
+      id: e.id,
+      stepId: e.step_id,
+      level: e.level,
+      message: e.message,
+      context: dailyCronRunService.parseJsonSafe(e.context_json),
+      createdAt: e.created_at,
+    }));
+    res.json({
+      success: true,
+      run: dailyCronRunService.serializeRunSummary(detail.run, detail.steps),
+      steps,
+      events,
+    });
+  } catch (error) {
+    console.error('[DailyCron run detail]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
+  const userId = req.body?.userId || 'default-user';
+  const mode = req.body?.mode || 'all_current';
+  const comboKey = req.body?.comboKey || null;
+  const stepId = req.body?.stepId || null;
+  let lockKey = null;
+  try {
+    const ownership = dailyCronRunService.assertRunOwner(db, req.params.runId, userId);
+    if (!ownership.ok) {
+      return res.status(404).json({ success: false, error: 'not found' });
+    }
+    if (mode !== 'all_current' && mode !== 'failed_snapshot') {
+      return res.status(400).json({ success: false, error: 'invalid mode' });
+    }
+
+    const lock = dailyCronRunService.acquireRerunLock(userId, req.params.runId, mode);
+    if (!lock.ok) {
+      return res.status(409).json({ success: false, error: 'rerun already in progress' });
+    }
+    lockKey = lock.key;
+
+    const parent = ownership.run;
+    const parentSteps = db.prepare(
+      'SELECT * FROM daily_cron_steps WHERE run_id = ?',
+    ).all(parent.id);
+
+    if (mode === 'failed_snapshot') {
+      let failed = parentSteps.filter((s) => s.status === 'failed');
+      if (stepId) failed = failed.filter((s) => s.id === stepId);
+      if (comboKey) failed = failed.filter((s) => s.combo_key === comboKey);
+      if (failed.length === 0) {
+        dailyCronRunService.releaseRerunLock(lockKey);
+        return res.status(400).json({ success: false, error: 'no failed steps to rerun' });
+      }
+    }
+
+    const tick = dailyCronRunService.createCronTickId();
+    const newRun = dailyCronRunService.createPerUserRun(db, {
+      cronTickId: tick,
+      userId,
+      packDate: dailyCronRunService.getPackDate(),
+      triggerSource: 'user_rerun',
+      parentRunId: parent.id,
+    });
+
+    res.json({
+      success: true,
+      runId: newRun.id,
+      parentRunId: parent.id,
+      mode,
+    });
+
+    setImmediate(() => {
+      (async () => {
+        try {
+          const themeRow = db.prepare(
+            'SELECT theme FROM user_theme_prefs WHERE user_id = ?',
+          ).get(dailyCronRunService.normalizeUserId(userId));
+          const theme = themeRow?.theme || '商务谈判：让步与施压';
+
+          if (mode === 'all_current') {
+            // 仅当前用户四模块；重新解析入参 — 禁止调用全局 multi-user cron
+            dailyCronRunService.upsertStep(db, {
+              runId: newRun.id, userId, module: 'wakeup', status: 'running',
+            });
+            dailyCronRunService.upsertStep(db, {
+              runId: newRun.id, userId, module: 'flaw', status: 'running',
+            });
+            try {
+              await dailyPackService.generateDailyPackForUser(db, userId, theme, 'user_rerun');
+              for (const mod of ['wakeup', 'flaw']) {
+                dailyCronRunService.upsertStep(db, {
+                  runId: newRun.id, userId, module: mod, status: 'completed', progress: 100, finishedAt: Date.now(),
+                });
+              }
+            } catch (e) {
+              for (const mod of ['wakeup', 'flaw']) {
+                dailyCronRunService.upsertStep(db, {
+                  runId: newRun.id, userId, module: mod, status: 'failed', progress: 100,
+                  finishedAt: Date.now(), errorMessage: e.message,
+                });
+              }
+            }
+
+            for (const genre of dailyCronRunService.LONG_GENRES) {
+              for (const cefr of dailyCronRunService.LONG_CEFR) {
+                for (const duration of dailyCronRunService.LONG_DURATIONS) {
+                  const ck = `${genre}|${cefr}|${duration}`;
+                  dailyCronRunService.upsertStep(db, {
+                    runId: newRun.id, userId, module: 'long_article', comboKey: ck, status: 'running',
+                  });
+                  try {
+                    const result = await dailyPackService.generateLongArticleForUser(
+                      db, userId, theme, 'user_rerun', genre, cefr, String(duration),
+                    );
+                    dailyCronRunService.upsertStep(db, {
+                      runId: newRun.id, userId, module: 'long_article', comboKey: ck,
+                      status: result?.status === 'skipped' ? 'skipped' : 'completed',
+                      progress: 100, finishedAt: Date.now(), resultSummary: result,
+                    });
+                  } catch (e) {
+                    dailyCronRunService.upsertStep(db, {
+                      runId: newRun.id, userId, module: 'long_article', comboKey: ck,
+                      status: 'failed', progress: 100, finishedAt: Date.now(), errorMessage: e.message,
+                    });
+                  }
+                }
+              }
+            }
+
+            dailyCronRunService.upsertStep(db, {
+              runId: newRun.id, userId, module: 'listen', status: 'running',
+            });
+            try {
+              await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+                cronTickId: tick,
+              });
+              dailyCronRunService.upsertStep(db, {
+                runId: newRun.id, userId, module: 'listen', status: 'completed',
+                progress: 100, finishedAt: Date.now(),
+              });
+            } catch (e) {
+              dailyCronRunService.upsertStep(db, {
+                runId: newRun.id, userId, module: 'listen', status: 'failed',
+                progress: 100, finishedAt: Date.now(), errorMessage: e.message,
+              });
+            }
+          } else {
+            // failed_snapshot: reuse inputs_json; do not call resolvers for theme/history/profile
+            let failed = parentSteps.filter((s) => s.status === 'failed');
+            if (stepId) failed = failed.filter((s) => s.id === stepId);
+            if (comboKey) failed = failed.filter((s) => s.combo_key === comboKey);
+
+            for (const fs of failed) {
+              const snap = dailyCronRunService.parseJsonSafe(fs.inputs_json, {}) || {};
+              const sources = dailyCronRunService.parseJsonSafe(fs.input_sources_json, null);
+              dailyCronRunService.upsertStep(db, {
+                runId: newRun.id,
+                userId,
+                module: fs.module,
+                comboKey: fs.combo_key,
+                status: 'running',
+                inputs: snap,
+                inputSources: sources,
+              });
+              try {
+                if (fs.module === 'wakeup' || fs.module === 'flaw') {
+                  // Snapshot executor: use snap.theme only; still call generate with that theme
+                  // (generateDailyPackForUser re-resolves history — document known gap vs pure snapshot;
+                  //  prefer callWakeupWorkflow with snap fields when module is wakeup-only)
+                  if (fs.module === 'wakeup' && snap.theme != null) {
+                    await dailyPackService.callWakeupWorkflow({
+                      theme: snap.theme,
+                      userId,
+                      historyExclude: snap.history_exclude || '',
+                      userCurrentProfile: snap.user_current_profile || '',
+                    });
+                  } else if (fs.module === 'flaw') {
+                    await dailyPackService.generateFlawVocabForUser(db, userId, snap.theme || theme);
+                  } else {
+                    await dailyPackService.generateDailyPackForUser(db, userId, snap.theme || theme, 'user_rerun');
+                  }
+                } else if (fs.module === 'long_article') {
+                  const [g, c, d] = String(fs.combo_key || 'meeting|B1|25').split('|');
+                  await dailyPackService.generateLongArticleForUser(
+                    db, userId, snap.theme || theme, 'user_rerun', g, c, d,
+                  );
+                } else if (fs.module === 'listen') {
+                  await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+                    cronTickId: tick,
+                  });
+                }
+                dailyCronRunService.upsertStep(db, {
+                  runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
+                  status: 'completed', progress: 100, finishedAt: Date.now(),
+                  inputs: snap, inputSources: sources,
+                });
+              } catch (e) {
+                dailyCronRunService.upsertStep(db, {
+                  runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
+                  status: 'failed', progress: 100, finishedAt: Date.now(),
+                  errorMessage: e.message, inputs: snap, inputSources: sources,
+                });
+              }
+            }
+          }
+          dailyCronRunService.refreshRunAggregation(db, newRun.id);
+        } catch (e) {
+          console.error('[DailyCron rerun bg]', e);
+          dailyCronRunService.markAuditDegraded(db, newRun.id, e.message);
+          db.prepare(`
+            UPDATE daily_cron_runs SET status='failed', execution_status='failed',
+              error_message=?, finished_at=?, updated_at=? WHERE id=?
+          `).run(String(e.message || e), Date.now(), Date.now(), newRun.id);
+        } finally {
+          dailyCronRunService.releaseRerunLock(lockKey);
+        }
+      })();
+    });
+  } catch (error) {
+    if (lockKey) dailyCronRunService.releaseRerunLock(lockKey);
+    console.error('[DailyCron rerun]', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

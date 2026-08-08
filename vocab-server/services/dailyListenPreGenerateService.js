@@ -266,27 +266,64 @@ function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration, hi
   };
 }
 
+function getUserAliasList(userId) {
+  const uid = dailyPackService.normalizeUserId(userId);
+  const list = [uid];
+  if (uid === 'lzhmy') list.push('lzhumy');
+  if (uid === 'lzhumy') list.push('lzhmy');
+  return list;
+}
+
 function getArticleRow(db, parts) {
-  // L1: 精确命中 theme + combo + input_signature；无宽兜底
-  return db.prepare(`
+  const userIds = getUserAliasList(parts.userId);
+  const placeholders = userIds.map(() => '?').join(',');
+  
+  // A. 精确匹配
+  let row = db.prepare(
     SELECT * FROM daily_listen_articles
-    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
+    WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
       AND COALESCE(input_signature, '')=?
-  `).get(
-    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+    ORDER BY created_at DESC LIMIT 1
+  ).get(
+    ...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     parts.inputSignature || '',
   );
+
+  // B. 降级模糊匹配（忽略签名差异，仅以基础维度和状态为准）
+  if (!row) {
+    row = db.prepare(
+      SELECT * FROM daily_listen_articles
+      WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=? AND status='ready'
+      ORDER BY created_at DESC LIMIT 1
+    ).get(...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
+  }
+  return row;
 }
 
 function getAudioRow(db, parts) {
-  return db.prepare(`
+  const userIds = getUserAliasList(parts.userId);
+  const placeholders = userIds.map(() => '?').join(',');
+
+  // A. 精确匹配
+  let row = db.prepare(
     SELECT * FROM daily_listen_audios
-    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
+    WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
       AND COALESCE(input_signature, '')=?
-  `).get(
-    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+    ORDER BY created_at DESC LIMIT 1
+  ).get(
+    ...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     parts.inputSignature || '',
   );
+
+  // B. 降级模糊匹配（忽略签名差异，仅以基础维度和状态为准）
+  if (!row) {
+    row = db.prepare(
+      SELECT * FROM daily_listen_audios
+      WHERE user_id IN () AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=? AND status='ready'
+      ORDER BY created_at DESC LIMIT 1
+    ).get(...userIds, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration);
+  }
+  return row;
 }
 
 function fileOk(p) {
@@ -1167,36 +1204,142 @@ function scheduleUserDailyCatchup(db, { userId, theme }) {
   return record.promise;
 }
 
-async function runDailyListenCronJob(db) {
+async function runDailyListenCronJob(db, options = {}) {
+  const dailyCronRunService = require('./dailyCronRunService');
   const packDate = dailyPackService.getPackDate();
-  const users = listCronTargetUsers(db);
+  const cronTickId = options.cronTickId || null;
+
+  // PRD: when cronTickId present, freeze user set from materialized runs — never listCronTargetUsers
+  let users;
+  let fallback = false;
+  if (cronTickId) {
+    const ids = dailyCronRunService.listUserIdsForTick(db, cronTickId);
+    users = ids.map((user_id) => {
+      const pref = db.prepare(`
+        SELECT theme FROM user_theme_prefs
+        WHERE user_id = ? AND theme IS NOT NULL AND TRIM(theme) != ''
+      `).get(user_id);
+      return {
+        user_id,
+        theme: pref?.theme || DEFAULT_CRON_THEME,
+        fallback: false,
+      };
+    });
+  } else {
+    // Manual listen-only cron-run: own tick + listen-only runs (no pack stitch)
+    users = listCronTargetUsers(db);
+    fallback = users.some((u) => u.fallback);
+  }
+
   const summary = {
     packDate,
+    cronTickId,
     users: users.length,
-    fallback: users.some((u) => u.fallback),
+    fallback,
     syncedFromArticles: 0,
     combosOk: 0,
     combosFail: 0,
     errors: [],
+    openMiss: 0,
   };
   if (users.length === 0) {
-    console.warn('[DailyListen Cron] no cron target users (no login logs)');
+    console.warn('[DailyListen Cron] no cron target users');
   } else if (summary.fallback) {
     console.warn(
       '[DailyListen Cron] no active users in window; fallback to latest login user=%s',
       users[0].user_id,
     );
   }
+
+  // Manual path without tick: create listen-only tick + runs
+  let effectiveTickId = cronTickId;
+  if (!effectiveTickId && users.length > 0) {
+    effectiveTickId = dailyCronRunService.createCronTickId();
+    summary.cronTickId = effectiveTickId;
+    summary.listenOnly = true;
+    for (const user of users) {
+      dailyCronRunService.createPerUserRun(db, {
+        cronTickId: effectiveTickId,
+        userId: user.user_id,
+        packDate,
+        triggerSource: 'manual_api',
+        unitTotal: dailyCronRunService.LISTEN_ONLY_UNIT_TOTAL,
+      });
+    }
+  }
+
   for (const user of users) {
-    const userSummary = await runCoordinatedUserListen(
-      db,
-      user,
-      { packDate, source: 'cron' },
-    );
-    summary.syncedFromArticles += userSummary.syncedFromArticles;
-    summary.combosOk += userSummary.combosOk;
-    summary.combosFail += userSummary.combosFail;
-    summary.errors.push(...userSummary.errors);
+    let run = null;
+    if (effectiveTickId) {
+      run = dailyCronRunService.getRunByTickUser(db, effectiveTickId, user.user_id);
+      if (!run) {
+        // OPEN miss: never INSERT second card
+        summary.openMiss += 1;
+        summary.errors.push({
+          userId: user.user_id,
+          error: 'listen_open_miss: no per-user run for cron_tick_id',
+        });
+        console.warn(
+          '[DailyListen Cron] OPEN miss user=%s tick=%s — skip (no INSERT)',
+          user.user_id,
+          effectiveTickId,
+        );
+        continue;
+      }
+      dailyCronRunService.upsertStep(db, {
+        runId: run.id,
+        userId: user.user_id,
+        module: 'listen',
+        status: 'running',
+      });
+    }
+
+    try {
+      const userSummary = await runCoordinatedUserListen(
+        db,
+        user,
+        { packDate, source: 'cron' },
+      );
+      summary.syncedFromArticles += userSummary.syncedFromArticles;
+      summary.combosOk += userSummary.combosOk;
+      summary.combosFail += userSummary.combosFail;
+      summary.errors.push(...userSummary.errors);
+
+      if (run) {
+        const listenFailed = (userSummary.combosFail || 0) > 0 && (userSummary.combosOk || 0) === 0;
+        const listenPartial = (userSummary.combosFail || 0) > 0 && (userSummary.combosOk || 0) > 0;
+        dailyCronRunService.upsertStep(db, {
+          runId: run.id,
+          userId: user.user_id,
+          module: 'listen',
+          status: listenFailed ? 'failed' : 'completed',
+          progress: 100,
+          finishedAt: Date.now(),
+          errorMessage: listenFailed || listenPartial
+            ? `combosFail=${userSummary.combosFail}`
+            : null,
+          resultSummary: userSummary,
+        });
+        const unitTotal = summary.listenOnly
+          ? dailyCronRunService.LISTEN_ONLY_UNIT_TOTAL
+          : dailyCronRunService.STANDARD_UNIT_TOTAL;
+        dailyCronRunService.refreshRunAggregation(db, run.id, { unitTotal });
+      }
+    } catch (err) {
+      summary.errors.push({ userId: user.user_id, error: err.message || String(err) });
+      if (run) {
+        dailyCronRunService.upsertStep(db, {
+          runId: run.id,
+          userId: user.user_id,
+          module: 'listen',
+          status: 'failed',
+          progress: 100,
+          finishedAt: Date.now(),
+          errorMessage: err.message || String(err),
+        });
+        dailyCronRunService.refreshRunAggregation(db, run.id);
+      }
+    }
   }
   const cleanup = module.exports.cleanupDailyListenStorage(db);
   console.log('[DailyListen Cron] done', summary, cleanup);
