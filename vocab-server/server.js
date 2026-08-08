@@ -8076,7 +8076,7 @@ async function callPolishLLM(rawText) {
       messages: [
         {
           role: 'system',
-          content: '你是一个专业的中英文语音识别（STT）原始文本智能纠错与润色助手。\\n\\n你的任务是纠正从语音识别接口转写出来的原始文本，使其在保持原意和口语语气的准则下，更加符合阅读习惯。\\n\\n请严格遵循以下规则进行处理：\\n1. **自适应语言处理**：根据输入的文本语言（中文或英文），自动应用对应的语法、拼写和标点规则。如果中英文混杂，保持混杂形式并分别优化。\\n2. **错别字与同音字纠正**：\\n   - 英文：纠正拼写错误、单复数、时态以及发音相近的英文单词。\\n   - 中文：纠正同音错别字（如将“地/的/得”用法规范化，纠正类似“报销”听成“包销”等逻辑语境错字）。\\n3. **标点与分句补全**：STT 转写的文本往往缺乏标点符号。请结合上下文的停顿和语气，补充合适的标点符号（中文使用全角标点，英文使用半角标点）。\\n4. **保留原意与语气**：\\n   - 绝对不要重写句子。必须保留第一人称、口语化表达、叹词以及原有的情感色彩，不要强行修改为官僚化或过于书面的词汇。\\n   - 适当合并因说话停顿被切碎的句子，使其通顺。\\n5. **严格的输出限制**：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何前缀（例如“纠正后：”）、解释性文字、旁白说明、双引号（""）或 markdown 格式标记。'
+          content: '你是一个专业的中英文语音识别（STT）原始文本智能纠错与润色助手。\\n\\n你的任务是纠正从语音识别接口转写出来的原始文本，使其在保持原意和口语语气的准则下，更加符合阅读习惯。\\n\\n请严格遵循以下规则进行处理：\\n1. **自适应语言处理**：根据输入的文本语言（中文或英文），自动应用对应的语法、拼写和标点规则。如果中英文混杂，保持混杂形式并分别优化。\\n2. **错别字与同音字纠正**：\\n   - 英文：纠正拼写错误、单复数、时态以及发音相近的英文单词。\\n   - 中文：纠正同音错别字（如将“地/的/得”用法规范化，纠正类似“报销”听成“包销”等逻辑语境错字）。\\n3. **标点与分句补全**：STT 转写的文本往往缺乏标点符号。请结合上下文的停顿和语气，补充合适的标点符号（中文使用全角标点，英文使用半角标点）。\\n4. **保留原意与语气**：\\n   - 绝对不要重写句子。必须保留第一人称、口语化表达、叹词以及原有的情感色彩，不要强行修改为官僚化或过于书面的词汇。\\n   - 适当合并因说话停顿被切碎的句子，使其通顺。\\n5. **严格的输出限制**：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何前缀（例如“纠正后：”）、解释性文字、旁白说明、双引号（""）或 markdown 格式标记。如果输入的原始转录文本仅含有无意义噪声标记、幻觉（如 "silence", "BLANK_AUDIO", "music", "Spanish"）或为空白，请直接返回空字符串，千万不要输出任何内容。'
         },
         {
           role: 'user',
@@ -8194,6 +8194,8 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         const localFormData = new globalThis.FormData();
         const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
         localFormData.append('file', localBlob, originalName);
+        localFormData.append('language', 'auto');
+        localFormData.append('initial_prompt', '简体中文, English, transcript, 录音.');
 
         const localResponse = await fetch('http://127.0.0.1:8080/inference', {
           method: 'POST',
@@ -8203,8 +8205,16 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         if (localResponse.ok) {
           const localData = await localResponse.json().catch(() => ({}));
           rawText = typeof localData.text === 'string' ? localData.text.trim() : '';
+          
+          // 对原始文本进行过滤降噪，洗掉 Whisper 幻觉噪声标签 (如 [Spanish], [silence], [BLANK_AUDIO], (laughter) 等)
+          rawText = rawText
+            .replace(/\[[^\]]*\]/g, '')
+            .replace(/\([^)]*\)/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+
           rawSuccess = true;
-          console.log('[STT Local] 本地 whisper-server 原始识别成功:', rawText);
+          console.log('[STT Local] 本地 whisper-server 原始识别并洗噪成功:', rawText);
         } else {
           console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
         }
@@ -8233,8 +8243,16 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
           if (response.ok) {
             const data = await response.json().catch(() => ({}));
             rawText = typeof data.text === 'string' ? data.text.trim() : '';
+            
+            // 对降级 Dify 的原始文本同样进行降噪洗噪
+            rawText = rawText
+              .replace(/\[[^\]]*\]/g, '')
+              .replace(/\([^)]*\)/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+
             rawSuccess = true;
-            console.log('[STT Dify] Dify STT 原始识别成功:', rawText);
+            console.log('[STT Dify] Dify STT 原始识别并洗噪成功:', rawText);
           } else {
             const errData = await response.json().catch(() => ({}));
             const errStr = errData?.error?.message || errData?.error || JSON.stringify(errData);
