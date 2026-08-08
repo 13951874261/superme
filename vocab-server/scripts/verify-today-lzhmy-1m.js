@@ -1,7 +1,7 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const dbPath = path.join(__dirname, '../vocab.db');
+const dbPath = __dirname.includes('/var/www') ? '/var/www/super-agent/vocab.db' : path.join(__dirname, '../vocab.db');
 const db = new Database(dbPath);
 
 const targetUser = 'lzhmy';
