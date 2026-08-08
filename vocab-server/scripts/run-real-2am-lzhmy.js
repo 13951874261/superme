@@ -67,12 +67,23 @@ async function main() {
         DURATION, `sig_1m_${genre}_${cefrLevel}_diff`, now, now
       );
 
+      // Also write to daily_listen_articles so getPregeneratedCombo / L2 fallback can find it
+      db.prepare(`
+        INSERT OR REPLACE INTO daily_listen_articles (id, user_id, pack_date, theme, genre, cefr_level, duration, body_text, vocab_json, phrases_json, file_path, status, source, created_at, updated_at, input_signature)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        artId, targetUser, packDate, theme, genre, cefrLevel, Number(DURATION), body,
+        JSON.stringify([{ word: 'strategy' }, { word: 'leverage' }]),
+        JSON.stringify(['strategic flexibility', 'firm pressure']),
+        null, 'ready', 'cron', now, now, `sig_1m_${genre}_${cefrLevel}_diff`
+      );
+
       const audioId = crypto.randomUUID();
       const audioUrl = `/api/daily_listen_audio/${targetUser}/${packDate}_${genre}_${cefrLevel}_1m.mp3`;
       db.prepare(`
-        INSERT OR REPLACE INTO daily_listen_audios (id, user_id, pack_date, theme, genre, cefr_level, duration, audio_url, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(audioId, targetUser, packDate, theme, genre, cefrLevel, 1, audioUrl, 'ready', now, now);
+        INSERT OR REPLACE INTO daily_listen_audios (id, user_id, pack_date, theme, genre, cefr_level, duration, audio_url, status, created_at, updated_at, input_signature)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(audioId, targetUser, packDate, theme, genre, cefrLevel, 1, audioUrl, 'ready', now, now, `sig_1m_${genre}_${cefrLevel}_diff`);
     }
   }
 
