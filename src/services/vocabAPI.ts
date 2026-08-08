@@ -217,8 +217,17 @@ export async function getStats(): Promise<VocabStats> {
 }
 
 /** 获取所有词条列表（默认轻量，避免 6k 全 payload） */
-export async function getAllWords(options?: { light?: boolean }): Promise<VocabEntry[]> {
+export async function getAllWords(options?: { light?: boolean; limit?: number }): Promise<VocabEntry[]> {
   const light = options?.light !== false;
+  const limit = options?.limit;
+  if (limit) {
+    const path = `/list?light=1&limit=${limit}`;
+    const res = await request<{ items: VocabEntry[]; hasMore: boolean }>(path, {
+      timeoutMs: 10000,
+      silent: true,
+    });
+    return res?.items || [];
+  }
   // 禁止默认打全量 /list：6000 条带 payload 会拖垮服务
   return vocabRequestDeduper.run(`list:${light ? 'light' : 'full'}`, () =>
     request<VocabEntry[]>(light ? '/list?light=1' : '/list', {

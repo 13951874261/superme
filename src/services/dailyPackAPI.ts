@@ -77,7 +77,7 @@ function buildTodayInflightKey(userId: string, input: DailyPackQueryInput) {
 
 export async function buildDailyPackQueryInput(theme: string): Promise<DailyPackQueryInput> {
   // 设置 500ms 极速超时，防止生词库网络波动/卡死导致首页唤醒包无法呈现
-  const wordsPromise = getAllWords().catch(() => []);
+  const wordsPromise = getAllWords({ limit: 50 }).catch(() => []);
   const timeoutPromise = new Promise<VocabEntry[]>((r) => setTimeout(() => r([]), 500));
   const words = await Promise.race([wordsPromise, timeoutPromise]);
 
