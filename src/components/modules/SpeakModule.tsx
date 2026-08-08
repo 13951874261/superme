@@ -387,7 +387,7 @@ export default function SpeakModule() {
   };
 
 
-  const startRecording = async (e?: React.MouseEvent | React.TouchEvent) => {
+  const startRecording = async () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       return;
     }
@@ -415,45 +415,11 @@ export default function SpeakModule() {
             setAggressiveInput(prev => prev ? prev + ' ' + text : text);
           }
         } catch (err) {
-          console.error('语音中转接口识别失败，尝试原生 SpeechRecognition 托底:', err);
-          const fallbackText = recognitionTextRef.current;
-          if (fallbackText) {
-            if (inputMode === 'mild') {
-              setMildInput(prev => prev ? prev + ' ' + fallbackText : fallbackText);
-            } else {
-              setAggressiveInput(prev => prev ? prev + ' ' + fallbackText : fallbackText);
-            }
-            console.log('已应用原生语音识别托底内容: ', fallbackText);
-          } else {
-            console.warn('原生语音识别托底内容为空');
-          }
+          console.error('语音转译失败:', err);
         } finally {
           setIsUploading(false);
         }
       };
-
-      // 启动浏览器原生 SpeechRecognition 托底
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = /[\u4e00-\u9fa5]/.test(promptTopic) ? 'zh-CN' : 'en-US';
-        
-        recognitionTextRef.current = '';
-        recognition.onresult = (event: any) => {
-          let text = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            text += event.results[i][0].transcript;
-          }
-          recognitionTextRef.current = text.trim();
-        };
-        recognition.onerror = (err: any) => {
-          console.warn('SpeechRecognition error:', err);
-        };
-        recognition.start();
-        recognitionRef.current = recognition;
-      }
 
       mediaRecorder.start();
       setIsRecording(true);
@@ -462,20 +428,10 @@ export default function SpeakModule() {
     }
   };
 
-  const stopRecording = (e?: React.MouseEvent | React.TouchEvent) => {
-    if (e && (e.type === 'mouseup' || e.type === 'touchend')) {
-      const duration = Date.now() - recordingStartTimeRef.current;
-      if (duration < 300) {
-        // 按压时间过短则判定为普通点击意图，交由 click 事件统一处理，不执行停止
-        return;
-      }
-    }
+  const stopRecording = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
-    }
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
     }
   };
 
@@ -1057,22 +1013,6 @@ export default function SpeakModule() {
             
             <div className="absolute right-4 bottom-4 flex items-center gap-2">
               <button
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  if (!isRecording) startRecording(e);
-                }}
-                onMouseUp={(e) => {
-                  e.preventDefault();
-                  if (isRecording) stopRecording(e);
-                }}
-                onTouchStart={(e) => {
-                  e.preventDefault();
-                  if (!isRecording) startRecording(e);
-                }}
-                onTouchEnd={(e) => {
-                  e.preventDefault();
-                  if (isRecording) stopRecording(e);
-                }}
                 onClick={(e) => {
                   e.preventDefault();
                   if (isRecording) {
