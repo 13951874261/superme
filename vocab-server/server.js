@@ -258,6 +258,16 @@ try {
   db.prepare("ALTER TABLE training_attempts ADD COLUMN user_answer TEXT").run();
 } catch (e) {}
 
+// 性能加速索引
+try {
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_success ON dict_query_log(is_success)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_session ON training_attempts(session_id)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_user_scene ON training_attempts(user_id, scene_type, module_type)').run();
+  console.log('Migration: Created performance indexes successfully.');
+} catch (err) {
+  console.warn('Migration: training/dict indexes skipped:', err?.message || err);
+}
+
 // ????????theme_progress ????????????????????????????
 db.prepare(`
   CREATE TABLE IF NOT EXISTS theme_progress (

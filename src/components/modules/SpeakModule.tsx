@@ -442,8 +442,27 @@ export default function SpeakModule() {
       };
 
       const sceneTopics = topics[activeScenario] || topics.mnc;
-      const selectedTopic = sceneTopics[Math.floor(Math.random() * sceneTopics.length)];
-      setPromptTopic(selectedTopic);
+      if (sceneTopics.length > 0) {
+        const historyKey = `speak_topic_history_${activeScenario}`;
+        let history: string[] = [];
+        try {
+          history = JSON.parse(localStorage.getItem(historyKey) || '[]');
+        } catch (e) {
+          history = [];
+        }
+
+        let pool = sceneTopics.filter((t) => !history.includes(t));
+        if (pool.length === 0) {
+          pool = sceneTopics;
+          localStorage.setItem(historyKey, '[]');
+          history = [];
+        }
+
+        const selectedTopic = pool[Math.floor(Math.random() * pool.length)];
+        const newHistory = [...history, selectedTopic].slice(-3);
+        localStorage.setItem(historyKey, JSON.stringify(newHistory));
+        setPromptTopic(selectedTopic);
+      }
     }
     resetTimer();
   };
@@ -1163,7 +1182,7 @@ export default function SpeakModule() {
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="fixed top-0 right-0 w-[30%] bg-slate-50 border-l border-slate-200 h-full shadow-2xl flex flex-col z-50"
+          className="fixed top-0 right-0 w-[30%] bg-slate-50 border-l border-slate-200 h-full shadow-2xl flex flex-col z-50 transform-gpu will-change-transform"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 固定头部与关闭按钮 */}
