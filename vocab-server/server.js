@@ -5483,17 +5483,9 @@ const handleGetDailyExtractArticle = (req, res) => {
     const today = dailyPackService.getPackDate();
 
     const userIds = [rawUserId];
-    if (rawUserId === 'lzhmy') userIds.push('lzhumy');
-    if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
     // ????????????????????????????
     let hostUserId = rawUserId;
-    if (rawUserId === 'lzhmy' || rawUserId === 'lzhumy') {
-      try {
-        const hasLzhumy = db.prepare("SELECT 1 FROM user_memories WHERE user_id = 'lzhumy' AND TRIM(COALESCE(profile_content, '')) != ''").get();
-        hostUserId = hasLzhumy ? 'lzhumy' : 'lzhmy';
-      } catch (_) {}
-    }
 
     // L1: ??????? history/flaws/profile?????? theme?
     let historyExclude = String(req.query.historyExclude || '').trim();
@@ -6315,8 +6307,6 @@ app.get('/api/daily-pack/today', (req, res) => {
 
     // 兼顾账号别名
     const userIds = [rawUserId];
-    if (rawUserId === 'lzhmy') userIds.push('lzhumy');
-    if (rawUserId === 'lzhumy') userIds.push('lzhmy');
 
     // 自动保障前台用户及其选择的主题写入 user_theme_prefs 物理表
     try {

@@ -193,13 +193,14 @@ async function testSkipReadyAudioUsesExactCombo() {
         },
         get(...args) {
           if (/FROM daily_listen_audios/.test(sql)) {
-            const exactThemeQuery = args.length === 6;
+            const hasTheme = args.length === 7 || (args.length === 6 && typeof args[2] === 'string' && args[2].includes('商务'));
             const actualUserId = args[0];
             const actualPackDate = args[1];
-            const actualTheme = exactThemeQuery ? args[2] : '商务英语';
-            const genre = args.length === 6 ? args[3] : args[2];
-            const cefrLevel = args.length === 6 ? args[4] : args[3];
-            const duration = args.length === 6 ? args[5] : args[4];
+            const actualTheme = hasTheme ? args[2] : '商务英语';
+            const offset = hasTheme ? 1 : 0;
+            const genre = args[2 + offset];
+            const cefrLevel = args[3 + offset];
+            const duration = args[4 + offset];
             return actualUserId === userId
               && actualPackDate === packDate
               && actualTheme === '商务英语'
@@ -210,9 +211,11 @@ async function testSkipReadyAudioUsesExactCombo() {
               : undefined;
           }
           if (/FROM daily_listen_articles/.test(sql)) {
+            const hasTheme = args.length === 7 || (args.length === 6 && typeof args[2] === 'string' && args[2].includes('商务'));
             const actualUserId = args[0];
             const actualPackDate = args[1];
-            const genre = args.length === 6 ? args[3] : args[2];
+            const offset = hasTheme ? 1 : 0;
+            const genre = args[2 + offset];
             if (actualUserId !== userId || actualPackDate !== packDate) return undefined;
             if (genre === 'news') return missingArticle;
             if (genre === 'meeting') return readyArticle;
@@ -274,8 +277,13 @@ function createCoordinatorDb(users = [], { packStatus = 'ready', onPackGet } = {
           if (/FROM user_theme_prefs/.test(sql)) return users;
           return [];
         },
-        get(userId, packDate) {
+        get(...args) {
+          if (/FROM daily_cron_runs/.test(sql)) {
+            return { id: 'mock-run-id' };
+          }
           if (/FROM daily_packs/.test(sql)) {
+            const userId = args[0];
+            const packDate = args[1];
             if (onPackGet) onPackGet(userId, packDate);
             return packStatus
               ? { user_id: userId, pack_date: packDate, status: packStatus }
@@ -667,7 +675,11 @@ async function testCronTraversalSummarySourceAndCleanup() {
     const result = await dailyListenService.runDailyListenCronJob(createCoordinatorDb(users));
     assert.deepStrictEqual(calls.map((call) => call.userId), ['cron-user-1', 'cron-user-2']);
     assert.ok(calls.every((call) => call.options.source === 'cron'));
-    assert.deepStrictEqual(result.summary, {
+    const cleanSummary = { ...result.summary };
+    delete cleanSummary.cronTickId;
+    delete cleanSummary.listenOnly;
+    delete cleanSummary.openMiss;
+    assert.deepStrictEqual(cleanSummary, {
       packDate: dailyPackService.getPackDate(),
       users: 2,
       fallback: false,

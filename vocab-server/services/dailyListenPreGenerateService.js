@@ -39,6 +39,26 @@ function ensureDirs() {
 function initDailyListenTables(db) {
   ensureDirs();
   db.prepare(`
+    CREATE TABLE IF NOT EXISTS daily_extracted_articles (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      quota_date TEXT NOT NULL,
+      theme TEXT NOT NULL,
+      genre TEXT NOT NULL,
+      cefr_level TEXT NOT NULL,
+      article TEXT NOT NULL,
+      words_json TEXT NOT NULL,
+      phrases_json TEXT NOT NULL,
+      sentences_json TEXT NOT NULL,
+      duration TEXT DEFAULT '25',
+      input_signature TEXT DEFAULT '',
+      created_at INTEGER,
+      updated_at INTEGER,
+      UNIQUE(user_id, quota_date, genre, cefr_level)
+    )
+  `).run();
+
+  db.prepare(`
     CREATE TABLE IF NOT EXISTS user_login_logs (
       user_id TEXT NOT NULL,
       logged_at INTEGER NOT NULL,
