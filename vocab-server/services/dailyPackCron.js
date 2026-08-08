@@ -67,10 +67,27 @@ function buildWakeupFlawInputSources({ theme, historyExclude, userCurrentProfile
   ];
 }
 
-async function runDailyPackCronJob(db) {
+async function runDailyPackCronJob(db, targetUserId = null) {
   const packDate = dailyPackService.getPackDate();
   const cronTickId = dailyCronRunService.createCronTickId();
-  const users = dailyListenPreGenerateService.listCronTargetUsers(db);
+  let users = dailyListenPreGenerateService.listCronTargetUsers(db);
+  if (targetUserId) {
+    const uid = dailyCronRunService.normalizeUserId(targetUserId);
+    const found = users.find((u) => dailyCronRunService.normalizeUserId(u.user_id) === uid);
+    if (found) {
+      users = [found];
+    } else {
+      const pref = db.prepare(`
+        SELECT theme FROM user_theme_prefs
+        WHERE user_id = ? AND theme IS NOT NULL AND TRIM(theme) != ''
+      `).get(uid);
+      users = [{
+        user_id: uid,
+        theme: pref?.theme || '商务谈判：让步与施压',
+        fallback: false,
+      }];
+    }
+  }
   const summary = {
     packDate,
     cronTickId,
