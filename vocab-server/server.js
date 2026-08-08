@@ -5971,6 +5971,29 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       }
     }
 
+    if (parsedVocab.length === 0 && parsedPhrases.length === 0 && articleText.trim()) {
+      console.log(`[Daily Extract] Dify vocab list is empty, calling local fallback LLM for user=${userId} topic=${topic}...`);
+      try {
+        const fallbackRes = await extractVocabFallback(articleText, cefrLevel, genre, duration, topic);
+        if (fallbackRes.vocab.length > 0 || fallbackRes.phrases.length > 0 || (fallbackRes.sentences && fallbackRes.sentences.length > 0)) {
+          parsedVocab = fallbackRes.vocab;
+          parsedPhrases = fallbackRes.phrases;
+          if (fallbackRes.sentences && fallbackRes.sentences.length > 0) {
+            parsedVocab.push(...fallbackRes.sentences.map(s => {
+              if (typeof s === 'string') return { word: s, is_sentence: true };
+              if (typeof s === 'object' && s !== null) {
+                if (s.sentence && !s.word) s.word = s.sentence;
+                return { ...s, is_sentence: true };
+              }
+              return s;
+            }));
+          }
+        }
+      } catch (err) {
+        console.error("[Daily Extract] Fallback vocab extraction failed:", err.message);
+      }
+    }
+
     const vocabList = parsedVocab.map(item => {
       if (typeof item === 'string') return { word: item };
       if (typeof item === 'object' && item !== null) {
@@ -7651,11 +7674,24 @@ async function extractVocabFromListenArticle({
   }
 
   const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
-  const parsed = dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
-  const vocabN = Array.isArray(parsed.vocab) ? parsed.vocab.length : 0;
-  const phraseN = Array.isArray(parsed.phrases) ? parsed.phrases.length : 0;
+  let parsed = dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
+  let vocabN = Array.isArray(parsed.vocab) ? parsed.vocab.length : 0;
+  let phraseN = Array.isArray(parsed.phrases) ? parsed.phrases.length : 0;
+  if (vocabN === 0 && phraseN === 0 && body.trim()) {
+    console.log(`[DailyListen] extractVocab empty from Dify, calling local fallback LLM...`);
+    try {
+      const fallbackRes = await extractVocabFallback(body, cefr_level, genre, duration, theme);
+      if (fallbackRes.vocab.length > 0 || fallbackRes.phrases.length > 0 || (fallbackRes.sentences && fallbackRes.sentences.length > 0)) {
+        parsed = fallbackRes;
+        vocabN = parsed.vocab.length;
+        phraseN = parsed.phrases.length;
+      }
+    } catch (fallbackErr) {
+      console.error("[DailyListen] Fallback vocab extraction failed:", fallbackErr.message);
+    }
+  }
   const sentN = Array.isArray(parsed.sentences) ? parsed.sentences.length : 0;
-  // C2: 空结果明确打点，便于对照 mastery 是否吐出 VOCAB_JSON
+  // C2: 绌虹粨鏋滄槑纭墦鐐癸紝渚夸簬瀵圭収 mastery 鏄惁鍚愬嚭 VOCAB_JSON
   if (vocabN === 0 && phraseN === 0) {
     const hasMarker = /---VOCAB_JSON_START---/i.test(answer || '');
     console.warn(
@@ -8073,6 +8109,161 @@ app.get('/api/tasks/:taskId', (req, res) => {
 });
 
 // Whisper ????????????? API???????????????? 9router ??????? CORS ??????????
+
+// 当 Dify 工作流提取词汇为空时，调用本地 LLM 动态提取生词、短语与句型 (使用 dify 模型)
+async function extractVocabFallback(body, cefrLevel = 'B1', genre = 'meeting', duration = '15', theme = '') {
+  const https = require('https');
+  const url = 'https://23.95.214.232/v1/chat/completions';
+  const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
+
+  const systemPrompt = `You are a senior business English pedagogy expert. Read the English article provided below and extract key business vocabulary words, business phrases, and key business sentence structures.
+
+【TARGET CEFR LEVEL】
+${cefrLevel}
+
+【EXTRACTION REQUIREMENTS】
+Based on the length of the input article and the target CEFR level, dynamically determine the number of items to extract (e.g. for a short 1-minute article, extract around 5-8 words, 3-5 phrases, and 1-2 sentence structures; for longer articles, extract more but no more than 30 words, 20 phrases, and 8 sentence structures). All extracted items must be present in the input article.
+
+For each word/phrase/sentence structure, provide:
+- phonetic: IPA notation (American standard or British standard)
+- partOfSpeech: part of speech (for words only, e.g. adj. / n. / v. / adv.)
+- meaning: concise Chinese meaning
+- definition_en: concise English definition/explanation
+- examples: an array containing the exact original sentence from the article that contains the word/phrase/sentence structure.
+
+【OUTPUT FORMAT】
+Output ONLY a single valid JSON object. Do not wrap it in markdown code blocks like \`\`\`json ... \`\`\$, and do not include any extra text.
+The JSON schema must be exactly:
+{
+  "words": [
+    {
+      "word": "word",
+      "phonetic": "phonetic",
+      "partOfSpeech": "partOfSpeech",
+      "meaning": "concise Chinese translation",
+      "definition_en": "English definition",
+      "examples": ["exact original sentence from article"]
+    }
+  ],
+  "phrases": [
+    {
+      "phrase": "phrase",
+      "meaning": "concise Chinese translation",
+      "definition_en": "English definition",
+      "examples": ["exact original sentence from article"]
+    }
+  ],
+  "sentences": [
+    {
+      "sentence": "the full sentence structure",
+      "meaning": "concise Chinese translation and grammatical analysis",
+      "definition_en": "English grammar/structure explanation",
+      "examples": ["exact original sentence from article"]
+    }
+  ]
+}`;
+
+  const executeRequest = (modelName) => {
+    return new Promise((resolve, reject) => {
+      const requestBody = JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `Input Article:\n"""\n${body}\n"""` }
+        ],
+        temperature: 0.2,
+        stream: false
+      });
+
+      const options = {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(requestBody)
+        },
+        rejectUnauthorized: false
+      };
+
+      let aborted = false;
+      const req = https.request(url, options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          if (aborted) return;
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve({ statusCode: res.statusCode, data });
+          } else {
+            reject(new Error(`LLM status error: ${res.statusCode} - ${data}`));
+          }
+        });
+      });
+
+      req.on('error', (err) => {
+        if (aborted) return;
+        reject(err);
+      });
+
+      // Set timeout of 15 seconds
+      req.setTimeout(15000, () => {
+        aborted = true;
+        req.destroy();
+        reject(new Error('Request timeout after 15s'));
+      });
+
+      req.write(requestBody);
+      req.end();
+    });
+  };
+
+  const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
+  // Try up to 3 times (attempts with different models: 'dify' then 'gptgpt/gpt-5')
+  const modelsToTry = ['dify', 'gptgpt/gpt-5', 'dify'];
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const selectedModel = modelsToTry[attempt];
+    console.log(`[Vocab Fallback] Calling fallback LLM (attempt ${attempt + 1}/3) using model=${selectedModel}...`);
+    try {
+      const response = await executeRequest(selectedModel);
+      const json = JSON.parse(response.data);
+      const content = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content || '').trim();
+      
+      if (!content) {
+        throw new Error('Received empty assistant content');
+      }
+
+      // Robust JSON extraction finding the first { and the last }
+      let clean = content;
+      const firstBrace = clean.indexOf('{');
+      const lastBrace = clean.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        clean = clean.substring(firstBrace, lastBrace + 1);
+      } else {
+        // Fallback cleanup of markdown blocks if braces search failed
+        if (clean.toLowerCase().startsWith('\`\`\`json')) clean = clean.slice(7);
+        else if (clean.startsWith('\`\`\`')) clean = clean.slice(3);
+        if (clean.endsWith('\`\`\`')) clean = clean.slice(0, -3);
+        clean = clean.trim();
+      }
+
+      const parsed = JSON.parse(clean);
+      console.log(`[Vocab Fallback] Successfully extracted vocab on attempt ${attempt + 1}`);
+      return {
+        vocab: parsed.words || parsed.vocab || [],
+        phrases: parsed.phrases || [],
+        sentences: parsed.sentences || []
+      };
+    } catch (err) {
+      console.warn(`[Vocab Fallback] Attempt ${attempt + 1} failed:`, err.message);
+      if (attempt < 2) {
+        await delay(1000);
+      }
+    }
+  }
+
+  console.error('[Vocab Fallback] All 3 attempts failed to extract vocab.');
+  return { vocab: [], phrases: [], sentences: [] };
+}
 
 // 语音转译文本智能润色与纠错接口 (调用 23.95.214.232/v1)
 async function callPolishLLM(rawText) {
