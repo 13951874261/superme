@@ -28,6 +28,16 @@ import {
   X
 } from 'lucide-react';
 import { runSpeakInfluenceEngine, transcribeAudioWithWhisper } from '../../services/difyAPI';
+import { gsap } from 'gsap';
+import { useGSAP } from '@gsap/react';
+
+gsap.registerPlugin(useGSAP);
+
+const TRANSCRIBING_PROMPTS = [
+  '🎙️ 正在读取并识别录音音轨...',
+  '🤖 语音识别成功，大模型润色纠错中...',
+  '✨ 正在梳理最佳口语表达版本...'
+];
 import { playSuccessCyber, playErrorCyber, playHeartbeat, playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
 import Confetti from '../Confetti';
 import SpeakButton from '../SpeakButton';
@@ -149,6 +159,58 @@ export default function SpeakModule() {
   ]);
   const [uploadUrl, setUploadUrl] = useState('');
   const [isUploading, setIsUploading] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [transcribingTextIndex, setTranscribingTextIndex] = useState(0);
+
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const waveContainerRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null;
+    if (isTranscribing) {
+      setTranscribingTextIndex(0);
+      timer = setInterval(() => {
+        setTranscribingTextIndex(prev => (prev + 1) % TRANSCRIBING_PROMPTS.length);
+      }, 2000);
+    } else {
+      setTranscribingTextIndex(0);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [isTranscribing]);
+
+  useGSAP(() => {
+    if (isTranscribing && waveContainerRef.current) {
+      const bars = waveContainerRef.current.querySelectorAll('.wave-bar');
+      if (bars.length > 0) {
+        gsap.killTweensOf(bars);
+        gsap.to(bars, {
+          scaleY: 2.2,
+          duration: 0.55,
+          repeat: -1,
+          yoyo: true,
+          ease: 'power1.inOut',
+          stagger: {
+            each: 0.12,
+            from: 'center'
+          }
+        });
+      }
+    }
+  }, [isTranscribing]);
+
+  useGSAP(() => {
+    if (isTranscribing && textRef.current) {
+      gsap.killTweensOf(textRef.current);
+      gsap.fromTo(textRef.current,
+        { opacity: 0, y: 8 },
+        { opacity: 1, y: 0, duration: 0.4, ease: 'power2.out' }
+      );
+    }
+  }, [transcribingTextIndex, isTranscribing]);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [inputMode, setInputMode] = useState<'mild' | 'aggressive'>('mild');
@@ -407,7 +469,7 @@ export default function SpeakModule() {
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/mp3' });
         try {
-          setIsUploading(true);
+          setIsTranscribing(true);
           const text = await transcribeAudioWithWhisper(audioBlob);
           if (inputMode === 'mild') {
             setMildInput(prev => prev ? prev + ' ' + text : text);
@@ -417,7 +479,7 @@ export default function SpeakModule() {
         } catch (err) {
           console.error('语音转译失败:', err);
         } finally {
-          setIsUploading(false);
+          setIsTranscribing(false);
         }
       };
 
@@ -1021,7 +1083,7 @@ export default function SpeakModule() {
                     startRecording();
                   }
                 }}
-                disabled={isUploading}
+                disabled={isUploading || isTranscribing}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-md transition-all cursor-pointer ${
                   isRecording
                     ? 'bg-rose-500 hover:bg-rose-600 text-white animate-pulse'
@@ -1032,6 +1094,36 @@ export default function SpeakModule() {
                 {isRecording ? '停止录音' : '语音录入'}
               </button>
             </div>
+
+            {/* Transcribing Loading Overlay */}
+            <AnimatePresence>
+              {isTranscribing && (
+                <motion.div
+                  ref={overlayRef}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="absolute inset-0 bg-white/90 backdrop-blur-[1px] rounded-2xl flex flex-col items-center justify-center z-20 border border-indigo-100"
+                >
+                  <div ref={waveContainerRef} className="flex items-center gap-1.5 justify-center mb-3">
+                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full wave-bar origin-center" />
+                    <div className="w-1.5 h-10 bg-indigo-400 rounded-full wave-bar origin-center" />
+                    <div className="w-1.5 h-14 bg-violet-600 rounded-full wave-bar origin-center" />
+                    <div className="w-1.5 h-10 bg-indigo-400 rounded-full wave-bar origin-center" />
+                    <div className="w-1.5 h-6 bg-indigo-500 rounded-full wave-bar origin-center" />
+                  </div>
+                  
+                  <div className="text-center px-4">
+                    <div 
+                      ref={textRef} 
+                      className="text-xs font-black text-indigo-900 tracking-wide select-none"
+                    >
+                      {TRANSCRIBING_PROMPTS[transcribingTextIndex]}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {isCyberLocked && evalResult && (
@@ -1045,7 +1137,7 @@ export default function SpeakModule() {
 
           <button
             onClick={evaluateSpeech}
-            disabled={isLoadingFeedback || (!mildInput && !aggressiveInput)}
+            disabled={isLoadingFeedback || isTranscribing || (!mildInput && !aggressiveInput)}
             className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black tracking-widest text-xs uppercase rounded-2xl transition-all shadow-md shadow-[var(--color-brand)]/10 disabled:opacity-50"
           >
             {isLoadingFeedback ? (
