@@ -6369,7 +6369,7 @@ app.get('/api/daily-pack/today', (req, res) => {
     let row = null;
 
     for (const u of userIds) {
-      row = dailyPackService.getDailyPackRow(db, u, packDate, inputSignature);
+      row = dailyPackService.getDailyPackRow(db, u, packDate, inputSignature, theme);
       if (row) break;
     }
 
@@ -6408,7 +6408,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
       resolvedUserCurrentProfile,
     );
 
-    const existing = dailyPackService.getDailyPackRow(db, uid, packDate, inputSignature);
+    const existing = dailyPackService.getDailyPackRow(db, uid, packDate, inputSignature, resolvedTheme);
     const existingWakeup = existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null;
     const existingFlaw = existing?.flaw_vocab_json ? JSON.parse(existing.flaw_vocab_json) : null;
 

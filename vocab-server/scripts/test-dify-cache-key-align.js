@@ -58,7 +58,7 @@ function testReadExactSignatureHitAndMiss() {
     errorMessage: null,
   });
 
-  const hit = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, sig);
+  const hit = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, sig, theme);
   assert.ok(hit);
   assert.strictEqual(hit.theme, theme, '库内 theme 应为入参主题而非 Dify 输出');
 
@@ -67,6 +67,7 @@ function testReadExactSignatureHitAndMiss() {
     'lzhmy',
     packDate,
     dailyPackService.computeInputSignature('别的主题', 'collaborate', 'profile'),
+    '别的主题'
   );
   assert.strictEqual(miss, undefined);
 

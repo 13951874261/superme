@@ -2,7 +2,9 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const crypto = require('crypto');
 
-const dbPath = path.join(__dirname, '../vocab.db');
+const dbPath = process.env.VOCAB_DB_PATH || (process.env.NODE_ENV === 'production' || __dirname.includes('/var/www')
+  ? '/var/www/super-agent/vocab.db'
+  : path.join(__dirname, '../vocab.db'));
 const db = new Database(dbPath);
 
 const dailyPackService = require('../services/dailyPackService');

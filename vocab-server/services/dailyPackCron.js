@@ -229,9 +229,15 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
     }
 
     // Step 3: 长文预生成（G003 将改为 await extract 终态；此处先写步骤并调用现有路径）
-    const GENRES = dailyCronRunService.LONG_GENRES;
-    const CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
-    const DURATIONS = dailyCronRunService.LONG_DURATIONS;
+    let GENRES = dailyCronRunService.LONG_GENRES;
+    let CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
+    let DURATIONS = dailyCronRunService.LONG_DURATIONS;
+
+    if (process.env.MVP_MODE === 'true') {
+      GENRES = ['meeting'];
+      CEFR_LEVELS = ['B1'];
+      DURATIONS = [1];
+    }
 
     for (const genre of GENRES) {
       if (filterOptions?.genre && genre !== filterOptions.genre) continue;

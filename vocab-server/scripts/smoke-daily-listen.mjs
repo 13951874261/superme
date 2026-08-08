@@ -36,7 +36,8 @@ function createMemoryDb() {
     row.theme === args[2] &&
     row.genre === args[3] &&
     row.cefr_level === args[4] &&
-    Number(row.duration) === Number(args[5]);
+    Number(row.duration) === Number(args[5]) &&
+    (args.length < 7 || (row.input_signature || '') === (args[6] || ''));
 
   return {
     tables,
@@ -64,11 +65,11 @@ function createMemoryDb() {
           if (/INSERT INTO daily_listen_articles/.test(s)) {
             const [
               id, user_id, pack_date, theme, genre, cefr_level, duration,
-              body_text, vocab_json, phrases_json, file_path, status, source, error_message, created_at, updated_at,
+              body_text, vocab_json, phrases_json, file_path, status, source, error_message, created_at, updated_at, input_signature
             ] = args;
             tables.daily_listen_articles.push({
               id, user_id, pack_date, theme, genre, cefr_level, duration,
-              body_text, vocab_json, phrases_json, file_path, status, source, error_message, created_at, updated_at,
+              body_text, vocab_json, phrases_json, file_path, status, source, error_message, created_at, updated_at, input_signature
             });
             return { changes: 1 };
           }
@@ -77,7 +78,7 @@ function createMemoryDb() {
             if (row) {
               [
                 'body_text', 'vocab_json', 'phrases_json', 'file_path',
-                'status', 'source', 'error_message', 'updated_at',
+                'status', 'source', 'error_message', 'input_signature', 'updated_at',
               ].forEach((k, i) => {
                 if (args[i] !== undefined) row[k] = args[i];
               });
@@ -87,11 +88,11 @@ function createMemoryDb() {
           if (/INSERT INTO daily_listen_audios/.test(s)) {
             const [
               id, user_id, pack_date, theme, genre, cefr_level, duration,
-              script_text, audio_path, audio_url, status, source, error_message, created_at, updated_at,
+              script_text, audio_path, audio_url, status, source, error_message, created_at, updated_at, input_signature
             ] = args;
             tables.daily_listen_audios.push({
               id, user_id, pack_date, theme, genre, cefr_level, duration,
-              script_text, audio_path, audio_url, status, source, error_message, created_at, updated_at,
+              script_text, audio_path, audio_url, status, source, error_message, created_at, updated_at, input_signature
             });
             return { changes: 1 };
           }
@@ -100,7 +101,7 @@ function createMemoryDb() {
             if (row) {
               [
                 'script_text', 'audio_path', 'audio_url',
-                'status', 'source', 'error_message', 'updated_at',
+                'status', 'source', 'error_message', 'input_signature', 'updated_at',
               ].forEach((k, i) => {
                 if (args[i] !== undefined) row[k] = args[i];
               });
@@ -335,15 +336,15 @@ async function main() {
 
   await run('cron order: pack then listen', () => {
     assert.ok(dailyPackCronSrc.includes('runDailyPackCronJob(db)'));
-    assert.ok(dailyPackCronSrc.includes('runDailyListenCronJob(db)'));
+    assert.ok(dailyPackCronSrc.includes('runDailyListenCronJob(db'));
     const packIdx = dailyPackCronSrc.indexOf('await runDailyPackCronJob');
     const listenIdx = dailyPackCronSrc.indexOf('runDailyListenCronJob');
     assert.ok(packIdx >= 0 && listenIdx > packIdx);
   });
 
   await run('36 combos dimensions', () => {
-    assert.strictEqual(svc.GENRES.length * svc.CEFR_LEVELS.length * svc.DURATIONS.length, 36);
-    assert.deepStrictEqual(svc.DURATIONS, [5, 15, 25]);
+    assert.strictEqual(svc.GENRES.length * svc.CEFR_LEVELS.length * svc.DURATIONS.length, 64);
+    assert.deepStrictEqual(svc.DURATIONS, [1, 15, 25, 35]);
     assert.strictEqual(svc.CAPACITY_BYTES, 1024 * 1024 * 1024);
   });
 

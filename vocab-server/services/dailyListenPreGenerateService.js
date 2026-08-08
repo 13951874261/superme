@@ -288,7 +288,7 @@ function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration, hi
 
 function getArticleRow(db, parts) {
   // L1: exact theme + combo + input_signature
-  return db.prepare(`
+  const exact = db.prepare(`
     SELECT * FROM daily_listen_articles
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
       AND COALESCE(input_signature, '')=?
@@ -296,16 +296,37 @@ function getArticleRow(db, parts) {
     parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     parts.inputSignature || '',
   );
+  if (exact) return exact;
+
+  // L2 fallback: ignore signature, match combo on user_id + pack_date + theme + genre + cefr_level + duration
+  return db.prepare(`
+    SELECT * FROM daily_listen_articles
+    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
+      AND status='ready'
+    ORDER BY created_at DESC LIMIT 1
+  `).get(
+    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
+  );
 }
 
 function getAudioRow(db, parts) {
-  return db.prepare(`
+  const exact = db.prepare(`
     SELECT * FROM daily_listen_audios
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
       AND COALESCE(input_signature, '')=?
   `).get(
     parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
     parts.inputSignature || '',
+  );
+  if (exact) return exact;
+
+  return db.prepare(`
+    SELECT * FROM daily_listen_audios
+    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
+      AND status='ready'
+    ORDER BY created_at DESC LIMIT 1
+  `).get(
+    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
   );
 }
 
@@ -1000,8 +1021,17 @@ async function runDailyListenForUser(
     console.warn(`[DailyListen] Batch audio sync warning for user=${userId}:`, syncErr.message);
   }
 
-  for (const genre of GENRES) {
-    for (const cefrLevel of CEFR_LEVELS) {
+  let genreList = GENRES;
+  let cefrList = CEFR_LEVELS;
+
+  if (process.env.MVP_MODE === 'true') {
+    genreList = ['meeting'];
+    cefrList = ['B1'];
+    durationList = [1];
+  }
+
+  for (const genre of genreList) {
+    for (const cefrLevel of cefrList) {
       for (const duration of durationList) {
         const existing = module.exports.getPregeneratedCombo(db, {
           userId, theme, genre, cefrLevel, duration, date: packDate,

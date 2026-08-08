@@ -3,6 +3,8 @@ const Database = require('better-sqlite3');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const dailyPackService = require('../services/dailyPackService');
+const dailyCronRunService = require('../services/dailyCronRunService');
+const dailyListenPreGenerateService = require('../services/dailyListenPreGenerateService');
 const dailyPackCron = require('../services/dailyPackCron');
 
 // 1. 初始化数据库连接
@@ -20,6 +22,8 @@ db.pragma('journal_mode = WAL');
 
 // 2. 初始化数据库表结构
 dailyPackService.initDailyPackTables(db);
+dailyCronRunService.initDailyCronRunTables(db);
+dailyListenPreGenerateService.initDailyListenTables(db);
 db.prepare(`
   CREATE TABLE IF NOT EXISTS daily_extracted_articles (
     id TEXT PRIMARY KEY,
