@@ -142,9 +142,19 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null) {
   const uid = normalizeUserId(userId);
   // D1: 有签名则精确命中；无签名不宽回退到「任意 ready」
   if (inputSignature === null || inputSignature === undefined) return undefined;
-  return db.prepare(
+  const exact = db.prepare(
     'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?'
   ).get(uid, packDate, inputSignature);
+  if (exact) return exact;
+
+  const fallback = db.prepare(
+    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
+  ).get(uid, packDate);
+  if (fallback) {
+    console.log(`[DailyPack Row Fallback] userId=${uid} matched today's ready pack via fallback instead of exact signature.`);
+    return fallback;
+  }
+  return undefined;
 }
 
 function getFallbackFlawVocab() {
