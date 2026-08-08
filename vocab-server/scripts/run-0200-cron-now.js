@@ -25,10 +25,22 @@ dailyPackService.initDailyPackTables(db);
 // 3. 解析命令行参数 (--userId=xxx)
 const args = process.argv.slice(2);
 let targetUserId = null;
+let targetGenre = null;
+let targetCefr = null;
+let targetDuration = null;
 
 args.forEach((arg) => {
   if (arg.startsWith('--userId=')) {
     targetUserId = arg.split('=')[1];
+  }
+  if (arg.startsWith('--genre=')) {
+    targetGenre = arg.split('=')[1];
+  }
+  if (arg.startsWith('--cefr=')) {
+    targetCefr = arg.split('=')[1];
+  }
+  if (arg.startsWith('--duration=')) {
+    targetDuration = arg.split('=')[1];
   }
 });
 
@@ -53,7 +65,11 @@ async function main() {
     }
 
     // 1. 运行编排入口：唤醒 -> 破绽 -> 长文生成并落库
-    const summary = await dailyPackCron.runDailyPackCronJob(db, targetUserId);
+    const summary = await dailyPackCron.runDailyPackCronJob(db, targetUserId, {
+      genre: targetGenre,
+      cefrLevel: targetCefr,
+      duration: targetDuration
+    });
     const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
     console.log('\n===========================================================');

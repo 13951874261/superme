@@ -317,7 +317,10 @@ function resolveArticleStatus(row) {
   if (!row) return 'missing';
   if (row.status === 'generating') return 'generating';
   if (row.status === 'failed') return 'failed';
-  if (row.status === 'ready') return 'ready';
+  if (row.status === 'ready') {
+    if (fileOk(row.file_path) || row.body_text) return 'ready';
+    return 'missing';
+  }
   return row.status || 'missing';
 }
 

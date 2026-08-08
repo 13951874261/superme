@@ -5554,6 +5554,22 @@ const handleGetDailyExtractArticle = (req, res) => {
           AND COALESCE(input_signature, '') = ?
         ORDER BY created_at DESC LIMIT 1
       `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration), inputSignature);
+
+      if (!row) {
+        row = db.prepare(`
+          SELECT * FROM daily_extracted_articles
+          WHERE user_id IN (${userIds.map(() => '?').join(',')})
+            AND quota_date = ?
+            AND theme = ?
+            AND genre = ?
+            AND cefr_level = ?
+            AND (duration = ? OR duration = ?)
+          ORDER BY created_at DESC LIMIT 1
+        `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
+        if (row) {
+          console.log(`[DailyExtract Row Fallback] Matched today's daily_extracted_article via fallback instead of exact signature.`);
+        }
+      }
     }
 
     let cacheSource = 'daily_extracted_articles';
@@ -5600,6 +5616,39 @@ const handleGetDailyExtractArticle = (req, res) => {
           };
           cacheSource = 'daily_listen_articles';
           break;
+        }
+      }
+
+      if (!row) {
+        const listenFallback = db.prepare(`
+          SELECT * FROM daily_listen_articles
+          WHERE user_id IN (${userIds.map(() => '?').join(',')})
+            AND pack_date = ?
+            AND theme = ?
+            AND genre = ?
+            AND cefr_level = ?
+            AND (duration = ? OR duration = ?)
+            AND status = 'ready'
+          ORDER BY created_at DESC LIMIT 1
+        `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
+        if (listenFallback?.body_text) {
+          row = {
+            id: listenFallback.id,
+            user_id: listenFallback.user_id,
+            quota_date: listenFallback.pack_date,
+            theme: listenFallback.theme,
+            genre: listenFallback.genre,
+            cefr_level: listenFallback.cefr_level,
+            article: listenFallback.body_text,
+            words_json: listenFallback.vocab_json,
+            phrases_json: listenFallback.phrases_json,
+            sentences_json: '[]',
+            duration: listenFallback.duration,
+            input_signature: listenFallback.input_signature,
+            updated_at: listenFallback.updated_at,
+          };
+          cacheSource = 'daily_listen_articles (fallback)';
+          console.log(`[DailyExtract Row Fallback] Matched today's daily_listen_article via fallback instead of exact signature.`);
         }
       }
     }

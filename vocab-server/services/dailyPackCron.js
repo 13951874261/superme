@@ -67,7 +67,7 @@ function buildWakeupFlawInputSources({ theme, historyExclude, userCurrentProfile
   ];
 }
 
-async function runDailyPackCronJob(db, targetUserId = null) {
+async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null) {
   const packDate = dailyPackService.getPackDate();
   const cronTickId = dailyCronRunService.createCronTickId();
   let users = dailyListenPreGenerateService.listCronTargetUsers(db);
@@ -234,8 +234,11 @@ async function runDailyPackCronJob(db, targetUserId = null) {
     const DURATIONS = dailyCronRunService.LONG_DURATIONS;
 
     for (const genre of GENRES) {
+      if (filterOptions?.genre && genre !== filterOptions.genre) continue;
       for (const cefrLevel of CEFR_LEVELS) {
+        if (filterOptions?.cefrLevel && cefrLevel !== filterOptions.cefrLevel) continue;
         for (const duration of DURATIONS) {
+          if (filterOptions?.duration && String(duration) !== String(filterOptions.duration)) continue;
           const comboKey = `${genre}|${cefrLevel}|${duration}`;
           const step = dailyCronRunService.upsertStep(db, {
             runId: run.id,
