@@ -76,20 +76,10 @@ export default function DashboardTab() {
 
   // 公共主题锁定校验：返回 true 表示放行，false 表示已被锁定（错误信息已写入）
   const runMasteryGate = async (): Promise<boolean> => {
-    try {
-      const m = await checkThemeMastery(theme);
-      if (!m.isMastered) {
-        setThemeSwitchError(buildLockMessage(theme, m));
-        return false;
-      }
-      setThemeSwitchError(null);
-      return true;
-    } catch {
-      setThemeSwitchError(
-        '后端服务暂时不可访问，无法校验通关状态。\n请确认 super-agent-vocab.service 已启动（/api/theme/check-mastery）。'
-      );
-      return false;
-    }
+    // 彻底解除强制锁定校验，直接放行，但依然静默调用以拉取最新通关进度
+    setThemeSwitchError(null);
+    void checkThemeMastery(theme).catch(() => {});
+    return true;
   };
 
   const handleTrackChange = async (newTrack: 'business' | 'all') => {
