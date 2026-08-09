@@ -3295,6 +3295,17 @@ app.post('/api/vocab/export-background', async (req, res) => {
           progress: 5,
           logs: ['\u5f00\u59cb\u62c9\u53d6\u751f\u8bcd\u672c\u6570\u636e\u5e76\u51c6\u5907\u5bfc\u51fa...']
         });
+        try {
+          const testWord = 'strategy';
+          const cachedLog = db.prepare('SELECT response_payload FROM dict_query_log WHERE word = ? AND is_success = 1 ORDER BY created_at DESC LIMIT 1').get(testWord);
+          console.log('[Background Export Debug] test word strategy cache log found:', !!cachedLog);
+          if (cachedLog) {
+            const data = JSON.parse(cachedLog.response_payload);
+            console.log('[Background Export Debug] test word strategy parsed successfully:', !!data && data.ok);
+          }
+        } catch (e) {
+          console.error('[Background Export Debug] test word error:', e);
+        }
         const words = db.prepare('SELECT * FROM vocabulary ORDER BY added_at DESC').all();
         const parsedWords = words.map(w => {
           let payload = {};
