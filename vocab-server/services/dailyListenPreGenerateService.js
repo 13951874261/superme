@@ -1225,11 +1225,15 @@ async function runDailyListenCronJob(db, options = {}) {
   const packDate = dailyPackService.getPackDate();
   const cronTickId = options.cronTickId || null;
 
-  // PRD: when cronTickId present, freeze user set from materialized runs — never listCronTargetUsers
+  // PRD: when cronTickId present, freeze user set from materialized runs ? never listCronTargetUsers
   let users;
   let fallback = false;
   if (cronTickId) {
-    const ids = dailyCronRunService.listUserIdsForTick(db, cronTickId);
+    let ids = dailyCronRunService.listUserIdsForTick(db, cronTickId);
+    if (options.userId) {
+      const targetUid = dailyPackService.normalizeUserId(options.userId);
+      ids = ids.filter(id => dailyPackService.normalizeUserId(id) === targetUid);
+    }
     users = ids.map((user_id) => {
       const pref = db.prepare(`
         SELECT theme FROM user_theme_prefs
@@ -1241,6 +1245,17 @@ async function runDailyListenCronJob(db, options = {}) {
         fallback: false,
       };
     });
+  } else if (options.userId) {
+    const targetUid = dailyPackService.normalizeUserId(options.userId);
+    const pref = db.prepare(`
+      SELECT theme FROM user_theme_prefs
+      WHERE user_id = ? AND theme IS NOT NULL AND TRIM(theme) != ''
+    `).get(targetUid);
+    users = [{
+      user_id: targetUid,
+      theme: pref?.theme || DEFAULT_CRON_THEME,
+      fallback: false,
+    }];
   } else {
     // Manual listen-only cron-run: own tick + listen-only runs (no pack stitch)
     users = listCronTargetUsers(db);

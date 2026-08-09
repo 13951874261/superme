@@ -8843,6 +8843,7 @@ process.on('uncaughtException', (err) => {
   ttsLongLock = false;
 });
 
+if (require.main === module) {
 app.listen(PORT, () => {
   console.log(`Real Vocab Server running on port ${PORT}`);
   console.log(`Database connected at: ${dbPath}`);
@@ -8871,3 +8872,4 @@ app.listen(PORT, () => {
   }
   dailyPackCron.scheduleDailyPackCron(db);
 });
+}

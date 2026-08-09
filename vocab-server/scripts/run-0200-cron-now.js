@@ -1,9 +1,11 @@
+require('../server');
 const path = require('path');
 const Database = require('better-sqlite3');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const dailyPackService = require('../services/dailyPackService');
 const dailyPackCron = require('../services/dailyPackCron');
+const dailyListenPreGenerateService = require('../services/dailyListenPreGenerateService');
 
 // 1. 初始化数据库连接
 const dbPath = process.env.NODE_ENV === 'production' || __dirname.includes('/var/www')
@@ -29,9 +31,14 @@ let targetGenre = null;
 let targetCefr = null;
 let targetDuration = null;
 
+let isMvp = false;
+
 args.forEach((arg) => {
   if (arg.startsWith('--userId=')) {
     targetUserId = arg.split('=')[1];
+  }
+  if (arg === '--mvp') {
+    isMvp = true;
   }
   if (arg.startsWith('--genre=')) {
     targetGenre = arg.split('=')[1];
@@ -64,12 +71,26 @@ async function main() {
       console.warn('⚠️ [Content Cleanup Warning]:', cleanupErr.message);
     }
 
+    if (isMvp) {
+      process.env.MVP_MODE = 'true';
+      console.log('⚡ [MVP Mode] Enabled. Only generating meeting|B1|1 combo to bypass remaining 63 combos.');
+    }
+
     // 1. 运行编排入口：唤醒 -> 破绽 -> 长文生成并落库
     const summary = await dailyPackCron.runDailyPackCronJob(db, targetUserId, {
       genre: targetGenre,
       cefrLevel: targetCefr,
       duration: targetDuration
     });
+
+    // 2. 运行音档合成与精听同步
+    if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
+      console.log('\n🔊 [DailyListen Cron] Running batch audio synthesis to sync audios...');
+      await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+        cronTickId: summary.cronTickId,
+      });
+    }
+
     const durationSec = ((Date.now() - startTime) / 1000).toFixed(2);
 
     console.log('\n===========================================================');

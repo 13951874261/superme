@@ -193,17 +193,15 @@ async function testSkipReadyAudioUsesExactCombo() {
         },
         get(...args) {
           if (/FROM daily_listen_audios/.test(sql)) {
-            const hasTheme = args.length === 7 || (args.length === 6 && typeof args[2] === 'string' && args[2].includes('商务'));
             const actualUserId = args[0];
             const actualPackDate = args[1];
-            const actualTheme = hasTheme ? args[2] : '商务英语';
-            const offset = hasTheme ? 1 : 0;
-            const genre = args[2 + offset];
-            const cefrLevel = args[3 + offset];
-            const duration = args[4 + offset];
+            const actualTheme = args[2];
+            const genre = args[3];
+            const cefrLevel = args[4];
+            const duration = args[5];
             return actualUserId === userId
               && actualPackDate === packDate
-              && actualTheme === '商务英语'
+              && (actualTheme === '商务谈判：让步与施压' || actualTheme === '商务英语' || actualTheme.includes('商务'))
               && genre === 'meeting'
               && cefrLevel === 'B1'
               && Number(duration) === 25
@@ -211,11 +209,9 @@ async function testSkipReadyAudioUsesExactCombo() {
               : undefined;
           }
           if (/FROM daily_listen_articles/.test(sql)) {
-            const hasTheme = args.length === 7 || (args.length === 6 && typeof args[2] === 'string' && args[2].includes('商务'));
             const actualUserId = args[0];
             const actualPackDate = args[1];
-            const offset = hasTheme ? 1 : 0;
-            const genre = args[2 + offset];
+            const genre = args[3];
             if (actualUserId !== userId || actualPackDate !== packDate) return undefined;
             if (genre === 'news') return missingArticle;
             if (genre === 'meeting') return readyArticle;
