@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
-import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, Library, BrainCircuit } from 'lucide-react';
+import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, Library, BrainCircuit, XCircle, AlertTriangle } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
@@ -83,6 +83,7 @@ export default function VocabTab() {
   const [isFlipped, setIsFlipped] = useState(false);
   const [spellInput, setSpellInput] = useState('');
   const [isSpellError, setIsSpellError] = useState(false);
+  const [submittingQuality, setSubmittingQuality] = useState(false);
 
   const reloadVocab = useCallback(async () => {
     // Cache-first：毫秒级出队
@@ -222,6 +223,28 @@ export default function VocabTab() {
          setIsSpellError(true);
          setTimeout(() => setIsSpellError(false), 500);
       }
+    }
+  };
+
+  const handleQuality = async (quality: number) => {
+    if (!currentWord || submittingQuality) return;
+    setSubmittingQuality(true);
+    try {
+      await submitReview(currentWord.id, quality);
+      playSuccess();
+      if (quality === 5) setShowConfetti(true);
+      window.dispatchEvent(new Event('vocab-updated'));
+      showNotice('eval', `已评分 ${quality}/5，推入下个词`, 'success');
+      setEvalResult(null);
+      setSentenceInput('');
+      advanceWord();
+      setIsFlipped(false);
+      setSpellInput('');
+    } catch (err: any) {
+      playError();
+      showNotice('eval', `评分录入失败: ${err.message}`, 'error');
+    } finally {
+      setSubmittingQuality(false);
     }
   };
 
@@ -418,16 +441,20 @@ export default function VocabTab() {
                     <div className="text-[10px] text-gray-400 font-black uppercase tracking-widest text-center mt-3">
                       Press <span className="px-1.5 py-0.5 bg-gray-100 border border-gray-200 rounded">Enter</span> to check
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        playPageTurn();
-                        setIsFlipped(true);
-                      }}
-                      className="mt-4 text-xs font-bold text-slate-400 hover:text-[#FF5722] hover:underline transition-colors flex items-center justify-center gap-1 mx-auto cursor-pointer"
-                    >
-                      <span>不记得了，直接翻转查看释义与原词 →</span>
-                    </button>
+                    <div className="mt-4 flex flex-col items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playPageTurn();
+                          setIsFlipped(true);
+                        }}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-[#202124] px-6 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95 shadow-lg shadow-[#202124]/20"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        不记得了，直接翻转查看答案
+                      </button>
+                      <span className="text-[10px] text-slate-400">拼不出？点上方按钮跳过拼写，直接进入释义学习</span>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -453,6 +480,49 @@ export default function VocabTab() {
           {/* ================= 下方区域：强制闭环造句与评估 ================= */}
           <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
             <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-all ${!isFlipped ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''} ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
+
+              <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
+                <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                  Anki 快捷评分 (免造句直接推入复习曲线)
+                </div>
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={() => handleQuality(0)}
+                    disabled={submittingQuality}
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-red-200/40"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    <span>完全忘记</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuality(2)}
+                    disabled={submittingQuality}
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-orange-200/40"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    <span>模糊记得</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuality(4)}
+                    disabled={submittingQuality}
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-blue-200/40"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>记住原词</span>
+                  </button>
+                  <button
+                    onClick={() => handleQuality(5)}
+                    disabled={submittingQuality}
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-emerald-200/40"
+                  >
+                    <Zap className="w-4 h-4" />
+                    <span>熟练掌握</span>
+                  </button>
+                </div>
+              </div>
+              <div className="text-center text-[9px] text-gray-300 font-bold uppercase tracking-widest select-none">
+                — OR —
+              </div>
 
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <label className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-2">

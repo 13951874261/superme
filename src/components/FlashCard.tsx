@@ -308,6 +308,10 @@ export default function FlashCard({ onClose }: FlashCardProps) {
               {/* 背面：释义（翻转后显示） */}
               {isFlipped && (
                 <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
+                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+                    <div className="text-2xl font-black text-[#202124] tracking-tight select-all">{current.word}</div>
+                    <SpeakButton text={current.word} title={`播放 ${current.word}`} className="w-8 h-8 bg-slate-100 hover:bg-[#FF5722] hover:text-white border border-gray-200 rounded-lg" iconClassName="w-4 h-4" />
+                  </div>
                   {/* 1. 核心释义 */}
                   <div>
                     <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
