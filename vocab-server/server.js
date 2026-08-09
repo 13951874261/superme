@@ -3267,6 +3267,14 @@ async function queryDifyDictOnBackend(word, dictType) {
         return null;
       }
     }
+    try {
+      db.prepare(`
+        INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+      `).run(crypto.randomUUID(), word.trim(), cleanDictType, direction, '', 'zh-CN', JSON.stringify(parsedResult), Date.now());
+    } catch (logErr) {
+      console.error('[Backend Export Worker] Cache Write Error:', logErr.message);
+    }
     return parsedResult;
   } catch (err) {
     console.error(`[Backend Export Worker] Dify workflow query failed for "${word}":`, err.message);
@@ -3423,7 +3431,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
         let enrichedCount = 0;
         let cachedMatchCount = 0;
         let onlineQueryCount = 0;
-        const maxOnlineQueries = 80;
+        const maxOnlineQueries = 1000;
         const concurrencyLimit = 8;
         const chunks = [];
         for (let i = 0; i < wordsToEnrich.length; i += concurrencyLimit) {
@@ -3457,12 +3465,11 @@ app.post('/api/vocab/export-background', async (req, res) => {
               if (!parsedResult) {
                 const wordText = w.word.trim();
                 const type = getItemType(w);
-                const isEnglishWord = type === '\u5355\u8bcd (Word)' &&
-                                      !/[\u4e00-\u9fa5]/.test(wordText) &&
-                                      !wordText.includes('{') &&
-                                      !wordText.includes('[') &&
-                                      !wordText.includes('"');
-                if (isEnglishWord && onlineQueryCount < maxOnlineQueries) {
+                const isValidText = wordText.length > 0 &&
+                                    !wordText.includes('{') &&
+                                    !wordText.includes('[') &&
+                                    !wordText.includes('"');
+                if (isValidText && onlineQueryCount < maxOnlineQueries) {
                   onlineQueryCount++;
                   parsedResult = await queryDifyDictOnBackend(w.word, dictType);
                 }
@@ -3478,6 +3485,16 @@ app.post('/api/vocab/export-background', async (req, res) => {
                 }
                 let pos = dp.pos || dp.partOfSpeech || '';
                 let phonetic = dp.phonetic || '';
+                const type = getItemType(w);
+                if (type === '\u5355\u8bcd (Word)') {
+                  // Keep pos and phonetic as returned
+                } else if (type === '\u53e5\u5b50 (Sentence)') {
+                  if (!pos) pos = 'sentence';
+                  if (!phonetic) phonetic = '/';
+                } else if (type === '\u77ed\u8bed (Phrase)') {
+                  if (!pos) pos = 'phrase';
+                  if (!phonetic) phonetic = '/';
+                }
                 let examplesList = [];
                 if (Array.isArray(dp.example_sentences)) examplesList = dp.example_sentences;
                 else if (Array.isArray(dp.examples)) examplesList = dp.examples;
