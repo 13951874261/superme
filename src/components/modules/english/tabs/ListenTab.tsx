@@ -39,7 +39,7 @@ export default function ListenTab() {
   const [highlightedWord, setHighlightedWord] = useState('');
   const [listenGenre, setListenGenre] = useState<'news' | 'meeting' | 'podcast'>('meeting');
   const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
-  const [listenDuration, setListenDuration] = useState<number>(15);
+  const [listenDuration, setListenDuration] = useState<number>(1);
   const [isFullscreenText, setIsFullscreenText] = useState(false);
   const [isAddingHighlight, setIsAddingHighlight] = useState(false);
   const [curTtsTaskId, setCurTtsTaskId] = useState<string | null>(null);
