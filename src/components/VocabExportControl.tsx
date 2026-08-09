@@ -19,7 +19,10 @@ interface VocabExportControlProps {
 }
 
 const ADVANCED_OPTIONS: Array<{ scope: VocabExportScope; label: string; hint: string }> = [
-  { scope: 'all', label: '全部词条', hint: '两个区合计' },
+  { scope: 'all', label: '全部词条', hint: '合并导出' },
+  { scope: 'words_only', label: '仅导出单词', hint: '仅 Word (.csv)' },
+  { scope: 'phrases_only', label: '仅导出短语', hint: '仅 Phrase (.csv)' },
+  { scope: 'sentences_only', label: '仅导出句子', hint: '仅 Sentence (.csv)' },
   { scope: 'current_tab', label: '当前分区', hint: '仅当前 Tab' },
   { scope: 'due_today', label: '今日待复习', hint: '到期未归档' },
 ];
