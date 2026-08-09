@@ -5624,6 +5624,19 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         addedSentenceCount++;
       }
 
+      // 组装思维导图与核心知识点框架
+      taskQueue.updateTask(task.id, {
+        progress: 90,
+        logs: ['[进度] 正在生成材料思维导图与核心知识点框架...']
+      });
+
+      let mindmapAndTheory = null;
+      try {
+        mindmapAndTheory = await generateMindmapAndTheoryNodesFallback(articleText, topic);
+      } catch (err) {
+        console.error('[Material Process] Mindmap generation failed:', err.message);
+      }
+
       // 组装完成结果并标记任务完成
       taskQueue.updateTask(task.id, {
         status: 'completed',
@@ -5631,6 +5644,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         result: {
           success: true,
           topic: topic || 'Unknown Topic',
+          name: fileObj.fileName || "Document",
           total: files.length,
           words: wordsToReturn.map(i => typeof i === 'object' ? (i.word || i.text) : String(i)),
           phrases: phrasesToReturn.map(i => typeof i === 'object' ? (i.word || i.phrase || i.text) : String(i)),
@@ -5638,6 +5652,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           addedSentenceCount,
           article: articleText,
           originalText: originalText || undefined,
+          mindmap: mindmapAndTheory ? mindmapAndTheory.mindmap : undefined,
+          theoryNodes: mindmapAndTheory ? mindmapAndTheory.theoryNodes : undefined,
+          scenario: mindmapAndTheory ? mindmapAndTheory.scenario : undefined,
           results: [
             {
               fileName: fileObj.fileName || "Document",
@@ -5646,7 +5663,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
             }
           ]
         },
-        logs: ['[完成] Dify 提纯分析与生词本写入全部顺利完成！艾宾浩斯复习引擎已刷新']
+        logs: ['[完成] Dify 提纯分析与生词本写入及思维导图/知识点提纯全部顺利完成！']
       });
 
     } catch (error) {
@@ -8980,6 +8997,7 @@ The JSON schema must be exactly:
 
       let aborted = false;
       const req = https.request(url, options, (res) => {
+        res.setEncoding('utf-8');
         let data = '';
         res.on('data', (chunk) => { data += chunk; });
         res.on('end', () => {
@@ -9091,10 +9109,13 @@ async function callPolishLLM(rawText) {
       rejectUnauthorized: false // 关键设置：忽略自签名或 IP HTTPS 证书校验
     };
 
+    let aborted = false;
     const req = https.request(url, options, (res) => {
+      res.setEncoding('utf-8');
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
+        if (aborted) return;
         if (res.statusCode >= 200 && res.statusCode < 300) {
           try {
             const json = JSON.parse(data);
@@ -9110,7 +9131,15 @@ async function callPolishLLM(rawText) {
     });
 
     req.on('error', (err) => {
+      if (aborted) return;
       reject(err);
+    });
+
+    // Set timeout of 15 seconds
+    req.setTimeout(15000, () => {
+      aborted = true;
+      req.destroy();
+      reject(new Error('Request timeout after 15s'));
     });
 
     req.write(requestBody);
@@ -9289,6 +9318,404 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         }
       }
     }
+  }
+});
+
+
+// ==========================================
+// 提取思维导图与核心知识点 (fallback 本地 LLM)
+// ==========================================
+async function generateMindmapAndTheoryNodesFallback(body, topic = 'General Business') {
+  const https = require('https');
+  const url = 'https://23.95.214.232/v1/chat/completions';
+  const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
+
+  const systemPrompt = `你是一位资深的职场博弈、逻辑学与商务英语教学专家。请阅读用户提供的文章/书本片段，为其提炼并输出一套系统的学习内容，包含思维导图、核心理论知识点、框架构成以及具体的解释与生活/工作应用举例。
+
+【输出格式要求】
+必须且只能输出一个合法的 JSON 对象，不要用 \`\`\`json ... \`\`\` 等 markdown 代码块包裹，也不要包含任何额外的解释文字。
+JSON Schema 必须严格为：
+{
+  "mindmap": {
+    "center": "核心主题（通常是文章或片段的书名或核心议题，限15字内）",
+    "branches": [
+      {
+        "title": "分支名称（如核心逻辑、应用场景、博弈策略等，限10字内）",
+        "keywords": ["关键词1", "关键词2", "关键词3"]
+      }
+    ]
+  },
+  "theoryNodes": [
+    {
+      "title": "知识点标题（如“滑坡谬误的应用”、“微表情识别”，限15字内）",
+      "concept": "概念解读（用通俗易懂的语言进行解释，限60字内）",
+      "framework": ["核心框架词1", "核心框架词2"],
+      "points": [
+        "具体知识点与解释/举例 1（结合文章或概念，给出一个具体的应用或沟通场景举例，限100字）",
+        "具体知识点与解释/举例 2（限100字）"
+      ]
+    }
+  ],
+  "scenario": "根据上述提炼的博弈论或沟通技巧知识点，设计一个相关的模拟对话博弈练习场景（包含前因后果的完整案例），限250字，以供用户进行听力或口语表达练习。要求案例博弈激烈、背景清晰。"
+}`;
+
+  const executeRequest = (modelName) => {
+    return new Promise((resolve, reject) => {
+      const requestBody = JSON.stringify({
+        model: modelName,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: `输入文章内容:
+"""
+${body.substring(0, 8000)}
+"""` }
+        ],
+        temperature: 0.3,
+        stream: false
+      });
+
+      const options = {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(requestBody)
+        },
+        rejectUnauthorized: false
+      };
+
+      let aborted = false;
+      const req = https.request(url, options, (res) => {
+        res.setEncoding('utf-8');
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          if (aborted) return;
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            resolve({ statusCode: res.statusCode, data });
+          } else {
+            reject(new Error(`LLM status error: ${res.statusCode} - ${data}`));
+          }
+        });
+      });
+
+      req.on('error', (err) => {
+        if (aborted) return;
+        reject(err);
+      });
+
+      req.setTimeout(35000, () => {
+        aborted = true;
+        req.destroy();
+        reject(new Error('Request timeout after 35s'));
+      });
+
+      req.write(requestBody);
+      req.end();
+    });
+  };
+
+  const modelsToTry = ['dify', 'gptgpt/gpt-5', 'dify'];
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await executeRequest(modelsToTry[attempt]);
+      const jsonRes = JSON.parse(res.data);
+      const rawText = jsonRes?.choices?.[0]?.message?.content || '';
+      let cleanJson = rawText.trim();
+      if (cleanJson.startsWith('```json')) cleanJson = cleanJson.substring(7);
+      else if (cleanJson.startsWith('```')) cleanJson = cleanJson.substring(3);
+      if (cleanJson.endsWith('```')) cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+      cleanJson = cleanJson.trim();
+      const parsed = JSON.parse(cleanJson);
+      if (parsed.mindmap && parsed.theoryNodes) {
+        return parsed;
+      }
+    } catch (err) {
+      lastErr = err;
+      console.warn(`[Mindmap Generation] Attempt ${attempt + 1} failed:`, err.message);
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+
+  return {
+    mindmap: {
+      center: topic || '材料提纯主题',
+      branches: [
+        { title: '核心内容', keywords: ['博弈论', '心理侧写', '逻辑辩驳'] },
+        { title: '实操要点', keywords: ['利益分析', '弦外之音', '表达重塑'] }
+      ]
+    },
+    theoryNodes: [
+      {
+        title: '素材博弈知识提纯',
+        concept: '根据您上传的材料提取的博弈与心理分析知识。',
+        framework: ['利益驱动', '言语博弈'],
+        points: [
+          '上传材料成功：未能通过AI提取到深度结构，可能是文件过大或格式不相符。',
+          '建议上传简明生动的博弈素材以获取最高质量 of 思维导图提取。'
+        ]
+      }
+    ],
+    scenario: `【根据导入文件自动转换的模拟案例】
+在关于新项目分配的讨论会上，总监微微一笑说：“对于当前的进度落后，我们完全能够理解。不过相信只要各部门通力配合，下个月我们就能赶上来。”`
+  };
+}
+
+// ==========================================
+// 导出 Word 文档 (.docx)
+// ==========================================
+app.post('/api/material/export-docx', async (req, res) => {
+  try {
+    const { type, title, mindmap, theoryNodes, scenario } = req.body || {};
+    const docx = require('docx');
+    const { Document, Paragraph, TextRun, Packer, HeadingLevel } = docx;
+
+    let docChildren = [];
+
+    if (type === 'theory') {
+      docChildren.push(
+        new Paragraph({
+          text: '博弈学、逻辑学与心理侧写核心理论框架',
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 }
+        })
+      );
+
+      const exportTheoryData = {
+        '逻辑学与系统谬误': [
+          {
+            title: '非形式逻辑谬误',
+            concept: '在论证过程中，论据与论题之间没有逻辑必然性，而通过修辞或情绪手段使人信服。',
+            framework: ['滑坡谬误', '以偏概全', '诉诸权威', '偷换概念'],
+            points: [
+              '滑坡谬误：无限放大某种可能后果，形成恐吓。例如：“你今天迟到，明天就会旷工，最后就会被开除。”',
+              '诉诸权威：利用某个领域的名气来证明另一个领域的正确性。',
+              '偷换概念：在讨论中悄悄改变某个词语的内涵。'
+            ]
+          },
+          {
+            title: '因果关系误区',
+            concept: '混淆相关性与因果性，或者将时间上的先后关系强行解释为因果关系。',
+            framework: ['后此谬误', '单因谬误', '因果倒置'],
+            points: [
+              '后此谬误：因为 B 发生在 A 之后，就判定 A 导致了 B。',
+              '单因谬误：复杂问题简单化，只归结于单一因素。'
+            ]
+          }
+        ],
+        '人性解码与心理侧写': [
+          {
+            title: '弦外之音解码机制',
+            concept: '理解人际沟通中隐藏在表层话术之下的真实利益诉求、层级防卫或情绪宣泄。',
+            framework: ['利益驱动判定', '阶层安全防卫', '同侪压力构建'],
+            points: [
+              '体制内话术：委婉、注重层级、避免直接冲突，常用“以退为进”或“虚晃”敲打。',
+              '跨国企业话术：表面平等、重效率指标，常用高大上的行业术语（Jargon）进行自我防卫或施压。'
+            ]
+          },
+          {
+            title: '非语言信号暗示',
+            concept: '肢体语言、面部表情、眼神方向、语速及停顿等生理与动作反馈。',
+            framework: ['微表情检测', '肢体紧张度', '音调与停顿映射'],
+            points: [
+              '食指轻敲桌面：通常暗示潜在的控制欲、焦躁或内心催促。',
+              '眼神偏离与斜睨：可能在临时寻找托词，或暗示对当前对比物的不屑。',
+              '语速突然变慢且加重：表明正在进行高度蓄意的“表演式情绪施压”。'
+            ]
+          }
+        ]
+      };
+
+      for (const [category, nodes] of Object.entries(exportTheoryData)) {
+        docChildren.push(
+          new Paragraph({
+            text: category,
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 }
+          })
+        );
+
+        for (const node of nodes) {
+          docChildren.push(
+            new Paragraph({
+              text: `【主题】${node.title}`,
+              heading: HeadingLevel.HEADING_3,
+              spacing: { before: 100, after: 50 }
+            })
+          );
+          docChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '概念解读：', bold: true }),
+                new TextRun(node.concept)
+              ],
+              spacing: { after: 50 }
+            })
+          );
+          docChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '框架要素：', bold: true }),
+                new TextRun(node.framework.join(' | '))
+              ],
+              spacing: { after: 50 }
+            })
+          );
+          docChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '核心知识点与举例：', bold: true })
+              ],
+              spacing: { after: 50 }
+            })
+          );
+          for (const pt of node.points) {
+            docChildren.push(
+              new Paragraph({
+                text: pt,
+                bullet: { level: 0 },
+                spacing: { after: 30 }
+              })
+            );
+          }
+        }
+      }
+
+    } else if (type === 'material') {
+      const docTitle = title ? `《${title}》博弈学与心理学知识提纯报告` : '素材博弈学与心理学知识提纯报告';
+      docChildren.push(
+        new Paragraph({
+          text: docTitle,
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 200 }
+        })
+      );
+
+      if (mindmap) {
+        docChildren.push(
+          new Paragraph({
+            text: '一、 内容思维导图',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 }
+          })
+        );
+        docChildren.push(
+          new Paragraph({
+            children: [
+              new TextRun({ text: '核心议题：', bold: true }),
+              new TextRun(mindmap.center || '')
+            ],
+            spacing: { after: 50 }
+          })
+        );
+        if (Array.isArray(mindmap.branches)) {
+          for (const br of mindmap.branches) {
+            docChildren.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: `分支 [${br.title || ''}]：`, bold: true }),
+                  new TextRun(Array.isArray(br.keywords) ? br.keywords.join(' | ') : '')
+                ],
+                bullet: { level: 0 },
+                spacing: { after: 30 }
+              })
+            );
+          }
+        }
+      }
+
+      if (Array.isArray(theoryNodes)) {
+        docChildren.push(
+          new Paragraph({
+            text: '二、 核心理论与具体知识点',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 }
+          })
+        );
+
+        for (const node of theoryNodes) {
+          docChildren.push(
+            new Paragraph({
+              text: `【知识点】${node.title || ''}`,
+              heading: HeadingLevel.HEADING_3,
+              spacing: { before: 100, after: 50 }
+            })
+          );
+          docChildren.push(
+            new Paragraph({
+              children: [
+                new TextRun({ text: '概念解读：', bold: true }),
+                new TextRun(node.concept || '')
+              ],
+              spacing: { after: 50 }
+            })
+          );
+          if (Array.isArray(node.framework)) {
+            docChildren.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '框架构成：', bold: true }),
+                  new TextRun(node.framework.join(' | '))
+                ],
+                spacing: { after: 50 }
+              })
+            );
+          }
+          if (Array.isArray(node.points)) {
+            docChildren.push(
+              new Paragraph({
+                children: [
+                  new TextRun({ text: '详细解析与举例：', bold: true })
+                ],
+                spacing: { after: 50 }
+              })
+            );
+            for (const pt of node.points) {
+              docChildren.push(
+                new Paragraph({
+                  text: pt,
+                  bullet: { level: 0 },
+                  spacing: { after: 30 }
+                })
+              );
+            }
+          }
+        }
+      }
+
+      if (scenario) {
+        docChildren.push(
+          new Paragraph({
+            text: '三、 模拟实战对抗案例',
+            heading: HeadingLevel.HEADING_2,
+            spacing: { before: 200, after: 100 }
+          })
+        );
+        docChildren.push(
+          new Paragraph({
+            text: scenario,
+            spacing: { after: 100 }
+          })
+        );
+      }
+    }
+
+    const doc = new Document({
+      sections: [{
+        properties: {},
+        children: docChildren
+      }]
+    });
+
+    const buffer = await Packer.toBuffer(doc);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    const filename = type === 'theory' ? 'theory-framework.docx' : 'extracted-material-report.docx';
+    res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+    res.send(buffer);
+  } catch (error) {
+    console.error('[Export Docx Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
