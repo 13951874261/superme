@@ -991,7 +991,7 @@ async function runDailyListenForUser(
 ) {
   const userId = dailyPackService.normalizeUserId(user?.user_id || user?.userId || user);
   const theme = String(user?.theme || '').trim();
-  const durationList = resolveListenDurations({ source, durations });
+  let durationList = resolveListenDurations({ source, durations });
   const summary = {
     packDate,
     userId,
