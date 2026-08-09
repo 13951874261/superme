@@ -3398,22 +3398,56 @@ app.post('/api/vocab/export-background', async (req, res) => {
             wordsToEnrich.push({ ...w, payload: normP });
           }
         }
+
         taskQueue.updateTask(task.id, {
-          logs: [`??? ${wordsToEnrich.length} ?????????????????? Dify ??...`]
+          logs: [`??? ${wordsToEnrich.length} ????????????????????????? Dify ??...`]
         });
-        const concurrencyLimit = 5;
+
+        // ?????????
         let enrichedCount = 0;
+        let cachedMatchCount = 0;
+        let onlineQueryCount = 0;
+        const maxOnlineQueries = 80; // ???????????? 80 ? Dify ??????????
+
+        const concurrencyLimit = 8;
+        const chunks = [];
         for (let i = 0; i < wordsToEnrich.length; i += concurrencyLimit) {
-          const chunk = wordsToEnrich.slice(i, i + concurrencyLimit);
+          chunks.push(wordsToEnrich.slice(i, i + concurrencyLimit));
+        }
+
+        for (let i = 0; i < chunks.length; i++) {
+          const chunk = chunks[i];
           await Promise.all(chunk.map(async (w) => {
             try {
               let dictType = w.dict_type || 'en_zh_bidirectional';
               if (dictType === 'ai_phrase' || dictType === 'ai_sentence' || dictType === 'ai_extracted') {
                 dictType = 'en_zh_bidirectional';
               }
-              const res = await queryDifyDictOnBackend(w.word, dictType);
-              if (res && res.ok && res.payload) {
-                const dp = res.payload;
+
+              // 1. ????????? dict_query_log ????
+              let parsedResult = null;
+              try {
+                const cachedLog = db.prepare('SELECT response_payload FROM dict_query_log WHERE word = ? AND is_success = 1 ORDER BY created_at DESC LIMIT 1').get(w.word.trim());
+                if (cachedLog) {
+                  const logData = JSON.parse(cachedLog.response_payload);
+                  if (logData && logData.ok && logData.payload) {
+                    parsedResult = logData;
+                    cachedMatchCount++;
+                  }
+                }
+              } catch (e) {}
+
+              // 2. ???????????????????? Dify
+              if (!parsedResult) {
+                if (onlineQueryCount < maxOnlineQueries) {
+                  onlineQueryCount++;
+                  parsedResult = await queryDifyDictOnBackend(w.word, dictType);
+                }
+              }
+
+              // 3. ???????????????
+              if (parsedResult && parsedResult.ok && parsedResult.payload) {
+                const dp = parsedResult.payload;
                 let meaning = dp.translation_main || '';
                 if (!meaning && Array.isArray(dp.definitions_en)) {
                   meaning = dp.definitions_en.join('; ');
@@ -3421,11 +3455,13 @@ app.post('/api/vocab/export-background', async (req, res) => {
                 if (!meaning) {
                   meaning = dp.meaning || dp.definition || '';
                 }
+
                 let pos = dp.pos || dp.partOfSpeech || '';
                 let phonetic = dp.phonetic || '';
                 let examplesList = [];
                 if (Array.isArray(dp.example_sentences)) examplesList = dp.example_sentences;
                 else if (Array.isArray(dp.examples)) examplesList = dp.examples;
+
                 const newPayload = {
                   ...w.payload,
                   word: w.word,
@@ -3438,6 +3474,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
                 };
                 delete newPayload.definition;
                 db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(newPayload), w.id);
+
                 const idx = normalizedList.findIndex(n => n.id === w.id);
                 if (idx !== -1) {
                   normalizedList[idx].payload = normalizePayload({ ...w, payload: newPayload });
@@ -3448,10 +3485,11 @@ app.post('/api/vocab/export-background', async (req, res) => {
               console.error(`[Backend Export Worker] Error enriching "${w.word}":`, err.message);
             }
           }));
-          const progressPercent = Math.min(90, Math.round((i / wordsToEnrich.length) * 80) + 10);
+
+          const progressPercent = Math.min(90, Math.round(((i * concurrencyLimit) / wordsToEnrich.length) * 80) + 10);
           taskQueue.updateTask(task.id, {
             progress: progressPercent,
-            logs: [`??? ${Math.min(wordsToEnrich.length, i + concurrencyLimit)}/${wordsToEnrich.length} ??????????...`]
+            logs: [`??? ${Math.min(wordsToEnrich.length, (i + 1) * concurrencyLimit)}/${wordsToEnrich.length} ??? (??????: ${cachedMatchCount}, ?????: ${onlineQueryCount}/${maxOnlineQueries})...`]
           });
         }
         taskQueue.updateTask(task.id, {

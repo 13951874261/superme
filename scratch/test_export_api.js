@@ -1,7 +1,8 @@
 
 async function runTest() {
   try {
-    const res = await fetch('http://localhost:3001/api/vocab/export-background', {
+    console.log('Starting remote E2E API test on https://app.liujingzhuwo.site/api...');
+    const res = await fetch('https://app.liujingzhuwo.site/api/vocab/export-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scope: 'all', currentTab: 'business' })
@@ -20,8 +21,8 @@ async function runTest() {
     console.log(`Task created with ID: ${taskId}. Starting polling...`);
     
     let attempts = 0;
-    while (attempts < 20) {
-      const taskRes = await fetch(`http://localhost:3001/api/tasks/${taskId}`);
+    while (attempts < 30) {
+      const taskRes = await fetch(`https://app.liujingzhuwo.site/api/tasks/${taskId}`);
       const task = await taskRes.json();
       console.log(`[Poll #${attempts}] Status: ${task.status}, Progress: ${task.progress}%`);
       if (task.logs && task.logs.length > 0) {
