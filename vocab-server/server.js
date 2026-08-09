@@ -3208,6 +3208,368 @@ app.post('/api/vocab/batch-add', (req, res) => {
   }
 });
 
+async function queryDifyDictOnBackend(word, dictType) {
+  const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
+  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const DICT_QUERY_TIMEOUT_MS = 30000;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
+  try {
+    let direction = 'auto';
+    if (dictType === 'en_zh_bidirectional') {
+      const hasChinese = /[\u4e00-\u9fa5]/.test(word || '');
+      direction = hasChinese ? 'zh_to_en' : 'en_to_zh';
+    }
+    const response = await fetch(`${BASE_URL}/workflows/run`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        inputs: injectOralSystemTime({
+          word: word.trim(),
+          dict_type: dictType || 'en_zh_bidirectional',
+          direction: direction,
+          user_context: '',
+          locale: 'zh-CN',
+          user_current_profile: ''
+        }),
+        response_mode: 'blocking',
+        user: 'backend-export-worker'
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const errText = await response.text();
+      console.warn(`[Backend Export Worker] Dify error:`, errText);
+      return null;
+    }
+    const data = await response.json();
+    const resultStr = data?.data?.outputs?.result;
+    if (!resultStr) return null;
+    let parsedResult;
+    try {
+      parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr.trim()) : resultStr;
+    } catch (e) {
+      let cleanStr = resultStr.trim();
+      if (cleanStr.startsWith('```')) {
+        const lines = cleanStr.split('\n');
+        if (lines[0].startsWith('```')) lines.shift();
+        if (lines[lines.length - 1].startsWith('```')) lines.pop();
+        cleanStr = lines.join('\n').trim();
+      }
+      try {
+        parsedResult = JSON.parse(cleanStr);
+      } catch (inner) {
+        return null;
+      }
+    }
+    return parsedResult;
+  } catch (err) {
+    console.error(`[Backend Export Worker] Dify workflow query failed for "${word}":`, err.message);
+    return null;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
+app.post('/api/vocab/export-background', async (req, res) => {
+  try {
+    const { scope = 'all', currentTab = 'business' } = req.body || {};
+    const taskQueue = require('./services/taskQueue');
+    let scopeLabel = '????';
+    if (scope === 'current_tab') scopeLabel = `???? (${currentTab})`;
+    else if (scope === 'due_today') scopeLabel = '?????';
+    else if (scope === 'words_only') scopeLabel = '???';
+    else if (scope === 'phrases_only') scopeLabel = '???';
+    else if (scope === 'sentences_only') scopeLabel = '???';
+    const taskName = `????: ${scopeLabel}`;
+    const task = taskQueue.createTask('vocab_export', taskName);
+    res.json({ success: true, taskId: task.id, status: task.status });
+    setImmediate(async () => {
+      try {
+        taskQueue.updateTask(task.id, {
+          status: 'running',
+          progress: 5,
+          logs: ['??????????????...']
+        });
+        const words = db.prepare('SELECT * FROM vocabulary ORDER BY added_at DESC').all();
+        const parsedWords = words.map(w => {
+          let payload = {};
+          try {
+            payload = w.payload ? JSON.parse(w.payload) : {};
+          } catch (e) {}
+          return { ...w, payload };
+        });
+        const now = Date.now();
+        const matchesVocabTab = (w, tab) => w.category === tab || (!w.category && tab === 'business');
+        const isDueToday = (w, ts) => w.repetitions !== 999 && w.next_review_date <= ts;
+        const getItemType = (w) => {
+          const payload = w.payload || {};
+          if (payload.is_sentence === true) return '?? (Sentence)';
+          if (payload.is_phrase === true) return '?? (Phrase)';
+          const text = (w.word || '').trim();
+          const wordCount = text.split(/\s+/).filter(Boolean).length;
+          if (wordCount > 4) return '?? (Sentence)';
+          if (wordCount > 1) return '?? (Phrase)';
+          return '?? (Word)';
+        };
+        let filtered = [];
+        switch (scope) {
+          case 'all':
+            filtered = parsedWords;
+            break;
+          case 'current_tab':
+            filtered = parsedWords.filter(w => matchesVocabTab(w, currentTab));
+            break;
+          case 'due_today':
+            filtered = parsedWords.filter(w => isDueToday(w, now));
+            break;
+          case 'words_only':
+            filtered = parsedWords.filter(w => getItemType(w) === '?? (Word)');
+            break;
+          case 'phrases_only':
+            filtered = parsedWords.filter(w => getItemType(w) === '?? (Phrase)');
+            break;
+          case 'sentences_only':
+            filtered = parsedWords.filter(w => getItemType(w) === '?? (Sentence)');
+            break;
+          default:
+            filtered = parsedWords;
+        }
+        taskQueue.updateTask(task.id, {
+          progress: 10,
+          logs: [`????????? ${filtered.length} ?????????????????...`]
+        });
+        const getWordTranslation = (payload) => {
+          if (typeof payload.translation_main === 'string' && payload.translation_main.trim()) return payload.translation_main;
+          if (typeof payload.meaning === 'string' && payload.meaning.trim()) return payload.meaning;
+          if (typeof payload.meaning_zh === 'string' && payload.meaning_zh.trim()) return payload.meaning_zh;
+          if (typeof payload.translation === 'string' && payload.translation.trim()) return payload.translation;
+          if (typeof payload.definition === 'string' && payload.definition.trim()) return payload.definition;
+          if (Array.isArray(payload.definitions_en) && payload.definitions_en[0]) {
+            return String(payload.definitions_en[0]);
+          }
+          if (typeof payload.explain === 'string' && payload.explain.trim()) return payload.explain;
+          return '';
+        };
+        const normalizePayload = (w) => {
+          const payload = { ...(w.payload || {}) };
+          let pos = (payload.pos || '').trim();
+          if (!pos) {
+            pos = (payload.partOfSpeech || payload.part_of_speech || '').trim();
+          }
+          if (pos.includes('????') || pos.includes('??') || pos.includes('???') || pos.includes('???')) {
+            pos = '';
+          }
+          let phonetic = (payload.phonetic || '').trim();
+          if (!phonetic) {
+            phonetic = (payload.phonetic_symbol || payload.symbol || payload.pronunciation || '').trim();
+          }
+          if (phonetic.includes('???') || phonetic.includes('??') || phonetic.includes('???') || phonetic.includes('???')) {
+            phonetic = '';
+          }
+          let meaning = getWordTranslation(payload).trim();
+          if (meaning.includes('?????') || meaning.includes('????') || meaning.includes('???') || meaning.includes('????')) {
+            meaning = '';
+          }
+          const type = getItemType(w);
+          if (type === '?? (Sentence)') {
+            if (!pos) pos = 'sentence';
+            if (!phonetic) phonetic = '/';
+          } else if (type === '?? (Phrase)') {
+            if (!pos) pos = 'phrase';
+            if (!phonetic) phonetic = '/';
+          }
+          return { ...payload, pos, phonetic, meaning, translation_main: meaning };
+        };
+        const wordsToEnrich = [];
+        const normalizedList = [];
+        for (const w of filtered) {
+          const normP = normalizePayload(w);
+          normalizedList.push({ ...w, payload: normP });
+          const type = getItemType(w);
+          const isTranslationBlank = !normP.meaning || !normP.meaning.trim();
+          const isPosBlank = !normP.pos || !normP.pos.trim();
+          const isPhoneticBlank = type === '?? (Word)' && (!normP.phonetic || !normP.phonetic.trim());
+          if (isTranslationBlank || isPosBlank || isPhoneticBlank) {
+            wordsToEnrich.push({ ...w, payload: normP });
+          }
+        }
+        taskQueue.updateTask(task.id, {
+          logs: [`??? ${wordsToEnrich.length} ?????????????????? Dify ??...`]
+        });
+        const concurrencyLimit = 5;
+        let enrichedCount = 0;
+        for (let i = 0; i < wordsToEnrich.length; i += concurrencyLimit) {
+          const chunk = wordsToEnrich.slice(i, i + concurrencyLimit);
+          await Promise.all(chunk.map(async (w) => {
+            try {
+              let dictType = w.dict_type || 'en_zh_bidirectional';
+              if (dictType === 'ai_phrase' || dictType === 'ai_sentence' || dictType === 'ai_extracted') {
+                dictType = 'en_zh_bidirectional';
+              }
+              const res = await queryDifyDictOnBackend(w.word, dictType);
+              if (res && res.ok && res.payload) {
+                const dp = res.payload;
+                let meaning = dp.translation_main || '';
+                if (!meaning && Array.isArray(dp.definitions_en)) {
+                  meaning = dp.definitions_en.join('; ');
+                }
+                if (!meaning) {
+                  meaning = dp.meaning || dp.definition || '';
+                }
+                let pos = dp.pos || dp.partOfSpeech || '';
+                let phonetic = dp.phonetic || '';
+                let examplesList = [];
+                if (Array.isArray(dp.example_sentences)) examplesList = dp.example_sentences;
+                else if (Array.isArray(dp.examples)) examplesList = dp.examples;
+                const newPayload = {
+                  ...w.payload,
+                  word: w.word,
+                  phonetic: phonetic.trim(),
+                  pos: pos.trim(),
+                  meaning: meaning.trim(),
+                  translation_main: meaning.trim(),
+                  example_sentences: examplesList,
+                  source: '????????'
+                };
+                delete newPayload.definition;
+                db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(newPayload), w.id);
+                const idx = normalizedList.findIndex(n => n.id === w.id);
+                if (idx !== -1) {
+                  normalizedList[idx].payload = normalizePayload({ ...w, payload: newPayload });
+                }
+                enrichedCount++;
+              }
+            } catch (err) {
+              console.error(`[Backend Export Worker] Error enriching "${w.word}":`, err.message);
+            }
+          }));
+          const progressPercent = Math.min(90, Math.round((i / wordsToEnrich.length) * 80) + 10);
+          taskQueue.updateTask(task.id, {
+            progress: progressPercent,
+            logs: [`??? ${Math.min(wordsToEnrich.length, i + concurrencyLimit)}/${wordsToEnrich.length} ??????????...`]
+          });
+        }
+        taskQueue.updateTask(task.id, {
+          logs: [`????????????? ${enrichedCount} ??????????????????????? CSV...`]
+        });
+        const finalExportList = normalizedList.map(w => {
+          const payload = { ...(w.payload || {}) };
+          const type = getItemType(w);
+          if (!payload.pos || !payload.pos.trim()) {
+            if (type === '?? (Sentence)') payload.pos = 'sentence';
+            else if (type === '?? (Phrase)') payload.pos = 'phrase';
+            else payload.pos = 'word';
+          }
+          if (!payload.phonetic || !payload.phonetic.trim()) {
+            payload.phonetic = '/';
+          }
+          if (!payload.meaning || !payload.meaning.trim()) {
+            payload.meaning = w.word;
+            payload.translation_main = w.word;
+          }
+          return { ...w, payload };
+        });
+        const getExampleSentences = (w) => {
+          const payload = w.payload || {};
+          const sources = [
+            payload.example_sentences,
+            payload.scenarios,
+            payload.business_examples,
+            payload.examples,
+            payload.example
+          ];
+          const examples = sources.find(s => Array.isArray(s) && s.length > 0) || [];
+          if (!Array.isArray(examples)) return { en: '', zh: '' };
+          const enList = [];
+          const zhList = [];
+          examples.forEach(ex => {
+            if (typeof ex === 'string') {
+              const en = ex.trim();
+              if (!en || en.includes('??1') || en.includes('??2') || en.includes('????') || en.includes('??')) return;
+              enList.push(en);
+              zhList.push('');
+              return;
+            }
+            if (typeof ex === 'object' && ex !== null) {
+              const en = String(ex.en || ex.example_en || ex.sentence || ex.example || '').trim();
+              const zh = String(ex.zh || ex.translation || ex.example_zh || '').trim();
+              if (!en && !zh) return;
+              if (en.includes('??1') || en.includes('??2') || zh.includes('????') || en.includes('??')) return;
+              enList.push(en);
+              zhList.push(zh);
+            }
+          });
+          return { en: enList.join('\n'), zh: zhList.join('\n') };
+        };
+        const escapeCsvCell = (val) => {
+          const str = String(val || '');
+          if (/[",\n\r]/.test(str)) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        };
+        const headers = [
+          'word',
+          'type',
+          'translation',
+          'phonetic',
+          'pos',
+          'example_sentences_en',
+          'example_sentences_zh',
+          'repetitions',
+          'next_review_date',
+          'due_today'
+        ];
+        const rows = finalExportList.map(w => {
+          const payload = w.payload || {};
+          const examples = getExampleSentences(w);
+          const cells = [
+            w.word || '',
+            getItemType(w),
+            getWordTranslation(payload),
+            payload.phonetic || '',
+            payload.pos || '',
+            examples.en,
+            examples.zh,
+            String(w.repetitions ?? ''),
+            w.next_review_date ? new Date(w.next_review_date).toISOString() : '',
+            (w.repetitions !== 999 && w.next_review_date <= now) ? 'yes' : 'no'
+          ];
+          return cells.map(c => escapeCsvCell(c)).join(',');
+        });
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\r\n');
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+        const filename = `vocab-export-${scope}-${timestamp}.csv`;
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: [`[??] CSV ???????? ${finalExportList.length} ????`],
+          result: {
+            name: filename,
+            content: csvContent,
+            mimeType: 'text/csv;charset=utf-8;'
+          }
+        });
+        console.log(`[Backend Export Worker] Successfully completed background export for task "${task.id}".`);
+      } catch (err) {
+        console.error('[Backend Export Worker] Background job crash:', err);
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: `??????????: ${err.message}`
+        });
+      }
+    });
+  } catch (error) {
+    console.error('[Export Background Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ???????????
 app.put('/api/vocab/move/:id', (req, res) => {
   try {

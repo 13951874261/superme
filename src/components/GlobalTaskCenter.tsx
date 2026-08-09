@@ -394,7 +394,9 @@ export default function GlobalTaskCenter() {
                               ? 'bg-zinc-100 text-zinc-700'
                               : task.type === 'listen_backfill'
                                 ? 'bg-[#FF5722]/10 text-[#FF5722]'
-                                : 'bg-blue-50 text-blue-600'
+                                : task.type === 'vocab_export'
+                                  ? 'bg-green-50 text-green-600'
+                                  : 'bg-blue-50 text-blue-600'
                         }`}>
                           {task.type === 'video' ? (
                             <Video className="w-4 h-4" />
@@ -402,6 +404,8 @@ export default function GlobalTaskCenter() {
                             <Brain className="w-4 h-4" />
                           ) : task.type === 'listen_backfill' ? (
                             <Headphones className="w-4 h-4" />
+                          ) : task.type === 'vocab_export' ? (
+                            <FileText className="w-4 h-4" />
                           ) : (
                             <Globe className="w-4 h-4" />
                           )}
@@ -453,7 +457,19 @@ export default function GlobalTaskCenter() {
                         </button>
                       </div>
                     )}
-                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && (
+                    {task.status === 'completed' && task.result && task.type === 'vocab_export' && (
+                      <div className="flex gap-2 mb-3">
+                        <button
+                          onClick={() => handleDownload(task)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
+                          title="????? CSV"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          ????? (.csv)
+                        </button>
+                      </div>
+                    )}
+                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && (
                       <div className="flex gap-2 mb-3">
                         <button
                           onClick={() => handleImport(task)}

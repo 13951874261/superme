@@ -2,10 +2,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Download, ChevronDown, Loader2 } from 'lucide-react';
 import type { VocabEntry } from '../services/vocabAPI';
 import {
-  exportVocabCsv,
   type VocabExportScope,
   type VocabTabCategory,
 } from '../utils/vocabCsvExport';
+import { useTask } from './TaskContext';
 
 interface VocabExportControlProps {
   currentTab: VocabTabCategory;
@@ -41,6 +41,7 @@ export default function VocabExportControl({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const { addTask } = useTask();
 
   useEffect(() => {
     if (!open) return;
@@ -58,20 +59,42 @@ export default function VocabExportControl({
     setBusy(true);
     setOpen(false);
     try {
-      const count = await exportVocabCsv({
-        scope,
-        currentTab,
-        words,
-        filenamePrefix:
-          scope === 'due_today'
-            ? 'vocab-due'
-            : scope === 'current_tab'
-              ? `vocab-${currentTab}`
-              : 'vocab-all',
+      const response = await fetch('/api/vocab/export-background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope, currentTab }),
       });
-      onExported?.(count, scope);
+      if (!response.ok) {
+        throw new Error(`发起后台导出任务失败: HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.success || !data.taskId) {
+        throw new Error(data.error || '创建后台导出任务失败');
+      }
+
+      // 添加
+      addTask({
+        id: data.taskId,
+        type: 'vocab_export' as any,
+        name: `导出生词本: ${ADVANCED_OPTIONS.find((o) => o.scope === scope)?.label || scope}`,
+        status: data.status || 'pending',
+        progress: 0,
+        logs: ['[系统] 后台导出任务已提交...'],
+      });
+
+      // 提示
+      try {
+        const { showToast } = await import('./Toast');
+        showToast('导出任务已在后台执行，请前往【后台任务】查看进度并下载文件', 'success');
+      } catch (e) {}
+
+      onExported?.(0, scope);
     } catch (e: any) {
       onError?.(e?.message || '导出失败');
+      try {
+        const { showToast } = await import('./Toast');
+        showToast(e?.message || '发起导出失败', 'error');
+      } catch (err) {}
     } finally {
       setBusy(false);
     }
