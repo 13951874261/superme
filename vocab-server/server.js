@@ -3428,7 +3428,9 @@ app.post('/api/vocab/export-background', async (req, res) => {
                     cachedMatchCount++;
                   }
                 }
-              } catch (e) {}
+              } catch (e) {
+                console.error('[Cache Query Error for ' + w.word + ']:', e);
+              }
               if (!parsedResult) {
                 if (onlineQueryCount < maxOnlineQueries) {
                   onlineQueryCount++;
