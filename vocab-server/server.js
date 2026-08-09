@@ -2305,7 +2305,7 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
 
       const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
       if (!answer) {
-        throw new Error('?????????');
+        throw new Error('\u63a5\u6536\u6210\u529f\u4f46\u7b54\u6848\u4e3a\u7a7a');
       }
       lastAnswer = answer;
 
@@ -2360,8 +2360,8 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
     const cefr = inputs.cefr_level || 'B1';
     const body = (mockArticles[genre] && mockArticles[genre][cefr]) || mockArticles.meeting.B1;
     const vocab = [
-      { word: "strategy", phonetic: "[?str?t?d?i]", translation: "n. ?????" },
-      { word: "negotiation", phonetic: "[n??????i?e??n]", translation: "n. ?????" }
+      { word: "strategy", phonetic: "[\u02c8str\u00e6t\u0259d\u0292i]", translation: "n. \u6218\u7565" },
+      { word: "negotiation", phonetic: "[n\u026a\u02cc\u0261\u0259\u028as\u026a\u02c8e\u026a\u0283n]", translation: "n. \u8c08\u5224" }
     ];
     const phrases = ["strategic flexibility", "firm pressure"];
     const sentences = [body.split('.')[0] + '.'];
@@ -3209,6 +3209,7 @@ app.post('/api/vocab/batch-add', (req, res) => {
 });
 
 async function queryDifyDictOnBackend(word, dictType) {
+  const cleanDictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(dictType) ? dictType : 'en_zh_bidirectional';
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const DICT_QUERY_TIMEOUT_MS = 30000;
@@ -3216,7 +3217,7 @@ async function queryDifyDictOnBackend(word, dictType) {
   const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
   try {
     let direction = 'auto';
-    if (dictType === 'en_zh_bidirectional') {
+    if (cleanDictType === 'en_zh_bidirectional') {
       const hasChinese = /[\u4e00-\u9fa5]/.test(word || '');
       direction = hasChinese ? 'zh_to_en' : 'en_to_zh';
     }
@@ -3229,7 +3230,7 @@ async function queryDifyDictOnBackend(word, dictType) {
       body: JSON.stringify({
         inputs: injectOralSystemTime({
           word: word.trim(),
-          dict_type: dictType || 'en_zh_bidirectional',
+          dict_type: cleanDictType,
           direction: direction,
           user_context: '',
           locale: 'zh-CN',
@@ -3433,7 +3434,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
           await Promise.all(chunk.map(async (w) => {
             try {
               let dictType = w.dict_type || 'en_zh_bidirectional';
-              if (dictType === 'ai_phrase' || dictType === 'ai_sentence' || dictType === 'ai_extracted') {
+              if (!['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(dictType)) {
                 dictType = 'en_zh_bidirectional';
               }
               let parsedResult = null;
@@ -4544,7 +4545,8 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
 
 // 词典查询：后端代理 Dify dict_tool_workflow，避免前端暴露 API Key
 app.post('/api/dify/dict-query', async (req, res) => {
-  const { word, dictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
+  const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
+  const dictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(rawDictType) ? rawDictType : 'en_zh_bidirectional';
 
   if (!word) {
     return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
