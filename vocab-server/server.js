@@ -3339,9 +3339,16 @@ app.post('/api/vocab/export-background', async (req, res) => {
           default:
             filtered = parsedWords;
         }
+
+        // Clean up dirty JSON entries
+        filtered = filtered.filter(w => {
+          const text = (w.word || '').trim();
+          return !text.startsWith('{') && !text.startsWith('[') && !text.includes('"') && text.length > 0;
+        });
+
         taskQueue.updateTask(task.id, {
           progress: 10,
-          logs: [`\u62c9\u53d6\u5b8c\u6210\uff0c\u5171\u8fc7\u6ee4\u51fa ${filtered.length} \u6761\u8bcd\u6761\u3002\u5f00\u59cb\u68c0\u6d4b\u5e76\u81ea\u52a8\u8865\u9f50\u7a7a\u767d\u5b57\u6bb5...`]
+          logs: [`\u62c9\u53d6\u5b8c\u6210\uff0c\u5171\u8fc4\u6ee4\u5e76\u6e05\u7406\u51fa ${filtered.length} \u6761\u8bcd\u6761\u3002\u5f00\u59cb\u68c0\u6d4b\u5e76\u81ea\u52a8\u8865\u9f50\u7a7a\u767d\u5b57\u6bb5...`]
         });
         const getWordTranslation = (payload) => {
           if (typeof payload.translation_main === 'string' && payload.translation_main.trim()) return payload.translation_main;
@@ -3372,7 +3379,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
             phonetic = '';
           }
           let meaning = getWordTranslation(payload).trim();
-          if (meaning.includes('\u5f85\u590d\u4e60\u8865\u5145') || meaning.includes('\u7b80\u660e\u8f6d\u8981') || meaning.includes('\u5f85\u5904\u7406') || meaning.includes('\u82f1\u82f1\u8bcd\u5178')) {
+          if (meaning.includes('\u5f85\u590d\u4e60\u8865\u5145') || meaning.includes('\u7b80\u660e\u8f6d\u8981') || meaning.includes('\u5f85\u5904\u7406') || meaning.includes('\u82f1\u82f1\u8bcd\u5178') || meaning.includes('\u7279\u5b9a\u753b\u50cf')) {
             meaning = '';
           }
           const type = getItemType(w);
@@ -3399,7 +3406,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
           }
         }
         taskQueue.updateTask(task.id, {
-          logs: [`\u68c0\u6d4b\u5230 ${wordsToEnrich.length} \u4e2a\u8bcd\u6761\u6709\u7a7a\u767d\u6216\u5360\u4f4d\u7a5f\u5217\uff0c\u6b63\u5728\u542f\u52a8\u672c\u5730\u7f13\u5b58\u67e5\u8be2\u4e0e\u5728\u7ebf Dify \u8865\u9f50...`]
+          logs: [`\u68c0\u6d4b\u5230 ${wordsToEnrich.length} \u4e2a\u8bcd\u6761\u6709\u7a9a\u767d\u6216\u5360\u4f4d\u7b26\u5217\uff0c\u6b63\u5728\u542f\u52a8\u672c\u5730\u7f13\u5b58\u67e5\u8be2\u4e0e\u5728\u7ebf Dify \u8865\u9f50...`]
         });
         let enrichedCount = 0;
         let cachedMatchCount = 0;
@@ -3420,7 +3427,11 @@ app.post('/api/vocab/export-background', async (req, res) => {
               }
               let parsedResult = null;
               try {
-                const cachedLog = db.prepare('SELECT response_payload FROM dict_query_log WHERE word = ? AND is_success = 1 ORDER BY created_at DESC LIMIT 1').get(w.word.trim());
+                const cleanWord = w.word.trim();
+                let cachedLog = db.prepare('SELECT response_payload FROM dict_query_log WHERE word = ? AND is_success = 1 ORDER BY created_at DESC LIMIT 1').get(cleanWord);
+                if (!cachedLog) {
+                  cachedLog = db.prepare('SELECT response_payload FROM dict_query_log WHERE word = ? AND is_success = 1 ORDER BY created_at DESC LIMIT 1').get(cleanWord.toLowerCase());
+                }
                 if (cachedLog) {
                   const logData = JSON.parse(cachedLog.response_payload);
                   if (logData && logData.ok && logData.payload) {
@@ -3432,7 +3443,14 @@ app.post('/api/vocab/export-background', async (req, res) => {
                 console.error('[Cache Query Error for ' + w.word + ']:', e);
               }
               if (!parsedResult) {
-                if (onlineQueryCount < maxOnlineQueries) {
+                const wordText = w.word.trim();
+                const type = getItemType(w);
+                const isEnglishWord = type === '\u5355\u8bcd (Word)' &&
+                                      !/[\u4e00-\u9fa5]/.test(wordText) &&
+                                      !wordText.includes('{') &&
+                                      !wordText.includes('[') &&
+                                      !wordText.includes('"');
+                if (isEnglishWord && onlineQueryCount < maxOnlineQueries) {
                   onlineQueryCount++;
                   parsedResult = await queryDifyDictOnBackend(w.word, dictType);
                 }
