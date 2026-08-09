@@ -248,6 +248,30 @@ export default function DashboardTab() {
     return val;
   };
 
+  // 限制字典并行查询的辅助类，防止连接池耗尽
+  class ConcurrencyLimiter {
+    private activeCount = 0;
+    private queue: (() => void)[] = [];
+    constructor(private maxConcurrency: number) {}
+
+    async run<T>(fn: () => Promise<T>): Promise<T> {
+      if (this.activeCount >= this.maxConcurrency) {
+        await new Promise<void>((resolve) => this.queue.push(resolve));
+      }
+      this.activeCount++;
+      try {
+        return await fn();
+      } finally {
+        this.activeCount--;
+        const next = this.queue.shift();
+        if (next) next();
+      }
+    }
+  }
+
+  // 限制最大并行字典查询数为 3，避免阻塞主接口请求
+  const translationLimiter = React.useMemo(() => new ConcurrencyLimiter(3), []);
+
   // 自动调用英汉双向译制翻译接口补齐释义
   const fetchBilingualTranslation = async (text: string) => {
     const keyStr = text.toLowerCase().trim();
@@ -256,10 +280,10 @@ export default function DashboardTab() {
     pendingTranslationsRef.current.add(keyStr);
 
     try {
-      const res = await queryDictionaryWithCache({
+      const res = await translationLimiter.run(() => queryDictionaryWithCache({
         word: text,
         dictType: 'en_zh_bidirectional', // 复用英汉双向译制类型
-      });
+      }));
 
       if (res.ok && res.payload) {
         const payload = res.payload as any;

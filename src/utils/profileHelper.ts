@@ -34,12 +34,17 @@ function generateAppUserId(): string {
 export function ensureAppUserId(customId?: string): string {
   if (customId?.trim()) {
     const sanitized = sanitizeUserId(customId);
-    localStorage.setItem(USER_ID_KEY, sanitized);
+    const resolved = sanitized === 'lzhumy' ? 'lzhmy' : sanitized;
+    localStorage.setItem(USER_ID_KEY, resolved);
     window.dispatchEvent(new Event('global-user-id-changed'));
-    return sanitized;
+    return resolved;
   }
 
-  const existing = localStorage.getItem(USER_ID_KEY);
+  let existing = localStorage.getItem(USER_ID_KEY);
+  if (existing === 'lzhumy') {
+    existing = 'lzhmy';
+    localStorage.setItem(USER_ID_KEY, 'lzhmy');
+  }
   if (existing && existing !== 'default-user' && !existing.startsWith('user_')) return existing;
 
   const defaultId = 'lzhmy';
@@ -54,7 +59,11 @@ export function setAppUserId(userId: string) {
 }
 
 export function getAppUserId(): string {
-  const existing = localStorage.getItem(USER_ID_KEY);
+  let existing = localStorage.getItem(USER_ID_KEY);
+  if (existing === 'lzhumy') {
+    existing = 'lzhmy';
+    localStorage.setItem(USER_ID_KEY, 'lzhmy');
+  }
   if (existing && existing !== 'default-user' && !existing.startsWith('user_')) return existing;
   return ensureAppUserId();
 }

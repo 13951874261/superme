@@ -108,6 +108,7 @@ async function testGenerateBackfillsVocabWhenMissing() {
   }
 
   dailyListen.initDailyListenTables(dbReal);
+  dbReal.prepare(`CREATE TABLE IF NOT EXISTS vocabulary (word TEXT, added_at INTEGER)`).run();
   dbReal.prepare(`
     CREATE TABLE IF NOT EXISTS daily_extracted_articles (
       id TEXT PRIMARY KEY,
@@ -195,6 +196,7 @@ async function openMemoryDb() {
     return null;
   }
   dailyListen.initDailyListenTables(dbReal);
+  dbReal.prepare(`CREATE TABLE IF NOT EXISTS vocabulary (word TEXT, added_at INTEGER)`).run();
   dbReal.prepare(`
     CREATE TABLE IF NOT EXISTS daily_extracted_articles (
       id TEXT PRIMARY KEY,

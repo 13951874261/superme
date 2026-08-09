@@ -4090,7 +4090,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 120000;
+  const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 5000;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
