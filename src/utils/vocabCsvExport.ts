@@ -238,26 +238,22 @@ export async function exportVocabCsv(options: {
     const norm = normalizeVocabEntry(entry);
     normalizedList.push(norm);
 
-    // 只有“单词”或“短语”才进行在线补齐
     const type = getItemType(norm);
-    if (type === '单词 (Word)' || type === '短语 (Phrase)') {
-      const payload = norm.payload || {};
-      const examples = getExampleSentences(norm);
-      
-      const isTranslationBlank = !payload.meaning || !payload.meaning.trim();
-      const isPosBlank = !payload.pos || !payload.pos.trim();
-      const isPhoneticBlank = type === '单词 (Word)' && (!payload.phonetic || !payload.phonetic.trim());
-      const isExamplesBlank = !examples.en || !examples.en.trim();
-
-      if (isTranslationBlank || isPosBlank || isPhoneticBlank || isExamplesBlank) {
-        wordsToEnrich.push(entry);
-      }
+    const payload = norm.payload || {};
+    
+    const isTranslationBlank = !payload.meaning || !payload.meaning.trim();
+    const isPosBlank = !payload.pos || !payload.pos.trim();
+    const isPhoneticBlank = type === '单词 (Word)' && (!payload.phonetic || !payload.phonetic.trim());
+    
+    // 如果单词/短语的释义/音标/词性有空白，或者句子缺少翻译，就添加到补齐列表
+    if (isTranslationBlank || isPosBlank || isPhoneticBlank) {
+      wordsToEnrich.push(entry);
     }
   }
 
-  // 2. 如果存在空白词条，且空白词条数量不超过 10 个，则动态进行在线 Dify 词典补齐并入库
+  // 2. 如果存在空白词条，则动态进行在线 Dify 词典补齐并入库
   if (wordsToEnrich.length > 0) {
-    const limit = 10;
+    const limit = 50; // 支持一次补全最多 50 个
     const targets = wordsToEnrich.slice(0, limit);
     
     try {
@@ -265,12 +261,12 @@ export async function exportVocabCsv(options: {
       if (wordsToEnrich.length > limit) {
         showToast(`检测到 ${wordsToEnrich.length} 个词条有空白列，将自动在线补全前 ${limit} 个...`, 'info');
       } else {
-        showToast(`正在自动在线补齐 ${wordsToEnrich.length} 个词条的空白信息...`, 'info');
+        showToast(`正在自动在线补全 ${wordsToEnrich.length} 个词条的空白列（如中文释义）...`, 'info');
       }
     } catch (e) {}
 
-    // 并发限制器（最大并发 3）
-    const concurrencyLimit = 3;
+    // 并发限制器（最大并发 5）
+    const concurrencyLimit = 5;
     const chunks: VocabEntry[][] = [];
     for (let i = 0; i < targets.length; i += concurrencyLimit) {
       chunks.push(targets.slice(i, i + concurrencyLimit));
@@ -280,7 +276,12 @@ export async function exportVocabCsv(options: {
       await Promise.all(
         chunk.map(async (entry) => {
           try {
-            const dictType = entry.dict_type || 'en_zh_bidirectional';
+            // 对 Dify 词典类型的安全校验与映射：'ai_phrase' / 'ai_sentence' 统一映射为通用英汉双向 'en_zh_bidirectional'
+            let dictType = entry.dict_type || 'en_zh_bidirectional';
+            if (dictType === 'ai_phrase' || dictType === 'ai_sentence' || dictType === 'ai_extracted') {
+              dictType = 'en_zh_bidirectional';
+            }
+
             // 查询词典
             const res = await queryDictionaryWithCache({
               word: entry.word,
@@ -341,7 +342,7 @@ export async function exportVocabCsv(options: {
     
     try {
       const { showToast } = await import('../components/Toast');
-      showToast('生词本空白列信息已补齐完毕，正在启动下载。', 'success');
+      showToast('生词本空白列已全部补齐，正在下载。', 'success');
     } catch (e) {}
   }
 
