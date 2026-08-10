@@ -40,7 +40,7 @@ export function ensureAppUserId(customId?: string): string {
   }
 
   const existing = localStorage.getItem(USER_ID_KEY);
-  if (existing && existing !== 'default-user' && !existing.startsWith('user_')) return existing;
+  if (existing && existing !== 'default-user' && existing.trim() !== '') return existing;
 
   const defaultId = 'lzhmy';
   localStorage.setItem(USER_ID_KEY, defaultId);
@@ -55,7 +55,7 @@ export function setAppUserId(userId: string) {
 
 export function getAppUserId(): string {
   const existing = localStorage.getItem(USER_ID_KEY);
-  if (existing && existing !== 'default-user' && !existing.startsWith('user_')) return existing;
+  if (existing && existing !== 'default-user' && existing.trim() !== '') return existing;
   return ensureAppUserId();
 }
 
