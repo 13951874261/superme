@@ -215,7 +215,7 @@ export default function GameTheoryModule() {
   const [animateBorder, setAnimateBorder] = useState(false);
 
   // Simulation 对战沙盘状态
-  const [simOpponentId, setSimOpponentId] = useState<'vp' | 'vice-gm' | 'director' | 'custom'>('vp');
+  const [simOpponentId, setSimOpponentId] = useState<string>('vp');
   const [simCustomName, setSimCustomName] = useState('');
   const [simCustomType, setSimCustomType] = useState('利益驱动型');
   const [simCustomModel, setSimCustomModel] = useState<GameTheoryAnalyzeInput['game_model']>('prisoner_dilemma');
@@ -256,23 +256,30 @@ export default function GameTheoryModule() {
     }
   };
 
-  const handleOpponentChange = (id: typeof simOpponentId) => {
+  const handleOpponentChange = (id: string) => {
     playClick();
     setSimOpponentId(id);
     setSimSubmitNotice('');
     setSimSubmitError('');
     setSimAnswer('');
     setSimSelectedTactics([]);
-    if (id !== 'custom') {
-      const opp = SIM_OPPONENTS.find(o => o.id === id);
-      if (opp) {
-        setSimSelectedTactics([]);
-      }
-    } else {
+
+    if (id === 'custom') {
       setSimCustomName('');
       setSimCustomType('利益驱动型');
       setSimCustomModel('prisoner_dilemma');
       setSimCustomDilemma('');
+      return;
+    }
+
+    const prototype = prototypes.find((item) => item.id === id);
+    if (prototype) {
+      setSimCustomName(prototype.name);
+      setSimCustomType(prototype.type || '利益驱动型');
+      setSimCustomModel('prisoner_dilemma');
+      setSimCustomDilemma(
+        `【对手性格特征】：${prototype.description || '暂无描述'}\n【对立博弈场景】：`
+      );
     }
   };
 
@@ -283,7 +290,8 @@ export default function GameTheoryModule() {
     let dilemma = '';
     let env: GameTheoryAnalyzeInput['scene_type'] = 'corp_clash';
 
-    if (simOpponentId !== 'custom') {
+    const isPresetOpponent = SIM_OPPONENTS.some((opp) => opp.id === simOpponentId);
+    if (isPresetOpponent) {
       const opp = SIM_OPPONENTS.find(o => o.id === simOpponentId);
       if (!opp) return;
       name = opp.name;
@@ -1029,12 +1037,13 @@ export default function GameTheoryModule() {
           {activeTab === 'simulation' && (() => {
             const simShowResultStage = simLoading || !!simSubmitNotice || !!simSubmitError;
             const simShowForm = !simShowResultStage || simFormExpanded || simLoading || !!simSubmitError || !!simSubmitNotice;
-            const simOpponentLabel = simOpponentId === 'custom'
-              ? (simCustomName.trim() || '自定义对手')
-              : (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.name || '');
-            const simModelKey = simOpponentId === 'custom'
-              ? simCustomModel
-              : (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model || 'prisoner_dilemma');
+            const isPresetOpponent = SIM_OPPONENTS.some((opp) => opp.id === simOpponentId);
+            const simOpponentLabel = isPresetOpponent
+              ? (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.name || '')
+              : (simCustomName.trim() || '自定义对手');
+            const simModelKey = isPresetOpponent
+              ? (SIM_OPPONENTS.find(o => o.id === simOpponentId)?.model || 'prisoner_dilemma')
+              : simCustomModel;
             const simModelLabel =
               simModelKey === 'prisoner_dilemma' ? '囚徒困境演化版' :
               simModelKey === 'pig_game' ? '智猪潜藏博弈' :
@@ -1066,6 +1075,27 @@ export default function GameTheoryModule() {
                         </button>
                       ))}
                       
+                      {prototypes.length > 0 && (
+                        <>
+                          <div className="border-t border-zinc-100 my-2" />
+                          <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block px-1">已有人性档案</span>
+                          {prototypes.map((prototype) => (
+                            <button
+                              key={prototype.id}
+                              onClick={() => handleOpponentChange(prototype.id)}
+                              className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
+                                simOpponentId === prototype.id
+                                  ? 'bg-zinc-900 text-white shadow-sm'
+                                  : 'bg-zinc-50 border border-zinc-200/40 text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900'
+                              }`}
+                            >
+                              <span className="min-w-0 truncate">{prototype.name}</span>
+                              <span className="text-[9px] opacity-75 font-normal shrink-0 ml-2">({prototype.type || '自定义'})</span>
+                            </button>
+                          ))}
+                        </>
+                      )}
+
                       <button
                         onClick={() => handleOpponentChange('custom')}
                         className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
@@ -1079,7 +1109,7 @@ export default function GameTheoryModule() {
                       </button>
                     </div>
 
-                    {simOpponentId === 'custom' && (
+                    {!isPresetOpponent && (
                       <div className="space-y-4 pt-4 border-t border-zinc-100">
                         {prototypes.length > 0 && (
                           <div>
@@ -1150,7 +1180,7 @@ export default function GameTheoryModule() {
                       </div>
                     )}
 
-                    {simOpponentId !== 'custom' && (
+                    {isPresetOpponent && (
                       <div className="pt-4 border-t border-zinc-100 space-y-2">
                         <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block">已选对手特征</span>
                         <div className="bg-zinc-50 border border-zinc-100 rounded-xl p-3 text-[10px] space-y-1.5">
@@ -1179,7 +1209,7 @@ export default function GameTheoryModule() {
 
                     <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
                       <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1.5">对手施压情境 (Opponent Crisis Scenario)</span>
-                      {simOpponentId !== 'custom' ? (
+                      {isPresetOpponent ? (
                         <p className="text-xs text-zinc-600 leading-relaxed font-semibold">
                           {SIM_OPPONENTS.find(o => o.id === simOpponentId)?.dilemma}
                         </p>
@@ -1239,7 +1269,7 @@ export default function GameTheoryModule() {
 
                     <button
                       onClick={handleStartSimPlay}
-                      disabled={simLoading || !simAnswer.trim() || (simOpponentId === 'custom' && (!simCustomName.trim() || !simCustomDilemma.trim()))}
+                      disabled={simLoading || !simAnswer.trim() || (!isPresetOpponent && (!simCustomName.trim() || !simCustomDilemma.trim()))}
                       className={`w-full py-4 rounded-xl text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
                         simLoading
                           ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed'
