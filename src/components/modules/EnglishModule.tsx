@@ -53,7 +53,7 @@ function EnglishModuleContent() {
       <ModuleWrapper
       title="英语战略 ｜ 跨文化信任构建"
       icon={<Globe className="w-8 h-8" strokeWidth={2.5} />}
-      description="不仅是交流，而是用英语构建信任、影响他人并主导跨国谈判。必须达成硬性通关标准方可解锁下行主题。"
+      description="不仅是交流，而是用英语构建信任、影响他人并主导跨国谈判。可在进度总控的「战略路线图」中自由切换想要练习的主题或阶段。"
     >
       <div className="flex flex-wrap gap-2 mb-3 bg-[#f8f9fa] p-1.5 rounded-xl border border-gray-100 w-max">
         {SUB_TABS.map(tab => (

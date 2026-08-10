@@ -1,6 +1,5 @@
 import React from 'react';
 import { AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
-import { StatusBadge } from '../ui/Badge/StatusBadge';
 import { GhostButton } from '../ui/Button/GhostButton';
 
 export interface ThemeGatewayProps {
@@ -142,10 +141,9 @@ export function ThemeGateway({
           <span className="text-[10px] font-bold uppercase tracking-wider">自定义</span>
         </GhostButton>
 
-        <StatusBadge 
-          status={masteryData?.isMastered ? 'unlocked' : 'locked'}
-          label={masteryData?.isMastered ? '已通关' : '未达标'}
-        />
+        <span className="text-[10px] text-slate-400 font-medium">
+          {masteryData?.isMastered ? '已通关' : '未达标'}
+        </span>
       </div>
     </div>
   );

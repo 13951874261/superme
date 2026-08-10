@@ -47,32 +47,6 @@ export default function DashboardTab() {
   // 主题锁定机制 - 单一数据源
   // 与 EnglishContext.tsx 中 isMastered 判定保持一致：
   //   口语 >= 10 轮 && 写作最高分 >= 8 分 && emailCompleted
-  const buildLockMessage = (
-    currentTheme: string,
-    m: { oralCount: number; maxWriteScore: number; emailCompleted: boolean }
-  ) => {
-    const oralOk = m.oralCount >= 10;
-    const writeOk = m.maxWriteScore >= 8;
-    const emailOk = !!m.emailCompleted;
-    const mark = (ok: boolean) => ok ? (
-      <span className="inline-flex items-center gap-1 text-emerald-600"><CheckCircle2 className="w-4 h-4" />已达标</span>
-    ) : (
-      <span className="inline-flex items-center gap-1 text-amber-500"><AlertCircle className="w-4 h-4" />未达标</span>
-    );
-    
-    return (
-      <div className="space-y-3">
-        <p className="font-bold text-slate-800 text-sm">当前阵地【{currentTheme}】尚未被攻克！</p>
-        <div className="space-y-2 text-sm text-slate-600">
-          <p className="font-semibold">通关三件套：</p>
-          <div className="flex items-center gap-2">• 沉浸式口语沙盘：{m.oralCount}/10 轮 {mark(oralOk)}</div>
-          <div className="flex items-center gap-2">• L3 书面最高分：{m.maxWriteScore}/8 分 {mark(writeOk)}</div>
-          <div className="flex items-center gap-2">• 邮件闭环：{emailOk ? '已完成' : '未完成'} {mark(emailOk)}</div>
-        </div>
-        <p className="text-xs text-slate-500 mt-2 pt-2 border-t border-slate-100">三项全部达标后才可切换主题或阶段。</p>
-      </div>
-    );
-  };
 
   // 公共主题锁定校验：返回 true 表示放行，false 表示已被锁定（错误信息已写入）
   const runMasteryGate = async (): Promise<boolean> => {
@@ -91,10 +65,15 @@ export default function DashboardTab() {
 
     setThemeSwitchError(null);
     setStage(newTrack);
+    
+    // 切换轨道时自动跳转到该轨道的第一个场景，让用户能立即试用新场景内容
     const options = getThemeOptions(newTrack);
-    if (!options.find(o => o.value === theme)) {
-      setTheme(options[0].value);
-      await setThemeFocus({ theme: options[0].value }).catch(() => {});
+    const isFirstInNewTrack = !options.find(o => o.value === theme);
+    if (isFirstInNewTrack || options.indexOf(options.find(o => o.value === theme)!) < 0) {
+      // 自动选择该轨道的第一个主题
+      const newTheme = options[0].value;
+      setTheme(newTheme);
+      await setThemeFocus({ theme: newTheme }).catch(() => {});
     }
   };
 
