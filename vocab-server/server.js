@@ -6,6 +6,17 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
 
+const multer = require('multer');
+const uploadDir = path.join(__dirname, 'public', 'temp_videos');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const chunkDir = path.join(__dirname, 'public', 'temp_chunks');
+if (!fs.existsSync(chunkDir)) {
+  fs.mkdirSync(chunkDir, { recursive: true });
+}
+const upload = multer({ dest: uploadDir });
+
 // ??????????????
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
@@ -8952,16 +8963,7 @@ app.post('/api/materials/fetch-url', async (req, res) => {
 // ==========================================
 // ???????? API (?????? URL ??? Multipart ???????????)
 // ==========================================
-const multer = require('multer');
-const uploadDir = path.join(__dirname, 'public', 'temp_videos');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-const chunkDir = path.join(__dirname, 'public', 'temp_chunks');
-if (!fs.existsSync(chunkDir)) {
-  fs.mkdirSync(chunkDir, { recursive: true });
-}
-const upload = multer({ dest: uploadDir });
+
 
 // ??????????????? API
 app.post('/api/materials/upload-chunk', upload.single('chunk'), async (req, res) => {
