@@ -8061,7 +8061,9 @@ app.post('/api/game-theory/ascension', async (req, res) => {
           dimension,
           game_model: game_model || 'prisoner_dilemma',
           scene_type: scene_type || 'corp_clash',
-          user_current_profile: user_current_profile || ''
+          user_current_profile: user_current_profile || '',
+          _system_time: getOralSystemFormattedTime(),
+          _system_timestamp_ms: Date.now()
         },
         response_mode: 'blocking',
         user: userId,
@@ -8077,6 +8079,10 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     const data = await response.json();
     const raw = data?.data?.outputs?.result ?? data?.data?.outputs?.analysis_result ?? data?.answer ?? data?.message ?? '';
     const cleanJson = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+    if (/^internal server error$/i.test(cleanJson)) {
+      console.error('Dify 升维工作流内部错误:', data);
+      return res.status(502).json({ success: false, error: '升维工作流内部错误，请检查 Dify 工作流配置或模型服务' });
+    }
 
     let parsedResult;
     try {
