@@ -48,11 +48,20 @@ export default function MaterialUploader({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
+    
+    // ???????50MB
+    const MAX_FILE_SIZE = 50 * 1024 * 1024;
+    const oversized = files.filter(f => f.size > MAX_FILE_SIZE);
+    if (oversized.length > 0) {
+      alert(`?? "${oversized[0].name}" ??50MB???????????`);
+      return;
+    }
+
     setSelectedFiles(files);
     setStatus('idle');
     setCurrentFileName(files[0]?.name || '');
-    setCurrentStep(files.length > 0 ? `已选择 ${files.length} 个文件` : '等待选择材料');
-    setLogs(files.length > 0 ? [`${nowLabel()} 已选择主题：${topicHint}`, `${nowLabel()} 已选择 ${files.length} 个文件`] : []);
+    setCurrentStep(files.length > 0 ? `??? ${files.length} ???` : '??????');
+    setLogs(files.length > 0 ? [`${nowLabel()} ??????${topicHint}`, `${nowLabel()} ??? ${files.length} ???`] : []);
   };
 
   const resetInput = () => {
@@ -401,23 +410,40 @@ export default function MaterialUploader({
               )}
             </div>
           </div>
-          <button
-            onClick={handleRunWorkflow}
-            disabled={selectedFiles.length === 0 || status === 'running'}
-            className={`w-full px-5 py-3.5 rounded-xl text-xs font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2 ${
-              selectedFiles.length === 0 || status === 'running'
-                ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
-                : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:scale-[0.98] active:translate-y-[1px] cursor-pointer shadow-md hover:shadow-lg'
-            }`}
-          >
-            {status === 'running' ? (
-              <><Loader2 className="w-4 h-4 animate-spin" />处理中...</>
-            ) : status === 'success' ? (
-              <><CheckCircle2 className="w-4 h-4" />再次执行</>
-            ) : (
-              <><Zap className="w-4 h-4" />开始上传并提纯</>
+          <div className="flex gap-2 w-full">
+            <button
+              onClick={handleRunWorkflow}
+              disabled={selectedFiles.length === 0 || status === 'running'}
+              className={`flex-1 px-5 py-3.5 rounded-xl text-xs font-black tracking-widest uppercase transition-all flex items-center justify-center gap-2 ${
+                selectedFiles.length === 0 || status === 'running'
+                  ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                  : 'bg-[var(--color-primary)] text-white hover:bg-[var(--color-primary-hover)] active:scale-[0.98] active:translate-y-[1px] cursor-pointer shadow-md hover:shadow-lg'
+              }`}
+            >
+              {status === 'running' ? (
+                <><Loader2 className="w-4 h-4 animate-spin" />???...</>
+              ) : status === 'success' ? (
+                <><CheckCircle2 className="w-4 h-4" />????</>
+              ) : (
+                <><Zap className="w-4 h-4" />???????</>
+              )}
+            </button>
+            {status === 'error' && (
+              <button
+                onClick={() => {
+                  setStatus('idle');
+                  setSelectedFiles([]);
+                  setCurrentFileName('');
+                  setCurrentStep('??????');
+                  setLogs([]);
+                  resetInput();
+                }}
+                className="px-4 py-3.5 rounded-xl text-xs font-black tracking-widest uppercase bg-red-600 text-white hover:bg-red-700 transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                ??
+              </button>
             )}
-          </button>
+          </div>
         </section>
       </div>
 

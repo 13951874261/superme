@@ -13,7 +13,7 @@ const KNOWLEAGE_PRO_SCENARIOS_DATASET_ID = 'c53857b1-f54f-42ef-a6e8-fe54e9333862
 
 const app = express();
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.json({ limit: '100mb' }));
 
 // ??????????????????????????????
 const tempAudioDir = path.join(__dirname, 'public', 'temp_audio');
@@ -95,7 +95,7 @@ if (!fs.existsSync(tempVideoDir)) {
   fs.mkdirSync(tempVideoDir, { recursive: true });
 }
 app.use('/api/temp_videos', express.static(tempVideoDir));
-app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
+app.use(bodyParser.urlencoded({ extended: true, limit: '100mb' }));
 
 const PORT = process.env.PORT || 3001;
 
@@ -5275,6 +5275,12 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
+      // 校验文件大小限制（50MB）
+      const MAX_FILE_SIZE = 50 * 1024 * 1024;
+      if (buffer.length > MAX_FILE_SIZE) {
+        throw new Error(`上传文件超过50MB限制（当前 ${Math.round(buffer.length / 1024 / 1024)}MB），请上传更小的文件！`);
+      }
+
       // Node 18+ 使用全局 Blob 构造 FormData（兼容浏览器和 Node 环境）
       const blob = new Blob([buffer], { type: 'application/octet-stream' });
       const formData = new FormData();
@@ -5336,8 +5342,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // 轮询 Dify 文档索引状态，等待向量化完成
       // ---------------------------------------------------------
       let isIndexed = false;
-      // 最多等待 100 轮（每轮 3 秒），总计 300 秒（5分钟）超时
-      for (let i = 0; i < 100; i++) {
+      // 动态计算超时轮数：根据文件大小调整（小文件快，大文件慢）
+      const maxRetries = buffer.length < 10 * 1024 * 1024 ? 60 : (buffer.length < 30 * 1024 * 1024 ? 90 : 120); // 最多 6分钟
+      for (let i = 0; i < maxRetries; i++) {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
         const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {

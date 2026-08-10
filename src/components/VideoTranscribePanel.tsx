@@ -52,6 +52,12 @@ export default function VideoTranscribePanel({
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
       const file = e.dataTransfer.files[0];
       if (file.type.startsWith('video/')) {
+        const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
+        if (file.size > MAX_VIDEO_SIZE) {
+          setError(`视频文件大小超过1GB限制 (${(file.size / (1024 * 1024)).toFixed(2)}MB > 1024MB)，请重新选择！`);
+          setSelectedFile(null);
+          return;
+        }
         setSelectedFile(file);
         setVideoUrl(''); // 选择文件后清除 URL
         setError(null);
@@ -63,7 +69,15 @@ export default function VideoTranscribePanel({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setSelectedFile(e.target.files[0]);
+      const file = e.target.files[0];
+      const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
+      if (file.size > MAX_VIDEO_SIZE) {
+        setError(`视频文件大小超过1GB限制 (${(file.size / (1024 * 1024)).toFixed(2)}MB > 1024MB)，请重新选择！`);
+        setSelectedFile(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      setSelectedFile(file);
       setVideoUrl(''); // 选择文件后清除 URL
       setError(null);
     }
@@ -83,6 +97,22 @@ export default function VideoTranscribePanel({
     if (!videoUrl.trim() && !selectedFile) {
       setError('请粘贴视频 URL 或拖入本地视频文件');
       return;
+    }
+
+    if (selectedFile) {
+      const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
+      if (selectedFile.size > MAX_VIDEO_SIZE) {
+        setError(`????????1GB????????????`);
+        return;
+      }
+    }
+
+    if (selectedFile) {
+      const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
+      if (selectedFile.size > MAX_VIDEO_SIZE) {
+        setError(`视频文件大小超过1GB限制，请选择更小的视频！`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
