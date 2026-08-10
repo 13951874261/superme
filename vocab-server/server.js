@@ -8501,14 +8501,23 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 }
 
 // 音频后处理函数：应用压力因素效果
+// 音频后处理函数：应用压力因素效果（含真实音效混音）
 async function applyAudioEffects(audioPath, effects) {
   const { execFile } = require('child_process');
   const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
   const tmpPath = audioPath + '.temp.mp3';
-  
+
+  // 确保音效文件存在
+  ensureSoundEffectsExist();
+  const soundEffectsDir = pathMod.join(__dirname, 'public', 'sound_effects');
+  const interruptionEffect = pathMod.join(soundEffectsDir, 'interruption.mp3');
+  const staticNoiseEffect = pathMod.join(soundEffectsDir, 'static_noise.mp3');
+
+  // 构建输入列表
+  const inputs = ['-i', audioPath];
   const filterParts = [];
-  
-  // 1. 口音效果（通过改变音调和语速模拟）
+
+  // 1. 口音效果（通过改变音调模拟）
   if (effects.accent) {
     if (effects.accent === 'indian') {
       filterParts.push('rubberband=pitch=0.95');
@@ -8518,100 +8527,127 @@ async function applyAudioEffects(audioPath, effects) {
       filterParts.push('rubberband=pitch=1.02');
     }
   }
-  
-  // 2. 卡顿效果（随机插入短暂静音）
+
+  // 2. 卡顿效果（随机插入短暂静音模拟网络丢包）
   if (effects.packet_loss) {
-    // 插入多个短暂静音片段模拟网络卡顿
-    filterParts.push('aevald='if(eq(t\,0.5),0.001,1)*if(eq(t\,2.0),0.001,1)*if(eq(t\,4.0),0.001,1)'');
+    filterParts.push("aevald='if(eq(t\\,0.5)\\,0.001\\,1)*if(eq(t\\,2.0)\\,0.001\\,1)*if(eq(t\\,4.0)\\,0.001\\,1)'");
   }
-  
-  // 3. 打断效果（随机静音）
-  if (effects.interruptions) {
-    filterParts.push('anull=duration=0.3');
+
+  // 判断是否需要混音（打断或信息缺失）
+  const hasInterruption = effects.interruptions && fsMod.existsSync(interruptionEffect);
+  const hasNoise = effects.information_gap && fsMod.existsSync(staticNoiseEffect);
+
+  // 添加额外输入
+  if (hasInterruption) {
+    inputs.push('-i', interruptionEffect);
   }
-  
-  // 4. 信息缺失（背景噪音）
-  if (effects.information_gap) {
-    filterParts.push('anoisesrc=d=1:a=0.05');
+  if (hasNoise) {
+    inputs.push('-stream_loop', '-1', '-i', staticNoiseEffect);
   }
-  
-  if (filterParts.length > 0) {
+
+  // 如果只有基础滤镜（口音/卡顿），使用简单 -af
+  if (!hasInterruption && !hasNoise && filterParts.length > 0) {
     const filterChain = filterParts.join(',');
     const args = ['-i', audioPath, '-af', filterChain, '-y', tmpPath];
-    
+
     await new Promise((resolve, reject) => {
       execFile(ffmpegPath, args, { timeout: 30000 }, (err) => {
         if (err) reject(err);
         else resolve();
       });
     });
-    
-    // 替换原文件
-    fs.unlinkSync(audioPath);
-    fs.renameSync(tmpPath, audioPath);
+
+    if (fsMod.existsSync(tmpPath)) {
+      if (fsMod.existsSync(audioPath)) fsMod.unlinkSync(audioPath);
+      fsMod.renameSync(tmpPath, audioPath);
+    }
+    return;
   }
 
-  // 音频后处理：压力因素效果
-  const effects = extra?.effects || null;
-  if (effects && fs.existsSync(audioPath)) {
-    try {
-      await applyAudioEffects(audioPath, effects);
-    } catch (effErr) {
-      console.warn('[TTS] 音频后处理失败（非致命）:', effErr.message);
+  // 需要混音：使用 filter_complex
+  if (hasInterruption || hasNoise || filterParts.length > 0) {
+    let filterComplex = '';
+    let currentLabel = '0:a';
+
+    // 应用基础滤镜
+    if (filterParts.length > 0) {
+      filterComplex += `[0:a]${filterParts.join(',')}[base];`;
+      currentLabel = 'base';
+    }
+
+    // 3. 打断效果：在第4秒混入打断音效，同时降低主音频音量
+    if (hasInterruption) {
+      const intIdx = 1;
+      // 主音频在 4.0s-4.7s 降低音量
+      filterComplex += `[${currentLabel}]volume=eval=frame:volume='if(between(t\,4\,4.7)\,0.1\,1)'[ducked];`;
+      // 打断音效延迟4秒
+      filterComplex += `[${intIdx}:a]adelay=4000|4000[int_del];`;
+      // 混合
+      filterComplex += `[ducked][int_del]amix=inputs=2:duration=first[mixed_int];`;
+      currentLabel = 'mixed_int';
+    }
+
+    // 4. 信息缺失：混入背景噪音
+    if (hasNoise) {
+      const noiseIdx = hasInterruption ? 2 : 1;
+      // 降低噪音音量
+      filterComplex += `[${noiseIdx}:a]volume=0.08[noise_low];`;
+      // 混合
+      filterComplex += `[${currentLabel}][noise_low]amix=inputs=2:duration=first[mixed_all];`;
+      currentLabel = 'mixed_all';
+    }
+
+    // 输出
+    filterComplex += `[${currentLabel}]anull[out]`;
+
+    const args = [...inputs, '-filter_complex', filterComplex, '-map', '[out]', '-y', tmpPath];
+
+    await new Promise((resolve, reject) => {
+      execFile(ffmpegPath, args, { timeout: 60000 }, (err, stdout, stderr) => {
+        if (err) {
+          console.error('[FFMPEG] 混音失败:', stderr);
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+
+    if (fsMod.existsSync(tmpPath)) {
+      if (fsMod.existsSync(audioPath)) fsMod.unlinkSync(audioPath);
+      fsMod.renameSync(tmpPath, audioPath);
     }
   }
 }
 
+// 确保音效文件存在，不存在则自动生成
+function ensureSoundEffectsExist() {
+  const dir = pathMod.join(__dirname, 'public', 'sound_effects');
+  if (!fsMod.existsSync(dir)) {
+    fsMod.mkdirSync(dir, { recursive: true });
+  }
 
-// 音频后处理函数：应用压力因素效果
-async function applyAudioEffects(audioPath, effects) {
-  const { execFile } = require('child_process');
   const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
-  const tmpPath = audioPath + '.temp.mp3';
-  
-  const filterParts = [];
-  
-  // 1. 口音效果（通过改变音调和语速模拟）
-  if (effects.accent) {
-    if (effects.accent === 'indian') {
-      filterParts.push('rubberband=pitch=0.95');
-    } else if (effects.accent === 'british') {
-      filterParts.push('rubberband=pitch=1.05');
-    } else if (effects.accent === 'australian') {
-      filterParts.push('rubberband=pitch=1.02');
+  const interruptionPath = pathMod.join(dir, 'interruption.mp3');
+  const staticNoisePath = pathMod.join(dir, 'static_noise.mp3');
+
+  if (!fsMod.existsSync(interruptionPath)) {
+    console.log('[SOUND] 生成 interruption.mp3...');
+    try {
+      const { execSync } = require('child_process');
+      execSync(`"${ffmpegPath}" -f lavfi -i "sine=frequency=400:duration=0.2" -f lavfi -i "sine=frequency=400:duration=0.2" -filter_complex "[0:a]adelay=0|0[a1]; [1:a]adelay=500|500[a2]; [a1][a2]amix=inputs=2" -y "${interruptionPath}"`, { stdio: 'ignore' });
+    } catch (e) {
+      console.error('[SOUND] 生成 interruption.mp3 失败:', e.message);
     }
   }
-  
-  // 2. 卡顿效果（随机插入短暂静音）
-  if (effects.packet_loss) {
-    filterParts.push("aevald='if(eq(t\,0.5)\,0.001\,1)*if(eq(t\,2.0)\,0.001\,1)*if(eq(t\,4.0)\,0.001\,1)'");
-  }
-  
-  // 3. 打断效果
-  if (effects.interruptions) {
-    filterParts.push('anull=duration=0.3');
-  }
-  
-  // 4. 信息缺失（背景噪音）
-  if (effects.information_gap) {
-    filterParts.push('anoisesrc=d=1:a=0.05');
-  }
-  
-  if (filterParts.length > 0) {
-    const filterChain = filterParts.join(',');
-    const args = ['-i', audioPath, '-af', filterChain, '-y', tmpPath];
-    
-    await new Promise((resolve, reject) => {
-      execFile(ffmpegPath, args, { timeout: 30000 }, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-    
-    // 替换原文件
-    if (fs.existsSync(tmpPath)) {
-      if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
-      fs.renameSync(tmpPath, audioPath);
+
+  if (!fsMod.existsSync(staticNoisePath)) {
+    console.log('[SOUND] 生成 static_noise.mp3...');
+    try {
+      const { execSync } = require('child_process');
+      execSync(`"${ffmpegPath}" -f lavfi -i "anoisesrc=d=10:color=pink:amplitude=0.15" -y "${staticNoisePath}"`, { stdio: 'ignore' });
+    } catch (e) {
+      console.error('[SOUND] 生成 static_noise.mp3 失败:', e.message);
     }
   }
 }
