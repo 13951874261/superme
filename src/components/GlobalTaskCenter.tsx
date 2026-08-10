@@ -305,11 +305,15 @@ export default function GlobalTaskCenter() {
 
   const handleDownload = (task: TaskItem) => {
     if (!task.result) return;
-    const blob = new Blob([task.result.content || ''], { type: 'text/markdown' });
+    const isVocab = task.type === 'vocab_export';
+    const mime = isVocab ? (task.result.mimeType || 'text/csv;charset=utf-8;') : 'text/markdown';
+    const filename = task.result.name || (isVocab ? 'vocab-export.csv' : 'download.md');
+
+    const blob = new Blob([task.result.content || ''], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = task.result.name || 'download.md';
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -462,10 +466,10 @@ export default function GlobalTaskCenter() {
                         <button
                           onClick={() => handleDownload(task)}
                           className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
-                          title="????? CSV"
+                          title="下载导出的 CSV 文件"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          ????? (.csv)
+                          下载生词本 (.csv)
                         </button>
                       </div>
                     )}

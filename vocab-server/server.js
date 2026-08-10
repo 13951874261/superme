@@ -330,7 +330,7 @@ try {
       { id: 't7', name: '信息垄断', category: 'upward', description: '掌控唯一的关键业务细节、核心供应链关系或底层代码，使自己成为团队中无可替代的存在。' },
       { id: 't8', name: '软对抗', category: 'upward', description: '不直接顶撞，而是通过效率降低、合规核查、汇报拖延等无破绽的制度化行为消极回复。' }
     ];
-    
+
     const insert = db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
     for (const t of defaultTacticsList) {
       insert.run(t.id, 'system', t.name, t.category, t.description, 0, Date.now());
@@ -1971,7 +1971,7 @@ async function runMemoryDreamingJob() {
 
 // ?????????????????
 db.prepare(`
-  CREATE INDEX IF NOT EXISTS idx_gen_history_theme 
+  CREATE INDEX IF NOT EXISTS idx_gen_history_theme
   ON generation_history(user_id, theme, generated_at)
 `).run();
 
@@ -2432,7 +2432,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
       return res.status(500).json({ success: false, error: '后端未配置 DIFY_LISTEN_GEN_API_KEY' });
     }
     const difyUrl = `${process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'}/completion-messages`;
-    
+
     const response = await fetch(difyUrl, {
       method: 'POST',
       headers: {
@@ -2445,17 +2445,17 @@ app.post('/api/listen/generate-material', async (req, res) => {
         user: userId,
       })
     });
-    
+
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       const errMsg = formatDifyModelError(data.message || data.error || 'Dify API Error');
       return res.status(response.status).json({ success: false, error: errMsg });
     }
-    
+
     if (!data.answer) {
       return res.status(500).json({ success: false, error: 'Dify 未返回听力材料正文，请检查 listen_material_generator 应用配置' });
     }
-    
+
     res.json({ success: true, answer: data.answer });
   } catch (error) {
     console.error('generate-material error:', error);
@@ -2500,11 +2500,11 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
         }
 
         // 保存生成的文稿内容给前端提取 (保存在 task.result.content)
-        taskQueue.updateTask(task.id, { 
-          progress: 100, 
-          logs: [`长音频剧本生成圆满完成！（${answer.length} 字符）`], 
-          status: 'completed', 
-          result: { content: answer } 
+        taskQueue.updateTask(task.id, {
+          progress: 100,
+          logs: [`长音频剧本生成圆满完成！（${answer.length} 字符）`],
+          status: 'completed',
+          result: { content: answer }
         });
 
       } catch (error) {
@@ -2711,10 +2711,10 @@ app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
     // 生成唯一文件名避免冲突
     const uniqueName = `${Date.now()}-${file.originalname}`;
     const filePath = path.join(__dirname, 'public', 'long_audio', uniqueName);
-    
+
     // 保存上传的文件
     fs.writeFileSync(filePath, fs.readFileSync(file.path));
-    
+
     // 清理临时文件
     if (file.path && fs.existsSync(file.path)) {
       fs.unlinkSync(file.path);
@@ -3217,7 +3217,7 @@ app.get('/api/vocab/item/:id', (req, res) => {
 app.post('/api/vocab/add', (req, res) => {
   try {
     const { word, dictType, category, scene_type = 'business', payload } = req.body;
-    
+
     // ?????????????? category?????????? scene_type ??????
     const actualCategory = category || (scene_type === 'general' ? 'general' : 'business');
 
@@ -3229,12 +3229,12 @@ app.post('/api/vocab/add', (req, res) => {
 
     const id = crypto.randomUUID();
     const now = Date.now();
-    
+
     db.prepare(`
       INSERT INTO vocabulary (id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(id, word, dictType, actualCategory, scene_type, JSON.stringify(payload || {}), now, now, '[]', 0, 1, 2.5);
-    
+
     res.json({ success: true, id, message: '存入成功' });
   } catch (error) {
     console.error(error);
@@ -3258,7 +3258,7 @@ app.post('/api/vocab/batch-add', (req, res) => {
       for (const item of words) {
         const word = item.word;
         if (!word) continue;
-        
+
         const isPhrase = !!item.is_phrase;
         const isSentence = !!item.is_sentence
           || item.dictType === 'ai_sentence' || item.dict_type === 'ai_sentence'
@@ -3302,75 +3302,83 @@ async function queryDifyDictOnBackend(word, dictType) {
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const DICT_QUERY_TIMEOUT_MS = 30000;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
-  try {
-    let direction = 'auto';
-    if (cleanDictType === 'en_zh_bidirectional') {
-      const hasChinese = /[\u4e00-\u9fa5]/.test(word || '');
-      direction = hasChinese ? 'zh_to_en' : 'en_to_zh';
-    }
-    const response = await fetch(`${BASE_URL}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: injectOralSystemTime({
-          word: word.trim(),
-          dict_type: cleanDictType,
-          direction: direction,
-          user_context: '',
-          locale: 'zh-CN',
-          user_current_profile: ''
-        }),
-        response_mode: 'blocking',
-        user: 'backend-export-worker'
-      }),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn(`[Backend Export Worker] Dify error:`, errText);
-      return null;
-    }
-    const data = await response.json();
-    const resultStr = data?.data?.outputs?.result;
-    if (!resultStr) return null;
-    let parsedResult;
+  const MAX_RETRY = 3;
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
     try {
-      parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr.trim()) : resultStr;
-    } catch (e) {
-      let cleanStr = resultStr.trim();
-      if (cleanStr.startsWith('```')) {
-        const lines = cleanStr.split('\n');
-        if (lines[0].startsWith('```')) lines.shift();
-        if (lines[lines.length - 1].startsWith('```')) lines.pop();
-        cleanStr = lines.join('\n').trim();
+      let direction = 'auto';
+      if (cleanDictType === 'en_zh_bidirectional') {
+        const hasChinese = /[\u4e00-\u9fa5]/.test(word || '');
+        direction = hasChinese ? 'zh_to_en' : 'en_to_zh';
+      }
+      const response = await fetch(`${BASE_URL}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: injectOralSystemTime({
+            word: word.trim(),
+            dict_type: cleanDictType,
+            direction: direction,
+            user_context: '',
+            locale: 'zh-CN',
+            user_current_profile: ''
+          }),
+          response_mode: 'blocking',
+          user: 'backend-export-worker'
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errText}`);
+      }
+      const data = await response.json();
+      const resultStr = data?.data?.outputs?.result;
+      if (!resultStr) {
+        throw new Error("Empty Dify output");
+      }
+      let parsedResult;
+      try {
+        parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr.trim()) : resultStr;
+      } catch (e) {
+        let cleanStr = resultStr.trim();
+        if (cleanStr.startsWith('```')) {
+          const lines = cleanStr.split('\n');
+          if (lines[0].startsWith('```')) lines.shift();
+          if (lines[lines.length - 1].startsWith('```')) lines.pop();
+          cleanStr = lines.join('\n').trim();
+        }
+        parsedResult = JSON.parse(cleanStr);
       }
       try {
-        parsedResult = JSON.parse(cleanStr);
-      } catch (inner) {
-        return null;
+        db.prepare(`
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
+        `).run(crypto.randomUUID(), word.trim(), cleanDictType, direction, '', 'zh-CN', JSON.stringify(parsedResult), Date.now());
+      } catch (logErr) {
+        console.error('[Backend Export Worker] Cache Write Error:', logErr.message);
       }
+      return parsedResult;
+    } catch (err) {
+      lastError = err;
+      console.warn(`[Backend Export Worker] Dify workflow query failed for "${word}" (attempt ${attempt}/${MAX_RETRY}):`, err.message);
+      if (attempt < MAX_RETRY) {
+        const delay = attempt * 1500;
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } finally {
+      clearTimeout(timeoutId);
     }
-    try {
-      db.prepare(`
-        INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-      `).run(crypto.randomUUID(), word.trim(), cleanDictType, direction, '', 'zh-CN', JSON.stringify(parsedResult), Date.now());
-    } catch (logErr) {
-      console.error('[Backend Export Worker] Cache Write Error:', logErr.message);
-    }
-    return parsedResult;
-  } catch (err) {
-    console.error(`[Backend Export Worker] Dify workflow query failed for "${word}":`, err.message);
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
   }
+  console.error(`[Backend Export Worker] Dify query completely failed for "${word}" after ${MAX_RETRY} attempts:`, lastError?.message);
+  return null;
 }
 
 app.post('/api/vocab/export-background', async (req, res) => {
@@ -3520,7 +3528,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
         let enrichedCount = 0;
         let cachedMatchCount = 0;
         let onlineQueryCount = 0;
-        const maxOnlineQueries = 1000;
+        const maxOnlineQueries = 9999999; // ??????????
         const concurrencyLimit = 8;
         const chunks = [];
         for (let i = 0; i < wordsToEnrich.length; i += concurrencyLimit) {
@@ -3618,6 +3626,21 @@ app.post('/api/vocab/export-background', async (req, res) => {
         taskQueue.updateTask(task.id, {
           logs: [`\u5728\u7ebf\u8865\u9f50\u5904\u7406\u5b8c\u6210\uff0c\u6210\u529f\u8865\u9f50 ${enrichedCount} \u4e2a\u8bcd\u6761\u3002\u6b63\u5728\u5bf9\u6240\u6709\u5269\u4e59\u7a7a\u767d\u5217\u5e94\u7528\u672c\u5730\u515c\u5e95\u5e76\u751f\u6210 CSV...`]
         });
+        // ???????????????????? Dify ?????????????????? CSV
+        const incompleteWords = normalizedList.filter(w => {
+          const payload = w.payload || {};
+          const type = getItemType(w);
+          const translation = getWordTranslation(payload).trim();
+          const pos = String(payload.pos || '').trim();
+          const phonetic = String(payload.phonetic || '').trim();
+          return !translation || !pos || (type === '\u5355\u8bcd (Word)' && !phonetic);
+        });
+
+        if (incompleteWords.length > 0) {
+          const examples = incompleteWords.slice(0, 5).map(w => w.word).join(', ');
+          throw new Error(`\u5bfc\u51fa\u4e2d\u65ad\uff1a\u6709 ${incompleteWords.length} \u4e2a\u8bcd\u6761\u7531\u4e8e\u7f51\u7edc\u6216\u5927\u6a21\u578b\u89e3\u6790\u5931\u8d25\u672a\u80fd\u6210\u529f\u8865\u9f50\uff08\u8be6\u60c5\uff1a${examples}${incompleteWords.length > 5 ? ', ...' : ''}\uff09\u3002\u4e3a\u4e86\u4fdd\u8bc1\u6570\u636e\u5b8c\u6574\uff0c\u8bf7\u91cd\u8bd5\u5bfc\u51fa\u3002`);
+        }
+
         const finalExportList = normalizedList.map(w => {
           const payload = { ...(w.payload || {}) };
           const type = getItemType(w);
@@ -3629,10 +3652,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
           if (!payload.phonetic || !payload.phonetic.trim()) {
             payload.phonetic = '/';
           }
-          if (!payload.meaning || !payload.meaning.trim()) {
-            payload.meaning = w.word;
-            payload.translation_main = w.word;
-          }
+
           return { ...w, payload };
         });
         const getExampleSentences = (w) => {
@@ -3772,23 +3792,23 @@ app.put('/api/vocab/review/:id', (req, res) => {
   try {
     const id = req.params.id;
     const { quality } = req.body;
-    
+
     const word = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(id);
     if (!word) return res.status(404).json({ error: 'Word not found' });
-    
+
     const calc = calculateNextReview(quality, word.repetitions, word.ease_factor, word.interval_days);
     const now = Date.now();
     const nextReview = now + (calc.interval * 86400000);
-    
+
     const history = word.review_history ? JSON.parse(word.review_history) : [];
     history.push({ date: now, quality });
 
     db.prepare(`
-      UPDATE vocabulary 
+      UPDATE vocabulary
       SET repetitions = ?, ease_factor = ?, interval_days = ?, next_review_date = ?, last_review_date = ?, review_history = ?
       WHERE id = ?
     `).run(calc.repetitions, calc.easeFactor, calc.interval, nextReview, now, JSON.stringify(history), id);
-    
+
     res.json({ success: true, nextReviewDate: nextReview, interval: calc.interval, message: 'ok' });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });
@@ -3858,12 +3878,12 @@ db.prepare(`
 app.post('/api/training/session/upsert', (req, res) => {
   try {
     const { userId = 'default-user', trainingDate, totalMinutes = 0, listenMinutes = 0, logicMinutes = 0, extraJson } = req.body;
-    
+
     // Check if session exists
     const existing = db.prepare('SELECT id, extra_json FROM training_sessions WHERE training_date = ?').get(trainingDate);
     const now = Date.now();
     let sessionId;
-    
+
     if (existing) {
       sessionId = existing.id;
       let newExtra = existing.extra_json ? JSON.parse(existing.extra_json) : {};
@@ -3871,11 +3891,11 @@ app.post('/api/training/session/upsert', (req, res) => {
         newExtra = { ...newExtra, ...extraJson };
       }
       db.prepare(`
-        UPDATE training_sessions 
+        UPDATE training_sessions
         SET total_minutes = total_minutes + ?, listen_minutes = listen_minutes + ?, logic_minutes = logic_minutes + ?, extra_json = ?, updated_at = ?
         WHERE id = ?
       `).run(totalMinutes, listenMinutes, logicMinutes, JSON.stringify(newExtra), now, sessionId);
-      
+
       res.json({ success: true, sessionId, status: 'updated' });
     } else {
       sessionId = crypto.randomBytes(16).toString('hex');
@@ -3884,7 +3904,7 @@ app.post('/api/training/session/upsert', (req, res) => {
         INSERT INTO training_sessions (id, user_id, training_date, total_minutes, listen_minutes, logic_minutes, extra_json, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(sessionId, userId, trainingDate, totalMinutes, listenMinutes, logicMinutes, initialExtra, now, now);
-      
+
       res.json({ success: true, sessionId, status: 'created' });
     }
   } catch (error) {
@@ -3898,17 +3918,17 @@ app.get('/api/training/session-by-date', (req, res) => {
   try {
     const { trainingDate, userId = 'default-user' } = req.query;
     const session = db.prepare('SELECT * FROM training_sessions WHERE training_date = ? AND user_id = ?').get(trainingDate, userId);
-    
+
     if (!session) {
       return res.json({ session: null, attempts: [], review: null });
     }
-    
+
     const attempts = db.prepare('SELECT * FROM training_attempts WHERE session_id = ?').all(session.id);
     const formattedAttempts = attempts.map(a => ({
       ...a,
       userAnswer: a.user_answer ? JSON.parse(a.user_answer) : {}
     }));
-    
+
     res.json({
       session: {
         ...session,
@@ -3929,12 +3949,12 @@ app.post('/api/training/attempt', (req, res) => {
     const { sessionId, userId = 'default-user', moduleType, sceneType, caseText, userAnswer, durationSeconds = 0, score = null } = req.body;
     const attemptId = crypto.randomBytes(16).toString('hex');
     const now = Date.now();
-    
+
     db.prepare(`
       INSERT INTO training_attempts (id, session_id, user_id, module_type, scene_type, case_text, user_answer, duration_seconds, score, created_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(attemptId, sessionId, userId, moduleType, sceneType, caseText, JSON.stringify(userAnswer || {}), durationSeconds, score, now);
-    
+
     res.json({ success: true, attemptId });
   } catch (error) {
     console.error(error);
@@ -4111,14 +4131,14 @@ app.post('/api/theme/custom-add', async (req, res) => {
     const base64Data = file.content || file.base64 || '';
     const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
     const buffer = Buffer.from(base64Content, 'base64');
-    
+
     const blob = new Blob([buffer], { type: 'application/octet-stream' });
     const formData = new FormData();
     formData.append('file', blob, file.fileName || 'custom_material.pdf');
-    formData.append('data', JSON.stringify({ 
-      indexing_technique: 'high_quality', 
+    formData.append('data', JSON.stringify({
+      indexing_technique: 'high_quality',
       doc_form: 'hierarchical_model',
-      process_rule: { 
+      process_rule: {
         mode: 'hierarchical',
         rules: {
           pre_processing_rules: [
@@ -4135,7 +4155,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
             max_tokens: 200
           }
         }
-      } 
+      }
     }));
 
     const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
@@ -4143,7 +4163,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` },
       body: formData
     });
-    
+
     if (!uploadResponse.ok) {
       const errText = await uploadResponse.text();
       throw new Error(`Dify 文件入库失败: ${errText}`);
@@ -4151,7 +4171,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
 
     const uploadData = await uploadResponse.json();
     const documentId = uploadData.document?.id;
-    const batchId = uploadData.batch; 
+    const batchId = uploadData.batch;
 
     if (!documentId || !batchId) {
       throw new Error('文件已发送，但未从 Dify 拿到 batch ID 导致无法跟踪');
@@ -4163,16 +4183,16 @@ app.post('/api/theme/custom-add', async (req, res) => {
     let isIndexed = false;
     for (let i = 0; i < 40; i++) {
       await new Promise(resolve => setTimeout(resolve, 3000));
-      
+
       const statusRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${batchId}/indexing-status`, {
         method: 'GET',
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
       });
-      
-      if (!statusRes.ok) continue;      
+
+      if (!statusRes.ok) continue;
       const statusData = await statusRes.json();
       const docInfo = statusData.data?.[0];
-      
+
       if (docInfo) {
         console.log(`[Custom Theme] 第 ${i + 1} 次进度扫描: status = ${docInfo.indexing_status}`);
         if (docInfo.indexing_status === 'completed') {
@@ -4198,7 +4218,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        inputs: { 
+        inputs: {
           custom_theme_name: themeName,
           topic: themeName,
           user_current_profile: user_current_profile || ''
@@ -4207,10 +4227,10 @@ app.post('/api/theme/custom-add', async (req, res) => {
         user: userId
       })
     });
-    
+
     const wfData = await wfResponse.json();
     if (!wfResponse.ok) throw new Error(`工作流执行失败: ${JSON.stringify(wfData)}`);
-    
+
     const outputs = wfData?.data?.outputs || {};
     const extractedThemeName = outputs.theme_name || themeName;
     const extractedWordsRaw = outputs.extracted_words || '[]';
@@ -4222,7 +4242,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
     } catch (e) {
       console.error("解析 extracted_words 失败", e);
     }
-    
+
     let keyPhrases = [];
     try {
       keyPhrases = typeof keyPhrasesRaw === 'string' ? JSON.parse(keyPhrasesRaw) : keyPhrasesRaw;
@@ -4389,12 +4409,12 @@ app.get('/api/theme/stay-stats', (req, res) => {
 
   try {
     const earliestGen = db.prepare(`
-      SELECT MIN(generated_at) as earliest FROM generation_history 
+      SELECT MIN(generated_at) as earliest FROM generation_history
       WHERE user_id = ? AND theme = ?
     `).get(userId, theme);
 
     const earliestAttempt = db.prepare(`
-      SELECT MIN(created_at) as earliest FROM training_attempts 
+      SELECT MIN(created_at) as earliest FROM training_attempts
       WHERE user_id = ? AND scene_type = ?
     `).get(userId, theme);
 
@@ -4402,25 +4422,25 @@ app.get('/api/theme/stay-stats', (req, res) => {
     if (earliestGen?.earliest) earliestTime = Math.min(earliestTime, earliestGen.earliest);
     if (earliestAttempt?.earliest) earliestTime = Math.min(earliestTime, earliestAttempt.earliest);
 
-    const stayDays = earliestTime === Date.now() 
-      ? 1 
+    const stayDays = earliestTime === Date.now()
+      ? 1
       : Math.max(1, Math.ceil((Date.now() - earliestTime) / (24 * 60 * 60 * 1000)));
 
     const genCountRow = db.prepare(`
-      SELECT COUNT(*) as count FROM generation_history 
+      SELECT COUNT(*) as count FROM generation_history
       WHERE user_id = ? AND theme = ?
     `).get(userId, theme);
     const articleCount = genCountRow ? genCountRow.count : 0;
 
     const escapedTheme = theme.replace(/"/g, '\\"');
     const wordCountRow = db.prepare(`
-      SELECT COUNT(*) as count FROM vocabulary 
+      SELECT COUNT(*) as count FROM vocabulary
       WHERE dict_type = 'ai_extracted' AND payload LIKE ?
     `).get(`%${escapedTheme}%`);
     const wordCount = wordCountRow ? wordCountRow.count : 0;
 
     const phraseCountRow = db.prepare(`
-      SELECT COUNT(*) as count FROM vocabulary 
+      SELECT COUNT(*) as count FROM vocabulary
       WHERE dict_type = 'ai_phrase' AND payload LIKE ?
     `).get(`%${escapedTheme}%`);
     const phraseCount = phraseCountRow ? phraseCountRow.count : 0;
@@ -4429,8 +4449,8 @@ app.get('/api/theme/stay-stats', (req, res) => {
     let todaySuggestion = '建议：完成今日单词的英汉双向熟练度默写，并进行流式长文听力精听。';
 
     const latestSession = db.prepare(`
-      SELECT extra_json FROM training_sessions 
-      WHERE user_id = ? 
+      SELECT extra_json FROM training_sessions
+      WHERE user_id = ?
       ORDER BY training_date DESC LIMIT 1
     `).get(userId);
 
@@ -4440,7 +4460,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
         const ef = extra.englishFoundation || {};
         if (ef.pronunciationNotes) weakPoints.pronunciation = ef.pronunciationNotes;
         if (ef.grammarNotes) weakPoints.grammar = ef.grammarNotes;
-        
+
         if (ef.pronunciationNotes || ef.grammarNotes) {
           todaySuggestion = `今日针对性建议：重点纠正【${ef.pronunciationNotes || '无特殊发音问题'}】的发音习惯；在口语/写作练习中刻意运用【${ef.grammarNotes || '无语法偏差'}】的修正方案。`;
         }
@@ -4863,7 +4883,7 @@ app.get('/api/dify/dict-coverage', (req, res) => {
       '考研': 0,
       '未分类': 0
     };
-    
+
     rows.forEach(r => {
       try {
         const parsed = JSON.parse(r.response_payload);
@@ -4919,10 +4939,10 @@ async function checkAndEnrichPlaceholderPayload(row) {
   }
 
   // ???????????????
-  const hasPlaceholder = 
-    !payload.meaning || 
-    payload.meaning === '待复习补充' || 
-    payload.meaning === '待复习补充' || 
+  const hasPlaceholder =
+    !payload.meaning ||
+    payload.meaning === '待复习补充' ||
+    payload.meaning === '待复习补充' ||
     (payload.phonetic && payload.phonetic.includes('??')) ||
     (payload.definition_en && payload.definition_en.includes('精准定义')) ||
     (payload.business_note && payload.business_note.includes('特定商环境')) ||
@@ -4961,7 +4981,7 @@ async function checkAndEnrichPlaceholderPayload(row) {
           const parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr) : resultStr;
           if (parsedResult && parsedResult.ok && parsedResult.payload) {
             const dp = parsedResult.payload;
-            
+
             let meaning = dp.translation_main || (Array.isArray(dp.definitions_en) ? dp.definitions_en[0] : '待复习补充');
             let definition_en = Array.isArray(dp.definitions_en) ? dp.definitions_en.join('; ') : (dp.definition || '');
             let business_note = dp.business_notes || '';
@@ -5019,7 +5039,7 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
 
     const payload = await checkAndEnrichPlaceholderPayload(row);
     const word = row.word;
-    
+
     let phonetic = payload.phonetic || '';
     let pos = payload.partOfSpeech || payload.pos || '';
     let definition = payload.meaning || payload.definition || payload.translation_main || '';
@@ -5794,7 +5814,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 app.post('/api/english/clear-today', (req, res) => {
   const { userId = 'default-user' } = req.body;
   const today = new Date().toISOString().split('T')[0];
-  
+
   // ?????????????????????? 00:00:00 ??????
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
@@ -6053,7 +6073,7 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
   if (!task) {
     return res.status(404).json({ success: false, error: 'Task not found or expired.' });
   }
-  
+
   if (task.status === 'pending') {
     return res.json({ success: true, status: 'pending' });
   } else if (task.status === 'failed') {
@@ -6323,7 +6343,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
         }
       });
     }
-    
+
     // ??????????????????????????
     const inputText = materialText?.trim() || topic || '';
     if (!inputText) {
@@ -6373,18 +6393,18 @@ app.post('/api/english/daily-extract', async (req, res) => {
 // ????????????????
 async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft, quotaRow, today) {
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile, _system_time, _system_timestamp_ms } = requestBody;
-  
+
   try {
     // ????????????????? (history_exclude) ????????? (user_flaws)
     let historyExclude = '';
     try {
       const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
       const historyRows = db.prepare(`
-        SELECT keywords FROM generation_history 
+        SELECT keywords FROM generation_history
         WHERE user_id = ? AND theme = ? AND generated_at > ?
         ORDER BY generated_at DESC
       `).all(userId, topic, cutoff);
-      
+
       const allKeywords = [];
       for (const row of historyRows) {
         try {
@@ -6402,11 +6422,11 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     let userFlaws = '';
     try {
       const session = db.prepare(`
-        SELECT extra_json FROM training_sessions 
-        WHERE user_id = ? 
+        SELECT extra_json FROM training_sessions
+        WHERE user_id = ?
         ORDER BY training_date DESC LIMIT 1
       `).get(userId);
-      
+
       if (session?.extra_json) {
         const extra = JSON.parse(session.extra_json);
         const ef = extra.englishFoundation || {};
@@ -6528,7 +6548,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           return;
         }
       }
-      
+
       if (sseBuffer.trim().startsWith("data: ")) {
         const line = sseBuffer.trim();
         const dataStr = line.slice(6).trim();
@@ -6646,7 +6666,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       }
       const w = item.word ? item.word.trim() : '';
       const isSentenceHeuristic = w.length > 30 && (/[.!?。！？]$/.test(w) || w.split(' ').length >= 5);
-      
+
       if (item.is_sentence || isSentenceHeuristic) {
         sentenceList.push(item.word);
         item.is_sentence = true; // Mark as sentence so it doesn't go to wordsToStore
@@ -6823,7 +6843,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         userFlaws,
         userCurrentProfile: profileForSig,
       });
-      
+
       const insertArtStmt = db.prepare(`
         INSERT OR REPLACE INTO daily_extracted_articles (id, user_id, quota_date, theme, genre, cefr_level, article, words_json, phrases_json, sentences_json, duration, input_signature, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -8027,12 +8047,12 @@ app.post('/api/game-theory/ascension', async (req, res) => {
   try {
     const difyApiKey = process.env.VITE_DIFY_COGNITIVE_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    
+
     const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${difyApiKey}`, 
-        'Content-Type': 'application/json' 
+      headers: {
+        'Authorization': `Bearer ${difyApiKey}`,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         inputs: {
@@ -8055,7 +8075,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     const data = await response.json();
     const raw = data?.data?.outputs?.result ?? data?.data?.outputs?.analysis_result ?? data?.answer ?? data?.message ?? '';
     const cleanJson = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
-    
+
     let parsedResult;
     try {
       parsedResult = JSON.parse(cleanJson);
@@ -8093,13 +8113,13 @@ app.post('/api/game-theory/prototypes', (req, res) => {
     if (!name) {
       return res.status(400).json({ error: 'Missing name' });
     }
-    
+
     const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, name);
     const now = Date.now();
-    
+
     if (existing) {
       db.prepare(`
-        UPDATE personal_prototypes 
+        UPDATE personal_prototypes
         SET type = ?, description = ?, added_at = ?
         WHERE id = ?
       `).run(type, description, now, existing.id);
@@ -8249,7 +8269,7 @@ ${excerpt}`;
     // Try chat-messages endpoint
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
-    
+
     try {
       const response = await fetch(`${baseUrl}/chat-messages`, {
         method: 'POST',
@@ -8277,7 +8297,7 @@ ${excerpt}`;
       const data = await response.json();
       const rawAnswer = data?.answer || data?.data?.outputs?.text || '';
       const cleanJson = String(rawAnswer).replace(/```json/g, '').replace(/```/g, '').trim();
-      
+
       let tactics = [];
       try {
         tactics = JSON.parse(cleanJson);
@@ -8370,7 +8390,7 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
   const tmpId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
   const tmpMediaFile = path.join(os.tmpdir(), `edge_tts_${tmpId}.mp3`);
   const tmpTextFile = path.join(os.tmpdir(), `edge_tts_${tmpId}.txt`);
-  
+
   // 将极长的文本写入临时文件，防止命令行因过长或包含特殊字符报错
   fs.writeFileSync(tmpTextFile, text, 'utf8');
 
@@ -9011,11 +9031,11 @@ app.post('/api/tts/speech', async (req, res) => {
     // 移除 Emoji
     let cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
     cleanInput = sanitizeListenMaterialScript(cleanInput);
-    
+
     // 针对纯英文 TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩溃 (NoAudioReceived)
     if (finalModel.includes('/en-') || finalModel.startsWith('en-')) {
       cleanInput = cleanInput.replace(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g, '').trim();
-      
+
       // 熔断机制：如果过滤后没有任何有效字母或数字，直接返回空音频，防止 edge-tts 读空气报错 500
       if (!/[a-zA-Z0-9]/.test(cleanInput)) {
         return res.json({ success: true, audioId: 'empty', audioUrl: null, duration: 0 });
@@ -9264,12 +9284,12 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     const task = taskQueue.createTask('video', taskName);
 
     // ??????????????????? HTTP ?????
-    startTranscribeTask(task.id, { 
-      url: null, 
-      filePath: finalFilePath, 
-      fileName: fileName, 
-      language, 
-      subtitle 
+    startTranscribeTask(task.id, {
+      url: null,
+      filePath: finalFilePath,
+      fileName: fileName,
+      language,
+      subtitle
     });
 
     res.json({
@@ -9295,7 +9315,7 @@ app.post('/api/materials/upload-direct', upload.single('video'), (req, res) => {
     const ext = path.extname(file.originalname) || '.mp4';
     const newFilename = `${file.filename}${ext}`;
     const newPath = path.join(uploadDir, newFilename);
-    
+
     fs.renameSync(file.path, newPath);
 
     // ?????????????????????????????????????????? URL
@@ -9318,7 +9338,7 @@ app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) 
   try {
     const { url, language = 'auto', subtitle = '' } = req.body;
     const file = req.file;
-    
+
     if (!url && !file) {
       return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或上传 video 文件' });
     }
@@ -9331,12 +9351,12 @@ app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) 
     const task = taskQueue.createTask('video', taskName);
 
     // ??????????????????? HTTP ?????
-    startTranscribeTask(task.id, { 
-      url, 
-      filePath: file ? file.path : null, 
-      fileName: file ? file.originalname : null, 
-      language, 
-      subtitle 
+    startTranscribeTask(task.id, {
+      url,
+      filePath: file ? file.path : null,
+      fileName: file ? file.originalname : null,
+      language,
+      subtitle
     });
 
     res.json({
@@ -9494,7 +9514,7 @@ The JSON schema must be exactly:
       const response = await executeRequest(selectedModel);
       const json = JSON.parse(response.data);
       const content = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content || '').trim();
-      
+
       if (!content) {
         throw new Error('Received empty assistant content');
       }
@@ -9538,7 +9558,7 @@ async function callPolishLLM(rawText) {
     const https = require('https');
     const url = 'https://23.95.214.232/v1/chat/completions';
     const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
-    
+
     const requestBody = JSON.stringify({
       model: 'dify',
       messages: [
@@ -9684,7 +9704,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         if (localResponse.ok) {
           const localData = await localResponse.json().catch(() => ({}));
           rawText = typeof localData.text === 'string' ? localData.text.trim() : '';
-          
+
           // 对原始文本进行过滤降噪，洗掉 Whisper 幻觉噪声标签 (如 [Spanish], [silence], [BLANK_AUDIO], (laughter) 等)
           rawText = rawText
             .replace(/\[[^\]]*\]/g, '')
@@ -9722,7 +9742,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
           if (response.ok) {
             const data = await response.json().catch(() => ({}));
             rawText = typeof data.text === 'string' ? data.text.trim() : '';
-            
+
             // 对降级 Dify 的原始文本同样进行降噪洗噪
             rawText = rawText
               .replace(/\[[^\]]*\]/g, '')
