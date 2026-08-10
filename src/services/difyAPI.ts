@@ -1994,6 +1994,65 @@ export async function deletePersonalPrototype(id: string): Promise<{ success: bo
   return data;
 }
 
+// Tactics library API
+export interface TacticItem {
+  id: string;
+  user_id: string;
+  name: string;
+  category: 'downward' | 'upward';
+  description: string;
+  is_custom: number;
+  source_file: string;
+  created_at: number;
+}
+
+export async function getTactics(userId = getAppUserId()): Promise<TacticItem[]> {
+  const res = await fetch(`/api/game-theory/tactics?userId=${encodeURIComponent(userId)}`);
+  const data = await res.json().catch(() => []);
+  if (!res.ok) throw new Error(data?.error || '获取手段列表失败');
+  return data as TacticItem[];
+}
+
+export async function addTactic(params: { name: string; category: 'downward' | 'upward'; description: string; userId?: string }) {
+  const res = await fetch('/api/game-theory/tactics', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...params, userId: params.userId ?? getAppUserId() }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || '添加失败');
+  return data as { success: boolean; id: string; status: string };
+}
+
+export async function deleteTactic(id: string): Promise<{ success: boolean }> {
+  const res = await fetch(`/api/game-theory/tactics/${id}`, { method: 'DELETE' });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || '删除失败');
+  return data;
+}
+
+export async function uploadTacticsMaterial(file: File, userId = getAppUserId()): Promise<{ success: boolean; extracted: TacticItem[]; inserted: number; sourceFile: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('userId', userId);
+  const res = await fetch('/api/game-theory/upload-tactics-material', { method: 'POST', body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || '上传失败');
+  return data;
+}
+
+export function exportTacticsToCsv(tactics: TacticItem[]): void {
+  const escape = (value: unknown) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+  const rows = [['手段名称', '分类', '描述', '来源'], ...tactics.map(t => [t.name, t.category === 'downward' ? '上级对下' : '以下克上', t.description, t.source_file || (t.is_custom ? '手动录入' : '系统内置')])];
+  const csv = '\uFEFF' + rows.map(row => row.map(escape).join(',')).join('\r\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `驭人术手段库_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 const FLAW_SUB_THEMES = [
   'evasive arguments and diversion tactics',
   'unsubstantiated claims and lack of evidence',

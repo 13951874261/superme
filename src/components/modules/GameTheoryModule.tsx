@@ -20,6 +20,7 @@ import {
   getGameTheoryHistoryDetail,
   GameTheoryHistoryItem,
 } from '../../services/difyAPI';
+import TacticsPanel from './GameTheory/TacticsPanel';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
 import { useTask } from '../TaskContext';
 
@@ -900,88 +901,16 @@ export default function GameTheoryModule() {
           {activeTab === 'tactics' && (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
               {/* 左面板 60%：手段工具箱 */}
-              <div className="lg:col-span-6 space-y-6">
-                <div className="bg-white rounded-[2rem] p-6 md:p-8 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
-                  <h3 className="text-sm font-bold text-zinc-900 mb-6 flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-zinc-600" /> 双向手段体系工具箱 (Tactics Toolkit)
-                  </h3>
-
-                  <div className="space-y-6">
-                    {/* 上级驭下手段 */}
-                    <div className="bg-zinc-50/50 border border-zinc-100 p-5 rounded-2xl">
-                      <span className="text-[10px] bg-zinc-200 text-zinc-700 font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-4 inline-block">
-                        上级驭下手段
-                      </span>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                        {downwardTactics.map(t => (
-                          <div 
-                            key={t}
-                            onClick={() => {
-                              playClick();
-                              setSelectedTactics(prev => 
-                                prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                              );
-                            }}
-                            className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                              selectedTactics.includes(t) 
-                                ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' 
-                                : 'bg-white border-zinc-200 text-zinc-800 hover:border-zinc-400'
-                            }`}
-                          >
-                            <h4 className="text-xs font-bold mb-1 flex items-center gap-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full ${selectedTactics.includes(t) ? 'bg-white' : 'bg-zinc-400'}`} />
-                              {t}
-                            </h4>
-                            <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
-                              {t === '恩威并施' && '适时给予下属利益和资源，同时维持考核或问责的压力，使其产生敬畏之心。'}
-                              {t === '制衡术' && '在两个或多个下属或部门之间制造合理的良性竞争或权利对抗，以防出现权力合谋或一方独大。'}
-                              {t === '分而治之' && '隔离下属的信息沟通，打破其暗中建立的利益小同盟，分别进行管理和谈话。'}
-                              {t === '边缘化' && '通过调整业务线、分管责任，收回核心资源，将不服从者逐步架空移出核心决策圈。'}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* 以下克上手段 */}
-                    <div className="bg-zinc-50/50 border border-zinc-100 p-5 rounded-2xl">
-                      <span className="text-[10px] bg-zinc-200 text-zinc-700 font-bold px-2 py-0.5 rounded uppercase tracking-wider mb-4 inline-block">
-                        以下克上手段
-                      </span>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
-                        {upwardTactics.map(t => (
-                          <div 
-                            key={t}
-                            onClick={() => {
-                              playClick();
-                              setSelectedTactics(prev => 
-                                prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
-                              );
-                            }}
-                            className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                              selectedTactics.includes(t) 
-                                ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' 
-                                : 'bg-white border-zinc-200 text-zinc-800 hover:border-zinc-400'
-                            }`}
-                          >
-                            <h4 className="text-xs font-bold mb-1 flex items-center gap-1.5">
-                              <span className={`w-1.5 h-1.5 rounded-full ${selectedTactics.includes(t) ? 'bg-white' : 'bg-zinc-400'}`} />
-                              {t}
-                            </h4>
-                            <p className="text-[10px] text-zinc-500 mt-1 leading-relaxed">
-                              {t === '借势上位' && '拉拢或利用外部更高层或总部总裁级的大人物（或风口机制），借用上层意志对直接主管施加无形制衡。'}
-                              {t === '构建联盟' && '暗中横向联络其他被边缘化或受压迫的核心人员，组建信息互通与战术呼应的攻守同盟。'}
-                              {t === '信息垄断' && '掌控唯一的关键业务细节、核心供应链关系或底层代码，使自己成为团队中无可替代的存在。'}
-                              {t === '软对抗' && '不直接顶撞，而是通过效率降低、合规核查、汇报拖延等无破绽的制度化行为消极回击。'}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="lg:col-span-6">
+                <TacticsPanel
+                  selectedTactics={selectedTactics}
+                  onToggleTactic={(name) => {
+                    playClick();
+                    setSelectedTactics(prev =>
+                      prev.includes(name) ? prev.filter(x => x !== name) : [...prev, name]
+                    );
+                  }}
+                />
               </div>
 
               {/* 右面板 40%：人性档案库录入及列表 */}
