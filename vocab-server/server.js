@@ -425,6 +425,13 @@ try {
 }
 const dailyListenPreGenerateService = require('./services/dailyListenPreGenerateService');
 dailyListenPreGenerateService.initDailyListenTables(db);
+const aestheticsPushService = require('./services/aestheticsPushService');
+aestheticsPushService.initAestheticsPushTables(db);
+const aestheticsPush = aestheticsPushService.createService({
+  db,
+  apiKey: process.env.DIFY_HIGH_AESTHETICS_GENERATOR_API_KEY,
+  baseUrl: process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'
+});
 
 function normalizeMemoryUserId(raw) {
   if (!raw) return 'default-user';
@@ -8207,6 +8214,39 @@ app.delete('/api/game-theory/tactics/:id', (req, res) => {
   } catch (error) {
     console.error('[Tactics] DELETE error:', error);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+app.get('/api/aesthetics/daily-push', async (req, res) => {
+  try {
+    const result = await aestheticsPush.getDailyPush({
+      userId: normalizeMemoryUserId(req.query.userId),
+      scope: req.query.scope,
+      context: req.query.context,
+      difficulty: req.query.difficulty,
+      userProfile: req.query.userProfile
+    });
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('[Aesthetics Push] daily push failed:', error);
+    res.status(500).json({ success: false, error: '高阶审美推送生成失败，请稍后重试' });
+  }
+});
+
+app.post('/api/aesthetics/daily-push/regenerate', async (req, res) => {
+  try {
+    const result = await aestheticsPush.getDailyPush({
+      userId: normalizeMemoryUserId(req.body?.userId),
+      force: true,
+      scope: req.body?.scope,
+      context: req.body?.context,
+      difficulty: req.body?.difficulty,
+      userProfile: req.body?.userProfile
+    });
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('[Aesthetics Push] regenerate failed:', error);
+    res.status(500).json({ success: false, error: '高阶审美推送重试失败，请稍后重试' });
   }
 });
 
