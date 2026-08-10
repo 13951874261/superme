@@ -8040,7 +8040,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
 
 // ??????????????? API ?????????? Cognitive Penetration Engine
 app.post('/api/game-theory/ascension', async (req, res) => {
-  const { event_text, layers, dimension, user_current_profile, userId = 'default-user' } = req.body;
+  const { event_text, layers, dimension, scene_type, game_model, user_current_profile, userId = 'default-user' } = req.body;
   if (!event_text || !Array.isArray(layers) || layers.length < 5) {
     return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
   }
@@ -8059,6 +8059,8 @@ app.post('/api/game-theory/ascension', async (req, res) => {
           event_text,
           layers_text: layers.map(l => `Why-${l.level}: ${l.why}`).join('\n'),
           dimension,
+          game_model: game_model || 'prisoner_dilemma',
+          scene_type: scene_type || 'corp_clash',
           user_current_profile: user_current_profile || ''
         },
         response_mode: 'blocking',
