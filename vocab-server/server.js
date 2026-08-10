@@ -7612,7 +7612,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           inputs: injectOralSystemTime({
             scene_type,
             game_model,
-            case_text,
+            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须在输出结果的 suggestion（建议）字段中，额外包含以下两个板块（请严格用中文生动详实地展开）：\n1.【实操策略示例】：提供1-2个可以直接用于破局、拉拢或反制的实操行动步骤，需结合当前场景给出具体入微的动作拆解。\n2.【语言表达修正】：针对玩家在局势中的语气表态，给出具体到台词口音、语言温差上的话术修改方案（需给出\"原台词 -> 修正后台词\"的对比，并解释修正缘由）。你的建议要极具实操借鉴性和情感张力。】',
             user_answer,
             applied_tactics: applied_tactics || '',
             user_current_profile: user_current_profile || '',
