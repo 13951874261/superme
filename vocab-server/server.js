@@ -2649,6 +2649,45 @@ app.post('/api/listen/pregenerated/cron-run', async (req, res) => {
 });
 
 // ==========================================
+// 听力材料上传接口（保存文件并返回URL）
+// ==========================================
+app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, error: '未上传音频文件' });
+    }
+
+    // 生成唯一文件名避免冲突
+    const uniqueName = `${Date.now()}-${file.originalname}`;
+    const filePath = path.join(__dirname, 'public', 'long_audio', uniqueName);
+    
+    // 保存上传的文件
+    fs.writeFileSync(filePath, fs.readFileSync(file.path));
+    
+    // 清理临时文件
+    if (file.path && fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+
+    // 返回音频 URL
+    res.json({
+      success: true,
+      audioUrl: `/api/long_audio/${encodeURIComponent(uniqueName)}`,
+      fileName: file.originalname,
+      uniqueName: uniqueName
+    });
+  } catch (error) {
+    console.error('[Upload Audio] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 提供 long_audio 目录的静态访问
+app.use('/api/long_audio', express.static(path.join(__dirname, 'public', 'long_audio')));
+
+
+// ==========================================
 // User profile & long-term memory API
 // ==========================================
 
@@ -8215,7 +8254,7 @@ function formatTtsFetchError(err) {
  * @param {string|null} taskId 异步任务ID，传入则更新进度
  * @param {AbortSignal|null} signal 可选的 AbortSignal
  */
-async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId = null, signal = null) {
+async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId = null, signal = null, extra = null) {
   const chunkCacheDir = audioPath + '.chunks';
   const maxAttempts = taskId ? 8 : 2;
   try {
@@ -8449,6 +8488,132 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
     } catch { /* ignore */ }
     throw err;
   }
+
+  // 音频后处理：压力因素效果
+  const effects = extra?.effects || null;
+  if (effects && fs.existsSync(audioPath)) {
+    try {
+      await applyAudioEffects(audioPath, effects);
+    } catch (effErr) {
+      console.warn('[TTS] 音频后处理失败（非致命）:', effErr.message);
+    }
+  }
+}
+
+// 音频后处理函数：应用压力因素效果
+async function applyAudioEffects(audioPath, effects) {
+  const { execFile } = require('child_process');
+  const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+  const tmpPath = audioPath + '.temp.mp3';
+  
+  const filterParts = [];
+  
+  // 1. 口音效果（通过改变音调和语速模拟）
+  if (effects.accent) {
+    if (effects.accent === 'indian') {
+      filterParts.push('rubberband=pitch=0.95');
+    } else if (effects.accent === 'british') {
+      filterParts.push('rubberband=pitch=1.05');
+    } else if (effects.accent === 'australian') {
+      filterParts.push('rubberband=pitch=1.02');
+    }
+  }
+  
+  // 2. 卡顿效果（随机插入短暂静音）
+  if (effects.packet_loss) {
+    // 插入多个短暂静音片段模拟网络卡顿
+    filterParts.push('aevald='if(eq(t\,0.5),0.001,1)*if(eq(t\,2.0),0.001,1)*if(eq(t\,4.0),0.001,1)'');
+  }
+  
+  // 3. 打断效果（随机静音）
+  if (effects.interruptions) {
+    filterParts.push('anull=duration=0.3');
+  }
+  
+  // 4. 信息缺失（背景噪音）
+  if (effects.information_gap) {
+    filterParts.push('anoisesrc=d=1:a=0.05');
+  }
+  
+  if (filterParts.length > 0) {
+    const filterChain = filterParts.join(',');
+    const args = ['-i', audioPath, '-af', filterChain, '-y', tmpPath];
+    
+    await new Promise((resolve, reject) => {
+      execFile(ffmpegPath, args, { timeout: 30000 }, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    // 替换原文件
+    fs.unlinkSync(audioPath);
+    fs.renameSync(tmpPath, audioPath);
+  }
+
+  // 音频后处理：压力因素效果
+  const effects = extra?.effects || null;
+  if (effects && fs.existsSync(audioPath)) {
+    try {
+      await applyAudioEffects(audioPath, effects);
+    } catch (effErr) {
+      console.warn('[TTS] 音频后处理失败（非致命）:', effErr.message);
+    }
+  }
+}
+
+
+// 音频后处理函数：应用压力因素效果
+async function applyAudioEffects(audioPath, effects) {
+  const { execFile } = require('child_process');
+  const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
+  const tmpPath = audioPath + '.temp.mp3';
+  
+  const filterParts = [];
+  
+  // 1. 口音效果（通过改变音调和语速模拟）
+  if (effects.accent) {
+    if (effects.accent === 'indian') {
+      filterParts.push('rubberband=pitch=0.95');
+    } else if (effects.accent === 'british') {
+      filterParts.push('rubberband=pitch=1.05');
+    } else if (effects.accent === 'australian') {
+      filterParts.push('rubberband=pitch=1.02');
+    }
+  }
+  
+  // 2. 卡顿效果（随机插入短暂静音）
+  if (effects.packet_loss) {
+    filterParts.push("aevald='if(eq(t\,0.5)\,0.001\,1)*if(eq(t\,2.0)\,0.001\,1)*if(eq(t\,4.0)\,0.001\,1)'");
+  }
+  
+  // 3. 打断效果
+  if (effects.interruptions) {
+    filterParts.push('anull=duration=0.3');
+  }
+  
+  // 4. 信息缺失（背景噪音）
+  if (effects.information_gap) {
+    filterParts.push('anoisesrc=d=1:a=0.05');
+  }
+  
+  if (filterParts.length > 0) {
+    const filterChain = filterParts.join(',');
+    const args = ['-i', audioPath, '-af', filterChain, '-y', tmpPath];
+    
+    await new Promise((resolve, reject) => {
+      execFile(ffmpegPath, args, { timeout: 30000 }, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    
+    // 替换原文件
+    if (fs.existsSync(tmpPath)) {
+      if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      fs.renameSync(tmpPath, audioPath);
+    }
+  }
 }
 
 global.synthesizeAndSaveAudio = synthesizeAndSaveAudio;
@@ -8564,7 +8729,7 @@ let ttsLongLock = false;
 // TTS ??????????????????????????? / ?????????????????????
 app.post('/api/tts/speech', async (req, res) => {
   try {
-    const { input, model = 'edge-tts/en-US-EmmaNeural', isAsync } = req.body;
+    const { input, model = 'edge-tts/en-US-EmmaNeural', isAsync, effects } = req.body;
     if (!input) return res.status(400).json({ error: 'Missing input text' });
 
     const finalModel = model || 'edge-tts/en-US-EmmaNeural';
@@ -8583,7 +8748,8 @@ app.post('/api/tts/speech', async (req, res) => {
     }
 
     // ????????????????????? Key???????????????????????
-    const md5 = crypto.createHash('md5').update(cleanInput + '_' + finalModel).digest('hex');
+    const md5Input = cleanInput + '_' + finalModel + (effects ? '_' + JSON.stringify(effects) : '');
+    const md5 = crypto.createHash('md5').update(md5Input).digest('hex');
     const cacheFilename = `${md5}.mp3`;
     const audioPath = path.join(__dirname, 'public', 'temp_audio', cacheFilename);
     const audioUrl = '/api/temp_audio/' + cacheFilename;
@@ -8629,7 +8795,7 @@ app.post('/api/tts/speech', async (req, res) => {
       setImmediate(async () => {
         try {
           taskQueue.updateTask(task.id, { status: 'running', logs: [`开始异步合成，总字符: ${cleanInput.length}`] });
-          await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, task.id);
+          await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, task.id, null, { effects });
           taskQueue.updateTask(task.id, {
             status: 'completed', progress: 100,
             result: { audioId: md5, audioUrl },
@@ -8649,7 +8815,7 @@ app.post('/api/tts/speech', async (req, res) => {
       const ctrl = new AbortController();
       const tmo = setTimeout(() => { ctrl.abort(); }, 120000);
       try {
-        await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, null, ctrl.signal);
+        await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, null, ctrl.signal, { effects });
         clearTimeout(tmo);
         res.json({ success: true, audioId: md5, audioUrl, duration: 0 });
       } catch (e) {
