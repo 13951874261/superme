@@ -158,35 +158,42 @@ export function ArsenalPanel({
           </div>
 
           {quotaStatus && (
-            <div className={`flex items-center gap-3 ${compact ? 'w-full mt-auto pt-1 border-t border-slate-100' : 'ml-auto min-w-[14rem]'}`}>
-              <div className="flex-1 min-w-[6rem]">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">词</span>
-                  <span className="text-[10px] font-black tabular-nums text-slate-700">
-                    {quotaStatus.wordsUsed}/{quotaStatus.wordsLimit}
-                  </span>
+            <div className={`flex flex-col gap-1 ${compact ? 'w-full mt-auto pt-1 border-t border-slate-100' : 'ml-auto min-w-[14rem]'}`}>
+              <div className="flex items-center gap-3">
+                <div className="flex-1 min-w-[6rem]">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">词</span>
+                    <span className="text-[10px] font-black tabular-nums text-slate-700">
+                      {quotaStatus.wordsUsed}/{quotaStatus.wordsLimit}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : 'bg-[var(--color-brand)]'}`}
+                      style={{ width: `${(quotaStatus.wordsUsed / quotaStatus.wordsLimit) * 100}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${quotaStatus.wordsLeft === 0 ? 'bg-red-400' : 'bg-[var(--color-brand)]'}`}
-                    style={{ width: `${(quotaStatus.wordsUsed / quotaStatus.wordsLimit) * 100}%` }}
-                  />
+                <div className="flex-1 min-w-[6rem]">
+                  <div className="flex items-center justify-between gap-2 mb-0.5">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">短语</span>
+                    <span className="text-[10px] font-black tabular-nums text-slate-700">
+                      {quotaStatus.phrasesUsed}/{quotaStatus.phrasesLimit}
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full ${quotaStatus.phrasesLeft === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
+                      style={{ width: `${(quotaStatus.phrasesUsed / quotaStatus.phrasesLimit) * 100}%` }}
+                    />
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 min-w-[6rem]">
-                <div className="flex items-center justify-between gap-2 mb-0.5">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">短语</span>
-                  <span className="text-[10px] font-black tabular-nums text-slate-700">
-                    {quotaStatus.phrasesUsed}/{quotaStatus.phrasesLimit}
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${quotaStatus.phrasesLeft === 0 ? 'bg-red-400' : 'bg-emerald-500'}`}
-                    style={{ width: `${(quotaStatus.phrasesUsed / quotaStatus.phrasesLimit) * 100}%` }}
-                  />
-                </div>
-              </div>
+              {quotaStatus.wordsLeft === 0 && quotaStatus.phrasesLeft === 0 && (
+                <p className="text-[9px] font-bold text-red-500/90 leading-snug">
+                  今日入库配额已满（非提取失败）。请点「重置今日」清空后再生成。
+                </p>
+              )}
             </div>
           )}
         </div>

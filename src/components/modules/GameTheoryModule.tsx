@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Brain, Swords, ShieldAlert, Zap, Loader2, Sparkles, Plus, Trash2, 
   Layers, AlertCircle, CheckCircle, HelpCircle, Trophy, UserCheck, Flame, Compass, X, BookOpen, Users,
-  ChevronDown, History
+  ChevronDown, History, Upload, Download
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ModuleWrapper from './ModuleWrapper';
@@ -181,6 +181,14 @@ export default function GameTheoryModule() {
   const [newProtoName, setNewProtoName] = useState('');
   const [newProtoType, setNewProtoType] = useState('利益驱动型');
   const [newProtoDesc, setNewProtoDesc] = useState('');
+
+  // 驭人术手段库状态
+  const [tactics, setTactics] = useState<TacticItem[]>([]);
+  const [loadingTactics, setLoadingTactics] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<string>('');
 
   // 强制四维度拆解表单状态
   const [stakeholderInterests, setStakeholderInterests] = useState('');

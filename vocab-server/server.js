@@ -302,6 +302,45 @@ db.prepare(`
     added_at INTEGER
   )
 `).run();
+// 创建 game_theory_tactics 表
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS game_theory_tactics (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    name TEXT NOT NULL,
+    category TEXT,
+    description TEXT,
+    is_custom INTEGER DEFAULT 0,
+    source_file TEXT,
+    created_at INTEGER
+  )
+`).run();
+
+// 插入默认手段（如果不存在）
+try {
+  const countTactics = db.prepare('SELECT COUNT(*) as count FROM game_theory_tactics').get().count;
+  if (countTactics === 0) {
+    const defaultTacticsList = [
+      { id: 't1', name: '恩威并施', category: 'downward', description: '适时给予下属利益和资源，同时维持考核或问责的压力，使其产生敬畏之心。' },
+      { id: 't2', name: '制衡术', category: 'downward', description: '在两个或多个下属或部门之间制造合理的良性竞争或权利对抗，以防出现权力合谋或一方独大。' },
+      { id: 't3', name: '分而治之', category: 'downward', description: '隔离下属的信息沟通，打破其暗中建立的利益小同盟，分别进行管理和谈话。' },
+      { id: 't4', name: '边缘化', category: 'downward', description: '通过调整业务线、分管责任，收回核心资源，将不服从者逐步架空移出核心决策圈。' },
+      { id: 't5', name: '借势上位', category: 'upward', description: '拉拢或利用外部更高层或总部总裁级的大人物（或风口机制），借用上层意志对直接主管施加无形制衡。' },
+      { id: 't6', name: '构建联盟', category: 'upward', description: '暗中横向联络其他被边缘化或受压迫的核心人员，组建信息互通与战术呼应的攻守同盟。' },
+      { id: 't7', name: '信息垄断', category: 'upward', description: '掌控唯一的关键业务细节、核心供应链关系或底层代码，使自己成为团队中无可替代的存在。' },
+      { id: 't8', name: '软对抗', category: 'upward', description: '不直接顶撞，而是通过效率降低、合规核查、汇报拖延等无破绽的制度化行为消极回复。' }
+    ];
+    
+    const insert = db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    for (const t of defaultTacticsList) {
+      insert.run(t.id, 'system', t.name, t.category, t.description, 0, Date.now());
+    }
+    console.log('Inserted default game theory tactics.');
+  }
+} catch (e) {
+  console.error('Failed to initialize game_theory_tactics:', e.message);
+}
+
 
 // 博弈对局历史（案例研判 / 人机对战）
 db.prepare(`
@@ -6268,12 +6307,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const wordsLeft = WORD_DAILY_LIMIT - (quotaRow.words_added || 0);
     const phrasesLeft = PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0);
 
-    // Step 2: ?????????
+    // Step 2: 词 + 短语入库配额均已耗尽时拦截（避免用户误以为「没提取到词表」）
     if (wordsLeft <= 0 && phrasesLeft <= 0) {
       return res.json({
         success: false,
         quotaExceeded: true,
-        message: 'Today\'s quota has been exhausted. Please try again tomorrow.',
+        message: `今日入库配额已用尽（词 ${quotaRow.words_added || 0}/${WORD_DAILY_LIMIT}，短语 ${quotaRow.phrases_added || 0}/${PHRASE_DAILY_LIMIT}）。词表不会为空提取失败，而是无法继续写入生词本。请在弹药库点击「清空今日配额与生词」后重试，或明天再来。`,
         quota: {
           wordsLimit: WORD_DAILY_LIMIT,
           wordsUsed: quotaRow.words_added || 0,
@@ -6519,16 +6558,13 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       return;
     }
 
+    // 正文与词表分离：词表解析复用预生成链路的 parseVocabFromRaw
+    // （会剥离 ---VOCAB_JSON_END---、markdown fence，并做全文 JSON 兜底）
     let articleText = "";
-    let rawVocabText = "";
-    
-    if (answer.includes("---VOCAB_JSON_START---")) {
-      const parts = answer.split("---VOCAB_JSON_START---");
-      articleText = parts[0].trim();
-      rawVocabText = parts[1].trim();
+    if (/---VOCAB_JSON_START---/i.test(answer || '')) {
+      articleText = String(answer).split(/---VOCAB_JSON_START---/i)[0].trim();
     } else {
-      articleText = answer;
-      rawVocabText = "";
+      articleText = String(answer || '').trim();
     }
 
     if (!articleText.trim()) {
@@ -6539,47 +6575,26 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       });
       return;
     }
-    
-    let parsedVocab = [];
-    let parsedPhrases = [];
-    if (rawVocabText) {
-      try {
-        let cleanJson = rawVocabText.trim();
-        if (cleanJson.toLowerCase().startsWith("```json")) {
-          cleanJson = cleanJson.substring(7);
-        } else if (cleanJson.startsWith("```")) {
-          cleanJson = cleanJson.substring(3);
+
+    const parsedFromRaw = dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
+    let parsedVocab = Array.isArray(parsedFromRaw.vocab) ? [...parsedFromRaw.vocab] : [];
+    let parsedPhrases = Array.isArray(parsedFromRaw.phrases) ? parsedFromRaw.phrases : [];
+    if (Array.isArray(parsedFromRaw.sentences) && parsedFromRaw.sentences.length > 0) {
+      parsedVocab.push(...parsedFromRaw.sentences.map(s => {
+        if (typeof s === 'string') return { word: s, is_sentence: true };
+        if (typeof s === 'object' && s !== null) {
+          const cloned = { ...s };
+          if (cloned.sentence && !cloned.word) cloned.word = cloned.sentence;
+          return { ...cloned, is_sentence: true };
         }
-        if (cleanJson.endsWith("```")) {
-          cleanJson = cleanJson.substring(0, cleanJson.length - 3);
-        }
-        cleanJson = cleanJson.trim();
-        
-        const parsed = JSON.parse(cleanJson);
-        if (parsed.words && Array.isArray(parsed.words)) {
-          parsedVocab = parsed.words;
-        } else if (Array.isArray(parsed)) {
-          parsedVocab = parsed;
-        }
-        if (parsed.phrases && Array.isArray(parsed.phrases)) {
-          parsedPhrases = parsed.phrases;
-        }
-        if (parsed.sentences && Array.isArray(parsed.sentences)) {
-          parsedVocab.push(...parsed.sentences.map(s => {
-            if (typeof s === 'string') return { word: s, is_sentence: true };
-            if (typeof s === 'object' && s !== null) {
-              if (s.sentence && !s.word) s.word = s.sentence;
-              return { ...s, is_sentence: true };
-            }
-            return s;
-          }));
-        }
-      } catch(e) {
-        console.error("[Daily Extract] Failed to parse vocab JSON:", e);
-      }
+        return s;
+      }));
     }
 
-    if (parsedVocab.length === 0 && parsedPhrases.length === 0 && articleText.trim()) {
+    // dify=主流程解析成功；fallback=主流程空词后本地 LLM 兜底；empty=两者皆空
+    let vocabSource = (parsedVocab.length > 0 || parsedPhrases.length > 0) ? 'dify' : 'empty';
+
+    if (vocabSource === 'empty' && articleText.trim()) {
       console.log(`[Daily Extract] Dify vocab list is empty, calling local fallback LLM for user=${userId} topic=${topic}...`);
       try {
         const fallbackRes = await extractVocabFallback(articleText, cefrLevel, genre, duration, topic);
@@ -6596,6 +6611,10 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
               return s;
             }));
           }
+          vocabSource = 'fallback';
+          console.log(`[Daily Extract] Fallback vocab ok: words=${fallbackRes.vocab.length} phrases=${fallbackRes.phrases.length} sentences=${(fallbackRes.sentences || []).length}`);
+        } else {
+          console.warn(`[Daily Extract] Fallback returned empty vocab for user=${userId} topic=${topic}`);
         }
       } catch (err) {
         console.error("[Daily Extract] Fallback vocab extraction failed:", err.message);
@@ -6654,6 +6673,17 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     const uniquePhraseList = [...new Set(phraseList)].filter(s => s);
     const uniqueSentenceList = [...new Set(sentenceList)].filter(s => s);
 
+    // 展示用完整词表（不受今日入库配额截断，避免「有长文但页面词表全空」）
+    const displayWords = [...new Set(
+      vocabList.filter(v => !v.is_sentence).map(v => (v.word || '').trim()).filter(Boolean)
+    )];
+    const displayPhrases = uniquePhraseList;
+    const displaySentences = uniqueSentenceList;
+    if (displayWords.length === 0 && displayPhrases.length === 0 && displaySentences.length === 0) {
+      vocabSource = 'empty';
+    }
+
+    // 入库仍受配额限制
     const wordsToStore = vocabList.filter(v => !v.is_sentence).slice(0, wordsLeft);
     const phrasesToStore = uniquePhraseList.slice(0, phrasesLeft);
 
@@ -6766,16 +6796,17 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         phrasesUsed: updatedPhrasesUsed,
         phrasesLeft: Math.max(0, PHRASE_DAILY_LIMIT - updatedPhrasesUsed),
       },
-      words: wordsToStore.map(w => w.word),
-      phrases: phrasesToStore,
-      sentences: uniqueSentenceList,
+      words: displayWords,
+      phrases: displayPhrases,
+      sentences: displaySentences,
       article: articleText,
-      wordCount: wordsToStore.length,
-      phraseCount: phrasesToStore.length,
-      sentenceCount: uniqueSentenceList.length,
+      wordCount: displayWords.length,
+      phraseCount: displayPhrases.length,
+      sentenceCount: displaySentences.length,
       wordsAddedCount,
       phrasesAddedCount,
-      sentencesAddedCount
+      sentencesAddedCount,
+      vocabSource,
     };
 
     // 保存至 daily_extracted_articles 物理持久库
@@ -6805,9 +6836,9 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         genre || 'meeting',
         cefrLevel || 'B1',
         articleText || '',
-        JSON.stringify(wordsToStore),
-        JSON.stringify(phrasesToStore),
-        JSON.stringify(uniqueSentenceList),
+        JSON.stringify(displayWords),
+        JSON.stringify(displayPhrases),
+        JSON.stringify(displaySentences),
         durationVal,
         sigVal,
         now,
@@ -6823,8 +6854,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         cefr_level: cefrLevel || 'B1',
         duration: durationVal,
         article_text: articleText || '',
-        extracted_words_json: JSON.stringify(wordsToStore),
-        extracted_phrases_json: JSON.stringify(phrasesToStore),
+        extracted_words_json: JSON.stringify(displayWords),
+        extracted_phrases_json: JSON.stringify(displayPhrases),
       };
 
       // 即时联动：前台手动生成时同步精听音频；Cron/重跑路径禁用（Listen 模块为唯一 owner）
@@ -8098,6 +8129,203 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
   }
 });
 
+// ==========================================
+// 驭人术手段库 CRUD API
+// ==========================================
+
+// 获取所有手段（系统默认 + 用户自定义）
+app.get('/api/game-theory/tactics', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const rows = db.prepare(
+      'SELECT * FROM game_theory_tactics WHERE user_id = ? OR user_id = ? ORDER BY created_at ASC'
+    ).all('system', userId);
+    res.json(rows);
+  } catch (error) {
+    console.error('[Tactics] GET error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 手动添加或更新手段
+app.post('/api/game-theory/tactics', (req, res) => {
+  try {
+    const { userId, name, category, description } = req.body;
+    if (!userId) return res.status(400).json({ error: 'Missing userId' });
+    if (!name) return res.status(400).json({ error: 'Missing name' });
+    const existing = db.prepare('SELECT id FROM game_theory_tactics WHERE user_id = ? AND name = ?').get(userId, name);
+    const now = Date.now();
+    if (existing) {
+      db.prepare('UPDATE game_theory_tactics SET category = ?, description = ?, created_at = ? WHERE id = ?')
+        .run(category || 'downward', description || '', now, existing.id);
+      res.json({ success: true, id: existing.id, status: 'updated' });
+    } else {
+      const id = crypto.randomUUID();
+      db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, userId, name, category || 'downward', description || '', 1, now);
+      res.json({ success: true, id, status: 'created' });
+    }
+  } catch (error) {
+    console.error('[Tactics] POST error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 删除手段（仅允许删除用户自定义的）
+app.delete('/api/game-theory/tactics/:id', (req, res) => {
+  try {
+    db.prepare('DELETE FROM game_theory_tactics WHERE id = ? AND user_id != ?').run(req.params.id, 'system');
+    res.json({ success: true });
+  } catch (error) {
+    console.error('[Tactics] DELETE error:', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 上传书籍/材料并提取驭人术知识点（PDF/TXT）
+app.post('/api/game-theory/upload-tactics-material', upload.single('file'), async (req, res) => {
+  try {
+    const userId = req.body.userId || 'default-user';
+    const file = req.file;
+    if (!file) {
+      return res.status(400).json({ success: false, error: '未上传文件' });
+    }
+
+    const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+    if (file.size > MAX_FILE_SIZE) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      return res.status(400).json({ success: false, error: '文件超过50MB限制，请上传更小的文件' });
+    }
+
+    let textContent = '';
+    const buffer = fs.readFileSync(file.path);
+    const fileName = file.originalname || '';
+    const isPlainText = /\.(txt|md|text|html|htm)$/i.test(fileName);
+    const isPdf = /\.pdf$/i.test(fileName) || (buffer.length > 4 && buffer.slice(0, 5).toString() === '%PDF-');
+
+    if (isPlainText) {
+      textContent = buffer.toString('utf-8');
+    } else if (isPdf) {
+      try {
+        const pdfParse = require('pdf-parse');
+        const pdfData = await pdfParse(buffer);
+        textContent = String(pdfData?.text || '').replace(/\r\n/g, '\n').trim();
+      } catch (e) {
+        console.warn('[Tactics Upload] PDF parse failed:', e.message);
+        textContent = '';
+      }
+    }
+
+    // Clean up temp file
+    if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+
+    if (!textContent || textContent.length < 50) {
+      return res.status(400).json({ success: false, error: '文件内容为空或无法解析，请上传 PDF 或 TXT 格式的书籍材料' });
+    }
+
+    // Truncate if too long (max 6000 chars to send to LLM)
+    const excerpt = textContent.length > 6000 ? textContent.substring(0, 6000) + '...' : textContent;
+
+    // Call LLM to extract tactics
+    const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const gameApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+
+    const prompt = `你是一位资深权术大师与博弈学家，精通商场、职场的权力博弈与人性驾驭之道。
+
+请从下面这段书籍/材料文本中，提取出所有的"驭人手段"或"博弈技巧"，每条手段必须：
+1. 有一个精炼的名称（2-6个字，如：捧杀、借刀杀人、架空、投石问路等）
+2. 有一个分类：downward（用于管理/驾驭下属或博弈中控制局面的主动手段）或 upward（用于应对、突破或反制上级/强势一方的以弱克强之术）
+3. 有一段具体详实、逻辑清晰、可借鉴的描述（100-200字，要包含手段的核心逻辑、适用场景、实施步骤或注意事项）
+
+请输出如下格式的纯JSON数组（不要有任何说明文字或markdown标记，直接输出JSON）：
+[
+  {"name":"手段名称","category":"downward","description":"详细描述..."},
+  {"name":"手段名称","category":"upward","description":"详细描述..."}
+]
+
+原始材料文本：
+${excerpt}`;
+
+    // Try chat-messages endpoint
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    
+    try {
+      const response = await fetch(`${baseUrl}/chat-messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${gameApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          inputs: {},
+          query: prompt,
+          response_mode: 'blocking',
+          conversation_id: '',
+          user: userId,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn('[Tactics Upload] Dify HTTP error:', response.status, errText.slice(0, 200));
+        return res.status(500).json({ success: false, error: `AI服务暂时不可用 (${response.status})，请稍后重试` });
+      }
+
+      const data = await response.json();
+      const rawAnswer = data?.answer || data?.data?.outputs?.text || '';
+      const cleanJson = String(rawAnswer).replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      let tactics = [];
+      try {
+        tactics = JSON.parse(cleanJson);
+        if (!Array.isArray(tactics)) tactics = [];
+      } catch (e) {
+        // Try to extract JSON array from the response
+        const match = cleanJson.match(/\[\s*\{.*?\}\s*(?:,\s*\{.*?\}\s*)*\]/s);
+        if (match) {
+          try {
+            tactics = JSON.parse(match[0]);
+          } catch (e2) {
+            tactics = [];
+          }
+        }
+      }
+
+      if (!tactics.length) {
+        return res.status(422).json({ success: false, error: 'AI未能从该材料中提取出有效的驭人术知识点，请尝试上传内容更丰富的材料' });
+      }
+
+      // Save extracted tactics to DB
+      const inserted = [];
+      const insertStmt = db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, source_file, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+      for (const t of tactics) {
+        if (!t.name) continue;
+        const existing = db.prepare('SELECT id FROM game_theory_tactics WHERE user_id = ? AND name = ?').get(userId, t.name.trim());
+        if (!existing) {
+          const id = crypto.randomUUID();
+          insertStmt.run(id, userId, t.name.trim(), t.category || 'downward', t.description || '', 1, fileName, Date.now());
+          inserted.push({ id, name: t.name.trim(), category: t.category || 'downward', description: t.description || '' });
+        }
+      }
+
+      res.json({ success: true, extracted: tactics, inserted: inserted.length, sourceFile: fileName });
+    } catch (fetchErr) {
+      clearTimeout(timeout);
+      if (fetchErr.name === 'AbortError') {
+        return res.status(504).json({ success: false, error: 'AI提取超时，请尝试上传更小的文件' });
+      }
+      throw fetchErr;
+    }
+  } catch (error) {
+    console.error('[Tactics Upload] error:', error);
+    res.status(500).json({ success: false, error: error.message || '提取失败，请稍后重试' });
+  }
+});
+
+
 // ????? 404
 
 /**
@@ -9243,11 +9471,11 @@ The JSON schema must be exactly:
         reject(err);
       });
 
-      // Set timeout of 15 seconds
-      req.setTimeout(15000, () => {
+      // 长文兜底提纯需要更长超时，避免 15s 误杀导致词表仍为空
+      req.setTimeout(60000, () => {
         aborted = true;
         req.destroy();
-        reject(new Error('Request timeout after 15s'));
+        reject(new Error('Request timeout after 60s'));
       });
 
       req.write(requestBody);

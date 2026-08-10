@@ -568,7 +568,7 @@ export default function DashboardTab() {
     playScan();
     showNotice('dashboard', '正在查询缓存 / 准备生成...', 'info');
     try {
-      const { fetchExactArticleIfExists, runListenMaterialGenerator, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
+      const { fetchExactArticleIfExists, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
 
       // 1. 先查：优先校验数据库中是否存在匹配当前多维度组合的已生成长文
       const exactRes = await fetchExactArticleIfExists({
@@ -596,28 +596,24 @@ export default function DashboardTab() {
       }
 
       // 未命中：用户主动点击后才生成
+      // 说明：长文正文与词表均由 daily-extract（English Mastery）异步生成。
+      // 不再前置调用 /api/listen/generate-material（短文 blocking），避免 Cloudflare 524 超时。
       showNotice('dashboard', '缓存未命中，开始手动生成...', 'info');
 
-      let script = '';
-
-      // 尝试生成一段引导语料（若工作流可用），否则跳过
-      try {
-        const listenGenre = genre === 'reading' ? 'meeting' : genre;
-        script = await runListenMaterialGenerator(theme, listenGenre, cefrLevel, 'short', getAppUserId());
-      } catch {
-        script = '';
-      }
-
-      const result = await triggerEnglishMasteryExtraction(theme, script, getAppUserId(), cefrLevel, genre, duration);
+      const result = await triggerEnglishMasteryExtraction(theme, '', getAppUserId(), cefrLevel, genre, duration);
 
       // 更新配额状态
       if (result.quota) {
         setQuotaStatus(result.quota);
       }
 
-      // 配额耗尽时的特殊处理
+      // 配额耗尽：明确说明是「无法入库」，不是「没提取到」
       if (result.quotaExceeded) {
-        showNotice('dashboard', result.message, 'error');
+        showNotice(
+          'dashboard',
+          result.message || '今日词/短语入库配额已用尽，并非提取失败。请清空今日配额后重试。',
+          'error'
+        );
         playError();
         return;
       }
@@ -641,21 +637,43 @@ export default function DashboardTab() {
         localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences));
       }
 
-      // 根据配额状态给出差异化提示
+      // 根据配额 / 词表来源给出差异化提示
       const { wordsLeft = 0, phrasesLeft = 0, wordsAddedCount = 0, phrasesAddedCount = 0 } = result as any;
+      const vocabSource = (result as any).vocabSource as 'dify' | 'fallback' | 'empty' | undefined;
+      const displayWordCount = (result.words || []).length;
+      const displayPhraseCount = (result.phrases || []).length;
+      const displaySentenceCount = (result.sentences || []).length;
+      const hasDisplayVocab = displayWordCount + displayPhraseCount + displaySentenceCount > 0;
+      const wordsLimit = result.quota?.wordsLimit ?? 0;
+      const phrasesLimit = result.quota?.phrasesLimit ?? 0;
+      const wordsQuotaFull = wordsLeft === 0;
+      const phrasesQuotaFull = phrasesLeft === 0;
       
       // 只要生成成功，始终播放提示音和五彩纸屑
       playSuccess();
       setShowConfetti(true);
 
-      if (wordsAddedCount > 0 && wordsLeft === 0) {
-        showNotice('dashboard', `今日词汇配额已满(${result.quota?.wordsLimit}/${result.quota?.wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
-      } else if (phrasesAddedCount > 0 && phrasesLeft === 0) {
-        showNotice('dashboard', `今日短语配额已满(${result.quota?.phrasesLimit}/${result.quota?.phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
+      if (vocabSource === 'fallback' && hasDisplayVocab) {
+        const quotaHint = (wordsQuotaFull || phrasesQuotaFull)
+          ? `（入库配额：词剩余 ${wordsLeft}/${wordsLimit}，短语剩余 ${phrasesLeft}/${phrasesLimit}）`
+          : '';
+        showNotice('dashboard', `主流程词表解析为空，已兜底提纯：${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型${quotaHint}`, 'info');
+      } else if (vocabSource === 'empty' || !hasDisplayVocab) {
+        showNotice('dashboard', '长文已生成，但词表仍为空（主流程与兜底均未提纯到生词/短语/句型）', 'error');
+      } else if (hasDisplayVocab && wordsAddedCount === 0 && phrasesAddedCount === 0 && (wordsQuotaFull || phrasesQuotaFull)) {
+        showNotice(
+          'dashboard',
+          `词表已展示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），但今日入库配额不足（词剩余 ${wordsLeft}/${wordsLimit}，短语剩余 ${phrasesLeft}/${phrasesLimit}），未写入生词本。可清空今日配额后重试。`,
+          'info'
+        );
+      } else if (wordsAddedCount > 0 && wordsQuotaFull) {
+        showNotice('dashboard', `词表已展示；今日词汇配额已满(${wordsLimit}/${wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
+      } else if (phrasesAddedCount > 0 && phrasesQuotaFull) {
+        showNotice('dashboard', `词表已展示；今日短语配额已满(${phrasesLimit}/${phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
       } else if (wordsAddedCount > 0 || phrasesAddedCount > 0) {
         showNotice('dashboard', `入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语 | 剩余配额：${wordsLeft} 词 ${phrasesLeft} 短语`, 'success');
       } else {
-        showNotice('dashboard', '本次生成长文成功，未提取到新词汇（可能有重复/配额满）', 'success');
+        showNotice('dashboard', `长文与词表已就绪（${displayWordCount} 词 / ${displayPhraseCount} 短语），本次无新增入库（词条可能已存在）`, 'success');
       }
 
       window.dispatchEvent(new Event('vocab-updated'));

@@ -1,4 +1,4 @@
-import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId } from '../utils/profileHelper';
+﻿import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 import {
   extractKeywordsFromText,
   generateScenarioMapping,
@@ -550,6 +550,8 @@ export interface DailyExtractResult {
   sentenceCount?: number;
   wordsAddedCount: number;
   phrasesAddedCount: number;
+  /** dify=主流程解析；fallback=空词后本地 LLM 兜底；empty=仍无词表 */
+  vocabSource?: 'dify' | 'fallback' | 'empty';
 }
 
 export interface DailyQuotaStatus {
