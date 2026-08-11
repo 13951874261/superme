@@ -8372,26 +8372,35 @@ app.post('/api/aesthetics/daily-push/regenerate', async (req, res) => {
 
 app.post('/api/aesthetics/analyze', async (req, res) => {
   const allowedCategories = new Set([
-    '政商务饭局与敬酒',
-    '茶席与茶礼社交',
-    '红酒与雪茄品鉴',
-    '高尔夫轻商务',
-    '跨文化宴请(西方)',
-    '跨文化宴请(中东东南亚)',
+    '????????', '???????', '???????',
+    '??????', '?????(??)', '?????(?????)',
   ]);
   const sceneCategory = String(req.body?.scene_category || '').trim();
   const userResponse = String(req.body?.user_response || '').trim();
   if (!allowedCategories.has(sceneCategory)) {
-    return res.status(400).json({ success: false, error: '无效的审美场景类型' });
+    return res.status(400).json({ success: false, error: '?????????' });
   }
   if (!userResponse) {
-    return res.status(400).json({ success: false, error: '请输入待研判的应对内容' });
+    return res.status(400).json({ success: false, error: '???????????' });
   }
+
+  const runFallback = async (reason) => {
+    console.warn('[Aesthetics] Dify unavailable, falling back to LLM:', reason);
+    const aestheticsFallback = require('./services/aestheticsFallback');
+    const result = await aestheticsFallback.analyze(
+      { scene_category: sceneCategory, user_response: userResponse },
+      process.env.AESTHETICS_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
+    );
+    return res.json({ success: true, result, source: 'llm_fallback' });
+  };
+
   const apiKey = process.env.DIFY_HIGH_AESTHETICS_API_KEY || process.env.VITE_DIFY_HIGH_AESTHETICS_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   if (!apiKey) {
-    return res.status(503).json({ success: false, error: '高阶审美工作流未配置 API Key' });
+    try { return await runFallback('Dify API Key missing'); }
+    catch { return res.status(503).json({ success: false, error: '???????????' }); }
   }
+
   try {
     const response = await fetch(baseUrl.replace(/\/$/, '') + '/workflows/run', {
       method: 'POST',
@@ -8403,10 +8412,8 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      console.error('[Aesthetics Analyze] Dify error:', response.status, payload);
-      return res.status(502).json({ success: false, error: '高阶审美工作流调用失败' });
-    }
+    if (!response.ok) return await runFallback(`Dify HTTP ${response.status}`);
+
     let rawResult = payload?.data?.outputs?.json_result;
     if (typeof rawResult === 'string') {
       rawResult = rawResult.replace(/^```json\s*/i, '').replace(/```$/i, '').trim();
@@ -8416,16 +8423,18 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
     const feedback = typeof rawResult?.feedback === 'string' ? rawResult.feedback.trim() : '';
     if (!rawResult || !feedback || !Number.isFinite(score) || score < 0 || score > 10
       || typeof rawResult.is_passed !== 'boolean') {
-      console.error('[Aesthetics Analyze] invalid workflow output:', JSON.stringify(payload?.data?.outputs));
-      return res.status(502).json({ success: false, error: '高阶审美工作流返回格式错误' });
+      return await runFallback('invalid Dify output');
     }
-    return res.json({ success: true, result: { feedback, score, is_passed: rawResult.is_passed } });
+    return res.json({ success: true, result: { feedback, score, is_passed: rawResult.is_passed }, source: 'dify' });
   } catch (error) {
-    console.error('[Aesthetics Analyze] request failed:', error);
-    return res.status(502).json({ success: false, error: '高阶审美工作流暂时不可用' });
+    try { return await runFallback(error.message); }
+    catch (fallbackError) {
+      console.error('[Aesthetics] LLM fallback also failed:', fallbackError.message);
+      return res.status(502).json({ success: false, error: '?????????????' });
+    }
   }
 });
-// 上传书籍/材料并提取驭人术知识点（PDF/TXT）
+// ????/????????????PDF/TXT?
 app.post('/api/game-theory/upload-tactics-material', upload.single('file'), async (req, res) => {
   try {
     const userId = req.body.userId || 'default-user';
