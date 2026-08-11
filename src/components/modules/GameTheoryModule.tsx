@@ -19,6 +19,7 @@ import {
   getGameTheoryHistory,
   getGameTheoryHistoryDetail,
   GameTheoryHistoryItem,
+  TacticItem,
 } from '../../services/difyAPI';
 import TacticsPanel from './GameTheory/TacticsPanel';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';

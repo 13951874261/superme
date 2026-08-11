@@ -3,10 +3,6 @@ import { transcribeAudioWithWhisper } from './difyAPI';
 import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
 import { buildTtsModel, requestTtsSpeech, type TtsSpeechResult } from './ttsAPI';
 
-// 优先从 localStorage 获取密钥，实现本地优先管理
-const getApiKey = (keyName: string) => localStorage.getItem(keyName) || import.meta.env[`VITE_${keyName}`];
-
-const DIFY_BASE_URL = import.meta.env.VITE_DIFY_BASE_URL || '/dify'; // 适配自定义部署的 Dify
 
 /**
  * 将任意 Audio Blob 转换为标准 PCM WAV Blob
@@ -80,51 +76,28 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
  * 运行 Listening_Comparison_Engine 工作流
  */
 export async function runListeningEngine(userInput: string, standardText: string, theme: string): Promise<ComparisonResult> {
-  const apiKey = getApiKey('DIFY_WORKFLOW_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY'); // 兼容新版配置
-  
   const profile = getUserCurrentProfile();
-  const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;
-
-  const response = await fetch(`${DIFY_BASE_URL}/workflows/run`, {
+  const displayTheme = profile && !theme.includes('Weakness:') ? `${theme} (Weakness: ${profile})` : theme;
+  const response = await fetch('/api/listen/analyze', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: { 
-        user_input: userInput, 
-        standard_text: standardText, 
-        theme: displayTheme,
-        user_current_profile: profile
-      },
-      response_mode: 'blocking',
-      user: 'local-user'
+      userInput,
+      standardText,
+      theme: displayTheme,
+      user_current_profile: profile,
+      userId: 'local-user',
     }),
   });
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    const errMsg = errData?.message || errData?.error || `比对引擎运行失败 (HTTP ${response.status})`;
-    console.error('[listeningAPI] runListeningEngine HTTP error:', errMsg, errData);
-    throw new Error(errMsg);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success || !data?.result) {
+    const error = data?.error || `比对引擎运行失败 (HTTP ${response.status})`;
+    console.error('[listeningAPI] runListeningEngine HTTP error:', error, data);
+    throw new Error(error);
   }
-  const data = await response.json();
-  
-  // 工作流节点输出的变量名为 result，内容为 JSON 字符串，需要解析
-  const resultString = data.data?.outputs?.result;
-  if (!resultString) throw new Error('工作流未返回有效结果');
-  
-  try {
-    const parsed = JSON.parse(resultString) as ComparisonResult;
-    interceptOutputText(parsed);
-    return parsed;
-  } catch (e) {
-    console.error('[listeningAPI] runListeningEngine JSON parse failed:', e, resultString);
-    throw new Error('解析 AI 返回的 JSON 格式失败');
-  }
+  interceptOutputText(data.result);
+  return data.result as ComparisonResult;
 }
-
 export type TtsResponse = TtsSpeechResult;
 
 /**

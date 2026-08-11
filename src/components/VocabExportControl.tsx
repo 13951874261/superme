@@ -85,7 +85,7 @@ export default function VocabExportControl({
       // 提示
       try {
         const { showToast } = await import('./Toast');
-        showToast('导出任务已在后台执行，请前往【后台任务】查看进度并下载文件', 'success');
+        showToast({ message: '导出任务已在后台执行，请前往【后台任务】查看进度并下载文件', type: 'success' });
       } catch (e) {}
 
       onExported?.(0, scope);
@@ -93,7 +93,7 @@ export default function VocabExportControl({
       onError?.(e?.message || '导出失败');
       try {
         const { showToast } = await import('./Toast');
-        showToast(e?.message || '发起导出失败', 'error');
+        showToast({ message: e?.message || '发起导出失败', type: 'error' });
       } catch (err) {}
     } finally {
       setBusy(false);

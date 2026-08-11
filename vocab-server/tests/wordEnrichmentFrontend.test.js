@@ -1,0 +1,14 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const frontend = fs.readFileSync(path.join(__dirname, '../../src/services/difyAPI.ts'), 'utf8');
+const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+const start = frontend.indexOf('export async function runWordEnrichment');
+const end = frontend.indexOf('export async function runEnglishWakeupRoutine', start);
+const segment = frontend.slice(start, end);
+assert.match(segment, /fetch\(['"]\/api\/dify\/dict-query['"]/);
+assert.doesNotMatch(segment, /VITE_DIFY_ENRICH_API_KEY/);
+assert.doesNotMatch(segment, /Authorization/);
+assert.match(server, /process\.env\.DIFY_DICT_API_KEY/);
+assert.doesNotMatch(server, /const DIFY_DICT_API_KEY = ['"]app-/);
+console.log('word enrichment frontend proxy contract passed');

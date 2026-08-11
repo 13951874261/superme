@@ -103,6 +103,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
     activePolls.current.add(id);
 
     const interval = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return;
       const now = Date.now();
       if (now - lastGlobalPollTimeRef.current < 1000) {
         return;

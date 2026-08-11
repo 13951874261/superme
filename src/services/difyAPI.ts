@@ -1,8 +1,9 @@
-﻿import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId } from '../utils/profileHelper';
+import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
 import {
   extractKeywordsFromText,
   generateScenarioMapping,
   mergeTrainingPlans,
+  type TrainingRebalancePlan,
 } from '../utils/reviewHelper';
 
 // ── 原有接口保留 ────────────────────────────────────────────
@@ -124,18 +125,6 @@ export interface WritingReviewResult {
   optimized_version: string;
 }
 
-export interface ListenJargonItem {
-  word: string;
-  meaning: string;
-}
-
-export interface ListenEngineResult {
-  surfaceMeaning: string;
-  hiddenSubtext: string;
-  powerDynamics: string;
-  keyJargons: ListenJargonItem[];
-}
-
 export interface SentenceEvaluationResult {
   isPass: boolean;
   score: number;
@@ -182,42 +171,6 @@ interface RawSentenceEvaluationResult {
   score?: unknown;
   feedback?: unknown;
   corrected_sentence?: unknown;
-}
-
-interface RawListenEngineResult {
-  surface_meaning?: unknown;
-  hidden_subtext?: unknown;
-  power_dynamics?: unknown;
-  key_jargons?: unknown;
-}
-
-function normalizeListenJargons(raw: unknown): ListenJargonItem[] {
-  if (!Array.isArray(raw)) return [];
-
-  return raw
-    .map((item): ListenJargonItem | null => {
-      if (!item || typeof item !== 'object') return null;
-      const record = item as Record<string, unknown>;
-      const word = typeof record.word === 'string' ? record.word.trim() : '';
-      const meaning = typeof record.meaning === 'string' ? record.meaning.trim() : '';
-      if (!word || !meaning) return null;
-      return { word, meaning };
-    })
-    .filter((item): item is ListenJargonItem => item !== null);
-}
-
-function mapListenEngineResult(raw: unknown): ListenEngineResult {
-  if (!raw || typeof raw !== 'object') {
-    throw new Error('AI 返回数据格式异常');
-  }
-
-  const result = raw as RawListenEngineResult;
-  return {
-    surfaceMeaning: typeof result.surface_meaning === 'string' ? result.surface_meaning : '',
-    hiddenSubtext: typeof result.hidden_subtext === 'string' ? result.hidden_subtext : '',
-    powerDynamics: typeof result.power_dynamics === 'string' ? result.power_dynamics : '',
-    keyJargons: normalizeListenJargons(result.key_jargons),
-  };
 }
 
 function normalizeScore(value: unknown): number {
@@ -912,98 +865,36 @@ export async function submitBreakthrough(
   };
 }
 
-export async function runEnglishListenEngine(text: string, theme: string, userId = getAppUserId()): Promise<ListenEngineResult> {
-  const apiKey = import.meta.env.VITE_DIFY_LISTEN_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_LISTEN_API_KEY');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: injectUserProfileAndTime({ listening_text: text, theme }),
-      response_mode: 'blocking',
-      user: userId,
-    }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || 'Dify Listen Engine Error');
-
-  try {
-    const rawResult = data.data.outputs.result;
-    const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
-    return mapListenEngineResult(JSON.parse(cleanJson));
-  } catch (e) {
-    console.error('[difyAPI] 解析听辨结果失败:', e);
-    throw new Error('AI 返回数据格式异常');
-  }
-}
-
 export async function runWordEnrichment(targetWord: string, theme: string, userId = getAppUserId()): Promise<WordEnrichmentResult> {
-  const apiKey = import.meta.env.VITE_DIFY_ENRICH_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_ENRICH_API_KEY');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/dify/dict-query', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: injectUserProfileAndTime({ target_word: targetWord, theme }),
-      response_mode: 'blocking',
-      user: userId,
+      word: targetWord.trim(),
+      dictType: 'en_en_business',
+      userContext: theme,
+      user_current_profile: getUserCurrentProfile(),
+      userId,
     }),
   });
-
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || 'Enrich Error');
-
-  const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
-  if (typeof rawResult !== 'string') {
-    console.error('[difyAPI] 词汇补全原始返回不是字符串:', data);
-    throw new Error('AI 格式异常');
+  if (!data?.ok || !data?.payload) {
+    console.error('[difyAPI] 词汇补全接口返回失败:', data);
+    throw new Error(data?.message || 'AI 格式异常');
   }
-
-  try {
-    const cleanJson = rawResult.replace(/```json/g, '').replace(/```/g, '').trim();
-    const parsed = JSON.parse(cleanJson) as Record<string, unknown>;
-
-    return {
-      word: typeof parsed.word === 'string' && parsed.word.trim() ? parsed.word : targetWord,
-      phonetic: typeof parsed.phonetic === 'string' ? parsed.phonetic : '',
-      partOfSpeech:
-        typeof parsed.partOfSpeech === 'string'
-          ? parsed.partOfSpeech
-          : typeof parsed.part_of_speech === 'string'
-            ? parsed.part_of_speech
-            : '',
-      meaning: typeof parsed.meaning === 'string' ? parsed.meaning : '',
-      definitionEn:
-        typeof parsed.definition_en === 'string'
-          ? parsed.definition_en
-          : typeof parsed.definitionEn === 'string'
-            ? parsed.definitionEn
-            : '',
-      businessNote:
-        typeof parsed.business_note === 'string'
-          ? parsed.business_note
-          : typeof parsed.businessNote === 'string'
-            ? parsed.businessNote
-            : '',
-      examples: Array.isArray(parsed.examples)
-        ? parsed.examples.filter((item): item is string => typeof item === 'string')
-        : [],
-    };
-  } catch (e) {
-    console.error('[difyAPI] 解析词汇补全失败:', e, data);
-    throw new Error('AI 格式异常');
-  }
+  const payload = data.payload as Record<string, unknown>;
+  const definitions = Array.isArray(payload.definitions_en) ? payload.definitions_en : [];
+  const examples = Array.isArray(payload.example_sentences) ? payload.example_sentences : [];
+  return {
+    word: String(payload.headword || targetWord).trim(),
+    phonetic: String(payload.phonetic || ''),
+    partOfSpeech: String(payload.pos || ''),
+    meaning: String(payload.meaning_zh || ''),
+    definitionEn: typeof definitions[0] === 'string' ? definitions[0] : '',
+    businessNote: String(payload.business_notes || ''),
+    examples: examples.filter((item): item is string => typeof item === 'string'),
+  };
 }
-
 export async function runEnglishWakeupRoutine(theme: string, userId = getAppUserId()): Promise<{
   theme: string;
   vocab: Array<{
@@ -1019,13 +910,10 @@ export async function runEnglishWakeupRoutine(theme: string, userId = getAppUser
     examples: Array<{ correct: string; incorrect: string }>;
   };
 }> {
-  const apiKey = import.meta.env.VITE_DIFY_WAKEUP_API_KEY || import.meta.env.VITE_DIFY_WAKUP_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_WAKEUP_API_KEY');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/wakeup', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -1049,54 +937,19 @@ export async function runEnglishSentenceEvaluation(
   theme: string,
   userId = getAppUserId()
 ): Promise<SentenceEvaluationResult> {
-  const apiKey = import.meta.env.VITE_DIFY_SENTENCE_API_KEY;
-
-  if (!apiKey) {
-    throw new Error('未配置造句 API 密钥，请检查 .env.local 并重新运行 build/dev');
-  }
-
-  let res: Response;
-  try {
-    res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs: injectUserProfileAndTime({ target_word: targetWord, user_sentence: userSentence, theme }),
-        response_mode: 'blocking',
-        user: userId,
-      }),
-    });
-  } catch (err) {
-    console.error('[difyAPI] Fetch 通讯异常:', err);
-    throw new Error('与 Dify 总部失去连接，请检查 HTTPS 接口是否可达');
-  }
-
+  const res = await fetch('/api/english/sentence-evaluate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targetWord, userSentence, theme, userId }),
+  });
   const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    console.error('[difyAPI] Dify 拒绝请求:', data);
-    throw new Error(data?.message || data?.error || 'Dify 响应成功但状态非 200');
+  if (!res.ok || !data?.success || !data?.result) {
+    const error = data?.error || `造句评估失败 (HTTP ${res.status})`;
+    console.error('[difyAPI] sentence evaluation failed:', error, data);
+    throw new Error(error);
   }
-
-  try {
-    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
-    const rawText = String(rawResult);
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-
-    if (!jsonMatch) {
-      throw new Error('AI 未返回有效的花括号 JSON 结构');
-    }
-
-    return mapSentenceEvaluationResult(JSON.parse(jsonMatch[0]));
-  } catch (e) {
-    console.error('[difyAPI] 脱水解析失败. 原始数据:', data?.data?.outputs?.result ?? data);
-    throw new Error('AI 返回数据格式异常，解析 JSON 崩溃');
-  }
+  return mapSentenceEvaluationResult(data.result);
 }
-
 export async function getDueVocabulary(userId = getAppUserId()) {
   const res = await fetch(`/api/vocab/review?userId=${encodeURIComponent(userId)}`);
   const data = await res.json().catch(() => ([]));
@@ -1190,13 +1043,10 @@ export async function runImpromptuSpeechEvaluation(
   transcript: string,
   userId = getAppUserId()
 ): Promise<ImpromptuSpeechEvaluationResult> {
-  const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EVAL_API_KEY');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/speech/evaluate', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -1253,14 +1103,11 @@ export async function runWriteGovernanceReview(params: {
   originalText: string;
   additionalParams?: string;
 }): Promise<WriteGovernanceResult> {
-  const apiKey = import.meta.env.VITE_DIFY_WRITE_GOVERNANCE_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_WRITE_GOVERNANCE_API_KEY');
   const userId = getAppUserId();
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/write-governance', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -1324,14 +1171,11 @@ export async function generateImpromptuExemplar(params: {
   topic: string;
   scenario?: string;
 }): Promise<ImpromptuExemplarResult> {
-  const apiKey = import.meta.env.VITE_DIFY_IMPROMPTU_PROMPTER_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_IMPROMPTU_PROMPTER_API_KEY');
   const userId = getAppUserId();
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/speech/impromptu-exemplar', {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -1385,18 +1229,12 @@ export interface AudioToTextResult {
  * @returns 识别出的英文文本
  */
 export async function audioToText(audioFile: Blob, userId = getAppUserId()): Promise<AudioToTextResult> {
-  const apiKey = import.meta.env.VITE_DIFY_STT_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_STT_API_KEY');
-
   const formData = new FormData();
   formData.append('file', audioFile, 'audio.wav');
   formData.append('user', userId);
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/audio-to-text`, {
+  const res = await fetch('/api/audio/transcriptions', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-    },
     body: formData,
   });
 
@@ -1412,92 +1250,8 @@ export async function audioToText(audioFile: Blob, userId = getAppUserId()): Pro
   };
 }
 
-/** 发音纠正结果 - 缁撴瀯鍖栨牸寮?*/
-export interface PronunciationAssessmentResult {
-  score: number;
-  phonetic?: string;
-  issueType?: string;
-  analysis?: string;
-  suggestion?: string;
-  correctionNote?: string;
-  corrections?: string[];
-  target_text: string;
-  recognized_text: string;
-}
 
-/**
- * 步骤2: 调用发音纠正工作流
- * @param targetText 用户输入的目标单词/句子
- * @param recognizedText 语音识别返回的文本
- * @param userId 用户ID
- * @returns 发音纠正结果
- */
-export async function runPronunciationAssessment(
-  targetText: string,
-  recognizedText: string,
-  userId = getAppUserId()
-): Promise<PronunciationAssessmentResult> {
-  // 通过后端代理调用 Dify 发音纠正工作流
-  const res = await fetch(`/api/pronunciation-assessment`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      targetText,
-      recognizedText,
-      userId,
-      user_current_profile: getUserCurrentProfile(),
-    }),
-  });
 
-  if (!res.ok) {
-    const errText = await res.text().catch(() => '');
-    throw new Error(`发音纠正请求失败 (${res.status}): ${errText}`);
-  }
-
-  const data = await res.json().catch(() => ({}));
-  
-  try {
-    const rawResult = data?.data?.outputs?.result 
-      ?? data?.data?.outputs 
-      ?? data?.answer 
-      ?? data?.message 
-      ?? data;
-    
-    // 尝试提取 JSON
-    const rawText = typeof rawResult === 'string' ? rawResult : JSON.stringify(rawResult);
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      return {
-        score: typeof parsed.score === 'number' ? parsed.score : (typeof parsed.total_score === 'number' ? parsed.total_score : 0),
-        analysis: typeof parsed.analysis === 'string' ? parsed.analysis : (typeof parsed.feedback === 'string' ? parsed.feedback : (typeof parsed.evaluation === 'string' ? parsed.evaluation : '')),
-        suggestion: typeof parsed.suggestion === 'string' ? parsed.suggestion : '',
-        corrections: Array.isArray(parsed.corrections) ? parsed.corrections : [],
-        target_text: targetText,
-        recognized_text: recognizedText,
-      };
-    }
-    
-    // 如果没有 JSON 结构，返回原始结果
-    return {
-      score: 0,
-      analysis: rawText || '无法解析评测结果',
-      corrections: [],
-      target_text: targetText,
-      recognized_text: recognizedText,
-    };
-  } catch (e) {
-    console.error('[difyAPI] 解析发音纠正结果失败:', e, data);
-    throw new Error('发音纠正结果解析失败');
-  }
-}
-
-// ── 即兴演讲增强功能 ─────────────────────────────────────────
-
-/** 即兴演讲提示词生成结果 */
 export interface SpeechPrompterResult {
   outline: {
     opening: string;
@@ -1532,13 +1286,10 @@ export async function runSpeechPrompter(
   difficulty: '基础' | '中等' | '进阶' = '中等',
   userId = getAppUserId()
 ): Promise<SpeechPrompterResult> {
-  const apiKey = import.meta.env.VITE_DIFY_SPEECH_PROMPTER_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_PROMPTER_API_KEY');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/speech/prompter', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -1605,19 +1356,16 @@ export async function runEnhancedSpeechEvaluation(
   audioFile: File | Blob,
   userId = getAppUserId()
 ): Promise<EnhancedSpeechEvalResult> {
-  const apiKey = import.meta.env.VITE_DIFY_SPEECH_EVAL_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EVAL_API_KEY');
-
+  
   const formData = new FormData();
   formData.append('file', audioFile, 'speech_audio.webm');
-  formData.append('user', userId);
+  formData.append('userId', userId);
   formData.append('inputs', JSON.stringify(injectUserProfileAndTime({ theme, duration_minutes: durationMinutes })));
   formData.append('response_mode', 'blocking');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/speech/prompter', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
     },
     body: formData,
   });
@@ -1788,33 +1536,15 @@ export interface CognitivePenetrationResult {
 }
 
 export async function runCognitivePenetrationEngine(inputs: CognitivePenetrationInput, userId = getAppUserId()): Promise<CognitivePenetrationResult> {
-  const apiKey = import.meta.env.VITE_DIFY_READ_PENETRATION_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_READ_PENETRATION_KEY');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const profileInputs = injectUserProfileAndTime(inputs as any);
+  const res = await fetch('/api/read/penetration/analyze', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: injectUserProfileAndTime(inputs as any),
-      response_mode: 'blocking',
-      user: userId,
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...profileInputs, userId }),
   });
-
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || 'Cognitive Penetration Engine 请求失败');
-
-  const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
-  try {
-    // 健壮提取：优先 ```json 块，否则按最外侧 {} 切除杂质后再 parse
-    return JSON.parse(extractJsonFromString(rawResult)) as CognitivePenetrationResult;
-  } catch (e) {
-    console.error('[difyAPI] 解析认知穿透结果的 JSON 格式失败:', e, rawResult);
-    throw new Error('AI 穿透解码失败，返回的不是有效 JSON');
-  }
+  if (!res.ok) throw new Error(data?.error || 'Cognitive Penetration Engine 请求失败');
+  return data.result as CognitivePenetrationResult;
 }
 
 // ── 驭心博弈系统（Game Theory）相关接口 ─────────────────────────────────────────
@@ -2402,13 +2132,10 @@ export async function runSpeechExemplar(
   userTranscript: string,
   userId = getAppUserId()
 ): Promise<string> {
-  const apiKey = import.meta.env.VITE_DIFY_SPEECH_EXEMPLAR_API_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEECH_EXEMPLAR_API_KEY');
 
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/english/speech/exemplar', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -2763,7 +2490,8 @@ export async function runWeeklyChatAnalysis(
 }
 
 /** 每周夜话增强分析结果（含场景映射） */
-export interface WeeklyChatEnhancedResult extends WeeklyChatAnalysisResult {
+export interface WeeklyChatEnhancedResult extends Omit<WeeklyChatAnalysisResult, 'nextWeekPush'> {
+  nextWeekPush: TrainingRebalancePlan;
   coreThemes: string[];
   profileFactors: string;
 }

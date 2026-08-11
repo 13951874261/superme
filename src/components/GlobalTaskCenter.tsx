@@ -53,7 +53,7 @@ function StatusBadge({ status, progress }: { status: string; progress?: number }
   );
 }
 
-function InputSourceRow({ src }: { src: DailyCronInputSource }) {
+function InputSourceRow({ src, key }: { src: DailyCronInputSource; key?: string }) {
   const [showTech, setShowTech] = useState(false);
   const [showSensitive, setShowSensitive] = useState(false);
   const preview = src.sensitive && !showSensitive
@@ -373,7 +373,7 @@ export default function GlobalTaskCenter() {
           ) : (
             <>
               {cronRuns.map((run) => (
-                <DailyCronCard key={run.id} run={run} onChanged={fetchCronRuns} />
+                <React.Fragment key={run.id}><DailyCronCard run={run} onChanged={fetchCronRuns} /></React.Fragment>
               ))}
 
               {tasks.map(task => {

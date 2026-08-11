@@ -201,7 +201,7 @@ export function useOralWarRoomSession({
         title: pushScene.scenario,
         shortTitle: pushScene.scenario.slice(0, 24),
         tier: '定制',
-        level: applyDifficultyAdjustment(baseLevel, 'oralSandbox'),
+        level: applyDifficultyAdjustment(baseLevel, 'oralSandbox') as 4 | 5,
         desc: pushScene.focus || pushScene.scenario,
         roleList: pushScene.roles || '我 + 业务助攻 + 施压方 + 关键决策人',
         allies: [{ name: '业务助攻', label: '盟友', desc: '配合推进议程' }],

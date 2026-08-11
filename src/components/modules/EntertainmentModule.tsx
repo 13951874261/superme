@@ -14,7 +14,7 @@ import ModuleWrapper from './ModuleWrapper';
 
 import { playClick, playSuccess, playError } from '../../utils/soundEffects';
 
-import { injectUserProfileAndTime } from '../../utils/profileHelper';
+import { getAppUserId, injectUserProfileAndTime } from '../../utils/profileHelper';
 
 
 
@@ -318,7 +318,7 @@ export default function EntertainmentModule() {
 
       try {
 
-        const res = await fetch('/api/aesthetics/daily-push?userId=default-user');
+        const res = await fetch(`/api/aesthetics/daily-push?userId=${encodeURIComponent(getAppUserId())}`);
 
         const payload = await res.json();
 

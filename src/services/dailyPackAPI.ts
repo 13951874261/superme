@@ -1,5 +1,5 @@
 import { getAppUserId, getUserCurrentProfile } from '../utils/profileHelper';
-import { getAllWords } from './vocabAPI';
+import { getAllWords, type VocabEntry } from './vocabAPI';
 
 export interface WakeupWord {
   word: string;

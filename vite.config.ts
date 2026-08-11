@@ -26,6 +26,19 @@ export default defineConfig(({mode}) => {
     },
     build: {
       emptyOutDir: true,
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('/react/') || id.includes('/react-dom/')) return 'vendor-react';
+            if (id.includes('/motion/') || id.includes('/framer-motion/') || id.includes('/gsap/')) return 'vendor-motion';
+            if (id.includes('/lucide-react/') || id.includes('/@phosphor-icons/')) return 'vendor-icons';
+            if (id.includes('/react-markdown/') || id.includes('/remark-') || id.includes('/rehype-')) return 'vendor-markdown';
+            if (id.includes('/@google/genai/')) return 'vendor-ai';
+            return 'vendor';
+          },
+        },
+      },
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

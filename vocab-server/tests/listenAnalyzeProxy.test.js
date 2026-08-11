@@ -1,0 +1,15 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const frontend = fs.readFileSync(path.join(__dirname, '../../src/services/listeningAPI.ts'), 'utf8');
+const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+assert.match(frontend, /fetch\(['"]\/api\/listen\/analyze['"]/);
+assert.doesNotMatch(frontend, /Authorization.*apiKey/);
+assert.doesNotMatch(frontend, /VITE_DIFY_LISTEN_API_KEY/);
+assert.doesNotMatch(frontend, /DIFY_API_BASE_URL\/workflows\/run/);
+assert.match(server, /app.post\(['"]\/api\/listen\/analyze['"]/);
+assert.match(server, /require\(['"]\.\/services\/listenAnalysisService['"]\)/);
+assert.match(server, /analyzeListening\(/);
+assert.doesNotMatch(server, /process.env.DIFY_LISTEN_API_KEY/);
+assert.doesNotMatch(server, /process.env.DIFY_WORKFLOW_API_KEY/);
+console.log('listen analyze proxy contract passed');

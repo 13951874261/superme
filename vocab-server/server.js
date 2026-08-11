@@ -432,6 +432,24 @@ const aestheticsPush = aestheticsPushService.createService({
   apiKey: process.env.DIFY_HIGH_AESTHETICS_GENERATOR_API_KEY,
   baseUrl: process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'
 });
+const { createReadPenetrationAnalyzer } = require('./services/readPenetrationProxy');
+const { createWorkflowRunner, createWorkflowUploader } = require('./services/englishWorkflowProxy');
+const { analyzeListening } = require('./services/listenAnalysisService');
+const { evaluateSentence } = require('./services/sentenceEvaluationService');
+const difyWorkflowBaseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+const analyzeReadPenetration = createReadPenetrationAnalyzer({
+  apiKey: process.env.DIFY_READ_PENETRATION_KEY || process.env.VITE_DIFY_READ_PENETRATION_KEY,
+  baseUrl: difyWorkflowBaseUrl
+});
+const englishWorkflowRunners = {
+  wakeup: createWorkflowRunner({ apiKey: process.env.DIFY_WAKEUP_API_KEY, baseUrl: difyWorkflowBaseUrl }),
+  speechEvaluation: createWorkflowRunner({ apiKey: process.env.DIFY_SPEECH_EVAL_API_KEY, baseUrl: difyWorkflowBaseUrl }),
+  writeGovernance: createWorkflowRunner({ apiKey: process.env.DIFY_WRITE_GOVERNANCE_API_KEY, baseUrl: difyWorkflowBaseUrl }),
+  speechPrompter: createWorkflowRunner({ apiKey: process.env.DIFY_SPEECH_PROMPTER_API_KEY, baseUrl: difyWorkflowBaseUrl }),
+  speechExemplar: createWorkflowRunner({ apiKey: process.env.DIFY_SPEECH_EXEMPLAR_API_KEY, baseUrl: difyWorkflowBaseUrl }),
+};
+const uploadSpeechEvaluation = createWorkflowUploader({ apiKey: process.env.DIFY_SPEECH_EVAL_API_KEY, baseUrl: difyWorkflowBaseUrl });
+const speechAudioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 function normalizeMemoryUserId(raw) {
   if (!raw) return 'default-user';
@@ -2431,6 +2449,19 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   }
 }
 
+app.post('/api/listen/analyze', async (req, res) => {
+  const { userInput, standardText, theme = '' } = req.body || {};
+  if (!String(standardText || '').trim()) {
+    return res.status(400).json({ success: false, error: 'standardText is required' });
+  }
+  try {
+    const result = await analyzeListening({ userInput: String(userInput || ''), standardText: String(standardText || ''), theme: String(theme || '') }, process.env.LISTEN_LLM_API_KEY || '');
+    return res.json({ success: true, result });
+  } catch (error) {
+    console.error('[Listen Analyze] failed:', error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
 app.post('/api/listen/generate-material', async (req, res) => {
   try {
     const { inputs, userId = 'default-user' } = req.body;
@@ -3306,7 +3337,8 @@ app.post('/api/vocab/batch-add', (req, res) => {
 
 async function queryDifyDictOnBackend(word, dictType) {
   const cleanDictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(dictType) ? dictType : 'en_zh_bidirectional';
-  const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
+  const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
+  if (!DIFY_DICT_API_KEY) throw new Error("Server missing DIFY_DICT_API_KEY");
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const DICT_QUERY_TIMEOUT_MS = 30000;
   const MAX_RETRY = 3;
@@ -4685,7 +4717,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
     return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
   }
 
-  const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
+  const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
+  if (!DIFY_DICT_API_KEY) return res.status(500).json({ ok: false, message: "Server missing DIFY_DICT_API_KEY" });
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 30000;
 
@@ -4957,7 +4990,8 @@ async function checkAndEnrichPlaceholderPayload(row) {
 
   if (hasPlaceholder) {
     console.log(`[Payload Enrich] 检测到词条 "${row.word}" (ID: ${row.id}) 使用了占位符 payload，正在启动静默字典查询纠正...`);
-    const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
+    const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
+  if (!DIFY_DICT_API_KEY) throw new Error("Server missing DIFY_DICT_API_KEY");
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     try {
@@ -5902,9 +5936,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
     return res.status(400).json({ message: '缺少 query 参数。' });
   }
 
-  const apiKey = process.env.DIFY_ORAL_API_KEY
-    || process.env.VITE_DIFY_ORAL_API_KEY
-    || 'app-LfCGgdQrwlGTfegQNYeEzpB9';
+  const apiKey = process.env.DIFY_ORAL_API_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
@@ -5962,9 +5994,7 @@ app.post('/api/english/breakthrough/submit', async (req, res) => {
     intent: '意图避重',
   };
 
-  const apiKey = process.env.DIFY_ORAL_API_KEY
-    || process.env.VITE_DIFY_ORAL_API_KEY
-    || 'app-LfCGgdQrwlGTfegQNYeEzpB9';
+  const apiKey = process.env.DIFY_ORAL_API_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
@@ -8169,6 +8199,65 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 // ==========================================
 
 // 获取所有手段（系统默认 + 用户自定义）
+app.post('/api/read/penetration/analyze', async (req, res) => {
+  try {
+    const result = await analyzeReadPenetration({
+      sceneType: req.body?.scene_type,
+      textInput: req.body?.text_input,
+      userId: req.body?.userId || req.body?.user || 'default-user',
+      userProfile: req.body?.user_current_profile || '',
+      systemTime: req.body?._system_time || '',
+    });
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('[Read Penetration] analyze failed:', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+async function handleEnglishWorkflow(req, res, runner, label) {
+  try {
+    const payload = await runner({
+      inputs: req.body?.inputs || {},
+      userId: req.body?.userId || req.body?.user || 'default-user',
+    });
+    return res.json(payload);
+  } catch (error) {
+    console.error(`[${label}] workflow failed:`, error);
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
+}
+
+app.post('/api/english/sentence-evaluate', async (req, res) => {
+  const { targetWord, userSentence, theme = '' } = req.body || {};
+  try {
+    const result = await evaluateSentence(
+      { targetWord: String(targetWord || ''), userSentence: String(userSentence || ''), theme: String(theme || '') },
+      process.env.EVALUATION_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
+    );
+    return res.json({ success: true, result });
+  } catch (error) {
+    const status = /required/.test(error.message || '') ? 400 : 500;
+    console.error('[Sentence Evaluation] failed:', error);
+    return res.status(status).json({ success: false, error: error.message });
+  }
+});
+app.post('/api/english/wakeup', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.wakeup, 'English Wakeup'));
+app.post('/api/english/speech/evaluate', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechEvaluation, 'Speech Evaluation'));
+app.post('/api/english/write-governance', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.writeGovernance, 'Write Governance'));
+app.post('/api/english/speech/prompter', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechPrompter, 'Speech Prompter'));
+app.post('/api/english/speech/impromptu-exemplar', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechPrompter, 'Impromptu Exemplar'));
+app.post('/api/english/speech/exemplar', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechExemplar, 'Speech Exemplar'));
+app.post('/api/english/speech/evaluate-audio', speechAudioUpload.single('file'), async (req, res) => {
+  try {
+    const inputs = JSON.parse(req.body?.inputs || '{}');
+    const payload = await uploadSpeechEvaluation({ inputs, userId: req.body?.userId || req.body?.user || 'default-user', file: req.file });
+    return res.json(payload);
+  } catch (error) {
+    console.error('[Speech Evaluation Audio] workflow failed:', error);
+    return res.status(error.statusCode || 500).json({ error: error.message });
+  }
+});
 app.get('/api/game-theory/tactics', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';

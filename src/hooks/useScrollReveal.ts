@@ -31,7 +31,7 @@ export function useScrollReveal(
     const scopeNode = scopeRef.current;
     if (!scopeNode) return;
 
-    const targets = Array.from(scopeNode.querySelectorAll<HTMLElement>(selector));
+    const targets: HTMLElement[] = Array.from(scopeNode.querySelectorAll<HTMLElement>(selector));
     if (targets.length === 0) return;
 
     if (prefersReducedMotion) {

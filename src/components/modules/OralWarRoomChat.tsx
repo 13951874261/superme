@@ -594,7 +594,7 @@ export default function OralWarRoomChat({
                   { key: 'feedback_role_switch', label: '角色切换自然度', hint: '是否准确识别发言对象' },
                   { key: 'feedback_strategy', label: '谈判策略合理性', hint: '反击时机和策略选择' },
                 ].map(({ key, label, hint }) => {
-                  const val = safeText((latestFeedback as Record<string, unknown>)[key]);
+                  const val = safeText((latestFeedback as unknown as Record<string, unknown>)[key]);
                   return val ? (
                     <div key={key} className="bg-gray-50 rounded-xl p-3">
                       <div className="flex items-center gap-2 mb-1">
@@ -733,11 +733,7 @@ export default function OralWarRoomChat({
             {/* 麦克风长按按钮 */}
             {speechSupported ? (
               <button
-                onMouseDown={startRecording}
-                onMouseUp={stopRecordingAndSend}
-                onMouseLeave={() => { if (isRecording) stopRecordingAndSend(); }}
-                onTouchStart={(e) => { e.preventDefault(); startRecording(); }}
-                onTouchEnd={(e) => { e.preventDefault(); stopRecordingAndSend(); }}
+                onClick={isRecording ? stopRecordingAndSend : startRecording}
                 disabled={isSending || isInputLocked}
                 className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest
                            transition-all select-none flex items-center gap-2
