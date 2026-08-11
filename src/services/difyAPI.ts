@@ -962,8 +962,8 @@ export async function runListenMaterialGenerator(
   const isLong = duration === 'long' || (typeof duration === 'number' && duration >= 5);
   const safeGenre = mapGenreToDify(genre);
 
-  // ── 长音频（≥5 分钟）：走后端后台任务机制，立即返回 taskId ──
-  if (isLong) {
+  // ── 始终走后端后台任务机制，避免 UI 长时间阻塞、可跟踪进度 ──
+  {
     const res = await fetch('/api/listen/generate-material-long', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -989,27 +989,6 @@ export async function runListenMaterialGenerator(
 
     return data.answer.trim();
   }
-
-  // ── 短听力：已迁移为 Node.js 代理调用 ──
-  const res = await fetch('/api/listen/generate-material', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      inputs: injectUserProfileAndTime({ theme, genre: safeGenre, cefr_level: cefrLevel, duration: durationParam }),
-      userId,
-    }),
-  });
-
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || data.message || `生成听力材料失败 (HTTP ${res.status})`);
-  }
-
-  if (!data.answer) {
-    throw new Error("后台没有返回任何听力材料数据，请检查 Dify 应用配置。");
-  }
-
-  return data.answer.trim();
 }
 
 export interface ImpromptuSpeechEvaluationResult {
