@@ -8277,7 +8277,7 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: { scene_category: sceneCategory, user_response: userResponse },
+        inputs: { scene_category: sceneCategory, user_response: userResponse, _system_time: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }), _system_timestamp_ms: Date.now() },
         response_mode: 'blocking',
         user: normalizeMemoryUserId(req.body?.userId || 'aesthetic-user'),
       }),
