@@ -34,13 +34,13 @@ interface Scenario {
 
   icon: React.ReactNode;
 
-  rules: string;       // 场合规则与潜规则
+  rules: string | string[];       // 场合规则与潜规则
 
   temper: string;      // 角色分寸拿捏
 
   dialogue: string;    // 高阶话术范例
 
-  traps: string;       // 避坑指南
+  traps: string | string[];       // 避坑指南
 
   practice: string;    // 线下实践路径
 
@@ -340,13 +340,13 @@ export default function EntertainmentModule() {
 
             icon: <BookOpen size={18} />,
 
-            rules: Array.isArray(r.rules) ? r.rules.join('?') : String(r.rules || ''),
+            rules: Array.isArray(r.rules) ? r.rules : (r.rules ? String(r.rules).split('?').map(s => s.trim()).filter(Boolean) : []),
 
             temper: r.temper || '',
 
             dialogue: r.dialogue_example || '',
 
-            traps: Array.isArray(r.traps) ? r.traps.join('?') : String(r.traps || ''),
+            traps: Array.isArray(r.traps) ? r.traps : (r.traps ? String(r.traps).split('?').map(s => s.trim()).filter(Boolean) : []),
 
             practice: r.practice_task || ''
 
@@ -1061,13 +1061,13 @@ export default function EntertainmentModule() {
 
                               icon: <BookOpen size={18} />,
 
-                              rules: Array.isArray(r.rules) ? r.rules.join('?') : String(r.rules || ''),
+                              rules: Array.isArray(r.rules) ? r.rules : (r.rules ? String(r.rules).split('?').map(s => s.trim()).filter(Boolean) : []),
 
                               temper: r.temper || '',
 
                               dialogue: r.dialogue_example || '',
 
-                              traps: Array.isArray(r.traps) ? r.traps.join('?') : String(r.traps || ''),
+                              traps: Array.isArray(r.traps) ? r.traps : (r.traps ? String(r.traps).split('?').map(s => s.trim()).filter(Boolean) : []),
 
                               practice: r.practice_task || ''
 
@@ -1120,10 +1120,15 @@ export default function EntertainmentModule() {
                           <h5 className="text-xs font-bold text-zinc-900">{dailyPush.title}</h5>
 
                           <p className="mt-1 text-[11px] text-zinc-500">{dailyPush.desc}</p>
+                          <p className="mt-1 text-[9px] text-zinc-400">
+                            {dailyPushSource === 'fallback' ? '兜底内容' : 'AI生成'} · {dailyPush.push_date || ''}
+                          </p>
 
                         </div>
 
-                        <span className="ml-2 whitespace-nowrap rounded border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] text-amber-700">????</span>
+                        <span className="ml-2 whitespace-nowrap rounded border border-amber-200 bg-amber-100 px-2 py-0.5 text-[9px] text-amber-700">
+                          {dailyPush.category === 'social' ? '社交' : '审美'}
+                        </span>
 
                       </div>
 
@@ -1227,7 +1232,11 @@ export default function EntertainmentModule() {
 
                       <span className="text-zinc-400 block mb-0.5">① 场合规则与潜规则</span>
 
-                      <p className="text-zinc-800 leading-relaxed font-medium bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">{selectedScenario.rules}</p>
+                      <ul className="text-zinc-800 leading-relaxed font-medium bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
+                        {Array.isArray(selectedScenario.rules) ? selectedScenario.rules.map((rule, i) => (
+                          <li key={i} className="flex items-start gap-2 mb-1"><span className="text-zinc-400 min-w-[1.2em]">{i+1}.</span>{rule}</li>
+                        )) : <p>{selectedScenario.rules}</p>}
+                      </ul>
 
                     </div>
 
@@ -1257,7 +1266,11 @@ export default function EntertainmentModule() {
 
                       <span className="text-rose-500 font-bold block mb-0.5">④ 避坑指南（绝对禁忌）</span>
 
-                      <p className="text-rose-700 leading-relaxed font-medium bg-rose-50/50 p-2.5 rounded-lg border border-rose-100">{selectedScenario.traps}</p>
+                      <ul className="text-rose-700 leading-relaxed font-medium bg-rose-50/50 p-2.5 rounded-lg border border-rose-100">
+                        {Array.isArray(selectedScenario.traps) ? selectedScenario.traps.map((trap, i) => (
+                          <li key={i} className="flex items-start gap-2 mb-1"><span className="text-rose-400 min-w-[1.2em]">{i+1}.</span>{trap}</li>
+                        )) : <p>{selectedScenario.traps}</p>}
+                      </ul>
 
                     </div>
 

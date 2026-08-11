@@ -108,7 +108,15 @@ async function main() {
   const rowCount = db.prepare('SELECT COUNT(*) AS count FROM daily_aesthetics_pushes WHERE user_id = ?').get('test-user').count;
   assert.equal(rowCount, 1);
 
-  console.log('aestheticsPush.test.js passed');
+  
+  assert.ok(first.rules.length >= 3, 'rules should have at least 3 items');
+  assert.ok(first.traps.length >= 3, 'traps should have at least 3 items');
+  assert.ok(first.background && first.background.length >= 20, 'background should be present');
+  assert.ok(first.temper && first.temper.length >= 20, 'temper should be present');
+  assert.ok(first.dialogue_example && first.dialogue_example.length >= 10, 'dialogue_example should be present');
+  assert.ok(first.practice_task && first.practice_task.length >= 10, 'practice_task should be present');
+
+console.log('aestheticsPush.test.js passed');
 }
 
 main().catch((error) => { console.error(error); process.exitCode = 1; });

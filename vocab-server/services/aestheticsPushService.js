@@ -55,12 +55,30 @@ function isValidScenario(value) {
     && typeof value.practice_task === 'string';
 }
 
-function normalizeScenario(value) {
+﻿function normalizeScenario(value) {
   const scenario = { ...value };
-  scenario.scenario_id = String(scenario.scenario_id || `generated-${crypto.randomUUID()}`);
+  scenario.scenario_id = String(scenario.scenario_id || 'generated-' + crypto.randomUUID());
   scenario.dedupe_key = String(scenario.dedupe_key || scenario.scenario_id);
   scenario.category = scenario.category === 'social' ? 'social' : 'aesthetics';
   scenario.difficulty = Math.max(1, Math.min(10, Number(scenario.difficulty) || 8));
+  if (!scenario.background || scenario.background.length < 50) {
+    scenario.background = '在社交场景的实践中，参与者需要判断场合规则、关系距离和发言时机。';
+  }
+  if (!scenario.temper || scenario.temper.length < 30) {
+    scenario.temper = '保持松弛、克制和开放。不要急于证明自己知道更多，也不要把个人偏好强行上升为统一标准。';
+  }
+  if (!scenario.dialogue_example || scenario.dialogue_example.length < 20) {
+    scenario.dialogue_example = '我更关注现场呈现出的细节和交流节奏，也想听听您最在意的部分。';
+  }
+  if (!Array.isArray(scenario.rules) || scenario.rules.length < 3) {
+    scenario.rules = ['先观察场合和关系结构', '先描述事实再表达判断', '给对方留下回应空间'];
+  }
+  if (!Array.isArray(scenario.traps) || scenario.traps.length < 3) {
+    scenario.traps = ['不懂装懂并堆砌术语', '抢话或过早下结论', '把消费价格等同于审美价值'];
+  }
+  if (!scenario.practice_task || scenario.practice_task.length < 10) {
+    scenario.practice_task = '围绕今日场景写下一句观察：一个事实、一个感受、一个留给对方的问题。';
+  }
   return scenario;
 }
 
