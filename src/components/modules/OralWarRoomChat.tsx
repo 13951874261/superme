@@ -733,7 +733,10 @@ export default function OralWarRoomChat({
             {/* 麦克风长按按钮 */}
             {speechSupported ? (
               <button
-                onClick={isRecording ? stopRecordingAndSend : startRecording}
+                onMouseDown={() => { if (!isRecording) startRecording(); }}
+                onMouseUp={() => { if (isRecording) stopRecordingAndSend(); }}
+                onTouchStart={(e) => { e.preventDefault(); if (!isRecording) startRecording(); }}
+                onTouchEnd={(e) => { e.preventDefault(); if (isRecording) stopRecordingAndSend(); }}
                 disabled={isSending || isInputLocked}
                 className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest
                            transition-all select-none flex items-center gap-2

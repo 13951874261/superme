@@ -71,6 +71,7 @@ export function useMediaRecorder(
   }, []);
 
   const startRecording = useCallback(async () => {
+    if (isRecording) return;
     if (isSending || isTranscribing) {
       setMicError('上一条消息正在处理，请稍后');
       return;
