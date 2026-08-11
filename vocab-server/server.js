@@ -8296,7 +8296,7 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
     const feedback = typeof rawResult?.feedback === 'string' ? rawResult.feedback.trim() : '';
     if (!rawResult || !feedback || !Number.isFinite(score) || score < 0 || score > 10
       || typeof rawResult.is_passed !== 'boolean') {
-      console.error('[Aesthetics Analyze] invalid workflow output:', payload?.data?.outputs);
+      console.error('[Aesthetics Analyze] invalid workflow output:', JSON.stringify(payload?.data?.outputs));
       return res.status(502).json({ success: false, error: '高阶审美工作流返回格式错误' });
     }
     return res.json({ success: true, result: { feedback, score, is_passed: rawResult.is_passed } });
