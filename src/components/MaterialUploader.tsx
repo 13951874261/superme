@@ -49,19 +49,19 @@ export default function MaterialUploader({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []) as File[];
     
-    // ???????50MB
+    // 文件大小限制：50MB
     const MAX_FILE_SIZE = 50 * 1024 * 1024;
     const oversized = files.filter(f => f.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
-      alert(`?? "${oversized[0].name}" ??50MB???????????`);
+      alert(`文件 "${oversized[0].name}" 超过50MB限制，请选择更小的文件！`);
       return;
     }
 
     setSelectedFiles(files);
     setStatus('idle');
     setCurrentFileName(files[0]?.name || '');
-    setCurrentStep(files.length > 0 ? `??? ${files.length} ???` : '??????');
-    setLogs(files.length > 0 ? [`${nowLabel()} ??????${topicHint}`, `${nowLabel()} ??? ${files.length} ???`] : []);
+    setCurrentStep(files.length > 0 ? `解析 ${files.length} 个文件` : '待上传');
+    setLogs(files.length > 0 ? [`${nowLabel()} 开始解析${topicHint}`, `${nowLabel()} 解析 ${files.length} 个文件`] : []);
   };
 
   const resetInput = () => {
@@ -421,11 +421,11 @@ export default function MaterialUploader({
               }`}
             >
               {status === 'running' ? (
-                <><Loader2 className="w-4 h-4 animate-spin" />???...</>
+                <><Loader2 className="w-4 h-4 animate-spin" />解析中...</>
               ) : status === 'success' ? (
-                <><CheckCircle2 className="w-4 h-4" />????</>
+                <><CheckCircle2 className="w-4 h-4" />解析完成</>
               ) : (
-                <><Zap className="w-4 h-4" />???????</>
+                <><Zap className="w-4 h-4" />开始解析</>
               )}
             </button>
             {status === 'error' && (
@@ -434,13 +434,13 @@ export default function MaterialUploader({
                   setStatus('idle');
                   setSelectedFiles([]);
                   setCurrentFileName('');
-                  setCurrentStep('??????');
+                  setCurrentStep('待上传');
                   setLogs([]);
                   resetInput();
                 }}
                 className="px-4 py-3.5 rounded-xl text-xs font-black tracking-widest uppercase bg-red-600 text-white hover:bg-red-700 transition-all shadow-md active:scale-95 cursor-pointer"
               >
-                ??
+                重新上传
               </button>
             )}
           </div>

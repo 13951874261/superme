@@ -248,7 +248,7 @@ export default function EntertainmentModule() {
 
 
 
-  // ??????????
+  // 每日推送场景数据
 
   const [dailyPush, setDailyPush] = useState<Scenario | null>(null);
 
@@ -334,7 +334,7 @@ export default function EntertainmentModule() {
 
             title: r.title,
 
-            type: r.type || '??????',
+            type: r.type || '通用场景',
 
             desc: r.description || r.background || '',
 
@@ -1011,7 +1011,7 @@ export default function EntertainmentModule() {
 
                     <div>
 
-                      <h4 className="text-xs font-bold text-zinc-800">??????????</h4>
+                      <h4 className="text-xs font-bold text-zinc-800">场景来源</h4>
 
                       <p className="mt-1 text-[10px] text-zinc-500">
 
@@ -1055,7 +1055,7 @@ export default function EntertainmentModule() {
 
                               title: r.title,
 
-                              type: r.type || '??????',
+                              type: r.type || '通用场景',
 
                               desc: r.description || r.background || '',
 
@@ -1136,7 +1136,7 @@ export default function EntertainmentModule() {
 
                   ) : (
 
-                    <p className="text-[11px] text-zinc-400">???????????????????????</p>
+                    <p className="text-[11px] text-zinc-400">暂无每日推送场景，请稍后再试</p>
 
                   )}
 

@@ -102,7 +102,7 @@ export default function VideoTranscribePanel({
     if (selectedFile) {
       const MAX_VIDEO_SIZE = 1024 * 1024 * 1024; // 1GB
       if (selectedFile.size > MAX_VIDEO_SIZE) {
-        setError(`????????1GB????????????`);
+        setError(`视频文件大小超过1GB限制，请选择更小的视频！`);
         return;
       }
     }
