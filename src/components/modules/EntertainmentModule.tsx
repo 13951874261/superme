@@ -440,7 +440,7 @@ export default function EntertainmentModule() {
 
       'cigar-wine': '红酒与雪茄品鉴',
 
-      'golf-business': '高引夫轻商务', // Wait, 'golf-business': '高尔夫轻商务'
+      'golf-business': '高尔夫轻商务',
 
       'opera-music': '跨文化宴请(西方)',
 
@@ -448,9 +448,9 @@ export default function EntertainmentModule() {
 
     };
 
-    // Make sure we type it correctly as '高尔夫轻商务'
+    // 与 Dify 工作流 scene_category 枚举保持一致
 
-    mapping['golf-business'] = '高尔夫轻商务';
+    // mapping['golf-business'] 已在上面定义
 
     return mapping[id] || '政商务饭局与敬酒';
 
@@ -484,84 +484,29 @@ export default function EntertainmentModule() {
 
     try {
 
-      const apiKey = import.meta.env.VITE_DIFY_HIGH_AESTHETICS_KEY;
-
-      const apiBaseUrl = import.meta.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-
-      
-
-      const res = await fetch(`${apiBaseUrl}/workflows/run`, {
-
+            const res = await fetch('/api/aesthetics/analyze', {
         method: 'POST',
-
-        headers: {
-
-          'Authorization': `Bearer ${apiKey}`,
-
-          'Content-Type': 'application/json'
-
-        },
-
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-
-          inputs: injectUserProfileAndTime({
-
-            scene_category: getDifySceneCategory(selectedScenario.id),
-
-            user_response: response,
-
-          }),
-
-          response_mode: "blocking",
-
-          user: "aesthetic_user_01"
-
-        })
-
+          scene_category: getDifySceneCategory(selectedScenario.id),
+          user_response: response,
+        }),
       });
-
-
-
       const data = await res.json();
-
-      
-
-      if (data && data.data && data.data.outputs && data.data.outputs.json_result) {
-
-        let rawOutput = data.data.outputs.json_result;
-
-        if (typeof rawOutput === 'string') {
-
-          rawOutput = rawOutput.replace(/```json/g, '').replace(/```/g, '').trim();
-
-        }
-
-        const parsedOutputs = typeof rawOutput === 'object' ? rawOutput : JSON.parse(rawOutput); 
-
+      if (data?.success && data?.result) {
+        const { feedback, score, is_passed } = data.result;
+        const parsedOutputs = { feedback, score, is_passed };
         setDifyFeedback(parsedOutputs);
-
         openRightPanel(parsedOutputs);
-
-
-
-        if (parsedOutputs.is_passed) {
-
+        if (is_passed) {
           triggerSuccess();
-
           triggerSuccessAnimation();
-
         } else {
-
           triggerWarning();
-
         }
-
       } else {
-
-        throw new Error("工作流响应格式不符合预期");
-
+        throw new Error(data?.error || '研判服务响应异常');
       }
-
     } catch (e) {
 
       console.error("研判系统异常:", e);
