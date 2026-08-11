@@ -8082,8 +8082,15 @@ app.post('/api/game-theory/ascension', async (req, res) => {
   if (!event_text || !Array.isArray(layers) || layers.length < 5) {
     return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
   }
+  const hasEmptyWhy = layers.some(l => !String(l.why || '').trim());
+  if (hasEmptyWhy) {
+    return res.status(400).json({ success: false, error: '每一层因果均不能为空，请填写完整五层推演' });
+  }
   try {
-    const difyApiKey = process.env.VITE_DIFY_COGNITIVE_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+    const difyApiKey = process.env.DIFY_COGNITIVE_API_KEY || process.env.VITE_DIFY_COGNITIVE_KEY;
+    if (!difyApiKey) {
+      return res.status(503).json({ success: false, error: '后端未配置 DIFY_COGNITIVE_API_KEY，请检查环境变量' });
+    }
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const response = await fetch(`${baseUrl}/workflows/run`, {

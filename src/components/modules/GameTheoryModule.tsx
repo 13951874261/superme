@@ -125,6 +125,7 @@ export default function GameTheoryModule() {
   const [ascDimension, setAscDimension] = useState<'history' | 'structure' | 'self'>('structure');
   const [ascLoading, setAscLoading] = useState(false);
   const [ascResult, setAscResult] = useState<CognitiveAscensionResult | null>(null);
+  const [ascError, setAscError] = useState<string | null>(null);
   const [showSuccessBadge, setShowSuccessBadge] = useState(false);
 
   const triggerSuccessAnimation = () => {
@@ -135,8 +136,10 @@ export default function GameTheoryModule() {
   const handleAscensionSubmit = async () => {
     if (!ascEvent.trim() || ascLayers.some(l => !l.trim())) {
       playGentleWarning();
+      setAscError('???????????????????????');
       return;
     }
+    setAscError(null);
     setAscLoading(true);
     setAscResult(null);
     playClick();
@@ -1558,6 +1561,12 @@ export default function GameTheoryModule() {
                   ))}
                 </div>
 
+                {ascError && (
+                  <div className="w-full p-3 rounded-2xl bg-red-50 border border-red-200 text-red-600 text-xs font-semibold flex items-center gap-2 mb-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{ascError}</span>
+                  </div>
+                )}
                 <button 
                   onClick={handleAscensionSubmit} 
                   disabled={ascLoading || !ascEvent.trim() || ascLayers.some(l => !l.trim())}
