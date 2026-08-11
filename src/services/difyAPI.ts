@@ -109,7 +109,6 @@ export interface VocabPurifyResult {
 }
 
 /** 词汇提纯引擎 - 直接调用 Dify Workflow 鐨?API Key */
-const VOCAB_PURIFY_DIRECT_API_KEY = import.meta.env.VITE_DIFY_VOCAB_API_KEY || '';
 
 /** 涓夋寮忓叕鏂囨壒闃?- 输入 */
 export interface WritingReviewInput {
@@ -679,38 +678,23 @@ export async function callVocabPurify(
   inputs: VocabPurifyInput,
   userId = getAppUserId()
 ): Promise<VocabPurifyResult> {
-  if (!VOCAB_PURIFY_DIRECT_API_KEY) {
-    throw new Error('未配置 VITE_DIFY_VOCAB_API_KEY');
-  }
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+  const res = await fetch('/api/vocab/purify', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${VOCAB_PURIFY_DIRECT_API_KEY}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: injectUserProfileAndTime(inputs as any),
-      response_mode: 'blocking',
-      user: userId,
+      articleText: inputs.article_text,
+      topic: inputs.topic || '',
+      userId,
     }),
   });
-
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.message || data?.error || `vocab-purify HTTP ${res.status}`);
+  if (!res.ok || !data?.success || !data?.result) {
+    const error = data?.error || `vocab-purify HTTP ${res.status}`;
+    console.error('[difyAPI] vocab purify failed:', error, data);
+    throw new Error(error);
   }
-
-  const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
-  return parseMaybeJson<VocabPurifyResult>(rawResult, 'AI 返回的词汇数据格式异常');
+  return data.result as VocabPurifyResult;
 }
-
-/**
- * 英语公文纵深批阅接口 (前端直接调用 Dify)
- * @param userText 用户写的原始英文草稿
- * @param mailIntent 行文意图
- * @param theme 全局阵地主题
- */
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
   const profile = getUserCurrentProfile();
   const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;

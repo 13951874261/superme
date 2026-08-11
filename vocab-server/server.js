@@ -436,6 +436,7 @@ const { createReadPenetrationAnalyzer } = require('./services/readPenetrationPro
 const { createWorkflowRunner, createWorkflowUploader } = require('./services/englishWorkflowProxy');
 const { analyzeListening } = require('./services/listenAnalysisService');
 const { evaluateSentence } = require('./services/sentenceEvaluationService');
+const { purifyVocabulary } = require('./services/vocabPurifyService');
 const difyWorkflowBaseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const analyzeReadPenetration = createReadPenetrationAnalyzer({
   apiKey: process.env.DIFY_READ_PENETRATION_KEY || process.env.VITE_DIFY_READ_PENETRATION_KEY,
@@ -8228,6 +8229,20 @@ async function handleEnglishWorkflow(req, res, runner, label) {
   }
 }
 
+app.post('/api/vocab/purify', async (req, res) => {
+  const { articleText, article_text, topic = '' } = req.body || {};
+  try {
+    const result = await purifyVocabulary(
+      { articleText: String(articleText || article_text || ''), topic: String(topic || '') },
+      process.env.VOCAB_PURIFY_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
+    );
+    return res.json({ success: true, result });
+  } catch (error) {
+    const status = /required/.test(error.message || '') ? 400 : 500;
+    console.error('[Vocab Purify] failed:', error);
+    return res.status(status).json({ success: false, error: error.message });
+  }
+});
 app.post('/api/english/sentence-evaluate', async (req, res) => {
   const { targetWord, userSentence, theme = '' } = req.body || {};
   try {
