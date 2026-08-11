@@ -2220,7 +2220,7 @@ function formatDifyModelError(raw) {
     return [
       'Dify 下游 LLM 推理服务不可用（23.95.214.232:38000 连接超时）。',
       '长文生成应用：materail_generate_url_enhanced',
-      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默认 app-OShKY1EcVuLFkuxrpO28ZB0A）',
+      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默认 DIFY_ENGLISH_MASTERY_KEY）',
       '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL，或重启 38000 端口推理服务。',
     ].join(' ');
   }
@@ -2328,10 +2328,7 @@ async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTim
 
 /** 同步 await Dify 长文流式生成，返回原始 answer（可含 VOCAB_JSON）；不走 taskQueue */
 async function generateListenLongScriptSync(inputs, userId = 'default-user') {
-  const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
-    || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
-    || process.env.DIFY_LISTEN_GEN_API_KEY
-    || 'app-vBQMyqeHD16U0XxzUt9DdJYI';
+  const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY || process.env.DIFY_LISTEN_GEN_API_KEY;
   if (!apiKey) {
     throw new Error('缺少关键鉴权参数 (API KEY)');
   }
@@ -2506,10 +2503,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
 app.post('/api/listen/generate-material-long', async (req, res) => {
   try {
     const { inputs, userId = 'default-user' } = req.body;
-    const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY
-      || process.env.VITE_DIFY_LONG_AUDIO_API_KEY
-      || process.env.DIFY_LISTEN_GEN_API_KEY
-      || 'app-vBQMyqeHD16U0XxzUt9DdJYI';
+    const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY || process.env.DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) {
       return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
     }
@@ -4138,7 +4132,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
   }
 
   const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
-  const WORKFLOW_KEY = 'app-F6daqhSXH942sBrnGki4kzZq';
+  const WORKFLOW_KEY = process.env.DIFY_KNOWLEDGE_IMPORT_API_KEY;
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
@@ -4536,9 +4530,7 @@ app.get('/api/dify/embed-session', async (req, res) => {
     return res.status(400).json({ message: '缺少 userId 参数。' });
   }
 
-  const apiKey = process.env.DIFY_CHATBOT_API_KEY
-    || process.env.VITE_DIFY_CHATBOT_API_KEY
-    || 'app-TyztRkdBVX4kNUxA8dZ0frk7';
+  const apiKey = process.env.DIFY_CHATBOT_API_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
@@ -4653,9 +4645,7 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
     return res.status(400).json({ message: '缺少 query 参数。' });
   }
 
-  const apiKey = process.env.DIFY_CHATBOT_API_KEY
-    || process.env.VITE_DIFY_CHATBOT_API_KEY
-    || 'app-TyztRkdBVX4kNUxA8dZ0frk7';
+  const apiKey = process.env.DIFY_CHATBOT_API_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
@@ -4839,7 +4829,7 @@ app.post('/api/dify/write-review', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Missing required parameters: user_text, mail_intent, or theme.' });
   }
 
-  const apiKey = process.env.DIFY_WRITE_GOVERNANCE_KEY || 'app-l4RcdCyDTzUPnY0GHlsgrUcs';
+  const apiKey = process.env.DIFY_WRITE_GOVERNANCE_API_KEY || process.env.DIFY_WRITE_GOVERNANCE_KEY;
   const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
   try {
@@ -5099,7 +5089,7 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
       examples = payload.business_examples.map(s => `${s.en || ''} ${s.zh || ''}`).join('\n');
     }
 
-    const memoryApiKey = process.env.DIFY_MEMORY_AID_API_KEY || 'app-aElSukJkmKmojPkVSk6H1mmN';
+    const memoryApiKey = process.env.DIFY_MEMORY_AID_API_KEY;
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     console.log(`[Memory Aid] Generating memory aid for "${word}" (ID: ${row.id})`);
@@ -5361,7 +5351,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
   setImmediate(async () => {
     // 创建 Dify 知识库文档，轮询索引状态，触发提纯工作流，写入生词本
     const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
-    const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
+    const WORKFLOW_KEY = process.env.DIFY_VIDEO_WORKFLOW_KEY;
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     try {
@@ -6477,7 +6467,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
     }
 
-    const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
+    const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY;
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     let wfResponse;
@@ -7565,7 +7555,7 @@ app.post('/api/grammar-polish', async (req, res) => {
 
   try {
     // ???????????????????????????????????????????????????????????????????(????????????Key ?????)
-    const difyApiKey = process.env.DIFY_GRAMMAR_API_KEY || 'app-547Sa5oIC3Qb9RUZdasJs1Ef';
+    const difyApiKey = process.env.DIFY_GRAMMAR_API_KEY;
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const response = await fetch(`${baseUrl}/workflows/run`, {
@@ -7655,7 +7645,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
 
   (async () => {
     try {
-      const difyApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+      const difyApiKey = process.env.DIFY_GAME_THEORY_API_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
       const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
       taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接博弈模型 (Dify)...'] });
@@ -7917,9 +7907,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
 
   try {
     const difyApiKey =
-      process.env.VITE_DIFY_BIWEEKLY_REVIEW_API_KEY
-      || process.env.DIFY_BIWEEKLY_REVIEW_API_KEY
-      || 'app-p8u1qA8A6iWDB6FzEOtjectn';
+      process.env.DIFY_BIWEEKLY_REVIEW_API_KEY;
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const memoryCtx = buildMemoryContextForUser(userId);
@@ -8031,9 +8019,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
 
   try {
     const difyApiKey =
-      process.env.VITE_DIFY_WEEKLY_CHAT_ENHANCED_API_KEY
-      || process.env.DIFY_WEEKLY_CHAT_ENHANCED_API_KEY
-      || 'app-1imBRwdxi4dxa1bSLbMLTvNu';
+      process.env.DIFY_WEEKLY_CHAT_ENHANCED_API_KEY;
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const memoryCtx = buildMemoryContextForUser(userId);
@@ -8483,7 +8469,7 @@ app.post('/api/game-theory/upload-tactics-material', upload.single('file'), asyn
 
     // Call LLM to extract tactics
     const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    const gameApiKey = process.env.VITE_DIFY_GAME_THEORY_KEY || 'app-YysFumsmeSAeJaQMobMpW24r';
+    const gameApiKey = process.env.DIFY_GAME_THEORY_API_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
 
     const prompt = `你是一位资深权术大师与博弈学家，精通商场、职场的权力博弈与人性驾驭之道。
 
@@ -9157,9 +9143,7 @@ async function extractVocabFromListenArticle({
   duration,
   userId = 'default-user',
 } = {}) {
-  const apiKey = process.env.DIFY_ENGLISH_MASTERY_KEY
-    || process.env.VITE_DIFY_ENGLISH_MASTERY_KEY
-    || 'app-OShKY1EcVuLFkuxrpO28ZB0A';
+  const apiKey = process.env.DIFY_ENGLISH_MASTERY_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   // body 仅用于校验有正文；mastery 与 daily-extract 一样靠 theme/genre/cefr/duration 生成并带 VOCAB_JSON
   if (!String(body || '').trim()) {

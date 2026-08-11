@@ -131,7 +131,7 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
     taskQueue.updateTask(taskId, { progress: 65, logs: ['音轨提取成功 (16kHz 单声道 MP3)，开始上传至转写引擎...'] });
 
     // 3. 上传 MP3 到 Dify 平台获取 file_id
-    const difyApiKey = process.env.DIFY_SPEECH_API_KEY || 'app-2LpliLyJ8viBKpacvyoOHSAV';
+    const difyApiKey = process.env.DIFY_SPEECH_API_KEY;
     const endpointBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const uploadFormData = new FormData();
@@ -210,8 +210,8 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
     // 自动触发 Dify 知识库导入与提纯分析入库
     taskQueue.updateTask(taskId, { progress: 96, logs: ['转写成功！正在自动执行 Dify 知识库导入与提纯分析...'] });
 
-    const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
-    const WORKFLOW_KEY = 'app-cArGQg7bAnePU0ts63FoHrAG';
+    const DATASET_KEY = process.env.DIFY_VIDEO_DATASET_KEY || 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
+    const WORKFLOW_KEY = process.env.DIFY_VIDEO_WORKFLOW_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
     const KNOWLEAGE_PRO_SCENARIOS_DATASET_ID = 'c53857b1-f54f-42ef-a6e8-fe54e9333862';
 
