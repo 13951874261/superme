@@ -11,6 +11,7 @@ import CustomCardModal from '../../../CustomCardModal';
 import MemoryAidPanel from '../../../MemoryAidPanel';
 import VocabExportControl from '../../../VocabExportControl';
 import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
+import { showError, showSuccess } from '../../../Toast';
 
 // --- Payload Adapter ---
 function adaptWordPayload(word: any) {
@@ -188,7 +189,11 @@ export default function VocabTab() {
         if (cancelled || !full) return;
         setDueWords((prev) => prev.map((w) => (w.id === id ? { ...full, _light: false } : w)));
       })
-      .catch(() => {});
+      .catch(() => {
+        if (cancelled) return;
+        setDueWords((prev) => prev.map((word) => (word.id === id ? { ...word, _light: false } : word)));
+        showError('词条释义加载失败，可直接翻转查看或稍后重试');
+      });
     return () => {
       cancelled = true;
     };
@@ -201,15 +206,24 @@ export default function VocabTab() {
   const spellChallengeData = useMemo(() => {
     if (!currentWord || !adaptedWord || !adaptedWord.payload) return { meaning: '', maskedSentence: '' };
     const p = adaptedWord.payload;
-    const meaning = p.meaning_zh || currentWord.payload?.meaning || '请根据例句拼写';
+    const meaning = p.meaning_zh
+      || p.translation_main
+      || p.meaning
+      || p.definition
+      || (Array.isArray(p.definitions_en) ? p.definitions_en[0] : '')
+      || currentWord.payload?.meaning
+      || (currentWord._light ? '正在加载释义…' : '暂无释义，可先翻转查看完整词条');
     let example = '';
-    if (p.scenarios && p.scenarios.length > 0) {
-      example = p.scenarios[0].example_en;
-    } else if (p.example_sentences && p.example_sentences.length > 0) {
-      example = p.example_sentences[0];
+    if (Array.isArray(p.scenarios) && p.scenarios.length > 0) {
+      const scenario = p.scenarios[0];
+      example = typeof scenario === 'string' ? scenario : (scenario?.example_en || scenario?.en || scenario?.example || '');
+    } else if (Array.isArray(p.example_sentences) && p.example_sentences.length > 0) {
+      const sentence = p.example_sentences[0];
+      example = typeof sentence === 'string' ? sentence : (sentence?.en || sentence?.example_en || sentence?.example || '');
     }
-    const regex = new RegExp(currentWord.word, 'gi');
-    const maskedSentence = example ? example.replace(regex, '_________') : 'No example available.';
+    const escapedWord = currentWord.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(escapedWord, 'gi');
+    const maskedSentence = example ? example.replace(regex, '_________') : '暂无例句，可直接翻转查看词条。';
     return { meaning, maskedSentence };
   }, [currentWord, adaptedWord]);
 
@@ -235,6 +249,7 @@ export default function VocabTab() {
       if (quality === 5) setShowConfetti(true);
       window.dispatchEvent(new Event('vocab-updated'));
       showNotice('eval', `已评分 ${quality}/5，推入下个词`, 'success');
+      showSuccess(`复习记录已保存：${currentWord.word}（${quality}/5）`);
       setEvalResult(null);
       setSentenceInput('');
       advanceWord();
@@ -265,6 +280,7 @@ export default function VocabTab() {
         await submitReview(currentWord.id, quality);
         window.dispatchEvent(new Event('vocab-updated'));
         showNotice('eval', '评估完成，已写入复习记录', 'success');
+        showSuccess(`复习记录已保存：${currentWord.word}（${quality}/5）`);
       } else {
         playError();
         void appendErrorLedgerEntries('vocab', [{
@@ -432,7 +448,8 @@ export default function VocabTab() {
                       value={spellInput}
                       onChange={(e) => setSpellInput(e.target.value)}
                       onKeyDown={handleSpellCheck}
-                      placeholder="Type the word and press Enter..."
+                      disabled={Boolean(currentWord._light)}
+                      placeholder={currentWord._light ? '正在加载词条释义…' : 'Type the word and press Enter...'}
                       className={`w-full bg-white border-2 rounded-xl px-5 py-4 text-center text-lg font-bold tracking-widest outline-none transition-all shadow-inner ${
                         isSpellError ? 'border-red-400 bg-red-50 text-red-600 animate-[shake_0.4s_ease-in-out]' : 'border-slate-200 focus:border-[#FF5722] text-[#202124]'
                       }`}
