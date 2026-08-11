@@ -8133,8 +8133,17 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     try {
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
-      console.error('解析 Dify 升维引擎返回的 JSON 失败:', e, raw);
-      return res.status(500).json({ success: false, error: '升维研判结果格式异常，无法解析 JSON' });
+      console.warn("[Ascension] Dify JSON parse failed, falling back to LLM:", e.message);
+      try {
+        const ascFallback = require("./services/ascensionFallback");
+        parsedResult = await ascFallback.analyzeAscension({
+          event_text, layers, dimension, scene_type, game_model, user_current_profile,
+        }, process.env.ASCENSION_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '');
+        return res.json({ success: true, result: parsedResult, source: "llm_fallback" });
+      } catch (fallbackErr) {
+        console.error("[Ascension] LLM fallback also failed:", fallbackErr.message);
+        return res.status(500).json({ success: false, error: '???????????? LLM ??????: ' + fallbackErr.message });
+      }
     }
 
     res.json({ success: true, result: parsedResult });
