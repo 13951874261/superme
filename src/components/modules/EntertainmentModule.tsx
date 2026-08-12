@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 import { 
 
-  Wine, Compass, Flame, Trophy, CheckCircle2, AlertTriangle, 
+  Wine, Compass, Flame, Trophy, Spade, CheckCircle2, AlertTriangle, 
 
   BookOpen, RotateCcw, HelpCircle, FileText, ShieldAlert
 
@@ -936,6 +936,18 @@ export default function EntertainmentModule() {
 
           智力博弈与实战对抗
 
+        </button>
+
+        <button 
+          onClick={() => { triggerClick(); setActiveTab('texas'); }}
+          className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
+            activeTab === 'texas' 
+              ? 'bg-zinc-900 text-white shadow-sm' 
+              : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100/50'
+          }`}
+        >
+          <Spade size={14} />
+          ??????
         </button>
 
         <button 
