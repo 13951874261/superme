@@ -128,7 +128,7 @@ export default function MainContent({
       <div className="px-4 md:px-6 lg:px-8 mx-auto w-full max-w-[1600px] pt-2 pb-16 flex flex-col min-h-full">
         
         {/* 顶部 Tab 导航 (The Execution 调度器) */}
-        <div className="mb-3 flex flex-wrap gap-1.5 border-b border-slate-200/60 pb-2">
+        <div className="mb-3 flex flex-wrap justify-between gap-1.5 border-b border-slate-200/60 pb-2">
           {TABS.map(tab => {
             const isTabLocked = (isLocked && tab.id !== 'english') || isModulePaused(tab.id);
             const isActive = activeModule === tab.id;
