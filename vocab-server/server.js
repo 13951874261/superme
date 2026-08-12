@@ -437,6 +437,7 @@ const { createWorkflowRunner, createWorkflowUploader } = require('./services/eng
 const { analyzeListening } = require('./services/listenAnalysisService');
 const { evaluateSentence } = require('./services/sentenceEvaluationService');
 const { purifyVocabulary } = require('./services/vocabPurifyService');
+const { analyzeWriting, normalizeResult: normalizeWritingResult, isMeaningfulResult: isMeaningfulWritingResult } = require('./services/writeGovernanceFallback');
 const difyWorkflowBaseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const analyzeReadPenetration = createReadPenetrationAnalyzer({
   apiKey: process.env.DIFY_READ_PENETRATION_KEY || process.env.VITE_DIFY_READ_PENETRATION_KEY,
@@ -8231,6 +8232,58 @@ async function handleEnglishWorkflow(req, res, runner, label) {
   }
 }
 
+async function handleWriteGovernanceWorkflow(req, res) {
+  const inputs = req.body?.inputs || {};
+  const taskType = String(inputs.task_type || 'document_correction');
+  const originalText = String(inputs.original_text || '').trim();
+  if (!originalText) {
+    return res.status(400).json({ error: '缺少待批改的原文' });
+  }
+  const additionalParams = String(inputs.additional_params || '');
+  const userId = req.body?.userId || req.body?.user || 'default-user';
+
+  const toAnalysisResult = (parsed) =>
+    res.json({ data: { outputs: { analysis_result: JSON.stringify(parsed) } }, source: 'dify' });
+
+  try {
+    const payload = await englishWorkflowRunners.writeGovernance({
+      inputs: { _system_time: new Date().toISOString(), _system_timestamp_ms: Date.now(), ...inputs },
+      userId,
+    });
+    const raw = payload?.data?.outputs?.analysis_result
+      ?? payload?.data?.outputs?.result
+      ?? payload?.data?.outputs?.text
+      ?? payload?.answer
+      ?? '';
+    if (raw) {
+      const text = typeof raw === 'string' ? raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim() : JSON.stringify(raw);
+      let parsed = null;
+      try {
+        const m = text.match(/\{[\s\S]*\}/);
+        if (m) parsed = JSON.parse(m[0]);
+      } catch { parsed = null; }
+      if (parsed && isMeaningfulWritingResult(parsed, taskType)) {
+        return toAnalysisResult(normalizeWritingResult(parsed, taskType));
+      }
+    }
+    throw new Error('Dify workflow returned empty or invalid result');
+  } catch (error) {
+    console.warn('[Write Governance] Dify failed, falling back to local LLM:', error.message);
+  }
+
+  try {
+    const apiKey = process.env.WRITE_GOVERNANCE_LLM_API_KEY
+      || process.env.DIFY_WRITE_GOVERNANCE_API_KEY
+      || process.env.LISTEN_LLM_API_KEY
+      || '';
+    const parsed = await analyzeWriting({ taskType, originalText, additionalParams }, apiKey);
+    return res.json({ data: { outputs: { analysis_result: JSON.stringify(parsed) } }, source: 'llm_fallback' });
+  } catch (fallbackError) {
+    console.error('[Write Governance] LLM fallback also failed:', fallbackError.message);
+    return res.status(502).json({ error: '文治系统暂不可用，请稍后重试' });
+  }
+}
+
 app.post('/api/vocab/purify', async (req, res) => {
   const { articleText, article_text, topic = '' } = req.body || {};
   try {
@@ -8262,6 +8315,7 @@ app.post('/api/english/sentence-evaluate', async (req, res) => {
 app.post('/api/english/wakeup', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.wakeup, 'English Wakeup'));
 app.post('/api/english/speech/evaluate', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechEvaluation, 'Speech Evaluation'));
 app.post('/api/english/write-governance', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.writeGovernance, 'Write Governance'));
+app.post('/api/english/write-governance', (req, res) => handleWriteGovernanceWorkflow(req, res));
 app.post('/api/english/speech/prompter', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechPrompter, 'Speech Prompter'));
 app.post('/api/english/speech/impromptu-exemplar', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechPrompter, 'Impromptu Exemplar'));
 app.post('/api/english/speech/exemplar', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechExemplar, 'Speech Exemplar'));

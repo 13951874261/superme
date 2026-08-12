@@ -273,7 +273,21 @@ ${benchmarkText
     }
 
     try {
-      const raw = (await runEnglishWriteReview(writingText, finalIntent, theme)) as any;
+      const raw = governanceResult
+        ? {
+            L1: governanceResult.level_1 || '',
+            L2: governanceResult.level_2 || '',
+            L3: governanceResult.level_3 || '',
+            optimized_version: (() => {
+              try {
+                const parsed = governanceResult.rawJson ? JSON.parse(governanceResult.rawJson) : {};
+                return String(parsed.optimized_version || '');
+              } catch {
+                return '';
+              }
+            })(),
+          }
+        : (await runEnglishWriteReview(writingText, finalIntent, theme)) as any;
       const normalized = {
         L1: String(raw.L1_Grammar || raw.L1 || ''),
         L2: String(raw.L2_Business_Tone || raw.L2 || ''),
