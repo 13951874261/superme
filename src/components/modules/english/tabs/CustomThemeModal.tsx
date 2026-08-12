@@ -14,6 +14,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [themeName, setThemeName] = useState('');
   const [file, setFile] = useState<{ fileName: string; content: string } | null>(null);
+  const [manualInput, setManualInput] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processStatus, setProcessStatus] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
@@ -55,8 +56,8 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
       setError('请输入场景主题名称');
       return;
     }
-    if (!file) {
-      setError('请先上传场景材料文件');
+    if (!file && !manualInput.trim()) {
+      setError('请先上传场景材料文件，或直接手动输入材料文本');
       return;
     }
 
@@ -66,9 +67,22 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
 
     try {
       setProcessStatus('正在将材料同步到 Dify 知识库...');
+      
+      let payloadFile = file;
+      if (!payloadFile && manualInput.trim()) {
+        const utf8Encoder = new TextEncoder();
+        const bytes = utf8Encoder.encode(manualInput.trim());
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64Content = 'data:text/plain;base64,' + btoa(binary);
+        payloadFile = { fileName: 'manual_input.txt', content: base64Content };
+      }
+
       const res = await addCustomTheme({
         themeName: themeName.trim(),
-        file: file,
+        file: payloadFile!,
       });
 
       if (res.success) {
@@ -103,6 +117,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
     setStep(1);
     setThemeName('');
     setFile(null);
+    setManualInput('');
     setIsProcessing(false);
     setProcessStatus('');
     setError(null);
@@ -161,6 +176,32 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Step 2: 上传您的学习材料</label>
+                
+                {!file && (
+                <div className="mb-3">
+                  <textarea
+                    value={manualInput}
+                    onChange={(e) => {
+                      setManualInput(e.target.value);
+                      if (error) setError(null);
+                    }}
+                    placeholder="或直接粘贴/输入您的自定义学习路线、场景背景描述或词条知识点（输入后点击下方按钮进入下一步）"
+                    rows={4}
+                    className="w-full bg-slate-800/60 border border-slate-800 focus:border-indigo-500 rounded-2xl px-4 py-3 text-xs font-medium placeholder-slate-500 outline-none transition-all resize-none"
+                  />
+                  {manualInput.trim() && (
+                    <div className="flex justify-end mt-2">
+                      <button
+                        onClick={() => setStep(2)}
+                        className="px-4 py-1.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase rounded-lg hover:bg-indigo-500/30 transition-all"
+                      >
+                        使用此文本材料 →
+                      </button>
+                    </div>
+                  )}
+                </div>
+                )}
+                
                 <div className="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-8 text-center bg-slate-800/20 hover:bg-slate-800/40 transition-all relative cursor-pointer">
                   <input
                     type="file"
@@ -176,12 +217,12 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
             </div>
           )}
 
-          {step === 2 && file && (
+          {step === 2 && (file || manualInput.trim()) && (
             <div className="space-y-5 animate-[fadeIn_0.15s_ease-out]">
               <div className="bg-slate-800/40 border border-slate-800/60 rounded-2xl p-4 flex items-center gap-3">
                 <FileText className="w-8 h-8 text-indigo-400" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs font-black truncate">{file.fileName}</p>
+                  <p className="text-xs font-black truncate">{file?.fileName || '手动输入文本材料'}</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">文件已读取成功，准备进行 AI 精准萃取</p>
                 </div>
               </div>
