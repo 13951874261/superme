@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 import ModuleWrapper from './ModuleWrapper';
+import { TAB_LABELS } from '../../constants/tabs';
 import TexasHoldemModule from './TexasHoldem/GameBoard';
 
 import { playClick, playSuccess, playError } from '../../utils/soundEffects';
@@ -947,7 +948,7 @@ export default function EntertainmentModule() {
           }`}
         >
           <Spade size={14} />
-          ??????
+          {TAB_LABELS.texas}
         </button>
 
         <button 
