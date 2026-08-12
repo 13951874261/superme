@@ -435,6 +435,7 @@ const aestheticsPush = aestheticsPushService.createService({
 const { createReadPenetrationAnalyzer } = require('./services/readPenetrationProxy');
 const { createWorkflowRunner, createWorkflowUploader } = require('./services/englishWorkflowProxy');
 const { analyzeListening } = require('./services/listenAnalysisService');
+const { normalizePrototypeArchive } = require('./services/prototypeArchiveGuard');
 const { evaluateSentence } = require('./services/sentenceEvaluationService');
 const { purifyVocabulary } = require('./services/vocabPurifyService');
 const { analyzeWriting, normalizeResult: normalizeWritingResult, isMeaningfulResult: isMeaningfulWritingResult } = require('./services/writeGovernanceFallback');
@@ -7699,11 +7700,11 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         return;
       }
 
-      if (parsedResult.prototype_archive && parsedResult.prototype_archive.name) {
-        const proto = parsedResult.prototype_archive;
-        const protoName = proto.name.trim();
-        const protoType = proto.type || '未分类';
-        const protoDesc = proto.description || '';
+      const normalizedPrototype = normalizePrototypeArchive(parsedResult.prototype_archive);
+      if (normalizedPrototype) {
+        const protoName = normalizedPrototype.name;
+        const protoType = normalizedPrototype.type;
+        const protoDesc = normalizedPrototype.description;
 
         const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, protoName);
         const now = Date.now();

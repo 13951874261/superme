@@ -1649,7 +1649,7 @@ export async function getPersonalPrototypes(userId = getAppUserId()): Promise<Pe
   const res = await fetch(`/api/game-theory/prototypes?userId=${encodeURIComponent(userId)}`);
   const data = await res.json().catch(() => ([]));
   if (!res.ok) {
-    throw new Error(data?.error || '随机生词提取失败，请检查后端');
+    throw new Error(data?.error || '获取人性档案列表失败');
   }
   return data as PersonalPrototype[];
 }
@@ -1670,7 +1670,7 @@ export async function upsertPersonalPrototype(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new Error(data?.error || '配额状态获取失败，请检查后端');
+    throw new Error(data?.error || '录入人性档案失败');
   }
   return data;
 }
