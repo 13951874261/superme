@@ -2755,12 +2755,31 @@ app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
       fs.unlinkSync(file.path);
     }
 
-    // 返回音频 URL
+    // 自动转写音频获取标准原文
+    let transcript = '';
+    try {
+      const { transcribeAudioFile } = require('./services/audioTranscriptionService');
+      transcript = await transcribeAudioFile(file, req.body ? (req.body.userId || 'default-user') : 'default-user');
+
+      const transcriptDir = path.join(__dirname, 'public', 'long_audio_transcripts');
+      if (!fs.existsSync(transcriptDir)) {
+        fs.mkdirSync(transcriptDir, { recursive: true });
+      }
+      const transcriptPath = path.join(transcriptDir, `${uniqueName}.txt`);
+      fs.writeFileSync(transcriptPath, transcript, 'utf8');
+
+      console.log('[Upload Audio] 转写成功，文本长度: ' + transcript.length);
+    } catch (transcribeErr) {
+      console.error('[Upload Audio] 转写失败:', transcribeErr.message);
+    }
+
+    // 返回音频 URL 与转录文本
     res.json({
       success: true,
       audioUrl: `/api/long_audio/${encodeURIComponent(uniqueName)}`,
       fileName: file.originalname,
-      uniqueName: uniqueName
+      uniqueName: uniqueName,
+      transcript: transcript
     });
   } catch (error) {
     console.error('[Upload Audio] Error:', error);

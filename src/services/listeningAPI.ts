@@ -104,10 +104,23 @@ export type TtsResponse = TtsSpeechResult;
  * 调用 /api/tts/speech 获取高保真 MP3 音频流
  * 短文本同步返回 audioUrl；长文本自动进入异步轮询模式
  */
-export async function fetchDifyTTS(text: string, options: { isAsync?: boolean } = {}): Promise<TtsResponse> {
+export async function fetchDifyTTS(
+  text: string, 
+  options: { 
+    isAsync?: boolean;
+    voiceId?: string;
+    effects?: {
+      accent?: 'indian' | 'british' | 'australian' | '';
+      packet_loss?: boolean;
+      interruptions?: boolean;
+      information_gap?: boolean;
+    };
+  } = {}
+): Promise<TtsResponse> {
   return requestTtsSpeech(text, {
-    model: buildTtsModel(),
+    model: buildTtsModel(options.voiceId),
     isAsync: options.isAsync ?? true,
+    effects: options.effects,
   });
 }
 
@@ -198,3 +211,34 @@ export async function fetchLongAudioDetail(id: string): Promise<LongAudio> {
   return data.data;
 }
 
+
+/**
+ * 上传本地听力音频文件，并触发转录返回原文
+ */
+export async function uploadLocalListeningAudio(file: File, userId: string = 'local-user'): Promise<{
+  success: boolean;
+  audioUrl: string;
+  fileName: string;
+  uniqueName: string;
+  transcript: string;
+}> {
+  const formData = new FormData();
+  formData.append('video', file); // 路由里用的是 upload.any()，这里传给 multer，也可以用 multer 的 key 匹配
+  formData.append('userId', userId);
+
+  const response = await fetch('/api/listen/upload-audio', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`音频上传失败: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || '音频上传处理失败');
+  }
+
+  return data;
+}

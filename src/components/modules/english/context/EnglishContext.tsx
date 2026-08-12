@@ -412,7 +412,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         .then((res) => {
           if (res.success) {
             setMasteryData({
-              isMastered: res.isMastered,
+              isMastered: true, /* 彻底解除限制，强制标记为已通关 */
               oralCount: res.oralCount,
               maxWriteScore: res.maxWriteScore,
               emailCompleted: res.emailCompleted,

@@ -170,9 +170,7 @@ function AppContent() {
     return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
   }, []);
 
-  const isLocked = (isInterceptorEnabled && !masteryData._isInitial && (
-    false /* 战略路线图达标不再进行强制锁定 */
-  )) || !!pendingSentenceDebt || shouldForceModal;
+  const isLocked = !!pendingSentenceDebt || shouldForceModal;
 
   // 当触发控制论强制锁定且当前不在英语引擎时，强行重定向至英语引擎
   // 如果是因为债务被锁定，还要确保切回 vocab tab

@@ -11,6 +11,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 import ModuleWrapper from './ModuleWrapper';
+import TexasHoldemModule from './TexasHoldem/GameBoard';
 
 import { playClick, playSuccess, playError } from '../../utils/soundEffects';
 
@@ -228,7 +229,7 @@ export default function EntertainmentModule() {
 
   // 核心导航状态
 
-  const [activeTab, setActiveTab] = useState<'manners' | 'aesthetics' | 'blackjack' | 'reflection'>('manners');
+  const [activeTab, setActiveTab] = useState<'manners' | 'aesthetics' | 'blackjack' | 'reflection' | 'texas'>('manners');
 
   
 
@@ -1661,6 +1662,19 @@ export default function EntertainmentModule() {
 
 
         {/* 模块四：交互复盘与定制反馈 */}
+
+        {activeTab === 'texas' && (
+          <motion.div 
+            key="texas"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="w-full h-full min-h-[600px]"
+          >
+            <TexasHoldemModule />
+          </motion.div>
+        )}
 
         {activeTab === 'reflection' && (
 

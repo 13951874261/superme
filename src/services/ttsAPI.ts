@@ -12,6 +12,12 @@ export function buildTtsModel(voiceId?: string): string {
 export interface TtsSpeechOptions {
   model?: string;
   isAsync?: boolean;
+  effects?: {
+    accent?: 'indian' | 'british' | 'australian' | '';
+    packet_loss?: boolean;
+    interruptions?: boolean;
+    information_gap?: boolean;
+  };
 }
 
 export interface TtsSpeechResult {
@@ -35,6 +41,7 @@ export async function requestTtsSpeech(
         input,
         model: options.model ?? buildTtsModel(),
         ...(options.isAsync !== undefined ? { isAsync: options.isAsync } : {}),
+        ...(options.effects !== undefined ? { effects: options.effects } : {}),
       }),
     });
 
