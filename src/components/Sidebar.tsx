@@ -7,6 +7,7 @@ import VocabularyBook from './VocabularyBook';
 import Confetti from './Confetti';
 import { formatDateShort, getRecentDates, getTodayDateDot } from '../utils/date';
 import BiweeklyReviewCard from './modules/BiweeklyReviewCard';
+import KnowledgeVaultDrawer from './KnowledgeVault/KnowledgeVaultDrawer';
 import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
@@ -191,6 +192,7 @@ export default function Sidebar({
   const [careerEditData, setCareerEditData] = useState({ ...careerPath });
   const [showConfetti, setShowConfetti] = useState(false);
   const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
+  const [isVaultOpen, setIsVaultOpen] = useState(false);
 
   const calendarDays = React.useMemo(
     () => getDaysInMonth(viewYear, viewMonth),
@@ -601,12 +603,28 @@ export default function Sidebar({
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
               )}
+              {/* 6. 资料抽屉 */}
+              <button
+                type="button"
+                onClick={() => {
+                  playClick();
+                  setIsVaultOpen(true);
+                }}
+                className="w-full flex items-center justify-between p-3 rounded-xl border border-dashed border-zinc-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all cursor-pointer outline-none"
+              >
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-3.5 h-3.5 text-[#FF5722]" />
+                  <span className="text-[11px] font-bold tracking-widest">资料抽屉</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 opacity-60" />
+              </button>
             </div>
           </div>
         </div>
 
         </div>
       </div>
+      <KnowledgeVaultDrawer isOpen={isVaultOpen} onClose={() => setIsVaultOpen(false)} />
       {showConfetti && (
         <Confetti duration={3000} onComplete={() => setShowConfetti(false)} />
       )}

@@ -10467,6 +10467,132 @@ app.post('/api/material/export-docx', async (req, res) => {
   }
 });
 
+// ==========================================
+// 资料管理抽屉 CRUD API
+// ==========================================
+// 统一列表/新增
+app.get('/api/knowledge-vault/notes', (req, res) => {
+  try {
+    const { userId, type } = req.query;
+    if (!userId || !type) return res.status(400).json({ error: 'userId and type required' });
+    const rows = db.prepare('SELECT * FROM knowledge_vault WHERE user_id = ? AND type = ? ORDER BY added_at DESC').all(userId, type);
+    res.json(rows);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/knowledge-vault/notes', (req, res) => {
+  try {
+    const { userId, type, word, meaning, example, title, category, summary, content, source } = req.body || {};
+    if (!userId || !type) return res.status(400).json({ error: 'userId and type required' });
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    db.prepare(`
+      INSERT INTO knowledge_vault (id, user_id, type, word, meaning, example, title, category, summary, content, source, added_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, userId, type, word || '', meaning || '', example || '', title || '', category || '', summary || '', content || '', source || 'manual', now);
+    res.status(201).json({ id, userId, type, word, meaning, example, title, category, summary, content, source: source || 'manual', added_at: now });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/knowledge-vault/notes/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const { word, meaning, example, title, category, summary, content, source } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (word !== undefined) { fields.push('word = ?'); values.push(word); }
+    if (meaning !== undefined) { fields.push('meaning = ?'); values.push(meaning); }
+    if (example !== undefined) { fields.push('example = ?'); values.push(example); }
+    if (title !== undefined) { fields.push('title = ?'); values.push(title); }
+    if (category !== undefined) { fields.push('category = ?'); values.push(category); }
+    if (summary !== undefined) { fields.push('summary = ?'); values.push(summary); }
+    if (content !== undefined) { fields.push('content = ?'); values.push(content); }
+    if (source !== undefined) { fields.push('source = ?'); values.push(source); }
+    if (!fields.length) return res.status(400).json({ error: 'no fields to update' });
+    values.push(id);
+    const result = db.prepare(`UPDATE knowledge_vault SET ${fields.join(', ')} WHERE id = ?`).run(...values);
+    if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+    const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    res.json(row);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/knowledge-vault/notes/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = db.prepare('DELETE FROM knowledge_vault WHERE id = ?').run(id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 资料管理抽屉导出 Word (.docx)
+app.post('/api/knowledge-vault/export-docx', async (req, res) => {
+  try {
+    const { title, sections } = req.body || {};
+    const docx = require('docx');
+    const { Document, Paragraph, TextRun, HeadingLevel, Packer, PageBreak } = docx;
+
+    const docChildren = [];
+
+    docChildren.push(new Paragraph({
+      text: title || '资料管理总汇',
+      heading: HeadingLevel.HEADING_1,
+      spacing: { after: 400 }
+    }));
+
+    (Array.isArray(sections) ? sections : []).forEach((section, index) => {
+      if (index > 0) {
+        docChildren.push(new Paragraph({ children: [new PageBreak()] }));
+      }
+      docChildren.push(new Paragraph({
+        children: [new TextRun({
+          text: String(section?.heading || ''),
+          bold: true,
+          size: 28,
+          color: 'FF5722'
+        })],
+        heading: HeadingLevel.HEADING_2,
+        spacing: { after: 200 }
+      }));
+      (Array.isArray(section?.items) ? section.items : []).forEach((item) => {
+        docChildren.push(new Paragraph({
+          text: String(item || ''),
+          spacing: { after: 100, before: 50 },
+          indent: { left: 360 }
+        }));
+      });
+    });
+
+    docChildren.push(new Paragraph({
+      children: [new TextRun({
+        text: `生成时间: ${new Date().toLocaleString('zh-CN')}`,
+        size: 20,
+        color: '888888'
+      })],
+      spacing: { before: 200 }
+    }));
+
+    const doc = new Document({ sections: [{ children: docChildren }] });
+    const buffer = await Packer.toBuffer(doc);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    res.setHeader('Content-Disposition', 'attachment; filename=knowledge-vault.docx');
+    res.send(buffer);
+  } catch (error) {
+    console.error('[KnowledgeVault DOCX Export] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
 app.use((req, res) => res.status(404).json({ error: "Endpoint not found" }));
 
 // ==========================================
@@ -10481,6 +10607,36 @@ process.on('uncaughtException', (err) => {
   console.error('[Uncaught Exception]', err);
   ttsLongLock = false;
 });
+
+// ==========================================
+// 资料管理抽屉 表
+// ==========================================
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS knowledge_vault (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    word TEXT,
+    meaning TEXT,
+    example TEXT,
+    title TEXT,
+    category TEXT,
+    summary TEXT,
+    content TEXT,
+    source TEXT,
+    added_at INTEGER
+  )
+`).run();
+
+// 索引
+try {
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_user_type ON knowledge_vault(user_id, type)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_added_at ON knowledge_vault(added_at)').run();
+} catch (err) {
+  console.warn('Migration: knowledge_vault indexes skipped:', err?.message || err);
+}
+
+
 
 if (require.main === module) {
 app.listen(PORT, () => {
