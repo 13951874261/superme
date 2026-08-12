@@ -1,11 +1,11 @@
 ﻿import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Trophy, RotateCcw, AlertCircle, Swords } from 'lucide-react';
+import { Trophy, RotateCcw, Swords, Settings, Info } from 'lucide-react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 
 import {
-   TexasHoldemState, HandResult, Player, PlayerAction, SidePot,
+  TexasHoldemState, HandResult, Player, PlayerAction, SidePot,
   Suit, Rank, RANK_VALUE, PlayerStatus, AiProfile
 } from './types';
 import { evaluateBestHand, compareEvaluations } from './HandRanker';
@@ -18,41 +18,38 @@ import CommunityCards from './CommunityCards';
 import PlayerActionPanel from './PlayerAction';
 import GameLog from './GameLog';
 
-const PLAYER_COLORS = ['#38bdf8', '#f472b6', '#a78bfa', '#34d399', '#fb923c', '#facc15'];
 const POSITIONS = [
-  'bottom-center', 'left-bottom', 'left-top', 'right-top', 'right-bottom', 'top-center'
+  'bottom-12 left-1/2 -translate-x-1/2', // Player 0 (Bottom Center)
+  'bottom-1/3 left-6',                   // Player 1 (Left Bottom)
+  'top-1/3 left-6',                      // Player 2 (Left Top)
+  'top-12 left-1/2 -translate-x-1/2',    // Player 3 (Top Center)
+  'top-1/3 right-6',                     // Player 4 (Right Top)
+  'bottom-1/3 right-6'                   // Player 5 (Right Bottom)
 ];
-
-function getSuitClass(suit: string): string {
-  if (suit === '♥' || suit === '♦') return 'text-rose-600';
-  if (suit === '♠') return 'text-zinc-900';
-  return 'text-zinc-700';
-}
 
 export default function TexasHoldemModule() {
   const [state, setState] = useState<TexasHoldemState | null>(null);
   const [showdown, setShowdown] = useState(false);
   const [result, setResult] = useState<HandResult | null>(null);
   const [logs, setLogs] = useState<string[]>([]);
-  
-  const [chipEls, setChipEls] = useState<HTMLElement[]>([]);
-  const chipRefs = useRef<Map<string, HTMLElement>>(new Map());
-  const communityRefs = useRef<Map<number, HTMLElement>>(new Map());
-  const startRef = useRef<HTMLElement | null>(null);
+  const [isDealing, setIsDealing] = useState(false);
+
+  const containerRef = useRef<HTMLDivElement>(null);
+  const dealerBtnRef = useRef<HTMLDivElement>(null);
 
   const initPlayers = useCallback(() => {
-    const profiles: AiProfile[] = ['loosePassive', 'tightAggressive', 'tightPassive', 'looseAggressive'];
-    const p = Array.from({ length: 6 }, (_, i) => ({
+    const profiles: AiProfile[] = ['tightAggressive', 'loosePassive', 'tightPassive', 'looseAggressive'];
+    const p: Player[] = Array.from({ length: 6 }, (_, i) => ({
       id: `p${i}`,
       seat: i,
-      name: i === 0 ? '你' : `玩家 ${i}`,
+      name: i === 0 ? '你 (You)' : `AI 助手 ${i}`,
       chips: 10000,
-      hand: [] as { suit: Suit; rank: Rank }[],
+      hand: [],
       currentBet: 0,
       totalCommitted: 0,
-      status: 'active' as PlayerStatus,
+      status: 'active',
       isHuman: i === 0,
-      aiProfile: profiles[i - 1],
+      aiProfile: i === 0 ? undefined : profiles[(i - 1) % profiles.length],
       hasActed: false,
     }));
     return p;
@@ -66,6 +63,10 @@ export default function TexasHoldemModule() {
     // Reset players who went out
     const resetPlayers = players.map(p => ({
       ...p,
+      hand: [],
+      currentBet: 0,
+      totalCommitted: 0,
+      hasActed: false,
       chips: p.chips > 0 ? p.chips : 10000,
       status: p.chips > 0 ? ('active' as PlayerStatus) : 'out',
     }));
@@ -74,52 +75,70 @@ export default function TexasHoldemModule() {
     setState(newState);
     setShowdown(false);
     setResult(null);
-    setLogs([]);
+    setLogs(newState.logs);
+    
+    // Trigger GSAP deal animation on new hand
+    setIsDealing(true);
+    setTimeout(() => {
+      setIsDealing(false);
+      triggerDealAnimation();
+    }, 100);
   }, [state, initPlayers]);
 
   useEffect(() => {
-    if (state && !startRef.current) {
-      // Wait for next frame
-      setTimeout(() => startNewHand(), 100);
+    if (!state) {
+      startNewHand();
     }
   }, [state, startNewHand]);
 
-  // Handle AI moves
+  // Handle AI moves clockwise
   useEffect(() => {
-    if (!state || state.currentTurnSeat === -1) return;
+    if (!state || state.currentTurnSeat === -1 || showdown) return;
     
     const player = state.players[state.currentTurnSeat];
-    if (!player || player.isHuman) return;
+    if (!player || player.isHuman || player.status !== 'active') return;
     
     const timeout = setTimeout(() => {
       const action = getAiDecision(state, state.currentTurnSeat);
       handleAiAction(action);
-    }, 800 + Math.random() * 600);
+    }, 1000 + Math.random() * 800);
     
     return () => clearTimeout(timeout);
-  }, [state?.currentTurnSeat, state?.round]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state?.currentTurnSeat, state?.round, showdown]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleAiAction = (action: PlayerAction, isUser?: boolean) => {
+  const triggerDealAnimation = () => {
+    if (!containerRef.current) return;
+    const cards = containerRef.current.querySelectorAll('[data-card]');
+    const dealerBtn = dealerBtnRef.current;
+    if (!dealerBtn) return;
+
+    cards.forEach((card, index) => {
+      animateDeal({
+        cardEl: card as HTMLElement,
+        startEl: dealerBtn,
+        targetEl: card.parentElement as HTMLElement,
+        delay: index * 0.15
+      });
+    });
+  };
+
+  const handleAiAction = (action: PlayerAction) => {
     if (!state) return;
     
     const newState = handleAction(state, state.currentTurnSeat, action);
     
-    // If round complete, progress
     if (newState.currentTurnSeat === -1) {
       const afterProgress = progressRound(newState);
       setState(afterProgress);
       setLogs(prev => [...prev, ...afterProgress.logs]);
       
-      // Trigger deal animations
-      triggerAnimations(afterProgress);
+      if (afterProgress.round === 'showdown') {
+        handleShowdown(afterProgress);
+      }
     } else {
       setState(newState);
       setLogs(prev => [...prev, ...newState.logs]);
     }
-  };
-
-  const triggerAnimations = (currentState: TexasHoldemState) => {
-    // Implement GSAP animations here based on currentState
   };
 
   const handleUserAction = (action: PlayerAction) => {
@@ -130,144 +149,152 @@ export default function TexasHoldemModule() {
       const afterProgress = progressRound(newState);
       setState(afterProgress);
       setLogs(prev => [...prev, ...afterProgress.logs]);
-      triggerAnimations(afterProgress);
+      
+      if (afterProgress.round === 'showdown') {
+        handleShowdown(afterProgress);
+      }
     } else {
       setState(newState);
       setLogs(prev => [...prev, ...newState.logs]);
     }
   };
 
-  const handleShowdown = () => {
-    if (!state) return;
-    const result = settleWinners(state);
-    setResult(result);
+  const handleShowdown = (finalState: TexasHoldemState) => {
+    const settleResult = settleWinners(finalState);
+    setResult(settleResult);
     setShowdown(true);
     
-    // Animate cards to winners
-    result.winners.forEach(w => {
-      const seatEl = document.querySelector(`[data-seat="${w.playerId}"]`) as HTMLElement;
-      const trophyEl = document.getElementById('trophy-pot');
-      if (seatEl && trophyEl) {
-        animateChipMove(trophyEl, trophyEl, seatEl);
-      }
-    });
+    // Animate chips to winners
+    setTimeout(() => {
+      settleResult.winners.forEach(w => {
+        const seatEl = containerRef.current?.querySelector(`[data-seat="${w.playerId}"]`) as HTMLElement;
+        const potEl = document.getElementById('pot-chip-container');
+        if (seatEl && potEl) {
+          animateChipMove(potEl, potEl, seatEl);
+        }
+      });
+    }, 500);
   };
 
   if (!state) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-full items-center justify-center bg-[#090a0f]">
         <div className="text-center space-y-4">
-          <div className="w-12 h-12 mx-auto border-2 border-zinc-900 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-bold uppercase tracking-widest text-zinc-500">初始化牌局...</p>
+          <div className="w-10 h-10 mx-auto border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">初始化牌桌中 (INITIALIZING)...</p>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="relative w-full h-full overflow-hidden bg-[#0f1115]">
-      {/* Felt Table */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="relative w-[95%] h-[85%] max-w-[1000px] max-h-[600px] bg-emerald-900 rounded-[100px] shadow-[inset_0_0_80px_rgba(0,0,0,0.7)] border-[16px] border-[#1a1a1a]">
-          {/* Center Pot Area */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] sm:w-[400px] text-center space-y-4">
-            {/* Community Cards */}
-            <div className="relative">
-              <CommunityCards cards={state.communityCards} />
-              {showdown && result && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="absolute -bottom-12 left-1/2 -translate-x-1/2 bg-zinc-950/90 border border-zinc-700 px-4 py-2 rounded-xl"
-                >
-                  <div className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-1">最佳牌型</div>
-                  <div className="text-xs font-bold text-amber-400">
-                    {result.winners[0]?.evaluation.label || '牌局结束'}
-                  </div>
-                </motion.div>
-              )}
-            </div>
-            
-            {/* Pot Display */}
-            <div className="relative">
-              <div className="text-2xl sm:text-3xl font-black text-amber-400 drop-shadow-lg flex items-center justify-center gap-2">
-                <span>$</span>
-                <span>{state.players.reduce((sum, p) => sum + p.currentBet, 0)}</span>
-              </div>
-              <div ref={(el) => { if (el) document.getElementById('trophy-pot')?.remove(); }}>
-                {/* Chips container for animation */}
-              </div>
-            </div>
+  const currentActivePlayer = state.players[state.currentTurnSeat];
 
-            {/* Buttons */}
-            {!showdown && getActivePlayerCount(state.players) > 0 && (
-              <button
-                onClick={handleShowdown}
-                className="mt-4 flex items-center gap-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-black uppercase tracking-widest text-xs py-2.5 px-6 rounded-full transition-colors"
-              >
-                <Swords size={14} />
-                摊牌
-              </button>
-            )}
-            
-            {showdown && result && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-center gap-2 text-emerald-400 font-black uppercase tracking-widest text-sm">
-                  <Trophy size={16} />
-                  <span>牌局结束</span>
-                </div>
-                <button
-                  onClick={startNewHand}
-                  className="flex items-center gap-2 mx-auto bg-white hover:bg-zinc-200 text-zinc-950 font-black uppercase tracking-widest text-xs py-2.5 px-6 rounded-full transition-colors"
-                >
-                  <RotateCcw size={14} />
-                  下一局
-                </button>
-              </div>
-            )}
+  return (
+    <div ref={containerRef} className="relative w-full h-[620px] overflow-hidden bg-[#0a0b0d] flex items-center justify-center font-sans select-none">
+      
+      {/* felt background texture & board border */}
+      <div className="relative w-[92%] h-[82%] max-w-[900px] max-h-[500px] bg-[#14181f] rounded-[180px] shadow-[inset_0_0_120px_rgba(0,0,0,0.85)] border-[10px] border-[#1d222b] flex items-center justify-center">
+        
+        {/* Inner felt decor */}
+        <div className="absolute inset-4 rounded-[160px] border border-zinc-800/20 pointer-events-none" />
+
+        {/* Center community area */}
+        <div className="text-center z-10 space-y-5">
+          <div className="text-[9px] font-black uppercase tracking-[0.3em] text-zinc-500">
+            {state.round === 'preflop' ? 'Pre-Flop' : state.round.toUpperCase()}
           </div>
+          
+          <CommunityCards cards={state.communityCards} />
+          
+          {/* Pot display */}
+          <div className="relative inline-flex flex-col items-center">
+            <div id="pot-chip-container" className="flex items-center gap-1.5 bg-zinc-950/80 border border-zinc-800/80 rounded-full px-4 py-1.5 shadow-2xl">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse inline-block" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">底池 (POT)</span>
+              <span className="font-mono text-xs font-black text-amber-300">
+                ${state.players.reduce((sum, p) => sum + p.currentBet, 0) + state.potState.mainPot}
+              </span>
+            </div>
+          </div>
+
+          {/* Showdown panel info */}
+          {showdown && result && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-zinc-950/95 border border-zinc-800 p-4 rounded-xl max-w-xs mx-auto shadow-2xl space-y-3"
+            >
+              <div>
+                <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">获胜者 (WINNER)</div>
+                <div className="text-xs font-black text-amber-400 mt-1">
+                  {result.winners.map(w => state.players.find(p => p.id === w.playerId)?.name).join(', ')}
+                </div>
+                <div className="text-[10px] text-zinc-300 mt-0.5">
+                  赢取了 ${result.winners.reduce((sum, w) => sum + w.amount, 0)}
+                </div>
+              </div>
+              <button
+                onClick={startNewHand}
+                className="w-full bg-white hover:bg-zinc-200 text-zinc-950 font-black uppercase tracking-widest text-[10px] py-2 rounded-lg transition-colors"
+              >
+                下一局 (NEXT HAND)
+              </button>
+            </motion.div>
+          )}
         </div>
+
+        {/* Dealer Button location */}
+        <div ref={dealerBtnRef} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-zinc-800 border border-zinc-700 opacity-0 pointer-events-none" />
       </div>
 
-      {/* Seats */}
-      {state.players.map((player, index) => (
-        <Seat
-          key={player.id}
-          player={player}
-          isDealer={player.seat === state.dealerSeat}
-          isCurrent={state.currentTurnSeat === index && state.round !== 'showdown'}
-          isShowdown={showdown}
-          positionClass={POSITIONS[player.seat] || ''}
-        />
-      ))}
+      {/* Seats surrounding the table */}
+      {state.players.map((player, index) => {
+        if (player.status === 'out') return null;
+        return (
+          <Seat
+            key={player.id}
+            player={player}
+            isDealer={player.seat === state.dealerSeat}
+            isCurrent={state.currentTurnSeat === index && !showdown}
+            isShowdown={showdown}
+            positionClass={POSITIONS[player.seat]}
+          />
+        );
+      })}
 
-      {/* Human Player Action Panel */}
-      {state.currentTurnSeat === 0 && state.round !== 'showdown' && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-md">
+      {/* Real player Action Panel */}
+      {state.currentTurnSeat === 0 && !showdown && (
+        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 w-[90%] max-w-sm">
           <PlayerActionPanel
             player={state.players[0]}
             currentBet={state.currentBet}
             minRaise={state.minRaise}
             bigBlind={state.bb}
-            disabled={false}
+            disabled={isDealing}
             onAction={handleUserAction}
           />
         </div>
       )}
 
-      {/* Game Log */}
-      <div className="fixed top-4 right-4 z-40 w-[240px]">
+      {/* Side Log panel */}
+      <div className="absolute top-4 right-4 z-30 w-[200px] h-[160px]">
         <GameLog logs={logs} />
       </div>
 
-      {/* Settings / Info */}
-      <div className="fixed top-4 left-4 z-40 bg-zinc-950/90 border border-zinc-800 rounded-xl px-4 py-3">
-        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">盲注级别</div>
-        <div className="font-mono text-sm font-bold text-zinc-300">
-          $20 / $40
+      {/* Settings / Blind Level HUD */}
+      <div className="absolute top-4 left-4 z-30 flex items-center gap-3 bg-zinc-950/90 border border-white/5 rounded-xl p-3 shadow-2xl">
+        <div>
+          <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">盲注级别</div>
+          <div className="font-mono text-xs font-black text-zinc-200">
+            ${state.sb} / ${state.bb}
+          </div>
         </div>
-        <div className="mt-2 text-[9px] font-bold uppercase tracking-widest text-zinc-600">
-          手牌 #{state.handNumber}
+        <div className="h-6 w-px bg-white/10" />
+        <div>
+          <div className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">手牌 (HAND)</div>
+          <div className="font-mono text-xs font-black text-amber-300">
+            #{state.handNumber}
+          </div>
         </div>
       </div>
     </div>
