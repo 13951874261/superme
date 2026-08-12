@@ -1,6 +1,5 @@
-﻿const https = require('https');
-
-const LLM_URL = 'https://23.95.214.232/v1/chat/completions';
+const https = require('https');
+const LLM_URL = process.env.WRITE_GOVERNANCE_LLM_URL || 'https://23.95.214.232/v1/chat/completions';
 const LLM_MODEL = 'dify';
 const REQUEST_TIMEOUT_MS = 45000;
 
@@ -18,7 +17,6 @@ function getSystemPrompt(taskType, language) {
     '你是顶级政商务写作教练、体制内公文专家和商业战略顾问。',
     '请对用户原文进行深度批改，必须返回严格JSON，禁止Markdown代码块和额外说明。',
   ];
-
   if (taskType === 'business_writing') {
     return common.concat([
       language === 'zh'
@@ -27,7 +25,6 @@ function getSystemPrompt(taskType, language) {
       '返回字段：tone_evaluation、compressed_text、skill_point、optimized_version。',
     ]).join('\n');
   }
-
   if (taskType === 'value_proposal') {
     return common.concat([
       language === 'zh'
@@ -36,7 +33,6 @@ function getSystemPrompt(taskType, language) {
       '返回字段：admin_flaws、value_extraction、business_proposal、optimized_version。',
     ]).join('\n');
   }
-
   return common.concat([
     language === 'zh'
       ? '请按中文公文批改标准审查：语法措辞、结构逻辑、政商务分寸、战略站位与合规风险。'
@@ -72,7 +68,6 @@ function callLLM(systemPrompt, userPrompt, apiKey) {
       temperature: 0.2,
       stream: false,
     });
-
     const request = https.request(LLM_URL, {
       method: 'POST',
       headers: {
@@ -98,7 +93,6 @@ function callLLM(systemPrompt, userPrompt, apiKey) {
         }
       });
     });
-
     request.setTimeout(REQUEST_TIMEOUT_MS, () => request.destroy(new Error('LLM timeout')));
     request.on('error', reject);
     request.write(requestBody);
@@ -109,7 +103,6 @@ function callLLM(systemPrompt, userPrompt, apiKey) {
 function normalizeResult(raw, taskType) {
   const value = raw && typeof raw === 'object' ? raw : {};
   const optimized = String(value.optimized_version || value.optimized || value.rewritten_text || '');
-
   if (taskType === 'business_writing') {
     return {
       tone_evaluation: String(value.tone_evaluation || value.L1 || ''),
@@ -118,7 +111,6 @@ function normalizeResult(raw, taskType) {
       optimized_version: optimized,
     };
   }
-
   if (taskType === 'value_proposal') {
     return {
       admin_flaws: String(value.admin_flaws || value.L1 || ''),
@@ -127,7 +119,6 @@ function normalizeResult(raw, taskType) {
       optimized_version: optimized,
     };
   }
-
   return {
     L1: String(value.L1 || value.level_1 || value.L1_Grammar || ''),
     L2: String(value.L2 || value.level_2 || value.L2_Business_Tone || ''),

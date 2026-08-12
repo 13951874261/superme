@@ -8273,7 +8273,6 @@ async function handleWriteGovernanceWorkflow(req, res) {
 
   try {
     const apiKey = process.env.WRITE_GOVERNANCE_LLM_API_KEY
-      || process.env.DIFY_WRITE_GOVERNANCE_API_KEY
       || process.env.LISTEN_LLM_API_KEY
       || '';
     const parsed = await analyzeWriting({ taskType, originalText, additionalParams }, apiKey);
