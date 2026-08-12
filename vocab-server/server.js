@@ -8314,7 +8314,6 @@ app.post('/api/english/sentence-evaluate', async (req, res) => {
 });
 app.post('/api/english/wakeup', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.wakeup, 'English Wakeup'));
 app.post('/api/english/speech/evaluate', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechEvaluation, 'Speech Evaluation'));
-app.post('/api/english/write-governance', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.writeGovernance, 'Write Governance'));
 app.post('/api/english/write-governance', (req, res) => handleWriteGovernanceWorkflow(req, res));
 app.post('/api/english/speech/prompter', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechPrompter, 'Speech Prompter'));
 app.post('/api/english/speech/impromptu-exemplar', (req, res) => handleEnglishWorkflow(req, res, englishWorkflowRunners.speechPrompter, 'Impromptu Exemplar'));
