@@ -1,4 +1,5 @@
 const https = require('https');
+
 const LLM_URL = process.env.WRITE_GOVERNANCE_LLM_URL || 'https://23.95.214.232/v1/chat/completions';
 const LLM_MODEL = 'dify';
 const REQUEST_TIMEOUT_MS = 45000;
@@ -100,29 +101,42 @@ function callLLM(systemPrompt, userPrompt, apiKey) {
   });
 }
 
+function toText(input) {
+  if (input == null) return '';
+  if (typeof input === 'string') return input;
+  if (typeof input === 'number' || typeof input === 'boolean') return String(input);
+  if (Array.isArray(input)) return input.map(toText).filter(Boolean).join('\n');
+  if (typeof input === 'object') {
+    const preferred = input.text ?? input.content ?? input.feedback ?? input.suggestion ?? input.analysis ?? input.result ?? input.description ?? input.message;
+    if (preferred != null) return toText(preferred);
+    try { return JSON.stringify(input); } catch { return ''; }
+  }
+  return String(input);
+}
+
 function normalizeResult(raw, taskType) {
   const value = raw && typeof raw === 'object' ? raw : {};
-  const optimized = String(value.optimized_version || value.optimized || value.rewritten_text || '');
+  const optimized = toText(value.optimized_version || value.optimized || value.rewritten_text || '');
   if (taskType === 'business_writing') {
     return {
-      tone_evaluation: String(value.tone_evaluation || value.L1 || ''),
-      compressed_text: String(value.compressed_text || value.optimized_version || ''),
-      skill_point: String(value.skill_point || value.L2 || ''),
+      tone_evaluation: toText(value.tone_evaluation || value.L1 || ''),
+      compressed_text: toText(value.compressed_text || value.optimized_version || ''),
+      skill_point: toText(value.skill_point || value.L2 || ''),
       optimized_version: optimized,
     };
   }
   if (taskType === 'value_proposal') {
     return {
-      admin_flaws: String(value.admin_flaws || value.L1 || ''),
-      value_extraction: String(value.value_extraction || value.L2 || ''),
-      business_proposal: String(value.business_proposal || value.L3 || ''),
+      admin_flaws: toText(value.admin_flaws || value.L1 || ''),
+      value_extraction: toText(value.value_extraction || value.L2 || ''),
+      business_proposal: toText(value.business_proposal || value.L3 || ''),
       optimized_version: optimized,
     };
   }
   return {
-    L1: String(value.L1 || value.level_1 || value.L1_Grammar || ''),
-    L2: String(value.L2 || value.level_2 || value.L2_Business_Tone || ''),
-    L3: String(value.L3 || value.level_3 || value.L3_Strategic_Position || ''),
+    L1: toText(value.L1 || value.level_1 || value.L1_Grammar || ''),
+    L2: toText(value.L2 || value.level_2 || value.L2_Business_Tone || ''),
+    L3: toText(value.L3 || value.level_3 || value.L3_Strategic_Position || ''),
     optimized_version: optimized,
   };
 }

@@ -1,4 +1,4 @@
-﻿// Write Governance Fallback unit tests
+// Write Governance Fallback unit tests
 const assert = require('assert');
 
 async function runTests() {
@@ -55,6 +55,16 @@ async function runTests() {
   assert.strictEqual(r2.tone_evaluation, 't');
   const r3 = service.normalizeResult({ admin_flaws: 'af', value_extraction: 've', business_proposal: 'bp' }, 'value_proposal');
   assert.strictEqual(r3.admin_flaws, 'af');
+  const nested = service.normalizeResult({
+    L1: { feedback: '语法层级正确' },
+    L2: { analysis: '结构层级正确' },
+    L3: { suggestion: '战略层级正确' },
+    optimized_version: { text: '嵌套优化文本' },
+  }, 'document_correction');
+  assert.strictEqual(nested.L1, '语法层级正确');
+  assert.strictEqual(nested.L2, '结构层级正确');
+  assert.strictEqual(nested.L3, '战略层级正确');
+  assert.strictEqual(nested.optimized_version, '嵌套优化文本');
   console.log('PASS normalizeResult');
 
   // 5. isMeaningfulResult
