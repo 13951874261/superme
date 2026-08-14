@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus, UploadCloud, FileAudio } from 'lucide-react';
+import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus, FileAudio } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { runListeningEngine, uploadLocalListeningAudio } from '../../../../services/listeningAPI';
@@ -594,52 +594,43 @@ export default function ListenTab() {
                   >
                     自动生成
                   </button>
-                  <button
-                    type="button"
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="audio/*,video/*"
+                    onChange={handleUploadAudio}
+                    className="hidden"
+                    id="listen-audio-upload"
+                    disabled={isUploading || isTranscribing}
+                  />
+                  <label
+                    htmlFor="listen-audio-upload"
                     onClick={() => setListenMode('upload')}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-lg font-black transition-all cursor-pointer ${
-                      listenMode === 'upload'
-                        ? 'bg-[#FF5722] text-white shadow-sm'
-                        : 'bg-black/20 text-gray-400 hover:text-white hover:bg-black/40 border border-white/10'
+                    className={`text-[10px] px-2.5 py-1.5 rounded-lg font-black transition-all flex items-center gap-1.5 ${
+                      isUploading || isTranscribing
+                        ? 'bg-[#FF5722] text-white shadow-sm pointer-events-none opacity-70 cursor-wait'
+                        : listenMode === 'upload'
+                          ? 'bg-[#FF5722] text-white shadow-sm cursor-pointer'
+                          : 'bg-black/20 text-gray-400 hover:text-white hover:bg-black/40 border border-white/10 cursor-pointer'
                     }`}
                   >
-                    上传音频
-                  </button>
-                </div>
-                {listenMode === 'upload' ? (
-                  <div className="flex items-center gap-2 shrink-0">
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="audio/*,video/*"
-                      onChange={handleUploadAudio}
-                      className="hidden"
-                      id="listen-audio-upload"
-                      disabled={isUploading || isTranscribing}
-                    />
-                    <label
-                      htmlFor="listen-audio-upload"
-                      className={`whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-all disabled:opacity-50 disabled:grayscale flex items-center gap-1.5 cursor-pointer ${
-                        isUploading || isTranscribing ? 'pointer-events-none opacity-50' : ''
-                      }`}
-                    >
-                      {isUploading ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 上传中...</>
-                      ) : isTranscribing ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 转写中...</>
-                      ) : (
-                        <><UploadCloud className="w-3.5 h-3.5 text-amber-300" /> 上传音频</>
-                      )}
-                    </label>
-                    {uploadedFileName && (
-                      <span className="text-[10px] text-white/60 max-w-[180px] truncate" title={uploadedFileName}>
-                        {uploadedFileName}
-                        {listenAudioUrl ? ' · 已上传' : ''}
-                        {uploadedTranscript ? ' · 已转写' : (uploadProgress === 100 ? ' · 转写失败' : '')}
-                      </span>
+                    {isUploading ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 上传中...</>
+                    ) : isTranscribing ? (
+                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 转写中...</>
+                    ) : (
+                      <>上传音频</>
                     )}
-                  </div>
-                ) : (
+                  </label>
+                  {listenMode === 'upload' && uploadedFileName && (
+                    <span className="text-[10px] text-white/60 max-w-[180px] truncate" title={uploadedFileName}>
+                      {uploadedFileName}
+                      {listenAudioUrl ? ' · 已上传' : ''}
+                      {uploadedTranscript ? ' · 已转写' : (uploadProgress === 100 ? ' · 转写失败' : '')}
+                    </span>
+                  )}
+                </div>
+                {listenMode !== 'upload' && (
                   <button
                     type="button"
                     onClick={() => generateListenMaterial(theme)}
