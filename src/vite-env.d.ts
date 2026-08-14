@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_DIFY_SPEECH_PROMPTER_API_KEY?: string;
   readonly VITE_DIFY_BIWEEKLY_REVIEW_API_KEY?: string;
   readonly VITE_DIFY_WEEKLY_CHAT_ENHANCED_API_KEY?: string;
+  readonly VITE_DIFY_INSIGHT_GEN_KEY?: string;
+  readonly VITE_DIFY_INSIGHT_LISTEN_KEY?: string;
   readonly GEMINI_API_KEY?: string;
 }
 

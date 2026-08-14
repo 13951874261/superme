@@ -41,6 +41,15 @@ import { downloadInsightDocx } from '../../utils/insightWordExport';
 const CATEGORIES = ['体制内', '外企', '通用逻辑'] as const;
 type CategoryType = typeof CATEGORIES[number];
 
+const FALLBACK_SCENARIOS: Record<CategoryType, string> = {
+  '体制内':
+    '【内置案例·体制内】两位项目负责人在走廊相遇。A拍了拍B的肩膀，叹了口气说：“听老李说，你们组那个项目这次拿下了？太不容易了，听说你们天天连轴转，家里都顾不上了吧。我们组这个项目虽然顺利，但也都是大家正常工时完成的，真羡慕你们这股拼劲！”\n（请解析A的潜在攀比与贬低之意）',
+  '外企':
+    '【内置案例·外企】某跨国公司中方总监在战略复盘会上，靠在椅背上双臂交叉，微笑着对美方VP说：“对于上季度的交付延迟，我们完全理解美方的担忧。不过正如你们所知，我们在本地供应链的重组上投入了极大的精力。只要美方的核心系统接口能在下周按时冻结，我相信我们能够在下阶段实现赶超。”\n（请分析其中隐藏的跨文化推责话术）',
+  '通用逻辑':
+    '【内置案例·通用逻辑】某商业谈判代表在签约前最后一轮会谈中，放慢语速，眼神直视对方CFO说：“这个价格确实是我们能给出的底线。虽然董事会的一些成员觉得我们有些让步过多，但出于双方长期的战略互信，我还是极力说服了大家。只是关于付款周期，我们可能需要按照之前的A方案执行。”\n（请识别其中的道德绑架与让步防线破绽）',
+};
+
 // 预置逻辑与心理学知识框架数据
 interface TheoryNode {
   title: string;
@@ -175,10 +184,10 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     
     try {
       const scenario = await fetchDynamicInsightScenario(category);
-      setCurrentScenario(scenario);
+      setCurrentScenario(scenario || FALLBACK_SCENARIOS[category]);
     } catch (error) {
-      console.error(error);
-      setCurrentScenario(`获取考题失败: ${error instanceof Error ? error.message : '未知错误'}\n（请确保在环境配置中加入了 VITE_DIFY_INSIGHT_GEN_KEY）`);
+      console.warn('[ListenModule] 动态出题不可用，改用内置案例', error);
+      setCurrentScenario(FALLBACK_SCENARIOS[category]);
     } finally {
       setIsLoadingScenario(false);
     }
