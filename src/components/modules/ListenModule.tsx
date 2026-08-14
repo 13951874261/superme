@@ -21,10 +21,22 @@ import {
   HelpCircle, 
   Trophy, 
   RefreshCw,
-  Award
+  Award,
+  Download
 } from 'lucide-react';
 import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB } from '../../services/difyAPI';
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
+import InsightMindMap from './insight/InsightMindMap';
+import { buildInsightMindMap, type InsightMindMapNode } from '../../utils/insightMindMapBuilder';
+import {
+  downloadSvg,
+  downloadPng,
+  downloadMarkdown,
+  mindMapToMarkdown,
+  makeMindMapFilename,
+  svgToPngBlob,
+} from '../../utils/mindMapExport';
+import { downloadInsightDocx } from '../../utils/insightWordExport';
 
 const CATEGORIES = ['体制内', '外企', '通用逻辑'] as const;
 type CategoryType = typeof CATEGORIES[number];
@@ -114,6 +126,9 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [evaluatedScore, setEvaluatedScore] = useState<number | null>(null);
+  const [mindMap, setMindMap] = useState<InsightMindMapNode | null>(null);
+  const [mindMapOpen, setMindMapOpen] = useState(true);
+  const mindMapSvgRef = useRef<SVGSVGElement | null>(null);
 
   // 录音状态
   const [isRecording, setIsRecording] = useState<Record<string, boolean>>({});
@@ -140,6 +155,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     setIsLoadingScenario(true);
     setCurrentScenario(''); 
     setFeedback(null); 
+    setMindMap(null);
     setEvaluatedScore(null);
     setFormStep(1);
     // 重置表单
@@ -361,6 +377,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setFeedback(null);
+    setMindMap(null);
     setEvaluatedScore(null);
     playClick();
 
@@ -392,6 +409,12 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       });
       
       setFeedback(resultData);
+      setMindMap(buildInsightMindMap({
+        scenario: currentScenario,
+        form: analysisForm,
+        markdown: resultData,
+      }));
+      setMindMapOpen(true);
       playReveal();
 
       // 从 AI 的 Markdown 反馈中正则提取出得分 (形如 8/10 或 得分: 9)
@@ -422,9 +445,56 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     } catch (error) {
       console.error(error);
       setFeedback(`### 解析失败\n与导师系统连接中断，请检查网络。\n\n**详情**: ${error instanceof Error ? error.message : '未知错误'}`);
+      setMindMap(buildInsightMindMap({
+        scenario: currentScenario,
+        form: analysisForm,
+        markdown: '',
+      }));
+      setMindMapOpen(true);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const exportDisabled = !mindMap;
+  const svgExportDisabled = exportDisabled || !mindMapOpen;
+
+  const handleExportSvg = () => {
+    if (!mindMapSvgRef.current) return;
+    playClick();
+    downloadSvg(mindMapSvgRef.current, makeMindMapFilename('insight', 'svg'));
+  };
+
+  const handleExportPng = async () => {
+    if (!mindMapSvgRef.current) return;
+    playClick();
+    await downloadPng(mindMapSvgRef.current, makeMindMapFilename('insight', 'png'));
+  };
+
+  const handleExportMarkdown = () => {
+    if (!mindMap) return;
+    playClick();
+    downloadMarkdown(mindMapToMarkdown(mindMap), makeMindMapFilename('insight', 'md'));
+  };
+
+  const handleExportWord = async () => {
+    if (!mindMap) return;
+    playClick();
+    let pngBlob: Blob | undefined;
+    if (mindMapOpen && mindMapSvgRef.current) {
+      try {
+        pngBlob = await svgToPngBlob(mindMapSvgRef.current);
+      } catch {
+        pngBlob = undefined;
+      }
+    }
+    await downloadInsightDocx({
+      title: '洞察导图',
+      tree: mindMap,
+      markdown: feedback || '',
+      pngBlob,
+      filename: makeMindMapFilename('insight', 'docx'),
+    });
   };
 
   return (
@@ -954,6 +1024,59 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
                 </div>
               )}
             </div>
+
+            {mindMap && (
+              <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/60">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 bg-slate-800/60">
+                  <button
+                    type="button"
+                    aria-expanded={mindMapOpen}
+                    onClick={() => { playClick(); setMindMapOpen((open) => !open); }}
+                    className="text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5"
+                  >
+                    {mindMapOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    {mindMapOpen ? '收起导图' : '展开导图'}
+                  </button>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={svgExportDisabled}
+                      onClick={handleExportSvg}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      导出 SVG
+                    </button>
+                    <button
+                      type="button"
+                      disabled={svgExportDisabled}
+                      onClick={handleExportPng}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40 flex items-center gap-1"
+                    >
+                      <Download className="w-3 h-3" />
+                      导出 PNG
+                    </button>
+                    <button
+                      type="button"
+                      disabled={exportDisabled}
+                      onClick={handleExportMarkdown}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40"
+                    >
+                      导出 Markdown
+                    </button>
+                    <button
+                      type="button"
+                      disabled={exportDisabled}
+                      onClick={handleExportWord}
+                      className="text-[10px] font-bold px-2 py-1 rounded-lg bg-slate-800 text-slate-200 hover:bg-slate-700 disabled:opacity-40"
+                    >
+                      导出 Word
+                    </button>
+                  </div>
+                </div>
+                {mindMapOpen && <InsightMindMap data={mindMap} svgRef={mindMapSvgRef} />}
+              </div>
+            )}
 
             <div className="prose prose-sm prose-invert prose-indigo max-w-none text-slate-300 leading-relaxed">
               <ReactMarkdown>{feedback}</ReactMarkdown>
