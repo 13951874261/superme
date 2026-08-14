@@ -161,6 +161,39 @@ export function getExampleSentences(word: VocabEntry): { en: string; zh: string 
   return { en: enList.join('\n'), zh: zhList.join('\n') };
 }
 
+export function extractPrimaryPhrase(word: VocabEntry): string {
+  const payload = word.payload || {};
+  const sources = [payload.collocations, payload.phrases, payload.related_phrases];
+  const list = sources.find((s) => Array.isArray(s) && s.length > 0) || [];
+  const first = list[0];
+  if (!first) return '';
+  if (typeof first === 'string') return first.trim();
+  return String(first.en || first.phrase || first.text || '').trim();
+}
+
+export function getPrimaryExample(word: VocabEntry): { en: string; zh: string } {
+  const all = getExampleSentences(word);
+  const firstLine = (s: string) => (s.split('\n').map((x) => x.trim()).find(Boolean) || '');
+  return { en: firstLine(all.en), zh: firstLine(all.zh) };
+}
+
+export function toVocabPresentation(word: VocabEntry) {
+  const normalized = normalizeVocabEntry(word);
+  const itemType = getItemType(normalized);
+  const example = getPrimaryExample(normalized);
+  const payload = normalized.payload || {};
+  return {
+    headword: normalized.word || '',
+    itemType,
+    translation: getWordTranslation(normalized),
+    phonetic: String(payload.phonetic || ''),
+    pos: String(payload.pos || ''),
+    primaryExampleEn: example.en,
+    primaryExampleZh: example.zh,
+    relatedPhrase: itemType === '单词 (Word)' ? extractPrimaryPhrase(normalized) : '',
+  };
+}
+
 function escapeCsvCell(value: string): string {
   if (/[",\n\r]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
@@ -168,7 +201,7 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
-/** 表头：word / type / translation / phonetic / pos / 例句中英 / 复习字段 */
+/** 表头：word / type / translation / phonetic / pos / related_phrase / 首条例句中英 / 复习字段 */
 export function buildVocabCsv(words: VocabEntry[]): string {
   const headers = [
     'word',
@@ -176,6 +209,7 @@ export function buildVocabCsv(words: VocabEntry[]): string {
     'translation',
     'phonetic',
     'pos',
+    'related_phrase',
     'example_sentences_en',
     'example_sentences_zh',
     'repetitions',
@@ -184,16 +218,16 @@ export function buildVocabCsv(words: VocabEntry[]): string {
   ];
   const now = Date.now();
   const rows = words.map((w) => {
-    const payload = w.payload || {};
-    const examples = getExampleSentences(w);
+    const row = toVocabPresentation(w);
     const cells = [
-      w.word || '',
-      getItemType(w),
-      getWordTranslation(w),
-      String(payload.phonetic || ''),
-      String(payload.pos || ''),
-      examples.en,
-      examples.zh,
+      row.headword,
+      row.itemType,
+      row.translation,
+      row.phonetic,
+      row.pos,
+      row.relatedPhrase,
+      row.primaryExampleEn,
+      row.primaryExampleZh,
       String(w.repetitions ?? ''),
       w.next_review_date ? new Date(w.next_review_date).toISOString() : '',
       isDueToday(w, now) ? 'yes' : 'no',

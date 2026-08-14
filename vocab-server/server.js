@@ -3742,6 +3742,16 @@ app.post('/api/vocab/export-background', async (req, res) => {
           });
           return { en: enList.join('\n'), zh: zhList.join('\n') };
         };
+        const firstExampleLine = (s) => (String(s || '').split('\n').map((x) => x.trim()).find(Boolean) || '');
+        const extractPrimaryPhrase = (w) => {
+          const payload = w.payload || {};
+          const sources = [payload.collocations, payload.phrases, payload.related_phrases];
+          const list = sources.find((s) => Array.isArray(s) && s.length > 0) || [];
+          const first = list[0];
+          if (!first) return '';
+          if (typeof first === 'string') return first.trim();
+          return String(first.en || first.phrase || first.text || '').trim();
+        };
         const escapeCsvCell = (val) => {
           const str = String(val || '');
           if (/[",\n\r]/.test(str)) {
@@ -3755,6 +3765,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
           'translation',
           'phonetic',
           'pos',
+          'related_phrase',
           'example_sentences_en',
           'example_sentences_zh',
           'repetitions',
@@ -3764,14 +3775,17 @@ app.post('/api/vocab/export-background', async (req, res) => {
         const rows = finalExportList.map(w => {
           const payload = w.payload || {};
           const examples = getExampleSentences(w);
+          const itemType = getItemType(w);
+          const relatedPhrase = itemType === '\u5355\u8bcd (Word)' ? extractPrimaryPhrase(w) : '';
           const cells = [
             w.word || '',
-            getItemType(w),
+            itemType,
             getWordTranslation(payload),
             payload.phonetic || '',
             payload.pos || '',
-            examples.en,
-            examples.zh,
+            relatedPhrase,
+            firstExampleLine(examples.en),
+            firstExampleLine(examples.zh),
             String(w.repetitions ?? ''),
             w.next_review_date ? new Date(w.next_review_date).toISOString() : '',
             (w.repetitions !== 999 && w.next_review_date <= now) ? 'yes' : 'no'

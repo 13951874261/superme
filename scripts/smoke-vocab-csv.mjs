@@ -12,9 +12,13 @@ function escapeCsvCell(value) {
 function buildVocabCsv(rows) {
   const headers = [
     'word',
+    'type',
     'translation',
     'phonetic',
     'pos',
+    'related_phrase',
+    'example_sentences_en',
+    'example_sentences_zh',
     'repetitions',
     'next_review_date',
     'due_today',
@@ -24,16 +28,17 @@ function buildVocabCsv(rows) {
 }
 
 const body = buildVocabCsv([
-  ['leverage', '杠杆', 'ˈlevərɪdʒ', 'n.', '3', '2026-07-20T00:00:00.000Z', 'yes'],
-  ['hello, world', '你好 "测试"', '', '', '0', '', 'no'],
+  ['leverage', '单词 (Word)', '杠杆', 'ˈlevərɪdʒ', 'n.', 'leverage a deal', 'They leveraged the asset.', '他们撬动了这笔资产。', '3', '2026-07-20T00:00:00.000Z', 'yes'],
+  ['hello, world', '短语 (Phrase)', '你好 "测试"', '', 'phrase', '', '', '', '0', '', 'no'],
 ]);
 const withBom = `\uFEFF${body}`;
 
 const checks = [
   ['bom', withBom.charCodeAt(0) === 0xfeff],
-  ['headers', body.startsWith('word,translation,phonetic,pos,repetitions,next_review_date,due_today')],
+  ['headers', body.startsWith('word,type,translation,phonetic,pos,related_phrase,example_sentences_en,example_sentences_zh,repetitions,next_review_date,due_today')],
   ['escaped_comma', body.includes('"hello, world"')],
   ['escaped_quote', body.includes('"你好 ""测试"""')],
+  ['related_phrase_column', body.includes('leverage a deal')],
 ];
 
 let failed = 0;

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout } from 'lucide-react';
+import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import { getReviewPage, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
+import { toVocabPresentation } from '../utils/vocabCsvExport';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 
 interface FlashCardProps {
@@ -98,17 +99,6 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     }
   };
 
-  const getPayloadSummary = (payload: any): string => {
-    if (!payload) return '';
-    const keys = ['translation_main', 'definition', 'definitions', 'meaning'];
-    for (const k of keys) {
-      if (payload[k] && typeof payload[k] === 'string') {
-        return payload[k].slice(0, 120) + (payload[k].length > 120 ? '...' : '');
-      }
-    }
-    return '';
-  };
-
   const shouldEnrichPayload = (payload: any): boolean => {
     return !payload?.definition_en || payload?.meaning === '解析中...' || payload?.meaning === '待复习补充';
   };
@@ -116,7 +106,9 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const currentPayload = localPayload || current?.payload || null;
   const currentDefinition = currentPayload?.definition_en || current?.payload?.definition_en || '';
   const currentBusinessNote = currentPayload?.business_note || current?.payload?.business_note || '';
-  const currentExamples = currentPayload?.examples || current?.payload?.examples || [];
+  const card = current
+    ? toVocabPresentation({ ...current, payload: currentPayload || current.payload })
+    : null;
 
   const handleFlip = async () => {
     if (!current) return;
@@ -305,63 +297,81 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                 )}
               </div>
 
-              {/* 背面：释义（翻转后显示） */}
-              {isFlipped && (
+              {/* 背面：按词条类型分层（原词 / 释义 / 短语 / 例句） */}
+              {isFlipped && card && (
                 <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
-                  <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                    <div className="text-2xl font-black text-[#202124] tracking-tight select-all">{current.word}</div>
-                    <SpeakButton text={current.word} title={`播放 ${current.word}`} className="w-8 h-8 bg-slate-100 hover:bg-[#FF5722] hover:text-white border border-gray-200 rounded-lg" iconClassName="w-4 h-4" />
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1">原词</div>
+                      <div className="text-3xl font-black text-[#202124] tracking-tight select-all leading-tight break-words">{card.headword}</div>
+                      {((card.phonetic && card.phonetic !== '/') || (card.pos && card.pos !== 'phrase' && card.pos !== 'sentence')) && (
+                        <div className="mt-1 text-xs text-slate-400 font-mono">
+                          {card.phonetic && card.phonetic !== '/' ? `[${card.phonetic}]` : ''}
+                          {card.pos && card.pos !== 'phrase' && card.pos !== 'sentence' ? `  ${card.pos}` : ''}
+                        </div>
+                      )}
+                    </div>
+                    <SpeakButton text={card.headword} title={`播放 ${card.headword}`} className="w-8 h-8 shrink-0 bg-slate-100 hover:bg-[#FF5722] hover:text-white border border-gray-200 rounded-lg" iconClassName="w-4 h-4" />
                   </div>
-                  {/* 1. 核心释义 */}
+
                   <div>
                     <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
                       <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
-                      核心释义
+                      释义
                     </div>
                     <div className="text-sm text-gray-700 leading-relaxed">
-                      {getPayloadSummary(localPayload || current.payload) || '待补全'}
+                      {card.translation || '暂无释义'}
                     </div>
                   </div>
 
-                  {/* 2. 英文定义 */}
-                  <div>
-                    <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> English Definition / 英文定义</span>
-                      <SpeakButton text={currentDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                  {card.itemType === '单词 (Word)' && card.relatedPhrase && (
+                    <div>
+                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">短语</div>
+                      <div className="text-sm text-gray-700">{card.relatedPhrase}</div>
                     </div>
-                    <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      {currentDefinition || 'AI正在抓取此黑话的深层商务含义...'}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* 3. 商务注解 */}
-                  <div>
-                    <div className="text-[10px] font-black text-[var(--color-accent)] uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> Business Context / 商务注解</span>
-                      <SpeakButton text={currentBusinessNote} title="播放商务注解" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                  {card.itemType !== '句子 (Sentence)' && (card.primaryExampleEn || card.primaryExampleZh) && (
+                    <div>
+                      <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                        <span>例句</span>
+                        {card.primaryExampleEn && (
+                          <SpeakButton text={card.primaryExampleEn} title="播放例句" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                        )}
+                      </div>
+                      {card.primaryExampleEn && (
+                        <div className="text-sm font-medium text-slate-800 leading-relaxed">{card.primaryExampleEn}</div>
+                      )}
+                      {card.primaryExampleZh && (
+                        <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{card.primaryExampleZh}</div>
+                      )}
                     </div>
-                    <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
-                      {currentBusinessNote || '暂无特定商务场景备注。'}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* 4. 应用场景 */}
-                  <div>
-                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <Layout className="w-3 h-3" /> Usage Scenarios / 应用场景
+                  {currentDefinition && (
+                    <div>
+                      <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> English Definition / 英文定义</span>
+                        <SpeakButton text={currentDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                      </div>
+                      <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                        {currentDefinition}
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      {currentExamples.map((ex: string, i: number) => (
-                        <div key={i} className="text-xs text-gray-600 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 relative pl-6 pr-11">
-                          <div className="absolute left-2 top-3 w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-                          <span>{ex}</span>
-                          <SpeakButton text={ex} title="播放应用场景例句" className="absolute right-2 top-2 w-7 h-7" iconClassName="w-3.5 h-3.5" />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                  )}
 
-                  {/* 5. 复习历史 */}
+                  {currentBusinessNote && (
+                    <div>
+                      <div className="text-[10px] font-black text-[var(--color-accent)] uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> Business Context / 商务注解</span>
+                        <SpeakButton text={currentBusinessNote} title="播放商务注解" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                      </div>
+                      <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
+                        {currentBusinessNote}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="text-[10px] text-gray-300 text-right">
                     已复习 {current.repetitions} 次 · 间隔 {current.interval_days} 天
                   </div>
