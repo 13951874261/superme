@@ -4405,7 +4405,10 @@ app.post('/api/theme/custom-add', async (req, res) => {
 app.get('/api/theme/list', (req, res) => {
   const { userId = 'default-user' } = req.query;
   try {
-    const rows = db.prepare('SELECT * FROM custom_themes WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    let rows = db.prepare('SELECT * FROM custom_themes WHERE user_id = ? ORDER BY created_at DESC').all(userId);
+    if (rows.length === 0 && userId !== 'default-user') {
+      rows = db.prepare('SELECT * FROM custom_themes WHERE user_id = ? ORDER BY created_at DESC').all('default-user');
+    }
     const formatted = rows.map(r => ({
       id: r.id,
       themeName: r.theme_name,
