@@ -1,0 +1,325 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 名称: 驭心博弈局势全景图 (Game Theory Session Summary)
+# 类型: Workflow
+# 官方依据: https://docs.dify.ai/zh/api-reference/guides/workflow
+#           https://docs.dify.ai/zh/api-reference/workflow-runs/run-workflow
+# 调用: POST /v1/workflows/run  response_mode=blocking
+# 输出变量: summary_result（纯 JSON 字符串，勿包 markdown）
+# 建议服务端 Key: DIFY_GAME_THEORY_SESSION_SUMMARY_KEY
+# 使用时机: 会话暂停/停止后的第一阶段复盘，确认后再调个人复盘
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 多人群体博弈停止后的第一阶段复盘：输出局势全景图（阶层、立场、利益、心理侧写、联盟、筹码、转折点、下一步动作与反制）。
+  icon: 🗺️
+  icon_background: '#EEF2FF'
+  icon_type: emoji
+  mode: workflow
+  name: 驭心博弈局势全景图 (Game Theory Session Summary)
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景类型
+          options:
+          - gov_struggle
+          - corp_clash
+          - upward_takeover
+          required: true
+          type: select
+          variable: scene_type
+        - label: 博弈模型
+          options:
+          - prisoner_dilemma
+          - pig_game
+          - info_asymmetry
+          - cold_trigger
+          required: true
+          type: select
+          variable: game_model
+        - label: 来源类型
+          options:
+          - guided_simulation
+          - real_record
+          required: true
+          type: select
+          variable: source_type
+        - label: 心理侧写模式
+          options:
+          - evidence_bound
+          - assertive
+          required: true
+          type: select
+          variable: psyche_mode
+        - label: 场景标题
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: title
+        - label: 场景描述
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: scenario
+        - label: 角色阵容JSON
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: roles_json
+        - label: 历史回合JSON
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: history_json
+        - default: 0
+          label: 已完成回合
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: current_round
+        - default: 0
+          label: 已用分钟
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: elapsed_minutes
+        - label: 停止原因
+          options:
+          - user_stop
+          - max_rounds
+          - max_minutes
+          - paused
+          required: false
+          type: select
+          variable: stop_reason
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 后端自动注入的格式化时间
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 后端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 280
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 输出强分析版局势全景图 JSON
+        model:
+          completion_params:
+            temperature: 0.35
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: 9b5e3c4d-6f70-418c-ad1e-2f3a4b5c6d7e
+          role: system
+          text: |-
+            当前系统时间：{{#start._system_time#}}。
+            你是驭心博弈「局势全景图」分析器。这是停止/暂停后的第一阶段复盘，只画全场结构，不写用户个人检讨。
+            必须且只能返回合法 JSON 字符串：不要 markdown 代码块，不要注释，不要 JSON 以外的文字。
+
+            【材料】
+            只依据 scenario、roles_json、history_json。没有出现过的对话不得当证据。
+
+            【心理侧写约束】
+            - source_type=real_record：强制 evidence_bound。
+            - psyche_mode=evidence_bound：psyche.*.observation 必须能被 clues 支撑；clues 每条都要能回溯到具体 round_no 或原话摘要；confidence 为 0 到 1。
+            - psyche_mode=assertive 且 source_type=guided_simulation：允许对 hidden_motive 做更强推断，但仍必须列出 clues，并把 confidence 写实，禁止 1.0 空口。
+            - mode 字段原样回写实际采用的模式：evidence_bound 或 assertive。
+
+            【字段要求】
+            - hierarchy：按权力从高到低的角色名数组。
+            - stance：角色名 -> 当前公开立场（一句）。
+            - interests：角色名 -> 利益点数组（2-4 条）。
+            - psyche：角色名 -> { observation, clues, confidence, mode }。
+            - alliances：已形成或正在试探的联盟；没有则空数组。
+            - power_chips：谁手里有什么可打的牌、打出后影响什么。
+            - risk_inflections：按时间顺序列出 2-6 个转折点，建议带「R{n}：...」。
+            - next_actions：角色名 -> 其下一步最可能动作（2-3 条）。
+            - countermeasures：给用户的局势级反制选项（3-5 条），面向全场而非自我批评。
+
+            输出：
+            {
+              "hierarchy": ["角色A", "角色B"],
+              "stance": {
+                "角色A": "公开立场"
+              },
+              "interests": {
+                "角色A": ["利益1", "利益2"]
+              },
+              "psyche": {
+                "角色A": {
+                  "observation": "可被线索支撑的观察",
+                  "clues": ["R1：原话或行为摘要"],
+                  "confidence": 0.62,
+                  "mode": "evidence_bound"
+                }
+              },
+              "alliances": [
+                {
+                  "parties": ["角色A", "角色B"],
+                  "reason": "结盟/试探原因"
+                }
+              ],
+              "power_chips": [
+                {
+                  "owner": "角色A",
+                  "chip": "筹码",
+                  "impact": "打出后的影响"
+                }
+              ],
+              "risk_inflections": ["R2：转折点"],
+              "next_actions": {
+                "角色A": ["可能动作1"]
+              },
+              "countermeasures": ["局势级反制1"]
+            }
+
+            【禁止】
+            不要输出 missteps / missed_moments / strategy_guidance。
+            不要给分数。不要改写历史对白。
+        - id: ac6f4d5e-7081-429d-be2f-3a4b5c6d7e8f
+          role: user
+          text: |-
+            scene_type: {{#start.scene_type#}}
+            game_model: {{#start.game_model#}}
+            source_type: {{#start.source_type#}}
+            psyche_mode: {{#start.psyche_mode#}}
+            title: {{#start.title#}}
+            scenario: {{#start.scenario#}}
+            roles_json: {{#start.roles_json#}}
+            history_json: {{#start.history_json#}}
+            current_round: {{#start.current_round#}}
+            elapsed_minutes: {{#start.elapsed_minutes#}}
+            stop_reason: {{#start.stop_reason#}}
+            user_current_profile: {{#start.user_current_profile#}}
+        selected: false
+        title: 局势全景图LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: summary_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []

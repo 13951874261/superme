@@ -5,6 +5,15 @@ import {
   mergeTrainingPlans,
   type TrainingRebalancePlan,
 } from '../utils/reviewHelper';
+import type {
+  GameTheoryPersonalReview,
+  GameTheoryRoundResult,
+  GameTheorySessionConfig,
+  GameTheorySessionState,
+  GameTheorySituationSummary,
+  SessionRoleDraft,
+} from '../components/modules/GameTheory/GameTheorySessionTypes';
+import { GameTheorySessionApiError } from '../components/modules/GameTheory/GameTheorySessionTypes';
 
 // ── 原有接口保留 ────────────────────────────────────────────
 export interface ListenWorkflowInput {
@@ -1612,6 +1621,156 @@ export async function getGameTheoryHistoryDetail(
     throw new Error(data?.error || '获取对局历史详情失败');
   }
   return data.item as GameTheoryHistoryItem;
+}
+
+export { GameTheorySessionApiError };
+export type {
+  GameTheorySessionConfig,
+  GameTheorySessionState,
+  GameTheoryRoundResult,
+  GameTheorySituationSummary,
+  GameTheoryPersonalReview,
+  SessionRoleDraft,
+};
+
+async function requestGameTheorySession<T>(
+  url: string,
+  init?: RequestInit
+): Promise<T> {
+  const res = await fetch(url, init);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.success === false) {
+    throw new GameTheorySessionApiError(
+      data?.error || data?.message || '多人博弈会话请求失败',
+      data?.session
+    );
+  }
+  return data as T;
+}
+
+export async function startGameTheorySession(
+  payload: GameTheorySessionConfig,
+  userId = getAppUserId()
+): Promise<GameTheorySessionState> {
+  const data = await requestGameTheorySession<{ session: GameTheorySessionState }>(
+    '/api/game-theory/session/start',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...payload,
+        userId,
+        user_current_profile: getUserCurrentProfile(),
+      }),
+    }
+  );
+  return data.session;
+}
+
+export async function listGameTheorySessions(
+  userId = getAppUserId()
+): Promise<GameTheorySessionState[]> {
+  const data = await requestGameTheorySession<{ items: GameTheorySessionState[] }>(
+    `/api/game-theory/sessions?userId=${encodeURIComponent(userId)}`
+  );
+  return data.items || [];
+}
+
+export async function getGameTheorySession(
+  sessionId: string,
+  userId = getAppUserId()
+): Promise<GameTheorySessionState> {
+  const data = await requestGameTheorySession<{ session: GameTheorySessionState }>(
+    `/api/game-theory/session/${encodeURIComponent(sessionId)}?userId=${encodeURIComponent(userId)}`
+  );
+  return data.session;
+}
+
+export async function updateGameTheorySessionRoles(
+  sessionId: string,
+  roles: SessionRoleDraft[],
+  userId = getAppUserId()
+): Promise<GameTheorySessionState> {
+  const data = await requestGameTheorySession<{ session: GameTheorySessionState }>(
+    `/api/game-theory/session/${encodeURIComponent(sessionId)}/roles`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, roles }),
+    }
+  );
+  return data.session;
+}
+
+export async function controlGameTheorySession(
+  sessionId: string,
+  action: 'start' | 'pause' | 'resume' | 'stop',
+  reason?: string,
+  userId = getAppUserId()
+): Promise<GameTheorySessionState> {
+  const data = await requestGameTheorySession<{ session: GameTheorySessionState }>(
+    `/api/game-theory/session/${encodeURIComponent(sessionId)}/control`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, action, reason }),
+    }
+  );
+  return data.session;
+}
+
+export async function submitGameTheorySessionRound(
+  sessionId: string,
+  input: { text: string; source: 'text' | 'voice' },
+  userId = getAppUserId()
+): Promise<GameTheoryRoundResult> {
+  return requestGameTheorySession<GameTheoryRoundResult>(
+    `/api/game-theory/session/${encodeURIComponent(sessionId)}/round`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        text: input.text,
+        source: input.source,
+        user_current_profile: getUserCurrentProfile(),
+      }),
+    }
+  );
+}
+
+export async function generateGameTheorySessionSummary(
+  sessionId: string,
+  userId = getAppUserId()
+): Promise<{ summary: GameTheorySituationSummary; session: GameTheorySessionState }> {
+  return requestGameTheorySession(
+    `/api/game-theory/session/${encodeURIComponent(sessionId)}/summary`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        user_current_profile: getUserCurrentProfile(),
+      }),
+    }
+  );
+}
+
+export async function generateGameTheoryPersonalReview(
+  sessionId: string,
+  userId = getAppUserId()
+): Promise<{ review: GameTheoryPersonalReview; session: GameTheorySessionState }> {
+  return requestGameTheorySession(
+    `/api/game-theory/session/${encodeURIComponent(sessionId)}/personal-review`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId,
+        user_current_profile: getUserCurrentProfile(),
+      }),
+    }
+  );
 }
 
 export interface CognitiveAscensionInput {

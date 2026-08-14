@@ -22,6 +22,7 @@ import {
   TacticItem,
 } from '../../services/difyAPI';
 import TacticsPanel from './GameTheory/TacticsPanel';
+import GameTheorySessionPanel from './GameTheory/GameTheorySessionPanel';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
 import { useTask } from '../TaskContext';
 
@@ -116,7 +117,7 @@ const SIM_OPPONENTS: SimPresetOpponent[] = [
 ];
 
 export default function GameTheoryModule() {
-  const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'ascension' | 'history'>('cases');
+  const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'session' | 'ascension' | 'history'>('cases');
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   
   // 顶层认知升维训练状态
@@ -608,6 +609,7 @@ export default function GameTheoryModule() {
           { id: 'cases', name: '高管斗争案例研判' },
           { id: 'tactics', name: '驭人术与人性档案' },
           { id: 'simulation', name: '人机对战沙盘' },
+          { id: 'session', name: '多人群体博弈会话' },
           { id: 'history', name: '对局历史' },
           { id: 'ascension', name: '顶层认知升维' }
         ] as const).map(tab => (
@@ -1397,6 +1399,10 @@ export default function GameTheoryModule() {
               </div>
             );
           })()}
+
+          {activeTab === 'session' && (
+            <GameTheorySessionPanel />
+          )}
 
           {/* TAB: 对局历史 */}
           {activeTab === 'history' && (

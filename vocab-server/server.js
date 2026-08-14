@@ -436,6 +436,8 @@ const { createReadPenetrationAnalyzer } = require('./services/readPenetrationPro
 const { createWorkflowRunner, createWorkflowUploader } = require('./services/englishWorkflowProxy');
 const { analyzeListening } = require('./services/listenAnalysisService');
 const { normalizePrototypeArchive } = require('./services/prototypeArchiveGuard');
+const { initGameTheorySessionTables, createGameTheorySessionService } = require('./services/gameTheorySessionService');
+initGameTheorySessionTables(db);
 const { evaluateSentence } = require('./services/sentenceEvaluationService');
 const { purifyVocabulary } = require('./services/vocabPurifyService');
 const { analyzeWriting, normalizeResult: normalizeWritingResult, isMeaningfulResult: isMeaningfulWritingResult } = require('./services/writeGovernanceFallback');
@@ -453,6 +455,15 @@ const englishWorkflowRunners = {
 };
 const uploadSpeechEvaluation = createWorkflowUploader({ apiKey: process.env.DIFY_SPEECH_EVAL_API_KEY, baseUrl: difyWorkflowBaseUrl });
 const speechAudioUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
+const gameTheorySession = createGameTheorySessionService({
+  db,
+  baseUrl: difyWorkflowBaseUrl,
+  keys: {
+    round: process.env.DIFY_GAME_THEORY_SESSION_ROUND_KEY,
+    summary: process.env.DIFY_GAME_THEORY_SESSION_SUMMARY_KEY,
+    review: process.env.DIFY_GAME_THEORY_SESSION_REVIEW_KEY,
+  },
+});
 
 function normalizeMemoryUserId(raw) {
   if (!raw) return 'default-user';
@@ -7902,6 +7913,105 @@ app.get('/api/game-theory/history/:id', (req, res) => {
   } catch (err) {
     console.error('获取对局历史详情失败:', err);
     res.status(500).json({ success: false, error: '对局历史详情查询失败' });
+  }
+});
+
+function sendGameTheorySessionError(res, err) {
+  const status = err.statusCode || 500;
+  const body = { success: false, error: err.message || '多人博弈会话失败' };
+  if (err.payload) body.session = err.payload;
+  return res.status(status).json(body);
+}
+
+app.post('/api/game-theory/session/start', async (req, res) => {
+  try {
+    const session = await gameTheorySession.startSession(req.body || {});
+    res.json({ success: true, session, session_id: session.session_id });
+  } catch (err) {
+    console.error('启动多人博弈会话失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.get('/api/game-theory/sessions', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const items = gameTheorySession.listSessions(userId);
+    res.json({ success: true, items });
+  } catch (err) {
+    console.error('列出多人博弈会话失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.get('/api/game-theory/session/:sessionId', (req, res) => {
+  try {
+    const userId = req.query.userId || req.body?.userId || 'default-user';
+    const session = gameTheorySession.getSession(req.params.sessionId, userId);
+    res.json({ success: true, session });
+  } catch (err) {
+    console.error('读取多人博弈会话失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.post('/api/game-theory/session/:sessionId/roles', (req, res) => {
+  try {
+    const userId = req.body?.userId || 'default-user';
+    const session = gameTheorySession.updateRoles(req.params.sessionId, userId, req.body?.roles);
+    res.json({ success: true, session });
+  } catch (err) {
+    console.error('更新博弈会话角色失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.post('/api/game-theory/session/:sessionId/control', (req, res) => {
+  try {
+    const userId = req.body?.userId || 'default-user';
+    const session = gameTheorySession.controlSession(
+      req.params.sessionId,
+      userId,
+      req.body?.action,
+      req.body?.reason
+    );
+    res.json({ success: true, session });
+  } catch (err) {
+    console.error('控制多人博弈会话失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.post('/api/game-theory/session/:sessionId/round', async (req, res) => {
+  try {
+    const userId = req.body?.userId || 'default-user';
+    const result = await gameTheorySession.submitRound(req.params.sessionId, userId, req.body || {});
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('提交博弈会话回合失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.post('/api/game-theory/session/:sessionId/summary', async (req, res) => {
+  try {
+    const userId = req.body?.userId || 'default-user';
+    const result = await gameTheorySession.generateSummary(req.params.sessionId, userId, req.body || {});
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('生成局势全景图失败:', err);
+    sendGameTheorySessionError(res, err);
+  }
+});
+
+app.post('/api/game-theory/session/:sessionId/personal-review', async (req, res) => {
+  try {
+    const userId = req.body?.userId || 'default-user';
+    const result = await gameTheorySession.generatePersonalReview(req.params.sessionId, userId, req.body || {});
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error('生成个人复盘失败:', err);
+    sendGameTheorySessionError(res, err);
   }
 });
 
