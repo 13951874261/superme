@@ -309,7 +309,9 @@ export async function addCustomTheme(params: {
     method: 'POST',
     body: JSON.stringify({
       ...params,
-      user_current_profile: getUserCurrentProfile(),
+      userId: params.userId || getAppUserId(),
+      userId: params.userId || getAppUserId(),
+      userId: params.userId || getAppUserId(),\n      user_current_profile: getUserCurrentProfile(),
     }),
   });
 }

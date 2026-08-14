@@ -178,7 +178,7 @@ try {
   // ???????????????
 }
 
-// 复习/列表查询索引（无损性能）
+// 复习/列表查询索引（无损性能�?
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review ON vocabulary(next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at ON vocabulary(added_at)').run();
@@ -269,7 +269,7 @@ try {
   db.prepare("ALTER TABLE training_attempts ADD COLUMN user_answer TEXT").run();
 } catch (e) {}
 
-// 性能加速索引
+// 性能加速索�?
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_success ON dict_query_log(is_success)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_session ON training_attempts(session_id)').run();
@@ -302,7 +302,7 @@ db.prepare(`
     added_at INTEGER
   )
 `).run();
-// 创建 game_theory_tactics 表
+// 创建 game_theory_tactics �?
 db.prepare(`
   CREATE TABLE IF NOT EXISTS game_theory_tactics (
     id TEXT PRIMARY KEY,
@@ -316,19 +316,19 @@ db.prepare(`
   )
 `).run();
 
-// 插入默认手段（如果不存在）
+// 插入默认手段（如果不存在�?
 try {
   const countTactics = db.prepare('SELECT COUNT(*) as count FROM game_theory_tactics').get().count;
   if (countTactics === 0) {
     const defaultTacticsList = [
-      { id: 't1', name: '恩威并施', category: 'downward', description: '适时给予下属利益和资源，同时维持考核或问责的压力，使其产生敬畏之心。' },
-      { id: 't2', name: '制衡术', category: 'downward', description: '在两个或多个下属或部门之间制造合理的良性竞争或权利对抗，以防出现权力合谋或一方独大。' },
-      { id: 't3', name: '分而治之', category: 'downward', description: '隔离下属的信息沟通，打破其暗中建立的利益小同盟，分别进行管理和谈话。' },
-      { id: 't4', name: '边缘化', category: 'downward', description: '通过调整业务线、分管责任，收回核心资源，将不服从者逐步架空移出核心决策圈。' },
-      { id: 't5', name: '借势上位', category: 'upward', description: '拉拢或利用外部更高层或总部总裁级的大人物（或风口机制），借用上层意志对直接主管施加无形制衡。' },
-      { id: 't6', name: '构建联盟', category: 'upward', description: '暗中横向联络其他被边缘化或受压迫的核心人员，组建信息互通与战术呼应的攻守同盟。' },
-      { id: 't7', name: '信息垄断', category: 'upward', description: '掌控唯一的关键业务细节、核心供应链关系或底层代码，使自己成为团队中无可替代的存在。' },
-      { id: 't8', name: '软对抗', category: 'upward', description: '不直接顶撞，而是通过效率降低、合规核查、汇报拖延等无破绽的制度化行为消极回复。' }
+      { id: 't1', name: '恩威并施', category: 'downward', description: '适时给予下属利益和资源，同时维持考核或问责的压力，使其产生敬畏之心�? },
+      { id: 't2', name: '制衡�?, category: 'downward', description: '在两个或多个下属或部门之间制造合理的良性竞争或权利对抗，以防出现权力合谋或一方独大�? },
+      { id: 't3', name: '分而治�?, category: 'downward', description: '隔离下属的信息沟通，打破其暗中建立的利益小同盟，分别进行管理和谈话�? },
+      { id: 't4', name: '边缘�?, category: 'downward', description: '通过调整业务线、分管责任，收回核心资源，将不服从者逐步架空移出核心决策圈�? },
+      { id: 't5', name: '借势上位', category: 'upward', description: '拉拢或利用外部更高层或总部总裁级的大人物（或风口机制），借用上层意志对直接主管施加无形制衡�? },
+      { id: 't6', name: '构建联盟', category: 'upward', description: '暗中横向联络其他被边缘化或受压迫的核心人员，组建信息互通与战术呼应的攻守同盟�? },
+      { id: 't7', name: '信息垄断', category: 'upward', description: '掌控唯一的关键业务细节、核心供应链关系或底层代码，使自己成为团队中无可替代的存在�? },
+      { id: 't8', name: '软对�?, category: 'upward', description: '不直接顶撞，而是通过效率降低、合规核查、汇报拖延等无破绽的制度化行为消极回复�? }
     ];
 
     const insert = db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
@@ -342,7 +342,7 @@ try {
 }
 
 
-// 博弈对局历史（案例研判 / 人机对战）
+// 博弈对局历史（案例研�?/ 人机对战�?
 db.prepare(`
   CREATE TABLE IF NOT EXISTS game_theory_history (
     id TEXT PRIMARY KEY,
@@ -621,7 +621,7 @@ async function mergeProfileWithDedupe(existing, delta, userId, meta = {}) {
   return dedupeProfileLocal(prev, next).mergedProfile;
 }
 
-const MANUAL_PROFILE_COMPRESS_DELTA = '【手动压缩】对已有画像全文做语义去重与精炼，合并重复主题，保留最新信息；忽略本条提示本身。';
+const MANUAL_PROFILE_COMPRESS_DELTA = '【手动压缩】对已有画像全文做语义去重与精炼，合并重复主题，保留最新信息；忽略本条提示本身�?;
 
 async function compressProfileContent(profileContent, userId) {
   const text = String(profileContent || '').trim();
@@ -763,7 +763,7 @@ function buildMemoryContextForUser(userId) {
   const memoryLayers = parseJsonObject(row?.memory_layers, {});
   const ledger = parseJsonObject(row?.error_ledger, {});
   const profileSummary = String(row?.profile_content || '').trim().slice(0, 600)
-    || '暂无用户画像摘要。';
+    || '暂无用户画像摘要�?;
 
   const episodeLines = (Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [])
     .slice(0, 5)
@@ -771,7 +771,7 @@ function buildMemoryContextForUser(userId) {
     .filter(Boolean);
   const recentEpisodesSummary = episodeLines.length
     ? episodeLines.join('\n')
-    : '暂无近期情景记忆。';
+    : '暂无近期情景记忆�?;
 
   const errorParts = [];
   for (const cat of ['oral', 'listening', 'vocab']) {
@@ -782,11 +782,11 @@ function buildMemoryContextForUser(userId) {
       if (cat === 'listening') return e.pattern || e.reason;
       return e.word;
     }).filter(Boolean);
-    if (top.length) errorParts.push(`${cat}: ${top.join('、')}`);
+    if (top.length) errorParts.push(`${cat}: ${top.join('�?)}`);
   }
   const errorLedgerSummary = errorParts.length
     ? errorParts.join('; ')
-    : '暂无结构化短板记录。';
+    : '暂无结构化短板记录�?;
 
   const graphSummary = formatGraphSummary(memoryLayers);
 
@@ -799,12 +799,12 @@ function normalizeGraphNodeName(name) {
 
 function formatGraphSummary(memoryLayers) {
   const graph = memoryLayers?.l2_graph;
-  if (!graph || typeof graph !== 'object') return '暂无关系记忆。';
+  if (!graph || typeof graph !== 'object') return '暂无关系记忆�?;
   const relations = Array.isArray(graph.relations) ? graph.relations.slice(0, 8) : [];
-  if (!relations.length) return '暂无关系记忆。';
+  if (!relations.length) return '暂无关系记忆�?;
   return relations.map((r, i) => {
     const ev = r.evidence ? ` (${String(r.evidence).slice(0, 60)})` : '';
-    return `${i + 1}. ${r.from} —[${r.rel}]→ ${r.to}${ev}`;
+    return `${i + 1}. ${r.from} —[${r.rel}]�?${r.to}${ev}`;
   }).join('\n');
 }
 
@@ -860,7 +860,7 @@ function mergeGraphMemory(existing, { entities = [], relations = [] }, source = 
   };
 }
 
-/** LLM 未输出 relations 时，从 episode/画像文本规则合成基础图谱 */
+/** LLM 未输�?relations 时，�?episode/画像文本规则合成基础图谱 */
 function fallbackGraphFromMemory(pending, profileContent, profileDelta) {
   const entities = [];
   const relations = [];
@@ -890,13 +890,13 @@ function fallbackGraphFromMemory(pending, profileContent, profileDelta) {
     pushRel('用户', '偏好', '美音', evidence);
   }
   if (/即兴/.test(corpus) && /逻辑|表达/.test(corpus)) {
-    pushRel('用户', '正在练习', '即兴表达逻辑链', evidence);
+    pushRel('用户', '正在练习', '即兴表达逻辑�?, evidence);
   }
 
   return { entities, relations };
 }
 
-/** 从 LLM 已输出的 semantics 合成关系（工作流未返回 relations 时的兜底） */
+/** �?LLM 已输出的 semantics 合成关系（工作流未返�?relations 时的兜底�?*/
 function graphFromSemantics(semantics) {
   const entities = [{ name: '用户', type: 'person' }];
   const relations = [];
@@ -923,7 +923,7 @@ function graphFromSemantics(semantics) {
 
 function composeMemorySummaryForPrompt(memoryCtx) {
   const parts = [memoryCtx.recentEpisodesSummary];
-  if (memoryCtx.graphSummary && memoryCtx.graphSummary !== '暂无关系记忆。') {
+  if (memoryCtx.graphSummary && memoryCtx.graphSummary !== '暂无关系记忆�?) {
     parts.push(`关系记忆（Graph）：\n${memoryCtx.graphSummary}`);
   }
   return parts.join('\n\n');
@@ -990,23 +990,23 @@ function buildMemoryPackForLlm(userId, query) {
   if (authLabel) {
     sections.push(
       `【口音偏好（权威）】用户练口语偏好${authLabel}。`
-      + '若下文 graph/episode/向量库/旧侧写/L3 出现与此冲突的其他口音表述，一律以本行为准，视为过期记录。',
+      + '若下�?graph/episode/向量�?旧侧�?L3 出现与此冲突的其他口音表述，一律以本行为准，视为过期记录�?,
     );
   }
   if (recallContext) {
     sections.push(`【结构化即时召回】\n${recallContext}`);
   }
   const ctxParts = [];
-  if (profileSummary && profileSummary !== '暂无用户画像摘要。') {
+  if (profileSummary && profileSummary !== '暂无用户画像摘要�?) {
     ctxParts.push(`【用户画像】\n${profileSummary}`);
   }
-  if (recentEpisodesSummary && recentEpisodesSummary !== '暂无近期情景记忆。') {
+  if (recentEpisodesSummary && recentEpisodesSummary !== '暂无近期情景记忆�?) {
     ctxParts.push(`【近期情景】\n${recentEpisodesSummary}`);
   }
-  if (errorLedgerSummary && errorLedgerSummary !== '暂无结构化短板记录。') {
+  if (errorLedgerSummary && errorLedgerSummary !== '暂无结构化短板记录�?) {
     ctxParts.push(`【训练短板】\n${errorLedgerSummary}`);
   }
-  if (graphSummary && graphSummary !== '暂无关系记忆。') {
+  if (graphSummary && graphSummary !== '暂无关系记忆�?) {
     ctxParts.push(`【关系记忆】\n${graphSummary}`);
   }
   const l3 = ctx.memoryLayers?.l3_vars;
@@ -1039,7 +1039,7 @@ function normalizeRecallQuery(query) {
 function recallQueryTokens(query) {
   const q = normalizeRecallQuery(query);
   if (!q) return [];
-  const parts = q.split(/[\s,，;；、。！？!?]+/).filter((t) => t.length >= 2);
+  const parts = q.split(/[\s,�?；、。！�??]+/).filter((t) => t.length >= 2);
   if (!parts.length) return [q];
   return parts;
 }
@@ -1136,7 +1136,7 @@ function recallMemoryForUser(userId, query, topK = 5) {
       pushRecallHit(hits, seen, {
         kind: 'graph',
         score: score + entityBoost,
-        text: `${r.from} —[${r.rel}]→ ${r.to}`.slice(0, 180),
+        text: `${r.from} —[${r.rel}]�?${r.to}`.slice(0, 180),
         at: Number(r.at || 0),
         key: `graph:${r.from}|${r.rel}|${r.to}`,
       });
@@ -1388,7 +1388,7 @@ async function postEpisodeSummaryToKb(userId, episode, profileContent) {
     ? new Date(episode._dreamed_at).toISOString().slice(0, 10)
     : new Date().toISOString().slice(0, 10);
   const title = `Dreaming摘要·${userId}·${dreamDate}`.slice(0, 120);
-  const text = `[用户 ${userId} · ${episode.source || 'unknown'}]\n${summary}\n\n画像上下文: ${String(profileContent || '').slice(0, 300)}`;
+  const text = `[用户 ${userId} · ${episode.source || 'unknown'}]\n${summary}\n\n画像上下�? ${String(profileContent || '').slice(0, 300)}`;
 
   const response = await fetch(`${baseUrl}/datasets/${datasetId}/document/create-by-text`, {
     method: 'POST',
@@ -2169,7 +2169,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
         } catch (error) {
           resolve({
             ok: false,
-            error: `生图服务返回数据解析失败 (HTTP ${res.statusCode}): ${rawText.substring(0, 200) || '无法解析的响应内容'}`
+            error: `生图服务返回数据解析失败 (HTTP ${res.statusCode}): ${rawText.substring(0, 200) || '无法解析的响应内�?}`
           });
           return;
         }
@@ -2184,7 +2184,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
         if (!imageUrl) {
           resolve({
             ok: false,
-            error: `生图成功但未找到图片地址或 Base64 数据: ${JSON.stringify(responseData).substring(0, 200)}`
+            error: `生图成功但未找到图片地址�?Base64 数据: ${JSON.stringify(responseData).substring(0, 200)}`
           });
           return;
         }
@@ -2206,7 +2206,7 @@ async function tryGenerateImageOnce(baseUrl, apiKey, model, prompt) {
 // ?????????????????????????????????????????
 // ==========================================
 
-/** 合并 Dify SSE 流式 answer：兼容增量 delta 与全量 cumulative 两种模式 */
+/** 合并 Dify SSE 流式 answer：兼容增�?delta 与全�?cumulative 两种模式 */
 const {
   mergeStreamAnswer,
   estimateEnglishWordCount,
@@ -2214,16 +2214,16 @@ const {
   isOverSoftWordLimit,
 } = require('./services/difyStreamMerge');
 
-/** 将 Dify / 下游模型错误转为可操作的提示（daily-extract、completion 等共用） */
+/** �?Dify / 下游模型错误转为可操作的提示（daily-extract、completion 等共用） */
 function formatDifyModelError(raw) {
   const text = String(raw || '').trim();
   if (!text) return 'Dify 模型调用失败，未返回错误详情';
   if (/Server Unavailable|ConnectTimeout|23\.95\.214\.232|38000|Max retries exceeded/i.test(text)) {
     return [
-      'Dify 下游 LLM 推理服务不可用（23.95.214.232:38000 连接超时）。',
+      'Dify 下游 LLM 推理服务不可用（23.95.214.232:38000 连接超时）�?,
       '长文生成应用：materail_generate_url_enhanced',
-      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默认 DIFY_ENGLISH_MASTERY_KEY）',
-      '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL，或重启 38000 端口推理服务。',
+      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默�?DIFY_ENGLISH_MASTERY_KEY�?,
+      '请在 Dify �?设置 �?模型供应�?�?OpenAI-API-compatible 检�?Base URL，或重启 38000 端口推理服务�?,
     ].join(' ');
   }
   if (/^\[models\]/i.test(text)) return `Dify 模型调用失败: ${text}`;
@@ -2240,7 +2240,7 @@ function sanitizeListenMaterialScript(raw) {
   return script;
 }
 
-/** 从 Dify chat-messages SSE 流中收集完整 answer；sanitize=false 时保留 VOCAB_JSON 段 */
+/** �?Dify chat-messages SSE 流中收集完整 answer；sanitize=false 时保�?VOCAB_JSON �?*/
 async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTimeoutMs } = {}) {
   const { readWithIdleTimeout } = require('./services/streamIdleTimeout');
   const idleMs = Number(
@@ -2328,7 +2328,7 @@ async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTim
   return sanitize ? sanitizeListenMaterialScript(trimmed) : trimmed;
 }
 
-/** 同步 await Dify 长文流式生成，返回原始 answer（可含 VOCAB_JSON）；不走 taskQueue */
+/** 同步 await Dify 长文流式生成，返回原�?answer（可�?VOCAB_JSON）；不走 taskQueue */
 async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   const apiKey = process.env.DIFY_LONG_AUDIO_API_KEY || process.env.DIFY_LISTEN_GEN_API_KEY;
   if (!apiKey) {
@@ -2467,7 +2467,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
     const { inputs, userId = 'default-user' } = req.body;
     const apiKey = process.env.DIFY_LISTEN_GEN_API_KEY;
     if (!apiKey) {
-      return res.status(500).json({ success: false, error: '后端未配置 DIFY_LISTEN_GEN_API_KEY' });
+      return res.status(500).json({ success: false, error: '后端未配�?DIFY_LISTEN_GEN_API_KEY' });
     }
     const difyUrl = `${process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'}/completion-messages`;
 
@@ -2491,7 +2491,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
     }
 
     if (!data.answer) {
-      return res.status(500).json({ success: false, error: 'Dify 未返回听力材料正文，请检查 listen_material_generator 应用配置' });
+      return res.status(500).json({ success: false, error: 'Dify 未返回听力材料正文，请检�?listen_material_generator 应用配置' });
     }
 
     res.json({ success: true, answer: data.answer });
@@ -2510,34 +2510,34 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
       return res.status(500).json({ success: false, error: '缺少关键鉴权参数 (API KEY)' });
     }
 
-    // 引入任务队列，创建任务
+    // 引入任务队列，创建任�?
     const taskQueue = require('./services/taskQueue');
     const taskTitle = inputs.theme ? `播客文稿: ${inputs.theme}` : '深度播客生成';
     const task = taskQueue.createTask('material', taskTitle);
 
-    // 立即响应给前端 taskId，由前端使用全局的 TaskContext 接管轮询
+    // 立即响应给前�?taskId，由前端使用全局�?TaskContext 接管轮询
     res.json({ success: true, taskId: task.id, status: task.status });
 
     // ========= 以下进入异步后台执行，不会阻塞客户端连接 =========
     (async () => {
       try {
         taskQueue.updateTask(task.id, { progress: 10, logs: ['正在连接智库并初始化推演模型 (Dify API)...'] });
-        taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数据...'] });
+        taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数�?..'] });
 
         const rawAnswer = await generateListenLongScriptSync(inputs, userId);
         const answer = sanitizeListenMaterialScript(rawAnswer);
         if (!answer) {
-          taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为空' });
+          taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为�? });
           return;
         }
         if (answer.length < 500) {
           console.warn(`[generate-material-long] suspiciously short script (${answer.length} chars) for task ${task.id}`);
         }
 
-        // 保存生成的文稿内容给前端提取 (保存在 task.result.content)
+        // 保存生成的文稿内容给前端提取 (保存�?task.result.content)
         taskQueue.updateTask(task.id, {
           progress: 100,
-          logs: [`长音频剧本生成圆满完成！（${answer.length} 字符）`],
+          logs: [`长音频剧本生成圆满完成！�?{answer.length} 字符）`],
           status: 'completed',
           result: { content: answer }
         });
@@ -2635,7 +2635,7 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.createTask(
       'listen_backfill',
-      `听写预生成补跑: ${theme} / ${genre} / ${cefrLevel} / ${duration}m`,
+      `听写预生成补�? ${theme} / ${genre} / ${cefrLevel} / ${duration}m`,
     );
     res.json({ success: true, taskId: task.id, status: task.status });
 
@@ -2651,7 +2651,7 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'completed',
           progress: 100,
-          logs: ['补生成完成'],
+          logs: ['补生成完�?],
           result: {
             status: result.status,
             genre,
@@ -2734,20 +2734,20 @@ app.post('/api/listen/pregenerated/cron-run', async (req, res) => {
 });
 
 // ==========================================
-// 听力材料上传接口（保存文件并返回URL）
+// 听力材料上传接口（保存文件并返回URL�?
 // ==========================================
 app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
   try {
     const file = req.files?.[0];
     if (!file) {
-      return res.status(400).json({ success: false, error: '未上传音频文件' });
+      return res.status(400).json({ success: false, error: '未上传音频文�? });
     }
 
-    // 生成唯一文件名避免冲突
+    // 生成唯一文件名避免冲�?
     const uniqueName = `${Date.now()}-${file.originalname}`;
     const filePath = path.join(__dirname, 'public', 'long_audio', uniqueName);
 
-    // 保存上传的文件
+    // 保存上传的文�?
     fs.writeFileSync(filePath, fs.readFileSync(file.path));
 
     // 清理临时文件
@@ -2768,12 +2768,12 @@ app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
       const transcriptPath = path.join(transcriptDir, `${uniqueName}.txt`);
       fs.writeFileSync(transcriptPath, transcript, 'utf8');
 
-      console.log('[Upload Audio] 转写成功，文本长度: ' + transcript.length);
+      console.log('[Upload Audio] 转写成功，文本长�? ' + transcript.length);
     } catch (transcribeErr) {
       console.error('[Upload Audio] 转写失败:', transcribeErr.message);
     }
 
-    // 返回音频 URL 与转录文本
+    // 返回音频 URL 与转录文�?
     res.json({
       success: true,
       audioUrl: `/api/long_audio/${encodeURIComponent(uniqueName)}`,
@@ -2787,7 +2787,7 @@ app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
   }
 });
 
-// 提供 long_audio 目录的静态访问
+// 提供 long_audio 目录的静态访�?
 app.use('/api/long_audio', express.static(path.join(__dirname, 'public', 'long_audio')));
 
 
@@ -2843,10 +2843,10 @@ app.get('/api/user/memory/recall', (req, res) => {
     const query = req.query.query || req.query.q || '';
     const topK = req.query.topK || req.query.top_k || 5;
     if (!userId) {
-      return res.status(400).json({ success: false, error: '缺少 userId。' });
+      return res.status(400).json({ success: false, error: '缺少 userId�? });
     }
     if (!String(query).trim()) {
-      return res.status(400).json({ success: false, error: '缺少 query。' });
+      return res.status(400).json({ success: false, error: '缺少 query�? });
     }
     const data = recallMemoryForUser(userId, query, topK);
     res.json({ success: true, data });
@@ -2861,7 +2861,7 @@ app.get('/api/user/memory/pack-for-llm', (req, res) => {
     const query = req.query.query || req.query.q || '';
     const format = String(req.query.format || 'json').trim().toLowerCase();
     if (!userId) {
-      return res.status(400).json({ success: false, error: '缺少 userId。' });
+      return res.status(400).json({ success: false, error: '缺少 userId�? });
     }
     const text = buildMemoryPackForLlm(userId, query);
     if (format === 'text') {
@@ -2914,14 +2914,14 @@ app.post('/api/user/profile/compress', async (req, res) => {
     const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
     const input = String(profileContent ?? row?.profile_content ?? '').trim();
     if (!input) {
-      return res.status(400).json({ success: false, error: '画像内容为空，无法压缩。' });
+      return res.status(400).json({ success: false, error: '画像内容为空，无法压缩�? });
     }
 
     const beforeLen = input.length;
     const compressed = await compressProfileContent(input, uid);
     const mergedProfile = String(compressed.mergedProfile || '').trim();
     if (!mergedProfile) {
-      return res.status(500).json({ success: false, error: '压缩结果为空，请稍后重试。' });
+      return res.status(500).json({ success: false, error: '压缩结果为空，请稍后重试�? });
     }
 
     if (save) {
@@ -3054,14 +3054,14 @@ app.get('/api/user/memory/provenance/:userId/:episodeId', (req, res) => {
     const uid = normalizeMemoryUserId(req.params.userId);
     const episodeId = String(req.params.episodeId || '').trim();
     if (!episodeId) {
-      return res.status(400).json({ success: false, error: '缺少 episodeId。' });
+      return res.status(400).json({ success: false, error: '缺少 episodeId�? });
     }
     const row = db.prepare('SELECT memory_layers FROM user_memories WHERE user_id = ?').get(uid);
     const memoryLayers = parseJsonObject(row?.memory_layers, {});
     const episodes = Array.isArray(memoryLayers.l2_episodes) ? memoryLayers.l2_episodes : [];
     const episode = episodes.find((ep) => String(ep._id) === episodeId);
     if (!episode) {
-      return res.status(404).json({ success: false, error: 'episode 未找到。' });
+      return res.status(404).json({ success: false, error: 'episode 未找到�? });
     }
     const l1List = Array.isArray(memoryLayers.l1_summaries) ? memoryLayers.l1_summaries : [];
     const l1 = episode.source_l1_id
@@ -3091,7 +3091,7 @@ app.post('/api/user/error-ledger/append', (req, res) => {
   const now = Date.now();
 
   if (!category || !Array.isArray(entries) || entries.length === 0) {
-    return res.status(400).json({ success: false, error: '缺少 category 或 entries。' });
+    return res.status(400).json({ success: false, error: '缺少 category �?entries�? });
   }
 
   try {
@@ -3154,7 +3154,7 @@ function mapLightVocabRow(r) {
   };
 }
 
-// 轻量列表：只取标量列，禁止 json_extract（6000 行会打满事件循环导致全站超时）
+// 轻量列表：只取标量列，禁�?json_extract�?000 行会打满事件循环导致全站超时�?
 const LIGHT_SELECT = `
   id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date
 `;
@@ -3252,7 +3252,7 @@ app.get('/api/vocab/review', (req, res) => {
   }
 });
 
-// 单条完整词条（轻量列表按需补全 payload）
+// 单条完整词条（轻量列表按需补全 payload�?
 app.get('/api/vocab/item/:id', (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
@@ -3278,7 +3278,7 @@ app.post('/api/vocab/add', (req, res) => {
     // ??????
     const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
     if (existing) {
-      return res.json({ success: false, message: '词条已存在', id: existing.id });
+      return res.json({ success: false, message: '词条已存�?, id: existing.id });
     }
 
     const id = crypto.randomUUID();
@@ -4149,7 +4149,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
   const { themeName, file, user_current_profile, userId = 'default-user' } = req.body;
 
   if (!themeName || !file) {
-    return res.status(400).json({ success: false, error: '缺少必要参数 themeName 或 file' });
+    return res.status(400).json({ success: false, error: '缺少必要参数 themeName �?file' });
   }
 
   const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
@@ -4160,16 +4160,16 @@ app.post('/api/theme/custom-add', async (req, res) => {
     // 1. 使用固定 ID 访问 Knowleage_Pro_Scenarios，并清空现有文档
     const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
-    console.log('[Custom Theme] 正在清空 Knowleage_Pro_Scenarios 知识库...');
+    console.log('[Custom Theme] 正在清空 Knowleage_Pro_Scenarios 知识�?..');
     const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
     });
-    if (!docsResponse.ok) throw new Error(`获取知识库文档列表失败 (HTTP ${docsResponse.status})`);
+    if (!docsResponse.ok) throw new Error(`获取知识库文档列表失�?(HTTP ${docsResponse.status})`);
     const docsData = await docsResponse.json();
     const docIds = docsData.data?.map(d => d.id) || [];
 
     if (docIds.length > 0) {
-      console.log(`[Custom Theme] 发现 ${docIds.length} 个旧文档，正在删除...`);
+      console.log(`[Custom Theme] 发现 ${docIds.length} 个旧文档，正在删�?..`);
       await Promise.all(docIds.map(async docId => {
         const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
           method: 'DELETE',
@@ -4229,7 +4229,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
     const batchId = uploadData.batch;
 
     if (!documentId || !batchId) {
-      throw new Error('文件已发送，但未从 Dify 拿到 batch ID 导致无法跟踪');
+      throw new Error('文件已发送，但未�?Dify 拿到 batch ID 导致无法跟踪');
     }
 
     console.log(`[Custom Theme] 文档上传成功 (ID: ${documentId}, Batch: ${batchId})，正在轮询向量化进度...`);
@@ -4249,7 +4249,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
       const docInfo = statusData.data?.[0];
 
       if (docInfo) {
-        console.log(`[Custom Theme] 第 ${i + 1} 次进度扫描: status = ${docInfo.indexing_status}`);
+        console.log(`[Custom Theme] �?${i + 1} 次进度扫�? status = ${docInfo.indexing_status}`);
         if (docInfo.indexing_status === 'completed') {
           isIndexed = true;
           break;
@@ -4260,10 +4260,10 @@ app.post('/api/theme/custom-add', async (req, res) => {
     }
 
     if (!isIndexed) {
-      throw new Error('Dify 向量化索引超时 (>120s)。');
+      throw new Error('Dify 向量化索引超�?(>120s)�?);
     }
 
-    console.log(`[Custom Theme] 向量化装载完毕，调用主题萃取工作流...`);
+    console.log(`[Custom Theme] 向量化装载完毕，调用主题萃取工作�?..`);
 
     // 4. ????????? A ??????????
     const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
@@ -4284,7 +4284,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
     });
 
     const wfData = await wfResponse.json();
-    if (!wfResponse.ok) throw new Error(`工作流执行失败: ${JSON.stringify(wfData)}`);
+    if (!wfResponse.ok) throw new Error(`工作流执行失�? ${JSON.stringify(wfData)}`);
 
     const outputs = wfData?.data?.outputs || {};
     const extractedThemeName = outputs.theme_name || themeName;
@@ -4501,7 +4501,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
     const phraseCount = phraseCountRow ? phraseCountRow.count : 0;
 
     let weakPoints = { pronunciation: '暂无发音问题记录', grammar: '暂无语法问题记录' };
-    let todaySuggestion = '建议：完成今日单词的英汉双向熟练度默写，并进行流式长文听力精听。';
+    let todaySuggestion = '建议：完成今日单词的英汉双向熟练度默写，并进行流式长文听力精听�?;
 
     const latestSession = db.prepare(`
       SELECT extra_json FROM training_sessions
@@ -4517,7 +4517,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
         if (ef.grammarNotes) weakPoints.grammar = ef.grammarNotes;
 
         if (ef.pronunciationNotes || ef.grammarNotes) {
-          todaySuggestion = `今日针对性建议：重点纠正【${ef.pronunciationNotes || '无特殊发音问题'}】的发音习惯；在口语/写作练习中刻意运用【${ef.grammarNotes || '无语法偏差'}】的修正方案。`;
+          todaySuggestion = `今日针对性建议：重点纠正�?{ef.pronunciationNotes || '无特殊发音问�?}】的发音习惯；在口语/写作练习中刻意运用�?{ef.grammarNotes || '无语法偏�?}】的修正方案。`;
         }
       } catch {}
     }
@@ -4539,7 +4539,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-// Dify embed 会话校验：有效则返回 conversation_id 供 iframe URL；renew=1 时创建新会话
+// Dify embed 会话校验：有效则返回 conversation_id �?iframe URL；renew=1 时创建新会话
 app.get('/api/dify/embed-session', async (req, res) => {
   const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
   const conversationId = typeof req.query.conversationId === 'string'
@@ -4548,7 +4548,7 @@ app.get('/api/dify/embed-session', async (req, res) => {
   const renew = req.query.renew === '1';
 
   if (!userId) {
-    return res.status(400).json({ message: '缺少 userId 参数。' });
+    return res.status(400).json({ message: '缺少 userId 参数�? });
   }
 
   const apiKey = process.env.DIFY_CHATBOT_API_KEY;
@@ -4652,7 +4652,7 @@ app.get('/api/dify/embed-session', async (req, res) => {
   }
 });
 
-// mychat 对话代理：服务端拉取 memory_pack 注入 Dify inputs（规避工作流 HTTP 节点丢 body）
+// mychat 对话代理：服务端拉取 memory_pack 注入 Dify inputs（规避工作流 HTTP 节点�?body�?
 app.post('/api/dify/mychat/chat', async (req, res) => {
   const {
     query,
@@ -4663,7 +4663,7 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
   } = req.body || {};
 
   if (!query || typeof query !== 'string') {
-    return res.status(400).json({ message: '缺少 query 参数。' });
+    return res.status(400).json({ message: '缺少 query 参数�? });
   }
 
   const apiKey = process.env.DIFY_CHATBOT_API_KEY;
@@ -4687,7 +4687,7 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
     app_user_id: uid,
     memory_pack: packText,
   };
-  // 将 memory_pack 嵌入 sys.query，规避 Dify 工作流 paragraph/跨节点变量丢失
+  // �?memory_pack 嵌入 sys.query，规�?Dify 工作�?paragraph/跨节点变量丢�?
   const difyQuery = packText
     ? `[结构化记忆]\n${packText}\n\n[用户问题]\n${query}`
     : query;
@@ -4720,7 +4720,7 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
   }
 });
 
-// 词典查询：后端代理 Dify dict_tool_workflow，避免前端暴露 API Key
+// 词典查询：后端代�?Dify dict_tool_workflow，避免前端暴�?API Key
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
   const dictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(rawDictType) ? rawDictType : 'en_zh_bidirectional';
@@ -4763,7 +4763,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.warn(`[Dict Query] Dify 工作流返回错误 (${response.status}):`, errText);
+      console.warn(`[Dict Query] Dify 工作流返回错�?(${response.status}):`, errText);
 
       try {
         db.prepare(`
@@ -4772,14 +4772,14 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: `Dify 工作流调用失败: HTTP ${response.status}` });
+      return res.json({ ok: false, fallback: true, message: `Dify 工作流调用失�? HTTP ${response.status}` });
     }
 
     const data = await response.json();
     const resultStr = data?.data?.outputs?.result;
 
     if (!resultStr) {
-      console.warn('[Dict Query] 工作流输出缺少 result 字段:', data);
+      console.warn('[Dict Query] 工作流输出缺�?result 字段:', data);
 
       try {
         db.prepare(`
@@ -4804,7 +4804,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
       } catch (logErr) {}
 
-      return res.json({ ok: false, fallback: true, message: '词典结果格式异常，无法解析' });
+      return res.json({ ok: false, fallback: true, message: '词典结果格式异常，无法解�? });
     }
 
     try {
@@ -4814,13 +4814,13 @@ app.post('/api/dify/dict-query', async (req, res) => {
       `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), Date.now());
     } catch (logErr) {}
 
-    console.log(`[Dict Query] 词条 "${word}" 查询成功，字段:`, Object.keys(parsedResult?.payload || {}));
+    console.log(`[Dict Query] 词条 "${word}" 查询成功，字�?`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
     const isTimeout = error.name === 'AbortError' || /aborted/i.test(error.message || '');
     console.warn('[Dict Query] 查询失败:', error.message);
     const message = isTimeout
-      ? `词典查询超时（${DICT_QUERY_TIMEOUT_MS / 1000} 秒），工作流仍在运行中，请稍后重试`
+      ? `词典查询超时�?{DICT_QUERY_TIMEOUT_MS / 1000} 秒），工作流仍在运行中，请稍后重试`
       : `词典查询失败: ${error.message}`;
     return res.json({ ok: false, fallback: true, message });
   } finally {
@@ -4828,7 +4828,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 });
 
-// 辅助函数：从混杂文本中提取可 JSON.parse 的片段（```json 块或最外侧 {}）
+// 辅助函数：从混杂文本中提取可 JSON.parse 的片段（```json 块或最外侧 {}�?
 function extractJsonFromString(raw) {
   const rawStr = String(raw ?? '').trim();
   const jsonBlockMatch = rawStr.match(/```json\s*([\s\S]*?)\s*```/i);
@@ -4876,7 +4876,7 @@ app.post('/api/dify/write-review', async (req, res) => {
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Write Review] Dify 服务器返回错误(${response.status}):`, errText);
+      console.error(`[Write Review] Dify 服务器返回错�?${response.status}):`, errText);
       return res.status(response.status).json({ success: false, error: `Dify 接口异常: ${response.status}`, details: errText });
     }
 
@@ -4885,7 +4885,7 @@ app.post('/api/dify/write-review', async (req, res) => {
 
     if (!resultStr) {
       console.warn('[Write Review] 工作流未返回 result 字段:', data);
-      return res.status(500).json({ success: false, error: 'Dify 工作流未返回正确的 result 字段' });
+      return res.status(500).json({ success: false, error: 'Dify 工作流未返回正确�?result 字段' });
     }
 
     let parsedResult;
@@ -4895,7 +4895,7 @@ app.post('/api/dify/write-review', async (req, res) => {
         : JSON.parse(extractJsonFromString(resultStr));
     } catch (e) {
       console.error('[Write Review] 解析 result JSON 失败:', e, resultStr);
-      return res.status(500).json({ success: false, error: '工作流结果解析异常，返回数据非合法 JSON' });
+      return res.status(500).json({ success: false, error: '工作流结果解析异常，返回数据非合�?JSON' });
     }
 
     const responseData = {
@@ -4911,8 +4911,8 @@ app.post('/api/dify/write-review', async (req, res) => {
       data: responseData
     });
   } catch (error) {
-    console.error('[Write Review] 服务端请求异常', error);
-    return res.status(500).json({ success: false, error: `服务器内部异常: ${error.message}` });
+    console.error('[Write Review] 服务端请求异�?, error);
+    return res.status(500).json({ success: false, error: `服务器内部异�? ${error.message}` });
   }
 });
 
@@ -4933,7 +4933,7 @@ app.get('/api/dify/dict-coverage', (req, res) => {
       'GRE': 0,
       'BUSINESS': 0,
       '考研': 0,
-      '未分类': 0
+      '未分�?: 0
     };
 
     rows.forEach(r => {
@@ -4993,15 +4993,15 @@ async function checkAndEnrichPlaceholderPayload(row) {
   // ???????????????
   const hasPlaceholder =
     !payload.meaning ||
-    payload.meaning === '待复习补充' ||
-    payload.meaning === '待复习补充' ||
+    payload.meaning === '待复习补�? ||
+    payload.meaning === '待复习补�? ||
     (payload.phonetic && payload.phonetic.includes('??')) ||
     (payload.definition_en && payload.definition_en.includes('精准定义')) ||
-    (payload.business_note && payload.business_note.includes('特定商环境')) ||
+    (payload.business_note && payload.business_note.includes('特定商环�?)) ||
     (Array.isArray(payload.examples) && payload.examples.some(ex => typeof ex === 'string' && ex.includes('例句1')));
 
   if (hasPlaceholder) {
-    console.log(`[Payload Enrich] 检测到词条 "${row.word}" (ID: ${row.id}) 使用了占位符 payload，正在启动静默字典查询纠正...`);
+    console.log(`[Payload Enrich] 检测到词条 "${row.word}" (ID: ${row.id}) 使用了占位符 payload，正在启动静默字典查询纠�?..`);
     const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
   if (!DIFY_DICT_API_KEY) throw new Error("Server missing DIFY_DICT_API_KEY");
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
@@ -5035,7 +5035,7 @@ async function checkAndEnrichPlaceholderPayload(row) {
           if (parsedResult && parsedResult.ok && parsedResult.payload) {
             const dp = parsedResult.payload;
 
-            let meaning = dp.translation_main || (Array.isArray(dp.definitions_en) ? dp.definitions_en[0] : '待复习补充');
+            let meaning = dp.translation_main || (Array.isArray(dp.definitions_en) ? dp.definitions_en[0] : '待复习补�?);
             let definition_en = Array.isArray(dp.definitions_en) ? dp.definitions_en.join('; ') : (dp.definition || '');
             let business_note = dp.business_notes || '';
             let examples = [];
@@ -5064,17 +5064,17 @@ async function checkAndEnrichPlaceholderPayload(row) {
               definition_en: definition_en,
               business_note: business_note,
               examples: examples,
-              source: '自动纠正净化'
+              source: '自动纠正净�?
             };
 
             db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(newPayload), row.id);
-            console.log(`[Payload Enrich] 成功更新词条 "${row.word}" 数据库 payload`);
+            console.log(`[Payload Enrich] 成功更新词条 "${row.word}" 数据�?payload`);
             return newPayload;
           }
         }
       }
     } catch (err) {
-      console.error(`[Payload Enrich] 静默字典查询及更新失败 for "${row.word}":`, err);
+      console.error(`[Payload Enrich] 静默字典查询及更新失�?for "${row.word}":`, err);
     }
   }
 
@@ -5290,7 +5290,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         const models = (process.env.IMAGE_GEN_MODELS || '').split(',').map(s => s.trim()).filter(Boolean);
         if (models.length === 0) models.push(...DEFAULT_IMAGE_GEN_MODELS);
 
-        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调用 Agnes /v1/images/generations'] });
+        taskQueue.updateTask(task.id, { status: 'running', logs: ['开始调�?Agnes /v1/images/generations'] });
         console.log(`[generate-image] prompt: "${memoryAids.image_prompt}", models: [${models.join(', ')}]`);
 
         let imageUrl = '';
@@ -5319,7 +5319,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
           console.error('[generate-image] all models failed');
           taskQueue.updateTask(task.id, {
             status: 'failed',
-            error: `所有生图模型均失败，最后错误: ${lastError}`
+            error: `所有生图模型均失败，最后错�? ${lastError}`
           });
           return;
         }
@@ -5339,7 +5339,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
             image_url: imageUrl,
             download_url: downloadUrl,
           },
-          logs: ['图片生成与入库完成']
+          logs: ['图片生成与入库完�?]
         });
       } catch (err) {
         console.error('[generate-image async] Error:', err);
@@ -5353,12 +5353,12 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
   }
 });
 
-// 处理材料提纯解析请求（真实 Dify 联动：找库 -> 清空 -> 上传 -> 工作流抽提）
+// 处理材料提纯解析请求（真�?Dify 联动：找�?-> 清空 -> 上传 -> 工作流抽提）
 app.post('/api/material/process-and-extract', async (req, res) => {
   const { topic, userId, files, user_current_profile } = req.body;
 
   if (!files || files.length === 0) {
-    return res.status(400).json({ success: false, error: '未提供可处理的上传文件' });
+    return res.status(400).json({ success: false, error: '未提供可处理的上传文�? });
   }
 
   const taskQueue = require('./services/taskQueue');
@@ -5370,7 +5370,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
   // 异步执行材料上传与知识库写入流程
   setImmediate(async () => {
-    // 创建 Dify 知识库文档，轮询索引状态，触发提纯工作流，写入生词本
+    // 创建 Dify 知识库文档，轮询索引状态，触发提纯工作流，写入生词�?
     const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
     const WORKFLOW_KEY = process.env.DIFY_VIDEO_WORKFLOW_KEY;
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
@@ -5379,25 +5379,25 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'running',
         progress: 5,
-        logs: ['[进度] 正在初始化提取任务...']
+        logs: ['[进度] 正在初始化提取任�?..']
       });
 
       // ---------------------------------------------------------
-      // 使用固定 ID 直接访问 Knowleage_Pro_Scenarios 知识库
+      // 使用固定 ID 直接访问 Knowleage_Pro_Scenarios 知识�?
       // ---------------------------------------------------------
       const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
       // ---------------------------------------------------------
-      // 批量删除旧文档（如果存在）
+      // 批量删除旧文档（如果存在�?
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 20,
-        logs: ['[进度] 正在清空 Knowleage_Pro_Scenarios 知识库...']
+        logs: ['[进度] 正在清空 Knowleage_Pro_Scenarios 知识�?..']
       });
       const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
       });
-      if (!docsResponse.ok) throw new Error(`获取知识库文档列表失败 (HTTP ${docsResponse.status})`);
+      if (!docsResponse.ok) throw new Error(`获取知识库文档列表失�?(HTTP ${docsResponse.status})`);
       const docsData = await docsResponse.json();
       const docIds = docsData.data?.map(d => d.id) || [];
 
@@ -5405,18 +5405,18 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       if (docIds.length > 0) {
         taskQueue.updateTask(task.id, {
           progress: 30,
-          logs: [`[进度] 发现已存在 ${docIds.length} 个旧文档，正在清空...`]
+          logs: [`[进度] 发现已存�?${docIds.length} 个旧文档，正在清�?..`]
         });
         await Promise.all(docIds.map(async docId => {
           const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
           });
-          if (!delRes.ok) console.warn(`[警告] 删除旧文档 ${docId} 失败 (HTTP ${delRes.status})`);
+          if (!delRes.ok) console.warn(`[警告] 删除旧文�?${docId} 失败 (HTTP ${delRes.status})`);
         }));
         taskQueue.updateTask(task.id, {
           progress: 40,
-          logs: ['[进度] 旧文档清空完成']
+          logs: ['[进度] 旧文档清空完�?]
         });
       } else {
         taskQueue.updateTask(task.id, {
@@ -5426,29 +5426,29 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       }
 
       // ---------------------------------------------------------
-      // 准备上传文件到 Dify 知识库
+      // 准备上传文件�?Dify 知识�?
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 45,
-        logs: ['[进度] 正在解析 Base64 格式的上传材料...']
+        logs: ['[进度] 正在解析 Base64 格式的上传材�?..']
       });
       const fileObj = files[0];
       const base64Data = fileObj.content || fileObj.base64 || '';
       const base64Content = base64Data.replace(/^data:.*?;base64,/, '');
       const buffer = Buffer.from(base64Content, 'base64');
 
-      // 校验文件大小限制（50MB）
+      // 校验文件大小限制�?0MB�?
       const MAX_FILE_SIZE = 50 * 1024 * 1024;
       if (buffer.length > MAX_FILE_SIZE) {
-        throw new Error(`上传文件超过50MB限制（当前 ${Math.round(buffer.length / 1024 / 1024)}MB），请上传更小的文件！`);
+        throw new Error(`上传文件超过50MB限制（当�?${Math.round(buffer.length / 1024 / 1024)}MB），请上传更小的文件！`);
       }
 
-      // Node 18+ 使用全局 Blob 构造 FormData（兼容浏览器和 Node 环境）
+      // Node 18+ 使用全局 Blob 构�?FormData（兼容浏览器�?Node 环境�?
       const blob = new Blob([buffer], { type: 'application/octet-stream' });
       const formData = new FormData();
       formData.append('file', blob, fileObj.fileName || 'upload_material.pdf');
-      // 使用 Hierarchical 模式保留文档结构（段+子段）
-      // 配置解析规则：预处理（去多余空格）、父段落模式、子段分割
+      // 使用 Hierarchical 模式保留文档结构（段+子段�?
+      // 配置解析规则：预处理（去多余空格）、父段落模式、子段分�?
       formData.append('data', JSON.stringify({
         indexing_technique: 'high_quality',
         doc_form: 'hierarchical_model',
@@ -5474,7 +5474,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 50,
-        logs: ['[进度] 正在上传解析后的材料到 Dify 知识库...']
+        logs: ['[进度] 正在上传解析后的材料�?Dify 知识�?..']
       });
       const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
         method: 'POST',
@@ -5492,20 +5492,20 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       const batchId = uploadData.batch;
 
       if (!documentId || !batchId) {
-        throw new Error('未能从 Dify 响应中获取 document / batch ID');
+        throw new Error('未能�?Dify 响应中获�?document / batch ID');
       }
 
       taskQueue.updateTask(task.id, {
         progress: 55,
-        logs: [`[进度] 导入文档成功 (ID: ${documentId}, Batch: ${batchId})，正在开始索引...`]
+        logs: [`[进度] 导入文档成功 (ID: ${documentId}, Batch: ${batchId})，正在开始索�?..`]
       });
 
       // ---------------------------------------------------------
-      // 轮询 Dify 文档索引状态，等待向量化完成
+      // 轮询 Dify 文档索引状态，等待向量化完�?
       // ---------------------------------------------------------
       let isIndexed = false;
-      // 动态计算超时轮数：根据文件大小调整（小文件快，大文件慢）
-      const maxRetries = buffer.length < 10 * 1024 * 1024 ? 60 : (buffer.length < 30 * 1024 * 1024 ? 90 : 120); // 最多 6分钟
+      // 动态计算超时轮数：根据文件大小调整（小文件快，大文件慢�?
+      const maxRetries = buffer.length < 10 * 1024 * 1024 ? 60 : (buffer.length < 30 * 1024 * 1024 ? 90 : 120); // 最�?6分钟
       for (let i = 0; i < maxRetries; i++) {
         await new Promise(resolve => setTimeout(resolve, 3000));
 
@@ -5514,21 +5514,21 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
         });
 
-        if (!statusRes.ok) continue; // 本轮状态查询失败则跳过，继续下一轮
+        if (!statusRes.ok) continue; // 本轮状态查询失败则跳过，继续下一�?
         const statusData = await statusRes.json();
-        // 获取单个文档的索引状态（pending / indexing / completed / error）
+        // 获取单个文档的索引状态（pending / indexing / completed / error�?
         const docInfo = statusData.data?.[0];
 
         if (docInfo) {
           taskQueue.updateTask(task.id, {
             progress: Math.min(68, 55 + i),
-            logs: [`[进度] 第 ${i + 1} 轮获取 Dify 索引状态: ${docInfo.indexing_status}`]
+            logs: [`[进度] �?${i + 1} 轮获�?Dify 索引状�? ${docInfo.indexing_status}`]
           });
           if (docInfo.indexing_status === 'completed') {
             isIndexed = true;
             break;
           } else if (docInfo.indexing_status === 'error') {
-            throw new Error('Dify 文档索引失败，请检查上传文件或知识库配置');
+            throw new Error('Dify 文档索引失败，请检查上传文件或知识库配�?);
           }
         }
       }
@@ -5539,11 +5539,11 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 70,
-        logs: ['[进度] 知识库文档向量化就绪，准备提纯...']
+        logs: ['[进度] 知识库文档向量化就绪，准备提�?..']
       });
 
       // --- 展示用正文：优先本地抽取原文；Dify 分段仅作回退（分段拼接会改段落结构）---
-      // Dify knowledge create-by-file / hierarchical 用于检索提纯，不宜作为阅读器展示源。
+      // Dify knowledge create-by-file / hierarchical 用于检索提纯，不宜作为阅读器展示源�?
       let articleText = "";
       let originalText = "";
       const uploadedFileName = fileObj.fileName || '';
@@ -5561,14 +5561,14 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           const pdfData = await pdfParse(buffer);
           originalText = String(pdfData?.text || '').replace(/\r\n/g, '\n').trim();
           taskQueue.updateTask(task.id, {
-            logs: [`[进度] PDF 本地抽文本完成（约 ${originalText.length} 字），用于沉浸式阅读展示`]
+            logs: [`[进度] PDF 本地抽文本完成（�?${originalText.length} 字），用于沉浸式阅读展示`]
           });
         }
       } catch (e) {
         console.warn('[Material] 本地抽取原文失败，将回退 Dify 分段:', e.message);
         originalText = '';
         taskQueue.updateTask(task.id, {
-          logs: [`[进度] 本地原文抽取失败（${e.message}），回退 Dify 分段拼接`]
+          logs: [`[进度] 本地原文抽取失败�?{e.message}），回退 Dify 分段拼接`]
         });
       }
 
@@ -5592,11 +5592,11 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       }
 
       // ---------------------------------------------------------
-      // 运行 Dify 英文商业实战材料提纯工作流
+      // 运行 Dify 英文商业实战材料提纯工作�?
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 75,
-        logs: ['[进度] 正在运行 Dify 提纯工作流提取核心词句...']
+        logs: ['[进度] 正在运行 Dify 提纯工作流提取核心词�?..']
       });
       const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
         method: 'POST',
@@ -5616,7 +5616,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       if (!wfResponse.ok) {
         const errText = await wfResponse.text().catch(() => '');
-        throw new Error(`提纯工作流失败 (HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
+        throw new Error(`提纯工作流失�?(HTTP ${wfResponse.status}): ${errText.substring(0, 200)}`);
       }
       const wfData = await wfResponse.json();
 
@@ -5628,7 +5628,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       if (Array.isArray(rawExtracted)) {
         extractedItems = rawExtracted;
       } else if (typeof rawExtracted === 'string') {
-        // 尝试将字符串结果解析为 JSON 格式
+        // 尝试将字符串结果解析�?JSON 格式
         let cleanJson = rawExtracted.trim();
         if (cleanJson.startsWith('\`\`\`json')) cleanJson = cleanJson.substring(7);
         else if (cleanJson.startsWith('\`\`\`')) cleanJson = cleanJson.substring(3);
@@ -5658,7 +5658,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // 根据 extractedItems 中每项的 category 字段补充布尔标记
       for (const item of extractedItems) {
         if (typeof item === 'object' && item !== null) {
-          // 若模型已给出 category，则同步到 is_phrase / is_sentence
+          // 若模型已给出 category，则同步�?is_phrase / is_sentence
           if (item.category === 'word') item.is_phrase = false;
           else if (item.category === 'phrase') item.is_phrase = true;
           else if (item.category === 'sentence') item.is_sentence = true;
@@ -5669,14 +5669,14 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       let phrasesToReturn = [];
       let sentencesToReturn = [];
 
-      // 按词数规则分类
+      // 按词数规则分�?
       for (const item of extractedItems) {
         const isObject = typeof item === 'object' && item !== null;
         const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : item;
         const cleanStr = String(wordStr).trim();
         if (!cleanStr) continue;
 
-        // 统一走词数分类，决定写入词/词组/句型
+        // 统一走词数分类，决定写入�?词组/句型
         let dictType = classifyByWordCount(cleanStr);
 
         if (dictType === 'ai_sentence') {
@@ -5688,17 +5688,17 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // 合并词汇和词组，准备写入数据库
+      // 合并词汇和词组，准备写入数据�?
       const vocabToInsert = [...wordsToReturn, ...phrasesToReturn];
 
       taskQueue.updateTask(task.id, {
         progress: 85,
-        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词本...`]
+        logs: [`[进度] 提取�?${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词�?..`]
       });
 
       /**
-       * 计算字符串中的英文单词数（用于分类词汇/词组/句型）
-       * @param {string} str - 输入字符串
+       * 计算字符串中的英文单词数（用于分类词�?词组/句型�?
+       * @param {string} str - 输入字符�?
        * @returns {number} 单词数量
        */
       function countWords(str) {
@@ -5706,7 +5706,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         return str
           .trim()
           .replace(/[.!?,;:'"()[\]{}]/g, '')   // 去掉常见标点
-          .split(/\s+/)                           // 按空白分词
+          .split(/\s+/)                           // 按空白分�?
           .filter(w => w.length > 0)             // 去掉空段
           .length;
       }
@@ -5714,10 +5714,10 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       /**
        * 按英文单词数粗分类型
        * - ai_extracted：约 1 个词
-       * - ai_phrase：至少 2 个词且不以句号结尾
-       * - ai_sentence：以 . ! ? 结尾且至少 5 个词
+       * - ai_phrase：至�?2 个词且不以句号结�?
+       * - ai_sentence：以 . ! ? 结尾且至�?5 个词
        *
-       * @param {string} wordStr - 待分类文本
+       * @param {string} wordStr - 待分类文�?
        * @returns {'ai_extracted'|'ai_phrase'|'ai_sentence'}
        */
       function classifyByWordCount(wordStr) {
@@ -5764,7 +5764,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           `).run(id, wordStr, dictType, 'business', JSON.stringify(payload), now, now, '[]');
           addedCount++;
         } else {
-          // 已存在则仅在 payload 较空时覆盖更新
+          // 已存在则仅在 payload 较空时覆盖更�?
           let oldPayload = {};
           try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
           if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
@@ -5778,7 +5778,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // ===== 写入句型（dict_type = 'ai_sentence'） =====
+      // ===== 写入句型（dict_type = 'ai_sentence'�?=====
       let addedSentenceCount = 0;
       for (const item of sentencesToReturn) {
         const isObject = typeof item === 'object' && item !== null;
@@ -5788,7 +5788,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         const cleanSent = String(sentenceStr).trim();
         if (!cleanSent || cleanSent.length > 500) continue;
 
-        // 用前 50 字符做 LIKE 前缀排重，避免重复长句
+        // 用前 50 字符�?LIKE 前缀排重，避免重复长�?
         const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
         const existingSent = db.prepare(
           "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
@@ -5823,7 +5823,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         console.error('[Material Process] Mindmap generation failed:', err.message);
       }
 
-      // 组装完成结果并标记任务完成
+      // 组装完成结果并标记任务完�?
       taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,
@@ -5897,7 +5897,7 @@ app.post('/api/english/clear-today', (req, res) => {
 });
 
 // ==========================================
-// 多角色沙盘：English_Oral_Sandbox v10 时间 inputs 注入（与前端 profileHelper 对齐）
+// 多角色沙盘：English_Oral_Sandbox v10 时间 inputs 注入（与前端 profileHelper 对齐�?
 // ==========================================
 function getOralSystemFormattedTime() {
   const now = new Date();
@@ -5913,7 +5913,7 @@ function getOralSystemFormattedTime() {
   });
   const parts = formatter.formatToParts(now);
   const val = (type) => parts.find((p) => p.type === type)?.value || '';
-  const weekdayMap = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  const weekdayMap = ['星期�?, '星期一', '星期�?, '星期�?, '星期�?, '星期�?, '星期�?];
   return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${weekdayMap[now.getDay()]}`;
 }
 
@@ -5933,8 +5933,8 @@ function injectOralSystemTime(inputs = {}) {
 }
 
 // ==========================================
-// 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow）
-// API Key 仅保存在服务端 DIFY_ORAL_API_KEY
+// 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow�?
+// API Key 仅保存在服务�?DIFY_ORAL_API_KEY
 // ==========================================
 app.post('/api/english/oral/chat', async (req, res) => {
   const {
@@ -5945,7 +5945,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
   } = req.body || {};
 
   if (!query || typeof query !== 'string') {
-    return res.status(400).json({ message: '缺少 query 参数。' });
+    return res.status(400).json({ message: '缺少 query 参数�? });
   }
 
   const apiKey = process.env.DIFY_ORAL_API_KEY;
@@ -5982,7 +5982,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
 });
 
 // ==========================================
-// 多角色沙盘：破绽识别判定（走 English_Oral_Sandbox Chatflow）
+// 多角色沙盘：破绽识别判定（走 English_Oral_Sandbox Chatflow�?
 // API Key: DIFY_ORAL_API_KEY / VITE_DIFY_ORAL_API_KEY（与口语沙盘主对话相同）
 // ==========================================
 app.post('/api/english/breakthrough/submit', async (req, res) => {
@@ -5997,7 +5997,7 @@ app.post('/api/english/breakthrough/submit', async (req, res) => {
   } = req.body || {};
 
   if (!selectedText || !type) {
-    return res.status(400).json({ correct: false, feedback: '缺少划词内容或破绽类型。' });
+    return res.status(400).json({ correct: false, feedback: '缺少划词内容或破绽类型�? });
   }
 
   const typeLabels = {
@@ -6011,18 +6011,18 @@ app.post('/api/english/breakthrough/submit', async (req, res) => {
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
 
-  const query = `[系统指令：破绽识别判定 — 仅输出 JSON，不要 Markdown]
-场景：${sceneTitle || '多角色沙盘'}
-消息ID：${messageId || 'unknown'}
-用户划词：${String(selectedText).slice(0, 500)}
-用户标记类型：${typeLabels[type] || type}
+  const query = `[系统指令：破绽识别判�?�?仅输�?JSON，不�?Markdown]
+场景�?{sceneTitle || '多角色沙�?}
+消息ID�?{messageId || 'unknown'}
+用户划词�?{String(selectedText).slice(0, 500)}
+用户标记类型�?{typeLabels[type] || type}
 AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
 
-判定规则：
-1. 用户划词是否覆盖或指向 flaw_point 中的关键矛盾片段；
-2. 用户选择的破绽类型（logic/fact/intent）是否与 flaw_point 描述的谬误类型一致。
+判定规则�?
+1. 用户划词是否覆盖或指�?flaw_point 中的关键矛盾片段�?
+2. 用户选择的破绽类型（logic/fact/intent）是否与 flaw_point 描述的谬误类型一致�?
 
-只输出一行合法 JSON：{"correct":true或false,"feedback":"不超过80字的中文说明"}`;
+只输出一行合�?JSON：{"correct":true或false,"feedback":"不超�?0字的中文说明"}`;
 
   try {
     const response = await fetch(`${baseUrl}/chat-messages`, {
@@ -6033,7 +6033,7 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
       },
       body: JSON.stringify({
         inputs: injectOralSystemTime({
-          scene_title: sceneTitle || '多角色沙盘',
+          scene_title: sceneTitle || '多角色沙�?,
           role_judgement: type,
           intent_judgement: 'breakthrough_audit',
         }),
@@ -6068,11 +6068,11 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
     if (parsed && typeof parsed.correct === 'boolean') {
       return res.json({
         correct: parsed.correct,
-        feedback: String(parsed.feedback || (parsed.correct ? '破绽标记正确。' : '破绽类型不匹配。')),
+        feedback: String(parsed.feedback || (parsed.correct ? '破绽标记正确�? : '破绽类型不匹配�?)),
       });
     }
 
-    // Dify 未返回 JSON 时做本地回退
+    // Dify 未返�?JSON 时做本地回退
     const flaw = String(flawPoint).toLowerCase();
     const selection = String(selectedText).toLowerCase();
     const typeKeywords = {
@@ -6090,12 +6090,12 @@ AI 埋设破绽（flaw_point）：${String(flawPoint).slice(0, 800)}
     return res.json({
       correct,
       feedback: correct
-        ? '已识别破绽（本地回退判定），请用英语发起针对性提问。'
-        : '标记与 AI 埋设破绽不匹配，请重新划词。',
+        ? '已识别破绽（本地回退判定），请用英语发起针对性提问�?
+        : '标记�?AI 埋设破绽不匹配，请重新划词�?,
     });
   } catch (err) {
     console.error('[breakthrough/submit] error:', err);
-    return res.status(500).json({ correct: false, feedback: '破绽判定服务异常，请稍后重试。' });
+    return res.status(500).json({ correct: false, feedback: '破绽判定服务异常，请稍后重试�? });
   }
 });
 
@@ -6350,7 +6350,7 @@ const handleGetDailyExtractArticle = (req, res) => {
 app.get('/api/english/daily-extract/article', handleGetDailyExtractArticle);
 app.get('/api/english/daily-extract/article/exact', handleGetDailyExtractArticle);
 
-// 前台发起 daily-extract 生成请求，创建 taskId 后异步后台运行
+// 前台发起 daily-extract 生成请求，创�?taskId 后异步后台运�?
 app.post('/api/english/daily-extract', async (req, res) => {
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = req.body;
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
@@ -6376,12 +6376,12 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const wordsLeft = WORD_DAILY_LIMIT - (quotaRow.words_added || 0);
     const phrasesLeft = PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0);
 
-    // Step 2: 词 + 短语入库配额均已耗尽时拦截（避免用户误以为「没提取到词表」）
+    // Step 2: �?+ 短语入库配额均已耗尽时拦截（避免用户误以为「没提取到词表」）
     if (wordsLeft <= 0 && phrasesLeft <= 0) {
       return res.json({
         success: false,
         quotaExceeded: true,
-        message: `今日入库配额已用尽（词 ${quotaRow.words_added || 0}/${WORD_DAILY_LIMIT}，短语 ${quotaRow.phrases_added || 0}/${PHRASE_DAILY_LIMIT}）。词表不会为空提取失败，而是无法继续写入生词本。请在弹药库点击「清空今日配额与生词」后重试，或明天再来。`,
+        message: `今日入库配额已用尽（�?${quotaRow.words_added || 0}/${WORD_DAILY_LIMIT}，短�?${quotaRow.phrases_added || 0}/${PHRASE_DAILY_LIMIT}）。词表不会为空提取失败，而是无法继续写入生词本。请在弹药库点击「清空今日配额与生词」后重试，或明天再来。`,
         quota: {
           wordsLimit: WORD_DAILY_LIMIT,
           wordsUsed: quotaRow.words_added || 0,
@@ -6465,7 +6465,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       }
       historyExclude = [...new Set(allKeywords)].slice(0, 30).join(', ');
     } catch (e) {
-      console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
+      console.warn('[Daily Extract] 构建去重上下文失�?', e.message);
     }
 
     let userFlaws = '';
@@ -6581,8 +6581,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             parseSSELines(chunk);
           }
         } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          console.error("[Daily Extract] 强行读取流失�?", readErr);
+          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异�? ${readErr.message}`, createdAt: Date.now() });
           return;
         }
       } else {
@@ -6592,8 +6592,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             parseSSELines(chunkText);
           }
         } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          console.error("[Daily Extract] 强行读取流失�?", readErr);
+          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异�? ${readErr.message}`, createdAt: Date.now() });
           return;
         }
       }
@@ -6628,7 +6628,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     }
 
     // 正文与词表分离：词表解析复用预生成链路的 parseVocabFromRaw
-    // （会剥离 ---VOCAB_JSON_END---、markdown fence，并做全文 JSON 兜底）
+    // （会剥离 ---VOCAB_JSON_END---、markdown fence，并做全�?JSON 兜底�?
     let articleText = "";
     if (/---VOCAB_JSON_START---/i.test(answer || '')) {
       articleText = String(answer).split(/---VOCAB_JSON_START---/i)[0].trim();
@@ -6660,7 +6660,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       }));
     }
 
-    // dify=主流程解析成功；fallback=主流程空词后本地 LLM 兜底；empty=两者皆空
+    // dify=主流程解析成功；fallback=主流程空词后本地 LLM 兜底；empty=两者皆�?
     let vocabSource = (parsedVocab.length > 0 || parsedPhrases.length > 0) ? 'dify' : 'empty';
 
     if (vocabSource === 'empty' && articleText.trim()) {
@@ -6850,7 +6850,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         JSON.stringify(wordsToStore.map(w => w.word))
       );
     } catch (e) {
-      console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
+      console.warn('[Daily Extract] 构建去重上下文失�?', e.message);
     }
 
     console.log(`[Daily Extract Async] Completed ${taskId}. User ${userId} ${today} added ${wordsAddedCount} words.`);
@@ -6878,7 +6878,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       vocabSource,
     };
 
-    // 保存至 daily_extracted_articles 物理持久库
+    // 保存�?daily_extracted_articles 物理持久�?
     try {
       const artId = crypto.randomUUID();
       const durationVal = requestBody?.duration ? String(requestBody.duration) : (duration ? String(duration) : '25');
@@ -6927,7 +6927,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         extracted_phrases_json: JSON.stringify(displayPhrases),
       };
 
-      // 即时联动：前台手动生成时同步精听音频；Cron/重跑路径禁用（Listen 模块为唯一 owner）
+      // 即时联动：前台手动生成时同步精听音频；Cron/重跑路径禁用（Listen 模块为唯一 owner�?
       if (!requestBody?.skipListenAudioSync) {
         (async () => {
           try {
@@ -6939,7 +6939,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       }
 
     } catch (dbSaveErr) {
-      console.warn('[Daily Extract] 保存 daily_extracted_articles 失败 (非阻塞):', dbSaveErr.message);
+      console.warn('[Daily Extract] 保存 daily_extracted_articles 失败 (非阻�?:', dbSaveErr.message);
     }
 
     extractionTasks.set(taskId, {
@@ -6983,10 +6983,10 @@ app.post('/api/user/login-ping', (req, res) => {
     // 1. 记录登录日志
     const result = dailyListenPreGenerateService.recordUserLogin(db, userId);
 
-    // 2. 自动将前台用户输入的用户名与其主题写入 user_theme_prefs 物理表
+    // 2. 自动将前台用户输入的用户名与其主题写�?user_theme_prefs 物理�?
     dailyPackService.upsertUserTheme(db, userId, theme);
 
-    // N1: 登录不再触发异步补跑；缺包由手动生成或 02:00 cron 负责
+    // N1: 登录不再触发异步补跑；缺包由手动生成�?02:00 cron 负责
     res.json({ success: true, catchupScheduled: false, ...result });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -7012,7 +7012,7 @@ app.get('/api/daily-pack/today', (req, res) => {
     // 兼顾账号别名
     const userIds = [rawUserId];
 
-    // 自动保障前台用户及其选择的主题写入 user_theme_prefs 物理表
+    // 自动保障前台用户及其选择的主题写�?user_theme_prefs 物理�?
     try {
       if (theme) {
         for (const u of userIds) dailyPackService.upsertUserTheme(db, u, theme);
@@ -7050,7 +7050,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
     const resolvedTheme = String(theme || pref?.theme || '').trim();
     if (!resolvedTheme) {
-      return res.status(400).json({ success: false, error: '请先选择并同步学习主题' });
+      return res.status(400).json({ success: false, error: '请先选择并同步学习主�? });
     }
 
     const resolvedHistoryExclude = String(historyExclude || dailyPackService.getHistoryExclude(db) || '').trim();
@@ -7067,7 +7067,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     const existingWakeup = existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null;
     const existingFlaw = existing?.flaw_vocab_json ? JSON.parse(existing.flaw_vocab_json) : null;
 
-    // 立刻落 generating 并返回，Dify 在后台跑，避免长连接占满浏览器/Nginx
+    // 立刻�?generating 并返回，Dify 在后台跑，避免长连接占满浏览�?Nginx
     const pending = dailyPackService.upsertDailyPack(db, {
       userId: uid,
       packDate,
@@ -7175,7 +7175,7 @@ app.post('/api/daily-pack/cron-run', async (req, res) => {
 });
 
 // ==========================================
-// 每日 Cron 运行日志（独立于 taskQueue）
+// 每日 Cron 运行日志（独立于 taskQueue�?
 // ==========================================
 app.get('/api/daily-cron/runs', (req, res) => {
   try {
@@ -7296,7 +7296,7 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
           const theme = themeRow?.theme || '商务谈判：让步与施压';
 
           if (mode === 'all_current') {
-            // 仅当前用户四模块；重新解析入参 — 禁止调用全局 multi-user cron
+            // 仅当前用户四模块；重新解析入�?�?禁止调用全局 multi-user cron
             dailyCronRunService.upsertStep(db, {
               runId: newRun.id, userId, module: 'wakeup', status: 'running',
             });
@@ -7383,7 +7383,7 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
               try {
                 if (fs.module === 'wakeup' || fs.module === 'flaw') {
                   // Snapshot executor: use snap.theme only; still call generate with that theme
-                  // (generateDailyPackForUser re-resolves history — document known gap vs pure snapshot;
+                  // (generateDailyPackForUser re-resolves history �?document known gap vs pure snapshot;
                   //  prefer callWakeupWorkflow with snap fields when module is wakeup-only)
                   if (fs.module === 'wakeup' && snap.theme != null) {
                     await dailyPackService.callWakeupWorkflow({
@@ -7489,7 +7489,7 @@ app.post('/api/dify/run-english-mastery', (req, res) => {
     success: true,
     message: "Successfully initiated training session (Mock).",
     topic: topic,
-    result: { scene: "模拟测试局", content: "这是仿真系统返回的训练数据..." }
+    result: { scene: "模拟测试局", content: "这是仿真系统返回的训练数�?.." }
   });
 });
 
@@ -7553,7 +7553,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
       issueType,
       analysis,
       suggestion,
-      correctionNote: `${analysis}銆?{suggestion}`,
+      correctionNote: `${analysis}�?{suggestion}`,
       target_text: targetText,
       recognized_text: recognizedText || '',
     });
@@ -7602,7 +7602,7 @@ app.post('/api/grammar-polish', async (req, res) => {
       try {
         const errObj = JSON.parse(errText);
         if (errObj.code === "not_chat_app") {
-           errorMsg = "Dify 工作流配置错误: 请使用 workflow 模式的 API 路径 (/workflows/run)";
+           errorMsg = "Dify 工作流配置错�? 请使�?workflow 模式�?API 路径 (/workflows/run)";
         }
       } catch(e) {}
 
@@ -7613,7 +7613,7 @@ app.post('/api/grammar-polish', async (req, res) => {
     console.log('Dify 原始返回:', JSON.stringify(data, null, 2));
 
     // ?? Grammar_Polish_Engine.yml ??????????????????????????????????????polished_result
-    const polishedText = data?.data?.outputs?.polished_result || '未获取到润色结果，请检查工作流配置。';
+    const polishedText = data?.data?.outputs?.polished_result || '未获取到润色结果，请检查工作流配置�?;
 
     res.json({
       success: true,
@@ -7661,7 +7661,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
     logs: ['任务已提交，请在任务中心查看进度'],
   });
 
-  // 立即返回 taskId，后台异步执行（复用现有 TaskContext 轮询）
+  // 立即返回 taskId，后台异步执行（复用现有 TaskContext 轮询�?
   res.json({ success: true, taskId: task.id, status: task.status });
 
   (async () => {
@@ -7681,7 +7681,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           inputs: injectOralSystemTime({
             scene_type,
             game_model,
-            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须在输出结果的 suggestion（建议）字段中，额外包含以下两个板块（请严格用中文生动详实地展开）：\n1.【实操策略示例】：提供1-2个可以直接用于破局、拉拢或反制的实操行动步骤，需结合当前场景给出具体入微的动作拆解。\n2.【语言表达修正】：针对玩家在局势中的语气表态，给出具体到台词口音、语言温差上的话术修改方案（需给出\"原台词 -> 修正后台词\"的对比，并解释修正缘由）。你的建议要极具实操借鉴性和情感张力。】',
+            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须在输出结果的 suggestion（建议）字段中，额外包含以下两个板块（请严格用中文生动详实地展开）：\n1.【实操策略示例】：提供1-2个可以直接用于破局、拉拢或反制的实操行动步骤，需结合当前场景给出具体入微的动作拆解。\n2.【语言表达修正】：针对玩家在局势中的语气表态，给出具体到台词口音、语言温差上的话术修改方案（需给出\"原台�?-> 修正后台词\"的对比，并解释修正缘由）。你的建议要极具实操借鉴性和情感张力。�?,
             user_answer,
             applied_tactics: applied_tactics || '',
             user_current_profile: user_current_profile || '',
@@ -7711,10 +7711,10 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       try {
         parsedResult = JSON.parse(cleanJson);
       } catch (e) {
-        console.error('解析 Dify 返回的 JSON 失败:', e, rawResult);
+        console.error('解析 Dify 返回�?JSON 失败:', e, rawResult);
         taskQueue.updateTask(task.id, {
           status: 'failed',
-          error: '博弈研判结果格式异常，无法解析 JSON',
+          error: '博弈研判结果格式异常，无法解�?JSON',
         });
         return;
       }
@@ -7827,14 +7827,14 @@ app.get('/api/game-theory/history', (req, res) => {
   }
 });
 
-// 对局历史详情（含完整结果）
+// 对局历史详情（含完整结果�?
 app.get('/api/game-theory/history/:id', (req, res) => {
   try {
     const row = db.prepare(`
       SELECT * FROM game_theory_history WHERE id = ?
     `).get(req.params.id);
     if (!row) {
-      return res.status(404).json({ success: false, error: '历史记录不存在' });
+      return res.status(404).json({ success: false, error: '历史记录不存�? });
     }
     let causal_chain = [];
     let full_result = null;
@@ -7893,13 +7893,13 @@ function parseBiweeklyReviewXml(rawText) {
     const intensify = inner.match(/<intensify_modules>([\s\S]*?)<\/intensify_modules>/);
     const focus = inner.match(/<new_focus_areas>([\s\S]*?)<\/new_focus_areas>/);
     if (pause?.[1]?.trim()) {
-      trainingAdjustment.pauseModules = pause[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      trainingAdjustment.pauseModules = pause[1].split(/[,�?；]/).map((s) => s.trim()).filter(Boolean);
     }
     if (intensify?.[1]?.trim()) {
-      trainingAdjustment.intensifyModules = intensify[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      trainingAdjustment.intensifyModules = intensify[1].split(/[,�?；]/).map((s) => s.trim()).filter(Boolean);
     }
     if (focus?.[1]?.trim()) {
-      trainingAdjustment.newFocusAreas = focus[1].split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      trainingAdjustment.newFocusAreas = focus[1].split(/[,�?；]/).map((s) => s.trim()).filter(Boolean);
     }
   }
 
@@ -7911,7 +7911,7 @@ function parseBiweeklyReviewXml(rawText) {
   };
 }
 
-// 两周一度的专属复盘与弱点扫描（Biweekly Review Workflow）
+// 两周一度的专属复盘与弱点扫描（Biweekly Review Workflow�?
 app.post('/api/biweekly-review/analyze', async (req, res) => {
   const {
     practicalTest,
@@ -7923,7 +7923,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
   } = req.body || {};
 
   if (!practicalTest || !goalAlignment || !weaknessScan || !tacticalDispatch) {
-    return res.status(400).json({ success: false, error: '请完整填写四个维度的复盘表单。' });
+    return res.status(400).json({ success: false, error: '请完整填写四个维度的复盘表单�? });
   }
 
   try {
@@ -7957,7 +7957,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify biweekly review error:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 复盘工作流失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 复盘工作流失�? ${response.status}` });
     }
 
     const data = await response.json();
@@ -7992,12 +7992,12 @@ function parseWeeklyChatEnhancedXml(rawText) {
     const generalFocus = pushBlock.match(/<general_focus>([\s\S]*?)<\/general_focus>/)?.[1]?.trim();
 
     if (yuxin) {
-      nextWeekPush.yuxinGameTheory = yuxin.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      nextWeekPush.yuxinGameTheory = yuxin.split(/[,�?；]/).map((s) => s.trim()).filter(Boolean);
     }
     if (oralScenario) {
       nextWeekPush.oralSandbox = {
         scenario: oralScenario,
-        roles: oralRoles || '我 + 业务助攻 + 施压方 + 关键决策人',
+        roles: oralRoles || '�?+ 业务助攻 + 施压�?+ 关键决策�?,
         focus: oralFocus || oralScenario,
         difficulty: oralDifficulty ? Number(oralDifficulty) : 4,
       };
@@ -8006,26 +8006,26 @@ function parseWeeklyChatEnhancedXml(rawText) {
       nextWeekPush.impromptuSpeech = {
         topic: impromptuTopic,
         targetLevels: impromptuLevels
-          ? impromptuLevels.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean)
+          ? impromptuLevels.split(/[,�?；]/).map((s) => s.trim()).filter(Boolean)
           : [],
-        format: '结构化即兴表达',
+        format: '结构化即兴表�?,
       };
     }
     if (generalFocus) {
-      nextWeekPush.generalFocus = generalFocus.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+      nextWeekPush.generalFocus = generalFocus.split(/[,�?；]/).map((s) => s.trim()).filter(Boolean);
     }
   }
 
   return {
     analysis: pick('analysis') || text.trim(),
-    nextWeekPreview: pick('preview') || '已为您重组下周训练课表',
+    nextWeekPreview: pick('preview') || '已为您重组下周训练课�?,
     nextWeekPush,
     coreThemes: pick('core_themes'),
     profileFactors: pick('profile_factors') || pick('factors') || '',
   };
 }
 
-// 每周夜话增强工作流（Weekly Chat Enhanced Workflow）
+// 每周夜话增强工作流（Weekly Chat Enhanced Workflow�?
 app.post('/api/weekly-chat/enhanced', async (req, res) => {
   const {
     userText,
@@ -8035,7 +8035,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
   } = req.body || {};
 
   if (!userText || typeof userText !== 'string') {
-    return res.status(400).json({ success: false, error: '缺少心智投喂文本。' });
+    return res.status(400).json({ success: false, error: '缺少心智投喂文本�? });
   }
 
   try {
@@ -8069,7 +8069,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
     if (!response.ok) {
       const errText = await response.text();
       console.error('Dify weekly chat enhanced error:', response.status, errText);
-      return res.status(response.status).json({ success: false, error: `Dify 夜话工作流失败: ${response.status}` });
+      return res.status(response.status).json({ success: false, error: `Dify 夜话工作流失�? ${response.status}` });
     }
 
     const data = await response.json();
@@ -8087,7 +8087,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
 app.post('/api/game-theory/ascension', async (req, res) => {
   const { event_text, layers, dimension, scene_type, game_model, user_current_profile, userId = 'default-user' } = req.body;
   if (!event_text || !Array.isArray(layers) || layers.length < 5) {
-    return res.status(400).json({ success: false, error: '请完成至少 5 层因果推演后再提交' });
+    return res.status(400).json({ success: false, error: '请完成至�?5 层因果推演后再提�? });
   }
   const hasEmptyWhy = layers.some(l => !String(l.why || '').trim());
   if (hasEmptyWhy) {
@@ -8096,7 +8096,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
   try {
     const difyApiKey = process.env.DIFY_COGNITIVE_API_KEY || process.env.VITE_DIFY_COGNITIVE_KEY;
     if (!difyApiKey) {
-      return res.status(503).json({ success: false, error: '后端未配置 DIFY_COGNITIVE_API_KEY，请检查环境变量' });
+      return res.status(503).json({ success: false, error: '后端未配�?DIFY_COGNITIVE_API_KEY，请检查环境变�? });
     }
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
@@ -8132,8 +8132,8 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     const raw = data?.data?.outputs?.result ?? data?.data?.outputs?.analysis_result ?? data?.answer ?? data?.message ?? '';
     const cleanJson = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
     if (/^internal server error$/i.test(cleanJson)) {
-      console.error('Dify 升维工作流内部错误:', data);
-      return res.status(502).json({ success: false, error: '升维工作流内部错误，请检查 Dify 工作流配置或模型服务' });
+      console.error('Dify 升维工作流内部错�?', data);
+      return res.status(502).json({ success: false, error: '升维工作流内部错误，请检�?Dify 工作流配置或模型服务' });
     }
 
     let parsedResult;
@@ -8360,7 +8360,7 @@ app.get('/api/game-theory/tactics', (req, res) => {
   }
 });
 
-// 手动添加或更新手段
+// 手动添加或更新手�?
 app.post('/api/game-theory/tactics', (req, res) => {
   try {
     const { userId, name, category, description } = req.body;
@@ -8384,7 +8384,7 @@ app.post('/api/game-theory/tactics', (req, res) => {
   }
 });
 
-// 删除手段（仅允许删除用户自定义的）
+// 删除手段（仅允许删除用户自定义的�?
 app.delete('/api/game-theory/tactics/:id', (req, res) => {
   try {
     db.prepare('DELETE FROM game_theory_tactics WHERE id = ? AND user_id != ?').run(req.params.id, 'system');
@@ -8407,7 +8407,7 @@ app.get('/api/aesthetics/daily-push', async (req, res) => {
     res.json({ success: true, result });
   } catch (error) {
     console.error('[Aesthetics Push] daily push failed:', error);
-    res.status(500).json({ success: false, error: '高阶审美推送生成失败，请稍后重试' });
+    res.status(500).json({ success: false, error: '高阶审美推送生成失败，请稍后重�? });
   }
 });
 
@@ -8424,26 +8424,26 @@ app.post('/api/aesthetics/daily-push/regenerate', async (req, res) => {
     res.json({ success: true, result });
   } catch (error) {
     console.error('[Aesthetics Push] regenerate failed:', error);
-    res.status(500).json({ success: false, error: '高阶审美推送重试失败，请稍后重试' });
+    res.status(500).json({ success: false, error: '高阶审美推送重试失败，请稍后重�? });
   }
 });
 
 app.post('/api/aesthetics/analyze', async (req, res) => {
   const allowedCategories = new Set([
-    '政商务饭局与敬酒',
-    '茶席与茶礼社交',
-    '红酒与雪茄品鉴',
+    '政商务饭局与敬�?,
+    '茶席与茶礼社�?,
+    '红酒与雪茄品�?,
     '高尔夫轻商务',
-    '跨文化宴请(西方)',
-    '跨文化宴请(中东东南亚)',
+    '跨文化宴�?西方)',
+    '跨文化宴�?中东东南�?',
   ]);
   const sceneCategory = String(req.body?.scene_category || '').trim();
   const userResponse = String(req.body?.user_response || '').trim();
   if (!allowedCategories.has(sceneCategory)) {
-    return res.status(400).json({ success: false, error: '无效的审美场景类型' });
+    return res.status(400).json({ success: false, error: '无效的审美场景类�? });
   }
   if (!userResponse) {
-    return res.status(400).json({ success: false, error: '请输入待研判的应对内容' });
+    return res.status(400).json({ success: false, error: '请输入待研判的应对内�? });
   }
   const runFallback = async (reason) => {
     console.warn('[Aesthetics] Dify unavailable, falling back to LLM:', reason);
@@ -8459,7 +8459,7 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
   const baseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   if (!apiKey) {
     try { return await runFallback('Dify API Key missing'); }
-    catch { return res.status(503).json({ success: false, error: '高阶审美研判服务未配置' }); }
+    catch { return res.status(503).json({ success: false, error: '高阶审美研判服务未配�? }); }
   }
   try {
     const response = await fetch(baseUrl.replace(/\/$/, '') + '/workflows/run', {
@@ -8491,23 +8491,23 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
     try { return await runFallback(error.message); }
     catch (fallbackError) {
       console.error('[Aesthetics] LLM fallback also failed:', fallbackError.message);
-      return res.status(502).json({ success: false, error: '高阶审美研判服务暂时不可用' });
+      return res.status(502).json({ success: false, error: '高阶审美研判服务暂时不可�? });
     }
   }
 });
-// 上传书籍/材料并提取驭人术知识点（PDF/TXT）
+// 上传书籍/材料并提取驭人术知识点（PDF/TXT�?
 app.post('/api/game-theory/upload-tactics-material', upload.single('file'), async (req, res) => {
   try {
     const userId = req.body.userId || 'default-user';
     const file = req.files?.[0];
     if (!file) {
-      return res.status(400).json({ success: false, error: '未上传文件' });
+      return res.status(400).json({ success: false, error: '未上传文�? });
     }
 
     const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
     if (file.size > MAX_FILE_SIZE) {
       if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
-      return res.status(400).json({ success: false, error: '文件超过50MB限制，请上传更小的文件' });
+      return res.status(400).json({ success: false, error: '文件超过50MB限制，请上传更小的文�? });
     }
 
     let textContent = '';
@@ -8533,7 +8533,7 @@ app.post('/api/game-theory/upload-tactics-material', upload.single('file'), asyn
     if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
 
     if (!textContent || textContent.length < 50) {
-      return res.status(400).json({ success: false, error: '文件内容为空或无法解析，请上传 PDF 或 TXT 格式的书籍材料' });
+      return res.status(400).json({ success: false, error: '文件内容为空或无法解析，请上�?PDF �?TXT 格式的书籍材�? });
     }
 
     // Truncate if too long (max 6000 chars to send to LLM)
@@ -8543,12 +8543,12 @@ app.post('/api/game-theory/upload-tactics-material', upload.single('file'), asyn
     const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
     const gameApiKey = process.env.DIFY_GAME_THEORY_API_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
 
-    const prompt = `你是一位资深权术大师与博弈学家，精通商场、职场的权力博弈与人性驾驭之道。
+    const prompt = `你是一位资深权术大师与博弈学家，精通商场、职场的权力博弈与人性驾驭之道�?
 
-请从下面这段书籍/材料文本中，提取出所有的"驭人手段"或"博弈技巧"，每条手段必须：
-1. 有一个精炼的名称（2-6个字，如：捧杀、借刀杀人、架空、投石问路等）
-2. 有一个分类：downward（用于管理/驾驭下属或博弈中控制局面的主动手段）或 upward（用于应对、突破或反制上级/强势一方的以弱克强之术）
-3. 有一段具体详实、逻辑清晰、可借鉴的描述（100-200字，要包含手段的核心逻辑、适用场景、实施步骤或注意事项）
+请从下面这段书籍/材料文本中，提取出所有的"驭人手段"�?博弈技�?，每条手段必须：
+1. 有一个精炼的名称�?-6个字，如：捧杀、借刀杀人、架空、投石问路等�?
+2. 有一个分类：downward（用于管�?驾驭下属或博弈中控制局面的主动手段）或 upward（用于应对、突破或反制上级/强势一方的以弱克强之术�?
+3. 有一段具体详实、逻辑清晰、可借鉴的描述（100-200字，要包含手段的核心逻辑、适用场景、实施步骤或注意事项�?
 
 请输出如下格式的纯JSON数组（不要有任何说明文字或markdown标记，直接输出JSON）：
 [
@@ -8556,7 +8556,7 @@ app.post('/api/game-theory/upload-tactics-material', upload.single('file'), asyn
   {"name":"手段名称","category":"upward","description":"详细描述..."}
 ]
 
-原始材料文本：
+原始材料文本�?
 ${excerpt}`;
 
     // Try chat-messages endpoint
@@ -8584,7 +8584,7 @@ ${excerpt}`;
       if (!response.ok) {
         const errText = await response.text();
         console.warn('[Tactics Upload] Dify HTTP error:', response.status, errText.slice(0, 200));
-        return res.status(500).json({ success: false, error: `AI服务暂时不可用 (${response.status})，请稍后重试` });
+        return res.status(500).json({ success: false, error: `AI服务暂时不可�?(${response.status})，请稍后重试` });
       }
 
       const data = await response.json();
@@ -8608,7 +8608,7 @@ ${excerpt}`;
       }
 
       if (!tactics.length) {
-        return res.status(422).json({ success: false, error: 'AI未能从该材料中提取出有效的驭人术知识点，请尝试上传内容更丰富的材料' });
+        return res.status(422).json({ success: false, error: 'AI未能从该材料中提取出有效的驭人术知识点，请尝试上传内容更丰富的材�? });
       }
 
       // Save extracted tactics to DB
@@ -8628,7 +8628,7 @@ ${excerpt}`;
     } catch (fetchErr) {
       clearTimeout(timeout);
       if (fetchErr.name === 'AbortError') {
-        return res.status(504).json({ success: false, error: 'AI提取超时，请尝试上传更小的文件' });
+        return res.status(504).json({ success: false, error: 'AI提取超时，请尝试上传更小的文�? });
       }
       throw fetchErr;
     }
@@ -8642,7 +8642,7 @@ ${excerpt}`;
 // ????? 404
 
 /**
- * TTS 网关错误（外部 TTS 服务不可达时抛出）
+ * TTS 网关错误（外�?TTS 服务不可达时抛出�?
  */
 class TtsGatewayError extends Error {
   constructor(message) {
@@ -8653,7 +8653,7 @@ class TtsGatewayError extends Error {
 }
 
 /**
- * 解析 edge-tts 可执行命令（支持 EDGE_TTS_BIN、~/.local/bin、python3 -m edge_tts）
+ * 解析 edge-tts 可执行命令（支持 EDGE_TTS_BIN、~/.local/bin、python3 -m edge_tts�?
  */
 function getEdgeTtsCommand() {
   if (process.env.EDGE_TTS_BIN) {
@@ -8668,9 +8668,9 @@ function getEdgeTtsCommand() {
 }
 
 /**
- * 本地 Edge TTS：调用 edge-tts CLI 或 python3 -m edge_tts 生成 MP3
- * @param {string} text 待合成文本
- * @param {string} voice 语音名
+ * 本地 Edge TTS：调�?edge-tts CLI �?python3 -m edge_tts 生成 MP3
+ * @param {string} text 待合成文�?
+ * @param {string} voice 语音�?
  * @param {AbortSignal|null} signal
  * @returns {Promise<Buffer>} MP3 数据
  */
@@ -8689,7 +8689,7 @@ async function synthesizeWithEdgeTTS(text, voice, signal = null) {
 
   return new Promise((resolve, reject) => {
     const args = [...prefixArgs, '--voice', voice, '--file', tmpTextFile, '--write-media', tmpMediaFile];
-    // edge-tts 超时默认 10 分钟（登录补跑仅 1 分钟稿；可用 TTS_EDGE_TIMEOUT_MS 覆盖）
+    // edge-tts 超时默认 10 分钟（登录补跑仅 1 分钟稿；可用 TTS_EDGE_TIMEOUT_MS 覆盖�?
     const edgeTimeoutMs = Number(process.env.TTS_EDGE_TIMEOUT_MS || 600000);
     const proc = execFile(command, args, { timeout: edgeTimeoutMs }, (err) => {
       if (fs.existsSync(tmpTextFile)) fs.unlinkSync(tmpTextFile);
@@ -8800,7 +8800,7 @@ function formatTtsFetchError(err) {
 
 /**
  * 核心：分块合成并按序追加写入磁盘（流式写入，避免大内存峰值）
- * @param {string} cleanInput 已清洗文本
+ * @param {string} cleanInput 已清洗文�?
  * @param {string} finalModel TTS 模型
  * @param {string} audioPath 目标 mp3 文件路径
  * @param {string|null} taskId 异步任务ID，传入则更新进度
@@ -8873,7 +8873,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
       taskQueue.updateTask(taskId, { progress: 100, logs: ['全部片段已完成（从缓存恢复）'] });
     }
     if (!isValidCachedAudio(audioPath)) {
-      throw new Error('从缓存合并后音频文件无效（0 字节）');
+      throw new Error('从缓存合并后音频文件无效�? 字节�?);
     }
     return;
   }
@@ -8935,7 +8935,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           } catch (edgeErr) {
             console.warn('[TTS] edge-tts primary failed, trying upstream:', edgeErr.message);
             if (taskQueue && taskId) {
-              taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 本地 edge-tts 失败，尝试上游网关...`] });
+              taskQueue.updateTask(taskId, { logs: [`�?${attempt} �? 本地 edge-tts 失败，尝试上游网�?..`] });
             }
           }
         }
@@ -8973,14 +8973,14 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           pendingMap.set(idx, chunkData);
           flush();
           lastErr = null;
-          break; // 合成成功，跳出重试
+          break; // 合成成功，跳出重�?
         }
 
         // 502/504 ????????? -> ??????? Edge TTS ???????????
         if (r.status === 502 || r.status === 504) {
           console.warn(`[TTS] Gateway error ${r.status}, trying fallback...`);
           if (taskQueue && taskId) {
-            taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 网关错误 ${r.status}，尝试备用合成...`] });
+            taskQueue.updateTask(taskId, { logs: [`�?${attempt} �? 网关错误 ${r.status}，尝试备用合�?..`] });
           }
           try {
             const fallbackResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
@@ -8994,7 +8994,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
             if (taskQueue && taskId) {
               taskQueue.updateTask(taskId, { logs: [`备用合成失败: ${fallbackErr.message}`] });
             }
-            lastErr = new TtsGatewayError(`主服务 ${r.status}，备用合成也失败: ${fallbackErr.message}`);
+            lastErr = new TtsGatewayError(`主服�?${r.status}，备用合成也失败: ${fallbackErr.message}`);
             continue;
           }
         }
@@ -9011,7 +9011,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000);
         if (taskQueue && taskId) {
           taskQueue.updateTask(taskId, {
-            logs: [`分块 ${idx + 1}/${total} 第${attempt}次失败，${Math.round(delay/1000)}秒后重试...`]
+            logs: [`分块 ${idx + 1}/${total} �?{attempt}次失败，${Math.round(delay/1000)}秒后重试...`]
           });
         }
         await new Promise(r => setTimeout(r, delay));
@@ -9029,7 +9029,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   fs.rmSync(chunkCacheDir, { recursive: true, force: true });
 
   if (!isValidCachedAudio(audioPath)) {
-    throw new Error('合成完成但音频文件无效（0 字节）');
+    throw new Error('合成完成但音频文件无效（0 字节�?);
   }
   } catch (err) {
     removeInvalidCachedAudio(audioPath);
@@ -9053,7 +9053,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
 }
 
 // 音频后处理函数：应用压力因素效果
-// 音频后处理函数：应用压力因素效果（含真实音效混音）
+// 音频后处理函数：应用压力因素效果（含真实音效混音�?
 async function applyAudioEffects(audioPath, effects) {
   const { execFile } = require('child_process');
   const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
@@ -9069,7 +9069,7 @@ async function applyAudioEffects(audioPath, effects) {
   const inputs = ['-i', audioPath];
   const filterParts = [];
 
-  // 1. 口音效果（通过改变音调模拟）
+  // 1. 口音效果（通过改变音调模拟�?
   if (effects.accent) {
     if (effects.accent === 'indian') {
       filterParts.push('rubberband=pitch=0.95');
@@ -9097,7 +9097,7 @@ async function applyAudioEffects(audioPath, effects) {
     inputs.push('-stream_loop', '-1', '-i', staticNoiseEffect);
   }
 
-  // 如果只有基础滤镜（口音/卡顿），使用简单 -af
+  // 如果只有基础滤镜（口�?卡顿），使用简�?-af
   if (!hasInterruption && !hasNoise && filterParts.length > 0) {
     const filterChain = filterParts.join(',');
     const args = ['-i', audioPath, '-af', filterChain, '-y', tmpPath];
@@ -9127,19 +9127,19 @@ async function applyAudioEffects(audioPath, effects) {
       currentLabel = 'base';
     }
 
-    // 3. 打断效果：在第4秒混入打断音效，同时降低主音频音量
+    // 3. 打断效果：在�?秒混入打断音效，同时降低主音频音�?
     if (hasInterruption) {
       const intIdx = 1;
       // 主音频在 4.0s-4.7s 降低音量
       filterComplex += `[${currentLabel}]volume=eval=frame:volume='if(between(t\,4\,4.7)\,0.1\,1)'[ducked];`;
-      // 打断音效延迟4秒
+      // 打断音效延迟4�?
       filterComplex += `[${intIdx}:a]adelay=4000|4000[int_del];`;
       // 混合
       filterComplex += `[ducked][int_del]amix=inputs=2:duration=first[mixed_int];`;
       currentLabel = 'mixed_int';
     }
 
-    // 4. 信息缺失：混入背景噪音
+    // 4. 信息缺失：混入背景噪�?
     if (hasNoise) {
       const noiseIdx = hasInterruption ? 2 : 1;
       // 降低噪音音量
@@ -9172,7 +9172,7 @@ async function applyAudioEffects(audioPath, effects) {
   }
 }
 
-// 确保音效文件存在，不存在则自动生成
+// 确保音效文件存在，不存在则自动生�?
 function ensureSoundEffectsExist() {
   const dir = pathMod.join(__dirname, 'public', 'sound_effects');
   if (!fsMod.existsSync(dir)) {
@@ -9206,7 +9206,7 @@ function ensureSoundEffectsExist() {
 
 global.synthesizeAndSaveAudio = synthesizeAndSaveAudio;
 
-/** C1: 与 daily-extract 相同的 mastery 调用；只解析词表，不覆盖 listen 正文 */
+/** C1: �?daily-extract 相同�?mastery 调用；只解析词表，不覆盖 listen 正文 */
 async function extractVocabFromListenArticle({
   body,
   theme,
@@ -9217,7 +9217,7 @@ async function extractVocabFromListenArticle({
 } = {}) {
   const apiKey = process.env.DIFY_ENGLISH_MASTERY_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  // body 仅用于校验有正文；mastery 与 daily-extract 一样靠 theme/genre/cefr/duration 生成并带 VOCAB_JSON
+  // body 仅用于校验有正文；mastery �?daily-extract 一样靠 theme/genre/cefr/duration 生成并带 VOCAB_JSON
   if (!String(body || '').trim()) {
     console.warn('[DailyListen] extractVocab skip: empty body');
     return { vocab: [], phrases: [], sentences: [] };
@@ -9276,7 +9276,7 @@ async function extractVocabFromListenArticle({
     }
   }
   const sentN = Array.isArray(parsed.sentences) ? parsed.sentences.length : 0;
-  // C2: 绌虹粨鏋滄槑纭墦鐐癸紝渚夸簬瀵圭収 mastery 鏄惁鍚愬嚭 VOCAB_JSON
+  // C2: 绌虹粨鏋滄槑纭墦鐐癸紝渚夸簬瀵圭�?mastery 鏄惁鍚愬嚭 VOCAB_JSON
   if (vocabN === 0 && phraseN === 0) {
     const hasMarker = /---VOCAB_JSON_START---/i.test(answer || '');
     console.warn(
@@ -9323,11 +9323,11 @@ app.post('/api/tts/speech', async (req, res) => {
     let cleanInput = input.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{27BF}]/gu, '');
     cleanInput = sanitizeListenMaterialScript(cleanInput);
 
-    // 针对纯英文 TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩溃 (NoAudioReceived)
+    // 针对纯英�?TTS 模型，过滤掉中文字符及全角标点，避免 edge-tts 遇到无法发音的字符崩�?(NoAudioReceived)
     if (finalModel.includes('/en-') || finalModel.startsWith('en-')) {
       cleanInput = cleanInput.replace(/[\u4e00-\u9fa5\u3000-\u303f\uff00-\uffef]/g, '').trim();
 
-      // 熔断机制：如果过滤后没有任何有效字母或数字，直接返回空音频，防止 edge-tts 读空气报错 500
+      // 熔断机制：如果过滤后没有任何有效字母或数字，直接返回空音频，防止 edge-tts 读空气报�?500
       if (!/[a-zA-Z0-9]/.test(cleanInput)) {
         return res.json({ success: true, audioId: 'empty', audioUrl: null, duration: 0 });
       }
@@ -9361,13 +9361,13 @@ app.post('/api/tts/speech', async (req, res) => {
         return res.status(429).json({
           success: false,
           code: 'TTS_LOCKED',
-          message: '当前有音频正在合成中，请稍后再试（预计 3~10 分钟）'
+          message: '当前有音频正在合成中，请稍后再试（预�?3~10 分钟�?
         });
       }
       ttsLongLock = true;
 
       const taskQueue = require('./services/taskQueue');
-      const task = taskQueue.createTask('tts', `高保真音频合成 (${cleanInput.length}字符)`);
+      const task = taskQueue.createTask('tts', `高保真音频合�?(${cleanInput.length}字符)`);
 
       // ?????????????? try/catch ???? res.json??????????????????????????
       try {
@@ -9380,7 +9380,7 @@ app.post('/api/tts/speech', async (req, res) => {
       // ?????????setImmediate ???????????????????? Express ????
       setImmediate(async () => {
         try {
-          taskQueue.updateTask(task.id, { status: 'running', logs: [`开始异步合成，总字符: ${cleanInput.length}`] });
+          taskQueue.updateTask(task.id, { status: 'running', logs: [`开始异步合成，总字�? ${cleanInput.length}`] });
           await synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, task.id, null, { effects });
           taskQueue.updateTask(task.id, {
             status: 'completed', progress: 100,
@@ -9420,7 +9420,7 @@ app.post('/api/tts/speech', async (req, res) => {
         message: '语音合成服务暂不可用，请稍后重试'
       });
     }
-    if (error.message && error.message.includes('当前有音频正在合成')) {
+    if (error.message && error.message.includes('当前有音频正在合�?)) {
       return res.status(429).json({
         success: false,
         code: 'TTS_LOCKED',
@@ -9443,7 +9443,7 @@ app.get('/api/tts/task/:id', (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.getTask(req.params.id);
     if (!task) {
-      return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+      return res.status(404).json({ success: false, error: '任务不存在或已过�? });
     }
 
     // ?????????????????? URL
@@ -9511,7 +9511,7 @@ app.post('/api/materials/upload-chunk', upload.single('chunk'), async (req, res)
     const file = req.files?.[0];
 
     if (!uploadId || chunkIndex === undefined || !file) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, chunkIndex 或 chunk' });
+      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, chunkIndex �?chunk' });
     }
 
     const sessionDir = path.join(chunkDir, uploadId);
@@ -9536,7 +9536,7 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     const { uploadId, fileName, language = 'auto', subtitle = '', totalChunks } = req.body;
 
     if (!uploadId || !fileName || !totalChunks) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, fileName 或 totalChunks' });
+      return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, fileName �?totalChunks' });
     }
 
     const sessionDir = path.join(chunkDir, uploadId);
@@ -9550,11 +9550,11 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
     const finalFilePath = path.join(uploadDir, finalFileName);
 
     // ??? appendFileSync ?????????
-    fs.writeFileSync(finalFilePath, ''); // 创建或清空文件
+    fs.writeFileSync(finalFilePath, ''); // 创建或清空文�?
     for (let i = 0; i < totalChunks; i++) {
       const chunkPath = path.join(sessionDir, String(i));
       if (!fs.existsSync(chunkPath)) {
-        return res.status(400).json({ success: false, error: `合并失败: 缺少第 ${i} 块分片` });
+        return res.status(400).json({ success: false, error: `合并失败: 缺少�?${i} 块分片` });
       }
       const data = fs.readFileSync(chunkPath);
       fs.appendFileSync(finalFilePath, data);
@@ -9631,14 +9631,14 @@ app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) 
     const file = req.files?.[0];
 
     if (!url && !file) {
-      return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或上传 video 文件' });
+      return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或上�?video 文件' });
     }
 
     const taskQueue = require('./services/taskQueue');
     const { startTranscribeTask } = require('./services/videoTranscriber');
 
     // ??????????????
-    const taskName = url ? `网页视频: ${url}` : `上传视频: ${file.originalname || '未命名视频'}`;
+    const taskName = url ? `网页视频: ${url}` : `上传视频: ${file.originalname || '未命名视�?}`;
     const task = taskQueue.createTask('video', taskName);
 
     // ??????????????????? HTTP ?????
@@ -9677,7 +9677,7 @@ app.get('/api/tasks/:taskId', (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.getTask(req.params.taskId);
     if (!task) {
-      return res.status(404).json({ success: false, error: '任务不存在或已过期' });
+      return res.status(404).json({ success: false, error: '任务不存在或已过�? });
     }
     res.json({ success: true, ...task });
   } catch (error) {
@@ -9687,7 +9687,7 @@ app.get('/api/tasks/:taskId', (req, res) => {
 
 // Whisper ????????????? API???????????????? 9router ??????? CORS ??????????
 
-// 当 Dify 工作流提取词汇为空时，调用本地 LLM 动态提取生词、短语与句型 (使用 dify 模型)
+// �?Dify 工作流提取词汇为空时，调用本�?LLM 动态提取生词、短语与句型 (使用 dify 模型)
 async function extractVocabFallback(body, cefrLevel = 'B1', genre = 'meeting', duration = '15', theme = '') {
   const https = require('https');
   const url = 'https://23.95.214.232/v1/chat/completions';
@@ -9695,10 +9695,10 @@ async function extractVocabFallback(body, cefrLevel = 'B1', genre = 'meeting', d
 
   const systemPrompt = `You are a senior business English pedagogy expert. Read the English article provided below and extract key business vocabulary words, business phrases, and key business sentence structures.
 
-【TARGET CEFR LEVEL】
+【TARGET CEFR LEVEL�?
 ${cefrLevel}
 
-【EXTRACTION REQUIREMENTS】
+【EXTRACTION REQUIREMENTS�?
 Based on the length of the input article and the target CEFR level, dynamically determine the number of items to extract (e.g. for a short 1-minute article, extract around 5-8 words, 3-5 phrases, and 1-2 sentence structures; for longer articles, extract more but no more than 30 words, 20 phrases, and 8 sentence structures). All extracted items must be present in the input article.
 
 For each word/phrase/sentence structure, provide:
@@ -9708,7 +9708,7 @@ For each word/phrase/sentence structure, provide:
 - definition_en: concise English definition/explanation
 - examples: an array containing the exact original sentence from the article that contains the word/phrase/sentence structure.
 
-【OUTPUT FORMAT】
+【OUTPUT FORMAT�?
 Output ONLY a single valid JSON object. Do not wrap it in markdown code blocks like \`\`\`json ... \`\`\$, and do not include any extra text.
 The JSON schema must be exactly:
 {
@@ -9782,7 +9782,7 @@ The JSON schema must be exactly:
         reject(err);
       });
 
-      // 长文兜底提纯需要更长超时，避免 15s 误杀导致词表仍为空
+      // 长文兜底提纯需要更长超时，避免 15s 误杀导致词表仍为�?
       req.setTimeout(60000, () => {
         aborted = true;
         req.destroy();
@@ -9843,7 +9843,7 @@ The JSON schema must be exactly:
   return { vocab: [], phrases: [], sentences: [] };
 }
 
-// 语音转译文本智能润色与纠错接口 (调用 23.95.214.232/v1)
+// 语音转译文本智能润色与纠错接�?(调用 23.95.214.232/v1)
 async function callPolishLLM(rawText) {
   return new Promise((resolve, reject) => {
     const https = require('https');
@@ -9855,7 +9855,7 @@ async function callPolishLLM(rawText) {
       messages: [
         {
           role: 'system',
-          content: '你是一个专业的中英文语音识别（STT）原始转录文本智能纠错与润色助手。\\n\\n你的核心任务是：纠正原始文本中由于语音识别错误导致的“同音错别字”和“近音词”，在不改变说话人原本意图和口语语气的准则下，使其成为符合生活常识、逻辑通顺的规范句子。\\n\\n请严格遵循以下规则处理：\\n1. **逻辑与常识纠错（最重要）**：STT 转写极易产生离谱的近音错字（例如把“盒子”误听为“核子/合同/和子”，把“生锈/成熟”误听为“伸熟/神树”）。你必须结合上下文，将这些逻辑不通的词汇纠正为符合常识的正常词汇，确保句子读起来通顺合理。\\n2. **标点与分句补全**：结合语气与停顿，合理添加标点符号（中文使用全角，英文使用半角）。\\n3. **保留口语语气**：保留说话人的第一人称、口语语气和口头表达习惯（如“啊/啦/吧”等语气词），绝对不要把通俗的口语强行改写为官僚、书面或过于正式的官腔。\\n4. **自适应语言**：自动处理纯中文、纯英文或中英混杂文本。\\n5. **严格的输出限制**：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何解释、旁白、前缀（如“纠正后：”）或双引号。若输入仅为杂音标签（如"silence", "BLANK_AUDIO"）或为空，则直接输出空字符串。'
+          content: '你是一个专业的中英文语音识别（STT）原始转录文本智能纠错与润色助手。\\n\\n你的核心任务是：纠正原始文本中由于语音识别错误导致的“同音错别字”和“近音词”，在不改变说话人原本意图和口语语气的准则下，使其成为符合生活常识、逻辑通顺的规范句子。\\n\\n请严格遵循以下规则处理：\\n1. **逻辑与常识纠错（最重要�?*：STT 转写极易产生离谱的近音错字（例如把“盒子”误听为“核�?合同/和子”，把“生�?成熟”误听为“伸�?神树”）。你必须结合上下文，将这些逻辑不通的词汇纠正为符合常识的正常词汇，确保句子读起来通顺合理。\\n2. **标点与分句补�?*：结合语气与停顿，合理添加标点符号（中文使用全角，英文使用半角）。\\n3. **保留口语语气**：保留说话人的第一人称、口语语气和口头表达习惯（如“啊/�?吧”等语气词），绝对不要把通俗的口语强行改写为官僚、书面或过于正式的官腔。\\n4. **自适应语言**：自动处理纯中文、纯英文或中英混杂文本。\\n5. **严格的输出限�?*：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何解释、旁白、前缀（如“纠正后：”）或双引号。若输入仅为杂音标签（如"silence", "BLANK_AUDIO"）或为空，则直接输出空字符串�?
         },
         {
           role: 'user',
@@ -9873,7 +9873,7 @@ async function callPolishLLM(rawText) {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(requestBody)
       },
-      rejectUnauthorized: false // 关键设置：忽略自签名或 IP HTTPS 证书校验
+      rejectUnauthorized: false // 关键设置：忽略自签名�?IP HTTPS 证书校验
     };
 
     let aborted = false;
@@ -9892,7 +9892,7 @@ async function callPolishLLM(rawText) {
             reject(new Error(`JSON 解析失败: ${e.message}`));
           }
         } else {
-          reject(new Error(`LLM 接口返回错误码: ${res.statusCode}, 响应: ${data}`));
+          reject(new Error(`LLM 接口返回错误�? ${res.statusCode}, 响应: ${data}`));
         }
       });
     });
@@ -9932,7 +9932,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       const fileName = req.body.file_name || req.body.fileName || 'audio.mp3';
       tempFilePath = require('path').join(require('os').tmpdir(), `stt-${Date.now()}-${fileName}`);
 
-      // 将 Dify 内部主机名替换为公网可访问域名
+      // �?Dify 内部主机名替换为公网可访问域�?
       const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
       const difyOrigin = new URL(difyBase).origin;
       let targetUrl = bodyFileUrl
@@ -9942,7 +9942,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         targetUrl = difyOrigin + targetUrl;
       }
 
-      console.log('[STT URL] 正在从 Dify 下载音频文件:', targetUrl);
+      console.log('[STT URL] 正在�?Dify 下载音频文件:', targetUrl);
       const dlRes = await fetch(targetUrl, {
         headers: { 'Authorization': `Bearer ${sttApiKey}` }
       });
@@ -9956,7 +9956,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         mimetype: dlRes.headers.get('content-type') || 'audio/mpeg',
         originalname: fileName
       };
-      console.log('[STT URL] 文件下载完成，大小:', buf.byteLength, 'bytes');
+      console.log('[STT URL] 文件下载完成，大�?', buf.byteLength, 'bytes');
     } else {
       if (req.file) {
         fileObj = req.file;
@@ -9985,7 +9985,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
         localFormData.append('file', localBlob, originalName);
         localFormData.append('language', 'auto');
-        localFormData.append('initial_prompt', '简体中文, English, transcript, 录音.');
+        localFormData.append('initial_prompt', '简体中�? English, transcript, 录音.');
 
         const localResponse = await fetch('http://127.0.0.1:8080/inference', {
           method: 'POST',
@@ -9996,7 +9996,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
           const localData = await localResponse.json().catch(() => ({}));
           rawText = typeof localData.text === 'string' ? localData.text.trim() : '';
 
-          // 对原始文本进行过滤降噪，洗掉 Whisper 幻觉噪声标签 (如 [Spanish], [silence], [BLANK_AUDIO], (laughter) 等)
+          // 对原始文本进行过滤降噪，洗掉 Whisper 幻觉噪声标签 (�?[Spanish], [silence], [BLANK_AUDIO], (laughter) �?
           rawText = rawText
             .replace(/\[[^\]]*\]/g, '')
             .replace(/\([^)]*\)/g, '')
@@ -10004,7 +10004,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
             .trim();
 
           rawSuccess = true;
-          console.log('[STT Local] 本地 whisper-server 原始识别并洗噪成功:', rawText);
+          console.log('[STT Local] 本地 whisper-server 原始识别并洗噪成�?', rawText);
         } else {
           console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
         }
@@ -10012,7 +10012,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         console.warn('[STT Local] 本地 whisper-server 调用失败，将降级使用 Dify STT:', localErr.message);
       }
 
-      // 2.2 降级方案: 使用原本 Dify 接口的 audio-to-text 获取原始识别文本
+      // 2.2 降级方案: 使用原本 Dify 接口�?audio-to-text 获取原始识别文本
       if (!rawSuccess) {
         const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
         console.log(`[STT Dify] 正在降级发送音频至 Dify 接口: ${originalName}`);
@@ -10034,7 +10034,7 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
             const data = await response.json().catch(() => ({}));
             rawText = typeof data.text === 'string' ? data.text.trim() : '';
 
-            // 对降级 Dify 的原始文本同样进行降噪洗噪
+            // 对降�?Dify 的原始文本同样进行降噪洗�?
             rawText = rawText
               .replace(/\[[^\]]*\]/g, '')
               .replace(/\([^)]*\)/g, '')
@@ -10042,34 +10042,34 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
               .trim();
 
             rawSuccess = true;
-            console.log('[STT Dify] Dify STT 原始识别并洗噪成功:', rawText);
+            console.log('[STT Dify] Dify STT 原始识别并洗噪成�?', rawText);
           } else {
             const errData = await response.json().catch(() => ({}));
             const errStr = errData?.error?.message || errData?.error || JSON.stringify(errData);
             console.error(`[STT Dify] Dify STT 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
           }
         } catch (difyErr) {
-          console.error('[STT Dify] 降级 Dify 接口也发生异常:', difyErr.message);
+          console.error('[STT Dify] 降级 Dify 接口也发生异�?', difyErr.message);
         }
       }
 
-      // 2.3 调用 IP 级 OpenAI 接口进行大语言模型智能润色与纠错
+      // 2.3 调用 IP �?OpenAI 接口进行大语言模型智能润色与纠�?
       if (rawSuccess && rawText) {
-        console.log(`[STT Polish] 正在将原始文本发送至大模型进行润色: "${rawText}"`);
+        console.log(`[STT Polish] 正在将原始文本发送至大模型进行润�? "${rawText}"`);
         try {
           const polishedText = await callPolishLLM(rawText);
           console.log(`[STT Polish] 润色成功: "${polishedText}"`);
           return res.json({ text: polishedText });
         } catch (polishErr) {
-          console.warn('[STT Polish] 大模型润色失败，将降级直接返回原始文本:', polishErr.message);
+          console.warn('[STT Polish] 大模型润色失败，将降级直接返回原始文�?', polishErr.message);
           return res.json({ text: rawText });
         }
       } else {
-        console.log('[STT Result] 识别出的原始文本为空，直接返回');
+        console.log('[STT Result] 识别出的原始文本为空，直接返�?);
         return res.json({ text: rawText || '' });
       }
     } else {
-      throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
+      throw new Error('服务�?Node.js 版本较低，不支持原生�?FormData，请升级 Node.js �?18.0 或更高版本�?);
     }
   } catch (error) {
     console.error('Dify STT 中转失败:', error);
@@ -10097,33 +10097,33 @@ async function generateMindmapAndTheoryNodesFallback(body, topic = 'General Busi
   const url = 'https://23.95.214.232/v1/chat/completions';
   const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
 
-  const systemPrompt = `你是一位资深的职场博弈、逻辑学与商务英语教学专家。请阅读用户提供的文章/书本片段，为其提炼并输出一套系统的学习内容，包含思维导图、核心理论知识点、框架构成以及具体的解释与生活/工作应用举例。
+  const systemPrompt = `你是一位资深的职场博弈、逻辑学与商务英语教学专家。请阅读用户提供的文�?书本片段，为其提炼并输出一套系统的学习内容，包含思维导图、核心理论知识点、框架构成以及具体的解释与生�?工作应用举例�?
 
-【输出格式要求】
-必须且只能输出一个合法的 JSON 对象，不要用 \`\`\`json ... \`\`\` 等 markdown 代码块包裹，也不要包含任何额外的解释文字。
+【输出格式要求�?
+必须且只能输出一个合法的 JSON 对象，不要用 \`\`\`json ... \`\`\` �?markdown 代码块包裹，也不要包含任何额外的解释文字�?
 JSON Schema 必须严格为：
 {
   "mindmap": {
-    "center": "核心主题（通常是文章或片段的书名或核心议题，限15字内）",
+    "center": "核心主题（通常是文章或片段的书名或核心议题，限15字内�?,
     "branches": [
       {
-        "title": "分支名称（如核心逻辑、应用场景、博弈策略等，限10字内）",
-        "keywords": ["关键词1", "关键词2", "关键词3"]
+        "title": "分支名称（如核心逻辑、应用场景、博弈策略等，限10字内�?,
+        "keywords": ["关键�?", "关键�?", "关键�?"]
       }
     ]
   },
   "theoryNodes": [
     {
-      "title": "知识点标题（如“滑坡谬误的应用”、“微表情识别”，限15字内）",
-      "concept": "概念解读（用通俗易懂的语言进行解释，限60字内）",
-      "framework": ["核心框架词1", "核心框架词2"],
+      "title": "知识点标题（如“滑坡谬误的应用”、“微表情识别”，�?5字内�?,
+      "concept": "概念解读（用通俗易懂的语言进行解释，限60字内�?,
+      "framework": ["核心框架�?", "核心框架�?"],
       "points": [
-        "具体知识点与解释/举例 1（结合文章或概念，给出一个具体的应用或沟通场景举例，限100字）",
+        "具体知识点与解释/举例 1（结合文章或概念，给出一个具体的应用或沟通场景举例，�?00字）",
         "具体知识点与解释/举例 2（限100字）"
       ]
     }
   ],
-  "scenario": "根据上述提炼的博弈论或沟通技巧知识点，设计一个相关的模拟对话博弈练习场景（包含前因后果的完整案例），限250字，以供用户进行听力或口语表达练习。要求案例博弈激烈、背景清晰。"
+  "scenario": "根据上述提炼的博弈论或沟通技巧知识点，设计一个相关的模拟对话博弈练习场景（包含前因后果的完整案例），�?50字，以供用户进行听力或口语表达练习。要求案例博弈激烈、背景清晰�?
 }`;
 
   const executeRequest = (modelName) => {
@@ -10209,22 +10209,22 @@ ${body.substring(0, 8000)}
     mindmap: {
       center: topic || '材料提纯主题',
       branches: [
-        { title: '核心内容', keywords: ['博弈论', '心理侧写', '逻辑辩驳'] },
+        { title: '核心内容', keywords: ['博弈�?, '心理侧写', '逻辑辩驳'] },
         { title: '实操要点', keywords: ['利益分析', '弦外之音', '表达重塑'] }
       ]
     },
     theoryNodes: [
       {
         title: '素材博弈知识提纯',
-        concept: '根据您上传的材料提取的博弈与心理分析知识。',
-        framework: ['利益驱动', '言语博弈'],
+        concept: '根据您上传的材料提取的博弈与心理分析知识�?,
+        framework: ['利益驱动', '言语博�?],
         points: [
-          '上传材料成功：未能通过AI提取到深度结构，可能是文件过大或格式不相符。',
-          '建议上传简明生动的博弈素材以获取最高质量 of 思维导图提取。'
+          '上传材料成功：未能通过AI提取到深度结构，可能是文件过大或格式不相符�?,
+          '建议上传简明生动的博弈素材以获取最高质�?of 思维导图提取�?
         ]
       }
     ],
-    scenario: `【根据导入文件自动转换的模拟案例】
+    scenario: `【根据导入文件自动转换的模拟案例�?
 在关于新项目分配的讨论会上，总监微微一笑说：“对于当前的进度落后，我们完全能够理解。不过相信只要各部门通力配合，下个月我们就能赶上来。”`
   };
 }
@@ -10253,42 +10253,42 @@ app.post('/api/material/export-docx', async (req, res) => {
         '逻辑学与系统谬误': [
           {
             title: '非形式逻辑谬误',
-            concept: '在论证过程中，论据与论题之间没有逻辑必然性，而通过修辞或情绪手段使人信服。',
+            concept: '在论证过程中，论据与论题之间没有逻辑必然性，而通过修辞或情绪手段使人信服�?,
             framework: ['滑坡谬误', '以偏概全', '诉诸权威', '偷换概念'],
             points: [
-              '滑坡谬误：无限放大某种可能后果，形成恐吓。例如：“你今天迟到，明天就会旷工，最后就会被开除。”',
-              '诉诸权威：利用某个领域的名气来证明另一个领域的正确性。',
-              '偷换概念：在讨论中悄悄改变某个词语的内涵。'
+              '滑坡谬误：无限放大某种可能后果，形成恐吓。例如：“你今天迟到，明天就会旷工，最后就会被开除。�?,
+              '诉诸权威：利用某个领域的名气来证明另一个领域的正确性�?,
+              '偷换概念：在讨论中悄悄改变某个词语的内涵�?
             ]
           },
           {
             title: '因果关系误区',
-            concept: '混淆相关性与因果性，或者将时间上的先后关系强行解释为因果关系。',
+            concept: '混淆相关性与因果性，或者将时间上的先后关系强行解释为因果关系�?,
             framework: ['后此谬误', '单因谬误', '因果倒置'],
             points: [
-              '后此谬误：因为 B 发生在 A 之后，就判定 A 导致了 B。',
-              '单因谬误：复杂问题简单化，只归结于单一因素。'
+              '后此谬误：因�?B 发生�?A 之后，就判定 A 导致�?B�?,
+              '单因谬误：复杂问题简单化，只归结于单一因素�?
             ]
           }
         ],
         '人性解码与心理侧写': [
           {
             title: '弦外之音解码机制',
-            concept: '理解人际沟通中隐藏在表层话术之下的真实利益诉求、层级防卫或情绪宣泄。',
+            concept: '理解人际沟通中隐藏在表层话术之下的真实利益诉求、层级防卫或情绪宣泄�?,
             framework: ['利益驱动判定', '阶层安全防卫', '同侪压力构建'],
             points: [
-              '体制内话术：委婉、注重层级、避免直接冲突，常用“以退为进”或“虚晃”敲打。',
-              '跨国企业话术：表面平等、重效率指标，常用高大上的行业术语（Jargon）进行自我防卫或施压。'
+              '体制内话术：委婉、注重层级、避免直接冲突，常用“以退为进”或“虚晃”敲打�?,
+              '跨国企业话术：表面平等、重效率指标，常用高大上的行业术语（Jargon）进行自我防卫或施压�?
             ]
           },
           {
             title: '非语言信号暗示',
-            concept: '肢体语言、面部表情、眼神方向、语速及停顿等生理与动作反馈。',
-            framework: ['微表情检测', '肢体紧张度', '音调与停顿映射'],
+            concept: '肢体语言、面部表情、眼神方向、语速及停顿等生理与动作反馈�?,
+            framework: ['微表情检�?, '肢体紧张�?, '音调与停顿映�?],
             points: [
-              '食指轻敲桌面：通常暗示潜在的控制欲、焦躁或内心催促。',
-              '眼神偏离与斜睨：可能在临时寻找托词，或暗示对当前对比物的不屑。',
-              '语速突然变慢且加重：表明正在进行高度蓄意的“表演式情绪施压”。'
+              '食指轻敲桌面：通常暗示潜在的控制欲、焦躁或内心催促�?,
+              '眼神偏离与斜睨：可能在临时寻找托词，或暗示对当前对比物的不屑�?,
+              '语速突然变慢且加重：表明正在进行高度蓄意的“表演式情绪施压”�?
             ]
           }
         ]
@@ -10306,7 +10306,7 @@ app.post('/api/material/export-docx', async (req, res) => {
         for (const node of nodes) {
           docChildren.push(
             new Paragraph({
-              text: `【主题】${node.title}`,
+              text: `【主题�?{node.title}`,
               heading: HeadingLevel.HEADING_3,
               spacing: { before: 100, after: 50 }
             })
@@ -10314,7 +10314,7 @@ app.post('/api/material/export-docx', async (req, res) => {
           docChildren.push(
             new Paragraph({
               children: [
-                new TextRun({ text: '概念解读：', bold: true }),
+                new TextRun({ text: '概念解读�?, bold: true }),
                 new TextRun(node.concept)
               ],
               spacing: { after: 50 }
@@ -10323,7 +10323,7 @@ app.post('/api/material/export-docx', async (req, res) => {
           docChildren.push(
             new Paragraph({
               children: [
-                new TextRun({ text: '框架要素：', bold: true }),
+                new TextRun({ text: '框架要素�?, bold: true }),
                 new TextRun(node.framework.join(' | '))
               ],
               spacing: { after: 50 }
@@ -10332,7 +10332,7 @@ app.post('/api/material/export-docx', async (req, res) => {
           docChildren.push(
             new Paragraph({
               children: [
-                new TextRun({ text: '核心知识点与举例：', bold: true })
+                new TextRun({ text: '核心知识点与举例�?, bold: true })
               ],
               spacing: { after: 50 }
             })
@@ -10350,7 +10350,7 @@ app.post('/api/material/export-docx', async (req, res) => {
       }
 
     } else if (type === 'material') {
-      const docTitle = title ? `《${title}》博弈学与心理学知识提纯报告` : '素材博弈学与心理学知识提纯报告';
+      const docTitle = title ? `�?{title}》博弈学与心理学知识提纯报告` : '素材博弈学与心理学知识提纯报�?;
       docChildren.push(
         new Paragraph({
           text: docTitle,
@@ -10362,7 +10362,7 @@ app.post('/api/material/export-docx', async (req, res) => {
       if (mindmap) {
         docChildren.push(
           new Paragraph({
-            text: '一、 内容思维导图',
+            text: '一�?内容思维导图',
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 200, after: 100 }
           })
@@ -10370,7 +10370,7 @@ app.post('/api/material/export-docx', async (req, res) => {
         docChildren.push(
           new Paragraph({
             children: [
-              new TextRun({ text: '核心议题：', bold: true }),
+              new TextRun({ text: '核心议题�?, bold: true }),
               new TextRun(mindmap.center || '')
             ],
             spacing: { after: 50 }
@@ -10395,7 +10395,7 @@ app.post('/api/material/export-docx', async (req, res) => {
       if (Array.isArray(theoryNodes)) {
         docChildren.push(
           new Paragraph({
-            text: '二、 核心理论与具体知识点',
+            text: '二�?核心理论与具体知识点',
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 200, after: 100 }
           })
@@ -10404,7 +10404,7 @@ app.post('/api/material/export-docx', async (req, res) => {
         for (const node of theoryNodes) {
           docChildren.push(
             new Paragraph({
-              text: `【知识点】${node.title || ''}`,
+              text: `【知识点�?{node.title || ''}`,
               heading: HeadingLevel.HEADING_3,
               spacing: { before: 100, after: 50 }
             })
@@ -10412,7 +10412,7 @@ app.post('/api/material/export-docx', async (req, res) => {
           docChildren.push(
             new Paragraph({
               children: [
-                new TextRun({ text: '概念解读：', bold: true }),
+                new TextRun({ text: '概念解读�?, bold: true }),
                 new TextRun(node.concept || '')
               ],
               spacing: { after: 50 }
@@ -10422,7 +10422,7 @@ app.post('/api/material/export-docx', async (req, res) => {
             docChildren.push(
               new Paragraph({
                 children: [
-                  new TextRun({ text: '框架构成：', bold: true }),
+                  new TextRun({ text: '框架构成�?, bold: true }),
                   new TextRun(node.framework.join(' | '))
                 ],
                 spacing: { after: 50 }
@@ -10454,7 +10454,7 @@ app.post('/api/material/export-docx', async (req, res) => {
       if (scenario) {
         docChildren.push(
           new Paragraph({
-            text: '三、 模拟实战对抗案例',
+            text: '三�?模拟实战对抗案例',
             heading: HeadingLevel.HEADING_2,
             spacing: { before: 200, after: 100 }
           })
@@ -10628,7 +10628,7 @@ process.on('uncaughtException', (err) => {
 });
 
 // ==========================================
-// 资料管理抽屉 表
+// 资料管理抽屉 �?
 // ==========================================
 db.prepare(`
   CREATE TABLE IF NOT EXISTS knowledge_vault (
