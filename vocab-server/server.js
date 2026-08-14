@@ -4305,23 +4305,48 @@ app.post('/api/theme/custom-add', async (req, res) => {
       console.error("解析 key_phrases 失败", e);
     }
 
-    // 5. ?????? custom_themes ?
-    const themeId = crypto.randomUUID();
-    db.prepare(`
-      INSERT INTO custom_themes (id, user_id, theme_name, display_name, associated_file, dify_document_id, dify_dataset_id, extracted_keywords, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      themeId,
-      userId,
-      themeName,
-      extractedThemeName,
-      file.fileName || 'custom_material.pdf',
-      documentId,
-      datasetId,
-      JSON.stringify(extractedWords),
-      Date.now(),
-      Date.now()
-    );
+    // 5. Upsert custom_themes by user + theme name; reuse legacy default-user records.
+    const existingTheme = db.prepare(`
+      SELECT * FROM custom_themes
+      WHERE theme_name = ? AND user_id IN (?, 'default-user')
+      ORDER BY CASE WHEN user_id = ? THEN 0 ELSE 1 END, created_at DESC
+      LIMIT 1
+    `).get(themeName, userId, userId);
+    const themeId = existingTheme?.id || crypto.randomUUID();
+    const nowForTheme = Date.now();
+
+    if (existingTheme) {
+      db.prepare(`
+        UPDATE custom_themes
+        SET user_id = ?, display_name = ?, associated_file = ?, dify_document_id = ?, dify_dataset_id = ?, extracted_keywords = ?, updated_at = ?
+        WHERE id = ?
+      `).run(
+        userId,
+        extractedThemeName,
+        file.fileName || 'custom_material.pdf',
+        documentId,
+        datasetId,
+        JSON.stringify(extractedWords),
+        nowForTheme,
+        themeId
+      );
+    } else {
+      db.prepare(`
+        INSERT INTO custom_themes (id, user_id, theme_name, display_name, associated_file, dify_document_id, dify_dataset_id, extracted_keywords, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        themeId,
+        userId,
+        themeName,
+        extractedThemeName,
+        file.fileName || 'custom_material.pdf',
+        documentId,
+        datasetId,
+        JSON.stringify(extractedWords),
+        nowForTheme,
+        nowForTheme
+      );
+    }
 
     // 6. ????????????????????????????????????????
     let addedWordsCount = 0;
