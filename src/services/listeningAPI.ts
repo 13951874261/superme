@@ -223,7 +223,7 @@ export async function uploadLocalListeningAudio(file: File, userId: string = 'lo
   transcript: string;
 }> {
   const formData = new FormData();
-  formData.append('video', file); // 路由里用的是 upload.any()，这里传给 multer，也可以用 multer 的 key 匹配
+  formData.append('file', file);
   formData.append('userId', userId);
 
   const response = await fetch('/api/listen/upload-audio', {

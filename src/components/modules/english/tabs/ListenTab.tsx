@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus, UploadCloud, FileAudio } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
-import { runListeningEngine } from '../../../../services/listeningAPI';
+import { runListeningEngine, uploadLocalListeningAudio } from '../../../../services/listeningAPI';
 import {
   fetchPregenerated,
   submitPregeneratedBackfill,
@@ -62,6 +62,36 @@ export default function ListenTab() {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const filterFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listenEffectsRef = useRef({
+    listenAccent,
+    listenInterruptions,
+    listenPacketLoss,
+    listenInfoGap,
+  });
+
+  useEffect(() => {
+    listenEffectsRef.current = {
+      listenAccent,
+      listenInterruptions,
+      listenPacketLoss,
+      listenInfoGap,
+    };
+  }, [listenAccent, listenInterruptions, listenPacketLoss, listenInfoGap]);
+
+  const buildListenTtsEffects = () => {
+    const s = listenEffectsRef.current;
+    return {
+      accent: (s.listenAccent === 'normal' ? '' : s.listenAccent) as '' | 'indian' | 'british' | 'australian',
+      packet_loss: s.listenPacketLoss,
+      interruptions: s.listenInterruptions,
+      information_gap: s.listenInfoGap,
+    };
+  };
+
+  const hasActiveListenEffects = () => {
+    const s = listenEffectsRef.current;
+    return s.listenAccent !== 'normal' || s.listenPacketLoss || s.listenInterruptions || s.listenInfoGap;
+  };
 
 
   const [globalRateMultiplier, setGlobalRateMultiplier] = useState(
@@ -213,7 +243,9 @@ export default function ListenTab() {
       setIsAudioGenerating(false);
       showNotice('listen', '🎉 高保真音频后台合成成功！已为您加载播放。', 'success');
       setHasPlayed(true);
-      void writebackCache({ body: listenMaterial || undefined, audioUrl, script: listenMaterial || undefined });
+      void writebackCache(hasActiveListenEffects()
+        ? { body: listenMaterial || undefined, script: listenMaterial || undefined }
+        : { body: listenMaterial || undefined, audioUrl, script: listenMaterial || undefined });
       setTimeout(() => {
         audioRef.current?.play().catch(() => {
           setHasPlayed(false); // 自动播放被拦截时显示引导闪烁
@@ -249,11 +281,13 @@ export default function ListenTab() {
       // 自动触发 TTS 生成 (选项 A 逻辑)
       setIsAudioGenerating(true);
       import('../../../../services/listeningAPI').then(({ fetchDifyTTS }) => {
-        fetchDifyTTS(script, { isAsync: true }).then(ttsRes => {
+        fetchDifyTTS(script, { isAsync: true, effects: buildListenTtsEffects() }).then(ttsRes => {
           if (ttsRes.audioUrl) {
             setListenAudioUrl(ttsRes.audioUrl);
             setIsAudioGenerating(false);
-            void writebackCache({ body: script, script, audioUrl: ttsRes.audioUrl });
+            void writebackCache(hasActiveListenEffects()
+              ? { body: script, script }
+              : { body: script, script, audioUrl: ttsRes.audioUrl });
           } else if (ttsRes.taskId) {
             addTask({
               id: ttsRes.taskId,
@@ -320,11 +354,16 @@ export default function ListenTab() {
       const { fetchDifyTTS } = await import('../../../../services/listeningAPI');
       setIsAudioGenerating(true);
       try {
-        const ttsRes = await fetchDifyTTS(script, { isAsync: true });
+        const ttsRes = await fetchDifyTTS(script, {
+          isAsync: true,
+          effects: buildListenTtsEffects(),
+        });
         if (ttsRes.audioUrl) {
           setListenAudioUrl(ttsRes.audioUrl);
           setIsAudioGenerating(false);
-          void writebackCache({ body: script, script, audioUrl: ttsRes.audioUrl });
+          void writebackCache(hasActiveListenEffects()
+            ? { body: script, script }
+            : { body: script, script, audioUrl: ttsRes.audioUrl });
         } else if (ttsRes.taskId) {
           addTask({
             id: ttsRes.taskId,
@@ -409,43 +448,20 @@ export default function ListenTab() {
     setListenResult(null);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', 'default-user');
-
-      const uploadRes = await fetch('/api/listen/upload-audio', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (!uploadRes.ok) throw new Error('上传失败');
-
-      const uploadData = await uploadRes.json();
+      const uploadData = await uploadLocalListeningAudio(file, 'default-user');
       if (!uploadData.success) throw new Error(uploadData.error || '上传失败');
 
       setListenAudioUrl(uploadData.audioUrl);
       setUploadProgress(50);
-
-      setIsTranscribing(true);
-      const sttFormData = new FormData();
-      sttFormData.append('file', file);
-      sttFormData.append('userId', 'default-user');
-
-      const sttRes = await fetch('/api/audio/transcriptions', {
-        method: 'POST',
-        body: sttFormData,
-      });
-
-      if (sttRes.ok) {
-        const sttData = await sttRes.json();
-        if (sttData.text) {
-          setUploadedTranscript(sttData.text);
-          setListenMaterial(sttData.text);
-        }
+      if (uploadData.transcript) {
+        setUploadedTranscript(uploadData.transcript);
+        setListenMaterial(uploadData.transcript);
+        setUploadProgress(100);
+        showNotice('listen', '音频上传及转写成功，请听音频并默写内容', 'info');
+      } else {
+        setUploadProgress(100);
+        showNotice('listen', '音频已上传，但转写失败，可继续手动听写或稍后重试', 'warning');
       }
-
-      setUploadProgress(100);
-      showNotice('listen', '音频上传及转写成功，请听音频并默写内容', 'info');
     } catch (err: any) {
       showNotice('listen', `上传失败: ${err.message}`, 'error');
     } finally {
@@ -616,8 +632,10 @@ export default function ListenTab() {
                       )}
                     </label>
                     {uploadedFileName && (
-                      <span className="text-[10px] text-white/60 max-w-[100px] truncate" title={uploadedFileName}>
+                      <span className="text-[10px] text-white/60 max-w-[180px] truncate" title={uploadedFileName}>
                         {uploadedFileName}
+                        {listenAudioUrl ? ' · 已上传' : ''}
+                        {uploadedTranscript ? ' · 已转写' : (uploadProgress === 100 ? ' · 转写失败' : '')}
                       </span>
                     )}
                   </div>
@@ -636,7 +654,8 @@ export default function ListenTab() {
                   </button>
                 )}
               </div>
-              {/* 压力因素选择器 */}
+              {/* 压力因素选择器：仅自动生成模式生效 */}
+              {listenMode === 'auto' && (
               <div className="flex flex-wrap items-center gap-3 mt-3 relative z-10 border-t border-white/5 pt-3 w-full">
                 <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">压力因素:</span>
                 <select
@@ -677,6 +696,7 @@ export default function ListenTab() {
                   白噪丢包
                 </label>
               </div>
+              )}
 
               {isCacheableDuration && (pregenStatus === 'missing' || pregenStatus === 'failed') && (
                 <div className="relative z-10 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">

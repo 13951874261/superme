@@ -2750,16 +2750,12 @@ app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
     // 保存上传的文件
     fs.writeFileSync(filePath, fs.readFileSync(file.path));
 
-    // 清理临时文件
-    if (file.path && fs.existsSync(file.path)) {
-      fs.unlinkSync(file.path);
-    }
-
-    // 自动转写音频获取标准原文
+    // 自动转写音频获取标准原文（必须用已保存路径，multer 临时文件稍后才删）
     let transcript = '';
     try {
       const { transcribeAudioFile } = require('./services/audioTranscriptionService');
-      transcript = await transcribeAudioFile(file, req.body ? (req.body.userId || 'default-user') : 'default-user');
+      const userId = req.body ? (req.body.userId || 'default-user') : 'default-user';
+      transcript = await transcribeAudioFile({ ...file, path: filePath }, userId);
 
       const transcriptDir = path.join(__dirname, 'public', 'long_audio_transcripts');
       if (!fs.existsSync(transcriptDir)) {
@@ -2771,6 +2767,10 @@ app.post('/api/listen/upload-audio', upload.any(), async (req, res) => {
       console.log('[Upload Audio] 转写成功，文本长度: ' + transcript.length);
     } catch (transcribeErr) {
       console.error('[Upload Audio] 转写失败:', transcribeErr.message);
+    } finally {
+      if (file.path && file.path !== filePath && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
     }
 
     // 返回音频 URL 与转录文本

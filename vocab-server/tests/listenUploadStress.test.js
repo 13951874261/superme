@@ -48,4 +48,11 @@ assert.ok(cabinSource.includes('网络卡顿') || cabinSource.includes('packet_l
 assert.ok(cabinSource.includes('声音打断') || cabinSource.includes('interruptions'), 'interruptions effect button must exist');
 assert.ok(cabinSource.includes('背景噪音') || cabinSource.includes('information_gap'), 'information_gap effect button must exist');
 
+const listenTabPath = path.join(__dirname, '../../src/components/modules/english/tabs/ListenTab.tsx');
+const listenTabSource = fs.readFileSync(listenTabPath, 'utf8');
+assert.ok(listenTabSource.includes('uploadLocalListeningAudio'), 'ListenTab must use uploadLocalListeningAudio');
+assert.ok(!listenTabSource.includes('/api/audio/transcriptions'), 'ListenTab must not call secondary STT');
+assert.ok(listenTabSource.includes('effects: buildListenTtsEffects()'), 'ListenTab must pass effects into fetchDifyTTS');
+assert.match(serverSource, /path: filePath/);
+
 console.log('upload-audio + TTS stress factors contract tests passed');

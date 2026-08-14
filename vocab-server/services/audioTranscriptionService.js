@@ -3,6 +3,9 @@ const path = require('path');
 const os = require('os');
 
 async function transcribeAudioFile(fileObj, userId = 'default-user') {
+  if (!fileObj?.path || !fs.existsSync(fileObj.path)) {
+    throw new Error('音频临时文件不存在，无法转写');
+  }
   const fileBuffer = fs.readFileSync(fileObj.path);
   const mimeType = fileObj.mimetype || 'audio/mp3';
   const originalName = fileObj.originalname || 'audio.mp3';
