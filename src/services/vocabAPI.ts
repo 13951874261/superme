@@ -167,7 +167,9 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
     return data;
   } catch (err: any) {
     const isAbort = err?.name === 'AbortError';
-    console.error('[vocabAPI] Vocab request exception:', path, err);
+    if (!isAbort) {
+      console.error('[vocabAPI] Vocab request exception:', path, err);
+    }
     if (!silent && !isAbort) {
       playError();
       showToast({ message: err.message || '词库请求失败', type: 'error' });

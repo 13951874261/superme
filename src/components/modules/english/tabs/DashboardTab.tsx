@@ -317,7 +317,9 @@ export default function DashboardTab() {
       });
       setVocabDetailsMap(detailsMap);
     } catch (err) {
-      console.error('Failed to load vocab details:', err);
+      if ((err as { name?: string })?.name !== 'AbortError') {
+        console.error('Failed to load vocab details:', err);
+      }
     }
   };
 

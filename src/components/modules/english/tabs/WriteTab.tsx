@@ -3,6 +3,7 @@ import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishConte
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
 import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceTaskType, WriteGovernanceResult } from '../../../../services/difyAPI';
+import { extractListenMaterialTaskId, pollTaskResultContent, resolveListenMaterialText } from '../../../../services/listenMaterialResult';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
 import { getAppUserId } from '../../../../utils/profileHelper';
 import { playClick, playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
@@ -219,7 +220,15 @@ export default function WriteTab() {
       const moduleName = WRITE_MODULES.find(m => m.id === activeModule)?.label || theme;
       const promptTheme = `【任务生成模式】请针对主题“${theme}” and 写作训练维度“${moduleName}”，生成一封极具突破性、需要高管站位来破局回复的商业邮件或公文写作任务。只输出任务正文。`;
       const result = await runListenMaterialGenerator(promptTheme, 'meeting', 'B2', 'short');
-      setChallengeText(result);
+      const immediate = resolveListenMaterialText(result);
+      if (immediate) {
+        setChallengeText(immediate);
+      } else {
+        const taskId = extractListenMaterialTaskId(result);
+        if (!taskId) throw new Error('未返回写作任务正文');
+        const polled = await pollTaskResultContent(taskId);
+        setChallengeText(polled);
+      }
       setWriteIntent(`回应此 ${moduleName} 挑战任务，妥善解决其中关于 ${theme} 的问题`);
       playSuccess();
     } catch (e) {
@@ -578,7 +587,7 @@ ${benchmarkText
                       重置
                     </button>
                   </div>
-                  <p className="text-xs font-medium leading-relaxed text-zinc-350">{challengeText}</p>
+                  <p className="text-xs font-medium leading-relaxed text-zinc-350">{typeof challengeText === 'string' ? challengeText : ''}</p>
                 </div>
               </div>
             )}
