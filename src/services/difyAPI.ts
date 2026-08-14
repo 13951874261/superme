@@ -93,6 +93,8 @@ export interface OralChatContext {
   /** 与 Dify start 节点 user_current_profile 对齐 */
   user_current_profile?: string;
   User_Current_Profile?: string;
+  /** 用户自定义沙盘背景；对应 Dify 开始节点 custom_background */
+  custom_background?: string;
 }
 
 /** 词汇提纯引擎 - 输入 */
@@ -771,6 +773,7 @@ export async function sendOralChatMessage(
     ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
     ...(oralContext?.role_judgement ? { role_judgement: oralContext.role_judgement } : {}),
     ...(oralContext?.intent_judgement ? { intent_judgement: oralContext.intent_judgement } : {}),
+    ...(oralContext?.custom_background ? { custom_background: oralContext.custom_background } : {}),
     ...(oralContext?.user_current_profile ? { user_current_profile: oralContext.user_current_profile } : {}),
     ...(oralContext?.User_Current_Profile && !oralContext?.user_current_profile
       ? { user_current_profile: oralContext.User_Current_Profile }

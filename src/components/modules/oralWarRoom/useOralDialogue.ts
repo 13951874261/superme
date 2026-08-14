@@ -9,6 +9,12 @@ import {
   buildMessageFeedback,
   formatSessionMemoryProfile,
 } from './utils';
+import {
+  buildSandboxInputsPatch,
+  loopholeInstructionForMode,
+  roleSwitchInstructionForMode,
+  type SandboxMode,
+} from './sandboxMode';
 
 const FLAW_TYPES = [
   'causal_fallacy',
@@ -72,6 +78,8 @@ export interface UseOralDialogueOptions {
   processAiResponse: (parsed: ParsedAiResponse | null, content: string, wasLoopholeActive: boolean) => boolean;
   onOralRoundLogged?: () => void;
   bottomRef: RefObject<HTMLDivElement | null>;
+  sandboxMode: SandboxMode;
+  customBackground: string;
 }
 
 export function useOralDialogue({
@@ -103,34 +111,45 @@ export function useOralDialogue({
   processAiResponse,
   onOralRoundLogged,
   bottomRef,
+  sandboxMode,
+  customBackground,
 }: UseOralDialogueOptions) {
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [bottomRef]);
 
-  const buildOralContext = useCallback((scene: SceneEntry): OralChatContext => ({
-    scene_title: scene.shortTitle,
-    scene_type: scene.shortTitle,
-    roles: scene.roleList,
-    cultural_context: scene.culturalContext,
-    conflicts: scene.conflicts.join(' / '),
-    role_switch_instruction: ROLE_SWITCH_INSTRUCTION,
-    scene_level: scene.level,
-    role_judgement: currentTarget || '未指定',
-    intent_judgement: 'negotiation',
-    user_current_profile: formatSessionMemoryProfile(sessionMemory),
-  }), [currentTarget, sessionMemory]);
+  const buildOralContext = useCallback((scene: SceneEntry, mode: SandboxMode = sandboxMode): OralChatContext => {
+    const patch = buildSandboxInputsPatch(mode, customBackground);
+    return {
+      scene_title: scene.shortTitle,
+      scene_type: scene.shortTitle,
+      roles: scene.roleList,
+      cultural_context: scene.culturalContext,
+      conflicts: scene.conflicts.join(' / '),
+      role_switch_instruction: roleSwitchInstructionForMode(mode, ROLE_SWITCH_INSTRUCTION),
+      scene_level: scene.level,
+      role_judgement: currentTarget || '未指定',
+      intent_judgement: patch.intent_judgement,
+      user_current_profile: formatSessionMemoryProfile(sessionMemory),
+      ...(patch.custom_background ? { custom_background: patch.custom_background } : {}),
+    };
+  }, [currentTarget, sessionMemory, sandboxMode, customBackground]);
 
-  const initiateSceneDialogue = useCallback(async (scene: SceneEntry) => {
+  const initiateSceneDialogue = useCallback(async (scene: SceneEntry, modeOverride?: SandboxMode) => {
     if (isSending) return;
+    const mode = modeOverride ?? sandboxMode;
     setIsSending(true);
-    setLastNotice('对手角色正在开场...');
+    setLastNotice(mode === 'daily' ? '对话搭档正在开场...' : '对手角色正在开场...');
     const difficultyPrefix = getDifficultyPrefix('【全局指令：极限施压模式】\n');
     const opener = scene.openingLine;
-    const apiPayload = `${difficultyPrefix}[系统隐性指令：切换场景「${scene.shortTitle}」。角色：${scene.roleList}。请由非用户角色率先开口（对话启动句），参考风格："${opener}"。用户尚未发言。必须在 JSON 返回 dialogue、current_speaker、role_address、branch_suggestions、difficulty_rating(${scene.level})、cultural_signal 及四维 feedback 字段。${ROLE_SWITCH_INSTRUCTION}]`;
+    const switchInstruction = roleSwitchInstructionForMode(mode, ROLE_SWITCH_INSTRUCTION);
+    const dailyHint = mode === 'daily'
+      ? '当前为 1VS1 日常演练，禁止植入谈判破绽，flaw_point 必须为空。'
+      : '';
+    const apiPayload = `${difficultyPrefix}[系统隐性指令：切换场景「${scene.shortTitle}」。角色：${scene.roleList}。${dailyHint}请由非用户角色率先开口（对话启动句），参考风格："${opener}"。用户尚未发言。必须在 JSON 返回 dialogue、current_speaker、role_address、branch_suggestions、difficulty_rating(${scene.level})、cultural_signal 及四维 feedback 字段。${switchInstruction}]`;
 
     try {
-      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene));
+      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene, mode));
       if (res.conversation_id) setConversationId(res.conversation_id);
       const rawText = String(res.answer || res.message || '');
       const parsed = parseAiPayload(rawText);
@@ -170,7 +189,7 @@ export function useOralDialogue({
     } finally {
       setIsSending(false);
     }
-  }, [isSending, userId, buildOralContext, processAiResponse, scrollToBottom, setIsSending, setLastNotice, setConversationId, setMessages, setCurrentDifficulty]);
+  }, [isSending, userId, sandboxMode, buildOralContext, processAiResponse, scrollToBottom, setIsSending, setLastNotice, setConversationId, setMessages, setCurrentDifficulty]);
 
   const handleSendWithText = useCallback(async (forceContent: string) => {
     const rawContent = forceContent.trim();
@@ -199,14 +218,18 @@ export function useOralDialogue({
     playSendMessage();
     const currentRound = messages.length;
 
-    const difficultyPrefix = getDifficultyPrefix('【全局指令：当前为极限施压模式，请在回复中表现出极强的压迫感、敌意与找破绽倾向，不可轻易让步。】\n');
-    const loopholeInstruction = buildLoopholeInstruction(isLoopholePlanted, currentRound, activeScene.culturalContext);
+    const difficultyPrefix = sandboxMode === 'daily'
+      ? ''
+      : getDifficultyPrefix('【全局指令：当前为极限施压模式，请在回复中表现出极强的压迫感、敌意与找破绽倾向，不可轻易让步。】\n');
+    const negotiationLoophole = buildLoopholeInstruction(isLoopholePlanted, currentRound, activeScene.culturalContext);
+    const loopholeInstruction = loopholeInstructionForMode(sandboxMode, negotiationLoophole);
     const culturalInjection = `\n[跨文化语境：${activeScene.culturalContext}]`;
+    const switchInstruction = roleSwitchInstructionForMode(sandboxMode, ROLE_SWITCH_INSTRUCTION);
 
     let apiPayload: string;
     if (currentRound === 0) {
       const sceneNameForAI = activeSceneId === 'dynamic-scene' ? sceneTheme : activeScene.shortTitle;
-      apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}，角色：${activeScene.roleList}]\n${difficultyPrefix}${culturalInjection}${ROLE_SWITCH_INSTRUCTION}\n用户发言：${content}${loopholeInstruction}`;
+      apiPayload = `[系统隐性指令：切换场景 ${sceneNameForAI}，角色：${activeScene.roleList}]\n${difficultyPrefix}${culturalInjection}${switchInstruction}\n用户发言：${content}${loopholeInstruction}`;
     } else {
       apiPayload = `${difficultyPrefix}${culturalInjection}\n用户发言：${content}${loopholeInstruction}`;
     }
@@ -217,7 +240,7 @@ export function useOralDialogue({
     setCurrentTarget('');
     clearPendingText();
     setIsSending(true);
-    setLastNotice('华尔街/中东对手正在推演回应...');
+    setLastNotice(sandboxMode === 'daily' ? '对话搭档正在回应...' : '华尔街/中东对手正在推演回应...');
 
     try {
       const res = await sendOralChatMessage(apiPayload, conversationId, userId, buildOralContext(activeScene));
@@ -243,7 +266,7 @@ export function useOralDialogue({
           .catch(() => {});
       }
 
-      const wasLoopholeActive = isLoopholePlanted;
+      const wasLoopholeActive = sandboxMode === 'daily' ? false : isLoopholePlanted;
       processAiResponse(parsed, content, wasLoopholeActive);
 
       if (parsed) {
@@ -273,6 +296,7 @@ export function useOralDialogue({
     improvActive,
     messages.length,
     isLoopholePlanted,
+    sandboxMode,
     activeScene,
     activeSceneId,
     sceneTheme,

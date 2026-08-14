@@ -86,6 +86,7 @@ export interface OralWarRoomChatProps {
   micError: string | null;
   startRecording: () => void;
   stopRecordingAndSend: () => void;
+  showNegotiationControls?: boolean;
 }
 
 export default function OralWarRoomChat({
@@ -137,6 +138,7 @@ export default function OralWarRoomChat({
   micError,
   startRecording,
   stopRecordingAndSend,
+  showNegotiationControls = true,
 }: OralWarRoomChatProps) {
   return (
     <section className={`flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))] relative ${
@@ -666,7 +668,7 @@ export default function OralWarRoomChat({
             </div>
           </div>
         )}
-        {showControlCard && (
+        {showNegotiationControls && showControlCard && (
           <OralWarRoomControlCard
             flawClaim={currentFlawClaim}
             flawType={currentFlawType}
@@ -693,11 +695,13 @@ export default function OralWarRoomChat({
             {activeScene.conflicts.join(' / ')}
           </div>
         </div>
+        {showNegotiationControls && (
         <OralWarRoomRoleSwitcher
           roles={sceneRoleSwitcherItems}
           currentTarget={currentTarget}
           onTargetChange={handleTargetChange}
         />
+        )}
         <div className="relative flex flex-col mt-2">
           {/* 高压 10 秒倒计时 */}
           {isRecording && (

@@ -24,6 +24,13 @@ import type {
 } from './types';
 import { SCENE_DATABASE, THEME_TO_SCENE_MAP } from './scenes';
 import {
+  applyCustomBackground,
+  buildDailyScene,
+  DAILY_SCENE_ID,
+  shouldShowNegotiationControls,
+  type SandboxMode,
+} from './sandboxMode';
+import {
   getSpeakerStyle,
   safeText,
   parseBranchList,
@@ -87,6 +94,9 @@ export function useOralWarRoomSession({
   const [sessionNotes, setSessionNotes] = useState('');
   const [improvElapsed, setImprovElapsed] = useState(0);
   const [improvActive, setImprovActive] = useState(false);
+  const [sandboxMode, setSandboxMode] = useState<SandboxMode>('negotiation');
+  const [customBackground, setCustomBackground] = useState('');
+  const [customBackgroundEnabled, setCustomBackgroundEnabled] = useState(false);
   const [sessionMemory, setSessionMemory] = useState<SessionMemory>(() => {
     try {
       const saved = localStorage.getItem('superme_session_memory');
@@ -193,10 +203,14 @@ export function useOralWarRoomSession({
   }, [rebalancePush, activeSceneId, embedded]);
 
   const activeScene = useMemo((): SceneEntry => {
+    if (sandboxMode === 'daily' || activeSceneId === DAILY_SCENE_ID) {
+      return applyCustomBackground(buildDailyScene(customBackground), customBackground, 'daily');
+    }
     const pushScene = rebalancePush?.oralSandbox;
+    let base: SceneEntry | undefined;
     if (activeSceneId === 'rebalance-scene' && pushScene?.scenario) {
       const baseLevel = pushScene.difficulty || 5;
-      return {
+      base = {
         id: 'rebalance-scene',
         title: pushScene.scenario,
         shortTitle: pushScene.scenario.slice(0, 24),
@@ -211,9 +225,8 @@ export function useOralWarRoomSession({
         culturalContext: '心智投喂重组场景：聚焦本周投喂的核心博弈议题。',
         openingLine: 'Based on your recent strategic focus, let us address the core tension directly. What is your opening position?',
       };
-    }
-    if (activeSceneId === 'dynamic-scene') {
-      return {
+    } else if (activeSceneId === 'dynamic-scene') {
+      base = {
         id: 'dynamic-scene',
         title: `当前阵地：${sceneTheme}`,
         shortTitle: sceneTheme.split('：')[1] || sceneTheme,
@@ -228,9 +241,14 @@ export function useOralWarRoomSession({
         culturalContext: '根据当前跨文化主题，精准把握商务分寸与情感张力。',
         openingLine: 'We need to address the core issue before this meeting runs over time. What is your position?',
       };
+    } else {
+      base = SCENE_DATABASE.find(s => s.id === activeSceneId);
     }
-    return SCENE_DATABASE.find(s => s.id === activeSceneId)!;
-  }, [activeSceneId, sceneTheme, rebalancePush]);
+    const scene = base ?? SCENE_DATABASE[0];
+    return customBackgroundEnabled
+      ? applyCustomBackground(scene, customBackground, 'negotiation')
+      : scene;
+  }, [activeSceneId, sceneTheme, rebalancePush, sandboxMode, customBackground, customBackgroundEnabled]);
 
   const {
     breakthroughMenu,
@@ -275,8 +293,9 @@ export function useOralWarRoomSession({
       setShowControlCard,
       setIsInputLocked,
       setIsLoopholePlanted,
+      ignoreFlaws: sandboxMode === 'daily',
     }, parsed, content, wasLoopholeActive);
-  }, [activeScene.title, flawTemplates, appendWeaknessToMemory]);
+  }, [activeScene.title, flawTemplates, appendWeaknessToMemory, sandboxMode]);
 
   const { initiateSceneDialogue, handleSendWithText, handleSend } = useOralDialogue({
     userId,
@@ -307,6 +326,8 @@ export function useOralWarRoomSession({
     processAiResponse,
     onOralRoundLogged,
     bottomRef,
+    sandboxMode,
+    customBackground: customBackgroundEnabled || sandboxMode === 'daily' ? customBackground : '',
   });
 
   handleSendWithTextRef.current = handleSendWithText;
@@ -329,9 +350,7 @@ export function useOralWarRoomSession({
     }
   }, [embedded, sceneTheme, activeSceneId]);
 
-  const handleSceneSelect = (sceneId: string) => {
-    const scene = SCENE_DATABASE.find(s => s.id === sceneId);
-    if (!scene) return;
+  const resetBattleState = useCallback((sceneId: string) => {
     playSceneSwitch();
     setActiveSceneId(sceneId);
     setSceneTransitionKey(k => k + 1);
@@ -349,10 +368,42 @@ export function useOralWarRoomSession({
     setCurrentTarget('');
     setImprovElapsed(0);
     setImprovActive(false);
-    setSessionMemory(prev => ({ ...prev, lastSceneId: sceneId }));
+    setShowControlCard(false);
+    setIsInputLocked(false);
+    setSessionMemory(prev => ({
+      ...prev,
+      lastSceneId: sceneId === DAILY_SCENE_ID ? prev.lastSceneId : sceneId,
+    }));
     sceneInitRef.current = sceneId;
+  }, [setBreakthroughMenu]);
+
+  const handleSceneSelect = (sceneId: string) => {
+    const scene = SCENE_DATABASE.find(s => s.id === sceneId);
+    if (!scene) return;
+    if (sandboxMode === 'daily') setSandboxMode('negotiation');
+    resetBattleState(sceneId);
     setLastNotice(`已重置战局。进入：${scene.shortTitle}`);
-    void initiateSceneDialogue(scene);
+    void initiateSceneDialogue(scene, 'negotiation');
+  };
+
+  const handleSandboxModeChange = (mode: SandboxMode) => {
+    if (mode === sandboxMode) return;
+    setSandboxMode(mode);
+    if (mode === 'daily') setCustomBackgroundEnabled(true);
+    if (mode === 'daily') {
+      const scene = applyCustomBackground(buildDailyScene(customBackground), customBackground, 'daily');
+      resetBattleState(DAILY_SCENE_ID);
+      setLastNotice('已切换至日常演练。可填写自定义背景后继续对话。');
+      void initiateSceneDialogue(scene, 'daily');
+      return;
+    }
+    const fallbackId = sessionMemory.lastSceneId && sessionMemory.lastSceneId !== DAILY_SCENE_ID
+      ? sessionMemory.lastSceneId
+      : 'scene-1';
+    const scene = SCENE_DATABASE.find(s => s.id === fallbackId) || SCENE_DATABASE[0];
+    resetBattleState(scene.id);
+    setLastNotice(`已切换至谈判沙盘。进入：${scene.shortTitle}`);
+    void initiateSceneDialogue(scene, 'negotiation');
   };
 
   const handleBreakthroughSubmit = useCallback(async (type: BreakthroughType, selectedText: string, messageId: string) => {
@@ -513,6 +564,13 @@ export function useOralWarRoomSession({
     latestExchange,
     latestFeedback,
     handleSceneSelect,
+    sandboxMode,
+    handleSandboxModeChange,
+    customBackground,
+    setCustomBackground,
+    customBackgroundEnabled,
+    setCustomBackgroundEnabled,
+    showNegotiationControls: shouldShowNegotiationControls(sandboxMode),
     improvElapsed,
     improvActive,
     setImprovElapsed,
@@ -536,7 +594,7 @@ export function useOralWarRoomSession({
     currentFlawType,
     currentFlawClaim,
     flawTemplates,
-    showControlCard,
+    showControlCard: sandboxMode === 'daily' ? false : showControlCard,
     setShowControlCard,
     setIsInputLocked,
     sceneRoleSwitcherItems,

@@ -47,6 +47,12 @@ export default function OralWarRoom(props: OralWarRoomProps) {
           filteredScenes={session.filteredScenes}
           sceneDifficultyStats={session.sceneDifficultyStats}
           getPartyCount={getScenePartyCount}
+          sandboxMode={session.sandboxMode}
+          onSandboxModeChange={session.handleSandboxModeChange}
+          customBackground={session.customBackground}
+          onCustomBackgroundChange={session.setCustomBackground}
+          customBackgroundEnabled={session.customBackgroundEnabled}
+          onCustomBackgroundEnabledChange={session.setCustomBackgroundEnabled}
         />
       )}
 
@@ -113,6 +119,7 @@ export default function OralWarRoom(props: OralWarRoomProps) {
           micError={session.micError}
           startRecording={session.startRecording}
           stopRecordingAndSend={session.stopRecordingAndSend}
+          showNegotiationControls={session.showNegotiationControls}
         />
 
         <AnimatePresence>

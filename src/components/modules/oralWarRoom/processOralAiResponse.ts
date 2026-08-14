@@ -23,6 +23,7 @@ export interface ProcessOralAiResponseCtx {
   setShowControlCard: (v: boolean) => void;
   setIsInputLocked: (v: boolean) => void;
   setIsLoopholePlanted: (v: boolean) => void;
+  ignoreFlaws?: boolean;
 }
 
 function logWeakness(sceneTitle: string, flawText: string, setWeaknessLog: ProcessOralAiResponseCtx['setWeaknessLog']) {
@@ -49,6 +50,14 @@ export function processOralAiResponse(
     if (parsed.feedback_pronunciation || parsed.feedback_vocab || parsed.feedback_role_switch || parsed.feedback_strategy) {
       ctx.setFeedbackExpanded(false);
     }
+  }
+
+  if (ctx.ignoreFlaws) {
+    ctx.setIsLoopholePlanted(false);
+    ctx.setShowControlCard(false);
+    ctx.setIsInputLocked(false);
+    if (!wasLoopholeActive) ctx.setLastNotice('已收到回应，继续对话。');
+    return false;
   }
 
   let evaluatedSuccess = false;

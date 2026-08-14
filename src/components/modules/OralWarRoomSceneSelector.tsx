@@ -1,6 +1,7 @@
 import React from 'react';
 import { Globe, Star, Users } from 'lucide-react';
 import type { SceneEntry } from './oralWarRoom/types';
+import type { SandboxMode } from './oralWarRoom/sandboxMode';
 
 interface Props {
   scenes: SceneEntry[];
@@ -15,6 +16,12 @@ interface Props {
   filteredScenes: SceneEntry[];
   sceneDifficultyStats: { level4: number; level5: number; level4Pct: number; level5Pct: number };
   getPartyCount: (scene: SceneEntry) => number;
+  sandboxMode: SandboxMode;
+  onSandboxModeChange: (mode: SandboxMode) => void;
+  customBackground: string;
+  onCustomBackgroundChange: (value: string) => void;
+  customBackgroundEnabled: boolean;
+  onCustomBackgroundEnabledChange: (enabled: boolean) => void;
 }
 
 function renderStars(level: number) {
@@ -36,14 +43,52 @@ export default function OralWarRoomSceneSelector({
   filteredScenes,
   sceneDifficultyStats,
   getPartyCount,
+  sandboxMode,
+  onSandboxModeChange,
+  customBackground,
+  onCustomBackgroundChange,
+  customBackgroundEnabled,
+  onCustomBackgroundEnabledChange,
 }: Props) {
+  const showBackgroundInput = sandboxMode === 'daily' || customBackgroundEnabled;
+
   return (
     <div className="mb-4 bg-white px-5 py-4 rounded-2xl border border-[var(--color-border)] shadow-[var(--shadow-sm)]">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
         <div className="flex items-center gap-2 text-xs font-black text-[var(--color-accent)] tracking-widest uppercase">
           <Globe className="w-4 h-4" /> 场景库 SCENE LIBRARY
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+        <div
+          role="tablist"
+          aria-label="沙盘模式"
+          className="flex items-center p-0.5 rounded-full bg-[var(--color-canvas)] border border-[var(--color-border)] self-start sm:self-auto"
+        >
+          {([
+            { id: 'negotiation', label: '谈判沙盘' },
+            { id: 'daily', label: '日常演练' },
+          ] as const).map((item) => {
+            const selected = sandboxMode === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => onSandboxModeChange(item.id)}
+                className={`px-3 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase transition-all cursor-pointer ${
+                  selected
+                    ? 'bg-[var(--color-accent)] text-white shadow-[var(--shadow-sm)]'
+                    : 'text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)]'
+                }`}
+              >
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      {sandboxMode === 'negotiation' && (
+        <div className="flex items-center gap-1.5 flex-wrap justify-end mb-3">
           {(['全部', '初阶', '高阶', '跨文化', '定制'] as const).map((tier) => {
             const isActive = activeTierFilter === tier;
             return (
@@ -62,8 +107,44 @@ export default function OralWarRoomSceneSelector({
             );
           })}
         </div>
-      </div>
+      )}
 
+      {sandboxMode === 'negotiation' && (
+        <label className="flex items-center gap-2 mb-3 text-[10px] font-bold text-[var(--color-ink-secondary)] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={customBackgroundEnabled}
+            onChange={(e) => onCustomBackgroundEnabledChange(e.target.checked)}
+            className="rounded border-[var(--color-border)]"
+          />
+          自定义背景
+        </label>
+      )}
+
+      {showBackgroundInput && (
+        <div className="mb-3">
+          <label htmlFor="oral-sandbox-custom-background" className="block text-[9px] font-black uppercase tracking-widest text-[var(--color-ink-muted)] mb-1.5">
+            {sandboxMode === 'daily' ? '日常场景背景' : '自定义谈判背景'}
+          </label>
+          <textarea
+            id="oral-sandbox-custom-background"
+            rows={3}
+            value={customBackground}
+            onChange={(e) => onCustomBackgroundChange(e.target.value)}
+            placeholder={sandboxMode === 'daily'
+              ? '例如：周末在咖啡馆和朋友讨论露营计划，练习点单与闲聊。'
+              : '补充本场谈判的利益冲突、对方立场或会议背景。'}
+            className="w-full rounded-xl border border-[var(--color-border)] bg-[var(--color-canvas)] px-3 py-2 text-xs text-[var(--color-ink-primary)] outline-none resize-none focus:border-[var(--color-accent)]"
+          />
+        </div>
+      )}
+
+      {sandboxMode === 'daily' ? (
+        <p className="text-xs text-[var(--color-ink-secondary)] leading-relaxed">
+          当前为 1VS1 日常演练：AI 只扮演一名对话搭档，沿用沙盘 JSON 回复，但不植入谈判破绽。
+        </p>
+      ) : (
+        <>
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-3 pb-3 border-b border-[var(--color-border)]">
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between mb-1.5">
@@ -150,6 +231,8 @@ export default function OralWarRoomSceneSelector({
           </button>
         ))}
       </div>
+        </>
+      )}
     </div>
   );
 }
