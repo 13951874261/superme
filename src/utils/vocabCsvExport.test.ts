@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { VocabEntry } from '../services/vocabAPI';
-import { buildVocabCsv, toVocabPresentation } from './vocabCsvExport';
+import { buildVocabCsv, toVocabPresentation, shouldAutoEnrichVocab } from './vocabCsvExport';
 
 const CSV_HEADERS = [
   'word',
@@ -176,4 +176,32 @@ test('句子导出时应保留句子主体并分离例句翻译', () => {
   assert.equal(cells[headers.indexOf('related_phrase')], '');
   assert.equal(cells[headers.indexOf('example_sentences_en')], '');
   assert.equal(cells[headers.indexOf('example_sentences_zh')], '');
+});
+
+test('补全失败与 Dify 错误文案不得当作释义', () => {
+  const row = toVocabPresentation(
+    makeEntry({
+      word: '风险分散',
+      payload: {
+        meaning: '补全失败',
+        definition_en: '请检查 Dify 配置或网络。',
+      },
+    })
+  );
+
+  assert.equal(row.translation, '');
+  assert.equal(row.headword, '风险分散');
+});
+
+test('中文词条或已有释义时不应触发英文补全', () => {
+  assert.equal(shouldAutoEnrichVocab('风险分散', {}), false);
+  assert.equal(shouldAutoEnrichVocab('abandon', { translation_main: '放弃' }), false);
+  assert.equal(shouldAutoEnrichVocab('abandon', {}), true);
+  assert.equal(
+    shouldAutoEnrichVocab('abandon', {
+      meaning: '补全失败',
+      definition_en: '请检查 Dify 配置或网络。',
+    }),
+    true
+  );
 });

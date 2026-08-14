@@ -5,7 +5,7 @@ import SpeakButton from './SpeakButton';
 import { getReviewPage, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
-import { toVocabPresentation } from '../utils/vocabCsvExport';
+import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation } from '../utils/vocabCsvExport';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 
 interface FlashCardProps {
@@ -39,6 +39,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const [evalResult, setEvalResult] = useState<SentenceEvaluationResult | null>(null);
   const [localPayload, setLocalPayload] = useState<any>(null);
   const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState('');
 
   const loadWords = useCallback(async () => {
     setIsLoading(true);
@@ -65,6 +66,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     setSentenceInput('');
     setEvalResult(null);
     setIsFlipped(false);
+    setEnrichError('');
   }, [current?.id]);
 
   const handleQuality = async (quality: number) => {
@@ -99,13 +101,11 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     }
   };
 
-  const shouldEnrichPayload = (payload: any): boolean => {
-    return !payload?.definition_en || payload?.meaning === '解析中...' || payload?.meaning === '待复习补充';
-  };
-
   const currentPayload = localPayload || current?.payload || null;
-  const currentDefinition = currentPayload?.definition_en || current?.payload?.definition_en || '';
-  const currentBusinessNote = currentPayload?.business_note || current?.payload?.business_note || '';
+  const currentDefinitionRaw = currentPayload?.definition_en || current?.payload?.definition_en || '';
+  const currentBusinessNoteRaw = currentPayload?.business_note || current?.payload?.business_note || '';
+  const currentDefinition = isVocabPlaceholder(currentDefinitionRaw) ? '' : currentDefinitionRaw;
+  const currentBusinessNote = isVocabPlaceholder(currentBusinessNoteRaw) ? '' : currentBusinessNoteRaw;
   const card = current
     ? toVocabPresentation({ ...current, payload: currentPayload || current.payload })
     : null;
@@ -119,12 +119,13 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       return;
     }
 
-    if (!shouldEnrichPayload(localPayload || current.payload)) {
+    if (!shouldAutoEnrichVocab(current.word, localPayload || current.payload)) {
       setIsFlipped(true);
       return;
     }
 
     setIsEnriching(true);
+    setEnrichError('');
     try {
       const enriched = await runWordEnrichment(current.word, theme);
       const normalized = {
@@ -135,13 +136,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       await updateWordPayload(current.id, normalized);
     } catch (error) {
       console.error('闪卡自动补全失败:', error);
-      setLocalPayload(prev => ({
-        ...prev,
-        meaning: prev?.meaning || '补全失败',
-        definition_en: prev?.definition_en || '请检查 Dify 配置或网络。',
-        business_note: prev?.business_note || '',
-        examples: prev?.examples || [],
-      }));
+      setEnrichError('释义补全失败，请检查网络后重试。');
     } finally {
       setIsEnriching(false);
       setIsFlipped(true);
@@ -291,7 +286,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                       className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95 shadow-lg shadow-[#202124]/20"
                     >
                       <BookOpen className="w-4 h-4" />
-                      {shouldEnrichPayload(localPayload || current.payload) ? '点击连接 Dify 解密释义' : '翻转查看释义'}
+                      {shouldAutoEnrichVocab(current.word, localPayload || current.payload) ? '点击连接 Dify 解密释义' : '翻转查看释义'}
                     </button>
                   )
                 )}
@@ -300,19 +295,12 @@ export default function FlashCard({ onClose }: FlashCardProps) {
               {/* 背面：按词条类型分层（原词 / 释义 / 短语 / 例句） */}
               {isFlipped && card && (
                 <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
-                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-gray-100">
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1">原词</div>
-                      <div className="text-3xl font-black text-[#202124] tracking-tight select-all leading-tight break-words">{card.headword}</div>
-                      {((card.phonetic && card.phonetic !== '/') || (card.pos && card.pos !== 'phrase' && card.pos !== 'sentence')) && (
-                        <div className="mt-1 text-xs text-slate-400 font-mono">
-                          {card.phonetic && card.phonetic !== '/' ? `[${card.phonetic}]` : ''}
-                          {card.pos && card.pos !== 'phrase' && card.pos !== 'sentence' ? `  ${card.pos}` : ''}
-                        </div>
-                      )}
+                  {((card.phonetic && card.phonetic !== '/') || (card.pos && card.pos !== 'phrase' && card.pos !== 'sentence')) && (
+                    <div className="text-xs text-slate-400 font-mono">
+                      {card.phonetic && card.phonetic !== '/' ? `[${card.phonetic}]` : ''}
+                      {card.pos && card.pos !== 'phrase' && card.pos !== 'sentence' ? `  ${card.pos}` : ''}
                     </div>
-                    <SpeakButton text={card.headword} title={`播放 ${card.headword}`} className="w-8 h-8 shrink-0 bg-slate-100 hover:bg-[#FF5722] hover:text-white border border-gray-200 rounded-lg" iconClassName="w-4 h-4" />
-                  </div>
+                  )}
 
                   <div>
                     <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
@@ -369,6 +357,12 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                       <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
                         {currentBusinessNote}
                       </div>
+                    </div>
+                  )}
+
+                  {enrichError && (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                      {enrichError}
                     </div>
                   )}
 

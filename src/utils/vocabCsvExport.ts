@@ -7,6 +7,31 @@ import { getAllWords, queryDictionaryWithCache, updateWordPayload } from '../ser
 export type VocabExportScope = 'all' | 'current_tab' | 'due_today' | 'words_only' | 'phrases_only' | 'sentences_only';
 export type VocabTabCategory = 'business' | 'general';
 
+const PLACEHOLDER_FRAGMENTS = [
+  '待复习补充',
+  '简明扼要',
+  '待处理',
+  '英英词典',
+  '补全失败',
+  '解析中',
+  '请检查 Dify',
+];
+
+export function isVocabPlaceholder(text: string): boolean {
+  const value = String(text || '').trim();
+  if (!value) return true;
+  return PLACEHOLDER_FRAGMENTS.some((frag) => value.includes(frag));
+}
+
+export function shouldAutoEnrichVocab(word: string, payload: any = {}): boolean {
+  if (!/[A-Za-z]/.test(word || '')) return false;
+  const translation = getWordTranslation({ payload } as VocabEntry);
+  const defEn = String(payload?.definition_en || '');
+  if (!isVocabPlaceholder(translation)) return false;
+  if (!isVocabPlaceholder(defEn)) return false;
+  return true;
+}
+
 export function getWordTranslation(word: VocabEntry): string {
   const payload = word.payload || {};
   if (typeof payload.definition === 'string' && payload.definition.trim()) return payload.definition;
@@ -92,7 +117,7 @@ export function normalizeVocabEntry(word: VocabEntry): VocabEntry {
 
   // 3. translation (释义)
   let meaning = getWordTranslation(word).trim();
-  if (meaning.includes('待复习补充') || meaning.includes('简明扼要') || meaning.includes('待处理') || meaning.includes('英英词典')) {
+  if (isVocabPlaceholder(meaning)) {
     meaning = '';
   }
 
