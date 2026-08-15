@@ -129,6 +129,24 @@ function readKnowledgeVaultUserId(req) {
   return value == null ? '' : String(value);
 }
 
+function buildKnowledgeVaultRevisionSnapshot(row) {
+  const formatted = formatKnowledgeVaultRow(row);
+  if (!formatted || typeof formatted !== 'object') return formatted;
+  const { traces, ...snapshot } = formatted;
+  return snapshot;
+}
+
+function formatKnowledgeVaultRevision(rev) {
+  if (!rev) return rev;
+  return {
+    id: rev.id,
+    knowledgeId: rev.knowledge_id,
+    userId: rev.user_id,
+    createdAt: rev.created_at,
+    snapshot: parseJsonSafe(rev.snapshot_json, {})
+  };
+}
+
 module.exports = {
   parseJsonSafe,
   parseKnowledgeVaultTags,
@@ -142,6 +160,8 @@ module.exports = {
   sanitizeModuleTargets,
   assertKnowledgeVaultOwner,
   readKnowledgeVaultUserId,
+  buildKnowledgeVaultRevisionSnapshot,
+  formatKnowledgeVaultRevision,
   KNOWLEDGE_MODULES,
   TRACE_ACTIONS
 };

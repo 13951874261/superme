@@ -10771,6 +10771,8 @@ const {
   sanitizeModuleTargets,
   assertKnowledgeVaultOwner,
   readKnowledgeVaultUserId,
+  buildKnowledgeVaultRevisionSnapshot,
+  formatKnowledgeVaultRevision,
   KNOWLEDGE_MODULES,
   TRACE_ACTIONS
 } = require('./services/knowledgeVaultExtra');
@@ -10848,6 +10850,10 @@ app.put('/api/knowledge-vault/notes/:id', (req, res) => {
   try {
     const { id } = req.params;
     const body = req.body || {};
+    const userId = readKnowledgeVaultUserId(req);
+    const existing = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    const denied = assertKnowledgeVaultOwner(existing, userId);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
     const { word, meaning, example, title, category, summary, content, source, tags } = body;
     const fields = [];
     const values = [];
@@ -10862,13 +10868,21 @@ app.put('/api/knowledge-vault/notes/:id', (req, res) => {
     if (tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(parseKnowledgeVaultTags(tags))); }
     const extraPatch = collectKnowledgeVaultExtraPatch(body);
     if (Object.keys(extraPatch).length) {
-      const existing = db.prepare('SELECT extra_json, source FROM knowledge_vault WHERE id = ?').get(id);
-      if (!existing) return res.status(404).json({ error: 'Not found' });
       const nextExtra = buildKnowledgeVaultExtra(existing.extra_json, extraPatch, source !== undefined ? source : existing.source);
       fields.push('extra_json = ?');
       values.push(JSON.stringify(nextExtra));
     }
     if (!fields.length) return res.status(400).json({ error: 'no fields to update' });
+    db.prepare(`
+      INSERT INTO knowledge_vault_revisions (id, knowledge_id, user_id, snapshot_json, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(
+      crypto.randomUUID(),
+      existing.id,
+      existing.user_id,
+      JSON.stringify(buildKnowledgeVaultRevisionSnapshot(existing)),
+      Date.now()
+    );
     values.push(id);
     const result = db.prepare(`UPDATE knowledge_vault SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
@@ -10882,9 +10896,29 @@ app.put('/api/knowledge-vault/notes/:id', (req, res) => {
 app.delete('/api/knowledge-vault/notes/:id', (req, res) => {
   try {
     const { id } = req.params;
+    const userId = readKnowledgeVaultUserId(req);
+    const existing = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    const denied = assertKnowledgeVaultOwner(existing, userId);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
     const result = db.prepare('DELETE FROM knowledge_vault WHERE id = ?').run(id);
     if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/knowledge-vault/notes/:id/revisions', (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = readKnowledgeVaultUserId(req);
+    const existing = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    const denied = assertKnowledgeVaultOwner(existing, userId);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
+    const rows = db.prepare(
+      'SELECT * FROM knowledge_vault_revisions WHERE knowledge_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 50'
+    ).all(id, userId);
+    res.json(rows.map(formatKnowledgeVaultRevision));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

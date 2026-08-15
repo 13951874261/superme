@@ -54,7 +54,7 @@ test('PUT /api/knowledge-vault/notes/:id - update', async () => {
   const created = await req('POST', '/api/knowledge-vault/notes', {
     userId: USER, type: 'english', word: 'update-me', meaning: 'old', example: '', source: 'test'
   });
-  const r = await req('PUT', `/api/knowledge-vault/notes/${created.body.id}`, { meaning: 'new' });
+  const r = await req('PUT', `/api/knowledge-vault/notes/${created.body.id}`, { userId: USER, meaning: 'new' });
   assert.strictEqual(r.status, 200, 'PUT status: ' + r.status + ' ' + r.text);
   assert.strictEqual(r.body.meaning, 'new', 'body: ' + JSON.stringify(r.body));
 });
@@ -63,6 +63,6 @@ test('DELETE /api/knowledge-vault/notes/:id - delete', async () => {
   const created = await req('POST', '/api/knowledge-vault/notes', {
     userId: USER, type: 'english', word: 'delete-me', meaning: 'x', example: '', source: 'test'
   });
-  const r = await req('DELETE', `/api/knowledge-vault/notes/${created.body.id}`);
+  const r = await req('DELETE', `/api/knowledge-vault/notes/${created.body.id}?userId=${encodeURIComponent(USER)}`);
   assert.strictEqual(r.status, 200, 'DELETE status: ' + r.status + ' ' + r.text);
 });

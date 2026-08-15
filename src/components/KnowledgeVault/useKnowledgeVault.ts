@@ -222,10 +222,10 @@ export function useKnowledgeVault() {
     setState(s => ({ ...s, englishNotes: [created as EnglishNote, ...s.englishNotes] }));
   };
   const updateEnglishNote = async (id: string, patch: Partial<EnglishNote>) => {
-    mergeItem(id, await updateItem(id, patch));
+    mergeItem(id, await updateItem(id, userId, patch));
   };
   const deleteEnglishNote = async (id: string) => {
-    await deleteItem(id);
+    await deleteItem(id, userId);
     setState(s => ({ ...s, englishNotes: s.englishNotes.filter(n => n.id !== id) }));
   };
 
@@ -234,10 +234,10 @@ export function useKnowledgeVault() {
     setState(s => ({ ...s, theoryFrames: [created as TheoryFrame, ...s.theoryFrames] }));
   };
   const updateTheoryFrame = async (id: string, patch: Partial<TheoryFrame>) => {
-    mergeItem(id, await updateItem(id, patch));
+    mergeItem(id, await updateItem(id, userId, patch));
   };
   const deleteTheoryFrame = async (id: string) => {
-    await deleteItem(id);
+    await deleteItem(id, userId);
     setState(s => ({ ...s, theoryFrames: s.theoryFrames.filter(f => f.id !== id) }));
   };
 
@@ -246,10 +246,10 @@ export function useKnowledgeVault() {
     setState(s => ({ ...s, writingSkills: [created as WritingSkill, ...s.writingSkills] }));
   };
   const updateWritingSkill = async (id: string, patch: Partial<WritingSkill>) => {
-    mergeItem(id, await updateItem(id, patch));
+    mergeItem(id, await updateItem(id, userId, patch));
   };
   const deleteWritingSkill = async (id: string) => {
-    await deleteItem(id);
+    await deleteItem(id, userId);
     setState(s => ({ ...s, writingSkills: s.writingSkills.filter(s => s.id !== id) }));
   };
 
@@ -258,10 +258,10 @@ export function useKnowledgeVault() {
     setState(s => ({ ...s, aestheticTips: [created as AestheticTip, ...s.aestheticTips] }));
   };
   const updateAestheticTip = async (id: string, patch: Partial<AestheticTip>) => {
-    mergeItem(id, await updateItem(id, patch));
+    mergeItem(id, await updateItem(id, userId, patch));
   };
   const deleteAestheticTip = async (id: string) => {
-    await deleteItem(id);
+    await deleteItem(id, userId);
     setState(s => ({ ...s, aestheticTips: s.aestheticTips.filter(t => t.id !== id) }));
   };
 
@@ -272,7 +272,7 @@ export function useKnowledgeVault() {
   };
 
   const archiveKnowledge = async (id: string) => {
-    const updated = await updateItem(id, { syncStatus: 'archived', moduleTargets: [] });
+    const updated = await updateItem(id, userId, { syncStatus: 'archived', moduleTargets: [] });
     mergeItem(id, updated);
     return updated;
   };
