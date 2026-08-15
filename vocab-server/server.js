@@ -5877,6 +5877,25 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         console.error('[Material Process] Mindmap generation failed:', err.message);
       }
 
+      let vaultImport = { createdCount: 0, skippedCount: 0 };
+      if (mindmapAndTheory && Array.isArray(mindmapAndTheory.theoryNodes) && mindmapAndTheory.theoryNodes.length) {
+        try {
+          if (!userId) {
+            console.warn('[Material Process] skip vault theory import: userId missing');
+          } else {
+            const { importTheoryNodeDrafts } = require('./services/knowledgeTheoryNodes');
+            vaultImport = importTheoryNodeDrafts(db, {
+              userId,
+              fileName: fileObj.fileName || 'Document',
+              mimeType: fileObj.mimeType || fileObj.type || '',
+              theoryNodes: mindmapAndTheory.theoryNodes,
+            });
+          }
+        } catch (err) {
+          console.error('[Material Process] vault theory import failed:', err.message);
+        }
+      }
+
       // 组装完成结果并标记任务完成
       taskQueue.updateTask(task.id, {
         status: 'completed',
@@ -5895,6 +5914,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           mindmap: mindmapAndTheory ? mindmapAndTheory.mindmap : undefined,
           theoryNodes: mindmapAndTheory ? mindmapAndTheory.theoryNodes : undefined,
           scenario: mindmapAndTheory ? mindmapAndTheory.scenario : undefined,
+          vaultDraftCount: vaultImport.createdCount,
+          vaultDraftSkipped: vaultImport.skippedCount,
           results: [
             {
               fileName: fileObj.fileName || "Document",
@@ -5903,7 +5924,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
             }
           ]
         },
-        logs: ['[完成] Dify 提纯分析与生词本写入及思维导图/知识点提纯全部顺利完成！']
+        logs: [
+          `[完成] Dify 提纯分析与生词本写入及思维导图/知识点提纯全部顺利完成！已写入资料抽屉理论草稿 ${vaultImport.createdCount} 条（未同步），跳过 ${vaultImport.skippedCount} 条。`
+        ]
       });
 
     } catch (error) {
@@ -10746,6 +10769,8 @@ const {
   filterLinkedKnowledgeRows,
   sortLinkedKnowledgeRows,
   sanitizeModuleTargets,
+  assertKnowledgeVaultOwner,
+  readKnowledgeVaultUserId,
   KNOWLEDGE_MODULES,
   TRACE_ACTIONS
 } = require('./services/knowledgeVaultExtra');

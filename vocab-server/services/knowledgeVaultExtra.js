@@ -113,6 +113,22 @@ function sanitizeModuleTargets(moduleTargets) {
   return moduleTargets.filter((item) => KNOWLEDGE_MODULES.includes(item));
 }
 
+function assertKnowledgeVaultOwner(row, userId) {
+  if (userId == null || String(userId).trim() === '') {
+    return { status: 400, error: 'userId required' };
+  }
+  if (!row) return { status: 404, error: 'Not found' };
+  if (row.user_id !== userId) return { status: 403, error: 'Forbidden' };
+  return null;
+}
+
+function readKnowledgeVaultUserId(req) {
+  const bodyId = req && req.body && req.body.userId;
+  const queryId = req && req.query && req.query.userId;
+  const value = bodyId != null && bodyId !== '' ? bodyId : queryId;
+  return value == null ? '' : String(value);
+}
+
 module.exports = {
   parseJsonSafe,
   parseKnowledgeVaultTags,
@@ -124,6 +140,8 @@ module.exports = {
   filterLinkedKnowledgeRows,
   sortLinkedKnowledgeRows,
   sanitizeModuleTargets,
+  assertKnowledgeVaultOwner,
+  readKnowledgeVaultUserId,
   KNOWLEDGE_MODULES,
   TRACE_ACTIONS
 };

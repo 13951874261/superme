@@ -144,6 +144,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             activePolls.current.delete(id);
             if (data.status === 'completed') {
               window.dispatchEvent(new CustomEvent('vocab-updated'));
+              if (data.type === 'material') {
+                window.dispatchEvent(new CustomEvent('knowledge-vault-updated'));
+              }
 
               if (data.result && (data.result.article || data.result.words)) {
                 const result = data.result;

@@ -143,18 +143,18 @@ async function createItem(userId: string, type: VaultType, item: Omit<VaultItem,
   return normalizeVaultItem(await res.json());
 }
 
-async function updateItem(id: string, patch: Partial<VaultItem>): Promise<VaultItem> {
+async function updateItem(id: string, userId: string, patch: Partial<VaultItem>): Promise<VaultItem> {
   const res = await fetch(`/api/knowledge-vault/notes/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch)
+    body: JSON.stringify({ ...patch, userId })
   });
   if (!res.ok) throw new Error('更新失败');
   return normalizeVaultItem(await res.json());
 }
 
-async function deleteItem(id: string): Promise<void> {
-  const res = await fetch(`/api/knowledge-vault/notes/${id}`, { method: 'DELETE' });
+async function deleteItem(id: string, userId: string): Promise<void> {
+  const res = await fetch(`/api/knowledge-vault/notes/${id}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
   if (!res.ok) throw new Error('删除失败');
 }
 

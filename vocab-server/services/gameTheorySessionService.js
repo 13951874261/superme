@@ -250,8 +250,9 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
       WHERE session_id = ?
       ORDER BY sort_order ASC
     `).all(sessionId);
+    const prefix = `${sessionId}_`;
     return rows.map((row) => ({
-      role_id: row.id,
+      role_id: row.id.startsWith(prefix) ? row.id.slice(prefix.length) : row.id,
       name: row.role_name,
       position: row.position,
       hierarchy_level: row.hierarchy_level,
@@ -289,8 +290,10 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     roles.forEach((role, index) => {
+      const rawId = String(role.role_id || role.id || `r${index + 1}`).trim() || `r${index + 1}`;
+      const uniqueId = rawId.startsWith(`${sessionId}_`) ? rawId : `${sessionId}_${rawId}`;
       insert.run(
-        role.id,
+        uniqueId,
         sessionId,
         role.name,
         role.position,

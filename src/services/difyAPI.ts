@@ -502,7 +502,8 @@ export async function processMaterialsAndExtract(files: File[], topic: string, u
       });
       return {
         fileName: f.name,
-        content: base64Content
+        content: base64Content,
+        mimeType: f.type || '',
       };
     })
   );
