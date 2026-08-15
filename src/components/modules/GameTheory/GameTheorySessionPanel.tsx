@@ -13,7 +13,10 @@ import {
   Square,
   Trash2,
   Users,
+  Zap,
 } from 'lucide-react';
+import ScriptWorkshopDrawer from './ScriptWorkshopDrawer';
+import { ScriptWorkshopDraft } from './ScriptWorkshopTypes';
 import { playClick, playGentleWarning, playPageTurn } from '../../../utils/soundEffects';
 import {
   controlGameTheorySession,
@@ -227,10 +230,34 @@ export default function GameTheorySessionPanel() {
   const [highContrast, setHighContrast] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [liveElapsedMs, setLiveElapsedMs] = useState(0);
+  const [isWorkshopOpen, setIsWorkshopOpen] = useState(false);
   const autoStopRef = useRef(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+
+  const handleImportDraftToSession = (draft: ScriptWorkshopDraft) => {
+    setTitle(draft.sceneTitle.replace(/[《》]/g, ''));
+    setScenario(
+      `${draft.sceneSummary}\n\n【4阶段博弈标准设定】\n` +
+      draft.characters.map(c => `• ${c.name}（${c.roleTitle}）：诉求[${c.surfaceGoal}]；底牌[${c.hiddenMotive}]；红线[${c.redLine}]`).join('\n')
+    );
+    setRoleCount(draft.characters.length);
+    setMaxRounds(16);
+    setMaxMinutes(10);
+    const newRoles: SessionRoleDraft[] = draft.characters.map((c, i) => ({
+      role_id: `role-${i + 1}`,
+      name: c.name,
+      position: c.roleTitle,
+      hierarchy_level: (i === 0 ? 'executive' : 'middle') as SessionHierarchy,
+      stance: c.surfaceGoal,
+      interest: `${c.hiddenMotive}；红线：${c.redLine}`,
+      hidden_motive: c.hiddenMotive,
+      is_user: i === 0,
+    }));
+    setRoles(newRoles);
+    playPageTurn();
+  };
 
   const loadRecoverable = useCallback(async () => {
     try {
@@ -497,6 +524,43 @@ export default function GameTheorySessionPanel() {
 
   return (
     <div className="space-y-6">
+      {/* 8-10分钟多人博弈剧本工坊 & 质量校验入口 */}
+      <div className="bg-gradient-to-r from-slate-900 via-zinc-800 to-slate-900 rounded-2xl p-4 text-white flex flex-wrap items-center justify-between gap-4 border border-zinc-700 shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-amber-500/20 border border-amber-400/30 text-amber-400">
+            <Zap className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-bold text-white">8–10 分钟多人高强度博弈剧本生产工坊</h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-400 text-slate-950 uppercase">
+                SOP 创作与 AI 审稿
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              严格把控 2100–2600 字可控时长、四阶段 2:3:4:1 节奏波峰与契诃夫之枪因果闭环
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            playClick();
+            setIsWorkshopOpen(true);
+          }}
+          className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+        >
+          <Sparkles className="w-4 h-4" />
+          打开剧本生产与质量校验工坊
+        </button>
+      </div>
+
+      <ScriptWorkshopDrawer
+        isOpen={isWorkshopOpen}
+        onClose={() => setIsWorkshopOpen(false)}
+        onImportToSession={handleImportDraftToSession}
+      />
       {recoverable.length > 0 && !session && (
         <div className="bg-white rounded-2xl border border-slate-100 p-4 space-y-2">
           <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block">可恢复会话</span>
