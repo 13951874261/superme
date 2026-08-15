@@ -324,7 +324,7 @@ ${benchmarkText
         optimized_version: String(raw.optimized_version || ''),
       };
       setReviewResult(normalized);
-      showNotice('review', '审阅完成', 'success');
+      showNotice('review', governanceResult?.knowledgeReminder ? `审阅完成。${governanceResult.knowledgeReminder}` : '审阅完成', 'success');
 
       // 从 L2/L3 反馈中动态提取“今日核心问题”与“明日提升重点”
       const issues: string[] = [];

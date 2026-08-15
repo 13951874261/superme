@@ -1,7 +1,129 @@
 import React, { useState } from "react";
 import { X, Plus, Trash2, Save, Edit2, Download, FileText, RefreshCw } from "lucide-react";
-import { useKnowledgeVault } from "./useKnowledgeVault";
+import { useKnowledgeVault, type KnowledgeSyncFields, type KnowledgeTraceView } from "./useKnowledgeVault";
+import type { KnowledgeModule } from "../../types/knowledge";
 import * as vaultExport from "./vaultExport";
+import KnowledgeGraphPanel from "./KnowledgeGraphPanel";
+
+const MODULE_OPTIONS: { value: KnowledgeModule; label: string }[] = [
+  { value: "listen", label: "听力" },
+  { value: "speak", label: "口语" },
+  { value: "game_theory", label: "博弈" },
+  { value: "writing", label: "写作" },
+  { value: "aesthetic", label: "审美" },
+];
+
+const SOURCE_TYPE_LABEL: Record<string, string> = {
+  manual: "手动录入",
+  upload_book: "书籍上传",
+  upload_video: "视频上传",
+  ai_extract: "AI 提炼",
+  from_vocab: "生词本导入",
+  from_game_tactics: "战术库导入",
+  from_profile: "画像导入",
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  generated: "生成",
+  analyzed: "分析",
+  reviewed: "复盘",
+};
+
+function statusLabel(item: KnowledgeSyncFields): { text: string; className: string } {
+  const status = item.syncStatus || "draft";
+  if (status === "archived") return { text: "已归档", className: "bg-zinc-800 text-zinc-400" };
+  if (status === "synced") {
+    const names = (item.moduleTargets || []).map((m) => MODULE_OPTIONS.find((o) => o.value === m)?.label || m).join("/");
+    return { text: names ? `已同步至：${names}` : "已同步", className: "bg-emerald-900/40 text-emerald-300" };
+  }
+  if (status === "approved") return { text: "已确认未同步", className: "bg-amber-900/40 text-amber-300" };
+  return { text: "待确认", className: "bg-zinc-800 text-zinc-400" };
+}
+
+function KnowledgeSyncPanel({
+  item,
+  onSync,
+  disabled,
+}: {
+  item: KnowledgeSyncFields & { id: string; source?: string };
+  onSync: (id: string, targets: KnowledgeModule[]) => Promise<void>;
+  disabled?: boolean;
+}) {
+  const [targets, setTargets] = useState<KnowledgeModule[]>(item.moduleTargets || []);
+  const [busy, setBusy] = useState(false);
+  const [openTraces, setOpenTraces] = useState(false);
+  const status = statusLabel(item);
+  const traces: KnowledgeTraceView[] = item.traces || [];
+
+  const toggle = (value: KnowledgeModule) => {
+    setTargets((prev) => prev.includes(value) ? prev.filter((mod) => mod !== value) : [...prev, value]);
+  };
+
+  const confirmSync = async () => {
+    if (!window.confirm("该知识将用于听力场景生成、口语训练或博弈分析。确定同步？")) return;
+    setBusy(true);
+    try {
+      await onSync(item.id, targets);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${status.className}`}>{status.text}</span>
+        <span className="text-[10px] text-zinc-500">{SOURCE_TYPE_LABEL[item.sourceType || "manual"] || item.sourceType}</span>
+        {item.source ? <span className="text-[10px] text-zinc-500">来源：{item.source}</span> : null}
+        {item.sourceRef?.fileName ? <span className="text-[10px] text-zinc-500">文件：{item.sourceRef.fileName}</span> : null}
+      </div>
+      <div className="text-[10px] font-bold text-zinc-500">同步到训练模块</div>
+      <div className="flex flex-wrap gap-3">
+        {MODULE_OPTIONS.map((option) => (
+          <label key={option.value} className="flex items-center gap-1 text-[11px] text-zinc-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={targets.includes(option.value)}
+              disabled={disabled || busy || item.syncStatus === "archived"}
+              onChange={() => toggle(option.value)}
+            />
+            {option.label}
+          </label>
+        ))}
+      </div>
+      <button
+        type="button"
+        disabled={disabled || busy || item.syncStatus === "archived"}
+        onClick={confirmSync}
+        className="text-[11px] font-black px-2 py-1 rounded-lg bg-[#FF5722]/15 text-[#FF5722] border border-[#FF5722]/30 disabled:opacity-50 cursor-pointer"
+      >
+        {busy ? "同步中..." : "确认并同步"}
+      </button>
+      <button
+        type="button"
+        onClick={() => setOpenTraces((open) => !open)}
+        className="ml-2 text-[10px] text-zinc-400 hover:text-zinc-200 cursor-pointer"
+      >
+        {openTraces ? "收起使用记录" : `使用记录（${traces.length}）`}
+      </button>
+      {openTraces && (
+        <div className="text-[10px] text-zinc-400 space-y-1" aria-live="polite">
+          {traces.length === 0 ? (
+            <p>暂无训练引用</p>
+          ) : traces.map((trace, index) => (
+            <p key={`${trace.module}-${trace.usedAt}-${index}`}>
+              {MODULE_OPTIONS.find((o) => o.value === trace.module)?.label || trace.module}
+              {trace.action ? `｜${ACTION_LABEL[trace.action] || trace.action}` : ""}
+              {trace.taskId ? `｜任务 ${trace.taskId}` : ""}
+              {trace.sessionId ? `｜会话 ${trace.sessionId}` : ""}
+              ｜{trace.usedAt ? new Date(trace.usedAt).toLocaleString("zh-CN") : "时间未知"}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface KnowledgeVaultDrawerProps {
   isOpen: boolean;
@@ -16,12 +138,14 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
     addEnglishNote, updateEnglishNote, deleteEnglishNote,
     addTheoryFrame, updateTheoryFrame, deleteTheoryFrame,
     addWritingSkill, updateWritingSkill, deleteWritingSkill,
-    addAestheticTip, updateAestheticTip, deleteAestheticTip
+    addAestheticTip, updateAestheticTip, deleteAestheticTip,
+    syncKnowledge, archiveKnowledge, importMapped,
   } = useKnowledgeVault();
 
-  const [activeTab, setActiveTab] = useState<"english" | "theory" | "writing" | "aesthetic">("english");
+  const [activeTab, setActiveTab] = useState<"english" | "theory" | "writing" | "aesthetic" | "graph">("english");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mapNotice, setMapNotice] = useState<string | null>(null);
 
   // Form states for add
   const [word, setWord] = useState("");
@@ -90,14 +214,26 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
     }
   };
 
-  const handleDelete = async (type: string, id: string) => {
+  const handleDelete = async (type: string, item: KnowledgeSyncFields & { id: string }) => {
     try {
-      if (type === "english") await deleteEnglishNote(id);
-      else if (type === "theory") await deleteTheoryFrame(id);
-      else if (type === "writing") await deleteWritingSkill(id);
-      else if (type === "aesthetic") await deleteAestheticTip(id);
+      if ((item.traces || []).length > 0 || item.syncStatus === "archived") {
+        await archiveKnowledge(item.id);
+        return;
+      }
+      if (type === "english") await deleteEnglishNote(item.id);
+      else if (type === "theory") await deleteTheoryFrame(item.id);
+      else if (type === "writing") await deleteWritingSkill(item.id);
+      else if (type === "aesthetic") await deleteAestheticTip(item.id);
     } catch {
       handleError("删除失败");
+    }
+  };
+
+  const handleConfirmSync = async (id: string, targets: KnowledgeModule[]) => {
+    try {
+      await syncKnowledge(id, targets);
+    } catch {
+      handleError("同步失败，请重试");
     }
   };
 
@@ -121,6 +257,19 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
       await refresh();
     } catch {
       handleError("同步失败");
+    }
+  };
+
+  const handleImportMapped = async (source: "tactics" | "prototypes") => {
+    setError(null);
+    setMapNotice(null);
+    try {
+      const result = await importMapped(source);
+      const label = source === "tactics" ? "战术库" : "人性档案";
+      setMapNotice(`${label}已导入 ${result.createdCount} 条草稿，跳过 ${result.skippedCount} 条已映射。请勾选模块后确认同步。`);
+      setTimeout(() => setMapNotice(null), 4000);
+    } catch {
+      handleError("导入失败，请重试");
     }
   };
 
@@ -151,15 +300,16 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800 bg-[#212225] shrink-0 font-bold text-[10px] uppercase tracking-wider">
+        <div className="flex border-b border-zinc-800 bg-[#212225] shrink-0 font-bold text-[10px] uppercase tracking-wider overflow-x-auto">
           {[
             { id: "english" as const, label: "英语笔记本" },
             { id: "theory" as const, label: "逻辑博弈框架" },
             { id: "writing" as const, label: "写作技巧" },
-            { id: "aesthetic" as const, label: "审美要点" }
+            { id: "aesthetic" as const, label: "审美要点" },
+            { id: "graph" as const, label: "图谱" }
           ].map(t => (
             <button key={t.id} onClick={() => { setActiveTab(t.id); setEditingId(null); }}
-              className={`flex-1 py-3 text-center transition-colors border-b-2 cursor-pointer ${activeTab === t.id ? "border-[#FF5722] text-[#FF5722]" : "border-transparent text-zinc-400 hover:text-zinc-200"}`}>
+              className={`flex-1 min-w-[4.5rem] py-3 text-center transition-colors border-b-2 cursor-pointer whitespace-nowrap ${activeTab === t.id ? "border-[#FF5722] text-[#FF5722]" : "border-transparent text-zinc-400 hover:text-zinc-200"}`}>
               {t.label}
             </button>
           ))}
@@ -167,6 +317,10 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {activeTab === "graph" ? (
+            <KnowledgeGraphPanel />
+          ) : (
+            <>
 
           {/* Sync button (english tab only) */}
           {activeTab === "english" && (
@@ -180,6 +334,28 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                 {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
                 {loading ? "加载中..." : "开始同步"}
               </button>
+            </div>
+          )}
+
+          {activeTab === "theory" && (
+            <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl space-y-2">
+              <div>
+                <span className="text-xs font-bold">从博弈模块映射导入</span>
+                <p className="text-[9px] text-zinc-400 mt-0.5">写入理论框架草稿，不删除原战术库/档案；确认同步后才注入训练</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => handleImportMapped("tactics")} disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF5722]/10 hover:bg-[#FF5722]/20 border border-[#FF5722]/30 text-[#FF5722] text-xs font-black rounded-lg transition-all disabled:opacity-50 cursor-pointer">
+                  {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  导入战术库
+                </button>
+                <button type="button" onClick={() => handleImportMapped("prototypes")} disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF5722]/10 hover:bg-[#FF5722]/20 border border-[#FF5722]/30 text-[#FF5722] text-xs font-black rounded-lg transition-all disabled:opacity-50 cursor-pointer">
+                  {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  导入人性档案
+                </button>
+              </div>
+              {mapNotice && <p className="text-[10px] text-emerald-400 font-bold">{mapNotice}</p>}
             </div>
           )}
 
@@ -288,11 +464,12 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                         </div>
                         <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button type="button" onClick={() => startEdit(n)} className="p-1 hover:bg-zinc-800 text-blue-400 rounded transition-colors cursor-pointer"><Edit2 className="w-3.5 h-3.5" /></button>
-                          <button type="button" onClick={() => handleDelete("english", n.id)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                          <button type="button" onClick={() => handleDelete("english", n)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer" title={(n.traces || []).length > 0 ? "已有引用，将归档" : "删除"}><Trash2 className="w-3.5 h-3.5" /></button>
                         </div>
                       </div>
                       <p className="text-xs text-zinc-300 mt-2">{n.meaning}</p>
                       {n.example && <p className="text-[11px] text-zinc-400 italic mt-1.5 border-l-2 border-zinc-700 pl-2">""{n.example}""</p>}
+                      <KnowledgeSyncPanel key={`${n.id}-${n.syncStatus}-${(n.moduleTargets || []).join(",")}`} item={n} onSync={handleConfirmSync} />
                     </>
                   )}
                 </div>
@@ -308,10 +485,11 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                       </span>
                     </div>
                     <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button type="button" onClick={() => handleDelete("theory", f.id)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button type="button" onClick={() => handleDelete("theory", f)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer" title={(f.traces || []).length > 0 ? "已有引用，将归档" : "删除"}><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                   <p className="text-xs text-zinc-300 mt-2 whitespace-pre-wrap">{f.summary}</p>
+                  <KnowledgeSyncPanel key={`${f.id}-${f.syncStatus}-${(f.moduleTargets || []).join(",")}`} item={f} onSync={handleConfirmSync} />
                 </div>
               ))}
 
@@ -323,10 +501,11 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                       <span className="text-[9px] font-mono font-bold bg-zinc-800 text-purple-400 px-1.5 py-0.5 rounded ml-2 uppercase">{s.category}</span>
                     </div>
                     <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button type="button" onClick={() => handleDelete("writing", s.id)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button type="button" onClick={() => handleDelete("writing", s)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer" title={(s.traces || []).length > 0 ? "已有引用，将归档" : "删除"}><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                   <p className="text-xs text-zinc-300 mt-2 whitespace-pre-wrap">{s.content}</p>
+                  <KnowledgeSyncPanel key={`${s.id}-${s.syncStatus}-${(s.moduleTargets || []).join(",")}`} item={s} onSync={handleConfirmSync} />
                 </div>
               ))}
 
@@ -338,10 +517,11 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                       <span className="text-[9px] font-mono font-bold bg-zinc-800 text-orange-400 px-1.5 py-0.5 rounded ml-2 uppercase">{t.category}</span>
                     </div>
                     <div className="flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button type="button" onClick={() => handleDelete("aesthetic", t.id)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer"><Trash2 className="w-3.5 h-3.5" /></button>
+                      <button type="button" onClick={() => handleDelete("aesthetic", t)} className="p-1 hover:bg-zinc-800 text-red-500 rounded transition-colors cursor-pointer" title={(t.traces || []).length > 0 ? "已有引用，将归档" : "删除"}><Trash2 className="w-3.5 h-3.5" /></button>
                     </div>
                   </div>
                   <p className="text-xs text-zinc-300 mt-2 whitespace-pre-wrap">{t.content}</p>
+                  <KnowledgeSyncPanel key={`${t.id}-${t.syncStatus}-${(t.moduleTargets || []).join(",")}`} item={t} onSync={handleConfirmSync} />
                 </div>
               ))}
 
@@ -353,6 +533,8 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
               )}
             </div>
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

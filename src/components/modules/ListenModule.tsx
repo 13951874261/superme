@@ -24,7 +24,7 @@ import {
   Award,
   Download
 } from 'lucide-react';
-import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB } from '../../services/difyAPI';
+import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB, extractListenKnowledgeDraft } from '../../services/difyAPI';
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
 import InsightMindMap from './insight/InsightMindMap';
 import { buildInsightMindMap, type InsightMindMapNode } from '../../utils/insightMindMapBuilder';
@@ -37,6 +37,13 @@ import {
   svgToPngBlob,
 } from '../../utils/mindMapExport';
 import { downloadInsightDocx } from '../../utils/insightWordExport';
+import { useTask } from '../TaskContext';
+
+function knowledgeTaskLogs(reminder?: string): string[] {
+  return reminder
+    ? [reminder, '任务已提交，请在任务中心查看进度']
+    : ['任务已提交，请在任务中心查看进度'];
+}
 
 const CATEGORIES = ['体制内', '外企', '通用逻辑'] as const;
 type CategoryType = typeof CATEGORIES[number];
@@ -108,6 +115,7 @@ interface ListenModuleProps {
 }
 
 export default function ListenModule({ selectedDate }: ListenModuleProps) {
+  const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [activeCategory, setActiveCategory] = useState<CategoryType>('体制内');
   const [currentScenario, setCurrentScenario] = useState<string>('');
   const [isLoadingScenario, setIsLoadingScenario] = useState(false);
@@ -134,6 +142,8 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
 
   const [feedback, setFeedback] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitNotice, setSubmitNotice] = useState('');
+  const [pendingInsightTaskId, setPendingInsightTaskId] = useState<string | null>(null);
   const [evaluatedScore, setEvaluatedScore] = useState<number | null>(null);
   const [mindMap, setMindMap] = useState<InsightMindMapNode | null>(null);
   const [mindMapOpen, setMindMapOpen] = useState(true);
@@ -158,6 +168,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadDraftNotice, setUploadDraftNotice] = useState('');
 
   // 动态获取题目的函数
   const loadNewScenario = useCallback(async (category: CategoryType) => {
@@ -338,6 +349,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     if (!uploadFile && !uploadUrl.trim()) return;
     setIsUploading(true);
     setUploadProgress(10);
+    setUploadDraftNotice('');
     playUpload();
 
     const interval = setInterval(() => {
@@ -345,33 +357,41 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     }, 300);
 
     try {
+      let draftNotice = '';
       if (uploadFile) {
-        // 尝试上传文件至知识库
         await uploadMaterialToKB(uploadFile, '洞察听力素材库');
-        setUploadProgress(100);
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsUploading(false);
-          setUploadFile(null);
-          setUploadProgress(0);
-          playSuccess();
-          // 生成新的听力考题
-          setCurrentScenario(`【根据导入文件《${uploadFile.name}》自动转换的博弈案例】\n某跨国公司中方总监在战略复盘会上，靠在椅背上双臂交叉，微笑着对美方VP说：“对于上季度的交付延迟，我们完全理解美方的担忧。不过正如你们所知，我们在本地供应链的重组上投入了极大的精力。只要美方的核心系统接口能在下周按时冻结，我相信我们能够在下阶段实现赶超。”\n（请分析其中隐藏的跨文化推责话术）`);
-          setLeftTab('theory');
-        }, 800);
-      } else {
-        // 处理网页 URL
-        setUploadProgress(100);
-        clearInterval(interval);
-        setTimeout(() => {
-          setIsUploading(false);
-          setUploadUrl('');
-          setUploadProgress(0);
-          playSuccess();
-          setCurrentScenario(`【从网址导入分析生成的博弈案例】\n某商业谈判代表在签约前最后一轮会谈中，放慢语速，眼神直视对方CFO说：“这个价格确实是我们能给出的底线。虽然董事会的一些成员觉得我们有些让步过多，但出于双方长期的战略互信，我还是极力说服了大家。只是关于付款周期，我们可能需要按照之前的A方案执行。”\n（请识别其中的道德绑架与让步防线破绽）`);
-          setLeftTab('theory');
-        }, 800);
       }
+      setUploadProgress(70);
+      try {
+        const draftResult = await extractListenKnowledgeDraft({
+          file: uploadFile,
+          sourceUrl: uploadUrl,
+        });
+        const title = typeof draftResult.draft?.title === 'string' ? draftResult.draft.title : '';
+        draftNotice = draftResult.extracted
+          ? `已写入资料抽屉「理论框架」草稿${title ? `「${title}」` : ''}（未同步，不会自动带入训练）。`
+          : `已写入资料抽屉「理论框架」草稿${title ? `「${title}」` : ''}（待补充摘要，确认后才会进入训练）。`;
+        window.dispatchEvent(new CustomEvent('knowledge-vault-updated'));
+      } catch (draftErr) {
+        console.warn('[ListenModule] 资料抽屉草稿写入失败', draftErr);
+        draftNotice = '训练题目已生成，但资料抽屉草稿写入失败，请稍后在资料管理中心手动录入。';
+      }
+      setUploadProgress(100);
+      clearInterval(interval);
+      setTimeout(() => {
+        setIsUploading(false);
+        setUploadFile(null);
+        setUploadUrl('');
+        setUploadProgress(0);
+        setUploadDraftNotice(draftNotice);
+        playSuccess();
+        if (uploadFile) {
+          setCurrentScenario(`【根据导入文件《${uploadFile.name}》自动转换的博弈案例】\n某跨国公司中方总监在战略复盘会上，靠在椅背上双臂交叉，微笑着对美方VP说：“对于上季度的交付延迟，我们完全理解美方的担忧。不过正如你们所知，我们在本地供应链的重组上投入了极大的精力。只要美方的核心系统接口能在下周按时冻结，我相信我们能够在下阶段实现赶超。”\n（请分析其中隐藏的跨文化推责话术）`);
+        } else {
+          setCurrentScenario(`【从网址导入分析生成的博弈案例】\n某商业谈判代表在签约前最后一轮会谈中，放慢语速，眼神直视对方CFO说：“这个价格确实是我们能给出的底线。虽然董事会的一些成员觉得我们有些让步过多，但出于双方长期的战略互信，我还是极力说服了大家。只是关于付款周期，我们可能需要按照之前的A方案执行。”\n（请识别其中的道德绑架与让步防线破绽）`);
+        }
+        setLeftTab('theory');
+      }, 800);
     } catch (err) {
       console.error(err);
       clearInterval(interval);
@@ -382,12 +402,44 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     }
   };
 
+  const applyInsightResult = (resultData: string, scenario = currentScenario) => {
+    setFeedback(resultData);
+    setMindMap(buildInsightMindMap({
+      scenario,
+      form: analysisForm,
+      markdown: resultData,
+    }));
+    setMindMapOpen(true);
+    playReveal();
+
+    const scoreMatch = resultData.match(/(?:得分|评分|成绩|判定)[:：]\s*(\d+(\.\d+)?)/i) || resultData.match(/(\d+)\s*\/\s*10/);
+    let parsedScore = 8.0;
+    if (scoreMatch) {
+      const val = parseFloat(scoreMatch[1]);
+      parsedScore = val > 10 ? val / 10 : val;
+    }
+    setEvaluatedScore(parsedScore);
+    setDailyStats(prev => ({
+      completedCount: prev.completedCount + 1,
+      studyMinutes: prev.studyMinutes + 15,
+      averageScore: parseFloat(((prev.averageScore * prev.completedCount + parsedScore) / (prev.completedCount + 1)).toFixed(1))
+    }));
+    let focus = '重点关注跨国企业中的“隐性推责”场景，识别肢体动作与情绪层级不一致的破绽。';
+    if (resultData.includes('逻辑') || resultData.includes('谬误')) {
+      focus = '强化非形式谬误的抓取，重点训练“滑坡谬误”与“诉诸经验”的逻辑切入点；';
+    } else if (resultData.includes('可信度') || resultData.includes('事实')) {
+      focus = '提升对事实破绽的敏感度，注意在复杂博弈中抽离事实真相与情感修饰；';
+    }
+    setTomorrowFocus(focus);
+  };
+
   // 整理表单并格式化为 markdown 文本提交
   const handleSubmit = async () => {
     setIsSubmitting(true);
     setFeedback(null);
     setMindMap(null);
     setEvaluatedScore(null);
+    setSubmitNotice('');
     playClick();
 
     const formattedAnalysis = `
@@ -412,45 +464,24 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     `.trim();
 
     try {
-      const resultData = await fetchInsightFeedback({
+      const { taskId, knowledgeReminder } = await fetchInsightFeedback({
         scenario_text: currentScenario,
         user_analysis: formattedAnalysis
       });
-      
-      setFeedback(resultData);
-      setMindMap(buildInsightMindMap({
-        scenario: currentScenario,
-        form: analysisForm,
-        markdown: resultData,
-      }));
-      setMindMapOpen(true);
-      playReveal();
-
-      // 从 AI 的 Markdown 反馈中正则提取出得分 (形如 8/10 或 得分: 9)
-      const scoreMatch = resultData.match(/(?:得分|评分|成绩|判定)[:：]\s*(\d+(\.\d+)?)/i) || resultData.match(/(\d+)\s*\/\s*10/);
-      let parsedScore = 8.0; 
-      if (scoreMatch) {
-        const val = parseFloat(scoreMatch[1]);
-        parsedScore = val > 10 ? val / 10 : val;
-      }
-      setEvaluatedScore(parsedScore);
-
-      // 更新每日统计
-      setDailyStats(prev => ({
-        completedCount: prev.completedCount + 1,
-        studyMinutes: prev.studyMinutes + 15,
-        averageScore: parseFloat(((prev.averageScore * prev.completedCount + parsedScore) / (prev.completedCount + 1)).toFixed(1))
-      }));
-
-      // 动态生成明日训练重点
-      let focus = '重点关注跨国企业中的“隐性推责”场景，识别肢体动作与情绪层级不一致的破绽。';
-      if (resultData.includes('逻辑') || resultData.includes('谬误')) {
-        focus = '强化非形式谬误的抓取，重点训练“滑坡谬误”与“诉诸经验”的逻辑切入点；';
-      } else if (resultData.includes('可信度') || resultData.includes('事实')) {
-        focus = '提升对事实破绽的敏感度，注意在复杂博弈中抽离事实真相与情感修饰；';
-      }
-      setTomorrowFocus(focus);
-
+      addTask({
+        id: taskId,
+        type: 'insight_listen',
+        name: `听点评: ${currentScenario.trim().slice(0, 40) || '洞察场景'}`,
+        status: 'running',
+        progress: 10,
+        logs: knowledgeTaskLogs(knowledgeReminder),
+      });
+      setPendingInsightTaskId(taskId);
+      setSubmitNotice(
+        knowledgeReminder
+          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度。`
+          : '已提交后台。请到任务中心查看进度。'
+      );
     } catch (error) {
       console.error(error);
       setFeedback(`### 解析失败\n与导师系统连接中断，请检查网络。\n\n**详情**: ${error instanceof Error ? error.message : '未知错误'}`);
@@ -464,6 +495,39 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('insight_listen_result');
+    if (!raw) return;
+    sessionStorage.removeItem('insight_listen_result');
+    try {
+      const parsed = JSON.parse(raw) as { feedback?: string; scenarioText?: string };
+      if (typeof parsed.scenarioText === 'string' && parsed.scenarioText) {
+        setCurrentScenario(parsed.scenarioText);
+      }
+      if (typeof parsed.feedback === 'string' && parsed.feedback) {
+        applyInsightResult(parsed.feedback, parsed.scenarioText || currentScenario);
+      }
+    } catch {
+      /* ignore broken payload */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pendingInsightTaskId) return;
+    const task = tasks.find((item) => item.id === pendingInsightTaskId);
+    if (!task) return;
+    if (task.status === 'completed' && task.result?.feedback) {
+      setPendingInsightTaskId(null);
+      setSubmitNotice('');
+      applyInsightResult(task.result.feedback, task.result.scenarioText || currentScenario);
+    } else if (task.status === 'failed') {
+      setPendingInsightTaskId(null);
+      setSubmitNotice('');
+      setFeedback(`### 解析失败\n导师点评任务失败。\n\n**详情**: ${task.error || '未知错误'}`);
+      setMindMapOpen(true);
+    }
+  }, [tasks, pendingInsightTaskId]);
 
   const exportDisabled = !mindMap;
   const svgExportDisabled = exportDisabled || !mindMapOpen;
@@ -539,6 +603,9 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
             分布式素材上传
           </button>
         </div>
+        {uploadDraftNotice && (
+          <p className="px-4 pt-3 text-[11px] text-zinc-500 leading-relaxed">{uploadDraftNotice}</p>
+        )}
 
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
           {/* 页签内容 1: 理论框架库 */}
@@ -972,17 +1039,29 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
                 />
               </div>
 
-              <div className="md:col-span-3 border-t border-slate-100 pt-3 flex justify-between items-center">
-                <span className="text-xs text-slate-400">请确保各维度均已理顺，准备提交给导师审核。</span>
+              <div className="md:col-span-3 border-t border-slate-100 pt-3 flex justify-between items-center gap-3">
+                <span className="text-xs text-slate-400">
+                  {submitNotice || '请确保各维度均已理顺，准备提交给导师审核。'}
+                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  {submitNotice && (
+                    <button
+                      type="button"
+                      onClick={() => { playClick(); setTaskCenterOpen(true); }}
+                      className="px-3 py-2 rounded-xl bg-zinc-900 text-white text-[10px] font-bold cursor-pointer hover:bg-zinc-800"
+                    >
+                      打开任务中心
+                    </button>
+                  )}
                 <button
                   onClick={handleSubmit}
-                  disabled={isSubmitting || isLoadingScenario}
+                  disabled={isSubmitting || isLoadingScenario || !!pendingInsightTaskId}
                   className="bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-extrabold px-6 py-3 rounded-xl text-xs transition-all flex items-center gap-2 active:scale-98 shadow-sm"
                 >
-                  {isSubmitting ? (
+                  {isSubmitting || pendingInsightTaskId ? (
                     <>
                       <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                      正在接入导师研判定理...
+                      {pendingInsightTaskId ? '任务中心处理中…' : '正在提交到任务中心…'}
                     </>
                   ) : (
                     <>
@@ -991,6 +1070,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
                     </>
                   )}
                 </button>
+                </div>
               </div>
             </div>
           )}

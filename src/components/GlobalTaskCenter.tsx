@@ -9,7 +9,7 @@ import {
 } from '../services/dailyCronAPI';
 import {
   X, Video, Globe, Loader2, CheckCircle2, XCircle, Terminal, FileText,
-  ChevronDown, ChevronUp, Download, Import, Brain, ExternalLink, Headphones, CalendarClock,
+  ChevronDown, ChevronUp, Download, Import, Brain, ExternalLink, Headphones, CalendarClock, Mic,
 } from 'lucide-react';
 
 function StatusBadge({ status, progress }: { status: string; progress?: number }) {
@@ -275,6 +275,20 @@ export default function GlobalTaskCenter() {
     }));
   };
 
+  const handleOpenInsightListen = (task: TaskItem) => {
+    if (!task.result?.feedback) return;
+    sessionStorage.setItem('insight_listen_result', JSON.stringify(task.result));
+    window.dispatchEvent(new CustomEvent('navigate-insight-listen'));
+    setIsOpen(false);
+  };
+
+  const handleOpenSpeak = (task: TaskItem) => {
+    if (!task.result) return;
+    sessionStorage.setItem('speak_influence_result', JSON.stringify(task.result));
+    window.dispatchEvent(new CustomEvent('navigate-speak'));
+    setIsOpen(false);
+  };
+
   const handleOpenGameTheoryHistory = (task: TaskItem) => {
     const historyId = task.result?.historyId;
     if (!historyId) return;
@@ -396,8 +410,10 @@ export default function GlobalTaskCenter() {
                             ? 'bg-[#FF5722]/10 text-[#FF5722]'
                             : task.type === 'game_theory'
                               ? 'bg-zinc-100 text-zinc-700'
-                              : task.type === 'listen_backfill'
+                              : task.type === 'insight_listen' || task.type === 'listen_backfill'
                                 ? 'bg-[#FF5722]/10 text-[#FF5722]'
+                                : task.type === 'speak'
+                                  ? 'bg-indigo-50 text-indigo-600'
                                 : task.type === 'vocab_export'
                                   ? 'bg-green-50 text-green-600'
                                   : 'bg-blue-50 text-blue-600'
@@ -406,6 +422,10 @@ export default function GlobalTaskCenter() {
                             <Video className="w-4 h-4" />
                           ) : task.type === 'game_theory' ? (
                             <Brain className="w-4 h-4" />
+                          ) : task.type === 'insight_listen' ? (
+                            <Headphones className="w-4 h-4" />
+                          ) : task.type === 'speak' ? (
+                            <Mic className="w-4 h-4" />
                           ) : task.type === 'listen_backfill' ? (
                             <Headphones className="w-4 h-4" />
                           ) : task.type === 'vocab_export' ? (
@@ -473,7 +493,29 @@ export default function GlobalTaskCenter() {
                         </button>
                       </div>
                     )}
-                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && (
+                    {task.status === 'completed' && task.result && task.type === 'insight_listen' && task.result.feedback && (
+                      <div className="flex gap-2 mb-3">
+                        <button
+                          onClick={() => handleOpenInsightListen(task)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          前往听点评结果
+                        </button>
+                      </div>
+                    )}
+                    {task.status === 'completed' && task.result && task.type === 'speak' && (
+                      <div className="flex gap-2 mb-3">
+                        <button
+                          onClick={() => handleOpenSpeak(task)}
+                          className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          前往说评估结果
+                        </button>
+                      </div>
+                    )}
+                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && task.type !== 'insight_listen' && task.type !== 'speak' && (
                       <div className="flex gap-2 mb-3">
                         <button
                           onClick={() => handleImport(task)}

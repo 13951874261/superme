@@ -222,6 +222,17 @@ function AppContent() {
     return () => window.removeEventListener('navigate-game-theory-history', handleNavHistory);
   }, []);
 
+  useEffect(() => {
+    const goListen = () => setActiveModule('listen');
+    const goSpeak = () => setActiveModule('speak');
+    window.addEventListener('navigate-insight-listen', goListen);
+    window.addEventListener('navigate-speak', goSpeak);
+    return () => {
+      window.removeEventListener('navigate-insight-listen', goListen);
+      window.removeEventListener('navigate-speak', goSpeak);
+    };
+  }, []);
+
   /**
    * 智能判定并处理左侧空白区域的点击事件，实现 70/30 黄金折叠面板的“即刻收起”
    */

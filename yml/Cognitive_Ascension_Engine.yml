@@ -102,6 +102,12 @@ workflow:
           required: true
           type: text-input
           variable: dimension
+        - label: 引用知识上下文
+          max_length: 20000
+          options: []
+          required: false
+          type: paragraph
+          variable: knowledge_context
       height: 165
       id: start
       position:
@@ -188,6 +194,8 @@ workflow:
             event_text: {{#start.event_text#}}
             dimension: {{#start.dimension#}}
             layers_text: {{#start.layers_text#}}
+            knowledge_context: {{#start.knowledge_context#}}
+            以下为用户已确认同步的知识，仅作补充，不得编造未提供的条目。若为空则忽略。
         selected: false
         title: 顶层认知升维研判LLM
         type: llm

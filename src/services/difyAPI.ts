@@ -427,6 +427,39 @@ export async function uploadMaterialToKB(file: File, topic: string): Promise<any
   return data;
 }
 
+export async function extractListenKnowledgeDraft(params: {
+  file?: File | null;
+  sourceUrl?: string;
+  userId?: string;
+}): Promise<{ success: boolean; extracted: boolean; draft?: Record<string, unknown> }> {
+  const file = params.file;
+  const sourceUrl = (params.sourceUrl || '').trim();
+  if (!file && !sourceUrl) {
+    throw new Error('请上传文件或填写网页链接');
+  }
+  const base64Content = file ? await fileToBase64Content(file) : undefined;
+  const res = await fetch('/api/knowledge-vault/extract-draft', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      userId: params.userId || getAppUserId(),
+      fileName: file?.name || '',
+      mimeType: file?.type || '',
+      base64Content,
+      sourceUrl,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data?.error || data?.message || '写入资料抽屉草稿失败');
+  }
+  return {
+    success: true,
+    extracted: !!data.extracted,
+    draft: data.draft,
+  };
+}
+
 async function fileToBase64Content(file: File): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -719,7 +752,8 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
       user_text: userText,
       mail_intent: mailIntent,
       theme: displayTheme,
-      user_current_profile: profile
+      user_current_profile: profile,
+      userId: getAppUserId(),
     }),
   });
 
@@ -1070,6 +1104,7 @@ export interface WriteGovernanceResult {
   business_proposal?: string;
   /** 原始 JSON（用于解析 L3 分数） */
   rawJson?: string;
+  knowledgeReminder?: string;
 }
 
 /** 调用文治系统 Governance Dify workflow */
@@ -1093,6 +1128,7 @@ export async function runWriteGovernanceReview(params: {
       }),
       response_mode: 'blocking',
       user: userId,
+      userId,
     }),
   });
 
@@ -1111,6 +1147,7 @@ export async function runWriteGovernanceReview(params: {
     const result: WriteGovernanceResult = {
       taskType: params.taskType,
       rawJson: cleanJson,
+      knowledgeReminder: typeof data.knowledgeReminder === 'string' ? data.knowledgeReminder : undefined,
     };
 
     if (params.taskType === 'document_correction') {
@@ -1378,58 +1415,51 @@ export interface InsightListenInputs {
   user_analysis: string;
 }
 
-export async function fetchInsightFeedback(inputs: InsightListenInputs, userId = getAppUserId()): Promise<string> {
-  const apiKey = import.meta.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
-  if (!apiKey) throw new Error("未配置 VITE_DIFY_INSIGHT_LISTEN_KEY");
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+export async function fetchInsightFeedback(inputs: InsightListenInputs, userId = getAppUserId()): Promise<{
+  taskId: string;
+  status: string;
+  knowledgeReminder?: string;
+  knowledgeSynced?: number;
+  knowledgeUsed?: number;
+}> {
+  const res = await fetch('/api/insight/listen/feedback', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: injectUserProfileAndTime(inputs as any),
-      response_mode: "blocking",
-      user: userId
-    })
+      ...inputs,
+      user_current_profile: getUserCurrentProfile(),
+      userId,
+    }),
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || `HTTP ${res.status}`);
-
-  const rawResult = data?.data?.outputs?.ai_feedback ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? "未获取到有效反馈";
-  return String(rawResult);
+  if (!res.ok) throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  if (!data.taskId) throw new Error('未返回任务 ID');
+  return {
+    taskId: data.taskId as string,
+    status: data.status as string,
+    knowledgeReminder: typeof data.knowledgeReminder === 'string' ? data.knowledgeReminder : undefined,
+    knowledgeSynced: typeof data.knowledgeSynced === 'number' ? data.knowledgeSynced : undefined,
+    knowledgeUsed: typeof data.knowledgeUsed === 'number' ? data.knowledgeUsed : undefined,
+  };
 }
 
 /**
- * 动态获取洞察考题 (文本生成应用)
- * 依赖环境变量: VITE_DIFY_INSIGHT_GEN_KEY
+ * 动态获取洞察考题（本站后端代理，密钥不进浏览器）
  */
 export async function fetchDynamicInsightScenario(category: string, userId = getAppUserId()): Promise<string> {
-  const apiKey = import.meta.env.VITE_DIFY_INSIGHT_GEN_KEY;
-  if (!apiKey) {
-    throw new Error("未配置 VITE_DIFY_INSIGHT_GEN_KEY，无法调用 Dify 战略评估接口。");
-  }
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/completion-messages`, {
+  const res = await fetch('/api/insight/listen/scenario', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      inputs: injectUserProfileAndTime({ category }),
-      query: "", // 触发文本生成
-      response_mode: 'blocking',
-      user: userId
-    })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, userId }),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || `获取动态考题失败 HTTP ${res.status}`);
 
-  return String(data?.answer || "").trim();
+  const scenario = String(data?.scenario || '').trim();
+  if (!scenario) throw new Error('未返回动态考题');
+  return scenario;
 }
 
 // ── 破局系统（说）相关接口 ─────────────────────────────────────────
@@ -1449,34 +1479,33 @@ export interface SpeakInfluenceResult {
   revised_version: string;
 }
 
-export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = getAppUserId()): Promise<SpeakInfluenceResult> {
-  const apiKey = import.meta.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
-  if (!apiKey) throw new Error('未配置 VITE_DIFY_SPEAK_INFLUENCE_KEY');
-
-  const res = await fetch(`${DIFY_API_BASE_URL}/workflows/run`, {
+export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = getAppUserId()): Promise<{
+  taskId: string;
+  status: string;
+  knowledgeReminder?: string;
+  knowledgeSynced?: number;
+  knowledgeUsed?: number;
+}> {
+  const res = await fetch('/api/speak/influence', {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: injectUserProfileAndTime(inputs as any),
-      response_mode: 'blocking',
-      user: userId,
+      ...inputs,
+      user_current_profile: getUserCurrentProfile(),
+      userId,
     }),
   });
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || 'Speak Influence Engine 请求失败');
-
-  const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
-  try {
-    const cleanJson = extractJsonFromString(rawResult);
-    return JSON.parse(cleanJson) as SpeakInfluenceResult;
-  } catch (e) {
-    console.error('[difyAPI] 解析教练返回的 JSON 格式失败:', e, rawResult);
-    throw new Error('AI 主题判定失败，返回的不是有效 JSON');
-  }
+  if (!data.taskId) throw new Error('未返回任务 ID');
+  return {
+    taskId: data.taskId as string,
+    status: data.status as string,
+    knowledgeReminder: typeof data.knowledgeReminder === 'string' ? data.knowledgeReminder : undefined,
+    knowledgeSynced: typeof data.knowledgeSynced === 'number' ? data.knowledgeSynced : undefined,
+    knowledgeUsed: typeof data.knowledgeUsed === 'number' ? data.knowledgeUsed : undefined,
+  };
 }
 
 // ── 穿透系统（读）相关接口 ─────────────────────────────────────────
@@ -1565,7 +1594,13 @@ export async function runGameTheoryAnalysis(
     title?: string;
   },
   userId = getAppUserId()
-): Promise<{ taskId: string; status: string }> {
+): Promise<{
+  taskId: string;
+  status: string;
+  knowledgeReminder?: string;
+  knowledgeSynced?: number;
+  knowledgeUsed?: number;
+}> {
   const res = await fetch('/api/game-theory/analyze', {
     method: 'POST',
     headers: {
@@ -1585,7 +1620,13 @@ export async function runGameTheoryAnalysis(
   if (!data.taskId) {
     throw new Error('未返回任务 ID');
   }
-  return { taskId: data.taskId as string, status: data.status as string };
+  return {
+    taskId: data.taskId as string,
+    status: data.status as string,
+    knowledgeReminder: typeof data.knowledgeReminder === 'string' ? data.knowledgeReminder : undefined,
+    knowledgeSynced: typeof data.knowledgeSynced === 'number' ? data.knowledgeSynced : undefined,
+    knowledgeUsed: typeof data.knowledgeUsed === 'number' ? data.knowledgeUsed : undefined,
+  };
 }
 
 export interface GameTheoryHistoryItem {

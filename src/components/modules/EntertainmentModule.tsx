@@ -461,6 +461,7 @@ export default function EntertainmentModule() {
         body: JSON.stringify({
           scene_category: getDifySceneCategory(selectedScenario.id),
           user_response: response,
+          userId: getAppUserId(),
         }),
       });
       const data = await res.json();

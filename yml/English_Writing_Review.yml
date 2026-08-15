@@ -1,4 +1,4 @@
-﻿app:
+app:
   description: 跨国高管级别英文书面表达的三段式残酷批阅引擎（改造版，输出包含 optimized_version 并拉通 theme）。
   icon: ✒️
   icon_background: '#FFEAD5'
@@ -107,6 +107,12 @@ workflow:
           required: true
           type: text-input
           variable: theme
+        - label: 引用知识上下文
+          max_length: 20000
+          options: []
+          required: false
+          type: paragraph
+          variable: knowledge_context
       height: 161
       id: start_node
       position:
@@ -159,7 +165,7 @@ workflow:
 
         - id: user_prompt
           role: user
-          text: 'mail_intent: {{#start_node.mail_intent#}}\n\nuser_text: {{#start_node.user_text#}}\n\ntheme: {{#start_node.theme#}}'
+          text: 'mail_intent: {{#start_node.mail_intent#}}\n\nuser_text: {{#start_node.user_text#}}\n\ntheme: {{#start_node.theme#}}\n\nknowledge_context: {{#start_node.knowledge_context#}}\n以下为用户已确认同步的知识，仅作补充，不得编造未提供的条目。若为空则忽略。'
         selected: false
         title: 三段式残酷批阅
         type: llm

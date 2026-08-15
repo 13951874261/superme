@@ -4,7 +4,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'insight_listen' | 'speak';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -23,6 +23,13 @@ export interface TaskItem {
     words?: unknown[];
     phrases?: unknown[];
     sentences?: unknown[];
+    feedback?: string;
+    scenarioText?: string;
+    score?: number;
+    critique?: string;
+    framework_analysis?: string;
+    revised_version?: string;
+    knowledgeReminder?: string;
   } | null;
 }
 

@@ -4895,6 +4895,13 @@ app.post('/api/dify/write-review', async (req, res) => {
 
   const apiKey = process.env.DIFY_WRITE_GOVERNANCE_API_KEY || process.env.DIFY_WRITE_GOVERNANCE_KEY;
   const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const userId = req.body?.userId || req.body?.user || 'default-user';
+  const {
+    loadInjectedKnowledgeSafe,
+    attachKnowledgeContext,
+    appendKnowledgeTracesSafe,
+  } = require('./services/gameTheoryKnowledge');
+  const injected = loadInjectedKnowledgeSafe(db, userId, 'writing');
 
   try {
     console.log(`[Write Review] 开始进行书面批阅评估，主题: "${theme}"`);
@@ -4906,14 +4913,14 @@ app.post('/api/dify/write-review', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        inputs: {
+        inputs: attachKnowledgeContext({
           user_text: user_text.trim(),
           mail_intent: mail_intent.trim(),
           theme: theme.trim(),
           user_current_profile: user_current_profile || ''
-        },
+        }, injected.context),
         response_mode: 'blocking',
-        user: 'system-agent'
+        user: userId
       })
     });
 
@@ -4949,9 +4956,13 @@ app.post('/api/dify/write-review', async (req, res) => {
     };
 
     console.log(`[Write Review] 批阅成功，已清理并返回纯 JSON 数据`);
+    appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'writing', action: 'analyzed' });
     return res.json({
       success: true,
-      data: responseData
+      data: responseData,
+      knowledgeReminder: injected.reminder,
+      knowledgeSynced: injected.syncedCount,
+      knowledgeUsed: injected.usedCount,
     });
   } catch (error) {
     console.error('[Write Review] 服务端请求异常', error);
@@ -7697,15 +7708,28 @@ app.post('/api/game-theory/analyze', async (req, res) => {
     : `博弈研判: ${titleBase.slice(0, 40)}`;
 
   const taskQueue = require('./services/taskQueue');
+  const {
+    loadInjectedKnowledgeSafe,
+    attachKnowledgeContext,
+    appendKnowledgeTracesSafe,
+  } = require('./services/gameTheoryKnowledge');
+  const injected = loadInjectedKnowledgeSafe(db, userId, 'game_theory');
   const task = taskQueue.createTask('game_theory', taskTitle);
   taskQueue.updateTask(task.id, {
     status: 'running',
     progress: 10,
-    logs: ['任务已提交，请在任务中心查看进度'],
+    logs: [injected.reminder, '任务已提交，请在任务中心查看进度'],
   });
 
   // 立即返回 taskId，后台异步执行（复用现有 TaskContext 轮询）
-  res.json({ success: true, taskId: task.id, status: task.status });
+  res.json({
+    success: true,
+    taskId: task.id,
+    status: task.status,
+    knowledgeReminder: injected.reminder,
+    knowledgeSynced: injected.syncedCount,
+    knowledgeUsed: injected.usedCount,
+  });
 
   (async () => {
     try {
@@ -7721,14 +7745,14 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          inputs: injectOralSystemTime({
+          inputs: attachKnowledgeContext(injectOralSystemTime({
             scene_type,
             game_model,
             case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须在输出结果的 suggestion（建议）字段中，额外包含以下两个板块（请严格用中文生动详实地展开）：\n1.【实操策略示例】：提供1-2个可以直接用于破局、拉拢或反制的实操行动步骤，需结合当前场景给出具体入微的动作拆解。\n2.【语言表达修正】：针对玩家在局势中的语气表态，给出具体到台词口音、语言温差上的话术修改方案（需给出\"原台词 -> 修正后台词\"的对比，并解释修正缘由）。你的建议要极具实操借鉴性和情感张力。】',
             user_answer,
             applied_tactics: applied_tactics || '',
             user_current_profile: user_current_profile || '',
-          }),
+          }), injected.context),
           response_mode: 'blocking',
           user: userId,
         }),
@@ -7807,6 +7831,12 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         JSON.stringify(parsedResult),
         Date.now()
       );
+
+      appendKnowledgeTracesSafe(db, userId, injected.ids, {
+        module: 'game_theory',
+        action: 'analyzed',
+        taskId: task.id,
+      });
 
       taskQueue.updateTask(task.id, {
         status: 'completed',
@@ -8241,6 +8271,12 @@ app.post('/api/game-theory/ascension', async (req, res) => {
       return res.status(503).json({ success: false, error: '后端未配置 DIFY_COGNITIVE_API_KEY，请检查环境变量' });
     }
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const {
+      loadInjectedKnowledgeSafe,
+      attachKnowledgeContext,
+      appendKnowledgeTracesSafe,
+    } = require('./services/gameTheoryKnowledge');
+    const injected = loadInjectedKnowledgeSafe(db, userId, 'game_theory');
 
     const response = await fetch(`${baseUrl}/workflows/run`, {
       method: 'POST',
@@ -8249,7 +8285,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        inputs: {
+        inputs: attachKnowledgeContext({
           event_text,
           layers_text: layers.map(l => `Why-${l.level}: ${l.why}`).join('\n'),
           dimension,
@@ -8258,7 +8294,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
           user_current_profile: user_current_profile || '',
           _system_time: getOralSystemFormattedTime(),
           _system_timestamp_ms: Date.now()
-        },
+        }, injected.context),
         response_mode: 'blocking',
         user: userId,
       }),
@@ -8279,6 +8315,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
     }
 
     let parsedResult;
+    let resultSource = 'dify';
     try {
       parsedResult = JSON.parse(cleanJson);
     } catch (e) {
@@ -8288,14 +8325,25 @@ app.post('/api/game-theory/ascension', async (req, res) => {
         parsedResult = await ascFallback.analyzeAscension({
           event_text, layers, dimension, scene_type, game_model, user_current_profile,
         }, process.env.ASCENSION_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '');
-        return res.json({ success: true, result: parsedResult, source: "llm_fallback" });
+        resultSource = 'llm_fallback';
       } catch (fallbackErr) {
         console.error("[Ascension] LLM fallback also failed:", fallbackErr.message);
         return res.status(500).json({ success: false, error: '???????????? LLM ??????: ' + fallbackErr.message });
       }
     }
 
-    res.json({ success: true, result: parsedResult });
+    appendKnowledgeTracesSafe(db, userId, injected.ids, {
+      module: 'game_theory',
+      action: 'analyzed',
+    });
+    res.json({
+      success: true,
+      result: parsedResult,
+      source: resultSource,
+      knowledgeReminder: injected.reminder,
+      knowledgeSynced: injected.syncedCount,
+      knowledgeUsed: injected.usedCount,
+    });
   } catch (err) {
     console.error('博弈引擎分析异常:', err);
     res.status(500).json({ success: false, error: '博弈分析引擎异常: ' + err.message });
@@ -8403,13 +8451,32 @@ async function handleWriteGovernanceWorkflow(req, res) {
   }
   const additionalParams = String(inputs.additional_params || '');
   const userId = req.body?.userId || req.body?.user || 'default-user';
+  const {
+    loadInjectedKnowledgeSafe,
+    attachKnowledgeContext,
+    appendKnowledgeTracesSafe,
+  } = require('./services/gameTheoryKnowledge');
+  const injected = loadInjectedKnowledgeSafe(db, userId, 'writing');
+  const restInputs = { ...inputs };
+  delete restInputs.knowledge_context;
+  delete restInputs.knowledge_refs;
 
-  const toAnalysisResult = (parsed) =>
-    res.json({ data: { outputs: { analysis_result: JSON.stringify(parsed) } }, source: 'dify' });
+  const toAnalysisResult = (parsed, source) =>
+    res.json({
+      data: { outputs: { analysis_result: JSON.stringify(parsed) } },
+      source,
+      knowledgeReminder: injected.reminder,
+      knowledgeSynced: injected.syncedCount,
+      knowledgeUsed: injected.usedCount,
+    });
 
   try {
     const payload = await englishWorkflowRunners.writeGovernance({
-      inputs: { _system_time: new Date().toISOString(), _system_timestamp_ms: Date.now(), ...inputs },
+      inputs: attachKnowledgeContext({
+        _system_time: new Date().toISOString(),
+        _system_timestamp_ms: Date.now(),
+        ...restInputs,
+      }, injected.context),
       userId,
     });
     const raw = payload?.data?.outputs?.analysis_result
@@ -8425,7 +8492,8 @@ async function handleWriteGovernanceWorkflow(req, res) {
         if (m) parsed = JSON.parse(m[0]);
       } catch { parsed = null; }
       if (parsed && isMeaningfulWritingResult(parsed, taskType)) {
-        return toAnalysisResult(normalizeWritingResult(parsed, taskType));
+        appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'writing', action: 'analyzed' });
+        return toAnalysisResult(normalizeWritingResult(parsed, taskType), 'dify');
       }
     }
     throw new Error('Dify workflow returned empty or invalid result');
@@ -8438,7 +8506,7 @@ async function handleWriteGovernanceWorkflow(req, res) {
       || process.env.LISTEN_LLM_API_KEY
       || '';
     const parsed = await analyzeWriting({ taskType, originalText, additionalParams }, apiKey);
-    return res.json({ data: { outputs: { analysis_result: JSON.stringify(parsed) } }, source: 'llm_fallback' });
+    return toAnalysisResult(parsed, 'llm_fallback');
   } catch (fallbackError) {
     console.error('[Write Governance] LLM fallback also failed:', fallbackError.message);
     return res.status(502).json({ error: '文治系统暂不可用，请稍后重试' });
@@ -8599,6 +8667,13 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
   ]);
   const sceneCategory = String(req.body?.scene_category || '').trim();
   const userResponse = String(req.body?.user_response || '').trim();
+  const userId = req.body?.userId || 'default-user';
+  const {
+    loadInjectedKnowledgeSafe,
+    attachKnowledgeContext,
+    appendKnowledgeTracesSafe,
+  } = require('./services/gameTheoryKnowledge');
+  const injected = loadInjectedKnowledgeSafe(db, userId, 'aesthetic');
   if (!allowedCategories.has(sceneCategory)) {
     return res.status(400).json({ success: false, error: '无效的审美场景类型' });
   }
@@ -8626,7 +8701,12 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
       method: 'POST',
       headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: { scene_category: sceneCategory, user_response: userResponse, _system_time: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }), _system_timestamp_ms: Date.now() },
+        inputs: attachKnowledgeContext({
+          scene_category: sceneCategory,
+          user_response: userResponse,
+          _system_time: new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }),
+          _system_timestamp_ms: Date.now(),
+        }, injected.context),
         response_mode: 'blocking',
         user: normalizeMemoryUserId(req.body?.userId || 'aesthetic-user'),
       }),
@@ -8646,7 +8726,15 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
       || typeof rawResult.is_passed !== 'boolean') {
       return await runFallback('invalid Dify output');
     }
-    return res.json({ success: true, result: { feedback, score, is_passed: rawResult.is_passed }, source: 'dify' });
+    appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'aesthetic', action: 'analyzed' });
+    return res.json({
+      success: true,
+      result: { feedback, score, is_passed: rawResult.is_passed },
+      source: 'dify',
+      knowledgeReminder: injected.reminder,
+      knowledgeSynced: injected.syncedCount,
+      knowledgeUsed: injected.usedCount,
+    });
   } catch (error) {
     try { return await runFallback(error.message); }
     catch (fallbackError) {
@@ -10649,13 +10737,62 @@ app.post('/api/material/export-docx', async (req, res) => {
 // ==========================================
 // 资料管理抽屉 CRUD API
 // ==========================================
+const {
+  parseKnowledgeVaultTags,
+  buildKnowledgeVaultExtra,
+  collectKnowledgeVaultExtraPatch,
+  formatKnowledgeVaultTrace,
+  formatKnowledgeVaultRow,
+  filterLinkedKnowledgeRows,
+  sortLinkedKnowledgeRows,
+  sanitizeModuleTargets,
+  KNOWLEDGE_MODULES,
+  TRACE_ACTIONS
+} = require('./services/knowledgeVaultExtra');
+
+function loadRecentKnowledgeVaultTracesMap(userId, ids, limitPer) {
+  const map = {};
+  if (!ids.length) return map;
+  const placeholders = ids.map(() => '?').join(',');
+  const traces = db.prepare(
+    `SELECT * FROM knowledge_vault_traces WHERE user_id = ? AND knowledge_id IN (${placeholders}) ORDER BY used_at DESC`
+  ).all(userId, ...ids);
+  traces.forEach((t) => {
+    if (!map[t.knowledge_id]) map[t.knowledge_id] = [];
+    if (map[t.knowledge_id].length < limitPer) map[t.knowledge_id].push(t);
+  });
+  return map;
+}
+
 // 统一列表/新增
 app.get('/api/knowledge-vault/notes', (req, res) => {
   try {
     const { userId, type } = req.query;
     if (!userId || !type) return res.status(400).json({ error: 'userId and type required' });
     const rows = db.prepare('SELECT * FROM knowledge_vault WHERE user_id = ? AND type = ? ORDER BY added_at DESC').all(userId, type);
-    res.json(rows);
+    const includeTraces = req.query.includeTraces === '1' || req.query.includeTraces === 'true';
+    if (!includeTraces) {
+      return res.json(rows.map((row) => formatKnowledgeVaultRow(row)));
+    }
+    const tracesById = loadRecentKnowledgeVaultTracesMap(userId, rows.map((row) => row.id), 20);
+    res.json(rows.map((row) => formatKnowledgeVaultRow(row, tracesById[row.id] || [])));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/knowledge-vault/notes/:id', (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.query.userId;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    if (row.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    const traces = db.prepare(
+      'SELECT * FROM knowledge_vault_traces WHERE knowledge_id = ? AND user_id = ? ORDER BY used_at DESC LIMIT 20'
+    ).all(id, userId);
+    res.json(formatKnowledgeVaultRow(row, traces));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -10663,15 +10800,20 @@ app.get('/api/knowledge-vault/notes', (req, res) => {
 
 app.post('/api/knowledge-vault/notes', (req, res) => {
   try {
-    const { userId, type, word, meaning, example, title, category, summary, content, source } = req.body || {};
+    const body = req.body || {};
+    const { userId, type, word, meaning, example, title, category, summary, content, source, tags } = body;
     if (!userId || !type) return res.status(400).json({ error: 'userId and type required' });
     const id = crypto.randomUUID();
     const now = Date.now();
+    const sourceValue = source || 'manual';
+    const extra = buildKnowledgeVaultExtra('{}', collectKnowledgeVaultExtraPatch(body), sourceValue);
+    const tagList = tags !== undefined ? parseKnowledgeVaultTags(tags) : [];
     db.prepare(`
-      INSERT INTO knowledge_vault (id, user_id, type, word, meaning, example, title, category, summary, content, source, added_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, userId, type, word || '', meaning || '', example || '', title || '', category || '', summary || '', content || '', source || 'manual', now);
-    res.status(201).json({ id, userId, type, word, meaning, example, title, category, summary, content, source: source || 'manual', added_at: now });
+      INSERT INTO knowledge_vault (id, user_id, type, word, meaning, example, title, category, summary, content, source, added_at, tags, extra_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, userId, type, word || '', meaning || '', example || '', title || '', category || '', summary || '', content || '', sourceValue, now, JSON.stringify(tagList), JSON.stringify(extra));
+    const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    res.status(201).json(formatKnowledgeVaultRow(row));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -10680,7 +10822,8 @@ app.post('/api/knowledge-vault/notes', (req, res) => {
 app.put('/api/knowledge-vault/notes/:id', (req, res) => {
   try {
     const { id } = req.params;
-    const { word, meaning, example, title, category, summary, content, source } = req.body || {};
+    const body = req.body || {};
+    const { word, meaning, example, title, category, summary, content, source, tags } = body;
     const fields = [];
     const values = [];
     if (word !== undefined) { fields.push('word = ?'); values.push(word); }
@@ -10691,12 +10834,21 @@ app.put('/api/knowledge-vault/notes/:id', (req, res) => {
     if (summary !== undefined) { fields.push('summary = ?'); values.push(summary); }
     if (content !== undefined) { fields.push('content = ?'); values.push(content); }
     if (source !== undefined) { fields.push('source = ?'); values.push(source); }
+    if (tags !== undefined) { fields.push('tags = ?'); values.push(JSON.stringify(parseKnowledgeVaultTags(tags))); }
+    const extraPatch = collectKnowledgeVaultExtraPatch(body);
+    if (Object.keys(extraPatch).length) {
+      const existing = db.prepare('SELECT extra_json, source FROM knowledge_vault WHERE id = ?').get(id);
+      if (!existing) return res.status(404).json({ error: 'Not found' });
+      const nextExtra = buildKnowledgeVaultExtra(existing.extra_json, extraPatch, source !== undefined ? source : existing.source);
+      fields.push('extra_json = ?');
+      values.push(JSON.stringify(nextExtra));
+    }
     if (!fields.length) return res.status(400).json({ error: 'no fields to update' });
     values.push(id);
     const result = db.prepare(`UPDATE knowledge_vault SET ${fields.join(', ')} WHERE id = ?`).run(...values);
     if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
     const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
-    res.json(row);
+    res.json(formatKnowledgeVaultRow(row));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -10711,6 +10863,348 @@ app.delete('/api/knowledge-vault/notes/:id', (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+app.get('/api/knowledge-vault/linked', (req, res) => {
+  try {
+    const { userId, module } = req.query;
+    if (!userId || !module) return res.status(400).json({ error: 'userId and module required' });
+    if (!KNOWLEDGE_MODULES.includes(module)) return res.status(400).json({ error: 'invalid module' });
+    const rows = db.prepare('SELECT * FROM knowledge_vault WHERE user_id = ?').all(userId);
+    const filtered = sortLinkedKnowledgeRows(filterLinkedKnowledgeRows(rows, module));
+    const tracesById = loadRecentKnowledgeVaultTracesMap(userId, filtered.map((row) => row.id), 20);
+    res.json(filtered.map((row) => formatKnowledgeVaultRow(row, tracesById[row.id] || [])));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/knowledge-vault/notes/:id/sync', (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+    const userId = body.userId;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    if (!Array.isArray(body.moduleTargets)) return res.status(400).json({ error: 'moduleTargets array required' });
+    const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    if (row.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    const moduleTargets = sanitizeModuleTargets(body.moduleTargets);
+    const now = Date.now();
+    const extraPatch = moduleTargets.length
+      ? { moduleTargets, syncStatus: 'synced', confirmedAt: now }
+      : { moduleTargets, syncStatus: 'approved' };
+    const nextExtra = buildKnowledgeVaultExtra(row.extra_json, extraPatch, row.source);
+    db.prepare('UPDATE knowledge_vault SET extra_json = ? WHERE id = ?').run(JSON.stringify(nextExtra), id);
+    const updated = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    res.json(formatKnowledgeVaultRow(updated));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/knowledge-vault/notes/:id/traces', (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+    const userId = body.userId;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    if (row.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    const moduleName = body.module;
+    if (!KNOWLEDGE_MODULES.includes(moduleName)) return res.status(400).json({ error: 'invalid module' });
+    if (!TRACE_ACTIONS.includes(body.action)) return res.status(400).json({ error: 'invalid action' });
+    const traceId = crypto.randomUUID();
+    const usedAt = body.usedAt != null ? body.usedAt : (body.used_at != null ? body.used_at : Date.now());
+    const taskId = body.taskId != null ? body.taskId : (body.task_id || '');
+    const sessionId = body.sessionId != null ? body.sessionId : (body.session_id || '');
+    const action = body.action;
+    db.prepare(`
+      INSERT INTO knowledge_vault_traces (id, knowledge_id, user_id, module, action, task_id, session_id, used_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(traceId, id, userId, moduleName, action, taskId, sessionId, usedAt);
+    const traces = db.prepare(
+      'SELECT * FROM knowledge_vault_traces WHERE knowledge_id = ? AND user_id = ? ORDER BY used_at ASC'
+    ).all(id, userId);
+    res.status(201).json({
+      success: true,
+      id: traceId,
+      traces: traces.map(formatKnowledgeVaultTrace)
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/knowledge-vault/graph', (req, res) => {
+  try {
+    const userId = req.query.userId;
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const { loadAndPersistUserGraph } = require('./services/knowledgeGraph');
+    const graph = loadAndPersistUserGraph(db, userId);
+    res.json({ success: true, nodes: graph.nodes, edges: graph.edges });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/knowledge-vault/extract-draft', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const { createListenUploadDraft } = require('./services/knowledgeDraftExtract');
+    const result = await createListenUploadDraft(db, {
+      userId: body.userId,
+      fileName: body.fileName,
+      mimeType: body.mimeType,
+      base64Content: body.base64Content,
+      sourceUrl: body.sourceUrl,
+    });
+    res.status(201).json({
+      success: true,
+      extracted: result.extracted,
+      draft: result.row,
+    });
+  } catch (error) {
+    const badRequest = error.message === 'userId required' || error.message === 'file or sourceUrl required';
+    res.status(badRequest ? 400 : 500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/knowledge-vault/import-mapped', (req, res) => {
+  try {
+    const body = req.body || {};
+    const { importMappedDrafts } = require('./services/knowledgeMapImport');
+    const result = importMappedDrafts(db, {
+      userId: body.userId,
+      source: body.source,
+    });
+    res.status(201).json({
+      success: true,
+      created: result.created,
+      skipped: result.skipped,
+      createdCount: result.createdCount,
+      skippedCount: result.skippedCount,
+    });
+  } catch (error) {
+    const badRequest = error.message === 'userId required'
+      || error.message === 'source must be tactics, prototypes, or all';
+    res.status(badRequest ? 400 : 500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/insight/listen/scenario', async (req, res) => {
+  try {
+    const body = req.body || {};
+    const userId = body.userId || body.user || 'default-user';
+    const {
+      resolveInsightGenApiKey,
+      buildInsightGenInputs,
+      parseInsightGenAnswer,
+      runDifyCompletion,
+    } = require('./services/insightSpeakProxy');
+    const prepared = buildInsightGenInputs(body);
+    const apiKey = resolveInsightGenApiKey(process.env);
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const data = await runDifyCompletion({
+      apiKey,
+      baseUrl,
+      inputs: prepared.inputs,
+      userId,
+      query: '',
+    });
+    const scenario = parseInsightGenAnswer(data);
+    if (!scenario) {
+      return res.status(502).json({ success: false, error: 'Dify 未返回动态考题' });
+    }
+    res.json({ success: true, scenario });
+  } catch (error) {
+    const badRequest = error.message === 'category required';
+    const status = badRequest ? 400 : (error.statusCode || 500);
+    res.status(status).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/insight/listen/feedback', async (req, res) => {
+  const {
+    scenario_text,
+    user_analysis,
+    user_current_profile,
+    userId = 'default-user',
+  } = req.body || {};
+  if (!scenario_text || !user_analysis) {
+    return res.status(400).json({ success: false, error: '缺少场景或分析内容' });
+  }
+
+  const taskQueue = require('./services/taskQueue');
+  const {
+    loadInjectedKnowledgeSafe,
+    attachKnowledgeContext,
+    appendKnowledgeTracesSafe,
+  } = require('./services/gameTheoryKnowledge');
+  const {
+    buildTimedInputs,
+    parseListenFeedback,
+    runDifyWorkflow,
+  } = require('./services/insightSpeakProxy');
+
+  const injected = loadInjectedKnowledgeSafe(db, userId, 'listen');
+  const taskTitle = `听点评: ${String(scenario_text).trim().slice(0, 40) || '洞察场景'}`;
+  const task = taskQueue.createTask('insight_listen', taskTitle);
+  taskQueue.updateTask(task.id, {
+    status: 'running',
+    progress: 10,
+    logs: [injected.reminder, '任务已提交，请在任务中心查看进度'],
+  });
+  res.json({
+    success: true,
+    taskId: task.id,
+    status: task.status,
+    knowledgeReminder: injected.reminder,
+    knowledgeSynced: injected.syncedCount,
+    knowledgeUsed: injected.usedCount,
+  });
+
+  (async () => {
+    try {
+      const apiKey = process.env.DIFY_INSIGHT_LISTEN_KEY || process.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
+      const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接听点评模型 (Dify)...'] });
+      const data = await runDifyWorkflow({
+        apiKey,
+        baseUrl,
+        userId,
+        inputs: attachKnowledgeContext(buildTimedInputs({
+          scenario_text,
+          user_analysis,
+        }, user_current_profile), injected.context),
+      });
+      const feedback = parseListenFeedback(data);
+      if (!feedback) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: '听点评结果为空',
+        });
+        return;
+      }
+      appendKnowledgeTracesSafe(db, userId, injected.ids, {
+        module: 'listen',
+        action: 'analyzed',
+        taskId: task.id,
+      });
+      taskQueue.updateTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        logs: ['听点评已完成'],
+        result: {
+          feedback,
+          scenarioText: String(scenario_text).slice(0, 4000),
+          knowledgeReminder: injected.reminder,
+        },
+      });
+    } catch (err) {
+      console.error('听点评任务异常:', err);
+      taskQueue.updateTask(task.id, {
+        status: 'failed',
+        error: err.message || String(err),
+      });
+    }
+  })();
+});
+
+app.post('/api/speak/influence', async (req, res) => {
+  const {
+    training_mode,
+    scenario,
+    user_role,
+    target_audience,
+    user_input,
+    user_current_profile,
+    userId = 'default-user',
+  } = req.body || {};
+  if (!user_input || !scenario) {
+    return res.status(400).json({ success: false, error: '缺少场景或表达内容' });
+  }
+
+  const taskQueue = require('./services/taskQueue');
+  const {
+    loadInjectedKnowledgeSafe,
+    attachKnowledgeContext,
+    appendKnowledgeTracesSafe,
+  } = require('./services/gameTheoryKnowledge');
+  const {
+    buildTimedInputs,
+    parseSpeakResult,
+    runDifyWorkflow,
+  } = require('./services/insightSpeakProxy');
+
+  const injected = loadInjectedKnowledgeSafe(db, userId, 'speak');
+  const taskTitle = `说评估: ${String(training_mode || scenario).trim().slice(0, 40) || '破局表达'}`;
+  const task = taskQueue.createTask('speak', taskTitle);
+  taskQueue.updateTask(task.id, {
+    status: 'running',
+    progress: 10,
+    logs: [injected.reminder, '任务已提交，请在任务中心查看进度'],
+  });
+  res.json({
+    success: true,
+    taskId: task.id,
+    status: task.status,
+    knowledgeReminder: injected.reminder,
+    knowledgeSynced: injected.syncedCount,
+    knowledgeUsed: injected.usedCount,
+  });
+
+  (async () => {
+    try {
+      const apiKey = process.env.DIFY_SPEAK_INFLUENCE_KEY || process.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
+      const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接说评估模型 (Dify)...'] });
+      const data = await runDifyWorkflow({
+        apiKey,
+        baseUrl,
+        userId,
+        inputs: attachKnowledgeContext(buildTimedInputs({
+          training_mode: training_mode || '',
+          scenario,
+          user_role: user_role || '',
+          target_audience: target_audience || '',
+          user_input,
+        }, user_current_profile), injected.context),
+      });
+      const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.message ?? '';
+      let parsed;
+      try {
+        parsed = parseSpeakResult(rawResult);
+      } catch (parseErr) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: '说评估结果格式异常，无法解析 JSON',
+        });
+        return;
+      }
+      appendKnowledgeTracesSafe(db, userId, injected.ids, {
+        module: 'speak',
+        action: 'analyzed',
+        taskId: task.id,
+      });
+      taskQueue.updateTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        logs: ['说评估已完成'],
+        result: {
+          ...parsed,
+          knowledgeReminder: injected.reminder,
+        },
+      });
+    } catch (err) {
+      console.error('说评估任务异常:', err);
+      taskQueue.updateTask(task.id, {
+        status: 'failed',
+        error: err.message || String(err),
+      });
+    }
+  })();
 });
 
 // 资料管理抽屉导出 Word (.docx)
@@ -10807,10 +11301,59 @@ db.prepare(`
   )
 `).run();
 
+try {
+  db.prepare("ALTER TABLE knowledge_vault ADD COLUMN tags TEXT DEFAULT '[]'").run();
+} catch (err) {}
+try {
+  db.prepare("ALTER TABLE knowledge_vault ADD COLUMN extra_json TEXT DEFAULT '{}'").run();
+} catch (err) {}
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS knowledge_vault_traces (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    module TEXT NOT NULL,
+    action TEXT NOT NULL,
+    task_id TEXT,
+    session_id TEXT,
+    used_at INTEGER
+  )
+`).run();
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS knowledge_graph_nodes (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    ref_id TEXT NOT NULL,
+    title TEXT,
+    extra_json TEXT,
+    created_at INTEGER
+  )
+`).run();
+
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS knowledge_graph_edges (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    from_id TEXT NOT NULL,
+    to_id TEXT NOT NULL,
+    rel TEXT NOT NULL,
+    created_at INTEGER
+  )
+`).run();
+
 // 索引
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_user_type ON knowledge_vault(user_id, type)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_added_at ON knowledge_vault(added_at)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_traces_knowledge ON knowledge_vault_traces(knowledge_id)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_traces_user_module ON knowledge_vault_traces(user_id, module)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kg_nodes_user ON knowledge_graph_nodes(user_id, kind)').run();
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_kg_nodes_user_ref ON knowledge_graph_nodes(user_id, kind, ref_id)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kg_edges_user ON knowledge_graph_edges(user_id)').run();
+  db.prepare('CREATE UNIQUE INDEX IF NOT EXISTS idx_kg_edges_unique ON knowledge_graph_edges(user_id, from_id, to_id, rel)').run();
 } catch (err) {
   console.warn('Migration: knowledge_vault indexes skipped:', err?.message || err);
 }

@@ -25,7 +25,14 @@ import {
 import TacticsPanel from './GameTheory/TacticsPanel';
 import GameTheorySessionPanel from './GameTheory/GameTheorySessionPanel';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
+import { getAppUserId } from '../../utils/profileHelper';
 import { useTask } from '../TaskContext';
+
+function knowledgeTaskLogs(reminder?: string): string[] {
+  return reminder
+    ? [reminder, '任务已提交，请在任务中心查看进度']
+    : ['任务已提交，请在任务中心查看进度'];
+}
 
 // 预设高维博弈案例库
 interface PresetCase {
@@ -120,6 +127,35 @@ const SIM_OPPONENTS: SimPresetOpponent[] = [
 export default function GameTheoryModule() {
   const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'session' | 'ascension' | 'history'>('cases');
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
+  const [knowledgeHint, setKnowledgeHint] = useState('');
+  const [linkedGameKnowledge, setLinkedGameKnowledge] = useState<Array<{ sourceType?: string; sourceRef?: { sourceId?: string } }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/knowledge-vault/linked?userId=${encodeURIComponent(getAppUserId())}&module=game_theory`)
+      .then((res) => res.json())
+      .then((list) => {
+        if (cancelled) return;
+        const rows = Array.isArray(list) ? list : [];
+        setLinkedGameKnowledge(rows);
+        const n = rows.length;
+        const used = Math.min(n, 5);
+        setKnowledgeHint(
+          n > 0
+            ? `已同步 ${n} 条博弈知识，本次训练将自动引用 ${used} 条`
+            : '尚未同步博弈知识，本次训练不注入资料抽屉内容'
+        );
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setLinkedGameKnowledge([]);
+          setKnowledgeHint('');
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   // 顶层认知升维训练状态
   const [ascEvent, setAscEvent] = useState('');
@@ -338,17 +374,21 @@ export default function GameTheoryModule() {
         title: name,
       };
 
-      const { taskId } = await runGameTheoryAnalysis(inputs);
+      const { taskId, knowledgeReminder } = await runGameTheoryAnalysis(inputs);
       addTask({
         id: taskId,
         type: 'game_theory',
         name: `人机对战: ${name.slice(0, 40)}`,
         status: 'running',
         progress: 10,
-        logs: ['任务已提交，请在任务中心查看进度'],
+        logs: knowledgeTaskLogs(knowledgeReminder),
       });
       setPendingSimTaskId(taskId);
-      setSimSubmitNotice('已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。');
+      setSimSubmitNotice(
+        knowledgeReminder
+          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度；完成后将自动进入「对局历史」。`
+          : '已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。'
+      );
       setSimFormExpanded(true);
       setSimAnimateBorder(false);
       playPageTurn();
@@ -576,12 +616,21 @@ export default function GameTheoryModule() {
     try {
       let enrichedCaseText = caseText;
       if (selectedProtoIds.length > 0) {
-        const selectedProtos = prototypes.filter(p => selectedProtoIds.includes(p.id));
-        const profilesString = selectedProtos
-          .map((p, idx) => `${idx + 1}. [${p.name}] (分类: ${p.type}) - 特征: ${p.description || '暂无特征描述。'}`)
-          .join('\n');
-        
-        enrichedCaseText = `【参会博弈对手特征 / Participant Profiles】:\n${profilesString}\n\n【危机场景详情 / Crisis Detail】:\n${caseText}`;
+        const mappedProfileIds = new Set(
+          linkedGameKnowledge
+            .filter((item) => item?.sourceType === 'from_profile')
+            .map((item) => item?.sourceRef?.sourceId || '')
+            .filter(Boolean)
+        );
+        const selectedProtos = prototypes.filter(
+          (p) => selectedProtoIds.includes(p.id) && !mappedProfileIds.has(p.id)
+        );
+        if (selectedProtos.length > 0) {
+          const profilesString = selectedProtos
+            .map((p, idx) => `${idx + 1}. [${p.name}] (分类: ${p.type}) - 特征: ${p.description || '暂无特征描述。'}`)
+            .join('\n');
+          enrichedCaseText = `【参会博弈对手特征 / Participant Profiles】:\n${profilesString}\n\n【危机场景详情 / Crisis Detail】:\n${caseText}`;
+        }
       }
 
       const fullAnswer = `① 利益结构分析：\n${stakeholderInterests}\n\n② 善/恶动机透视：\n${motivesAnalysis}\n\n③ 对方权力弱点：\n${weaknesses}\n\n④ 博弈关键节点：\n${keyPoints}`;
@@ -597,17 +646,21 @@ export default function GameTheoryModule() {
         title: titleHint,
       };
 
-      const { taskId } = await runGameTheoryAnalysis(inputs);
+      const { taskId, knowledgeReminder } = await runGameTheoryAnalysis(inputs);
       addTask({
         id: taskId,
         type: 'game_theory',
         name: `博弈研判: ${titleHint}`,
         status: 'running',
         progress: 10,
-        logs: ['任务已提交，请在任务中心查看进度'],
+        logs: knowledgeTaskLogs(knowledgeReminder),
       });
       setPendingCaseTaskId(taskId);
-      setSubmitNotice('已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。');
+      setSubmitNotice(
+        knowledgeReminder
+          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度；完成后将自动进入「对局历史」。`
+          : '已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。'
+      );
       setAnimateBorder(false);
       playPageTurn();
     } catch (err: any) {
@@ -662,6 +715,10 @@ export default function GameTheoryModule() {
           </button>
         ))}
       </div>
+
+      {knowledgeHint && (activeTab === 'cases' || activeTab === 'simulation' || activeTab === 'ascension') && (
+        <p className="mb-4 text-[11px] text-zinc-500 leading-relaxed">{knowledgeHint}</p>
+      )}
 
       <AnimatePresence mode="wait">
         <motion.div

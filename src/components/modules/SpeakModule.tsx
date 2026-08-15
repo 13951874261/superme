@@ -43,6 +43,14 @@ import Confetti from '../Confetti';
 import SpeakButton from '../SpeakButton';
 import { getUserCurrentProfile } from '../../utils/profileHelper';
 import { motion, AnimatePresence } from 'motion/react';
+import { useTask } from '../TaskContext';
+import type { SpeakInfluenceResult } from '../../services/difyAPI';
+
+function knowledgeTaskLogs(reminder?: string): string[] {
+  return reminder
+    ? [reminder, '任务已提交，请在任务中心查看进度']
+    : ['任务已提交，请在任务中心查看进度'];
+}
 
 
 interface TheoryItem {
@@ -127,6 +135,7 @@ interface MaterialItem {
 }
 
 export default function SpeakModule() {
+  const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [activeTab, setActiveTab] = useState<'structural' | 'impromptu' | 'counter' | 'promotion'>('structural');
   const [selectedScenario, setSelectedScenario] = useState('mnc');
   const [expandedTheories, setExpandedTheories] = useState<Record<string, boolean>>({ pyramid: true });
@@ -225,6 +234,8 @@ export default function SpeakModule() {
   const recordingStartTimeRef = useRef<number>(0);
 
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
+  const [speakSubmitNotice, setSpeakSubmitNotice] = useState('');
+  const [pendingSpeakTaskId, setPendingSpeakTaskId] = useState<string | null>(null);
   const [evalResult, setEvalResult] = useState<{
     totalScore: number;
     logicScore: number;
@@ -557,6 +568,60 @@ export default function SpeakModule() {
     }, 1500);
   };
 
+  const applySpeakEngineResult = (res: SpeakInfluenceResult, isMock = false, isGoldenScript = false) => {
+    let logicScore: number, expressionScore: number, totalScore: number;
+    if (isMock) {
+      if (isGoldenScript) {
+        totalScore = 9.2;
+        logicScore = 4.6;
+        expressionScore = 4.6;
+      } else {
+        totalScore = 6.7;
+        logicScore = 3.2;
+        expressionScore = 3.5;
+      }
+    } else {
+      const rawScore = res.score || 75;
+      logicScore = Math.min(5, Number((rawScore * 0.05).toFixed(1)));
+      expressionScore = Math.min(5, Number(((rawScore - (logicScore * 20)) * 0.05).toFixed(1)) || 3.8);
+      totalScore = Number((logicScore + expressionScore).toFixed(1));
+    }
+
+    const suggestions = [
+      '在使用金字塔结构时，确保第一句话就是动作或结论，切忌铺垫过长',
+      '向上沟通需要展现可控度，建议将"我们尽力配合"改为"我们将在X月X日交付第一阶段"',
+      '外企场景中少用抽象形容词，多用量化指标及商业闭环利益'
+    ];
+
+    setEvalResult({
+      totalScore,
+      logicScore,
+      expressionScore,
+      critique: isMock && !isGoldenScript
+        ? '表达逻辑较为薄弱，缺乏具体事实和数据支撑，且用语过于情绪化，不符合外企高节奏效率沟通的要求。'
+        : (res.critique || '表达较为完整，但在分寸和逻辑链条的连贯性上仍有改进空间。'),
+      frameworkAnalysis: isMock && !isGoldenScript
+        ? '建议使用因果逻辑框架：直陈预算削减的业务影响（如服务中断、合同违约金），并给出替代方案。'
+        : (res.framework_analysis || '建议在开头直接点明利益捆绑，随后分三点展开事实支撑。'),
+      revisedVersion: res.revised_version || '重新设计的完美说辞：关于项目预算，我建议...',
+      suggestions
+    });
+
+    setDailyReview({
+      shortage: activeTab === 'impromptu' ? '即兴发言时结论后置，铺垫过长，容易丧失听众关注' : '双版本切换时强硬版过于情绪化，缺乏因果数据支撑',
+      harvest: '熟练掌握了“因果清晰+直述价值”的外企因果表达框架，有效提升说服力',
+      tomorrowFocus: '重点练习体制内委婉反驳话术，设计针对性破绽提问'
+    });
+
+    playPageTurn();
+    if (totalScore >= 8) {
+      playSuccessCyber();
+      setShowConfetti(true);
+    } else {
+      playErrorCyber();
+    }
+  };
+
   const evaluateSpeech = async () => {
     const currentInput = inputMode === 'mild' ? mildInput : aggressiveInput;
     if (!currentInput) {
@@ -567,6 +632,7 @@ export default function SpeakModule() {
     setIsLoadingFeedback(true);
     setEvalResult(null);
     setInteractiveChat([]);
+    setSpeakSubmitNotice('');
 
     const combinedInput = `【温和版回应】：\n${mildInput || '（未输入）'}\n\n【强硬版回应】：\n${aggressiveInput || '（未输入）'}`;
 
@@ -576,76 +642,41 @@ export default function SpeakModule() {
       const isMock = window.location.search.includes('mock=true') || (window as any).__MOCK_EVALUATION__;
       const isGoldenScript = isMock && (currentInput.includes('Based on the current alignment') || currentInput.includes('Tier-A servers'));
 
-      const res = isMock ? {
-        score: isGoldenScript ? 92 : 67,
-        critique: isGoldenScript 
-          ? 'Based on the current alignment, cutting 30% budget will trigger a service disruption on Tier-A servers, resulting in a contract penalty of $50k. To secure our Q3 revenue projection, we propose two mitigation options...'
-          : '表达逻辑较为薄弱，缺乏具体事实和数据支撑，且用语过于情绪化，不符合外企高节奏效率沟通的要求。',
-        framework_analysis: isGoldenScript
-          ? '采用了完美的因果逻辑，直述商业价值和风险，非常出色。'
-          : '建议使用因果逻辑框架：直陈预算削减 of 业务影响（如服务中断、合同违约金），并给出替代方案。',
-        revised_version: 'Based on the current alignment, cutting 30% budget will trigger a service disruption on Tier-A servers, resulting in a contract penalty of $50k. To secure our Q3 revenue projection, we propose two mitigation options...'
-      } : await runSpeakInfluenceEngine({
+      if (isMock) {
+        applySpeakEngineResult({
+          score: isGoldenScript ? 92 : 67,
+          critique: isGoldenScript
+            ? 'Based on the current alignment, cutting 30% budget will trigger a service disruption on Tier-A servers, resulting in a contract penalty of $50k. To secure our Q3 revenue projection, we propose two mitigation options...'
+            : '表达逻辑较为薄弱，缺乏具体事实和数据支撑，且用语过于情绪化，不符合外企高节奏效率沟通的要求。',
+          framework_analysis: isGoldenScript
+            ? '采用了完美的因果逻辑，直述商业价值和风险，非常出色。'
+            : '建议使用因果逻辑框架：直陈预算削减 of 业务影响（如服务中断、合同违约金），并给出替代方案。',
+          revised_version: 'Based on the current alignment, cutting 30% budget will trigger a service disruption on Tier-A servers, resulting in a contract penalty of $50k. To secure our Q3 revenue projection, we propose two mitigation options...'
+        }, true, isGoldenScript);
+        return;
+      }
+
+      const { taskId, knowledgeReminder } = await runSpeakInfluenceEngine({
         training_mode: activeTab === 'structural' ? '结构化表达' : activeTab === 'impromptu' ? '即兴发言' : '精准提问',
         scenario: fullScenario,
         user_role: dimRole,
         target_audience: '评估委员会/受众',
         user_input: combinedInput
       });
-
-      let logicScore: number, expressionScore: number, totalScore: number;
-      if (isMock) {
-        if (isGoldenScript) {
-          totalScore = 9.2;
-          logicScore = 4.6;
-          expressionScore = 4.6;
-        } else {
-          totalScore = 6.7;
-          logicScore = 3.2;
-          expressionScore = 3.5;
-        }
-      } else {
-        const rawScore = res.score || 75;
-        logicScore = Math.min(5, Number((rawScore * 0.05).toFixed(1)));
-        expressionScore = Math.min(5, Number(((rawScore - (logicScore * 20)) * 0.05).toFixed(1)) || 3.8);
-        totalScore = Number((logicScore + expressionScore).toFixed(1));
-      }
-
-      const suggestions = [
-        '在使用金字塔结构时，确保第一句话就是动作或结论，切忌铺垫过长',
-        '向上沟通需要展现可控度，建议将"我们尽力配合"改为"我们将在X月X日交付第一阶段"',
-        '外企场景中少用抽象形容词，多用量化指标及商业闭环利益'
-      ];
-
-      setEvalResult({
-        totalScore,
-        logicScore,
-        expressionScore,
-        critique: isMock && !isGoldenScript
-          ? '表达逻辑较为薄弱，缺乏具体事实和数据支撑，且用语过于情绪化，不符合外企高节奏效率沟通的要求。'
-          : (res.critique || '表达较为完整，但在分寸和逻辑链条的连贯性上仍有改进空间。'),
-        frameworkAnalysis: isMock && !isGoldenScript
-          ? '建议使用因果逻辑框架：直陈预算削减的业务影响（如服务中断、合同违约金），并给出替代方案。'
-          : (res.framework_analysis || '建议在开头直接点明利益捆绑，随后分三点展开事实支撑。'),
-        revisedVersion: res.revised_version || '重新设计的完美说辞：关于项目预算，我建议...',
-        suggestions
+      addTask({
+        id: taskId,
+        type: 'speak',
+        name: `说评估: ${(activeTab === 'structural' ? '结构化表达' : activeTab === 'impromptu' ? '即兴发言' : '精准提问')}`,
+        status: 'running',
+        progress: 10,
+        logs: knowledgeTaskLogs(knowledgeReminder),
       });
-
-      setDailyReview({
-        shortage: activeTab === 'impromptu' ? '即兴发言时结论后置，铺垫过长，容易丧失听众关注' : '双版本切换时强硬版过于情绪化，缺乏因果数据支撑',
-        harvest: '熟练掌握了“因果清晰+直述价值”的外企因果表达框架，有效提升说服力',
-        tomorrowFocus: '重点练习体制内委婉反驳话术，设计针对性破绽提问'
-      });
-
-      playPageTurn();
-
-      if (totalScore >= 8) {
-        playSuccessCyber();
-        setShowConfetti(true);
-      } else {
-        playErrorCyber();
-      }
-
+      setPendingSpeakTaskId(taskId);
+      setSpeakSubmitNotice(
+        knowledgeReminder
+          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度。`
+          : '已提交后台。请到任务中心查看进度。'
+      );
     } catch (error) {
       console.error(error);
       playErrorCyber();
@@ -653,6 +684,40 @@ export default function SpeakModule() {
       setIsLoadingFeedback(false);
     }
   };
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('speak_influence_result');
+    if (!raw) return;
+    sessionStorage.removeItem('speak_influence_result');
+    try {
+      const parsed = JSON.parse(raw) as SpeakInfluenceResult;
+      if (parsed && typeof parsed === 'object') {
+        applySpeakEngineResult(parsed);
+      }
+    } catch {
+      /* ignore broken payload */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pendingSpeakTaskId) return;
+    const task = tasks.find((item) => item.id === pendingSpeakTaskId);
+    if (!task) return;
+    if (task.status === 'completed' && task.result) {
+      setPendingSpeakTaskId(null);
+      setSpeakSubmitNotice('');
+      applySpeakEngineResult({
+        score: Number(task.result.score) || 0,
+        critique: task.result.critique || '',
+        framework_analysis: task.result.framework_analysis || '',
+        revised_version: task.result.revised_version || '',
+      });
+    } else if (task.status === 'failed') {
+      setPendingSpeakTaskId(null);
+      setSpeakSubmitNotice(task.error || '说评估任务失败');
+      playErrorCyber();
+    }
+  }, [tasks, pendingSpeakTaskId]);
 
   const sendChatMessage = async () => {
     if (!chatInput.trim() || isChatLoading) return;
@@ -1154,15 +1219,18 @@ export default function SpeakModule() {
             </div>
           )}
 
+          {speakSubmitNotice && (
+            <p className="mb-3 text-[11px] text-zinc-500 leading-relaxed">{speakSubmitNotice}</p>
+          )}
           <button
             onClick={evaluateSpeech}
-            disabled={isLoadingFeedback || isTranscribing || (!mildInput && !aggressiveInput)}
+            disabled={isLoadingFeedback || isTranscribing || !!pendingSpeakTaskId || (!mildInput && !aggressiveInput)}
             className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black tracking-widest text-xs uppercase rounded-2xl transition-all shadow-md shadow-[var(--color-brand)]/10 disabled:opacity-50"
           >
-            {isLoadingFeedback ? (
+            {isLoadingFeedback || pendingSpeakTaskId ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                正在智能重构与拆解...
+                {pendingSpeakTaskId ? '任务中心处理中…' : '正在提交到任务中心…'}
               </>
             ) : (
               <>
@@ -1171,6 +1239,15 @@ export default function SpeakModule() {
               </>
             )}
           </button>
+          {speakSubmitNotice && (
+            <button
+              type="button"
+              onClick={() => { playClick(); setTaskCenterOpen(true); }}
+              className="mt-2 w-full py-2 rounded-xl bg-zinc-900 text-white text-[10px] font-bold cursor-pointer hover:bg-zinc-800"
+            >
+              打开任务中心
+            </button>
+          )}
         </div>
       </section>
     </div>
