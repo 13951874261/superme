@@ -46,6 +46,8 @@ interface Scenario {
 
   practice: string;    // 线下实践路径
 
+  push_date?: string;
+
 }
 
 
@@ -315,7 +317,9 @@ export default function EntertainmentModule() {
 
             traps: Array.isArray(r.traps) ? r.traps : (r.traps ? String(r.traps).split('?').map(s => s.trim()).filter(Boolean) : []),
 
-            practice: r.practice_task || ''
+            practice: r.practice_task || '',
+
+            push_date: r.push_date
 
           });
 
@@ -981,7 +985,7 @@ export default function EntertainmentModule() {
 
 
 
-              {activeTab === 'aesthetics' && (
+              {(activeTab === 'manners' || activeTab === 'aesthetics') && (
 
                 <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/40 p-4 col-span-1 md:col-span-2">
 
@@ -993,7 +997,7 @@ export default function EntertainmentModule() {
 
                       <p className="mt-1 text-[10px] text-zinc-500">
 
-                        {dailyPushSource === 'fallback' ? 'Dify 暂不可用，当前为兜底内容' : 'Dify 暂不可用，当前为兜底内容?'}
+                        {dailyPushSource === 'fallback' ? 'Dify 暂不可用，当前为兜底内容' : '本次为 AI 生成场景'}
 
                       </p>
 
@@ -1015,7 +1019,7 @@ export default function EntertainmentModule() {
 
                             headers: { 'Content-Type': 'application/json' },
 
-                            body: JSON.stringify({ userId: 'default-user' })
+                            body: JSON.stringify({ userId: getAppUserId() })
 
                           });
 
@@ -1047,7 +1051,9 @@ export default function EntertainmentModule() {
 
                               traps: Array.isArray(r.traps) ? r.traps : (r.traps ? String(r.traps).split('?').map(s => s.trim()).filter(Boolean) : []),
 
-                              practice: r.practice_task || ''
+                              practice: r.practice_task || '',
+
+                              push_date: r.push_date
 
                             });
 
@@ -1075,7 +1081,7 @@ export default function EntertainmentModule() {
 
                       <RotateCcw size={12} />
 
-                      {dailyPushLoading ? '???...' : '???'}
+                      {dailyPushLoading ? '生成中...' : '换一条'}
 
                     </button>
 
@@ -1098,6 +1104,16 @@ export default function EntertainmentModule() {
                           <h5 className="text-xs font-bold text-zinc-900">{dailyPush.title}</h5>
 
                           <p className="mt-1 text-[11px] text-zinc-500">{dailyPush.desc}</p>
+                          {Array.isArray(dailyPush.rules) && dailyPush.rules.length > 0 && (
+                            <ol className="mt-2 space-y-1 text-[11px] text-zinc-700">
+                              {dailyPush.rules.slice(0, 3).map((rule, i) => (
+                                <li key={i} className="flex items-start gap-1.5">
+                                  <span className="text-zinc-400 min-w-[1.2em]">{i + 1}.</span>
+                                  <span>{rule}</span>
+                                </li>
+                              ))}
+                            </ol>
+                          )}
                           <p className="mt-1 text-[9px] text-zinc-400">
                             {dailyPushSource === 'fallback' ? '兜底内容' : 'AI生成'} · {dailyPush.push_date || ''}
                           </p>

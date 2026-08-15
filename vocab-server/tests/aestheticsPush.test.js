@@ -24,7 +24,7 @@ function createMemoryDb() {
 
   function prepare(sql) {
     const sel = sql.match(/SELECT\s+.*?\s+FROM\s+(\w+)\s+WHERE\s+(.+)/i);
-    const ins = sql.match(/INSERT\s+OR\s+REPLACE\s+INTO\s+(\w+)/i);
+    const ins = sql.match(/INSERT(?:\s+OR\s+REPLACE)?\s+INTO\s+(\w+)/i);
     const del = sql.match(/DELETE\s+FROM\s+(\w+)\s+WHERE\s+(.+)/i);
 
     if (sel) {
@@ -65,7 +65,7 @@ function createMemoryDb() {
         run(...args) {
           const [id, userId, pushDate, scenarioJson, createdAt] = args;
           const table = ensureTable(tableName);
-          table.set(userId + ':' + pushDate, { id, user_id: userId, push_date: pushDate, scenario_json: scenarioJson, created_at: createdAt });
+          table.set(id, { id, user_id: userId, push_date: pushDate, scenario_json: scenarioJson, created_at: createdAt });
         }
       };
     }
@@ -96,25 +96,24 @@ async function main() {
   assert.ok(first.title);
   assert.ok(Array.isArray(first.rules));
   assert.ok(Array.isArray(first.traps));
-
-  const cached = await service.getDailyPush({ userId: 'test-user' });
-  assert.equal(cached.source, 'cache');
-  assert.equal(cached.dedupe_key, first.dedupe_key);
-
-  const regenerated = await service.getDailyPush({ userId: 'test-user', force: true });
-  assert.equal(regenerated.source, 'fallback');
-  assert.notEqual(regenerated.dedupe_key, first.dedupe_key);
-
-  const rowCount = db.prepare('SELECT COUNT(*) AS count FROM daily_aesthetics_pushes WHERE user_id = ?').get('test-user').count;
-  assert.equal(rowCount, 1);
-
-  
-  assert.ok(first.rules.length >= 3, 'rules should have at least 3 items');
-  assert.ok(first.traps.length >= 3, 'traps should have at least 3 items');
+  assert.ok(first.rules.length >= 5, 'rules should have at least 5 scene-specific items');
+  assert.ok(first.traps.length >= 5, 'traps should have at least 5 scene-specific items');
   assert.ok(first.background && first.background.length >= 20, 'background should be present');
   assert.ok(first.temper && first.temper.length >= 20, 'temper should be present');
   assert.ok(first.dialogue_example && first.dialogue_example.length >= 10, 'dialogue_example should be present');
   assert.ok(first.practice_task && first.practice_task.length >= 10, 'practice_task should be present');
+
+  const second = await service.getDailyPush({ userId: 'test-user' });
+  assert.equal(second.source, 'fallback');
+  assert.notEqual(second.dedupe_key, first.dedupe_key, 'each visit must return a different scenario');
+  assert.notDeepEqual(second.rules, first.rules, 'practical points must change with the scenario');
+
+  const third = await service.getDailyPush({ userId: 'test-user' });
+  assert.notEqual(third.dedupe_key, second.dedupe_key);
+  assert.notEqual(third.dedupe_key, first.dedupe_key);
+
+  const rowCount = db.prepare('SELECT COUNT(*) AS count FROM daily_aesthetics_pushes WHERE user_id = ?').get('test-user').count;
+  assert.ok(rowCount >= 3, 'each visit should be stored for dedupe history');
 
 console.log('aestheticsPush.test.js passed');
 }
