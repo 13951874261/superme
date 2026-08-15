@@ -1603,6 +1603,37 @@ export interface GameTheoryHistoryItem {
   full_result?: GameTheoryAnalyzeResult | null;
 }
 
+export interface GameTheoryCasePush {
+  id: string;
+  env: 'gov_struggle' | 'corp_clash' | 'upward_takeover' | string;
+  title: string;
+  dedupe_key: string;
+  background: string;
+  incomplete_info: string;
+  decision_point: string;
+  source: string;
+}
+
+export async function pushGameTheoryCase(params: {
+  env: 'gov_struggle' | 'corp_clash' | 'upward_takeover';
+  excludeIds?: string[];
+  userId?: string;
+}): Promise<GameTheoryCasePush> {
+  const query = new URLSearchParams({
+    userId: params.userId ?? getAppUserId(),
+    env: params.env,
+  });
+  if (params.excludeIds?.length) {
+    query.set('excludeIds', params.excludeIds.join(','));
+  }
+  const res = await fetch(`/api/game-theory/cases/push?${query.toString()}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) {
+    throw new Error(data?.error || '案例推送失败');
+  }
+  return data.result as GameTheoryCasePush;
+}
+
 export async function getGameTheoryHistory(userId = getAppUserId()): Promise<GameTheoryHistoryItem[]> {
   const res = await fetch(`/api/game-theory/history?userId=${encodeURIComponent(userId)}`);
   const data = await res.json().catch(() => ({}));

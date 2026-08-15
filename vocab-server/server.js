@@ -316,27 +316,10 @@ db.prepare(`
   )
 `).run();
 
-// 插入默认手段（如果不存在）
+// 插入默认手段（按名称补种，旧库非空时也会补上新手段）
 try {
-  const countTactics = db.prepare('SELECT COUNT(*) as count FROM game_theory_tactics').get().count;
-  if (countTactics === 0) {
-    const defaultTacticsList = [
-      { id: 't1', name: '恩威并施', category: 'downward', description: '适时给予下属利益和资源，同时维持考核或问责的压力，使其产生敬畏之心。' },
-      { id: 't2', name: '制衡术', category: 'downward', description: '在两个或多个下属或部门之间制造合理的良性竞争或权利对抗，以防出现权力合谋或一方独大。' },
-      { id: 't3', name: '分而治之', category: 'downward', description: '隔离下属的信息沟通，打破其暗中建立的利益小同盟，分别进行管理和谈话。' },
-      { id: 't4', name: '边缘化', category: 'downward', description: '通过调整业务线、分管责任，收回核心资源，将不服从者逐步架空移出核心决策圈。' },
-      { id: 't5', name: '借势上位', category: 'upward', description: '拉拢或利用外部更高层或总部总裁级的大人物（或风口机制），借用上层意志对直接主管施加无形制衡。' },
-      { id: 't6', name: '构建联盟', category: 'upward', description: '暗中横向联络其他被边缘化或受压迫的核心人员，组建信息互通与战术呼应的攻守同盟。' },
-      { id: 't7', name: '信息垄断', category: 'upward', description: '掌控唯一的关键业务细节、核心供应链关系或底层代码，使自己成为团队中无可替代的存在。' },
-      { id: 't8', name: '软对抗', category: 'upward', description: '不直接顶撞，而是通过效率降低、合规核查、汇报拖延等无破绽的制度化行为消极回复。' }
-    ];
-
-    const insert = db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)');
-    for (const t of defaultTacticsList) {
-      insert.run(t.id, 'system', t.name, t.category, t.description, 0, Date.now());
-    }
-    console.log('Inserted default game theory tactics.');
-  }
+  const { seedGameTheoryTactics } = require('./services/gameTheoryTacticsSeed');
+  seedGameTheoryTactics(db);
 } catch (e) {
   console.error('Failed to initialize game_theory_tactics:', e.message);
 }
@@ -438,6 +421,13 @@ const { analyzeListening } = require('./services/listenAnalysisService');
 const { normalizePrototypeArchive } = require('./services/prototypeArchiveGuard');
 const { initGameTheorySessionTables, createGameTheorySessionService } = require('./services/gameTheorySessionService');
 initGameTheorySessionTables(db);
+const gameTheoryCasePushService = require('./services/gameTheoryCasePushService');
+gameTheoryCasePushService.initGameTheoryCasePushTables(db);
+const gameTheoryCasePush = gameTheoryCasePushService.createService({
+  db,
+  apiKey: process.env.DIFY_GAME_THEORY_CASE_GEN_KEY,
+  baseUrl: process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'
+});
 const { evaluateSentence } = require('./services/sentenceEvaluationService');
 const { purifyVocabulary } = require('./services/vocabPurifyService');
 const { analyzeWriting, normalizeResult: normalizeWritingResult, isMeaningfulResult: isMeaningfulWritingResult } = require('./services/writeGovernanceFallback');
@@ -8499,6 +8489,24 @@ app.post('/api/english/speech/evaluate-audio', speechAudioUpload.single('file'),
     return res.status(error.statusCode || 500).json({ error: error.message });
   }
 });
+app.get('/api/game-theory/cases/push', async (req, res) => {
+  try {
+    const excludeIds = String(req.query.excludeIds || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const result = await gameTheoryCasePush.getCasePush({
+      userId: normalizeMemoryUserId(req.query.userId),
+      env: req.query.env || 'corp_clash',
+      excludeIds
+    });
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error('[Game Theory Case Push] failed:', error);
+    res.status(500).json({ success: false, error: '高管斗争案例推送失败，请稍后重试' });
+  }
+});
+
 app.get('/api/game-theory/tactics', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';

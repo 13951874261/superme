@@ -270,41 +270,6 @@ export default function EntertainmentModule() {
 
 
 
-  const openRightPanel = (feedback: any) => {
-
-    const event = new CustomEvent('toggle-right-panel', {
-
-      detail: {
-
-        open: true,
-
-        tab: 'context',
-
-        wordData: {
-
-          word: feedback.is_passed ? "体面过关 (Passed)" : "触碰禁忌 (Failed)",
-
-          phonetic: `SCORE: ${feedback.score}/10`,
-
-          meaning: feedback.feedback,
-
-          source: "社交智库研判结果",
-
-          definition_en: "",
-
-          business_note: "",
-
-          examples: []
-
-        }
-
-      }
-
-    });
-
-    window.dispatchEvent(event);
-
-  };
 
 
 
@@ -499,7 +464,6 @@ export default function EntertainmentModule() {
         const { feedback, score, is_passed } = data.result;
         const parsedOutputs = { feedback, score, is_passed };
         setDifyFeedback(parsedOutputs);
-        openRightPanel(parsedOutputs);
         if (is_passed) {
           triggerSuccess();
           triggerSuccessAnimation();
@@ -1121,7 +1085,7 @@ export default function EntertainmentModule() {
 
                     <div
 
-                      onClick={() => { setSelectedScenario(dailyPush); setResponse(''); }}
+                      onClick={() => { setSelectedScenario(dailyPush); setResponse(''); setDifyFeedback(null); }}
 
                       className={`cursor-pointer rounded-lg border bg-white p-4 transition-all ${selectedScenario?.id === dailyPush.id ? 'border-zinc-800 shadow-md' : 'border-zinc-200 hover:border-zinc-500'}`}
 
@@ -1172,7 +1136,7 @@ export default function EntertainmentModule() {
 
                       key={scenario.id}
 
-                      onClick={() => { triggerClick(); setSelectedScenario(scenario); setResponse(''); }}
+                      onClick={() => { triggerClick(); setSelectedScenario(scenario); setResponse(''); setDifyFeedback(null); }}
 
                       className={`p-5 rounded-xl cursor-pointer border transition-all duration-300 flex flex-col gap-4 relative ${
 
@@ -1335,6 +1299,60 @@ export default function EntertainmentModule() {
                       提交社交指数量化研判
 
                     </button>
+
+                    {difyFeedback && (
+
+                      <div className="bg-white border border-zinc-200 rounded-lg p-4 space-y-3">
+
+                        <div className="flex items-center gap-3">
+
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center border ${
+
+                            difyFeedback.is_passed
+
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-600'
+
+                              : 'bg-rose-50 border-rose-200 text-rose-600'
+
+                          }`}>
+
+                            {difyFeedback.is_passed ? <CheckCircle2 className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+
+                          </div>
+
+                          <div>
+
+                            <h3 className="text-sm font-bold text-zinc-800 tracking-wide">
+
+                              {difyFeedback.is_passed ? '体面过关' : '触碰禁忌'}
+
+                            </h3>
+
+                            <span className="text-[9px] text-zinc-400 font-mono tracking-widest block">社交指数量化研判</span>
+
+                          </div>
+
+                        </div>
+
+                        <div className="flex items-center justify-between bg-zinc-50 border border-zinc-200/60 rounded-lg px-4 py-2.5 text-xs">
+
+                          <span className="text-zinc-500 font-medium">决策得分</span>
+
+                          <span className="font-bold text-zinc-800 font-mono text-sm">{difyFeedback.score} / 10</span>
+
+                        </div>
+
+                        <div className="bg-zinc-50 border border-zinc-200/60 rounded-lg p-4 text-xs leading-relaxed text-zinc-600">
+
+                          <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-1">避坑指南与解释</h4>
+
+                          <p>{difyFeedback.feedback}</p>
+
+                        </div>
+
+                      </div>
+
+                    )}
 
                   </div>
 

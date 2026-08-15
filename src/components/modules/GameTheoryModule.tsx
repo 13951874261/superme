@@ -20,6 +20,7 @@ import {
   getGameTheoryHistoryDetail,
   GameTheoryHistoryItem,
   TacticItem,
+  pushGameTheoryCase,
 } from '../../services/difyAPI';
 import TacticsPanel from './GameTheory/TacticsPanel';
 import GameTheorySessionPanel from './GameTheory/GameTheorySessionPanel';
@@ -176,6 +177,8 @@ export default function GameTheoryModule() {
   };
 
   const [activeEnv, setActiveEnv] = useState<'gov_struggle' | 'corp_clash' | 'upward_takeover'>('corp_clash');
+  const [extraCases, setExtraCases] = useState<PresetCase[]>([]);
+  const [casePushLoading, setCasePushLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>('pig_game');
   const [caseText, setCaseText] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
@@ -481,6 +484,39 @@ export default function GameTheoryModule() {
     setKeyPoints('');
   };
 
+  const refreshPushedCase = async () => {
+    playClick();
+    setCasePushLoading(true);
+    try {
+      const excludeIds = [...PRESET_CASES, ...extraCases]
+        .filter((item) => item.env === activeEnv)
+        .map((item) => item.id);
+      const pushed = await pushGameTheoryCase({ env: activeEnv, excludeIds });
+      const mapped: PresetCase = {
+        id: pushed.id,
+        title: pushed.title,
+        env: activeEnv,
+        model: selectedModel,
+        description: `${pushed.background}\n\n【未知信息】${pushed.incomplete_info}\n\n【决策点】${pushed.decision_point}`,
+        defaultTactics: [],
+      };
+      setExtraCases((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
+      setCaseText(mapped.description);
+      setSelectedTactics([]);
+      setStakeholderInterests('');
+      setMotivesAnalysis('');
+      setWeaknesses('');
+      setKeyPoints('');
+      playPageTurn();
+    } catch (e) {
+      playGentleWarning();
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(msg);
+    } finally {
+      setCasePushLoading(false);
+    }
+  };
+
   // 手动添加原型档案
   const handleAddProto = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -584,7 +620,7 @@ export default function GameTheoryModule() {
   };
 
   // 环境过滤预设案例
-  const filteredPresets = PRESET_CASES.filter(c => c.env === activeEnv);
+  const filteredPresets = [...PRESET_CASES, ...extraCases].filter(c => c.env === activeEnv);
 
   const downwardTactics = ['恩威并施', '制衡术', '分而治之', '边缘化'];
   const upwardTactics = ['借势上位', '构建联盟', '信息垄断', '软对抗'];
@@ -667,7 +703,17 @@ export default function GameTheoryModule() {
                         ))}
                       </div>
 
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">斗争案例选择 (Preset Cases)</span>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">斗争案例选择 (Preset Cases)</span>
+                        <button
+                          type="button"
+                          onClick={() => { void refreshPushedCase(); }}
+                          disabled={casePushLoading}
+                          className="text-[10px] font-bold text-zinc-500 hover:text-zinc-800 cursor-pointer disabled:opacity-50"
+                        >
+                          {casePushLoading ? '推送中...' : '换一条'}
+                        </button>
+                      </div>
                       <div className="space-y-2">
                         {filteredPresets.map(c => {
                           const isSelected = caseText === c.description;
