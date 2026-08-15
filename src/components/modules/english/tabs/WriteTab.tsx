@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceTaskType, WriteGovernanceResult } from '../../../../services/difyAPI';
+import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceResult } from '../../../../services/difyAPI';
 import { extractListenMaterialTaskId, pollTaskResultContent, resolveListenMaterialText } from '../../../../services/listenMaterialResult';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
 import { getAppUserId } from '../../../../utils/profileHelper';
@@ -212,6 +212,22 @@ export default function WriteTab() {
     handleBenchmarkChange('');
   };
 
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
+    let timer: number | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    }
+  };
+
   const generateChallenge = async () => {
     setIsGeneratingChallenge(true);
     playScan();
@@ -247,7 +263,7 @@ export default function WriteTab() {
     }
     setIsReviewing(true);
     playScan();
-    showNotice('review', '提交战略审阅中...', 'info');
+    showNotice('review', '提交审阅中...', 'info');
 
     // 智能在前台拼装 mail_intent 参数，指导 AI 的批阅重点与对标审查
     const moduleLabel = WRITE_MODULES.find(m => m.id === activeModule)?.label;
@@ -256,32 +272,32 @@ export default function WriteTab() {
 【写作意图】: ${writeIntent || '无特定意图'}
 ${activeModule === 'limit_challenge' ? `【极限挑战参数】: ${limitChallengeType === 'expand' ? '充分延展论点' : `压缩至 ${limitChallengeType.split('_')[1]} 字`}` : ''}
 ${benchmarkText
-  ? `【对标卓越文本】:\n${benchmarkText}\n(请将用户的草稿与上述卓越文本的格式、站位、分寸进行找差与对比，并在 L2/L3 中详细指出)`
-  : `【提示】: 用户未提供特定的对标优秀文本。请根据通用的高级商务公文或政商写作标准，对用户的草稿在格式合规、逻辑结构、条理分寸以及战略站位方面进行全面的评估、打分并给出重构改写建议。`
+  ? `【参考对标文本（可选）】:\n${benchmarkText}\n(如适用，请参考其格式、站位与分寸进行对比分析，并在 L2/L3 中指出差异)`
+  : `【提示】: 当前未提供对标文本，请直接按通用高级商务/政商写作标准完成三级审阅与改写建议。`
 }
 `.trim();
 
-    // 【Write Governance 集成】根据模块类型选择 Governance 或通用评测
-    let governanceResult: WriteGovernanceResult | null = null;
-    if (activeModule === 'gov_write') {
-      // 体制内公文写作 → 走 Governance 文治系统
-      try {
-        governanceResult = await runWriteGovernanceReview({
-          taskType: 'document_correction',
-          originalText: writingText,
-          additionalParams: [
-            writeIntent || '',
-            benchmarkText
-              ? `【对标卓越文本】:\n${benchmarkText}`
-              : '【提示】: 用户未提供对标文本，请按通用高级政商/公文标准进行三级批改与重构建议。',
-          ].filter(Boolean).join('\n'),
-        });
-      } catch (govErr) {
-        console.warn('[WriteGovernance] Governance 调用失败，降级到通用评测:', govErr);
-      }
-    }
-
     try {
+      // 【Write Governance 集成】根据模块类型选择 Governance 或通用评测
+      let governanceResult: WriteGovernanceResult | null = null;
+      if (activeModule === 'gov_write') {
+        // 体制内公文写作 → 走 Governance 文治系统
+        try {
+          governanceResult = await withTimeout(runWriteGovernanceReview({
+            taskType: 'document_correction',
+            originalText: writingText,
+            additionalParams: [
+              writeIntent || '',
+              benchmarkText
+                ? `【参考对标文本（可选）】:\n${benchmarkText}`
+                : '【提示】: 未提供对标文本，请按通用高级政商/公文标准直接完成三级批改与重构建议。',
+            ].filter(Boolean).join('\n'),
+          }), 45000, '治理审阅超时');
+        } catch (govErr) {
+          console.warn('[WriteGovernance] Governance 调用失败，降级到通用评测:', govErr);
+        }
+      }
+
       const raw = governanceResult
         ? {
             L1: governanceResult.level_1 || '',
@@ -296,7 +312,11 @@ ${benchmarkText
               }
             })(),
           }
-        : (await runEnglishWriteReview(writingText, finalIntent, theme)) as any;
+        : (await withTimeout(
+            runEnglishWriteReview(writingText, finalIntent, theme),
+            45000,
+            '写作审阅超时'
+          )) as any;
       const normalized = {
         L1: String(raw.L1_Grammar || raw.L1 || ''),
         L2: String(raw.L2_Business_Tone || raw.L2 || ''),
@@ -352,17 +372,21 @@ ${benchmarkText
           durationSeconds: 0,
           score: l3Score,
         });
-        await submitTrainingFeedback({
-          attemptId: att.attemptId,
-          userId: getAppUserId(),
-          decomposition: { L1: normalized.L1, L2: normalized.L2 },
-          logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
-          strengths: `文治板块【${moduleLabel}】已提交评估`,
-          weaknesses: feedbackData.coreIssues.join('；'),
-          nextFocus: feedbackData.nextFocus.join('；'),
-          score: l3Score,
-          rawResponse: JSON.stringify(raw).slice(0, 12000),
-        });
+        try {
+          await submitTrainingFeedback({
+            attemptId: att.attemptId,
+            userId: getAppUserId(),
+            decomposition: { L1: normalized.L1, L2: normalized.L2 },
+            logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
+            strengths: `文治板块【${moduleLabel}】已提交评估`,
+            weaknesses: feedbackData.coreIssues.join('；'),
+            nextFocus: feedbackData.nextFocus.join('；'),
+            score: l3Score,
+            rawResponse: JSON.stringify(raw).slice(0, 12000),
+          });
+        } catch (persistErr) {
+          console.warn('[WriteReview] 反馈持久化失败:', persistErr);
+        }
       }
 
       // 【Write Governance 集成】将 Governance 结果也持久化
@@ -396,10 +420,14 @@ ${benchmarkText
       }
 
       if (isL1Perfect(normalized.L1)) {
-        await markEmailComplete(theme);
+        try {
+          await markEmailComplete(theme);
+        } catch (markErr) {
+          console.warn('[WriteReview] 完成标记失败:', markErr);
+        }
       }
 
-      checkThemeMastery(theme)
+      void checkThemeMastery(theme)
         .then((res) => {
           if (res.success) {
             setMasteryData({
@@ -413,7 +441,7 @@ ${benchmarkText
         .catch(() => {});
     } catch (error) {
       playError();
-      showNotice('review', '审阅失败，请检查网络', 'error');
+      showNotice('review', error instanceof Error ? error.message : '审阅失败，请检查网络', 'error');
     } finally {
       setIsReviewing(false);
     }
@@ -446,7 +474,7 @@ ${benchmarkText
         <div className="flex-1 flex flex-wrap items-center justify-between gap-2">
           <h5 className="text-xs font-bold text-zinc-800">决策文治与价值提炼系统 // Tactical SOP</h5>
           <p className="text-[11px] text-zinc-400 font-medium">
-            左侧导入对标文本与指南，中栏起草进行极限演练，右侧获取高管级三维反馈。
+            左侧可导入对标文本与指南（不填也可审阅），中栏起草进行极限演练，右侧获取高管级三维反馈。
           </p>
         </div>
       </div>
@@ -472,16 +500,16 @@ ${benchmarkText
             {/* 对标文本上传/输入区 */}
             <div className="bg-white border border-slate-100/85 rounded-2xl p-4 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-3">
               <h4 className="text-[11px] font-bold text-zinc-700 border-b border-zinc-100 pb-1.5 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-[#FF5722]" /> 对标优秀文本
+                <BookOpen className="w-3.5 h-3.5 text-[#FF5722]" /> 对标文本（可选）
               </h4>
               <p className="text-[10px] text-zinc-455 leading-normal">
-                粘贴或上传您认同的体制公文、大厂高管或外企信函文本。AI 将评估您的草稿与其在笔法与格局上的落差。
+                选填。有对标文本时，AI 会参考其格式、站位与分寸做对比；不填则按通用高级商务/政商标准直接审阅。
               </p>
               <div className="relative">
                 <textarea
                   value={benchmarkText}
                   onChange={(e) => handleBenchmarkChange(e.target.value)}
-                  placeholder="在此粘贴您的对标样本段落..."
+                  placeholder="选填：粘贴对标样本段落..."
                   className="w-full h-32 bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-700 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner resize-none leading-relaxed"
                 />
                 {benchmarkText && (
@@ -497,7 +525,7 @@ ${benchmarkText
               
               <label className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-dashed border border-zinc-300 hover:border-zinc-500 text-[10px] font-bold text-zinc-650 hover:bg-white transition-all cursor-pointer shadow-sm">
                 <Upload className="w-3.5 h-3.5" />
-                <span>导入对标文档 (.txt)</span>
+                <span>导入对标文档（可选，.txt）</span>
                 <input type="file" accept=".txt" onChange={handleFileUpload} className="hidden" />
               </label>
             </div>
@@ -664,7 +692,7 @@ ${benchmarkText
                 {isReviewing ? (
                   <>
                     <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
-                    <span>AI 正在审阅与风格对标中...</span>
+                    <span>AI 正在审阅中...</span>
                   </>
                 ) : (
                   '提交三维战略审阅 (Submit Strategy Review)'
