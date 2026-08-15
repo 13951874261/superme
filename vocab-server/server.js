@@ -11368,6 +11368,16 @@ try {
 } catch (err) {}
 
 db.prepare(`
+  CREATE TABLE IF NOT EXISTS knowledge_vault_revisions (
+    id TEXT PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  )
+`).run();
+
+db.prepare(`
   CREATE TABLE IF NOT EXISTS knowledge_vault_traces (
     id TEXT PRIMARY KEY,
     knowledge_id TEXT NOT NULL,
@@ -11407,6 +11417,7 @@ db.prepare(`
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_user_type ON knowledge_vault(user_id, type)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_added_at ON knowledge_vault(added_at)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_revisions_knowledge ON knowledge_vault_revisions(knowledge_id, created_at)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_traces_knowledge ON knowledge_vault_traces(knowledge_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kv_traces_user_module ON knowledge_vault_traces(user_id, module)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_kg_nodes_user ON knowledge_graph_nodes(user_id, kind)').run();

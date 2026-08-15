@@ -3,6 +3,8 @@ import { X, Plus, Trash2, Save, Edit2, Download, FileText, RefreshCw } from "luc
 import { useKnowledgeVault, type KnowledgeSyncFields, type KnowledgeTraceView } from "./useKnowledgeVault";
 import type { KnowledgeModule } from "../../types/knowledge";
 import * as vaultExport from "./vaultExport";
+import { fetchKnowledgeRevisions, summarizeKnowledgeRevision, type KnowledgeRevisionView } from "./vaultRevisions";
+import { getAppUserId } from "../../utils/profileHelper";
 import KnowledgeGraphPanel from "./KnowledgeGraphPanel";
 
 const MODULE_OPTIONS: { value: KnowledgeModule; label: string }[] = [
@@ -52,6 +54,10 @@ function KnowledgeSyncPanel({
   const [targets, setTargets] = useState<KnowledgeModule[]>(item.moduleTargets || []);
   const [busy, setBusy] = useState(false);
   const [openTraces, setOpenTraces] = useState(false);
+  const [openRevisions, setOpenRevisions] = useState(false);
+  const [revisions, setRevisions] = useState<KnowledgeRevisionView[]>([]);
+  const [revisionsLoading, setRevisionsLoading] = useState(false);
+  const [revisionsError, setRevisionsError] = useState<string | null>(null);
   const status = statusLabel(item);
   const traces: KnowledgeTraceView[] = item.traces || [];
 
@@ -66,6 +72,22 @@ function KnowledgeSyncPanel({
       await onSync(item.id, targets);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const toggleRevisions = async () => {
+    const next = !openRevisions;
+    setOpenRevisions(next);
+    if (!next) return;
+    setRevisionsLoading(true);
+    setRevisionsError(null);
+    try {
+      setRevisions(await fetchKnowledgeRevisions(item.id, getAppUserId()));
+    } catch {
+      setRevisions([]);
+      setRevisionsError("历史版本加载失败");
+    } finally {
+      setRevisionsLoading(false);
     }
   };
 
@@ -106,6 +128,13 @@ function KnowledgeSyncPanel({
       >
         {openTraces ? "收起使用记录" : `使用记录（${traces.length}）`}
       </button>
+      <button
+        type="button"
+        onClick={() => { void toggleRevisions(); }}
+        className="ml-2 text-[10px] text-zinc-400 hover:text-zinc-200 cursor-pointer"
+      >
+        {openRevisions ? "收起历史版本" : `历史版本${revisions.length ? `（${revisions.length}）` : ""}`}
+      </button>
       {openTraces && (
         <div className="text-[10px] text-zinc-400 space-y-1" aria-live="polite">
           {traces.length === 0 ? (
@@ -117,6 +146,22 @@ function KnowledgeSyncPanel({
               {trace.taskId ? `｜任务 ${trace.taskId}` : ""}
               {trace.sessionId ? `｜会话 ${trace.sessionId}` : ""}
               ｜{trace.usedAt ? new Date(trace.usedAt).toLocaleString("zh-CN") : "时间未知"}
+            </p>
+          ))}
+        </div>
+      )}
+      {openRevisions && (
+        <div className="text-[10px] text-zinc-400 space-y-1" aria-live="polite">
+          {revisionsLoading ? (
+            <p>加载中...</p>
+          ) : revisionsError ? (
+            <p>{revisionsError}</p>
+          ) : revisions.length === 0 ? (
+            <p>暂无历史版本</p>
+          ) : revisions.map((rev) => (
+            <p key={rev.id}>
+              {rev.createdAt ? new Date(rev.createdAt).toLocaleString("zh-CN") : "时间未知"}
+              ｜{summarizeKnowledgeRevision(rev.snapshot)}
             </p>
           ))}
         </div>

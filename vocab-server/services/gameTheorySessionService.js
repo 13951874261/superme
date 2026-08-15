@@ -62,16 +62,73 @@ function extractJson(raw) {
   }
 }
 
-function parseWorkflowOutput(payload, preferredKeys) {
-  const outputs = payload?.data?.outputs || {};
+function parseWorkflowOutput(payload, preferredKeys = []) {
+  const data = payload?.data || {};
+  const outputs = data?.outputs || {};
   for (const key of preferredKeys) {
     if (outputs[key] != null && outputs[key] !== '') {
-      return extractJson(outputs[key]);
+      try {
+        return extractJson(outputs[key]);
+      } catch (_) {}
     }
   }
-  if (outputs.result != null && outputs.result !== '') return extractJson(outputs.result);
-  if (outputs.text != null && outputs.text !== '') return extractJson(outputs.text);
+  for (const key of ['result', 'text', 'output', 'response', 'review_result', 'summary_result', 'round_result', 'json', 'data', 'answer']) {
+    if (outputs[key] != null && outputs[key] !== '') {
+      try {
+        return extractJson(outputs[key]);
+      } catch (_) {}
+    }
+  }
+  for (const [k, val] of Object.entries(outputs)) {
+    if (val != null && val !== '') {
+      try {
+        return extractJson(val);
+      } catch (_) {}
+    }
+  }
+  if (payload?.result) {
+    try { return extractJson(payload.result); } catch (_) {}
+  }
+  if (payload?.text) {
+    try { return extractJson(payload.text); } catch (_) {}
+  }
   throw httpError(502, '工作流未返回可解析结果');
+}
+
+function createFallbackSummary(session, roles) {
+  const stanceObj = {};
+  const interestsObj = {};
+  const psycheObj = {};
+  roles.forEach((r) => {
+    stanceObj[r.name] = r.stance || '初始观望立场';
+    interestsObj[r.name] = [r.interest || '维护既有利益'];
+    psycheObj[r.name] = {
+      observation: r.hidden_motive ? `潜在隐秘动机：${r.hidden_motive}` : '会话时间内尚未展开实质对话交锋',
+      clues: ['初始设定'],
+      confidence: 0.5,
+      mode: session.psyche_mode || 'evidence_bound',
+    };
+  });
+  return {
+    hierarchy: roles.map((r) => r.name),
+    stance: stanceObj,
+    interests: interestsObj,
+    psyche: psycheObj,
+    alliances: [],
+    power_chips: roles.map((r) => ({ owner: r.name, chip: r.position || '职务权限', impact: '基础初始筹码' })),
+    risk_inflections: ['会话达到时长上限自动结算'],
+    next_actions: {},
+    countermeasures: ['建议在后续推演中主动发起首轮试探或施压，以获取更多对手博弈线索。'],
+  };
+}
+
+function createFallbackReview(session, userRole) {
+  return {
+    missteps: [{ claim: '未在会话时间内发起实质性博弈发言', evidence: '交互轮次为 0 轮', explanation: '会话已超时结束，未能获取动态博弈交锋记录。' }],
+    strengths: [{ claim: '成功进入博弈沙盘并完成角色动机配置', evidence: '初始角色设定完整' }],
+    missed_moments: [{ round_no: 0, issue: '未在开局阶段主动建立立场或施压', why: '对话未开始即已达时长上限', avoid_action: '开局第一轮即明确诉求并试探关键对手底线' }],
+    strategy_guidance: ['建议在博弈开始后尽快打出试探性动作，利用信息差引导局势走向。'],
+  };
 }
 
 function clampInt(value, min, max, fallback) {
@@ -676,24 +733,33 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
     }
     const roles = loadRoles(sessionId);
     const rounds = loadRounds(sessionId);
-    const payload = await runSummaryWorkflow({
-      userId: session.user_id,
-      inputs: {
-        scene_type: session.scene_type,
-        game_model: session.game_model,
-        source_type: session.source_type,
-        psyche_mode: session.psyche_mode,
-        title: session.title,
-        scenario: session.scenario,
-        roles_json: JSON.stringify(roles),
-        history_json: JSON.stringify(rounds),
-        current_round: session.current_round,
-        elapsed_minutes: elapsedMinutes(state),
-        stop_reason: pickEnum(body.stop_reason || state.stop_reason, STOP_REASONS, 'user_stop'),
-        user_current_profile: String(body.user_current_profile || '').trim(),
-      },
-    });
-    const summary = parseWorkflowOutput(payload, ['summary_result']);
+    let summary;
+    try {
+      const payload = await runSummaryWorkflow({
+        userId: session.user_id,
+        inputs: {
+          scene_type: session.scene_type,
+          game_model: session.game_model,
+          source_type: session.source_type,
+          psyche_mode: session.psyche_mode,
+          title: session.title,
+          scenario: session.scenario,
+          roles_json: JSON.stringify(roles),
+          history_json: JSON.stringify(rounds),
+          current_round: session.current_round,
+          elapsed_minutes: elapsedMinutes(state),
+          stop_reason: pickEnum(body.stop_reason || state.stop_reason, STOP_REASONS, 'user_stop'),
+          user_current_profile: String(body.user_current_profile || '').trim(),
+        },
+      });
+      summary = parseWorkflowOutput(payload, ['summary_result']);
+    } catch (err) {
+      if (rounds.length === 0) {
+        summary = createFallbackSummary(session, roles);
+      } else {
+        throw err;
+      }
+    }
     state.summary = summary;
     state.phase = 'summary_ready';
     const suggestion = Array.isArray(summary.countermeasures) ? summary.countermeasures.join('；') : '';
@@ -718,26 +784,35 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
     const roles = loadRoles(sessionId);
     const rounds = loadRounds(sessionId);
     const userRole = roles.find((role) => role.is_user) || roles[0] || {};
-    const payload = await withWorkflowRetry(() => runReviewWorkflow({
-      userId: session.user_id,
-      inputs: {
-        scene_type: session.scene_type,
-        game_model: session.game_model,
-        source_type: session.source_type,
-        psyche_mode: session.psyche_mode,
-        title: session.title,
-        scenario: session.scenario,
-        roles_json: JSON.stringify(roles),
-        history_json: JSON.stringify(rounds),
-        summary_json: JSON.stringify(state.summary),
-        user_role_id: String(body.user_role_id || userRole.role_id || ''),
-        user_role_name: String(body.user_role_name || userRole.name || ''),
-        current_round: session.current_round,
-        elapsed_minutes: elapsedMinutes(state),
-        user_current_profile: String(body.user_current_profile || '').trim(),
-      },
-    }));
-    const review = parseWorkflowOutput(payload, ['review_result']);
+    let review;
+    try {
+      const payload = await withWorkflowRetry(() => runReviewWorkflow({
+        userId: session.user_id,
+        inputs: {
+          scene_type: session.scene_type,
+          game_model: session.game_model,
+          source_type: session.source_type,
+          psyche_mode: session.psyche_mode,
+          title: session.title,
+          scenario: session.scenario,
+          roles_json: JSON.stringify(roles),
+          history_json: JSON.stringify(rounds),
+          summary_json: JSON.stringify(state.summary),
+          user_role_id: String(body.user_role_id || userRole.role_id || ''),
+          user_role_name: String(body.user_role_name || userRole.name || ''),
+          current_round: session.current_round,
+          elapsed_minutes: elapsedMinutes(state),
+          user_current_profile: String(body.user_current_profile || '').trim(),
+        },
+      }));
+      review = parseWorkflowOutput(payload, ['review_result']);
+    } catch (err) {
+      if (rounds.length === 0) {
+        review = createFallbackReview(session, userRole);
+      } else {
+        throw err;
+      }
+    }
     state.review = review;
     state.phase = 'review_done';
     const guidance = Array.isArray(review.strategy_guidance) ? review.strategy_guidance.join('；') : '';
