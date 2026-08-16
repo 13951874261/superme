@@ -155,7 +155,12 @@ function insertTheoryDraft(db, params) {
     sourceType: params.sourceType || 'upload_book',
     sourceRef: params.sourceRef || '',
     syncStatus: 'draft',
-    confirmedAt: null
+    confirmedAt: null,
+    difficulty: params.difficulty,
+    refineStatus: params.refineStatus,
+    usageCount: params.usageCount,
+    lastRefineUsage: params.lastRefineUsage,
+    mindmap: params.mindmap,
   }, sourceValue);
   const tagList = Array.isArray(params.tags) ? params.tags : [];
   db.prepare(`

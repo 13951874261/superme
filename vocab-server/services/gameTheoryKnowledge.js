@@ -37,7 +37,9 @@ function rowToContextParts(row) {
 
 function formatKnowledgeBlock(row, index) {
   const parts = rowToContextParts(row);
-  const title = parts.title || `知识${index + 1}`;
+  const parsedExtra = extra.parseKnowledgeVaultExtra(row.extra_json, row.source);
+  const deepMark = parsedExtra.difficulty >= 3 ? '（加深）' : '';
+  const title = (parts.title || `知识${index + 1}`) + deepMark;
   const lines = [`${index + 1}. ${title}`];
   if (parts.summary && parts.summary !== parts.content) {
     lines.push(parts.summary);

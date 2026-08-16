@@ -13,6 +13,31 @@ function parseKnowledgeVaultTags(tags) {
   return Array.isArray(parsed) ? parsed : [];
 }
 
+const REFINE_STATUSES = ['idle', 'pending', 'done', 'failed'];
+
+function clampDifficulty(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(5, Math.floor(n));
+}
+
+function normalizeRefineStatus(value) {
+  return REFINE_STATUSES.includes(value) ? value : 'idle';
+}
+
+function normalizeUsageCount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.floor(n);
+}
+
+function normalizeMindmap(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const center = value.center == null ? '' : String(value.center);
+  const branches = Array.isArray(value.branches) ? value.branches : [];
+  return { center, branches };
+}
+
 function parseKnowledgeVaultExtra(extraJson, source) {
   const parsed = parseJsonSafe(extraJson, {});
   const obj = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? { ...parsed } : {};
@@ -22,7 +47,12 @@ function parseKnowledgeVaultExtra(extraJson, source) {
     sourceType: obj.sourceType || source || 'manual',
     sourceRef: obj.sourceRef == null ? '' : obj.sourceRef,
     syncStatus: obj.syncStatus || 'draft',
-    confirmedAt: obj.confirmedAt == null ? null : obj.confirmedAt
+    confirmedAt: obj.confirmedAt == null ? null : obj.confirmedAt,
+    difficulty: clampDifficulty(obj.difficulty == null ? 1 : obj.difficulty),
+    refineStatus: normalizeRefineStatus(obj.refineStatus),
+    usageCount: normalizeUsageCount(obj.usageCount),
+    lastRefineUsage: normalizeUsageCount(obj.lastRefineUsage),
+    mindmap: normalizeMindmap(obj.mindmap)
   };
 }
 
@@ -37,6 +67,11 @@ function buildKnowledgeVaultExtra(existingExtra, patch, source) {
   if (patch.sourceRef !== undefined) next.sourceRef = patch.sourceRef;
   if (patch.syncStatus !== undefined) next.syncStatus = patch.syncStatus;
   if (patch.confirmedAt !== undefined) next.confirmedAt = patch.confirmedAt;
+  if (patch.difficulty !== undefined) next.difficulty = clampDifficulty(patch.difficulty);
+  if (patch.refineStatus !== undefined) next.refineStatus = normalizeRefineStatus(patch.refineStatus);
+  if (patch.usageCount !== undefined) next.usageCount = normalizeUsageCount(patch.usageCount);
+  if (patch.lastRefineUsage !== undefined) next.lastRefineUsage = normalizeUsageCount(patch.lastRefineUsage);
+  if (patch.mindmap !== undefined) next.mindmap = normalizeMindmap(patch.mindmap);
   delete next.traces;
   return next;
 }
@@ -47,7 +82,18 @@ function collectKnowledgeVaultExtraPatch(body) {
   const nested = body.extra_json && typeof body.extra_json === 'object' && !Array.isArray(body.extra_json)
     ? body.extra_json
     : {};
-  ['moduleTargets', 'sourceType', 'sourceRef', 'syncStatus', 'confirmedAt'].forEach((key) => {
+  [
+    'moduleTargets',
+    'sourceType',
+    'sourceRef',
+    'syncStatus',
+    'confirmedAt',
+    'difficulty',
+    'refineStatus',
+    'usageCount',
+    'lastRefineUsage',
+    'mindmap'
+  ].forEach((key) => {
     if (body[key] !== undefined) patch[key] = body[key];
     else if (nested[key] !== undefined) patch[key] = nested[key];
   });
@@ -79,6 +125,11 @@ function formatKnowledgeVaultRow(row, traces) {
     sourceRef: extra.sourceRef,
     syncStatus: extra.syncStatus,
     confirmedAt: extra.confirmedAt,
+    difficulty: extra.difficulty,
+    refineStatus: extra.refineStatus,
+    usageCount: extra.usageCount,
+    lastRefineUsage: extra.lastRefineUsage,
+    mindmap: extra.mindmap,
     addedAt: row.added_at,
     added_at: row.added_at
   };
@@ -99,6 +150,9 @@ function sortLinkedKnowledgeRows(rows) {
   return (rows || []).slice().sort((a, b) => {
     const extraA = parseKnowledgeVaultExtra(a.extra_json, a.source);
     const extraB = parseKnowledgeVaultExtra(b.extra_json, b.source);
+    if (extraB.difficulty !== extraA.difficulty) {
+      return extraB.difficulty - extraA.difficulty;
+    }
     const va = extraA.confirmedAt || a.added_at || 0;
     const vb = extraB.confirmedAt || b.added_at || 0;
     return vb - va;

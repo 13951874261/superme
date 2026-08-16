@@ -10,6 +10,8 @@ interface MaterialUploaderProps {
   topicHint?: string;
   onUploadSuccess?: (fileName: string) => void;
   onExtractionSuccess?: (data?: { article: string, words: string[], phrases: string[], sentences?: string[] }) => void;
+  /** 资料抽屉等窄栏嵌入时隐藏 URL/视频 Tab，只保留文件上传 */
+  compact?: boolean;
 }
 
 type WorkflowStatus = 'idle' | 'running' | 'success' | 'error';
@@ -23,6 +25,7 @@ export default function MaterialUploader({
   topicHint = '政商务外刊/信函',
   onUploadSuccess,
   onExtractionSuccess,
+  compact = false,
 }: MaterialUploaderProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<WorkflowStatus>('idle');
@@ -215,18 +218,25 @@ export default function MaterialUploader({
   const progress = status === 'success' ? 100 : status === 'running' ? 65 : selectedFiles.length > 0 ? 25 : 0;
 
   return (
-    <div className="bg-white rounded-[var(--radius-xl)] border border-[var(--color-border)] p-8 shadow-[var(--shadow-card)] mt-8 space-y-6">
+    <div className={compact
+      ? 'bg-zinc-900 border border-zinc-800 rounded-xl p-4 space-y-4'
+      : 'bg-white rounded-[var(--radius-xl)] border border-[var(--color-border)] p-8 shadow-[var(--shadow-card)] mt-8 space-y-6'}>
       <div>
-        <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-surface-dark)] mb-2 flex items-center leading-none">
-          <UploadCloud className="w-5 h-5 mr-2 text-[var(--color-primary)]" />
-          一键材料提纯
+        <h4 className={compact
+          ? 'text-xs font-black uppercase tracking-widest text-[#FF5722] mb-2 flex items-center leading-none'
+          : 'text-sm font-black uppercase tracking-widest text-[var(--color-surface-dark)] mb-2 flex items-center leading-none'}>
+          <UploadCloud className={compact ? 'w-4 h-4 mr-1.5 text-[#FF5722]' : 'w-5 h-5 mr-2 text-[var(--color-primary)]'} />
+          {compact ? '上传书籍 / 材料' : '一键材料提纯'}
         </h4>
-        <p className="text-xs text-gray-400 font-medium leading-relaxed mt-2">
-          将本地文档、网页内容或音视频转写文字投喂给 Dify 知识库，并自动写入艾宾浩斯生词本。
+        <p className={compact ? 'text-[9px] text-zinc-400 font-medium' : 'text-xs text-gray-400 font-medium leading-relaxed mt-2'}>
+          {compact
+            ? '上传后进入任务中心；完成后写入理论草稿与导图，请勾选模块同步到听/说/博弈。'
+            : '将本地文档、网页内容或音视频转写文字投喂给 Dify 知识库，并自动写入艾宾浩斯生词本。'}
         </p>
       </div>
 
       {/* Step 1：当前主题 — 水平通栏 Banner */}
+      {!compact && (
       <section className="rounded-[var(--radius-md)] bg-gradient-to-r from-slate-50 to-slate-100/50 border border-[var(--color-border)] p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm relative overflow-hidden">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-5 pointer-events-none"></div>
         <div className="flex items-center gap-3 relative z-10">
@@ -243,6 +253,7 @@ export default function MaterialUploader({
         </div>
         <div className="text-[10px] text-gray-400 font-medium shrink-0 relative z-10">来源：上方 Theme Gateway</div>
       </section>
+      )}
 
       {/* Step 2 + Step 3：等比两栏布局 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -263,6 +274,7 @@ export default function MaterialUploader({
                 <FileText className="w-3.5 h-3.5" />
                 本地文档
               </button>
+              {!compact && (
               <button
                 onClick={() => setActiveTab('url')}
                 className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -273,6 +285,8 @@ export default function MaterialUploader({
                 <Globe className="w-3.5 h-3.5" />
                 网页提取
               </button>
+              )}
+              {!compact && (
               <button
                 onClick={() => setActiveTab('video')}
                 className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -283,6 +297,7 @@ export default function MaterialUploader({
                 <Video className="w-3.5 h-3.5" />
                 视频字幕
               </button>
+              )}
             </div>
 
             {/* Tab Contents */}

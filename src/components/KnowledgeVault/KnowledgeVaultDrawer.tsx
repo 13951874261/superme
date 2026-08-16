@@ -6,8 +6,35 @@ import * as vaultExport from "./vaultExport";
 import { fetchKnowledgeRevisions, summarizeKnowledgeRevision, type KnowledgeRevisionView } from "./vaultRevisions";
 import { getAppUserId } from "../../utils/profileHelper";
 import KnowledgeGraphPanel from "./KnowledgeGraphPanel";
+import MaterialUploader from "../MaterialUploader";
 import { useTask } from "../TaskContext";
 import { playClick, playGentleWarning } from "../../utils/soundEffects";
+
+type MindmapView = { center?: string; branches?: Array<{ title?: string; children?: string[] }> };
+
+function refineStatusLabel(status?: string): { text: string; className: string } | null {
+  if (status === "pending") return { text: "加深中", className: "bg-sky-900/40 text-sky-300" };
+  if (status === "done") return { text: "已加深", className: "bg-violet-900/40 text-violet-300" };
+  if (status === "failed") return { text: "加深失败", className: "bg-rose-900/40 text-rose-300" };
+  return null;
+}
+
+function MindmapReadonly({ mindmap }: { mindmap: MindmapView }) {
+  const branches = Array.isArray(mindmap.branches) ? mindmap.branches : [];
+  return (
+    <div className="mt-2 rounded-lg border border-zinc-700 bg-zinc-950/80 p-2 space-y-1">
+      <p className="text-[10px] font-black text-[#FF5722]">导图 · {mindmap.center || "未命名"}</p>
+      {branches.slice(0, 12).map((br, idx) => (
+        <div key={idx} className="text-[10px] text-zinc-300">
+          <span className="font-bold text-zinc-200">{br.title || `分支${idx + 1}`}</span>
+          {Array.isArray(br.children) && br.children.length > 0 && (
+            <span className="text-zinc-500"> — {br.children.slice(0, 6).join("、")}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const MODULE_OPTIONS: { value: KnowledgeModule; label: string }[] = [
   { value: "listen", label: "听力" },
@@ -47,21 +74,26 @@ function statusLabel(item: KnowledgeSyncFields): { text: string; className: stri
 function KnowledgeSyncPanel({
   item,
   onSync,
+  onRetryRefine,
   disabled,
 }: {
   item: KnowledgeSyncFields & { id: string; source?: string };
   onSync: (id: string, targets: KnowledgeModule[]) => Promise<void>;
+  onRetryRefine?: (id: string) => Promise<void>;
   disabled?: boolean;
 }) {
   const [targets, setTargets] = useState<KnowledgeModule[]>(item.moduleTargets || []);
   const [busy, setBusy] = useState(false);
+  const [refineBusy, setRefineBusy] = useState(false);
   const [openTraces, setOpenTraces] = useState(false);
   const [openRevisions, setOpenRevisions] = useState(false);
   const [revisions, setRevisions] = useState<KnowledgeRevisionView[]>([]);
   const [revisionsLoading, setRevisionsLoading] = useState(false);
   const [revisionsError, setRevisionsError] = useState<string | null>(null);
   const status = statusLabel(item);
+  const refine = refineStatusLabel(item.refineStatus);
   const traces: KnowledgeTraceView[] = item.traces || [];
+  const mindmap = item.mindmap && typeof item.mindmap === "object" ? item.mindmap as MindmapView : null;
 
   const toggle = (value: KnowledgeModule) => {
     setTargets((prev) => prev.includes(value) ? prev.filter((mod) => mod !== value) : [...prev, value]);
@@ -74,6 +106,16 @@ function KnowledgeSyncPanel({
       await onSync(item.id, targets);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const retryRefine = async () => {
+    if (!onRetryRefine) return;
+    setRefineBusy(true);
+    try {
+      await onRetryRefine(item.id);
+    } finally {
+      setRefineBusy(false);
     }
   };
 
@@ -100,7 +142,25 @@ function KnowledgeSyncPanel({
         <span className="text-[10px] text-zinc-500">{SOURCE_TYPE_LABEL[item.sourceType || "manual"] || item.sourceType}</span>
         {item.source ? <span className="text-[10px] text-zinc-500">来源：{item.source}</span> : null}
         {item.sourceRef?.fileName ? <span className="text-[10px] text-zinc-500">文件：{item.sourceRef.fileName}</span> : null}
+        <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-zinc-800 text-amber-300">
+          L{item.difficulty || 1}
+        </span>
+        <span className="text-[10px] text-zinc-500">使用 {item.usageCount || 0} 次</span>
+        {refine && (
+          <span className={`text-[10px] font-black px-1.5 py-0.5 rounded ${refine.className}`}>{refine.text}</span>
+        )}
       </div>
+      {mindmap && <MindmapReadonly mindmap={mindmap} />}
+      {item.refineStatus === "failed" && onRetryRefine && (
+        <button
+          type="button"
+          disabled={refineBusy || disabled}
+          onClick={() => { void retryRefine(); }}
+          className="text-[10px] font-black px-2 py-1 rounded border border-rose-500/40 text-rose-300 hover:bg-rose-950/40 disabled:opacity-50 cursor-pointer"
+        >
+          {refineBusy ? "重试中..." : "重试加深"}
+        </button>
+      )}
       <div className="text-[10px] font-bold text-zinc-500">同步到训练模块</div>
       <div className="flex flex-wrap gap-3">
         {MODULE_OPTIONS.map((option) => (
@@ -188,7 +248,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
     addAestheticTip, updateAestheticTip, deleteAestheticTip,
     syncKnowledge, archiveKnowledge, importMapped,
   } = useKnowledgeVault();
-  const { addTask } = useTask();
+  const { addTask, startPolling } = useTask();
 
   const [activeTab, setActiveTab] = useState<"english" | "theory" | "writing" | "aesthetic" | "graph">("english");
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -283,6 +343,36 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
       await syncKnowledge(id, targets);
     } catch {
       handleError("同步失败，请重试");
+    }
+  };
+
+  const handleRetryRefine = async (id: string) => {
+    try {
+      const res = await fetch(`/api/knowledge-vault/notes/${id}/refine`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: getAppUserId() }),
+      });
+      if (!res.ok) throw new Error("refine failed");
+      const data = await res.json();
+      if (data && data.taskId) {
+        addTask({
+          id: data.taskId,
+          type: "vault_refine",
+          name: "知识点加深",
+          status: "pending",
+          progress: 0,
+          logs: ["已提交加深任务"],
+        });
+        startPolling(data.taskId);
+        try {
+          const { showToast } = await import("../Toast");
+          showToast({ message: "已加入任务中心：知识点加深", type: "success" });
+        } catch {}
+      }
+      await refresh();
+    } catch {
+      handleError("加深失败，请重试");
     }
   };
 
@@ -442,6 +532,14 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
           )}
 
           {activeTab === "theory" && (
+            <>
+            <MaterialUploader
+              compact
+              topicHint="书籍 / 材料提纯"
+              onUploadSuccess={() => {
+                void refresh();
+              }}
+            />
             <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl space-y-2">
               <div>
                 <span className="text-xs font-bold">从博弈模块映射导入</span>
@@ -461,6 +559,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
               </div>
               {mapNotice && <p className="text-[10px] text-emerald-400 font-bold">{mapNotice}</p>}
             </div>
+            </>
           )}
 
           {/* Add form */}
@@ -573,7 +672,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                       </div>
                       <p className="text-xs text-zinc-300 mt-2">{n.meaning}</p>
                       {n.example && <p className="text-[11px] text-zinc-400 italic mt-1.5 border-l-2 border-zinc-700 pl-2">""{n.example}""</p>}
-                      <KnowledgeSyncPanel key={`${n.id}-${n.syncStatus}-${(n.moduleTargets || []).join(",")}`} item={n} onSync={handleConfirmSync} />
+                      <KnowledgeSyncPanel key={`${n.id}-${n.syncStatus}-${(n.moduleTargets || []).join(",")}`} item={n} onSync={handleConfirmSync} onRetryRefine={handleRetryRefine} />
                     </>
                   )}
                 </div>
@@ -593,7 +692,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                     </div>
                   </div>
                   <p className="text-xs text-zinc-300 mt-2 whitespace-pre-wrap">{f.summary}</p>
-                  <KnowledgeSyncPanel key={`${f.id}-${f.syncStatus}-${(f.moduleTargets || []).join(",")}`} item={f} onSync={handleConfirmSync} />
+                  <KnowledgeSyncPanel key={`${f.id}-${f.syncStatus}-${(f.moduleTargets || []).join(",")}`} item={f} onSync={handleConfirmSync} onRetryRefine={handleRetryRefine} />
                 </div>
               ))}
 
@@ -609,7 +708,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                     </div>
                   </div>
                   <p className="text-xs text-zinc-300 mt-2 whitespace-pre-wrap">{s.content}</p>
-                  <KnowledgeSyncPanel key={`${s.id}-${s.syncStatus}-${(s.moduleTargets || []).join(",")}`} item={s} onSync={handleConfirmSync} />
+                  <KnowledgeSyncPanel key={`${s.id}-${s.syncStatus}-${(s.moduleTargets || []).join(",")}`} item={s} onSync={handleConfirmSync} onRetryRefine={handleRetryRefine} />
                 </div>
               ))}
 
@@ -625,7 +724,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
                     </div>
                   </div>
                   <p className="text-xs text-zinc-300 mt-2 whitespace-pre-wrap">{t.content}</p>
-                  <KnowledgeSyncPanel key={`${t.id}-${t.syncStatus}-${(t.moduleTargets || []).join(",")}`} item={t} onSync={handleConfirmSync} />
+                  <KnowledgeSyncPanel key={`${t.id}-${t.syncStatus}-${(t.moduleTargets || []).join(",")}`} item={t} onSync={handleConfirmSync} onRetryRefine={handleRetryRefine} />
                 </div>
               ))}
 

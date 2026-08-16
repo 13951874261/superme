@@ -79,10 +79,48 @@ function loadVaultTheory(db, userId) {
   ).all(userId, 'theory');
 }
 
+function attachBatchSourceRef(sourceRef, batchId) {
+  if (!batchId) return sourceRef;
+  if (sourceRef && typeof sourceRef === 'object' && !Array.isArray(sourceRef)) {
+    return { ...sourceRef, batchId: String(batchId) };
+  }
+  return { sourceId: String(sourceRef || ''), batchId: String(batchId) };
+}
+
+function importMindmapDraft(db, input) {
+  const mindmap = input && input.mindmap;
+  if (!mindmap || typeof mindmap !== 'object') return null;
+  const topic = String((input && input.topic) || '').trim() || '材料导图';
+  const fileName = String((input && input.fileName) || '').trim();
+  const batchId = input && input.batchId ? String(input.batchId) : '';
+  const sourceType = 'ai_extract';
+  const sourceRef = attachBatchSourceRef({
+    sourceId: nodeSourceId(fileName || batchId || topic, '__mindmap__'),
+    sourceModule: 'material_purify',
+    fileName: fileName || undefined,
+  }, batchId);
+  return insertTheoryDraft(db, {
+    userId: input.userId,
+    title: `导图 · ${topic}`.slice(0, 80),
+    category: 'game_theory',
+    summary: `材料「${fileName || topic}」的思维导图（只读）。中心：${String(mindmap.center || topic)}`,
+    content: String(mindmap.center || topic),
+    tags: ['material_purify', 'mindmap'],
+    source: fileName || batchId || 'material_purify',
+    sourceType,
+    sourceRef,
+    mindmap: {
+      center: mindmap.center == null ? '' : String(mindmap.center),
+      branches: Array.isArray(mindmap.branches) ? mindmap.branches : [],
+    },
+  });
+}
+
 function importTheoryNodeDrafts(db, input, deps = {}) {
   const userId = input && input.userId;
   if (!userId) throw new Error('userId required');
   const vaultRows = deps.vaultRows || loadVaultTheory(db, userId);
+  const batchId = input.batchId || (input.taskId ? `material:${input.taskId}` : '');
   const planned = planTheoryNodeDrafts({
     vaultRows,
     theoryNodes: input.theoryNodes,
@@ -99,13 +137,30 @@ function importTheoryNodeDrafts(db, input, deps = {}) {
     tags: draft.tags,
     source: draft.source,
     sourceType: draft.sourceType,
-    sourceRef: draft.sourceRef,
+    sourceRef: attachBatchSourceRef(draft.sourceRef, batchId),
   }));
+  let mindmapNote = null;
+  if (input.mindmap) {
+    try {
+      mindmapNote = importMindmapDraft(db, {
+        userId,
+        mindmap: input.mindmap,
+        topic: input.topic,
+        fileName: input.fileName,
+        batchId,
+      });
+      if (mindmapNote) created.push(mindmapNote);
+    } catch (err) {
+      console.warn('[knowledgeTheoryNodes] mindmap import failed:', err.message);
+    }
+  }
   return {
     created,
     skipped: planned.skipped,
     createdCount: created.length,
     skippedCount: planned.skippedCount,
+    mindmapId: mindmapNote && mindmapNote.id ? mindmapNote.id : null,
+    batchId: batchId || null,
   };
 }
 
@@ -114,5 +169,7 @@ module.exports = {
   nodeSourceId,
   theoryNodeToDraftInput,
   planTheoryNodeDrafts,
+  importMindmapDraft,
   importTheoryNodeDrafts,
+  attachBatchSourceRef,
 };

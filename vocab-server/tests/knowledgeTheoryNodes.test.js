@@ -133,6 +133,60 @@ assert.deepEqual(imported.created[0].moduleTargets, []);
 assert.equal(imported.created[0].sourceType, 'upload_book');
 assert.equal(imported.created[0].title, '信息不对称');
 
+const inserts2 = [];
+const fakeDb2 = {
+  prepare(sql) {
+    const text = String(sql);
+    if (text.includes('INSERT INTO knowledge_vault')) {
+      return {
+        run(...args) {
+          inserts2.push(args);
+        },
+      };
+    }
+    if (text.includes('SELECT * FROM knowledge_vault WHERE id = ?')) {
+      return {
+        get(id) {
+          const row = inserts2.find((item) => item[0] === id) || inserts2[inserts2.length - 1];
+          return {
+            id,
+            user_id: row[1],
+            type: row[2],
+            word: row[3],
+            meaning: row[4],
+            example: row[5],
+            title: row[6],
+            category: row[7],
+            summary: row[8],
+            content: row[9],
+            source: row[10],
+            added_at: row[11],
+            tags: row[12],
+            extra_json: row[13],
+          };
+        },
+      };
+    }
+    throw new Error('unexpected sql: ' + text);
+  },
+};
+
+const withMind = importTheoryNodeDrafts(fakeDb2, {
+  userId: 'u1',
+  fileName: 'book.pdf',
+  taskId: 'task_abc',
+  topic: '谈判',
+  theoryNodes: [{ title: '利益交换', concept: '互换条件。', points: ['先报价。'] }],
+  mindmap: { center: '谈判', branches: [{ title: '利益', children: ['报价'] }] },
+}, { vaultRows: [] });
+assert.equal(withMind.createdCount, 2);
+assert.ok(withMind.mindmapId);
+assert.equal(withMind.batchId, 'material:task_abc');
+const mindRow = withMind.created.find((c) => c.id === withMind.mindmapId);
+assert.ok(mindRow);
+assert.equal(mindRow.mindmap.center, '谈判');
+assert.ok(String(JSON.stringify(mindRow.sourceRef)).includes('material:task_abc'));
+
 assert.throws(
   () => importTheoryNodeDrafts(fakeDb, { fileName: 'a.pdf', theoryNodes: nodes }),
   /userId required/

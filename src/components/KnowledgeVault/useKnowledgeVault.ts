@@ -23,6 +23,10 @@ export interface KnowledgeSyncFields {
   syncStatus?: KnowledgeSyncStatus;
   confirmedAt?: number;
   traces?: KnowledgeTraceView[];
+  difficulty?: number;
+  refineStatus?: 'idle' | 'pending' | 'done' | 'failed';
+  usageCount?: number;
+  mindmap?: { center?: string; branches?: unknown[] } | null;
 }
 
 export interface EnglishNote extends KnowledgeSyncFields {
@@ -122,6 +126,14 @@ function normalizeVaultItem<T extends VaultItem>(row: unknown): T {
     syncStatus: syncStatus === 'approved' || syncStatus === 'synced' || syncStatus === 'archived' ? syncStatus : 'draft',
     confirmedAt: rec.confirmedAt == null ? undefined : Number(rec.confirmedAt),
     traces: normalizeTraces(rec.traces),
+    difficulty: Number(rec.difficulty) > 0 ? Math.min(5, Math.floor(Number(rec.difficulty))) : 1,
+    refineStatus: rec.refineStatus === 'pending' || rec.refineStatus === 'done' || rec.refineStatus === 'failed' || rec.refineStatus === 'idle'
+      ? rec.refineStatus
+      : 'idle',
+    usageCount: Number(rec.usageCount) > 0 ? Math.floor(Number(rec.usageCount)) : 0,
+    mindmap: rec.mindmap && typeof rec.mindmap === 'object' && !Array.isArray(rec.mindmap)
+      ? rec.mindmap as { center?: string; branches?: unknown[] }
+      : null,
     source: typeof rec.source === 'string' ? rec.source : 'manual',
   } as T;
 }

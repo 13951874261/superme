@@ -5889,6 +5889,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
               fileName: fileObj.fileName || 'Document',
               mimeType: fileObj.mimeType || fileObj.type || '',
               theoryNodes: mindmapAndTheory.theoryNodes,
+              mindmap: mindmapAndTheory.mindmap || null,
+              topic: topic || fileObj.fileName || 'Document',
+              taskId: task.id,
             });
           }
         } catch (err) {
@@ -7873,6 +7876,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         action: 'analyzed',
         taskId: task.id,
       });
+      afterKnowledgeInjected(userId, injected.ids);
 
       taskQueue.updateTask(task.id, {
         status: 'completed',
@@ -8372,6 +8376,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
       module: 'game_theory',
       action: 'analyzed',
     });
+    afterKnowledgeInjected(userId, injected.ids);
     res.json({
       success: true,
       result: parsedResult,
@@ -10799,6 +10804,19 @@ const {
   TRACE_ACTIONS
 } = require('./services/knowledgeVaultExtra');
 
+function afterKnowledgeInjected(userId, knowledgeIds) {
+  try {
+    const { maybeEnqueueVaultRefine } = require('./services/vaultRefine');
+    maybeEnqueueVaultRefine(db, knowledgeIds, {
+      userId,
+      taskQueue,
+      apiKey: process.env.LISTEN_LLM_API_KEY || process.env.WRITE_GOVERNANCE_LLM_KEY || '',
+    });
+  } catch (err) {
+    console.warn('[vaultRefine] after inject enqueue failed:', err.message);
+  }
+}
+
 function loadRecentKnowledgeVaultTracesMap(userId, ids, limitPer) {
   const map = {};
   if (!ids.length) return map;
@@ -10979,6 +10997,35 @@ app.put('/api/knowledge-vault/notes/:id/sync', (req, res) => {
     db.prepare('UPDATE knowledge_vault SET extra_json = ? WHERE id = ?').run(JSON.stringify(nextExtra), id);
     const updated = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
     res.json(formatKnowledgeVaultRow(updated));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/knowledge-vault/notes/:id/refine', (req, res) => {
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+    const userId = body.userId || readKnowledgeVaultUserId(req);
+    if (!userId) return res.status(400).json({ error: 'userId required' });
+    const row = db.prepare('SELECT * FROM knowledge_vault WHERE id = ?').get(id);
+    const denied = assertKnowledgeVaultOwner(row, userId);
+    if (denied) return res.status(denied.status).json({ error: denied.error });
+    const task = taskQueue.createTask('vault_refine', `知识点加深 · ${String(row.title || id).slice(0, 24)}`);
+    const { markRefinePending, countTracesForNote, executeVaultRefine } = require('./services/vaultRefine');
+    const usageCount = countTracesForNote(db, id);
+    markRefinePending(db, row, usageCount);
+    res.json({ success: true, taskId: task.id });
+    setImmediate(() => {
+      executeVaultRefine(db, {
+        noteId: id,
+        userId,
+        taskId: task.id,
+        apiKey: process.env.LISTEN_LLM_API_KEY || process.env.WRITE_GOVERNANCE_LLM_KEY || '',
+      }, { taskQueue }).catch((err) => {
+        console.error('[vaultRefine] manual refine failed:', err);
+      });
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -11180,6 +11227,7 @@ app.post('/api/insight/listen/feedback', async (req, res) => {
         action: 'analyzed',
         taskId: task.id,
       });
+      afterKnowledgeInjected(userId, injected.ids);
       taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,
@@ -11276,6 +11324,7 @@ app.post('/api/speak/influence', async (req, res) => {
         action: 'analyzed',
         taskId: task.id,
       });
+      afterKnowledgeInjected(userId, injected.ids);
       taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,

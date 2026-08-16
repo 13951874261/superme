@@ -4,7 +4,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'insight_listen' | 'speak';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'insight_listen' | 'speak';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -145,7 +145,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
             activePolls.current.delete(id);
             if (data.status === 'completed') {
               window.dispatchEvent(new CustomEvent('vocab-updated'));
-              if (data.type === 'material') {
+              if (data.type === 'material' || data.type === 'vault_refine') {
                 window.dispatchEvent(new CustomEvent('knowledge-vault-updated'));
               }
 
