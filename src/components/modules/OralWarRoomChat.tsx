@@ -737,10 +737,37 @@ export default function OralWarRoomChat({
             {/* 麦克风长按按钮 */}
             {speechSupported ? (
               <button
-                onMouseDown={() => { if (!isRecording) startRecording(); }}
-                onMouseUp={() => { if (isRecording) stopRecordingAndSend(); }}
-                onTouchStart={(e) => { e.preventDefault(); if (!isRecording) startRecording(); }}
-                onTouchEnd={(e) => { e.preventDefault(); if (isRecording) stopRecordingAndSend(); }}
+                type="button"
+                onPointerDown={(e) => {
+                  e.preventDefault();
+                  try {
+                    e.currentTarget.setPointerCapture(e.pointerId);
+                  } catch {
+                    /* 部分环境不支持 capture，仍走全局 pointerup */
+                  }
+                  if (!isRecording) startRecording();
+                }}
+                onPointerUp={(e) => {
+                  e.preventDefault();
+                  try {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                  stopRecordingAndSend();
+                }}
+                onPointerCancel={(e) => {
+                  try {
+                    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+                      e.currentTarget.releasePointerCapture(e.pointerId);
+                    }
+                  } catch {
+                    /* ignore */
+                  }
+                  stopRecordingAndSend();
+                }}
                 disabled={isSending || isInputLocked}
                 className={`rounded-2xl px-4 py-3 text-xs font-black uppercase tracking-widest
                            transition-all select-none flex items-center gap-2

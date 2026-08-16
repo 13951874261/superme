@@ -7771,7 +7771,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           inputs: attachKnowledgeContext(injectOralSystemTime({
             scene_type,
             game_model,
-            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须在输出结果的 suggestion（建议）字段中，额外包含以下两个板块（请严格用中文生动详实地展开）：\n1.【实操策略示例】：提供1-2个可以直接用于破局、拉拢或反制的实操行动步骤，需结合当前场景给出具体入微的动作拆解。\n2.【语言表达修正】：针对玩家在局势中的语气表态，给出具体到台词口音、语言温差上的话术修改方案（需给出\"原台词 -> 修正后台词\"的对比，并解释修正缘由）。你的建议要极具实操借鉴性和情感张力。】',
+            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须输出严格 JSON，除原有字段外，强制包含以下四个独立字段（中文详写，四节去空白合计≥600字）：\n1. interest_chain（利益链）：多方谁赢谁输、利益交换与同盟裂痕。\n2. emotion_motives（情绪动机）：面子/恐惧/欲望/羞辱等情绪判断，须贴场景。\n3. actionable_strategy（可执行策略）：1-2个可落地行动步骤，含先后次序。\n4. script_examples（话术示例）：可直接说出口的台词或「原话→修正」对照。\n另须强制包含 tone_corrections 数组（≥1），元素为 { original, problem, suggested } 三字段，用于独立「语气修正」对比表；不得只把语气修正写进 suggestion。\n另：suggestion 可作一句话汇总。四节字段与 tone_corrections 均不可省略。】',
             user_answer,
             applied_tactics: applied_tactics || '',
             user_current_profile: user_current_profile || '',
@@ -7807,6 +7807,19 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           error: '博弈研判结果格式异常，无法解析 JSON',
         });
         return;
+      }
+
+      const { ensureGameTheoryVerdictSections } = require('./services/gameTheoryVerdictGuard');
+      const { normalizeToneCorrections } = require('./services/toneCorrections');
+      parsedResult = ensureGameTheoryVerdictSections(parsedResult, titleBase);
+      const toneNorm = normalizeToneCorrections(parsedResult.tone_corrections, user_answer);
+      parsedResult.tone_corrections = toneNorm.items;
+      if (toneNorm.repaired) {
+        parsedResult.tone_corrections_repaired = true;
+        const note = String(parsedResult.quality_note || '').trim();
+        parsedResult.quality_note = note
+          ? `${note}；语气修正经系统补全`
+          : '语气修正经系统补全（GT-SIM-02）';
       }
 
       const normalizedPrototype = normalizePrototypeArchive(parsedResult.prototype_archive);
@@ -8749,11 +8762,20 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
       || typeof rawResult.is_passed !== 'boolean') {
       return await runFallback('invalid Dify output');
     }
+    const { ensureAestheticsResult } = require('./services/aestheticsResultGuard');
+    const ensured = ensureAestheticsResult(
+      { feedback, score, is_passed: rawResult.is_passed },
+      sceneCategory
+    );
     appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'aesthetic', action: 'analyzed' });
     return res.json({
       success: true,
-      result: { feedback, score, is_passed: rawResult.is_passed },
-      source: 'dify',
+      result: {
+        feedback: ensured.feedback,
+        score: ensured.score,
+        is_passed: ensured.is_passed,
+      },
+      source: ensured.repaired ? 'dify_repaired' : 'dify',
       knowledgeReminder: injected.reminder,
       knowledgeSynced: injected.syncedCount,
       knowledgeUsed: injected.usedCount,
@@ -11062,25 +11084,32 @@ app.post('/api/insight/listen/scenario', async (req, res) => {
       parseInsightGenAnswer,
       runDifyCompletion,
     } = require('./services/insightSpeakProxy');
+    const { buildScenarioResponse } = require('./services/insightScenarioScript');
     const prepared = buildInsightGenInputs(body);
     const apiKey = resolveInsightGenApiKey(process.env);
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    const data = await runDifyCompletion({
-      apiKey,
-      baseUrl,
-      inputs: prepared.inputs,
-      userId,
-      query: '',
-    });
-    const scenario = parseInsightGenAnswer(data);
-    if (!scenario) {
-      return res.status(502).json({ success: false, error: 'Dify 未返回动态考题' });
+    let answerText = '';
+    try {
+      const data = await runDifyCompletion({
+        apiKey,
+        baseUrl,
+        inputs: prepared.inputs,
+        userId,
+        query: '',
+      });
+      answerText = parseInsightGenAnswer(data);
+    } catch (difyErr) {
+      // 无密钥或 Dify 失败：走兜底，不直接 500（与听模块前端兜底体验一致）
+      console.warn('[insight/scenario] dify failed, using fallback', difyErr.message);
     }
-    res.json({ success: true, scenario });
+    const payload = buildScenarioResponse({
+      answerText,
+      category: prepared.category,
+    });
+    return res.json(payload);
   } catch (error) {
     const badRequest = error.message === 'category required';
-    const status = badRequest ? 400 : (error.statusCode || 500);
-    res.status(status).json({ success: false, error: error.message });
+    res.status(badRequest ? 400 : 500).json({ success: false, error: error.message });
   }
 });
 
@@ -11320,6 +11349,152 @@ app.post('/api/knowledge-vault/export-docx', async (req, res) => {
     res.send(buffer);
   } catch (error) {
     console.error('[KnowledgeVault DOCX Export] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PERF：驭人术手段库后台导出 CSV
+app.post('/api/game-theory/tactics/export-background', async (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    const tactics = Array.isArray(req.body?.tactics) ? req.body.tactics : [];
+    const task = taskQueue.createTask('tactics_export', `导出驭人术手段库 (${tactics.length} 条)`);
+    res.json({ success: true, taskId: task.id, status: task.status });
+    setImmediate(() => {
+      try {
+        taskQueue.updateTask(task.id, {
+          status: 'running',
+          progress: 20,
+          logs: ['正在生成手段库 CSV...'],
+        });
+        const escape = (value) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
+        const rows = [
+          ['手段名称', '分类', '描述', '来源'],
+          ...tactics.map((t) => [
+            t?.name,
+            t?.category === 'downward' ? '上级对下' : '以下克上',
+            t?.description,
+            t?.source_file || (t?.is_custom ? '手动录入' : '系统内置'),
+          ]),
+        ];
+        const content = '\uFEFF' + rows.map((row) => row.map(escape).join(',')).join('\r\n');
+        const name = `驭人术手段库_${new Date().toISOString().slice(0, 10)}.csv`;
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: ['CSV 已生成，可在任务中心下载'],
+          result: {
+            name,
+            content,
+            mimeType: 'text/csv;charset=utf-8',
+          },
+        });
+      } catch (err) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: err?.message || String(err),
+        });
+      }
+    });
+  } catch (error) {
+    console.error('[Tactics Export Background] Error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PERF：资料抽屉后台导出 CSV / DOCX
+app.post('/api/knowledge-vault/export-background', async (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    const format = String(req.body?.format || 'csv').toLowerCase() === 'docx' ? 'docx' : 'csv';
+    const title = String(req.body?.title || '资料管理总汇');
+    const taskName = format === 'docx' ? `导出资料抽屉 Word: ${title}` : `导出资料抽屉 CSV: ${title}`;
+    const task = taskQueue.createTask('vault_export', taskName);
+    res.json({ success: true, taskId: task.id, status: task.status });
+    setImmediate(async () => {
+      try {
+        taskQueue.updateTask(task.id, {
+          status: 'running',
+          progress: 15,
+          logs: [`正在生成 ${format.toUpperCase()}...`],
+        });
+        if (format === 'csv') {
+          const csvContent = String(req.body?.csvContent || '');
+          const name = String(req.body?.filename || '资料管理总汇.csv');
+          taskQueue.updateTask(task.id, {
+            status: 'completed',
+            progress: 100,
+            logs: ['CSV 已生成，可在任务中心下载'],
+            result: {
+              name,
+              content: csvContent.startsWith('\uFEFF') ? csvContent : `\uFEFF${csvContent}`,
+              mimeType: 'text/csv;charset=utf-8',
+            },
+          });
+          return;
+        }
+        const docx = require('docx');
+        const { Document, Paragraph, TextRun, HeadingLevel, Packer, PageBreak } = docx;
+        const sections = Array.isArray(req.body?.sections) ? req.body.sections : [];
+        const docChildren = [];
+        docChildren.push(new Paragraph({
+          text: title,
+          heading: HeadingLevel.HEADING_1,
+          spacing: { after: 400 },
+        }));
+        sections.forEach((section, index) => {
+          if (index > 0) {
+            docChildren.push(new Paragraph({ children: [new PageBreak()] }));
+          }
+          docChildren.push(new Paragraph({
+            children: [new TextRun({
+              text: String(section?.heading || ''),
+              bold: true,
+              size: 28,
+              color: 'FF5722',
+            })],
+            heading: HeadingLevel.HEADING_2,
+            spacing: { after: 200 },
+          }));
+          (Array.isArray(section?.items) ? section.items : []).forEach((item) => {
+            docChildren.push(new Paragraph({
+              text: String(item || ''),
+              spacing: { after: 100, before: 50 },
+              indent: { left: 360 },
+            }));
+          });
+        });
+        docChildren.push(new Paragraph({
+          children: [new TextRun({
+            text: `生成时间: ${new Date().toLocaleString('zh-CN')}`,
+            size: 20,
+            color: '888888',
+          })],
+          spacing: { before: 200 },
+        }));
+        const doc = new Document({ sections: [{ children: docChildren }] });
+        const buffer = await Packer.toBuffer(doc);
+        const name = String(req.body?.filename || '资料管理总汇.docx');
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: ['Word 已生成，可在任务中心下载'],
+          result: {
+            name,
+            content: Buffer.from(buffer).toString('base64'),
+            mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            encoding: 'base64',
+          },
+        });
+      } catch (err) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: err?.message || String(err),
+        });
+      }
+    });
+  } catch (error) {
+    console.error('[Vault Export Background] Error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

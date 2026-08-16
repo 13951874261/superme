@@ -6,10 +6,11 @@ import {
   addTactic,
   deleteTactic,
   uploadTacticsMaterial,
-  exportTacticsToCsv,
+  requestTacticsExportBackground,
   TacticItem,
 } from '../../../services/difyAPI';
 import { getAppUserId } from '../../../utils/profileHelper';
+import { useTask } from '../../TaskContext';
 
 interface TacticsPanelProps {
   selectedTactics: string[];
@@ -17,8 +18,10 @@ interface TacticsPanelProps {
 }
 
 export default function TacticsPanel({ selectedTactics, onToggleTactic }: TacticsPanelProps) {
+  const { addTask } = useTask();
   const [tactics, setTactics] = useState<TacticItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
@@ -67,13 +70,37 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
     }
   };
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (tactics.length === 0) {
       playGentleWarning();
       return;
     }
+    if (exporting) return;
     playClick();
-    exportTacticsToCsv(tactics);
+    setExporting(true);
+    try {
+      const { taskId, status } = await requestTacticsExportBackground(tactics);
+      addTask({
+        id: taskId,
+        type: 'tactics_export',
+        name: `导出驭人术手段库 (${tactics.length} 条)`,
+        status: (status as 'pending' | 'running') || 'pending',
+        progress: 0,
+        logs: ['[系统] 后台导出任务已提交...'],
+      });
+      try {
+        const { showToast } = await import('../../Toast');
+        showToast({ message: '导出任务已在后台执行，请前往【后台任务】下载', type: 'success' });
+      } catch {}
+    } catch (err) {
+      playGentleWarning();
+      try {
+        const { showToast } = await import('../../Toast');
+        showToast({ message: err instanceof Error ? err.message : '发起导出失败', type: 'error' });
+      } catch {}
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleDelete = async (id: string, name: string) => {
@@ -108,9 +135,10 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
           </button>
           <button
             onClick={handleExport}
-            className="flex items-center gap-1 text-[10px] bg-zinc-100 text-zinc-700 px-3 py-1.5 rounded-lg hover:bg-zinc-200 transition-colors"
+            disabled={exporting}
+            className="flex items-center gap-1 text-[10px] bg-zinc-100 text-zinc-700 px-3 py-1.5 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50"
           >
-            <Download className="w-3 h-3" /> 导出
+            {exporting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Download className="w-3 h-3" />} 导出
           </button>
         </div>
       </div>

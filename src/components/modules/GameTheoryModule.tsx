@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, startTransition } from 'react';
 import { 
   Brain, Swords, ShieldAlert, Zap, Loader2, Sparkles, Plus, Trash2, 
   Layers, AlertCircle, CheckCircle, HelpCircle, Trophy, UserCheck, Flame, Compass, X, BookOpen, Users,
@@ -24,9 +24,12 @@ import {
 } from '../../services/difyAPI';
 import TacticsPanel from './GameTheory/TacticsPanel';
 import GameTheorySessionPanel from './GameTheory/GameTheorySessionPanel';
+import ToneCorrectionTable from './GameTheory/ToneCorrectionTable';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
 import { getAppUserId } from '../../utils/profileHelper';
 import { useTask } from '../TaskContext';
+import { consumeGameTheorySessionFocus, GT_NAV_SESSION_EVENT } from '../../utils/gtFocusTab';
+import { evaluateCasePushQuality } from '../../utils/gtCaseQuality';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
   return reminder
@@ -126,6 +129,9 @@ const SIM_OPPONENTS: SimPresetOpponent[] = [
 
 export default function GameTheoryModule() {
   const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'session' | 'ascension' | 'history'>('cases');
+  const [mountedTabs, setMountedTabs] = useState<Set<'cases' | 'tactics' | 'simulation' | 'session' | 'ascension' | 'history'>>(
+    () => new Set(['cases'])
+  );
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [knowledgeHint, setKnowledgeHint] = useState('');
   const [linkedGameKnowledge, setLinkedGameKnowledge] = useState<Array<{ sourceType?: string; sourceRef?: { sourceId?: string } }>>([]);
@@ -215,6 +221,10 @@ export default function GameTheoryModule() {
   const [activeEnv, setActiveEnv] = useState<'gov_struggle' | 'corp_clash' | 'upward_takeover'>('corp_clash');
   const [extraCases, setExtraCases] = useState<PresetCase[]>([]);
   const [casePushLoading, setCasePushLoading] = useState(false);
+  const [casePushQuality, setCasePushQuality] = useState<{
+    quality: 'ok' | 'below_standard';
+    quality_note?: string;
+  } | null>(null);
   const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>('pig_game');
   const [caseText, setCaseText] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
@@ -425,6 +435,25 @@ export default function GameTheoryModule() {
     return () => window.removeEventListener('navigate-game-theory-history', onNav);
   }, []);
 
+  // Speak P1 入口：聚焦多人群体博弈会话 Tab
+  useEffect(() => {
+    const applySessionFocus = () => {
+      if (consumeGameTheorySessionFocus()) {
+        setActiveTab('session');
+        setMountedTabs((prev) => {
+          if (prev.has('session')) return prev;
+          const next = new Set(prev);
+          next.add('session');
+          return next;
+        });
+      }
+    };
+    applySessionFocus();
+    const onNav = () => applySessionFocus();
+    window.addEventListener(GT_NAV_SESSION_EVENT, onNav);
+    return () => window.removeEventListener(GT_NAV_SESSION_EVENT, onNav);
+  }, []);
+
   useEffect(() => {
     if (activeTab === 'history') {
       void loadHistory();
@@ -517,6 +546,7 @@ export default function GameTheoryModule() {
     setCaseText(c.description);
     setSelectedModel(c.model);
     setSelectedTactics(c.defaultTactics);
+    setCasePushQuality(null);
     // 清空四个拆解维度，强制重新研判
     setStakeholderInterests('');
     setMotivesAnalysis('');
@@ -527,10 +557,37 @@ export default function GameTheoryModule() {
   const refreshPushedCase = async () => {
     playClick();
     setCasePushLoading(true);
+    const previousText = caseText;
+    const envPool = [...PRESET_CASES, ...extraCases].filter((item) => item.env === activeEnv);
+    const currentId = envPool.find((item) => item.description === caseText)?.id;
+
+    const applyLocalRotate = () => {
+      const pool = PRESET_CASES.filter((c) => c.env === activeEnv);
+      if (!pool.length) return false;
+      const idx = pool.findIndex((c) => c.description === previousText);
+      const next = pool[(idx >= 0 ? idx + 1 : 0) % pool.length];
+      if (!next || next.description === previousText) {
+        // 仅一条时无法轮换
+        return false;
+      }
+      setCaseText(next.description);
+      setSelectedModel(next.model);
+      setSelectedTactics(next.defaultTactics);
+      setCasePushQuality(null);
+      setStakeholderInterests('');
+      setMotivesAnalysis('');
+      setWeaknesses('');
+      setKeyPoints('');
+      playPageTurn();
+      return true;
+    };
+
     try {
-      const excludeIds = [...PRESET_CASES, ...extraCases]
-        .filter((item) => item.env === activeEnv)
-        .map((item) => item.id);
+      // 只排除当前条与已推送条，勿排除全部预设，否则 fallback 又会回到同一批
+      const excludeIds = [
+        ...(currentId ? [currentId] : []),
+        ...extraCases.filter((item) => item.env === activeEnv).map((item) => item.id),
+      ];
       const pushed = await pushGameTheoryCase({ env: activeEnv, excludeIds });
       const mapped: PresetCase = {
         id: pushed.id,
@@ -541,17 +598,36 @@ export default function GameTheoryModule() {
         defaultTactics: [],
       };
       setExtraCases((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
+      if (mapped.description === previousText) {
+        if (!applyLocalRotate()) {
+          playGentleWarning();
+          alert('推送内容与当前案例相同，请稍后再试');
+        }
+        return;
+      }
       setCaseText(mapped.description);
       setSelectedTactics([]);
+      {
+        const q = pushed.quality
+          ? { quality: pushed.quality, quality_note: pushed.quality_note }
+          : evaluateCasePushQuality(pushed);
+        setCasePushQuality({
+          quality: q.quality === 'below_standard' ? 'below_standard' : 'ok',
+          quality_note: q.quality_note,
+        });
+      }
       setStakeholderInterests('');
       setMotivesAnalysis('');
       setWeaknesses('');
       setKeyPoints('');
       playPageTurn();
     } catch (e) {
-      playGentleWarning();
-      const msg = e instanceof Error ? e.message : String(e);
-      alert(msg);
+      // API 失败时至少轮换本地预设，避免「换一条」完全无感
+      if (!applyLocalRotate()) {
+        playGentleWarning();
+        const msg = e instanceof Error ? e.message : String(e);
+        alert(msg);
+      }
     } finally {
       setCasePushLoading(false);
     }
@@ -681,7 +757,24 @@ export default function GameTheoryModule() {
   // Tab 切换函数
   const handleTabChange = (tab: typeof activeTab) => {
     playPageTurn();
-    setActiveTab(tab);
+    startTransition(() => {
+      setActiveTab(tab);
+      setMountedTabs((prev) => {
+        if (prev.has(tab)) return prev;
+        const next = new Set(prev);
+        next.add(tab);
+        return next;
+      });
+    });
+  };
+
+  const renderGtTab = (id: typeof activeTab, node: React.ReactNode) => {
+    if (!mountedTabs.has(id)) return null;
+    return (
+      <div key={id} hidden={activeTab !== id}>
+        {node}
+      </div>
+    );
   };
 
   return (
@@ -729,7 +822,7 @@ export default function GameTheoryModule() {
           transition={{ duration: 0.2 }}
         >
           {/* TAB 1: 真实高管斗争案例库 */}
-          {activeTab === 'cases' && (
+          {renderGtTab('cases', (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8 items-start">
               <div className="lg:col-span-10">
                 <div className="grid grid-cols-1 md:grid-cols-10 gap-6 items-start">
@@ -827,6 +920,11 @@ export default function GameTheoryModule() {
                       </div>
 
                       <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
+                        {casePushQuality?.quality === 'below_standard' && (
+                          <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-900 leading-relaxed">
+                            {casePushQuality.quality_note || '案例背景未达详实门槛（GT-CASE-02）'}
+                          </div>
+                        )}
                         <textarea 
                           rows={3}
                           value={caseText}
@@ -1012,10 +1110,10 @@ export default function GameTheoryModule() {
                 </div>
               </div>
             </div>
-          )}
+          ))}
 
           {/* TAB 2: 驭人术与人性档案 */}
-          {activeTab === 'tactics' && (
+          {renderGtTab('tactics', (
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
               {/* 左面板 60%：手段工具箱 */}
               <div className="lg:col-span-6">
@@ -1140,10 +1238,10 @@ export default function GameTheoryModule() {
                 </div>
               </div>
             </div>
-          )}
+          ))}
 
           {/* TAB 3: 博弈论实操推演（人机对战） */}
-          {activeTab === 'simulation' && (() => {
+          {renderGtTab('simulation', (() => {
             const simShowResultStage = simLoading || !!simSubmitNotice || !!simSubmitError;
             const simShowForm = !simShowResultStage || simFormExpanded || simLoading || !!simSubmitError || !!simSubmitNotice;
             const isPresetOpponent = SIM_OPPONENTS.some((opp) => opp.id === simOpponentId);
@@ -1501,14 +1599,14 @@ export default function GameTheoryModule() {
                 </AnimatePresence>
               </div>
             );
-          })()}
+          })())}
 
-          {activeTab === 'session' && (
+          {renderGtTab('session', (
             <GameTheorySessionPanel />
-          )}
+          ))}
 
           {/* TAB: 对局历史 */}
-          {activeTab === 'history' && (
+          {renderGtTab('history', (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
@@ -1594,18 +1692,49 @@ export default function GameTheoryModule() {
                               </p>
                               <p className="text-2xl font-black font-mono text-zinc-800">{expandedDetail.full_result.score}</p>
                             </div>
-                            <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
-                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">利益结构</span>
-                              <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.stakeholder_interests}</p>
-                            </div>
-                            <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
-                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">动机透视</span>
-                              <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.motives_analysis}</p>
-                            </div>
-                            <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
-                              <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">权力弱点</span>
-                              <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.weaknesses}</p>
-                            </div>
+                            {expandedDetail.full_result.quality === 'below_standard' && (
+                              <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-800 leading-relaxed">
+                                {expandedDetail.full_result.quality_note || '研判未达四节/字数门槛（GT-CASE-02）'}
+                              </div>
+                            )}
+                            {(expandedDetail.full_result.interest_chain
+                              || expandedDetail.full_result.emotion_motives
+                              || expandedDetail.full_result.actionable_strategy
+                              || expandedDetail.full_result.script_examples) ? (
+                              <>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">利益链</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.interest_chain}</p>
+                                </div>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">情绪动机</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.emotion_motives}</p>
+                                </div>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">可执行策略</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.actionable_strategy}</p>
+                                </div>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">话术示例</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.script_examples}</p>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">利益结构</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.stakeholder_interests}</p>
+                                </div>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">动机透视</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.motives_analysis}</p>
+                                </div>
+                                <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                  <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">权力弱点</span>
+                                  <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.weaknesses}</p>
+                                </div>
+                              </>
+                            )}
                             <div className="bg-white rounded-xl p-3 border border-zinc-100">
                               <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-2">因果传导链</span>
                               <div className="space-y-2">
@@ -1621,6 +1750,12 @@ export default function GameTheoryModule() {
                               <span className="text-[9px] text-zinc-800 font-bold uppercase tracking-wider block mb-1">建议</span>
                               <p className="text-xs text-zinc-700 leading-relaxed font-semibold">{expandedDetail.full_result.suggestion}</p>
                             </div>
+                            {(expandedDetail.full_result.tone_corrections?.length ?? 0) > 0 && (
+                              <ToneCorrectionTable
+                                items={expandedDetail.full_result.tone_corrections || []}
+                                repaired={Boolean(expandedDetail.full_result.tone_corrections_repaired)}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
@@ -1629,9 +1764,9 @@ export default function GameTheoryModule() {
                 </div>
               )}
             </div>
-          )}
+          ))}
 
-          {activeTab === 'ascension' && (
+          {renderGtTab('ascension', (
 
             <div className="grid grid-cols-1 lg:grid-cols-10 gap-8">
               {/* 左 70%：5 层纵深因果链 */}
@@ -1789,7 +1924,7 @@ export default function GameTheoryModule() {
                 )}
               </div>
             </div>
-          )}
+          ))}
         </motion.div>
       </AnimatePresence>
 

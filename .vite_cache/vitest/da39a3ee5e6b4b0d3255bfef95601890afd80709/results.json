@@ -1,0 +1,1 @@
+{"version":"3.2.7","results":[[":src/utils/aestheticsResultGuard.test.ts",{"duration":9.43369999999993,"failed":false}],[":src/utils/gtCaseQuality.test.ts",{"duration":8.224399999999946,"failed":false}],[":src/utils/toneCorrections.test.ts",{"duration":5.581299999999942,"failed":false}],[":src/components/KnowledgeVault/vaultExport.test.ts",{"duration":0,"failed":true}]]}

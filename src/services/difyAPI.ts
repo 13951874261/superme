@@ -14,6 +14,8 @@ import type {
   SessionRoleDraft,
 } from '../components/modules/GameTheory/GameTheorySessionTypes';
 import { GameTheorySessionApiError } from '../components/modules/GameTheory/GameTheorySessionTypes';
+import type { InsightScenarioResult } from '../utils/insightScript';
+import { parseInsightScenarioPayload } from '../utils/insightScript';
 
 // ── 原有接口保留 ────────────────────────────────────────────
 export interface ListenWorkflowInput {
@@ -1448,19 +1450,18 @@ export async function fetchInsightFeedback(inputs: InsightListenInputs, userId =
 /**
  * 动态获取洞察考题（本站后端代理，密钥不进浏览器）
  */
-export async function fetchDynamicInsightScenario(category: string, userId = getAppUserId()): Promise<string> {
+export async function fetchDynamicInsightScenario(
+  category: string,
+  userId = getAppUserId()
+): Promise<InsightScenarioResult> {
   const res = await fetch('/api/insight/listen/scenario', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ category, userId }),
   });
-
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || `获取动态考题失败 HTTP ${res.status}`);
-
-  const scenario = String(data?.scenario || '').trim();
-  if (!scenario) throw new Error('未返回动态考题');
-  return scenario;
+  return parseInsightScenarioPayload(data);
 }
 
 // ── 破局系统（说）相关接口 ─────────────────────────────────────────
@@ -1577,6 +1578,17 @@ export interface GameTheoryAnalyzeResult {
   causal_chain: string[];
   prototype_archive: GameTheoryPrototypeArchive;
   suggestion: string;
+  /** GT-CASE-02 研判四节 */
+  interest_chain?: string;
+  emotion_motives?: string;
+  actionable_strategy?: string;
+  script_examples?: string;
+  quality?: 'ok' | 'below_standard';
+  quality_note?: string;
+  sections_char_count?: number;
+  /** GT-SIM-02 */
+  tone_corrections?: Array<{ original: string; problem: string; suggested: string }>;
+  tone_corrections_repaired?: boolean;
 }
 
 export interface PersonalPrototype {
@@ -1654,6 +1666,9 @@ export interface GameTheoryCasePush {
   incomplete_info: string;
   decision_point: string;
   source: string;
+  quality?: 'ok' | 'below_standard';
+  quality_note?: string;
+  char_count?: number;
 }
 
 export async function pushGameTheoryCase(params: {
@@ -1969,16 +1984,43 @@ export async function uploadTacticsMaterial(file: File, userId = getAppUserId())
   return data;
 }
 
-export function exportTacticsToCsv(tactics: TacticItem[]): void {
+export function buildTacticsCsvString(tactics: TacticItem[]): string {
   const escape = (value: unknown) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
-  const rows = [['手段名称', '分类', '描述', '来源'], ...tactics.map(t => [t.name, t.category === 'downward' ? '上级对下' : '以下克上', t.description, t.source_file || (t.is_custom ? '手动录入' : '系统内置')])];
-  const csv = '\uFEFF' + rows.map(row => row.map(escape).join(',')).join('\r\n');
+  const rows = [
+    ['手段名称', '分类', '描述', '来源'],
+    ...tactics.map((t) => [
+      t.name,
+      t.category === 'downward' ? '上级对下' : '以下克上',
+      t.description,
+      t.source_file || (t.is_custom ? '手动录入' : '系统内置'),
+    ]),
+  ];
+  return '\uFEFF' + rows.map((row) => row.map(escape).join(',')).join('\r\n');
+}
+
+export function exportTacticsToCsv(tactics: TacticItem[]): void {
+  const csv = buildTacticsCsvString(tactics);
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
   link.download = `驭人术手段库_${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+export async function requestTacticsExportBackground(
+  tactics: TacticItem[]
+): Promise<{ taskId: string; status: string }> {
+  const res = await fetch('/api/game-theory/tactics/export-background', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tactics }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.success || !data?.taskId) {
+    throw new Error(data?.error || '发起手段库导出失败');
+  }
+  return { taskId: data.taskId as string, status: String(data.status || 'pending') };
 }
 
 const FLAW_SUB_THEMES = [
@@ -2385,7 +2427,8 @@ export async function generateReadMaterial(
   const query = `你是一个顶级商务与政策教官。请为我动态生成一篇用于高管穿透训练的【${typeName}】原始文本。
 场景框架要求限制在：【${frameworkName}】。
 内容必须专业、硬核、贴近真实商业利益博弈（比如包含具体的部门拉扯、财报数据隐性漏洞或政策潜台词）。
-字数在 150-300 字之间。不要任何前言、不要任何“好的，这是为您生成的材料”等废话，直接输出材料正文。`;
+必须包含：完整背景、多方立场、利益冲突与可引用细节。
+正文去空白后字数必须不少于 1500 字（宁可写足细节，也不要写成摘要）。不要任何前言、不要任何“好的，这是为您生成的材料”等废话，直接输出材料正文。`;
 
   const data = await proxyOralChatMessage(query, {
     userId,

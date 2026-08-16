@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, startTransition } from 'react';
 import Header from './Header';
 import EnglishModule from './modules/EnglishModule';
 import DailyWakeupModule from './modules/DailyWakeupModule';
@@ -76,7 +76,7 @@ export default function MainContent({
       )}
       {activeModule === 'speak' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
-          <SpeakModule />
+          <SpeakModule setActiveModule={setActiveModule} />
         </React.Suspense>
       )}
       {activeModule === 'read' && (
@@ -116,7 +116,9 @@ export default function MainContent({
         playClick();
         playPageTurn();
       }
-      setActiveModule(tabId);
+      startTransition(() => {
+        setActiveModule(tabId);
+      });
     }
   };
 

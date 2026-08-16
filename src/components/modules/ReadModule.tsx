@@ -17,6 +17,7 @@ import {
 } from '../../utils/soundEffects';
 import { motion, AnimatePresence } from 'motion/react';
 import UrlFetchPanel from '../UrlFetchPanel';
+import { evaluateReadPushQuality, READ_PUSH_MIN_CHARS } from '../../utils/readPushQuality';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -80,6 +81,8 @@ export default function ReadModule() {
   const [inputMode, setInputMode] = useState<'manual' | 'url' | 'file'>('manual');
   const [isFetchLoading, setIsFetchLoading] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [pushQuality, setPushQuality] = useState<'ok' | 'below_standard' | null>(null);
+  const [pushCharCount, setPushCharCount] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [isPushLoading, setIsPushLoading] = useState(false);
   const [result, setResult] = useState<CognitivePenetrationResult | null>(null);
@@ -155,13 +158,18 @@ export default function ReadModule() {
     setUserReversalText('');
     setReversalSubmitted(false);
     setChatMessages([]);
+    setPushQuality(null);
     playPageTurn();
     try {
       const text = await generateReadMaterial(activeTab, sceneFramework);
       setInputText(text);
+      const q = evaluateReadPushQuality(text);
+      setPushCharCount(q.charCount);
+      setPushQuality(q.quality);
     } catch (err: any) {
       console.error(err);
       setErrorMsg('动态素材投喂失败，请手动录入');
+      setPushQuality(null);
       setTimeout(() => setErrorMsg(''), 4000);
     } finally {
       setIsPushLoading(false);
@@ -812,7 +820,10 @@ export default function ReadModule() {
             <textarea 
               rows={4} 
               value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
+              onChange={(e) => {
+                setInputText(e.target.value);
+                setPushQuality(null);
+              }}
               className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
               placeholder={
                 activeTab === 'book'
@@ -820,6 +831,11 @@ export default function ReadModule() {
                   : "粘贴冗杂的原文，或点击右上方“每日 AI 素材推送”由 AI 推送符合该场景下的训练素材..."
               }
             />
+            {pushQuality === 'below_standard' && (
+              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 leading-relaxed">
+                未达 {READ_PUSH_MIN_CHARS} 字标准（当前约 {pushCharCount} 字）。仍可继续穿透解码，也可再次点击「每日 AI 素材推送」重试。
+              </div>
+            )}
           </div>
 
           {/* 触发/解码按钮 */}

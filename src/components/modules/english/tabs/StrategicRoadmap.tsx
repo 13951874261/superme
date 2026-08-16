@@ -65,6 +65,9 @@ export default function StrategicRoadmap({
           {currentTheme}
         </div>
       </div>
+      <p className="text-[10px] text-slate-500 font-medium leading-relaxed shrink-0 -mt-0.5">
+        时间紧时请优先政务轨道 · 0-6月（全场景可随时并行，互不锁定）
+      </p>
 
       <div className="relative px-1 pt-1 pb-0.5 shrink-0">
         <div className="absolute top-[7px] left-4 right-4 h-[2px] bg-slate-200/70 rounded-full" />

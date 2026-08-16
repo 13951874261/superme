@@ -4,7 +4,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'insight_listen' | 'speak';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'insight_listen' | 'speak';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -14,6 +14,7 @@ export interface TaskItem {
     name?: string;
     content?: string;
     mimeType?: string;
+    encoding?: string;
     sourceType?: string;
     sourceUrl?: string;
     audioUrl?: string;

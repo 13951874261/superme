@@ -27,6 +27,7 @@ import {
 import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB, extractListenKnowledgeDraft } from '../../services/difyAPI';
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
 import InsightMindMap from './insight/InsightMindMap';
+import InsightScriptReadonlyView from './insight/InsightScriptReadonlyView';
 import { buildInsightMindMap, type InsightMindMapNode } from '../../utils/insightMindMapBuilder';
 import {
   downloadSvg,
@@ -38,6 +39,14 @@ import {
 } from '../../utils/mindMapExport';
 import { downloadInsightDocx } from '../../utils/insightWordExport';
 import { useTask } from '../TaskContext';
+import type { ScriptWorkshopDraft } from './GameTheory/ScriptWorkshopTypes';
+import { PRESET_BENCHMARK_SCRIPTS } from './GameTheory/scriptEvaluator';
+import {
+  evaluateInsightScriptQuality,
+  flattenInsightScript,
+  wrapPlainScenarioAsDraft,
+  type InsightScriptQuality,
+} from '../../utils/insightScript';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
   return reminder
@@ -45,7 +54,7 @@ function knowledgeTaskLogs(reminder?: string): string[] {
     : ['任务已提交，请在任务中心查看进度'];
 }
 
-const CATEGORIES = ['体制内', '外企', '通用逻辑'] as const;
+const CATEGORIES = ['体制内', '外企', '通用社交'] as const;
 type CategoryType = typeof CATEGORIES[number];
 
 const FALLBACK_SCENARIOS: Record<CategoryType, string> = {
@@ -53,8 +62,8 @@ const FALLBACK_SCENARIOS: Record<CategoryType, string> = {
     '【内置案例·体制内】两位项目负责人在走廊相遇。A拍了拍B的肩膀，叹了口气说：“听老李说，你们组那个项目这次拿下了？太不容易了，听说你们天天连轴转，家里都顾不上了吧。我们组这个项目虽然顺利，但也都是大家正常工时完成的，真羡慕你们这股拼劲！”\n（请解析A的潜在攀比与贬低之意）',
   '外企':
     '【内置案例·外企】某跨国公司中方总监在战略复盘会上，靠在椅背上双臂交叉，微笑着对美方VP说：“对于上季度的交付延迟，我们完全理解美方的担忧。不过正如你们所知，我们在本地供应链的重组上投入了极大的精力。只要美方的核心系统接口能在下周按时冻结，我相信我们能够在下阶段实现赶超。”\n（请分析其中隐藏的跨文化推责话术）',
-  '通用逻辑':
-    '【内置案例·通用逻辑】某商业谈判代表在签约前最后一轮会谈中，放慢语速，眼神直视对方CFO说：“这个价格确实是我们能给出的底线。虽然董事会的一些成员觉得我们有些让步过多，但出于双方长期的战略互信，我还是极力说服了大家。只是关于付款周期，我们可能需要按照之前的A方案执行。”\n（请识别其中的道德绑架与让步防线破绽）',
+  '通用社交':
+    '【内置案例·通用社交】周末社区咖啡馆，你和邻居老陈并排坐着。他笑着把杯子往你这边推了推，说：“听说你最近在谈租房续签？我们那栋楼管其实都挺熟的，有些事口头提一句比书面硬刚管用。对了，你家那位上周是不是也去问过物业？我只是随口问问，别多想。”隔壁桌有人起身经过，老陈突然压低声音又补了一句：“其实我也没别的意思，就是怕你吃亏。”\n（请识别寒暄外壳下的探路、站队暗示与信息不对等施压）',
 };
 
 // 预置逻辑与心理学知识框架数据
@@ -118,7 +127,19 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [activeCategory, setActiveCategory] = useState<CategoryType>('体制内');
   const [currentScenario, setCurrentScenario] = useState<string>('');
+  const [currentDraft, setCurrentDraft] = useState<ScriptWorkshopDraft | null>(null);
+  const [scriptEvaluation, setScriptEvaluation] = useState({ totalWords: 0, estimatedMinutes: 0 });
+  const [scriptQuality, setScriptQuality] = useState<InsightScriptQuality>('ok');
   const [isLoadingScenario, setIsLoadingScenario] = useState(false);
+
+  const applyPlainScenario = useCallback((text: string, category: string = '') => {
+    const draft = wrapPlainScenarioAsDraft(text, category);
+    const e = evaluateInsightScriptQuality(draft);
+    setCurrentDraft(draft);
+    setScriptEvaluation({ totalWords: e.totalWords, estimatedMinutes: e.estimatedMinutes });
+    setScriptQuality(e.quality);
+    setCurrentScenario(flattenInsightScript(draft));
+  }, []);
 
   // 左右分栏状态
   const [leftTab, setLeftTab] = useState<'theory' | 'upload'>('theory');
@@ -173,7 +194,10 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   // 动态获取题目的函数
   const loadNewScenario = useCallback(async (category: CategoryType) => {
     setIsLoadingScenario(true);
-    setCurrentScenario(''); 
+    setCurrentScenario('');
+    setCurrentDraft(null);
+    setScriptEvaluation({ totalWords: 0, estimatedMinutes: 0 });
+    setScriptQuality('ok');
     setFeedback(null); 
     setMindMap(null);
     setEvaluatedScore(null);
@@ -194,11 +218,25 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     });
     
     try {
-      const scenario = await fetchDynamicInsightScenario(category);
-      setCurrentScenario(scenario || FALLBACK_SCENARIOS[category]);
+      const result = await fetchDynamicInsightScenario(category);
+      setCurrentDraft(result.draft);
+      setScriptEvaluation({
+        totalWords: result.evaluation.totalWords,
+        estimatedMinutes: result.evaluation.estimatedMinutes,
+      });
+      setScriptQuality(result.quality);
+      setCurrentScenario(result.scenario);
     } catch (error) {
-      console.warn('[ListenModule] 动态出题不可用，改用内置案例', error);
-      setCurrentScenario(FALLBACK_SCENARIOS[category]);
+      console.warn('[ListenModule] 动态出题不可用，改用预设长剧本', error);
+      const draft: ScriptWorkshopDraft = {
+        ...PRESET_BENCHMARK_SCRIPTS[0],
+        sceneTitle: `【${category}】${PRESET_BENCHMARK_SCRIPTS[0].sceneTitle}`,
+      };
+      const e = evaluateInsightScriptQuality(draft);
+      setCurrentDraft(draft);
+      setScriptEvaluation({ totalWords: e.totalWords, estimatedMinutes: e.estimatedMinutes });
+      setScriptQuality(e.quality);
+      setCurrentScenario(flattenInsightScript(draft));
     } finally {
       setIsLoadingScenario(false);
     }
@@ -386,9 +424,15 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
         setUploadDraftNotice(draftNotice);
         playSuccess();
         if (uploadFile) {
-          setCurrentScenario(`【根据导入文件《${uploadFile.name}》自动转换的博弈案例】\n某跨国公司中方总监在战略复盘会上，靠在椅背上双臂交叉，微笑着对美方VP说：“对于上季度的交付延迟，我们完全理解美方的担忧。不过正如你们所知，我们在本地供应链的重组上投入了极大的精力。只要美方的核心系统接口能在下周按时冻结，我相信我们能够在下阶段实现赶超。”\n（请分析其中隐藏的跨文化推责话术）`);
+          applyPlainScenario(
+            `【根据导入文件《${uploadFile.name}》自动转换的博弈案例】\n某跨国公司中方总监在战略复盘会上，靠在椅背上双臂交叉，微笑着对美方VP说：“对于上季度的交付延迟，我们完全理解美方的担忧。不过正如你们所知，我们在本地供应链的重组上投入了极大的精力。只要美方的核心系统接口能在下周按时冻结，我相信我们能够在下阶段实现赶超。”\n（请分析其中隐藏的跨文化推责话术）`,
+            activeCategory
+          );
         } else {
-          setCurrentScenario(`【从网址导入分析生成的博弈案例】\n某商业谈判代表在签约前最后一轮会谈中，放慢语速，眼神直视对方CFO说：“这个价格确实是我们能给出的底线。虽然董事会的一些成员觉得我们有些让步过多，但出于双方长期的战略互信，我还是极力说服了大家。只是关于付款周期，我们可能需要按照之前的A方案执行。”\n（请识别其中的道德绑架与让步防线破绽）`);
+          applyPlainScenario(
+            `【从网址导入分析生成的博弈案例】\n某商业谈判代表在签约前最后一轮会谈中，放慢语速，眼神直视对方CFO说：“这个价格确实是我们能给出的底线。虽然董事会的一些成员觉得我们有些让步过多，但出于双方长期的战略互信，我还是极力说服了大家。只是关于付款周期，我们可能需要按照之前的A方案执行。”\n（请识别其中的道德绑架与让步防线破绽）`,
+            activeCategory
+          );
         }
         setLeftTab('theory');
       }, 800);
@@ -397,7 +441,10 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       clearInterval(interval);
       setIsUploading(false);
       alert('上传素材解析失败，已为您自动生成预设场景。');
-      setCurrentScenario(`【模拟网页数据生成的案例】\n两位项目负责人在走廊相遇。A拍了拍B的肩膀，叹了口气说：“听老李说，你们组那个项目这次拿下了？太不容易了，听说你们天天连轴转，家里都顾不上了吧。我们组这个项目虽然顺利，但也都是大家正常工时完成的，真羡慕你们这股拼劲！”\n（请解析A的潜在攀比与贬低之意）`);
+      applyPlainScenario(
+        `【模拟网页数据生成的案例】\n两位项目负责人在走廊相遇。A拍了拍B的肩膀，叹了口气说：“听老李说，你们组那个项目这次拿下了？太不容易了，听说你们天天连轴转，家里都顾不上了吧。我们组这个项目虽然顺利，但也都是大家正常工时完成的，真羡慕你们这股拼劲！”\n（请解析A的潜在攀比与贬低之意）`,
+        activeCategory
+      );
       setLeftTab('theory');
     }
   };
@@ -503,7 +550,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     try {
       const parsed = JSON.parse(raw) as { feedback?: string; scenarioText?: string };
       if (typeof parsed.scenarioText === 'string' && parsed.scenarioText) {
-        setCurrentScenario(parsed.scenarioText);
+        applyPlainScenario(parsed.scenarioText, activeCategory);
       }
       if (typeof parsed.feedback === 'string' && parsed.feedback) {
         applyInsightResult(parsed.feedback, parsed.scenarioText || currentScenario);
@@ -768,7 +815,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" />
-                  {tab}职场
+                  {tab === '通用社交' ? '通用社交' : `${tab}职场`}
                 </button>
               );
             })}
@@ -797,15 +844,22 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
             </span>
           </div>
 
-          {isLoadingScenario ? (
+          {isLoadingScenario && !currentDraft ? (
             <div className="space-y-2.5 py-2 animate-pulse">
               <div className="h-4 bg-slate-800 rounded w-5/6"></div>
               <div className="h-4 bg-slate-800 rounded w-full"></div>
               <div className="h-4 bg-slate-800 rounded w-2/3"></div>
             </div>
+          ) : currentDraft ? (
+            <InsightScriptReadonlyView
+              draft={currentDraft}
+              evaluation={scriptEvaluation}
+              quality={scriptQuality}
+              loading={isLoadingScenario}
+            />
           ) : (
             <p className="text-sm leading-relaxed text-slate-100 whitespace-pre-wrap font-medium">
-              {currentScenario || '正在生成新案例...'}
+              {isLoadingScenario ? '正在生成新案例...' : currentScenario || '正在生成新案例...'}
             </p>
           )}
         </div>
@@ -1055,7 +1109,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
                   )}
                 <button
                   onClick={handleSubmit}
-                  disabled={isSubmitting || isLoadingScenario || !!pendingInsightTaskId}
+                  disabled={isSubmitting || isLoadingScenario || !!pendingInsightTaskId || !currentDraft}
                   className="bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-extrabold px-6 py-3 rounded-xl text-xs transition-all flex items-center gap-2 active:scale-98 shadow-sm"
                 >
                   {isSubmitting || pendingInsightTaskId ? (

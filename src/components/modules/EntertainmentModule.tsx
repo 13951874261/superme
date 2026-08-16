@@ -18,6 +18,9 @@ import { playClick, playSuccess, playError } from '../../utils/soundEffects';
 
 import { getAppUserId, injectUserProfileAndTime } from '../../utils/profileHelper';
 
+import { AESTHETICS_RULES_MIN, evaluateRulesTipQuality, ensureMinRules } from '../../utils/aestheticsRulesTips';
+import { ensureAestheticsResult } from '../../utils/aestheticsResultGuard';
+
 
 
 // ---------------- 1. 深度情境数据库 (社交场合与高端审美) ----------------
@@ -309,7 +312,7 @@ export default function EntertainmentModule() {
 
             icon: <BookOpen size={18} />,
 
-            rules: Array.isArray(r.rules) ? r.rules : (r.rules ? String(r.rules).split('?').map(s => s.trim()).filter(Boolean) : []),
+            rules: ensureMinRules(Array.isArray(r.rules) ? r.rules : (r.rules ? String(r.rules).split(/[。；;?\n]+/).map(s => s.trim()).filter(Boolean) : [])),
 
             temper: r.temper || '',
 
@@ -466,10 +469,15 @@ export default function EntertainmentModule() {
       });
       const data = await res.json();
       if (data?.success && data?.result) {
-        const { feedback, score, is_passed } = data.result;
-        const parsedOutputs = { feedback, score, is_passed };
+        const sceneCategory = getDifySceneCategory(selectedScenario.id);
+        const ensured = ensureAestheticsResult(data.result, sceneCategory);
+        const parsedOutputs = {
+          feedback: ensured.feedback,
+          score: ensured.score,
+          is_passed: ensured.is_passed,
+        };
         setDifyFeedback(parsedOutputs);
-        if (is_passed) {
+        if (ensured.is_passed) {
           triggerSuccess();
           triggerSuccessAnimation();
         } else {
@@ -1044,7 +1052,7 @@ export default function EntertainmentModule() {
 
                               icon: <BookOpen size={18} />,
 
-                              rules: Array.isArray(r.rules) ? r.rules : (r.rules ? String(r.rules).split('?').map(s => s.trim()).filter(Boolean) : []),
+                              rules: ensureMinRules(Array.isArray(r.rules) ? r.rules : (r.rules ? String(r.rules).split(/[。；;?\n]+/).map(s => s.trim()).filter(Boolean) : [])),
 
                               temper: r.temper || '',
 
@@ -1227,11 +1235,23 @@ export default function EntertainmentModule() {
 
                       <span className="text-zinc-400 block mb-0.5">① 场合规则与潜规则</span>
 
-                      <ul className="text-zinc-800 leading-relaxed font-medium bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
-                        {Array.isArray(selectedScenario.rules) ? selectedScenario.rules.map((rule, i) => (
-                          <li key={i} className="flex items-start gap-2 mb-1"><span className="text-zinc-400 min-w-[1.2em]">{i+1}.</span>{rule}</li>
-                        )) : <p>{selectedScenario.rules}</p>}
-                      </ul>
+                      {(() => {
+                        const tipQ = evaluateRulesTipQuality(selectedScenario.rules);
+                        return (
+                          <>
+                            {tipQ.quality === 'below_standard' && (
+                              <div className="mb-2 rounded-lg border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-[10px] font-bold text-amber-800">
+                                实操规则不足 {AESTHETICS_RULES_MIN} 条（原始 {tipQ.count} 条），已自动补足展示；建议换一条或等待日更。
+                              </div>
+                            )}
+                            <ul className="text-zinc-800 leading-relaxed font-medium bg-zinc-50 p-2.5 rounded-lg border border-zinc-100">
+                              {tipQ.rules.map((rule, i) => (
+                                <li key={i} className="flex items-start gap-2 mb-1"><span className="text-zinc-400 min-w-[1.2em]">{i+1}.</span>{rule}</li>
+                              ))}
+                            </ul>
+                          </>
+                        );
+                      })()}
 
                     </div>
 

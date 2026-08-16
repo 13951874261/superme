@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import ScriptWorkshopDrawer from './ScriptWorkshopDrawer';
 import { ScriptWorkshopDraft } from './ScriptWorkshopTypes';
+import ToneCorrectionTable from './ToneCorrectionTable';
 import { playClick, playGentleWarning, playPageTurn } from '../../../utils/soundEffects';
 import {
   controlGameTheorySession,
@@ -619,6 +620,12 @@ function ReviewView({ review }: { review: GameTheoryPersonalReview }) {
             </div>
           )}
         </div>
+      )}
+      {(review.tone_corrections?.length ?? 0) > 0 && (
+        <ToneCorrectionTable
+          items={review.tone_corrections || []}
+          repaired={Boolean(review.tone_corrections_repaired)}
+        />
       )}
       <Fold title="误判" defaultOpen>
         {(review.missteps || []).map((item, idx) => {

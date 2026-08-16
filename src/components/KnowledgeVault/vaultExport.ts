@@ -160,7 +160,7 @@ export function exportAestheticTipsToCsv(tips: KnowledgeVault['aestheticTips']) 
 }
 
 // Export all to a single CSV with sections
-export function exportAllToCsv(vault: KnowledgeVault) {
+export function buildAllVaultCsvString(vault: KnowledgeVault): string {
   const rows: string[][] = [];
   rows.push(['=== 英语笔记本 ===']);
   rows.push(...buildEnglishNoteCsvRows(vault.englishNotes));
@@ -173,7 +173,11 @@ export function exportAllToCsv(vault: KnowledgeVault) {
   rows.push([]);
   rows.push(['=== 审美要点 ===']);
   rows.push(...buildAestheticTipCsvRows(vault.aestheticTips));
-  downloadFile(toCsvString(rows), '资料管理总汇.csv', 'text/csv;charset=utf-8');
+  return toCsvString(rows);
+}
+
+export function exportAllToCsv(vault: KnowledgeVault) {
+  downloadFile(buildAllVaultCsvString(vault), '资料管理总汇.csv', 'text/csv;charset=utf-8');
 }
 
 // Word export via backend API
@@ -187,22 +191,8 @@ async function exportWord(title: string, sections: { heading: string; items: str
   return await res.blob();
 }
 
-export async function exportEnglishNotesToWord(notes: KnowledgeVault['englishNotes']) {
-  const sections = [
-    {
-      heading: '英语笔记本',
-      items: notes.map((n) => formatWordExportItem(
-        n.word + ' - ' + n.meaning + (n.example ? ('\n例句: ' + n.example) : ''),
-        n,
-      )),
-    },
-  ];
-  const blob = await exportWord('英语笔记本', sections);
-  downloadBinary(blob, '英语笔记本.docx');
-}
-
-export async function exportAllToWord(vault: KnowledgeVault) {
-  const sections = [
+export function buildAllVaultWordSections(vault: KnowledgeVault): { heading: string; items: string[] }[] {
+  return [
     {
       heading: '英语笔记本',
       items: vault.englishNotes.map((n) => formatWordExportItem(
@@ -232,6 +222,42 @@ export async function exportAllToWord(vault: KnowledgeVault) {
       )),
     },
   ];
-  const blob = await exportWord('资料管理总汇', sections);
+}
+
+export async function exportEnglishNotesToWord(notes: KnowledgeVault['englishNotes']) {
+  const sections = [
+    {
+      heading: '英语笔记本',
+      items: notes.map((n) => formatWordExportItem(
+        n.word + ' - ' + n.meaning + (n.example ? ('\n例句: ' + n.example) : ''),
+        n,
+      )),
+    },
+  ];
+  const blob = await exportWord('英语笔记本', sections);
+  downloadBinary(blob, '英语笔记本.docx');
+}
+
+export async function exportAllToWord(vault: KnowledgeVault) {
+  const blob = await exportWord('资料管理总汇', buildAllVaultWordSections(vault));
   downloadBinary(blob, '资料管理总汇.docx');
+}
+
+export async function requestVaultExportBackground(params: {
+  format: 'csv' | 'docx';
+  title?: string;
+  filename?: string;
+  csvContent?: string;
+  sections?: { heading: string; items: string[] }[];
+}): Promise<{ taskId: string; status: string }> {
+  const res = await fetch('/api/knowledge-vault/export-background', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(params),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.success || !data?.taskId) {
+    throw new Error(data?.error || '发起资料抽屉导出失败');
+  }
+  return { taskId: data.taskId as string, status: String(data.status || 'pending') };
 }

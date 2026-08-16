@@ -6,6 +6,8 @@ import * as vaultExport from "./vaultExport";
 import { fetchKnowledgeRevisions, summarizeKnowledgeRevision, type KnowledgeRevisionView } from "./vaultRevisions";
 import { getAppUserId } from "../../utils/profileHelper";
 import KnowledgeGraphPanel from "./KnowledgeGraphPanel";
+import { useTask } from "../TaskContext";
+import { playClick, playGentleWarning } from "../../utils/soundEffects";
 
 const MODULE_OPTIONS: { value: KnowledgeModule; label: string }[] = [
   { value: "listen", label: "听力" },
@@ -186,11 +188,13 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
     addAestheticTip, updateAestheticTip, deleteAestheticTip,
     syncKnowledge, archiveKnowledge, importMapped,
   } = useKnowledgeVault();
+  const { addTask } = useTask();
 
   const [activeTab, setActiveTab] = useState<"english" | "theory" | "writing" | "aesthetic" | "graph">("english");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mapNotice, setMapNotice] = useState<string | null>(null);
+  const [exportBusy, setExportBusy] = useState(false);
 
   // Form states for add
   const [word, setWord] = useState("");
@@ -320,6 +324,51 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
 
   if (!isOpen) return null;
 
+  const enqueueVaultExport = async (format: 'csv' | 'docx') => {
+    if (exportBusy) return;
+    playClick();
+    setExportBusy(true);
+    try {
+      await new Promise((r) => setTimeout(r, 0));
+      const title = '资料管理总汇';
+      const payload =
+        format === 'csv'
+          ? {
+              format: 'csv' as const,
+              title,
+              filename: '资料管理总汇.csv',
+              csvContent: vaultExport.buildAllVaultCsvString(vault),
+            }
+          : {
+              format: 'docx' as const,
+              title,
+              filename: '资料管理总汇.docx',
+              sections: vaultExport.buildAllVaultWordSections(vault),
+            };
+      const { taskId, status } = await vaultExport.requestVaultExportBackground(payload);
+      addTask({
+        id: taskId,
+        type: 'vault_export',
+        name: format === 'csv' ? '导出资料抽屉 CSV' : '导出资料抽屉 Word',
+        status: (status as 'pending' | 'running') || 'pending',
+        progress: 0,
+        logs: ['[系统] 后台导出任务已提交...'],
+      });
+      try {
+        const { showToast } = await import('../Toast');
+        showToast({ message: '导出任务已在后台执行，请前往【后台任务】下载', type: 'success' });
+      } catch {}
+    } catch (err) {
+      playGentleWarning();
+      try {
+        const { showToast } = await import('../Toast');
+        showToast({ message: err instanceof Error ? err.message : '发起导出失败', type: 'error' });
+      } catch {}
+    } finally {
+      setExportBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex justify-end">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
@@ -332,10 +381,20 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
             <p className="text-[10px] text-zinc-400 font-bold mt-0.5">多分块知识库 · 可导入/编辑/导出</p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => vaultExport.exportAllToCsv(vault)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer" title="导出全部 (CSV)">
+            <button
+              onClick={() => { void enqueueVaultExport('csv'); }}
+              disabled={exportBusy}
+              className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+              title="导出全部 (CSV)"
+            >
               <Download className="w-4 h-4" />
             </button>
-            <button onClick={() => vaultExport.exportAllToWord(vault)} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer" title="导出全部 (Word)">
+            <button
+              onClick={() => { void enqueueVaultExport('docx'); }}
+              disabled={exportBusy}
+              className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer disabled:opacity-50"
+              title="导出全部 (Word)"
+            >
               <FileText className="w-4 h-4" />
             </button>
             <button onClick={onClose} className="p-2 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors cursor-pointer">

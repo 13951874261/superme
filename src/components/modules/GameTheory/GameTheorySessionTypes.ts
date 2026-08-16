@@ -107,6 +107,9 @@ export interface GameTheoryPersonalReview {
   strengths: Array<string | GameTheoryReviewItem>;
   missed_moments: GameTheoryMissedMoment[];
   strategy_guidance: string[];
+  /** GT-SIM-02 独立语气修正表 */
+  tone_corrections?: Array<{ original: string; problem: string; suggested: string }>;
+  tone_corrections_repaired?: boolean;
 }
 
 export interface GameTheorySessionState {

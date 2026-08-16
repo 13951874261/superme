@@ -21,6 +21,7 @@ import {
   MessageSquare,
   Flame,
   User,
+  Users,
   Sliders,
   Check,
   Send,
@@ -45,6 +46,8 @@ import { getUserCurrentProfile } from '../../utils/profileHelper';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTask } from '../TaskContext';
 import type { SpeakInfluenceResult } from '../../services/difyAPI';
+import type { ModuleType } from '../../App';
+import { requestGameTheorySessionFocus } from '../../utils/gtFocusTab';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
   return reminder
@@ -134,7 +137,11 @@ interface MaterialItem {
   createdAt: string;
 }
 
-export default function SpeakModule() {
+type SpeakModuleProps = {
+  setActiveModule?: (m: ModuleType) => void;
+};
+
+export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) {
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [activeTab, setActiveTab] = useState<'structural' | 'impromptu' | 'counter' | 'promotion'>('structural');
   const [selectedScenario, setSelectedScenario] = useState('mnc');
@@ -904,6 +911,31 @@ export default function SpeakModule() {
               </div>
             </div>
           )}
+          <div className="mb-4 rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <p className="text-sm font-black text-slate-800">进入场景博弈会话</p>
+              <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
+                多轮 1VS1/多人博弈，结束后再出阶层与利益全景分析
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                playClick();
+                requestGameTheorySessionFocus();
+                if (setActiveModule) {
+                  setActiveModule('gametheory');
+                } else {
+                  console.warn('[SpeakModule] setActiveModule 未传入，已写入 gt_focus_tab');
+                }
+              }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black px-4 py-2.5 shadow-sm whitespace-nowrap"
+            >
+              <Users className="w-4 h-4" />
+              进入场景博弈会话
+            </button>
+          </div>
+
           <div className="flex border-b border-slate-100 pb-3 mb-6 overflow-x-auto gap-2">
 
             {[

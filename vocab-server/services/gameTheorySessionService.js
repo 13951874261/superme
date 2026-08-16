@@ -128,6 +128,13 @@ function createFallbackReview(session, userRole) {
     strengths: [{ claim: '成功进入博弈沙盘并完成角色动机配置', evidence: '初始角色设定完整' }],
     missed_moments: [{ round_no: 0, issue: '未在开局阶段主动建立立场或施压', why: '对话未开始即已达时长上限', avoid_action: '开局第一轮即明确诉求并试探关键对手底线' }],
     strategy_guidance: ['建议在博弈开始后尽快打出试探性动作，利用信息差引导局势走向。'],
+    tone_corrections: [
+      {
+        original: '（本局尚未发言）',
+        problem: '未开口即结束，错失建立立场与分寸的第一句话',
+        suggested: '开局先用一句确认对方关切的短句试探，再抛出可协商边界',
+      },
+    ],
   };
 }
 
@@ -813,6 +820,14 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
         throw err;
       }
     }
+    const lastUserInput = [...rounds].reverse().find((r) => String(r.user_input || '').trim())?.user_input || '';
+    const { normalizeToneCorrections } = require('./toneCorrections');
+    const toneNorm = normalizeToneCorrections(review?.tone_corrections, lastUserInput);
+    review = {
+      ...(review && typeof review === 'object' ? review : {}),
+      tone_corrections: toneNorm.items,
+      ...(toneNorm.repaired ? { tone_corrections_repaired: true } : {}),
+    };
     state.review = review;
     state.phase = 'review_done';
     const guidance = Array.isArray(review.strategy_guidance) ? review.strategy_guidance.join('；') : '';

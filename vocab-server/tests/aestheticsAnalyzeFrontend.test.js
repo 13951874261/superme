@@ -13,6 +13,11 @@ const analyzeEnd = moduleSource.indexOf('const initDeck', analyzeStart);
 const analyzeSegment = moduleSource.slice(analyzeStart, analyzeEnd > analyzeStart ? analyzeEnd : undefined);
 
 assert.match(analyzeSegment, /\/api\/aesthetics\/analyze/, 'handleAnalyze must call /api/aesthetics/analyze');
+assert.match(
+  analyzeSegment,
+  /ensureAestheticsResult/,
+  'handleAnalyze must sanitize aesthetic verdict via ensureAestheticsResult (AE-JUD-01)'
+);
 assert.doesNotMatch(
   analyzeSegment,
   /toggle-right-panel/,

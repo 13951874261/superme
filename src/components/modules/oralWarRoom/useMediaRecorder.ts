@@ -24,6 +24,9 @@ export function useMediaRecorder(
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef(0);
+  /** getUserMedia 尚未完成时用户已松开 */
+  const startingRef = useRef(false);
+  const stopAfterStartRef = useRef(false);
 
   const releaseResources = useCallback(() => {
     if (timerRef.current) {
@@ -64,6 +67,11 @@ export function useMediaRecorder(
   }, [onTranscriptSend, releaseResources, setInputText]);
 
   const stopRecordingAndSend = useCallback(() => {
+    // 权限弹窗 / getUserMedia 尚未完成：标记松开，等 start 结束后立刻 stop
+    if (startingRef.current) {
+      stopAfterStartRef.current = true;
+      return;
+    }
     const recorder = mediaRecorderRef.current;
     if (!recorder || recorder.state === 'inactive') return;
     playRecordStop();
@@ -71,7 +79,7 @@ export function useMediaRecorder(
   }, []);
 
   const startRecording = useCallback(async () => {
-    if (isRecording) return;
+    if (isRecording || startingRef.current) return;
     if (isSending || isTranscribing) {
       setMicError('上一条消息正在处理，请稍后');
       return;
@@ -81,8 +89,17 @@ export function useMediaRecorder(
       setMicError('当前浏览器不支持麦克风录音，请使用手动输入');
       return;
     }
+    startingRef.current = true;
+    stopAfterStartRef.current = false;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // 用户在等待权限时已松开：释放轨并提示，避免静默空转
+      if (stopAfterStartRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        stopAfterStartRef.current = false;
+        setMicError(EMPTY_TRANSCRIPT_MESSAGE);
+        return;
+      }
       const mimeType = RECORDING_MIME_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) || '';
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       streamRef.current = stream;
@@ -113,6 +130,10 @@ export function useMediaRecorder(
       window.setTimeout(() => {
         if (mediaRecorderRef.current?.state === 'recording') stopRecordingAndSend();
       }, maxDurationMs);
+      if (stopAfterStartRef.current) {
+        stopAfterStartRef.current = false;
+        stopRecordingAndSend();
+      }
     } catch (error) {
       releaseResources();
       setMicError(
@@ -122,8 +143,26 @@ export function useMediaRecorder(
             ? error.message
             : '无法访问麦克风，请检查设备权限',
       );
+    } finally {
+      startingRef.current = false;
     }
-  }, [finishRecording, isSending, isTranscribing, maxDurationMs, releaseResources, setInputText, stopRecordingAndSend]);
+  }, [finishRecording, isRecording, isSending, isTranscribing, maxDurationMs, releaseResources, setInputText, stopRecordingAndSend]);
+
+  // 松在按钮外 / 系统抢走焦点时仍结束录音，避免静默悬挂
+  useEffect(() => {
+    if (!isRecording) return;
+    const onGlobalRelease = () => stopRecordingAndSend();
+    window.addEventListener('pointerup', onGlobalRelease);
+    window.addEventListener('mouseup', onGlobalRelease);
+    window.addEventListener('touchend', onGlobalRelease);
+    window.addEventListener('blur', onGlobalRelease);
+    return () => {
+      window.removeEventListener('pointerup', onGlobalRelease);
+      window.removeEventListener('mouseup', onGlobalRelease);
+      window.removeEventListener('touchend', onGlobalRelease);
+      window.removeEventListener('blur', onGlobalRelease);
+    };
+  }, [isRecording, stopRecordingAndSend]);
 
   useEffect(() => releaseResources, [releaseResources]);
 

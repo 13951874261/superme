@@ -336,7 +336,7 @@ function isValidScenario(value) {
   return value && typeof value === 'object'
     && typeof value.title === 'string' && value.title.trim()
     && typeof value.description === 'string'
-    && Array.isArray(value.rules) && value.rules.length >= 2
+    && Array.isArray(value.rules) && value.rules.length >= 5
     && typeof value.temper === 'string'
     && typeof value.dialogue_example === 'string'
     && Array.isArray(value.traps) && value.traps.length >= 2
@@ -358,8 +358,28 @@ function normalizeScenario(value) {
   if (!scenario.dialogue_example || scenario.dialogue_example.length < 20) {
     scenario.dialogue_example = '我更关注现场呈现出的细节和交流节奏，也想听听您最在意的部分。';
   }
-  if (!Array.isArray(scenario.rules) || scenario.rules.length < 3) {
-    scenario.rules = ['先观察场合和关系结构', '先描述事实再表达判断', '给对方留下回应空间'];
+  const defaultRules = [
+    '先观察场合和关系结构',
+    '先描述事实再表达判断',
+    '给对方留下回应空间',
+    '身体与语气保持松弛，不抢主位',
+    '转场或离席时致谢，不强行收束话题到自己',
+  ];
+  if (!Array.isArray(scenario.rules)) {
+    scenario.rules = String(scenario.rules || '')
+      .split(/[。；;\n]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  scenario.rules = scenario.rules.map((r) => String(r || '').trim()).filter(Boolean);
+  if (scenario.rules.length < 5) {
+    const seen = new Set(scenario.rules);
+    for (const pad of defaultRules) {
+      if (scenario.rules.length >= 5) break;
+      if (seen.has(pad)) continue;
+      scenario.rules.push(pad);
+      seen.add(pad);
+    }
   }
   if (!Array.isArray(scenario.traps) || scenario.traps.length < 3) {
     scenario.traps = ['不懂装懂并堆砌术语', '抢话或过早下结论', '把消费价格等同于审美价值'];

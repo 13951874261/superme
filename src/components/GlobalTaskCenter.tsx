@@ -319,11 +319,21 @@ export default function GlobalTaskCenter() {
 
   const handleDownload = (task: TaskItem) => {
     if (!task.result) return;
-    const isVocab = task.type === 'vocab_export';
-    const mime = isVocab ? (task.result.mimeType || 'text/csv;charset=utf-8;') : 'text/markdown';
-    const filename = task.result.name || (isVocab ? 'vocab-export.csv' : 'download.md');
-
-    const blob = new Blob([task.result.content || ''], { type: mime });
+    const downloadTypes = new Set(['vocab_export', 'tactics_export', 'vault_export']);
+    const isFileExport = downloadTypes.has(task.type);
+    const mime = isFileExport
+      ? (task.result.mimeType || 'text/csv;charset=utf-8;')
+      : 'text/markdown';
+    const filename = task.result.name || (isFileExport ? 'export-download' : 'download.md');
+    let blob: Blob;
+    if (task.result.encoding === 'base64' && task.result.content) {
+      const binary = atob(task.result.content);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+      blob = new Blob([bytes], { type: mime });
+    } else {
+      blob = new Blob([task.result.content || ''], { type: mime });
+    }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -414,7 +424,7 @@ export default function GlobalTaskCenter() {
                                 ? 'bg-[#FF5722]/10 text-[#FF5722]'
                                 : task.type === 'speak'
                                   ? 'bg-indigo-50 text-indigo-600'
-                                : task.type === 'vocab_export'
+                                : task.type === 'vocab_export' || task.type === 'tactics_export' || task.type === 'vault_export'
                                   ? 'bg-green-50 text-green-600'
                                   : 'bg-blue-50 text-blue-600'
                         }`}>
@@ -428,7 +438,7 @@ export default function GlobalTaskCenter() {
                             <Mic className="w-4 h-4" />
                           ) : task.type === 'listen_backfill' ? (
                             <Headphones className="w-4 h-4" />
-                          ) : task.type === 'vocab_export' ? (
+                          ) : task.type === 'vocab_export' || task.type === 'tactics_export' || task.type === 'vault_export' ? (
                             <FileText className="w-4 h-4" />
                           ) : (
                             <Globe className="w-4 h-4" />
@@ -481,15 +491,19 @@ export default function GlobalTaskCenter() {
                         </button>
                       </div>
                     )}
-                    {task.status === 'completed' && task.result && task.type === 'vocab_export' && (
+                    {task.status === 'completed' && task.result && (task.type === 'vocab_export' || task.type === 'tactics_export' || task.type === 'vault_export') && (
                       <div className="flex gap-2 mb-3">
                         <button
                           onClick={() => handleDownload(task)}
                           className="flex-1 flex items-center justify-center gap-1.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
-                          title="下载导出的 CSV 文件"
+                          title="下载导出文件"
                         >
                           <Download className="w-3.5 h-3.5" />
-                          下载生词本 (.csv)
+                          {task.type === 'vocab_export'
+                            ? '下载生词本 (.csv)'
+                            : task.type === 'tactics_export'
+                              ? '下载手段库 (.csv)'
+                              : `下载资料抽屉${task.result.encoding === 'base64' ? ' (.docx)' : ' (.csv)'}`}
                         </button>
                       </div>
                     )}
@@ -515,7 +529,7 @@ export default function GlobalTaskCenter() {
                         </button>
                       </div>
                     )}
-                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && task.type !== 'insight_listen' && task.type !== 'speak' && (
+                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && task.type !== 'tactics_export' && task.type !== 'vault_export' && task.type !== 'insight_listen' && task.type !== 'speak' && (
                       <div className="flex gap-2 mb-3">
                         <button
                           onClick={() => handleImport(task)}
