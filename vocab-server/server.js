@@ -106,6 +106,10 @@ if (!fs.existsSync(tempVideoDir)) {
   fs.mkdirSync(tempVideoDir, { recursive: true });
 }
 app.use('/api/temp_videos', express.static(tempVideoDir));
+const tacticsMediaDir = path.join(__dirname, 'public', 'tactics_media');
+if (!fs.existsSync(tacticsMediaDir)) {
+  fs.mkdirSync(tacticsMediaDir, { recursive: true });
+}
 app.use(bodyParser.urlencoded({ extended: true, limit: '100mb' }));
 
 const PORT = process.env.PORT || 3001;
@@ -315,6 +319,33 @@ db.prepare(`
     created_at INTEGER
   )
 `).run();
+
+try {
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS game_theory_tactics_media (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      task_id TEXT,
+      file_path TEXT,
+      public_url TEXT,
+      transcript TEXT,
+      duration_sec REAL,
+      source_name TEXT,
+      created_at INTEGER
+    )
+  `).run();
+} catch (e) {
+  console.error('Failed to init game_theory_tactics_media:', e.message);
+}
+
+try {
+  const cols = db.prepare('PRAGMA table_info(game_theory_tactics)').all();
+  if (!cols.some((c) => c.name === 'media_id')) {
+    db.prepare('ALTER TABLE game_theory_tactics ADD COLUMN media_id TEXT').run();
+  }
+} catch (e) {
+  console.warn('ALTER game_theory_tactics.media_id skipped:', e.message);
+}
 
 // 插入默认手段（按名称补种，旧库非空时也会补上新手段）
 try {
@@ -8797,7 +8828,7 @@ app.post('/api/aesthetics/analyze', async (req, res) => {
 app.post('/api/game-theory/upload-tactics-material', upload.single('file'), async (req, res) => {
   try {
     const userId = req.body.userId || 'default-user';
-    const file = req.files?.[0];
+    const file = req.file || req.files?.[0];
     if (!file) {
       return res.status(400).json({ success: false, error: '未上传文件' });
     }
@@ -8811,21 +8842,13 @@ app.post('/api/game-theory/upload-tactics-material', upload.single('file'), asyn
     let textContent = '';
     const buffer = fs.readFileSync(file.path);
     const fileName = file.originalname || '';
-    const isPlainText = /\.(txt|md|text|html|htm)$/i.test(fileName);
-    const isPdf = /\.pdf$/i.test(fileName) || (buffer.length > 4 && buffer.slice(0, 5).toString() === '%PDF-');
-
-    if (isPlainText) {
-      textContent = buffer.toString('utf-8');
-    } else if (isPdf) {
-      try {
-        const pdfParse = require('pdf-parse');
-        const pdfData = await pdfParse(buffer);
-        textContent = String(pdfData?.text || '').replace(/\r\n/g, '\n').trim();
-      } catch (e) {
-        console.warn('[Tactics Upload] PDF parse failed:', e.message);
-        textContent = '';
-      }
-    }
+    const {
+      extractTextFromDocBuffer,
+      callTacticsExtractLlm,
+      planTacticInserts,
+      insertPlannedTactics,
+    } = require('./services/tacticsIngest');
+    textContent = await extractTextFromDocBuffer(fileName, buffer);
 
     // Clean up temp file
     if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
@@ -8834,105 +8857,198 @@ app.post('/api/game-theory/upload-tactics-material', upload.single('file'), asyn
       return res.status(400).json({ success: false, error: '文件内容为空或无法解析，请上传 PDF 或 TXT 格式的书籍材料' });
     }
 
-    // Truncate if too long (max 6000 chars to send to LLM)
     const excerpt = textContent.length > 6000 ? textContent.substring(0, 6000) + '...' : textContent;
-
-    // Call LLM to extract tactics
-    const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    const gameApiKey = process.env.DIFY_GAME_THEORY_API_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
-
-    const prompt = `你是一位资深权术大师与博弈学家，精通商场、职场的权力博弈与人性驾驭之道。
-
-请从下面这段书籍/材料文本中，提取出所有的"驭人手段"或"博弈技巧"，每条手段必须：
-1. 有一个精炼的名称（2-6个字，如：捧杀、借刀杀人、架空、投石问路等）
-2. 有一个分类：downward（用于管理/驾驭下属或博弈中控制局面的主动手段）或 upward（用于应对、突破或反制上级/强势一方的以弱克强之术）
-3. 有一段具体详实、逻辑清晰、可借鉴的描述（100-200字，要包含手段的核心逻辑、适用场景、实施步骤或注意事项）
-
-请输出如下格式的纯JSON数组（不要有任何说明文字或markdown标记，直接输出JSON）：
-[
-  {"name":"手段名称","category":"downward","description":"详细描述..."},
-  {"name":"手段名称","category":"upward","description":"详细描述..."}
-]
-
-原始材料文本：
-${excerpt}`;
-
-    // Try chat-messages endpoint
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-
-    try {
-      const response = await fetch(`${baseUrl}/chat-messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${gameApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: {},
-          query: prompt,
-          response_mode: 'blocking',
-          conversation_id: '',
-          user: userId,
-        }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn('[Tactics Upload] Dify HTTP error:', response.status, errText.slice(0, 200));
-        return res.status(500).json({ success: false, error: `AI服务暂时不可用 (${response.status})，请稍后重试` });
-      }
-
-      const data = await response.json();
-      const rawAnswer = data?.answer || data?.data?.outputs?.text || '';
-      const cleanJson = String(rawAnswer).replace(/```json/g, '').replace(/```/g, '').trim();
-
-      let tactics = [];
-      try {
-        tactics = JSON.parse(cleanJson);
-        if (!Array.isArray(tactics)) tactics = [];
-      } catch (e) {
-        // Try to extract JSON array from the response
-        const match = cleanJson.match(/\[\s*\{.*?\}\s*(?:,\s*\{.*?\}\s*)*\]/s);
-        if (match) {
-          try {
-            tactics = JSON.parse(match[0]);
-          } catch (e2) {
-            tactics = [];
-          }
-        }
-      }
-
-      if (!tactics.length) {
-        return res.status(422).json({ success: false, error: 'AI未能从该材料中提取出有效的驭人术知识点，请尝试上传内容更丰富的材料' });
-      }
-
-      // Save extracted tactics to DB
-      const inserted = [];
-      const insertStmt = db.prepare('INSERT INTO game_theory_tactics (id, user_id, name, category, description, is_custom, source_file, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-      for (const t of tactics) {
-        if (!t.name) continue;
-        const existing = db.prepare('SELECT id FROM game_theory_tactics WHERE user_id = ? AND name = ?').get(userId, t.name.trim());
-        if (!existing) {
-          const id = crypto.randomUUID();
-          insertStmt.run(id, userId, t.name.trim(), t.category || 'downward', t.description || '', 1, fileName, Date.now());
-          inserted.push({ id, name: t.name.trim(), category: t.category || 'downward', description: t.description || '' });
-        }
-      }
-
-      res.json({ success: true, extracted: tactics, inserted: inserted.length, sourceFile: fileName });
-    } catch (fetchErr) {
-      clearTimeout(timeout);
-      if (fetchErr.name === 'AbortError') {
-        return res.status(504).json({ success: false, error: 'AI提取超时，请尝试上传更小的文件' });
-      }
-      throw fetchErr;
+    const tactics = await callTacticsExtractLlm(excerpt, userId);
+    if (!tactics.length) {
+      return res.status(422).json({ success: false, error: 'AI未能从该材料中提取出有效的驭人术知识点，请尝试上传内容更丰富的材料' });
     }
+    const { planned } = planTacticInserts(db, userId, tactics, { sourceFile: fileName });
+    const inserted = insertPlannedTactics(db, planned);
+    res.json({ success: true, extracted: tactics, inserted: inserted.length, sourceFile: fileName });
   } catch (error) {
     console.error('[Tactics Upload] error:', error);
     res.status(500).json({ success: false, error: error.message || '提取失败，请稍后重试' });
+  }
+});
+
+app.post('/api/game-theory/tactics/ingest-background', upload.single('file'), async (req, res) => {
+  try {
+    const userId = String(req.body.userId || 'default-user');
+    const file = req.file || req.files?.[0];
+    if (!file) {
+      return res.status(400).json({ success: false, error: '未上传文件' });
+    }
+    const {
+      TACTICS_INGEST_MAX_BYTES,
+      assertWithinLimits,
+      isVideoFileName,
+      isDocFileName,
+      extractTextFromDocBuffer,
+      probeDurationSeconds,
+      callTacticsExtractLlm,
+      planTacticInserts,
+      insertPlannedTactics,
+      ensureTacticsMediaDir,
+    } = require('./services/tacticsIngest');
+
+    const fileName = file.originalname || file.filename || 'upload.bin';
+    const sizeCheck = assertWithinLimits({ sizeBytes: file.size });
+    if (!sizeCheck.ok) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      return res.status(400).json({ success: false, error: sizeCheck.error });
+    }
+    if (!isVideoFileName(fileName) && !isDocFileName(fileName)) {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+      return res.status(400).json({ success: false, error: '仅支持 PDF/TXT/MD 或常见视频格式' });
+    }
+
+    const isVideo = isVideoFileName(fileName);
+    let persistedPath = file.path;
+    let mediaRelName = '';
+    if (isVideo) {
+      const mediaRoot = ensureTacticsMediaDir(tacticsMediaDir);
+      const userDir = path.join(mediaRoot, userId.replace(/[^\w.-]/g, '_'));
+      if (!fs.existsSync(userDir)) fs.mkdirSync(userDir, { recursive: true });
+      const ext = path.extname(fileName) || '.mp4';
+      mediaRelName = `${crypto.randomUUID()}${ext}`;
+      persistedPath = path.join(userDir, mediaRelName);
+      fs.renameSync(file.path, persistedPath);
+    }
+
+    const task = taskQueue.createTask('tactics_ingest', `驭人术资料提炼 · ${String(fileName).slice(0, 40)}`);
+    res.json({ success: true, taskId: task.id });
+
+    setImmediate(async () => {
+      try {
+        taskQueue.updateTask(task.id, { status: 'running', progress: 8, logs: ['已接收文件，开始处理...'] });
+        let textContent = '';
+        let transcript = '';
+        let durationSec = null;
+        let mediaId = null;
+        let videoUrl = null;
+
+        if (isVideo) {
+          durationSec = await probeDurationSeconds(persistedPath);
+          const limit = assertWithinLimits({ sizeBytes: file.size, durationSec });
+          if (!limit.ok) {
+            throw new Error(limit.error);
+          }
+          taskQueue.updateTask(task.id, { progress: 25, logs: [`时长约 ${Math.round(durationSec)} 秒，开始转写...`] });
+          const { extractTranscriptFromLocalVideo } = require('./services/videoTranscriber');
+          const tr = await extractTranscriptFromLocalVideo({
+            taskId: task.id,
+            filePath: persistedPath,
+            fileName,
+            keepVideo: true,
+          });
+          transcript = tr.transcript || '';
+          textContent = transcript;
+          if (!textContent || textContent.length < 20) {
+            throw new Error('转写结果过短，无法抽取手段');
+          }
+          mediaId = crypto.randomUUID();
+          videoUrl = `/api/tactics_media/${mediaId}/file`;
+          db.prepare(`
+            INSERT INTO game_theory_tactics_media
+              (id, user_id, task_id, file_path, public_url, transcript, duration_sec, source_name, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(
+            mediaId,
+            userId,
+            task.id,
+            persistedPath,
+            videoUrl,
+            transcript,
+            durationSec,
+            fileName,
+            Date.now()
+          );
+        } else {
+          const buffer = fs.readFileSync(persistedPath);
+          textContent = await extractTextFromDocBuffer(fileName, buffer);
+          if (fs.existsSync(persistedPath)) fs.unlinkSync(persistedPath);
+          if (!textContent || textContent.length < 50) {
+            throw new Error('文件内容为空或无法解析');
+          }
+        }
+
+        taskQueue.updateTask(task.id, { progress: 78, logs: ['正在抽取驭人手段...'] });
+        const excerpt = textContent.length > 6000 ? textContent.substring(0, 6000) + '...' : textContent;
+        const tactics = await callTacticsExtractLlm(excerpt, userId);
+        if (!tactics.length) {
+          throw new Error('AI未能提取出有效手段');
+        }
+        const sourceFile = mediaId ? `video:${mediaId}` : fileName;
+        const { planned } = planTacticInserts(db, userId, tactics, { sourceFile, mediaId });
+        const insertedRows = insertPlannedTactics(db, planned);
+
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: [`完成：新增 ${insertedRows.length} 条手段`],
+          result: {
+            inserted: insertedRows.length,
+            tacticIds: insertedRows.map((r) => r.id),
+            mediaId,
+            videoUrl,
+            transcript: transcript || undefined,
+            sourceName: fileName,
+          },
+        });
+      } catch (err) {
+        console.error('[tactics_ingest] failed:', err);
+        try {
+          if (isVideo && persistedPath && fs.existsSync(persistedPath)) {
+            // 失败时仍保留文件便于排查；也可删除。规格：失败不留半截媒体行。
+          }
+        } catch {}
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          progress: 100,
+          error: err.message || String(err),
+          logs: [`失败: ${err.message || String(err)}`],
+        });
+      }
+    });
+  } catch (error) {
+    console.error('[tactics ingest] error:', error);
+    res.status(500).json({ success: false, error: error.message || '提交失败' });
+  }
+});
+
+app.get('/api/tactics_media/:id', (req, res) => {
+  try {
+    const userId = String(req.query.userId || '');
+    const row = db.prepare('SELECT * FROM game_theory_tactics_media WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    if (userId && row.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    res.json({
+      id: row.id,
+      userId: row.user_id,
+      taskId: row.task_id,
+      publicUrl: row.public_url,
+      transcript: row.transcript,
+      durationSec: row.duration_sec,
+      sourceName: row.source_name,
+      createdAt: row.created_at,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/tactics_media/:id/file', (req, res) => {
+  try {
+    const userId = String(req.query.userId || '');
+    const row = db.prepare('SELECT * FROM game_theory_tactics_media WHERE id = ?').get(req.params.id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    if (userId && row.user_id !== userId) return res.status(403).json({ error: 'Forbidden' });
+    if (!row.file_path || !fs.existsSync(row.file_path)) {
+      return res.status(404).json({ error: 'File missing' });
+    }
+    res.sendFile(path.resolve(row.file_path));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 });
 

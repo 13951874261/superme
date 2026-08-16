@@ -416,7 +416,7 @@ export default function GlobalTaskCenter() {
                     <div className="flex items-start justify-between gap-3 mb-3">
                       <div className="flex items-center gap-2.5 min-w-0">
                         <div className={`p-2 rounded-xl shrink-0 ${
-                          task.type === 'video'
+                          task.type === 'video' || task.type === 'tactics_ingest'
                             ? 'bg-[#FF5722]/10 text-[#FF5722]'
                             : task.type === 'game_theory'
                               ? 'bg-zinc-100 text-zinc-700'
@@ -428,7 +428,7 @@ export default function GlobalTaskCenter() {
                                   ? 'bg-green-50 text-green-600'
                                   : 'bg-blue-50 text-blue-600'
                         }`}>
-                          {task.type === 'video' ? (
+                          {task.type === 'video' || task.type === 'tactics_ingest' ? (
                             <Video className="w-4 h-4" />
                           ) : task.type === 'game_theory' ? (
                             <Brain className="w-4 h-4" />
@@ -529,7 +529,27 @@ export default function GlobalTaskCenter() {
                         </button>
                       </div>
                     )}
-                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && task.type !== 'tactics_export' && task.type !== 'vault_export' && task.type !== 'insight_listen' && task.type !== 'speak' && (
+                    {task.status === 'completed' && task.result && task.type === 'tactics_ingest' && (
+                      <div className="flex flex-col gap-2 mb-3">
+                        <p className="text-[10px] text-zinc-500">
+                          新增手段 {Number(task.result.inserted || 0)} 条
+                          {task.result.sourceName ? ` · ${task.result.sourceName}` : ''}
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              window.dispatchEvent(new CustomEvent('tactics-ingest-updated'));
+                              window.dispatchEvent(new CustomEvent('navigate-gametheory-tactics'));
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-white rounded-lg text-[10px] font-bold tracking-wider transition-colors cursor-pointer"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            刷新手段库
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                    {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && task.type !== 'tactics_export' && task.type !== 'vault_export' && task.type !== 'insight_listen' && task.type !== 'speak' && task.type !== 'tactics_ingest' && (
                       <div className="flex gap-2 mb-3">
                         <button
                           onClick={() => handleImport(task)}

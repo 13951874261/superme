@@ -15,9 +15,19 @@ if (!fs.existsSync(TMP_VIDEO_DIR)) {
 /**
  * 启动异步视频转写后台任务
  * @param {string} taskId 任务ID
- * @param {object} options 输入参数 ({ url, fileBase64, filePath, fileName, language, subtitle })
+ * @param {object} options 输入参数 ({ url, fileBase64, filePath, fileName, language, subtitle, keepVideo, skipVocab })
  */
-async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName, language = 'auto', subtitle = '' }) {
+async function startTranscribeTask(taskId, {
+  url,
+  fileBase64,
+  filePath,
+  fileName,
+  language = 'auto',
+  subtitle = '',
+  keepVideo = false,
+  skipVocab = false,
+  deferComplete = false,
+} = {}) {
   let videoPath = null;
   let audioPath = null;
 
@@ -204,8 +214,27 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
       content: `# 视频转写材料\n\n> 来源: ${url ? url : '本地上传视频'}\n> 识别语言: ${language}\n\n${transcript}`,
       mimeType: 'text/markdown',
       sourceType: 'video',
-      sourceUrl: url || undefined
+      sourceUrl: url || undefined,
+      transcript: String(transcript),
+      videoPath: keepVideo ? videoPath : undefined,
     };
+
+    if (skipVocab) {
+      if (!deferComplete) {
+        taskQueue.updateTask(taskId, {
+          status: 'completed',
+          progress: 100,
+          logs: ['转写完成（已跳过生词本提纯）'],
+          result: virtualMaterial,
+        });
+      } else {
+        taskQueue.updateTask(taskId, {
+          progress: 70,
+          logs: ['转写完成，等待后续抽取...'],
+        });
+      }
+      return virtualMaterial;
+    }
 
     // 自动触发 Dify 知识库导入与提纯分析入库
     taskQueue.updateTask(taskId, { progress: 96, logs: ['转写成功！正在自动执行 Dify 知识库导入与提纯分析...'] });
@@ -380,7 +409,7 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
   } finally {
     // 垃圾清理
     try {
-      if (videoPath && fs.existsSync(videoPath)) {
+      if (!keepVideo && videoPath && fs.existsSync(videoPath)) {
         fs.unlinkSync(videoPath);
       }
       if (audioPath && fs.existsSync(audioPath)) {
@@ -392,4 +421,35 @@ async function startTranscribeTask(taskId, { url, fileBase64, filePath, fileName
   }
 }
 
-module.exports = { startTranscribeTask };
+/**
+ * 仅转写本地视频文件，不写生词本、不结束外部任务编排以外的逻辑。
+ * 供 tactics_ingest 复用；默认保留视频文件。
+ */
+async function extractTranscriptFromLocalVideo({
+  taskId,
+  filePath,
+  fileName,
+  language = 'auto',
+  keepVideo = true,
+} = {}) {
+  if (!filePath || !fs.existsSync(filePath)) {
+    throw new Error('视频文件不存在');
+  }
+  const nestedTaskId = taskId || `inline_${Date.now()}`;
+  // 复用 startTranscribeTask 的 STT 段：用临时 task 状态更新同一 taskId
+  const result = await startTranscribeTask(nestedTaskId, {
+    filePath,
+    fileName: fileName || path.basename(filePath),
+    language,
+    keepVideo,
+    skipVocab: true,
+    deferComplete: true,
+  });
+  return {
+    transcript: String((result && result.transcript) || '').trim(),
+    videoPath: filePath,
+    virtualMaterial: result,
+  };
+}
+
+module.exports = { startTranscribeTask, extractTranscriptFromLocalVideo };

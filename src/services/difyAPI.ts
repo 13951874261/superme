@@ -1946,6 +1946,7 @@ export interface TacticItem {
   description: string;
   is_custom: number;
   source_file: string;
+  media_id?: string | null;
   created_at: number;
 }
 
@@ -1981,6 +1982,33 @@ export async function uploadTacticsMaterial(file: File, userId = getAppUserId())
   const res = await fetch('/api/game-theory/upload-tactics-material', { method: 'POST', body: formData });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.error || '上传失败');
+  return data;
+}
+
+export async function requestTacticsIngestBackground(
+  file: File,
+  userId = getAppUserId()
+): Promise<{ taskId: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('userId', userId);
+  const res = await fetch('/api/game-theory/tactics/ingest-background', { method: 'POST', body: formData });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data?.success || !data?.taskId) {
+    throw new Error(data?.error || '发起资料提炼失败');
+  }
+  return { taskId: data.taskId as string };
+}
+
+export async function fetchTacticsMedia(
+  mediaId: string,
+  userId = getAppUserId()
+): Promise<{ id: string; publicUrl?: string; transcript?: string; sourceName?: string; durationSec?: number }> {
+  const res = await fetch(
+    `/api/tactics_media/${encodeURIComponent(mediaId)}?userId=${encodeURIComponent(userId)}`
+  );
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || '加载视频资料失败');
   return data;
 }
 

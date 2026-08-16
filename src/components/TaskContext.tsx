@@ -4,7 +4,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'insight_listen' | 'speak';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'speak';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -31,6 +31,11 @@ export interface TaskItem {
     framework_analysis?: string;
     revised_version?: string;
     knowledgeReminder?: string;
+    mediaId?: string;
+    videoUrl?: string;
+    transcript?: string;
+    inserted?: number;
+    sourceName?: string;
   } | null;
 }
 
@@ -147,6 +152,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
               window.dispatchEvent(new CustomEvent('vocab-updated'));
               if (data.type === 'material' || data.type === 'vault_refine') {
                 window.dispatchEvent(new CustomEvent('knowledge-vault-updated'));
+              }
+              if (data.type === 'tactics_ingest') {
+                window.dispatchEvent(new CustomEvent('tactics-ingest-updated'));
               }
 
               if (data.result && (data.result.article || data.result.words)) {
