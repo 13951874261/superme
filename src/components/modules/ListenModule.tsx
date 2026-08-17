@@ -21,14 +21,24 @@ import {
   HelpCircle, 
   Trophy, 
   RefreshCw,
-  Award,
-  Download
+  Download,
+  FoldVertical,
+  UnfoldVertical,
+  Network,
+  ListTree,
+  Loader2
 } from 'lucide-react';
 import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB, extractListenKnowledgeDraft } from '../../services/difyAPI';
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
 import InsightMindMap from './insight/InsightMindMap';
 import InsightScriptReadonlyView from './insight/InsightScriptReadonlyView';
 import { buildInsightMindMap, type InsightMindMapNode } from '../../utils/insightMindMapBuilder';
+import {
+  DEFAULT_THEORY_DATA,
+  buildUnifiedTheoryMindMapTree,
+  type MaterialDraftLike,
+  type TheoryItemNode,
+} from '../../utils/theoryMindMapBuilder';
 import {
   downloadSvg,
   downloadPng,
@@ -66,58 +76,9 @@ const FALLBACK_SCENARIOS: Record<CategoryType, string> = {
     '【内置案例·通用社交】周末社区咖啡馆，你和邻居老陈并排坐着。他笑着把杯子往你这边推了推，说：“听说你最近在谈租房续签？我们那栋楼管其实都挺熟的，有些事口头提一句比书面硬刚管用。对了，你家那位上周是不是也去问过物业？我只是随口问问，别多想。”隔壁桌有人起身经过，老陈突然压低声音又补了一句：“其实我也没别的意思，就是怕你吃亏。”\n（请识别寒暄外壳下的探路、站队暗示与信息不对等施压）',
 };
 
-// 预置逻辑与心理学知识框架数据
-interface TheoryNode {
-  title: string;
-  concept: string;
-  framework: string[];
-  points: string[];
-}
-
-const THEORY_DATA: Record<string, TheoryNode[]> = {
-  '逻辑学与系统谬误': [
-    {
-      title: '非形式逻辑谬误',
-      concept: '在论证过程中，论据与论题之间没有逻辑必然性，而通过修辞或情绪手段使人信服。',
-      framework: ['滑坡谬误', '以偏概全', '诉诸权威', '偷换概念'],
-      points: [
-        '滑坡谬误：无限放大某种可能后果，形成恐吓。例如：“你今天迟到，明天就会旷工，最后就会被开除。”',
-        '诉诸权威：利用某个领域的名气来证明另一个领域的正确性。',
-        '偷换概念：在讨论中悄悄改变某个词语的内涵。'
-      ]
-    },
-    {
-      title: '因果关系误区',
-      concept: '混淆相关性与因果性，或者将时间上的先后关系强行解释为因果关系。',
-      framework: ['后此谬误', '单因谬误', '因果倒置'],
-      points: [
-        '后此谬误：因为 B 发生在 A 之后，就判定 A 导致了 B。',
-        '单因谬误：复杂问题简单化，只归结于单一因素。'
-      ]
-    }
-  ],
-  '人性解码与心理侧写': [
-    {
-      title: '弦外之音解码机制',
-      concept: '理解人际沟通中隐藏在表层话术之下的真实利益诉求、层级防卫或情绪宣泄。',
-      framework: ['利益驱动判定', '阶层安全防卫', '同僚压力构建'],
-      points: [
-        '体制内话术：委婉、注重层级、避免直接冲突，常用“以退为进”或“虚指”敲打。',
-        '跨国企业话术：表面平等、重效率指标，常用高大上的行业术语（Jargon）进行自我防卫或施压。'
-      ]
-    },
-    {
-      title: '非语言信号暗示',
-      concept: '肢体语言、面部表情、眼神方向、语速及停顿等生理与动作反馈。',
-      framework: ['微表情检测', '肢体紧张度', '音调与停顿映射'],
-      points: [
-        '食指轻敲桌面：通常暗示潜在的控制欲、焦躁或内心催促。',
-        '眼神偏离与斜瞟：可能在临时寻找托词，或暗示对当前对比物的不屑。',
-        '语速突然变慢且加重：表明正在进行高度蓄意的“表演式情绪施压”。'
-      ]
-    }
-  ]
-};
+// 预置逻辑与心理学知识框架数据（复用 theoryMindMapBuilder 中的标准定义）
+export type TheoryNode = TheoryItemNode;
+export const THEORY_DATA = DEFAULT_THEORY_DATA;
 
 interface ListenModuleProps {
   selectedDate?: string;
@@ -144,6 +105,89 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   // 左右分栏状态
   const [leftTab, setLeftTab] = useState<'theory' | 'upload'>('theory');
   const [expandedTheory, setExpandedTheory] = useState<string | null>('非形式逻辑谬误');
+
+  // 理论框架导图与折叠/导出状态（LS-KNOW-01）
+  const [theoryViewMode, setTheoryViewMode] = useState<'cards' | 'mindmap'>('cards');
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
+    '逻辑学与系统谬误': true,
+    '人性解码与心理侧写': false,
+  });
+  const [expandedThemes, setExpandedThemes] = useState<Record<string, boolean>>({
+    '非形式逻辑谬误': true,
+  });
+  const [expandedPoints, setExpandedPoints] = useState<Record<string, boolean>>({});
+  const [isExportingTheoryDocx, setIsExportingTheoryDocx] = useState(false);
+  const [mountedMaterials, setMountedMaterials] = useState<MaterialDraftLike[]>([]);
+  const theoryMindMapSvgRef = useRef<SVGSVGElement | null>(null);
+
+  const toggleCategory = useCallback((cat: string) => {
+    playClick();
+    setExpandedCategories((prev) => ({ ...prev, [cat]: !prev[cat] }));
+  }, []);
+
+  const toggleTheme = useCallback((themeTitle: string) => {
+    playClick();
+    setExpandedThemes((prev) => ({ ...prev, [themeTitle]: !prev[themeTitle] }));
+  }, []);
+
+  const togglePoint = useCallback((pointTitle: string) => {
+    playClick();
+    setExpandedPoints((prev) => ({ ...prev, [pointTitle]: !prev[pointTitle] }));
+  }, []);
+
+  const isAllTheoryExpanded =
+    Object.keys(DEFAULT_THEORY_DATA).every((cat) => expandedCategories[cat]) &&
+    Object.values(DEFAULT_THEORY_DATA).flat().every((item) => expandedThemes[item.title]);
+
+  const handleToggleExpandAllTheory = useCallback(() => {
+    playClick();
+    if (isAllTheoryExpanded) {
+      setExpandedCategories({ '逻辑学与系统谬误': false, '人性解码与心理侧写': false });
+      setExpandedThemes({});
+      setExpandedPoints({});
+    } else {
+      const allCats: Record<string, boolean> = {};
+      const allThs: Record<string, boolean> = {};
+      const allPts: Record<string, boolean> = {};
+      Object.entries(DEFAULT_THEORY_DATA).forEach(([cat, items]) => {
+        allCats[cat] = true;
+        items.forEach((item) => {
+          allThs[item.title] = true;
+          (item.structuredPoints || []).forEach((sp) => {
+            allPts[sp.title] = true;
+          });
+        });
+      });
+      mountedMaterials.forEach((m) => {
+        const catKey = `素材衍生：${(m.title || '素材').replace(/\.[^.]+$/, '')}`;
+        allCats[catKey] = true;
+      });
+      setExpandedCategories(allCats);
+      setExpandedThemes(allThs);
+      setExpandedPoints(allPts);
+    }
+  }, [isAllTheoryExpanded, mountedMaterials]);
+
+  const handleExportTheoryWord = useCallback(async () => {
+    try {
+      playClick();
+      setIsExportingTheoryDocx(true);
+      const unifiedTree = buildUnifiedTheoryMindMapTree({
+        staticData: DEFAULT_THEORY_DATA,
+        materialDrafts: mountedMaterials,
+      });
+      await downloadInsightDocx({
+        title: '洞察(听) 理论框架与素材合集',
+        tree: unifiedTree,
+      });
+      playSuccess();
+    } catch (err) {
+      console.error('导出理论框架 Word 失败:', err);
+      alert('导出 Word 失败，请重试');
+    } finally {
+      setIsExportingTheoryDocx(false);
+    }
+  }, [mountedMaterials]);
 
   // 分步式答题表单状态
   const [formStep, setFormStep] = useState<number>(1);
@@ -396,6 +440,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
 
     try {
       let draftNotice = '';
+      let extractedDraft: MaterialDraftLike | null = null;
       if (uploadFile) {
         await uploadMaterialToKB(uploadFile, '洞察听力素材库');
       }
@@ -405,15 +450,51 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
           file: uploadFile,
           sourceUrl: uploadUrl,
         });
-        const title = typeof draftResult.draft?.title === 'string' ? draftResult.draft.title : '';
+        const rawTitle = typeof draftResult.draft?.title === 'string' && draftResult.draft.title
+          ? draftResult.draft.title
+          : (uploadFile?.name || (uploadUrl ? '网页素材' : '上传素材'));
+        const cleanTitle = rawTitle.replace(/\.[^.]+$/, '');
+
+        extractedDraft = (draftResult.draft as MaterialDraftLike) || {
+          title: cleanTitle,
+          summary: `来自素材「${cleanTitle}」的知识点提炼。`,
+          tags: ['素材衍生'],
+        };
+
         draftNotice = draftResult.extracted
-          ? `已写入资料抽屉「理论框架」草稿${title ? `「${title}」` : ''}（未同步，不会自动带入训练）。`
-          : `已写入资料抽屉「理论框架」草稿${title ? `「${title}」` : ''}（待补充摘要，确认后才会进入训练）。`;
+          ? `已生成训练题目，并在左侧理论库挂载「${cleanTitle}」思维导图分支（已同步资料抽屉草稿）。`
+          : `已生成训练题目，并在左侧挂载「${cleanTitle}」导图分支（待补充摘要，可前往「资料管理中心」补全）。`;
+
         window.dispatchEvent(new CustomEvent('knowledge-vault-updated'));
       } catch (draftErr) {
         console.warn('[ListenModule] 资料抽屉草稿写入失败', draftErr);
-        draftNotice = '训练题目已生成，但资料抽屉草稿写入失败，请稍后在资料管理中心手动录入。';
+        const fallbackTitle = (uploadFile?.name || (uploadUrl ? '网页素材' : '上传素材')).replace(/\.[^.]+$/, '');
+        extractedDraft = {
+          title: fallbackTitle,
+          summary: '知识点自动提取失败，请前往资料管理中心手动录入。',
+          tags: ['待手动录入'],
+          points: [
+            {
+              title: '待手动补充知识点',
+              explanation: '当前素材未能自动解析出要点，请前往「资料管理中心」补充概念与例证。',
+              example: '可在资料管理中心输入具体案例与话术解析。',
+            },
+          ],
+        };
+        draftNotice = '训练题目已生成，但知识点自动提取失败；已在左侧创建待录入分支，请稍后在「资料管理中心」手动补充（不影响本次答题）。';
       }
+
+      // 挂载到左侧理论体系导图（M1 合集模式）
+      if (extractedDraft) {
+        const cleanTitle = (extractedDraft.title || '素材').replace(/\.[^.]+$/, '');
+        setMountedMaterials((prev) => {
+          const filtered = prev.filter((m) => (m.title || '').replace(/\.[^.]+$/, '') !== cleanTitle);
+          return [...filtered, extractedDraft!];
+        });
+        const catKey = `素材衍生：${cleanTitle}`;
+        setExpandedCategories((prev) => ({ ...prev, [catKey]: true }));
+      }
+
       setUploadProgress(100);
       clearInterval(interval);
       setTimeout(() => {
@@ -440,7 +521,27 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       console.error(err);
       clearInterval(interval);
       setIsUploading(false);
-      alert('上传素材解析失败，已为您自动生成预设场景。');
+      const failTitle = (uploadFile?.name || (uploadUrl ? '网页素材' : '上传素材')).replace(/\.[^.]+$/, '');
+      const failDraft: MaterialDraftLike = {
+        title: failTitle,
+        summary: '上传素材解析异常，请前往资料管理中心手动录入。',
+        tags: ['待手动录入'],
+        points: [
+          {
+            title: '待手动录入知识点',
+            explanation: '素材解析未完成，已自动生成模拟演练题；可前往资料中心补全知识点。',
+            example: '无',
+          },
+        ],
+      };
+      setMountedMaterials((prev) => {
+        const filtered = prev.filter((m) => (m.title || '').replace(/\.[^.]+$/, '') !== failTitle);
+        return [...filtered, failDraft];
+      });
+      const catKey = `素材衍生：${failTitle}`;
+      setExpandedCategories((prev) => ({ ...prev, [catKey]: true }));
+
+      setUploadDraftNotice('上传素材解析异常，已为您生成模拟训练题并在左侧保留待录入分支；您可前往「资料管理中心」手动录入。');
       applyPlainScenario(
         `【模拟网页数据生成的案例】\n两位项目负责人在走廊相遇。A拍了拍B的肩膀，叹了口气说：“听老李说，你们组那个项目这次拿下了？太不容易了，听说你们天天连轴转，家里都顾不上了吧。我们组这个项目虽然顺利，但也都是大家正常工时完成的，真羡慕你们这股拼劲！”\n（请解析A的潜在攀比与贬低之意）`,
         activeCategory
@@ -651,82 +752,293 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
           </button>
         </div>
         {uploadDraftNotice && (
-          <p className="px-4 pt-3 text-[11px] text-zinc-500 leading-relaxed">{uploadDraftNotice}</p>
+          <div className="mx-3 mt-2.5 p-2.5 bg-indigo-50/90 border border-indigo-200/90 rounded-xl text-[11px] text-indigo-950 leading-relaxed flex items-start gap-2 shadow-2xs">
+            <AlertCircle className="w-3.5 h-3.5 text-indigo-600 shrink-0 mt-0.5" />
+            <div className="flex-1 space-y-0.5">
+              <span className="font-bold text-indigo-900 block">素材处理与导图挂载</span>
+              <span>{uploadDraftNotice}</span>
+            </div>
+            <button
+              onClick={() => setUploadDraftNotice('')}
+              className="text-indigo-400 hover:text-indigo-700 text-xs font-bold px-1"
+              title="关闭通知"
+            >
+              ✕
+            </button>
+          </div>
         )}
 
         <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-          {/* 页签内容 1: 理论框架库 */}
+          {/* 页签内容 1: 理论框架库 (LS-KNOW-01 体系化导图 + 要点 + 举例 + Word导出) */}
           {leftTab === 'theory' ? (
-            <div className="space-y-4">
-              <div className="p-3 bg-gradient-to-r from-slate-50 to-slate-100 border border-[var(--color-border)] rounded-xl">
-                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-600 block mb-1">今日重点导读</span>
-                <p className="text-xs text-slate-700 leading-relaxed">
-                  在进行侧写时，需时刻遵循“**概念解读 — 框架构成 — 知识点应用**”三维路径，由浅入深进行解码。
+            <div className="space-y-3.5">
+              {/* 控制操作栏 */}
+              <div className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { playSwitch(); setTheoryViewMode('cards'); }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                      theoryViewMode === 'cards'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="切换到结构化要点卡片"
+                  >
+                    <ListTree className="w-3 h-3" />
+                    体系要点
+                  </button>
+                  <button
+                    onClick={() => { playSwitch(); setTheoryViewMode('mindmap'); }}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${
+                      theoryViewMode === 'mindmap'
+                        ? 'bg-white text-indigo-600 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-800'
+                    }`}
+                    title="切换到可视化思维导图"
+                  >
+                    <Network className="w-3 h-3" />
+                    树形导图
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={handleToggleExpandAllTheory}
+                    className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-lg text-[11px] font-medium transition-all flex items-center gap-1"
+                    title={isAllTheoryExpanded ? '全部折叠' : '全部展开'}
+                  >
+                    {isAllTheoryExpanded ? (
+                      <>
+                        <FoldVertical className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">全折叠</span>
+                      </>
+                    ) : (
+                      <>
+                        <UnfoldVertical className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">全展开</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={handleExportTheoryWord}
+                    disabled={isExportingTheoryDocx}
+                    className="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 shadow-xs"
+                    title="导出包含静态理论与素材分支的 Word 合集 (.docx)"
+                  >
+                    {isExportingTheoryDocx ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Download className="w-3 h-3" />
+                    )}
+                    <span>导出 Word</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 导读提示 */}
+              <div className="p-2.5 bg-gradient-to-r from-indigo-50/70 to-slate-50 border border-indigo-100/80 rounded-xl">
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-600 block mb-0.5">三维理论解码路径</span>
+                <p className="text-[11px] text-slate-700 leading-relaxed">
+                  遵循“<strong className="text-slate-900">概念解读 → 框架标签 → 场景举例</strong>”层层对照，答题时可展开相应要点比对。
                 </p>
               </div>
 
-              {Object.entries(THEORY_DATA).map(([category, nodes]) => (
-                <div key={category} className="space-y-2">
-                  <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest px-1">{category}</h4>
-                  {nodes.map((node) => {
-                    const isExpanded = expandedTheory === node.title;
+              {/* 视图分支 1: 树形可视化思维导图 */}
+              {theoryViewMode === 'mindmap' ? (
+                <div className="space-y-2">
+                  <div className="h-[460px] border border-slate-800 rounded-xl overflow-hidden shadow-inner relative bg-[#0f172a]">
+                    <InsightMindMap
+                      data={buildUnifiedTheoryMindMapTree({
+                        staticData: DEFAULT_THEORY_DATA,
+                        materialDrafts: mountedMaterials,
+                      })}
+                      svgRef={theoryMindMapSvgRef}
+                    />
+                    <div className="absolute bottom-2 right-2 text-[10px] bg-slate-900/80 text-amber-300 px-2 py-0.5 rounded border border-slate-700 pointer-events-none">
+                      可滚轮缩放 / 拖拽平移 / 点击节点折叠
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* 视图分支 2: 体系要点卡片 (带折叠与例句展开) */
+                <div className="space-y-3">
+                  {Object.entries(DEFAULT_THEORY_DATA).map(([category, items]) => {
+                    const isCatExpanded = !!expandedCategories[category];
                     return (
-                      <div 
-                        key={node.title} 
-                        className={`border rounded-xl transition-all ${
-                          isExpanded 
-                            ? 'border-[var(--color-border)] bg-slate-50/40 shadow-xs' 
-                            : 'border-slate-100 hover:bg-slate-50'
-                        }`}
-                      >
-                        {/* 节点头部 */}
-                        <button 
-                          onClick={() => { playClick(); setExpandedTheory(isExpanded ? null : node.title); }}
-                          className="w-full text-left p-3 flex justify-between items-center"
+                      <div key={category} className="border border-slate-200/90 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        {/* 一级大类头部 */}
+                        <button
+                          onClick={() => toggleCategory(category)}
+                          className="w-full text-left p-2.5 bg-slate-50 hover:bg-slate-100/80 flex justify-between items-center transition-colors border-b border-slate-100"
                         >
-                          <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand)]"></span>
-                            {node.title}
+                          <span className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-indigo-600"></span>
+                            {category}
+                            <span className="text-[10px] font-normal text-slate-400">({items.length}个主题)</span>
                           </span>
-                          {isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />}
+                          {isCatExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                          )}
                         </button>
-                        
-                        {/* 展开节点详情 */}
-                        {isExpanded && (
-                          <div className="p-3 pt-0 border-t border-indigo-50/50 space-y-3">
-                            <div>
-                              <span className="text-[10px] text-indigo-600 font-bold block mb-0.5">【概念解读】</span>
-                              <p className="text-xs text-slate-600 leading-relaxed font-medium">{node.concept}</p>
-                            </div>
-                            
-                            <div>
-                              <span className="text-[10px] text-indigo-600 font-bold block mb-1">【框架构成】</span>
-                              <div className="flex flex-wrap gap-1">
-                                {node.framework.map((fw) => (
-                                  <span key={fw} className="text-[10px] bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-bold">
-                                    {fw}
-                                  </span>
-                                ))}
+
+                        {/* 二级主题列表 */}
+                        {isCatExpanded && (
+                          <div className="p-2 space-y-2.5 bg-slate-50/20">
+                            {items.map((theme) => {
+                              const isThemeExpanded = !!expandedThemes[theme.title];
+                              return (
+                                <div
+                                  key={theme.title}
+                                  className={`border rounded-lg transition-all ${
+                                    isThemeExpanded
+                                      ? 'border-indigo-100 bg-white shadow-xs'
+                                      : 'border-slate-100 hover:bg-slate-50/80 bg-white'
+                                  }`}
+                                >
+                                  {/* 主题头部 */}
+                                  <button
+                                    onClick={() => toggleTheme(theme.title)}
+                                    className="w-full text-left p-2.5 flex justify-between items-center"
+                                  >
+                                    <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                      {theme.title}
+                                    </span>
+                                    {isThemeExpanded ? (
+                                      <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+                                    ) : (
+                                      <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                                    )}
+                                  </button>
+
+                                  {/* 主题详情与具体知识点 */}
+                                  {isThemeExpanded && (
+                                    <div className="p-2.5 pt-0 border-t border-slate-100 space-y-2.5">
+                                      {/* 概念解读 */}
+                                      <div className="bg-indigo-50/40 p-2 rounded-md border border-indigo-50">
+                                        <span className="text-[10px] text-indigo-700 font-bold block mb-0.5">【概念解读】</span>
+                                        <p className="text-[11px] text-slate-600 leading-relaxed">{theme.concept}</p>
+                                      </div>
+
+                                      {/* 框架构成 */}
+                                      <div>
+                                        <span className="text-[10px] text-slate-500 font-bold block mb-1">【框架构成】</span>
+                                        <div className="flex flex-wrap gap-1">
+                                          {theme.framework.map((fw) => (
+                                            <span key={fw} className="text-[10px] bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded font-medium">
+                                              {fw}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+
+                                      {/* 具体知识点与场景举例 */}
+                                      <div>
+                                        <span className="text-[10px] text-slate-500 font-bold block mb-1">【知识点与场景举例】</span>
+                                        <div className="space-y-2">
+                                          {(theme.structuredPoints || []).map((sp) => {
+                                            const isPtExpanded = expandedPoints[sp.title] !== false; // 默认展开
+                                            return (
+                                              <div key={sp.title} className="p-2 rounded-lg bg-slate-50 border border-slate-100 text-xs">
+                                                <button
+                                                  onClick={() => togglePoint(sp.title)}
+                                                  className="w-full text-left flex justify-between items-center font-bold text-slate-800 mb-1"
+                                                >
+                                                  <span className="flex items-center gap-1 text-[11px]">
+                                                    <span className="w-1 h-1 rounded-full bg-slate-400"></span>
+                                                    {sp.title}
+                                                  </span>
+                                                  {isPtExpanded ? (
+                                                    <ChevronDown className="w-3 h-3 text-slate-400" />
+                                                  ) : (
+                                                    <ChevronRight className="w-3 h-3 text-slate-400" />
+                                                  )}
+                                                </button>
+                                                {isPtExpanded && (
+                                                  <div className="space-y-1.5 mt-1 text-[11px]">
+                                                    <p className="text-slate-600 leading-relaxed">{sp.explanation}</p>
+                                                    <div className="p-1.5 bg-amber-50/60 border-l-2 border-amber-400 rounded-r text-[10.5px] text-amber-900 leading-relaxed font-medium">
+                                                      <span className="font-bold text-amber-800">例句/场景：</span>{sp.example}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* 若有已挂载的素材衍生分支 */}
+                  {mountedMaterials.map((mat, mIdx) => {
+                    const matTitle = (mat.title || `素材 ${mIdx + 1}`).replace(/\.[^.]+$/, '');
+                    const catKey = `素材衍生：${matTitle}`;
+                    const isMatExpanded = !!expandedCategories[catKey];
+                    const pts = mat.knowledgePoints || mat.points || [];
+                    return (
+                      <div key={catKey} className="border border-emerald-200 rounded-xl overflow-hidden bg-white shadow-2xs">
+                        <button
+                          onClick={() => toggleCategory(catKey)}
+                          className="w-full text-left p-2.5 bg-emerald-50/70 hover:bg-emerald-100/70 flex justify-between items-center transition-colors border-b border-emerald-100"
+                        >
+                          <span className="text-xs font-black text-emerald-900 flex items-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                            {catKey}
+                          </span>
+                          {isMatExpanded ? (
+                            <ChevronDown className="w-3.5 h-3.5 text-emerald-600" />
+                          ) : (
+                            <ChevronRight className="w-3.5 h-3.5 text-emerald-600" />
+                          )}
+                        </button>
+
+                        {isMatExpanded && (
+                          <div className="p-2.5 space-y-2 bg-emerald-50/20 text-xs">
+                            {mat.summary && (
+                              <div className="p-2 bg-white rounded border border-emerald-100 text-[11px] text-slate-600">
+                                <span className="font-bold text-emerald-700 block mb-0.5">【素材摘要】</span>
+                                {mat.summary}
                               </div>
-                            </div>
-                            
-                            <div>
-                              <span className="text-[10px] text-indigo-600 font-bold block mb-1">【具体知识点】</span>
-                              <ul className="space-y-1.5">
-                                {node.points.map((pt, i) => (
-                                  <li key={i} className="text-xs text-slate-600 leading-relaxed pl-3 border-l-2 border-indigo-200">
-                                    {pt}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
+                            )}
+                            {Array.isArray(pts) && pts.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {pts.map((pt, pIdx) => {
+                                  const pObj = typeof pt === 'string' ? { title: pt, explanation: pt, example: '' } : pt;
+                                  return (
+                                    <div key={pIdx} className="p-2 bg-white rounded border border-emerald-100 text-[11px]">
+                                      <span className="font-bold text-slate-800 block mb-0.5">{pObj.title || `要点 ${pIdx + 1}`}</span>
+                                      {pObj.explanation && <p className="text-slate-600 mb-1">{pObj.explanation}</p>}
+                                      {pObj.example && (
+                                        <div className="p-1 bg-amber-50 border-l-2 border-amber-400 text-amber-900 text-[10px]">
+                                          {pObj.example}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-slate-400">可在「资料管理中心」补充更多具体知识点。</p>
+                            )}
                           </div>
                         )}
                       </div>
                     );
                   })}
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             /* 页签内容 2: 素材导入区 */

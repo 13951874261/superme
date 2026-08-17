@@ -10,23 +10,38 @@ const HEADINGS = [
   HeadingLevel.HEADING_6,
 ] as const;
 
+function createFormattedRuns(line: string): TextRun[] {
+  const match = line.match(/^【(.*?)】(.*)$/);
+  if (match) {
+    return [
+      new TextRun({ text: `【${match[1]}】`, bold: true, size: 21, color: '1e293b' }),
+      new TextRun({ text: match[2], size: 21, color: '334155' }),
+    ];
+  }
+  return [new TextRun({ text: line, size: 21, color: '334155' })];
+}
+
 function treeParagraphs(node: InsightMindMapNode, level = 0): Paragraph[] {
   const heading = HEADINGS[Math.min(level, HEADINGS.length - 1)];
   const blocks: Paragraph[] = [
     new Paragraph({
       text: node.name,
       heading,
-      spacing: { before: level === 0 ? 0 : 160, after: 80 },
+      spacing: { before: level === 0 ? 0 : 180, after: 80 },
     }),
   ];
   const detail = (node.detail || '').trim();
   if (detail && detail !== node.name) {
-    blocks.push(
-      new Paragraph({
-        children: [new TextRun({ text: detail, size: 20 })],
-        spacing: { after: 80 },
-      }),
-    );
+    const lines = detail.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    for (const line of lines) {
+      blocks.push(
+        new Paragraph({
+          children: createFormattedRuns(line),
+          spacing: { before: 40, after: 60 },
+          indent: { left: Math.min(level * 240 + 200, 1200) },
+        }),
+      );
+    }
   }
   for (const child of node.children || []) {
     blocks.push(...treeParagraphs(child, level + 1));
@@ -67,15 +82,24 @@ function triggerDownload(blob: Blob, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+export function getTheoryExportFilename(prefix = '洞察理论框架'): string {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${prefix}-${yyyy}${mm}${dd}.docx`;
+}
+
 export async function createInsightDocxBlob(input: {
-  title: string;
+  title?: string;
   tree: InsightMindMapNode;
-  markdown: string;
+  markdown?: string;
   pngBlob?: Blob;
 }): Promise<Blob> {
+  const titleText = input.title || input.tree.name || '洞察导图';
   const children: Paragraph[] = [
     new Paragraph({
-      text: input.title || '洞察导图',
+      text: titleText,
       heading: HeadingLevel.TITLE,
       spacing: { after: 200 },
     }),
@@ -89,7 +113,7 @@ export async function createInsightDocxBlob(input: {
           new ImageRun({
             data,
             transformation: { width: 540, height: 240 },
-            altText: { title: '洞察思维导图', description: '洞察思维导图', name: 'insight-mindmap' },
+            altText: { title: titleText, description: titleText, name: 'insight-mindmap' },
           }),
         ],
         spacing: { after: 200 },
@@ -99,7 +123,7 @@ export async function createInsightDocxBlob(input: {
 
   children.push(...treeParagraphs(input.tree));
   if ((input.markdown || '').trim()) {
-    children.push(...markdownParagraphs(input.markdown));
+    children.push(...markdownParagraphs(input.markdown!));
   }
 
   const doc = new Document({
@@ -109,12 +133,14 @@ export async function createInsightDocxBlob(input: {
 }
 
 export async function downloadInsightDocx(input: {
-  title: string;
+  title?: string;
   tree: InsightMindMapNode;
-  markdown: string;
+  markdown?: string;
   pngBlob?: Blob;
   filename?: string;
 }): Promise<void> {
   const blob = await createInsightDocxBlob(input);
-  triggerDownload(blob, input.filename || 'insight.docx');
+  const defaultName = getTheoryExportFilename(input.title ? `${input.title}` : '洞察理论框架');
+  triggerDownload(blob, input.filename || defaultName);
 }
+
