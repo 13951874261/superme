@@ -439,6 +439,8 @@ try {
 }
 const dailyListenPreGenerateService = require('./services/dailyListenPreGenerateService');
 dailyListenPreGenerateService.initDailyListenTables(db);
+const listenPrefsService = require('./services/listenPrefsService');
+listenPrefsService.initListenPrefsTable(db);
 const aestheticsPushService = require('./services/aestheticsPushService');
 aestheticsPushService.initAestheticsPushTables(db);
 const aestheticsPush = aestheticsPushService.createService({
@@ -2624,6 +2626,37 @@ app.get('/api/listen/long-audio/:id', (req, res) => {
     res.json({ success: true, data: audio });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/english/listen-prefs', (req, res) => {
+  try {
+    const userId = String(req.query.userId || '').trim();
+    if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+    const voiceId = listenPrefsService.getListenVoiceId(db, userId);
+    const stored = db.prepare(
+      'SELECT listen_voice_id FROM user_listen_prefs WHERE user_id = ?'
+    ).get(userId);
+    return res.json({
+      success: true,
+      voiceId: stored ? voiceId : null,
+      effectiveVoiceId: voiceId,
+    });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
+app.put('/api/english/listen-prefs', (req, res) => {
+  try {
+    const userId = String(req.body?.userId || '').trim();
+    const voiceId = String(req.body?.voiceId || '').trim();
+    if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+    const saved = listenPrefsService.upsertListenVoiceId(db, userId, voiceId);
+    return res.json({ success: true, voiceId: saved });
+  } catch (e) {
+    const status = /invalid voice/i.test(e.message) ? 400 : 500;
+    return res.status(status).json({ success: false, error: e.message });
   }
 });
 
@@ -9483,18 +9516,9 @@ async function applyAudioEffects(audioPath, effects) {
   const inputs = ['-i', audioPath];
   const filterParts = [];
 
-  // 1. 口音效果（通过改变音调模拟）
-  if (effects.accent) {
-    if (effects.accent === 'indian') {
-      filterParts.push('rubberband=pitch=0.95');
-    } else if (effects.accent === 'british') {
-      filterParts.push('rubberband=pitch=1.05');
-    } else if (effects.accent === 'australian') {
-      filterParts.push('rubberband=pitch=1.02');
-    }
-  }
+  // 口音由 Edge TTS Voice 决定；不再用 rubberband 变调伪装
 
-  // 2. 卡顿效果（随机插入短暂静音模拟网络丢包）
+  // 1. 卡顿效果（随机插入短暂静音模拟网络丢包）
   if (effects.packet_loss) {
     filterParts.push("aevald='if(eq(t\\,0.5)\\,0.001\\,1)*if(eq(t\\,2.0)\\,0.001\\,1)*if(eq(t\\,4.0)\\,0.001\\,1)'");
   }
@@ -9716,10 +9740,12 @@ dailyListenPreGenerateService.setGenerators({
     }, userId);
   },
   extractVocabFromArticle: extractVocabFromListenArticle,
-  synthesizeAudioFile: async (text, audioPath) => {
+  synthesizeAudioFile: async (text, audioPath, ctx = {}) => {
     const clean = sanitizeListenMaterialScript(text);
-    const finalModel = process.env.TTS_DEFAULT_MODEL || 'edge-tts/en-US-EmmaNeural';
-    await synthesizeAndSaveAudio(clean, finalModel, audioPath, null, null);
+    const voiceId = ctx.voiceId || listenPrefsService.DEFAULT_LISTEN_VOICE_ID;
+    const finalModel = `edge-tts/${voiceId}`;
+    const effects = listenPrefsService.CRON_FORCE_LISTEN_EFFECTS;
+    await synthesizeAndSaveAudio(clean, finalModel, audioPath, null, null, { effects });
   },
 });
 

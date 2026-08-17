@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const dailyPackService = require('./dailyPackService');
+const listenPrefsService = require('./listenPrefsService');
 
 const GENRES = ['meeting', 'news', 'podcast', 'reading'];
 const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
@@ -400,9 +401,12 @@ function getPregeneratedCombo(db, raw) {
 let generators = {
   generateLongScript: async () => { throw new Error('generateLongScript not injected'); },
   extractVocabFromArticle: null,
-  synthesizeAudioFile: async (text, outputPath) => {
+  synthesizeAudioFile: async (text, outputPath, ctx = {}) => {
     if (typeof global !== 'undefined' && typeof global.synthesizeAndSaveAudio === 'function') {
-      await global.synthesizeAndSaveAudio(text, 'edge-tts/en-US-EmmaNeural', outputPath, null, null);
+      const voiceId = ctx.voiceId || listenPrefsService.DEFAULT_LISTEN_VOICE_ID;
+      const model = `edge-tts/${voiceId}`;
+      const effects = listenPrefsService.CRON_FORCE_LISTEN_EFFECTS;
+      await global.synthesizeAndSaveAudio(text, model, outputPath, null, null, { effects });
       return outputPath;
     }
     throw new Error('synthesizeAudioFile engine not injected');
@@ -782,7 +786,11 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
     upsertAudio(db, parts, { status: 'generating', source });
     try {
       const audioPath = path.join(userDirAu, `${baseName}.mp3`);
-      await generators.synthesizeAudioFile(script, audioPath);
+      const voiceId = listenPrefsService.getListenVoiceId(db, parts.userId);
+      await generators.synthesizeAudioFile(script, audioPath, {
+        userId: parts.userId,
+        voiceId,
+      });
       const audioUrl = `/api/daily_listen_audio/${parts.userId}/${baseName}.mp3`;
       upsertAudio(db, parts, {
         status: 'ready',
@@ -1419,12 +1427,16 @@ async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
   upsertAudio(db, parts, { status: 'generating', source });
   try {
     const audioPath = path.join(userDirAu, `${baseName}.mp3`);
+    const voiceId = listenPrefsService.getListenVoiceId(db, parts.userId);
     if (generators.synthesizeAudioFile) {
-      await generators.synthesizeAudioFile(scriptText, audioPath);
+      await generators.synthesizeAudioFile(scriptText, audioPath, {
+        userId: parts.userId,
+        voiceId,
+      });
     } else {
       const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
       const tts = new MsEdgeTTS();
-      await tts.setMetadata('en-US-AnaNeural', OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_STEREO_MD5);
+      await tts.setMetadata(voiceId, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_STEREO_MD5);
       const stream = tts.toStream(scriptText);
       const outStream = fs.createWriteStream(audioPath);
       await new Promise((resolve, reject) => {

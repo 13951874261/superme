@@ -12,6 +12,8 @@ import {
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { submitReview, addWord } from '../../../../services/vocabAPI';
 import { useTask } from '../../../../components/TaskContext';
+import { ListenVoicePicker } from './ListenVoicePicker';
+import { fetchListenPrefs, saveListenPrefs } from '../../../../services/listenPrefsAPI';
 
 const CACHEABLE_DURATIONS = [1, 15, 25, 35];
 
@@ -51,7 +53,7 @@ export default function ListenTab() {
   const [pregenAudioStatus, setPregenAudioStatus] = useState<string | null>(null);
   const [isBackfillSubmitting, setIsBackfillSubmitting] = useState(false);
   const [listenMode, setListenMode] = useState<'auto' | 'upload'>('auto');
-  const [listenAccent, setListenAccent] = useState<'normal' | 'indian' | 'british' | 'australian'>('normal');
+  const [listenVoiceId, setListenVoiceId] = useState('en-US-BrianNeural');
   const [listenInterruptions, setListenInterruptions] = useState(false);
   const [listenPacketLoss, setListenPacketLoss] = useState(false);
   const [listenInfoGap, setListenInfoGap] = useState(false);
@@ -63,7 +65,7 @@ export default function ListenTab() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const filterFetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const listenEffectsRef = useRef({
-    listenAccent,
+    listenVoiceId,
     listenInterruptions,
     listenPacketLoss,
     listenInfoGap,
@@ -71,17 +73,29 @@ export default function ListenTab() {
 
   useEffect(() => {
     listenEffectsRef.current = {
-      listenAccent,
+      listenVoiceId,
       listenInterruptions,
       listenPacketLoss,
       listenInfoGap,
     };
-  }, [listenAccent, listenInterruptions, listenPacketLoss, listenInfoGap]);
+  }, [listenVoiceId, listenInterruptions, listenPacketLoss, listenInfoGap]);
+
+  useEffect(() => {
+    void fetchListenPrefs()
+      .then((p) => setListenVoiceId(p.effectiveVoiceId || p.voiceId || 'en-US-BrianNeural'))
+      .catch(() => { /* keep default */ });
+  }, []);
+
+  const handleVoiceChange = (voiceId: string) => {
+    setListenVoiceId(voiceId);
+    void saveListenPrefs(voiceId).catch(() => {
+      showNotice('listen', '音色偏好保存失败，本次仍可用所选 Voice', 'error');
+    });
+  };
 
   const buildListenTtsEffects = () => {
     const s = listenEffectsRef.current;
     return {
-      accent: (s.listenAccent === 'normal' ? '' : s.listenAccent) as '' | 'indian' | 'british' | 'australian',
       packet_loss: s.listenPacketLoss,
       interruptions: s.listenInterruptions,
       information_gap: s.listenInfoGap,
@@ -90,7 +104,7 @@ export default function ListenTab() {
 
   const hasActiveListenEffects = () => {
     const s = listenEffectsRef.current;
-    return s.listenAccent !== 'normal' || s.listenPacketLoss || s.listenInterruptions || s.listenInfoGap;
+    return s.listenPacketLoss || s.listenInterruptions || s.listenInfoGap;
   };
 
 
@@ -281,7 +295,11 @@ export default function ListenTab() {
       // 自动触发 TTS 生成 (选项 A 逻辑)
       setIsAudioGenerating(true);
       import('../../../../services/listeningAPI').then(({ fetchDifyTTS }) => {
-        fetchDifyTTS(script, { isAsync: true, effects: buildListenTtsEffects() }).then(ttsRes => {
+        fetchDifyTTS(script, {
+          isAsync: true,
+          voiceId: listenEffectsRef.current.listenVoiceId,
+          effects: buildListenTtsEffects(),
+        }).then(ttsRes => {
           if (ttsRes.audioUrl) {
             setListenAudioUrl(ttsRes.audioUrl);
             setIsAudioGenerating(false);
@@ -356,6 +374,7 @@ export default function ListenTab() {
       try {
         const ttsRes = await fetchDifyTTS(script, {
           isAsync: true,
+          voiceId: listenEffectsRef.current.listenVoiceId,
           effects: buildListenTtsEffects(),
         });
         if (ttsRes.audioUrl) {
@@ -649,16 +668,7 @@ export default function ListenTab() {
               {listenMode === 'auto' && (
               <div className="flex flex-wrap items-center gap-3 mt-3 relative z-10 border-t border-white/5 pt-3 w-full">
                 <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">压力因素:</span>
-                <select
-                  value={listenAccent}
-                  onChange={(e) => setListenAccent(e.target.value as any)}
-                  className="bg-black/30 text-white/90 text-[10px] px-2.5 py-1 rounded-lg border border-white/10 outline-none focus:border-[#FF5722] cursor-pointer hover:border-white/20"
-                >
-                  <option value="normal" className="text-black">标准发音</option>
-                  <option value="indian" className="text-black">印度口音 (India)</option>
-                  <option value="british" className="text-black">英国口音 (UK)</option>
-                  <option value="australian" className="text-black">澳洲口音 (AU)</option>
-                </select>
+                <ListenVoicePicker value={listenVoiceId} onChange={handleVoiceChange} />
                 <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
                   <input
                     type="checkbox"

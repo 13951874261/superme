@@ -39,7 +39,6 @@ export const BlindListeningCabin: React.FC<Props> = ({ currentSentence = '', onS
   // 新增压力因子与上传状态
   const [selectedVoiceId, setSelectedVoiceId] = useState<string>('en-GB-LibbyNeural');
   const [effects, setEffects] = useState<{
-    accent?: 'indian' | 'british' | 'australian' | '';
     packet_loss?: boolean;
     interruptions?: boolean;
     information_gap?: boolean;

@@ -13,7 +13,6 @@ export interface TtsSpeechOptions {
   model?: string;
   isAsync?: boolean;
   effects?: {
-    accent?: 'indian' | 'british' | 'australian' | '';
     packet_loss?: boolean;
     interruptions?: boolean;
     information_gap?: boolean;

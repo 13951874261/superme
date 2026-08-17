@@ -110,7 +110,6 @@ export async function fetchDifyTTS(
     isAsync?: boolean;
     voiceId?: string;
     effects?: {
-      accent?: 'indian' | 'british' | 'australian' | '';
       packet_loss?: boolean;
       interruptions?: boolean;
       information_gap?: boolean;
