@@ -1,4 +1,4 @@
-import React, { useState, useEffect, startTransition } from 'react';
+import React, { useState, useEffect, useRef, startTransition } from 'react';
 import { 
   Brain, Swords, ShieldAlert, Zap, Loader2, Sparkles, Plus, Trash2, 
   Layers, AlertCircle, CheckCircle, HelpCircle, Trophy, UserCheck, Flame, Compass, X, BookOpen, Users,
@@ -218,17 +218,19 @@ export default function GameTheoryModule() {
     }
   };
 
+  const initialPreset = PRESET_CASES.find((c) => c.env === 'corp_clash');
   const [activeEnv, setActiveEnv] = useState<'gov_struggle' | 'corp_clash' | 'upward_takeover'>('corp_clash');
   const [extraCases, setExtraCases] = useState<PresetCase[]>([]);
   const [casePushLoading, setCasePushLoading] = useState(false);
+  const casePushLoadingRef = useRef(false);
   const [casePushQuality, setCasePushQuality] = useState<{
     quality: 'ok' | 'below_standard';
     quality_note?: string;
   } | null>(null);
-  const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>('pig_game');
-  const [caseText, setCaseText] = useState('');
+  const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>(initialPreset?.model || 'pig_game');
+  const [caseText, setCaseText] = useState(initialPreset?.description || '');
   const [userAnswer, setUserAnswer] = useState('');
-  const [selectedTactics, setSelectedTactics] = useState<string[]>([]);
+  const [selectedTactics, setSelectedTactics] = useState<string[]>(initialPreset?.defaultTactics || []);
   
   // 原型与记录状态
   const [prototypes, setPrototypes] = useState<PersonalPrototype[]>([]);
@@ -554,15 +556,21 @@ export default function GameTheoryModule() {
     setKeyPoints('');
   };
 
-  const refreshPushedCase = async () => {
-    playClick();
+  const refreshPushedCase = async (options?: { isAuto?: boolean; targetEnv?: typeof activeEnv }) => {
+    const isAuto = options?.isAuto ?? false;
+    const currentEnv = options?.targetEnv ?? activeEnv;
+    if (casePushLoadingRef.current) return;
+    casePushLoadingRef.current = true;
     setCasePushLoading(true);
+    if (!isAuto) {
+      playClick();
+    }
     const previousText = caseText;
-    const envPool = [...PRESET_CASES, ...extraCases].filter((item) => item.env === activeEnv);
+    const envPool = [...PRESET_CASES, ...extraCases].filter((item) => item.env === currentEnv);
     const currentId = envPool.find((item) => item.description === caseText)?.id;
 
     const applyLocalRotate = () => {
-      const pool = PRESET_CASES.filter((c) => c.env === activeEnv);
+      const pool = PRESET_CASES.filter((c) => c.env === currentEnv);
       if (!pool.length) return false;
       const idx = pool.findIndex((c) => c.description === previousText);
       const next = pool[(idx >= 0 ? idx + 1 : 0) % pool.length];
@@ -578,7 +586,7 @@ export default function GameTheoryModule() {
       setMotivesAnalysis('');
       setWeaknesses('');
       setKeyPoints('');
-      playPageTurn();
+      if (!isAuto) playPageTurn();
       return true;
     };
 
@@ -586,13 +594,13 @@ export default function GameTheoryModule() {
       // 只排除当前条与已推送条，勿排除全部预设，否则 fallback 又会回到同一批
       const excludeIds = [
         ...(currentId ? [currentId] : []),
-        ...extraCases.filter((item) => item.env === activeEnv).map((item) => item.id),
+        ...extraCases.filter((item) => item.env === currentEnv).map((item) => item.id),
       ];
-      const pushed = await pushGameTheoryCase({ env: activeEnv, excludeIds });
+      const pushed = await pushGameTheoryCase({ env: currentEnv, excludeIds });
       const mapped: PresetCase = {
         id: pushed.id,
         title: pushed.title,
-        env: activeEnv,
+        env: currentEnv,
         model: selectedModel,
         description: `${pushed.background}\n\n【未知信息】${pushed.incomplete_info}\n\n【决策点】${pushed.decision_point}`,
         defaultTactics: [],
@@ -600,8 +608,10 @@ export default function GameTheoryModule() {
       setExtraCases((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
       if (mapped.description === previousText) {
         if (!applyLocalRotate()) {
-          playGentleWarning();
-          alert('推送内容与当前案例相同，请稍后再试');
+          if (!isAuto) {
+            playGentleWarning();
+            alert('推送内容与当前案例相同，请稍后再试');
+          }
         }
         return;
       }
@@ -620,18 +630,28 @@ export default function GameTheoryModule() {
       setMotivesAnalysis('');
       setWeaknesses('');
       setKeyPoints('');
-      playPageTurn();
+      if (!isAuto) playPageTurn();
     } catch (e) {
       // API 失败时至少轮换本地预设，避免「换一条」完全无感
       if (!applyLocalRotate()) {
-        playGentleWarning();
-        const msg = e instanceof Error ? e.message : String(e);
-        alert(msg);
+        if (!isAuto) {
+          playGentleWarning();
+          const msg = e instanceof Error ? e.message : String(e);
+          alert(msg);
+        }
       }
     } finally {
+      casePushLoadingRef.current = false;
       setCasePushLoading(false);
     }
   };
+
+  // 每次进入或切回案例研判 Tab，或切换博弈环境时，自动再推并替换主文案
+  useEffect(() => {
+    if (activeTab === 'cases') {
+      void refreshPushedCase({ isAuto: true });
+    }
+  }, [activeTab, activeEnv]);
 
   // 手动添加原型档案
   const handleAddProto = async (e: React.FormEvent) => {
@@ -754,6 +774,18 @@ export default function GameTheoryModule() {
   const downwardTactics = ['恩威并施', '制衡术', '分而治之', '边缘化'];
   const upwardTactics = ['借势上位', '构建联盟', '信息垄断', '软对抗'];
 
+  // 环境切换函数
+  const handleEnvChange = (newEnv: typeof activeEnv) => {
+    playClick();
+    setActiveEnv(newEnv);
+    const envPreset = PRESET_CASES.find((c) => c.env === newEnv);
+    if (envPreset) {
+      setCaseText(envPreset.description);
+      setSelectedModel(envPreset.model);
+      setSelectedTactics(envPreset.defaultTactics);
+    }
+  };
+
   // Tab 切换函数
   const handleTabChange = (tab: typeof activeTab) => {
     playPageTurn();
@@ -840,7 +872,7 @@ export default function GameTheoryModule() {
                         ] as const).map(env => (
                           <button 
                             key={env.id}
-                            onClick={() => { playClick(); setActiveEnv(env.id); }}
+                            onClick={() => handleEnvChange(env.id)}
                             className={`w-full text-left py-2.5 px-4 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-between ${
                               activeEnv === env.id 
                                 ? 'bg-zinc-900 text-white shadow-sm' 
