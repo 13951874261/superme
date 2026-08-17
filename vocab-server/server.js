@@ -7828,6 +7828,11 @@ app.post('/api/game-theory/analyze', async (req, res) => {
 
       taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接博弈模型 (Dify)...'] });
 
+      const isSimulation = normalizedSource === 'simulation';
+      const promptInstruction = isSimulation
+        ? '\n\n【系统研判指令：请针对玩家在人机对战沙盘中的当句应对（user_answer）进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，严禁假大空公文套话（禁止使用“高度重视、统筹兼顾、战略定力、深刻理解”等词）。你必须输出严格 JSON，除原有字段外，强制包含以下字段：\n1. interest_chain（利益链）：必须讲清多方谁赢谁输、利益交换与同盟裂痕。\n2. emotion_motives（情绪动机）：必须包含面子/恐惧/欲望/羞辱/难堪/失控等具体情绪锚点，结合现场人设。\n3. strategy_guidance（博弈策略示例）：必须为字符串数组（≥2条），针对玩家当句应对给出具体「先...再...」下一步策略动作，必须引用或紧贴该句。\n4. tone_corrections（语气修正对比表）：必须为数组（≥1），元素包含 original（必须为玩家当句应对原话）、problem（指出其过硬/失控的具体风险）、suggested（直接可说出口的针对性改写台词，严禁使用泛化套话）。\n另：可提供 suggestion 作一句话汇总。】'
+        : '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，严禁假大空公文套话（禁止使用“高度重视、统筹兼顾、战略定力、深刻理解”等词）。你必须输出严格 JSON，除原有字段外，强制包含以下四个独立字段（中文详写，四节去空白合计≥600字）：\n1. interest_chain（利益链）：必须讲清多方谁赢谁输、利益交换与同盟裂痕。\n2. emotion_motives（情绪动机）：必须包含面子/恐惧/欲望/羞辱/难堪/失控等具体情绪锚点，结合现场人设。\n3. actionable_strategy（可执行策略）：1-2个可落地行动步骤，必须包含明确先后次序（先...再.../会前...）。\n4. script_examples（话术示例）：可直接说出口的具体台词原话（如「...」）或「原话→修正」对照。\n另须强制包含 tone_corrections 数组（≥1），元素为 { original, problem, suggested } 三字段，用于独立「语气修正」对比表；不得只把语气修正写进 suggestion。\n另：suggestion 可作一句话汇总。四节字段与 tone_corrections 均不可省略。】';
+
       const response = await fetch(`${baseUrl}/workflows/run`, {
         method: 'POST',
         headers: {
@@ -7838,7 +7843,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           inputs: attachKnowledgeContext(injectOralSystemTime({
             scene_type,
             game_model,
-            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，严禁假大空公文套话（禁止使用“高度重视、统筹兼顾、战略定力、深刻理解”等词）。你必须输出严格 JSON，除原有字段外，强制包含以下四个独立字段（中文详写，四节去空白合计≥600字）：\n1. interest_chain（利益链）：必须讲清多方谁赢谁输、利益交换与同盟裂痕。\n2. emotion_motives（情绪动机）：必须包含面子/恐惧/欲望/羞辱/难堪/失控等具体情绪锚点，结合现场人设。\n3. actionable_strategy（可执行策略）：1-2个可落地行动步骤，必须包含明确先后次序（先...再.../会前...）。\n4. script_examples（话术示例）：可直接说出口的具体台词原话（如「...」）或「原话→修正」对照。\n另须强制包含 tone_corrections 数组（≥1），元素为 { original, problem, suggested } 三字段，用于独立「语气修正」对比表；不得只把语气修正写进 suggestion。\n另：suggestion 可作一句话汇总。四节字段与 tone_corrections 均不可省略。】',
+            case_text: case_text + promptInstruction,
             user_answer,
             applied_tactics: applied_tactics || '',
             user_current_profile: user_current_profile || '',
@@ -7876,29 +7881,66 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         return;
       }
 
-      const { ensureGameTheoryVerdictSections } = require('./services/gameTheoryVerdictGuard');
-      const { normalizeToneCorrections } = require('./services/toneCorrections');
-      parsedResult = ensureGameTheoryVerdictSections(parsedResult, titleBase);
-      const toneNorm = normalizeToneCorrections(parsedResult.tone_corrections, user_answer);
-      parsedResult.tone_corrections = toneNorm.items;
-      if (toneNorm.repaired) {
-        parsedResult.tone_corrections_repaired = true;
-        const note = String(parsedResult.quality_note || '').trim();
-        parsedResult.quality_note = note
-          ? `${note}；语气修正经系统补全`
-          : '语气修正经系统补全（GT-SIM-02）';
-      }
+      if (isSimulation) {
+        // GT-SIM-02: 人机对战沙盘新硬卡门禁（贴当句博弈策略示例 + 贴当句语气表 + 利益情绪密度）
+        const { evaluateSimAdviceQuality } = require('./services/gtCaseQuality');
+        const { normalizeToneCorrections } = require('./services/toneCorrections');
+        const toneNorm = normalizeToneCorrections(parsedResult.tone_corrections, user_answer);
+        parsedResult.tone_corrections = toneNorm.items;
+        if (toneNorm.repaired) {
+          parsedResult.tone_corrections_repaired = true;
+        }
 
-      // GT-CASE-02: 双硬卡质量拦截 —— 未达标则拒绝入库并置任务为 failed
-      if (parsedResult.quality === 'below_standard') {
-        const failReason = parsedResult.quality_note || '研判内容未达尖锐与逻辑情感质量门槛（GT-CASE-02）';
-        console.warn(`[GameTheory Analyze] 任务 ${task.id} 研判未达标，拒绝入库: ${failReason}`);
-        taskQueue.updateTask(task.id, {
-          status: 'failed',
-          error: `博弈研判未达标（可重新提交）：${failReason}`,
-          logs: [`研判质量检查未通过: ${failReason}`],
+        if (!Array.isArray(parsedResult.strategy_guidance) && typeof parsedResult.strategy_guidance === 'string') {
+          parsedResult.strategy_guidance = [parsedResult.strategy_guidance];
+        }
+
+        const simQuality = evaluateSimAdviceQuality({
+          user_answer,
+          strategy_guidance: parsedResult.strategy_guidance,
+          tone_corrections: parsedResult.tone_corrections,
+          interest_chain: parsedResult.interest_chain,
+          emotion_motives: parsedResult.emotion_motives,
+          actionable_strategy: parsedResult.actionable_strategy,
+          script_examples: parsedResult.script_examples,
         });
-        return;
+
+        parsedResult.quality = simQuality.quality;
+        if (simQuality.quality === 'below_standard') {
+          const failReason = simQuality.quality_note || '沙盘博弈给策未贴合当句应对或存在泛化套话（GT-SIM-02）';
+          console.warn(`[GameTheory Analyze Simulation] 任务 ${task.id} 研判未达标，拒绝入库: ${failReason}`);
+          taskQueue.updateTask(task.id, {
+            status: 'failed',
+            error: `沙盘给策未达标（可重新提交）：${failReason}`,
+            logs: [`沙盘质量检查未通过: ${failReason}`],
+          });
+          return;
+        }
+      } else {
+        // GT-CASE-02: 案例研判维持全四节质量门禁
+        const { ensureGameTheoryVerdictSections } = require('./services/gameTheoryVerdictGuard');
+        const { normalizeToneCorrections } = require('./services/toneCorrections');
+        parsedResult = ensureGameTheoryVerdictSections(parsedResult, titleBase);
+        const toneNorm = normalizeToneCorrections(parsedResult.tone_corrections, user_answer);
+        parsedResult.tone_corrections = toneNorm.items;
+        if (toneNorm.repaired) {
+          parsedResult.tone_corrections_repaired = true;
+          const note = String(parsedResult.quality_note || '').trim();
+          parsedResult.quality_note = note
+            ? `${note}；语气修正经系统补全`
+            : '语气修正经系统补全（GT-SIM-02）';
+        }
+
+        if (parsedResult.quality === 'below_standard') {
+          const failReason = parsedResult.quality_note || '研判内容未达尖锐与逻辑情感质量门槛（GT-CASE-02）';
+          console.warn(`[GameTheory Analyze Case] 任务 ${task.id} 研判未达标，拒绝入库: ${failReason}`);
+          taskQueue.updateTask(task.id, {
+            status: 'failed',
+            error: `博弈研判未达标（可重新提交）：${failReason}`,
+            logs: [`研判质量检查未通过: ${failReason}`],
+          });
+          return;
+        }
       }
 
       const normalizedPrototype = normalizePrototypeArchive(parsedResult.prototype_archive);

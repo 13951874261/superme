@@ -68,8 +68,8 @@ if ($Force) {
         Write-Host "No vocab-server paths in scan; including HEAD~1..HEAD vocab-server files." -ForegroundColor Yellow
         $changedFiles = @(git diff --name-only HEAD~1 HEAD -- vocab-server/)
         if (@($changedFiles).Count -eq 0) {
-            $changedFiles = @('vocab-server/server.js', 'vocab-server/services/gtCaseQuality.js', 'vocab-server/services/gameTheoryCasePushService.js', 'vocab-server/services/gameTheoryVerdictGuard.js', 'vocab-server/services/insightSpeakProxy.js', 'vocab-server/services/scriptEvaluator.js', 'vocab-server/services/insightScenarioFallbacks.json', 'vocab-server/services/insightScenarioScript.js', 'vocab-server/services/webFetcher.js')
-            Write-Host "Fallback upload list: server.js + services/gtCaseQuality.js + services/gameTheoryCasePushService.js + services/gameTheoryVerdictGuard.js + services/insightSpeakProxy.js + services/scriptEvaluator.js + services/insightScenarioFallbacks.json + services/insightScenarioScript.js + services/webFetcher.js" -ForegroundColor Yellow
+            $changedFiles = @('vocab-server/server.js', 'vocab-server/services/gtCaseQuality.js', 'vocab-server/services/toneCorrections.js', 'vocab-server/services/gameTheorySessionService.js', 'vocab-server/services/gameTheoryCasePushService.js', 'vocab-server/services/gameTheoryVerdictGuard.js', 'vocab-server/services/insightSpeakProxy.js', 'vocab-server/services/scriptEvaluator.js', 'vocab-server/services/insightScenarioFallbacks.json', 'vocab-server/services/insightScenarioScript.js', 'vocab-server/services/webFetcher.js')
+            Write-Host "Fallback upload list: server.js + services/gtCaseQuality.js + services/toneCorrections.js + services/gameTheorySessionService.js + services/gameTheoryCasePushService.js + services/gameTheoryVerdictGuard.js + services/insightSpeakProxy.js + services/scriptEvaluator.js + services/insightScenarioFallbacks.json + services/insightScenarioScript.js + services/webFetcher.js" -ForegroundColor Yellow
         }
     }
 } else {
@@ -208,6 +208,8 @@ try {
             $changedFiles = @(
                 'vocab-server/server.js',
                 'vocab-server/services/gtCaseQuality.js',
+                'vocab-server/services/toneCorrections.js',
+                'vocab-server/services/gameTheorySessionService.js',
                 'vocab-server/services/gameTheoryCasePushService.js',
                 'vocab-server/services/gameTheoryVerdictGuard.js',
                 'vocab-server/services/insightSpeakProxy.js',

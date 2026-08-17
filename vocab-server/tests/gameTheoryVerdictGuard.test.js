@@ -15,12 +15,15 @@ test('缺节时补齐四节并标记 below_standard', () => {
 });
 
 test('完整长四节保留 ok', () => {
-  const chunk = '围绕董事长、CEO与投资人的利益拉扯，说明谁怕失去编制、谁要面子，并给出可执行动作与话术。'.repeat(8);
+  const interestChunk = '围绕董事长与CEO的赢家输家利益拉扯，阵营出局风险明显。'.repeat(8);
+  const emotionChunk = '说明谁害怕失去编制与部门控制权、谁极度在乎面子。'.repeat(8);
+  const actionChunk = '必须先私下与合规部门对账取证，再在周一闭门会上表态。'.repeat(8);
+  const scriptChunk = '直接说台词原话：「关于重组方案，我建议先以审计底线为基准。」'.repeat(8);
   const r = ensureGameTheoryVerdictSections({
-    interest_chain: chunk,
-    emotion_motives: chunk,
-    actionable_strategy: chunk,
-    script_examples: chunk,
+    interest_chain: interestChunk,
+    emotion_motives: emotionChunk,
+    actionable_strategy: actionChunk,
+    script_examples: scriptChunk,
     suggestion: '综合建议：先保全证据再表态。',
     score: 8,
     is_success: true,

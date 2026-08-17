@@ -162,3 +162,174 @@ export function evaluateVerdictSectionsQuality(sections?: {
     sections_char_count,
   };
 }
+
+/** GT-SIM-02: 剥离玩家应对策略前缀 */
+export function stripPlayerPrefix(text?: string | null): string {
+  let s = String(text || '').trim();
+  s = s.replace(/^[【\[(（]?(?:玩家应对策略|玩家应对|用户应对|应对策略|玩家输入|我的应对)[】\])）]?[：:\s]*/i, '');
+  return s.trim();
+}
+
+export const GT_FALLBACK_SUGGESTED = '先确认对方关切，再说明边界与可协商空间的下一句';
+
+export function isFallbackToneSuggested(suggested?: string | null): boolean {
+  const s = String(suggested || '').trim();
+  if (!s) return true;
+  return s.includes(GT_FALLBACK_SUGGESTED) || s === '（未提供原话）';
+}
+
+/** 检查文本中是否贴合用户当句核心子串 */
+export function matchUserPromptCue(targetText?: string | null, rawUserInput?: string | null): boolean {
+  const cleanedTarget = String(targetText || '').replace(/\s+/g, '');
+  const stripped = stripPlayerPrefix(rawUserInput).replace(/\s+/g, '');
+  if (!stripped) return true; // 如果无输入原话，不强行因匹配失败拦截
+
+  // 1. 去标点后的完整短句匹配
+  const cleanInput = stripped.replace(/[，。！？、,.!?；;""''“”《》【】]/g, '');
+  if (cleanInput.length >= 2 && cleanedTarget.includes(cleanInput)) {
+    return true;
+  }
+
+  // 2. 提取 2~4 字关键子串匹配（过滤纯虚词/代词）
+  if (cleanInput.length >= 2) {
+    for (let len = Math.min(cleanInput.length, 4); len >= 2; len--) {
+      for (let i = 0; i <= cleanInput.length - len; i++) {
+        const chunk = cleanInput.slice(i, i + len);
+        if (/^(?:我们|你们|他们|这个|那个|一下|什么|怎么|的话|以及|还有|因为|所以)$/.test(chunk)) {
+          continue;
+        }
+        if (cleanedTarget.includes(chunk)) {
+          return true;
+        }
+      }
+    }
+  }
+
+  return false;
+}
+
+export type SimAdviceQualityInput = {
+  user_answer?: string;
+  strategy_guidance?: string[] | unknown;
+  tone_corrections?: Array<{ original?: string; problem?: string; suggested?: string }> | unknown;
+  interest_chain?: string;
+  emotion_motives?: string;
+  actionable_strategy?: string;
+  script_examples?: string;
+};
+
+/** GT-SIM-02: 人机对战沙盘及会话复盘新硬卡质量判定 */
+export function evaluateSimAdviceQuality(input?: SimAdviceQualityInput | null): {
+  quality: GtQuality;
+  quality_note?: string;
+  details: {
+    interestOk: boolean;
+    emotionOk: boolean;
+    clicheFail: boolean;
+    guidanceOk: boolean;
+    toneQuoteOk: boolean;
+    toneRewriteOk: boolean;
+  };
+} {
+  const interest = String(input?.interest_chain || '').trim();
+  const emotion = String(input?.emotion_motives || '').trim();
+  const rawUserAnswer = String(input?.user_answer || '').trim();
+
+  // 1. 利益链 & 情绪动机检查
+  const interestOk = Boolean(interest) && GT_WIN_LOSE_RE.test(interest);
+  const emotionOk = Boolean(emotion) && GT_EMOTION_RE.test(emotion);
+
+  const totalCliches = countMatches(interest + emotion, GT_CLICHE_RE);
+  const clicheFail = totalCliches >= 3;
+
+  // 2. strategy_guidance 检查 (条数 >= 2, 命中当句子串, 具备行动次序信号, 且非泛化套话)
+  const rawGuidance = input?.strategy_guidance;
+  const guidanceList = Array.isArray(rawGuidance)
+    ? rawGuidance.map((g) => String(g || '').trim()).filter(Boolean)
+    : [];
+  const guidanceText = guidanceList.join(' ');
+  const guidanceLenOk = guidanceList.length >= 2;
+  const guidanceCueOk = matchUserPromptCue(guidanceText, rawUserAnswer);
+  const guidanceActionOk = GT_ACTION_RE.test(guidanceText);
+  const guidanceCliche = countMatches(guidanceText, GT_CLICHE_RE) >= 2 || isFallbackToneSuggested(guidanceText);
+
+  const guidanceOk = guidanceLenOk && guidanceCueOk && guidanceActionOk && !guidanceCliche;
+
+  // 3. tone_corrections 检查 (original 贴当句, suggested 非泛化兜底且有实际改写)
+  const rawTone = input?.tone_corrections;
+  const toneList = Array.isArray(rawTone) ? rawTone : [];
+  const validToneItems = toneList.filter((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const orig = String(item.original || '').trim();
+    const prob = String(item.problem || '').trim();
+    const sugg = String(item.suggested || '').trim();
+    return Boolean(orig && prob && sugg);
+  });
+
+  const toneQuoteOk =
+    validToneItems.length >= 1 &&
+    validToneItems.some((item) => matchUserPromptCue(item.original, rawUserAnswer));
+
+  const toneRewriteOk =
+    validToneItems.length >= 1 &&
+    validToneItems.some((item) => {
+      const orig = String(item.original || '').trim();
+      const sugg = String(item.suggested || '').trim();
+      return sugg.length > 0 && sugg !== orig && !isFallbackToneSuggested(sugg);
+    });
+
+  const notes: string[] = [];
+  if (!interestOk) {
+    notes.push('利益链缺少输赢与利益格局分析');
+  }
+  if (!emotionOk) {
+    notes.push('情绪动机缺少面子、恐惧等心理透视');
+  }
+  if (clicheFail) {
+    notes.push(`利益与情绪部分包含较多套话（命中 ${totalCliches} 处）`);
+  }
+  if (!guidanceLenOk) {
+    notes.push(`博弈策略示例条数不足（当前 ${guidanceList.length} 条，需 ≥2 条）`);
+  } else if (!guidanceCueOk) {
+    notes.push('博弈策略示例未贴合用户当句应对进行推演');
+  } else if (!guidanceActionOk) {
+    notes.push('博弈策略示例缺少先/再等行动次序指导');
+  } else if (guidanceCliche) {
+    notes.push('博弈策略示例包含泛化套话');
+  }
+
+  if (!toneQuoteOk) {
+    notes.push('语气修正表原话未引用用户当句应对');
+  }
+  if (!toneRewriteOk) {
+    notes.push('语气修正表建议说法为泛化兜底或未进行有效改写');
+  }
+
+  const allPassed =
+    interestOk &&
+    emotionOk &&
+    !clicheFail &&
+    guidanceOk &&
+    toneQuoteOk &&
+    toneRewriteOk;
+
+  const details = {
+    interestOk,
+    emotionOk,
+    clicheFail,
+    guidanceOk,
+    toneQuoteOk,
+    toneRewriteOk,
+  };
+
+  if (allPassed) {
+    return { quality: 'ok', details };
+  }
+
+  return {
+    quality: 'below_standard',
+    quality_note: notes.join('；'),
+    details,
+  };
+}
+

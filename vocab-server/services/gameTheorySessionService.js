@@ -809,7 +809,7 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
           user_role_name: String(body.user_role_name || userRole.name || ''),
           current_round: session.current_round,
           elapsed_minutes: elapsedMinutes(state),
-          user_current_profile: String(body.user_current_profile || '').trim(),
+          user_current_profile: `${String(body.user_current_profile || '').trim()}\n【系统指令：个人复盘中的 strategy_guidance 与 tone_corrections 必须严格引用并改写用户最近一条发言，给出针对性的博弈策略与可出口语气修正，严禁泛化兜底套话。】`.trim(),
         },
       }));
       review = parseWorkflowOutput(payload, ['review_result']);
@@ -822,12 +822,35 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
     }
     const lastUserInput = [...rounds].reverse().find((r) => String(r.user_input || '').trim())?.user_input || '';
     const { normalizeToneCorrections } = require('./toneCorrections');
+    const { matchUserPromptCue, isFallbackToneSuggested } = require('./gtCaseQuality');
     const toneNorm = normalizeToneCorrections(review?.tone_corrections, lastUserInput);
     review = {
       ...(review && typeof review === 'object' ? review : {}),
       tone_corrections: toneNorm.items,
       ...(toneNorm.repaired ? { tone_corrections_repaired: true } : {}),
     };
+
+    // GT-SIM-02 硬卡质量检查：当存在用户轮次发言时，复盘的 guidance 与 tone_corrections 必须贴当句且不得为泛化兜底
+    if (lastUserInput) {
+      const guidanceList = Array.isArray(review.strategy_guidance) ? review.strategy_guidance : [];
+      const guidanceText = guidanceList.join(' ');
+      const guidanceOk = guidanceList.length >= 1 && matchUserPromptCue(guidanceText, lastUserInput) && !isFallbackToneSuggested(guidanceText);
+
+      const validToneItems = Array.isArray(review.tone_corrections)
+        ? review.tone_corrections.filter((item) => item && item.original && item.problem && item.suggested)
+        : [];
+      const toneQuoteOk = validToneItems.length >= 1 && validToneItems.some((item) => matchUserPromptCue(item.original, lastUserInput));
+      const toneRewriteOk = validToneItems.length >= 1 && validToneItems.some((item) => {
+        const orig = String(item.original || '').trim();
+        const sugg = String(item.suggested || '').trim();
+        return sugg.length > 0 && sugg !== orig && !isFallbackToneSuggested(sugg);
+      });
+
+      if (!guidanceOk || !toneQuoteOk || !toneRewriteOk || toneNorm.repaired) {
+        throw httpError(422, '个人复盘未针对您本局的发言原话进行给策与语气改写（未通过 GT-SIM-02 质量门禁），请重新生成');
+      }
+    }
+
     state.review = review;
     state.phase = 'review_done';
     const guidance = Array.isArray(review.strategy_guidance) ? review.strategy_guidance.join('；') : '';

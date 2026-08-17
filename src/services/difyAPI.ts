@@ -1639,6 +1639,7 @@ export interface GameTheoryAnalyzeResult {
   quality_note?: string;
   sections_char_count?: number;
   /** GT-SIM-02 */
+  strategy_guidance?: string[];
   tone_corrections?: Array<{ original: string; problem: string; suggested: string }>;
   tone_corrections_repaired?: boolean;
 }

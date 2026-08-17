@@ -1738,7 +1738,35 @@ export default function GameTheoryModule() {
                                 {expandedDetail.full_result.quality_note || '研判未达四节/字数门槛（GT-CASE-02）'}
                               </div>
                             )}
-                            {(expandedDetail.full_result.interest_chain
+                            {item.source_type === 'simulation' ? (
+                              <>
+                                {expandedDetail.full_result.interest_chain && (
+                                  <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                    <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">利益链</span>
+                                    <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.interest_chain}</p>
+                                  </div>
+                                )}
+                                {expandedDetail.full_result.emotion_motives && (
+                                  <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                    <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">情绪动机</span>
+                                    <p className="text-xs text-zinc-600 leading-relaxed">{expandedDetail.full_result.emotion_motives}</p>
+                                  </div>
+                                )}
+                                {Array.isArray(expandedDetail.full_result.strategy_guidance) && expandedDetail.full_result.strategy_guidance.length > 0 && (
+                                  <div className="bg-zinc-50/50 rounded-xl p-3 border border-zinc-100">
+                                    <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-2">博弈策略示例</span>
+                                    <ul className="space-y-1.5">
+                                      {expandedDetail.full_result.strategy_guidance.map((guide, gIdx) => (
+                                        <li key={gIdx} className="text-xs text-zinc-600 leading-relaxed flex items-start gap-1.5">
+                                          <span className="font-mono text-[10px] text-zinc-400 font-semibold shrink-0 mt-0.5">{gIdx + 1}.</span>
+                                          <span>{guide}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </>
+                            ) : (expandedDetail.full_result.interest_chain
                               || expandedDetail.full_result.emotion_motives
                               || expandedDetail.full_result.actionable_strategy
                               || expandedDetail.full_result.script_examples) ? (
