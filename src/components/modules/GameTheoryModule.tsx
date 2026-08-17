@@ -218,19 +218,19 @@ export default function GameTheoryModule() {
     }
   };
 
-  const initialPreset = PRESET_CASES.find((c) => c.env === 'corp_clash');
   const [activeEnv, setActiveEnv] = useState<'gov_struggle' | 'corp_clash' | 'upward_takeover'>('corp_clash');
   const [extraCases, setExtraCases] = useState<PresetCase[]>([]);
+  const [lastGoodCase, setLastGoodCase] = useState<PresetCase | null>(null);
   const [casePushLoading, setCasePushLoading] = useState(false);
   const casePushLoadingRef = useRef(false);
   const [casePushQuality, setCasePushQuality] = useState<{
     quality: 'ok' | 'below_standard';
     quality_note?: string;
   } | null>(null);
-  const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>(initialPreset?.model || 'pig_game');
-  const [caseText, setCaseText] = useState(initialPreset?.description || '');
+  const [selectedModel, setSelectedModel] = useState<GameTheoryAnalyzeInput['game_model']>('pig_game');
+  const [caseText, setCaseText] = useState('');
   const [userAnswer, setUserAnswer] = useState('');
-  const [selectedTactics, setSelectedTactics] = useState<string[]>(initialPreset?.defaultTactics || []);
+  const [selectedTactics, setSelectedTactics] = useState<string[]>([]);
   
   // 原型与记录状态
   const [prototypes, setPrototypes] = useState<PersonalPrototype[]>([]);
@@ -542,13 +542,30 @@ export default function GameTheoryModule() {
     }
   };
 
-  // 处理案例选中
+  // 处理案例选中（短预设自动触发同类推送，合格稿直接选用）
   const selectPresetCase = (c: PresetCase) => {
     playClick();
-    setCaseText(c.description);
-    setSelectedModel(c.model);
-    setSelectedTactics(c.defaultTactics);
-    setCasePushQuality(null);
+    const q = evaluateCasePushQuality({
+      background: c.description,
+      incomplete_info: c.description.includes('【未知信息】') ? c.description.split('【未知信息】')[1]?.split('【决策点】')[0] : '',
+      decision_point: c.description.includes('【决策点】') ? c.description.split('【决策点】')[1] : '',
+    });
+
+    if (q.quality === 'ok') {
+      setCaseText(c.description);
+      setLastGoodCase(c);
+      setSelectedModel(c.model);
+      setSelectedTactics(c.defaultTactics);
+      setCasePushQuality({ quality: 'ok' });
+    } else {
+      // 预设过简时禁止作为正文，触发推送详实尖锐案例
+      setCasePushQuality({
+        quality: 'below_standard',
+        quality_note: '该预设案例过简，正在为您换取同类深度尖锐案例...',
+      });
+      void refreshPushedCase({ isAuto: false });
+      return;
+    }
     // 清空四个拆解维度，强制重新研判
     setStakeholderInterests('');
     setMotivesAnalysis('');
@@ -565,80 +582,65 @@ export default function GameTheoryModule() {
     if (!isAuto) {
       playClick();
     }
-    const previousText = caseText;
     const envPool = [...PRESET_CASES, ...extraCases].filter((item) => item.env === currentEnv);
     const currentId = envPool.find((item) => item.description === caseText)?.id;
 
-    const applyLocalRotate = () => {
-      const pool = PRESET_CASES.filter((c) => c.env === currentEnv);
-      if (!pool.length) return false;
-      const idx = pool.findIndex((c) => c.description === previousText);
-      const next = pool[(idx >= 0 ? idx + 1 : 0) % pool.length];
-      if (!next || next.description === previousText) {
-        // 仅一条时无法轮换
-        return false;
-      }
-      setCaseText(next.description);
-      setSelectedModel(next.model);
-      setSelectedTactics(next.defaultTactics);
-      setCasePushQuality(null);
-      setStakeholderInterests('');
-      setMotivesAnalysis('');
-      setWeaknesses('');
-      setKeyPoints('');
-      if (!isAuto) playPageTurn();
-      return true;
-    };
-
     try {
-      // 只排除当前条与已推送条，勿排除全部预设，否则 fallback 又会回到同一批
       const excludeIds = [
         ...(currentId ? [currentId] : []),
         ...extraCases.filter((item) => item.env === currentEnv).map((item) => item.id),
       ];
       const pushed = await pushGameTheoryCase({ env: currentEnv, excludeIds });
-      const mapped: PresetCase = {
-        id: pushed.id,
-        title: pushed.title,
-        env: currentEnv,
-        model: selectedModel,
-        description: `${pushed.background}\n\n【未知信息】${pushed.incomplete_info}\n\n【决策点】${pushed.decision_point}`,
-        defaultTactics: [],
-      };
-      setExtraCases((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
-      if (mapped.description === previousText) {
-        if (!applyLocalRotate()) {
-          if (!isAuto) {
-            playGentleWarning();
-            alert('推送内容与当前案例相同，请稍后再试');
-          }
-        }
-        return;
-      }
-      setCaseText(mapped.description);
-      setSelectedTactics([]);
-      {
-        const q = pushed.quality
-          ? { quality: pushed.quality, quality_note: pushed.quality_note }
-          : evaluateCasePushQuality(pushed);
+      const q = pushed.quality
+        ? { quality: pushed.quality, quality_note: pushed.quality_note }
+        : evaluateCasePushQuality(pushed);
+
+      if (q.quality === 'ok') {
+        const mapped: PresetCase = {
+          id: pushed.id,
+          title: pushed.title,
+          env: currentEnv,
+          model: selectedModel,
+          description: `${pushed.background}\n\n【未知信息】${pushed.incomplete_info}\n\n【决策点】${pushed.decision_point}`,
+          defaultTactics: [],
+        };
+        setExtraCases((prev) => [mapped, ...prev.filter((item) => item.id !== mapped.id)]);
+        setCaseText(mapped.description);
+        setLastGoodCase(mapped);
+        setCasePushQuality({ quality: 'ok' });
+        setSelectedTactics([]);
+        setStakeholderInterests('');
+        setMotivesAnalysis('');
+        setWeaknesses('');
+        setKeyPoints('');
+        if (!isAuto) playPageTurn();
+      } else {
+        // GT-CASE-02: 拒收机制 —— 不合格不进主文案，保留上一篇合格稿；无合格稿则清空正文并提示
         setCasePushQuality({
-          quality: q.quality === 'below_standard' ? 'below_standard' : 'ok',
-          quality_note: q.quality_note,
+          quality: 'below_standard',
+          quality_note: q.quality_note || '推送案例未达尖锐与详实标准，请再次点击「换一条」',
         });
-      }
-      setStakeholderInterests('');
-      setMotivesAnalysis('');
-      setWeaknesses('');
-      setKeyPoints('');
-      if (!isAuto) playPageTurn();
-    } catch (e) {
-      // API 失败时至少轮换本地预设，避免「换一条」完全无感
-      if (!applyLocalRotate()) {
+        if (!lastGoodCase) {
+          setCaseText('');
+        }
         if (!isAuto) {
           playGentleWarning();
-          const msg = e instanceof Error ? e.message : String(e);
-          alert(msg);
+          alert(`推送案例未达尖锐标准（${q.quality_note || '未达门槛'}），已保留当前合格稿，请再次点击「换一条」`);
         }
+      }
+    } catch (e) {
+      console.warn('[Game Theory Case Push] 异常:', e);
+      if (!lastGoodCase) {
+        setCaseText('');
+        setCasePushQuality({
+          quality: 'below_standard',
+          quality_note: '推送案例网络异常，请点击「换一条」重试',
+        });
+      }
+      if (!isAuto) {
+        playGentleWarning();
+        const msg = e instanceof Error ? e.message : String(e);
+        alert(`获取案例失败: ${msg}，请再次点击「换一条」`);
       }
     } finally {
       casePushLoadingRef.current = false;
@@ -702,7 +704,13 @@ export default function GameTheoryModule() {
 
   // 执行核心博弈模拟推演（异步 → 任务中心 → 对局历史）
   const handleStartSimulation = async () => {
-    if (!caseText.trim() || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim()) return;
+    if (!caseText.trim() || casePushQuality?.quality !== 'ok' || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim()) {
+      if (casePushQuality?.quality !== 'ok') {
+        playGentleWarning();
+        alert('当前案例未达详实尖锐标准（GT-CASE-02），请先点击「换一条」获取合格案例后再提交研判');
+      }
+      return;
+    }
     setIsLoading(true);
     setSubmitNotice('');
     setSubmitError('');
@@ -778,12 +786,7 @@ export default function GameTheoryModule() {
   const handleEnvChange = (newEnv: typeof activeEnv) => {
     playClick();
     setActiveEnv(newEnv);
-    const envPreset = PRESET_CASES.find((c) => c.env === newEnv);
-    if (envPreset) {
-      setCaseText(envPreset.description);
-      setSelectedModel(envPreset.model);
-      setSelectedTactics(envPreset.defaultTactics);
-    }
+    void refreshPushedCase({ isAuto: false, targetEnv: newEnv });
   };
 
   // Tab 切换函数
@@ -954,7 +957,7 @@ export default function GameTheoryModule() {
                       <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
                         {casePushQuality?.quality === 'below_standard' && (
                           <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-900 leading-relaxed">
-                            {casePushQuality.quality_note || '案例背景未达详实门槛（GT-CASE-02）'}
+                            {casePushQuality.quality_note || '案例背景未达详实门槛（GT-CASE-02），请点击「换一条」'}
                           </div>
                         )}
                         <textarea 
@@ -962,7 +965,13 @@ export default function GameTheoryModule() {
                           value={caseText}
                           onChange={(e) => setCaseText(e.target.value)}
                           className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
-                          placeholder="请从左侧选择一个案例，或在此处直接编辑、手动输入你要演练的高管权力斗争案例详情..."
+                          placeholder={
+                            casePushLoading
+                              ? '正在为您推送详实尖锐的高管斗争案例，请稍候...'
+                              : !caseText && casePushQuality?.quality === 'below_standard'
+                              ? '未获取到合格的尖锐案例。请点击左上方「换一条」重新获取，或在此手动输入详实案例...'
+                              : '请从左侧点击「换一条」获取详实尖锐的高管权力斗争案例，或在此处直接编辑、手动输入你要演练的案例详情...'
+                          }
                           disabled={isLoading}
                         />
                       </div>
@@ -1061,9 +1070,9 @@ export default function GameTheoryModule() {
 
                       <button 
                         onClick={handleStartSimulation}
-                        disabled={!caseText.trim() || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim() || isLoading}
+                        disabled={!caseText.trim() || casePushQuality?.quality !== 'ok' || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim() || isLoading}
                         className={`w-full py-4 rounded-full text-xs tracking-widest uppercase font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
-                          isLoading 
+                          isLoading || casePushQuality?.quality !== 'ok' || !caseText.trim()
                             ? 'bg-zinc-100 text-zinc-400 border border-zinc-200 cursor-not-allowed' 
                             : 'bg-zinc-900 hover:bg-zinc-800 text-white shadow-sm hover:scale-[1.01]'
                         }`}

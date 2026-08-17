@@ -7838,7 +7838,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
           inputs: attachKnowledgeContext(injectOralSystemTime({
             scene_type,
             game_model,
-            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，切忌机械空洞。你必须输出严格 JSON，除原有字段外，强制包含以下四个独立字段（中文详写，四节去空白合计≥600字）：\n1. interest_chain（利益链）：多方谁赢谁输、利益交换与同盟裂痕。\n2. emotion_motives（情绪动机）：面子/恐惧/欲望/羞辱等情绪判断，须贴场景。\n3. actionable_strategy（可执行策略）：1-2个可落地行动步骤，含先后次序。\n4. script_examples（话术示例）：可直接说出口的台词或「原话→修正」对照。\n另须强制包含 tone_corrections 数组（≥1），元素为 { original, problem, suggested } 三字段，用于独立「语气修正」对比表；不得只把语气修正写进 suggestion。\n另：suggestion 可作一句话汇总。四节字段与 tone_corrections 均不可省略。】',
+            case_text: case_text + '\n\n【系统研判指令：请针对玩家的应对进行深度博弈研判，注入逼真尖锐的职场权斗情感与洞察，严禁假大空公文套话（禁止使用“高度重视、统筹兼顾、战略定力、深刻理解”等词）。你必须输出严格 JSON，除原有字段外，强制包含以下四个独立字段（中文详写，四节去空白合计≥600字）：\n1. interest_chain（利益链）：必须讲清多方谁赢谁输、利益交换与同盟裂痕。\n2. emotion_motives（情绪动机）：必须包含面子/恐惧/欲望/羞辱/难堪/失控等具体情绪锚点，结合现场人设。\n3. actionable_strategy（可执行策略）：1-2个可落地行动步骤，必须包含明确先后次序（先...再.../会前...）。\n4. script_examples（话术示例）：可直接说出口的具体台词原话（如「...」）或「原话→修正」对照。\n另须强制包含 tone_corrections 数组（≥1），元素为 { original, problem, suggested } 三字段，用于独立「语气修正」对比表；不得只把语气修正写进 suggestion。\n另：suggestion 可作一句话汇总。四节字段与 tone_corrections 均不可省略。】',
             user_answer,
             applied_tactics: applied_tactics || '',
             user_current_profile: user_current_profile || '',
@@ -7887,6 +7887,18 @@ app.post('/api/game-theory/analyze', async (req, res) => {
         parsedResult.quality_note = note
           ? `${note}；语气修正经系统补全`
           : '语气修正经系统补全（GT-SIM-02）';
+      }
+
+      // GT-CASE-02: 双硬卡质量拦截 —— 未达标则拒绝入库并置任务为 failed
+      if (parsedResult.quality === 'below_standard') {
+        const failReason = parsedResult.quality_note || '研判内容未达尖锐与逻辑情感质量门槛（GT-CASE-02）';
+        console.warn(`[GameTheory Analyze] 任务 ${task.id} 研判未达标，拒绝入库: ${failReason}`);
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: `博弈研判未达标（可重新提交）：${failReason}`,
+          logs: [`研判质量检查未通过: ${failReason}`],
+        });
+        return;
       }
 
       const normalizedPrototype = normalizePrototypeArchive(parsedResult.prototype_archive);
