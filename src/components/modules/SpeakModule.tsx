@@ -28,7 +28,7 @@ import {
   Copy,
   X
 } from 'lucide-react';
-import { runSpeakInfluenceEngine, transcribeAudioWithWhisper } from '../../services/difyAPI';
+import { runSpeakInfluenceEngine, transcribeAudioWithWhisper, runSpeakCritiqueChat } from '../../services/difyAPI';
 import { gsap } from 'gsap';
 import { useGSAP } from '@gsap/react';
 
@@ -45,7 +45,7 @@ import SpeakButton from '../SpeakButton';
 import { getUserCurrentProfile } from '../../utils/profileHelper';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTask } from '../TaskContext';
-import type { SpeakInfluenceResult } from '../../services/difyAPI';
+import type { SpeakInfluenceResult, SpeakFlaw } from '../../services/difyAPI';
 import type { ModuleType } from '../../App';
 import { requestGameTheorySessionFocus } from '../../utils/gtFocusTab';
 
@@ -251,12 +251,14 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
     frameworkAnalysis: string;
     revisedVersion: string;
     suggestions: string[];
+    flaws?: SpeakFlaw[];
   } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
 
   const [interactiveChat, setInteractiveChat] = useState<Array<{ sender: 'user' | 'ai'; text: string }>>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatLoading, setIsChatLoading] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
 
   const [dailyReview, setDailyReview] = useState<{
     shortage: string;
@@ -275,9 +277,19 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
     }
   }, [evalResult]);
 
+  useEffect(() => {
+    if (chatBottomRef.current) {
+      chatBottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [interactiveChat]);
+
   // 智能空白处点击判定逻辑
   const handleOutsideClick = (e: React.MouseEvent) => {
     if (!showContextSheet) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('.speak-context-drawer') || target.closest('[data-drawer-root]')) {
+      return;
+    }
     
     // 如果存在选中的文本，不收起面板（方便划词）
     const selection = window.getSelection();
@@ -285,7 +297,6 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
       return;
     }
 
-    const target = e.target as HTMLElement;
     const isInteractive = target.closest(
       'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
     ) !== null;
@@ -600,6 +611,25 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
       '外企场景中少用抽象形容词，多用量化指标及商业闭环利益'
     ];
 
+    const defaultFlaws: SpeakFlaw[] = [
+      {
+        id: 'f1',
+        title: '空泛承诺',
+        detail: '「尽快看看」「问题不大」缺少时间表、责任人和风险预案，领导无法决策。',
+        dimension: 'logic'
+      },
+      {
+        id: 'f2',
+        title: '分寸过轻',
+        detail: '对领导使用过于口语化的表述，缺少请教姿态，容易被理解为推诿。',
+        dimension: 'expression'
+      }
+    ];
+
+    const normalizedFlaws: SpeakFlaw[] = (Array.isArray(res.flaws) && res.flaws.length > 0)
+      ? res.flaws
+      : defaultFlaws;
+
     setEvalResult({
       totalScore,
       logicScore,
@@ -611,7 +641,8 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
         ? '建议使用因果逻辑框架：直陈预算削减的业务影响（如服务中断、合同违约金），并给出替代方案。'
         : (res.framework_analysis || '建议在开头直接点明利益捆绑，随后分三点展开事实支撑。'),
       revisedVersion: res.revised_version || '重新设计的完美说辞：关于项目预算，我建议...',
-      suggestions
+      suggestions,
+      flaws: normalizedFlaws
     });
 
     setDailyReview({
@@ -718,6 +749,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
         critique: task.result.critique || '',
         framework_analysis: task.result.framework_analysis || '',
         revised_version: task.result.revised_version || '',
+        flaws: Array.isArray(task.result.flaws) ? task.result.flaws : undefined,
       });
     } else if (task.status === 'failed') {
       setPendingSpeakTaskId(null);
@@ -726,27 +758,64 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
     }
   }, [tasks, pendingSpeakTaskId]);
 
-  const sendChatMessage = async () => {
-    if (!chatInput.trim() || isChatLoading) return;
+  const handleFlawCardClick = (flaw: SpeakFlaw) => {
+    const query = `请针对这条失分点展开，并给出一句可直接说出口的改写：【${flaw.title}】${flaw.detail}`;
+    sendChatMessage(query);
+  };
+
+  const handleLogicDimensionClick = () => {
+    if (!evalResult) return;
+    const query = `请针对「逻辑战力 ${evalResult.logicScore}/5」说明失分原因，并给出下一次开口的 2 条改法。`;
+    sendChatMessage(query);
+  };
+
+  const handleExpressionDimensionClick = () => {
+    if (!evalResult) return;
+    const query = `请针对「表达分寸 ${evalResult.expressionScore}/5」说明失分原因，并给出更得体的 2 句替换。`;
+    sendChatMessage(query);
+  };
+
+  const sendChatMessage = async (customQuery?: string) => {
+    const queryToSend = (typeof customQuery === 'string' ? customQuery : chatInput).trim();
+    if (!queryToSend || isChatLoading) return;
     
-    const userMsg = chatInput;
+    const userMsg = queryToSend;
+    if (!customQuery) {
+      setChatInput('');
+    }
     setInteractiveChat(prev => [...prev, { sender: 'user', text: userMsg }]);
-    setChatInput('');
     setIsChatLoading(true);
 
-    setTimeout(() => {
-      let aiReply = '';
-      if (userMsg.includes('分寸') || userMsg.includes('委婉')) {
-        aiReply = '关于分寸度，体制内强调“职责守位”。建议您使用“委婉探讨”话术：“处长，关于这个节点，我有一点不成熟的思考，不知道从合规角度看是否稳妥...”，这样把评判权交还给领导，同时输出了专业思考。';
-      } else if (userMsg.includes('强硬') || userMsg.includes('温和')) {
-        aiReply = '在当前外企权力和利益结构下，强硬并不是指情绪化，而是指“规则与价值的坚守”。你可以说：“按照SOP，削减这部分预算将直接触发A类服务停摆，我们需要共同承担由此产生的业务违约金。”这种客观的强硬比主观情绪更具威力。';
-      } else {
-        aiReply = '很好的切入点。在实际表达中，您可以尝试将“我方困难”转换为“对方的风险与收益”。通过重塑逻辑，让听众觉得采纳您的方案是他们在规避风险，而非给您资源。';
-      }
-      setInteractiveChat(prev => [...prev, { sender: 'ai', text: aiReply }]);
-      setIsChatLoading(false);
+    try {
+      const isMock = window.location.search.includes('mock=true') || (window as any).__MOCK_EVALUATION__;
+      const reply = await runSpeakCritiqueChat({
+        query: userMsg,
+        evalSnapshot: evalResult ? {
+          totalScore: evalResult.totalScore,
+          logicScore: evalResult.logicScore,
+          expressionScore: evalResult.expressionScore,
+          critique: evalResult.critique,
+          flaws: evalResult.flaws,
+          revisedVersion: evalResult.revisedVersion,
+          userInputExcerpt: inputMode === 'mild' ? mildInput : aggressiveInput,
+          scenarioExcerpt: `[场景:${selectedScenario}] ${promptTopic}`
+        } : undefined,
+        messages: interactiveChat,
+        mock: isMock
+      });
+
+      setInteractiveChat(prev => [...prev, { sender: 'ai', text: reply }]);
       playSuccessCyber();
-    }, 1200);
+    } catch (err: any) {
+      console.error('追问失败:', err);
+      setInteractiveChat(prev => [
+        ...prev, 
+        { sender: 'ai', text: `追问失败：${err.message || '网络异常，请稍后重试'}` }
+      ]);
+      playErrorCyber();
+    } finally {
+      setIsChatLoading(false);
+    }
   };
 
   return (
@@ -1291,10 +1360,10 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
           animate={{ x: 0, opacity: 1 }}
           exit={{ x: '100%', opacity: 0 }}
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          className="fixed top-0 right-0 w-[30%] bg-slate-50 border-l border-slate-200 h-full shadow-2xl flex flex-col z-50 transform-gpu will-change-transform"
+          className="fixed top-0 right-0 w-[32%] min-w-[360px] max-w-[500px] bg-slate-50 border-l border-slate-200 h-full shadow-2xl flex flex-col z-50 transform-gpu will-change-transform speak-context-drawer"
           onClick={(e) => e.stopPropagation()}
         >
-          {/* 固定头部与关闭按钮 */}
+          {/* 固定头部与关闭按钮 (shrink-0) */}
           <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-white shrink-0">
             <span className="text-xs font-black text-slate-700 uppercase tracking-widest">教练深度评估</span>
             <button
@@ -1305,183 +1374,244 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
             </button>
           </div>
 
-          {/* 可滚动内容区域 */}
-          <div className="flex-1 overflow-y-auto min-h-0 p-5">
-          <div className="bg-white rounded-3xl border border-emerald-100 shadow-[0_15px_40px_rgba(16,185,129,0.05)] p-6 relative overflow-hidden transition-all duration-500 animate-[fadeIn_0.5s_ease-out]">
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-500 animate-pulse"></div>
+          {/* 中部独立可滚动内容区域 (flex-1 min-h-0 overflow-y-auto) */}
+          <div className="flex-1 overflow-y-auto min-h-0 p-5 space-y-6">
+            <div className="bg-white rounded-3xl border border-emerald-100 shadow-[0_15px_40px_rgba(16,185,129,0.05)] p-6 relative overflow-hidden transition-all duration-500 animate-[fadeIn_0.5s_ease-out]">
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-400 via-teal-500 to-indigo-500 animate-pulse"></div>
 
-            <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 mb-6">
-              <div>
-                <h3 className="text-base font-black text-slate-900">教练深度剖析</h3>
-                <p className="text-[10px] text-slate-400 mt-0.5">多维对比评估体系已就绪</p>
-              </div>
-              <div className="flex flex-col gap-2">
-                <div className="bg-emerald-50 border border-emerald-250/50 rounded-2xl p-2 px-3 text-right">
-                  <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">逻辑战力</span>
-                  <span className="text-base font-black text-emerald-700 font-mono">{evalResult.logicScore} / 5</span>
+              <div className="flex flex-col gap-4 border-b border-slate-100 pb-4 mb-6">
+                <div>
+                  <h3 className="text-base font-black text-slate-900">教练深度剖析</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">点击下方维度或失分点卡片可直接发起针对性追问</p>
                 </div>
-                <div className="bg-emerald-50 border border-emerald-250/50 rounded-2xl p-2 px-3 text-right">
-                  <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">表达分寸</span>
-                  <span className="text-base font-black text-emerald-700 font-mono">{evalResult.expressionScore} / 5</span>
-                </div>
-                <div className="bg-[var(--color-brand)] text-white rounded-2xl p-2 px-4 text-center shadow-lg shadow-[var(--color-brand)]/10">
-                  <span className="text-[9px] font-black uppercase tracking-widest block opacity-80">总得分</span>
-                  <span className="text-lg font-black font-mono">{evalResult.totalScore} / 10</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 mb-6">
-              {[
-                { label: '地域文化适配', score: '适配', color: 'text-[var(--color-brand)] bg-slate-50' },
-                { label: '角色立场定位', score: '精准', color: 'text-emerald-600 bg-emerald-50' },
-                { label: '逻辑框架完整', score: '极佳', color: 'text-amber-600 bg-amber-50' },
-                { label: '语调停顿留白', score: '良好', color: 'text-teal-600 bg-teal-50' },
-                { label: '词汇精准度', score: '极佳', color: 'text-rose-600 bg-rose-50' },
-                { label: '事实数据调用', score: '尚可', color: 'text-[var(--color-accent)] bg-[var(--color-accent)]/10' }
-              ].map((item, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-500">{item.label}</span>
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${item.color}`}>{item.score}</span>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-xs font-black text-rose-600 mb-2 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3.5 bg-rose-500 rounded-full inline-block"></span>
-                  破绽与失分点 (Critique)
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed bg-rose-50/30 p-4 rounded-2xl border border-rose-100">
-                  {evalResult.critique}
-                </p>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-black text-indigo-600 mb-2 flex items-center gap-1.5">
-                  <span className="w-1.5 h-3.5 bg-[var(--color-brand)] rounded-full inline-block"></span>
-                  高维表达重构 (Framework Analysis)
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-[var(--color-border)]">
-                  {evalResult.frameworkAnalysis}
-                </p>
-              </div>
-
-              <div>
-                <div className="flex items-center justify-between gap-3 mb-2">
-                  <h4 className="text-xs font-black text-emerald-600 flex items-center gap-1.5">
-                    <span className="w-1.5 h-3.5 bg-emerald-500 rounded-full inline-block"></span>
-                    满分实战话术 (Golden Script)
-                  </h4>
-                  <SpeakButton text={evalResult.revisedVersion} title="播放实战话术" />
-                </div>
-                <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 relative">
-                  <p className="text-slate-800 text-xs font-medium leading-relaxed font-serif italic mb-4">
-                    "{evalResult.revisedVersion}"
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={async () => {
-                        playClick();
-                        try {
-                          await navigator.clipboard.writeText(evalResult.revisedVersion);
-                          playSuccessCyber();
-                        } catch (err) {
-                          playErrorCyber();
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-350 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all cursor-pointer shadow-sm"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                      复制范文
-                    </button>
-                    <button
-                      onClick={() => {
-                        playClick();
-                        playWaterDrop();
-                        if (inputMode === 'mild') {
-                          setMildInput(evalResult.revisedVersion);
-                        } else {
-                          setAggressiveInput(evalResult.revisedVersion);
-                        }
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-650 hover:bg-emerald-600 text-white transition-all cursor-pointer shadow-sm animate-pulse"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      一键采纳
-                    </button>
+                <div className="flex flex-col gap-2">
+                  <div 
+                    onClick={handleLogicDimensionClick}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleLogicDimensionClick()}
+                    className="bg-emerald-50 hover:bg-emerald-100/60 border border-emerald-250/50 rounded-2xl p-2 px-3 text-right cursor-pointer transition-all duration-200 group flex items-center justify-between"
+                  >
+                    <span className="text-[9px] font-bold text-emerald-600 group-hover:text-emerald-700 underline decoration-dotted">点击追问维度 ›</span>
+                    <div>
+                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">逻辑战力</span>
+                      <span className="text-base font-black text-emerald-700 font-mono">{evalResult.logicScore} / 5</span>
+                    </div>
+                  </div>
+                  <div 
+                    onClick={handleExpressionDimensionClick}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleExpressionDimensionClick()}
+                    className="bg-emerald-50 hover:bg-emerald-100/60 border border-emerald-250/50 rounded-2xl p-2 px-3 text-right cursor-pointer transition-all duration-200 group flex items-center justify-between"
+                  >
+                    <span className="text-[9px] font-bold text-emerald-600 group-hover:text-emerald-700 underline decoration-dotted">点击追问维度 ›</span>
+                    <div>
+                      <span className="text-[9px] font-black text-emerald-600 uppercase tracking-widest block">表达分寸</span>
+                      <span className="text-base font-black text-emerald-700 font-mono">{evalResult.expressionScore} / 5</span>
+                    </div>
+                  </div>
+                  <div className="bg-[var(--color-brand)] text-white rounded-2xl p-2 px-4 text-center shadow-lg shadow-[var(--color-brand)]/10">
+                    <span className="text-[9px] font-black uppercase tracking-widest block opacity-80">总得分</span>
+                    <span className="text-lg font-black font-mono">{evalResult.totalScore} / 10</span>
                   </div>
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100">
-                <div className="flex items-center gap-1.5 mb-3">
-                  <MessageSquare className="w-4 h-4 text-indigo-600" />
-                  <span className="text-xs font-black text-slate-800">漏洞靶向追问 (与AI深入探讨)</span>
-                </div>
-                
-                {interactiveChat.length > 0 && (
-                  <div className="space-y-3 mb-4 max-h-[180px] overflow-y-auto pr-1">
-                    {interactiveChat.map((msg, index) => (
-                      <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl p-3 text-xs leading-relaxed ${
-                          msg.sender === 'user' 
-                            ? 'bg-[var(--color-brand)] text-white rounded-br-none' 
-                            : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
-                        }`}>
-                          {msg.text}
-                        </div>
+              <div className="grid grid-cols-1 gap-3 mb-6">
+                {[
+                  { label: '地域文化适配', score: '适配', color: 'text-[var(--color-brand)] bg-slate-50' },
+                  { label: '角色立场定位', score: '精准', color: 'text-emerald-600 bg-emerald-50' },
+                  { label: '逻辑框架完整', score: '极佳', color: 'text-amber-600 bg-amber-50' },
+                  { label: '语调停顿留白', score: '良好', color: 'text-teal-600 bg-teal-50' },
+                  { label: '词汇精准度', score: '极佳', color: 'text-rose-600 bg-rose-50' },
+                  { label: '事实数据调用', score: '尚可', color: 'text-[var(--color-accent)] bg-[var(--color-accent)]/10' }
+                ].map((item, idx) => (
+                  <div key={idx} className="p-3 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-500">{item.label}</span>
+                    <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${item.color}`}>{item.score}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-6">
+                {/* 破绽与失分点 */}
+                <div>
+                  <h4 className="text-xs font-black text-rose-600 mb-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-3.5 bg-rose-500 rounded-full inline-block"></span>
+                    破绽与失分点 (Critique)
+                  </h4>
+                  <p className="text-xs text-slate-700 leading-relaxed bg-rose-50/30 p-4 rounded-2xl border border-rose-100 mb-3">
+                    {evalResult.critique}
+                  </p>
+
+                  {/* 结构化失分点卡片 */}
+                  {evalResult.flaws && evalResult.flaws.length > 0 && (
+                    <div className="space-y-2.5">
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        失分点细化（点击卡片自动追问）
                       </div>
-                    ))}
+                      {evalResult.flaws.map((flaw, idx) => (
+                        <div
+                          key={flaw.id || idx}
+                          onClick={() => handleFlawCardClick(flaw)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              handleFlawCardClick(flaw);
+                            }
+                          }}
+                          className="p-3 bg-white hover:bg-rose-50/60 border border-rose-150 rounded-2xl cursor-pointer transition-all duration-200 shadow-sm hover:shadow hover:border-rose-300 group"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="text-xs font-black text-rose-700 group-hover:text-rose-800 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                              {flaw.title}
+                            </span>
+                            <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-600 uppercase">
+                              {flaw.dimension === 'logic' ? '逻辑' : flaw.dimension === 'expression' ? '表达' : '综合'} · 点击追问
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 leading-relaxed group-hover:text-slate-800">
+                            {flaw.detail}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 高维表达重构 */}
+                <div>
+                  <h4 className="text-xs font-black text-indigo-600 mb-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-3.5 bg-[var(--color-brand)] rounded-full inline-block"></span>
+                    高维表达重构 (Framework Analysis)
+                  </h4>
+                  <p className="text-xs text-slate-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-[var(--color-border)]">
+                    {evalResult.frameworkAnalysis}
+                  </p>
+                </div>
+
+                {/* 满分实战话术 */}
+                <div>
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <h4 className="text-xs font-black text-emerald-600 flex items-center gap-1.5">
+                      <span className="w-1.5 h-3.5 bg-emerald-500 rounded-full inline-block"></span>
+                      满分实战话术 (Golden Script)
+                    </h4>
+                    <SpeakButton text={evalResult.revisedVersion} title="播放实战话术" />
+                  </div>
+                  <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 relative">
+                    <p className="text-slate-800 text-xs font-medium leading-relaxed font-serif italic mb-4">
+                      "{evalResult.revisedVersion}"
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={async () => {
+                          playClick();
+                          try {
+                            await navigator.clipboard.writeText(evalResult.revisedVersion);
+                            playSuccessCyber();
+                          } catch (err) {
+                            playErrorCyber();
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-800 text-slate-350 border border-slate-700 hover:bg-slate-700 hover:text-white transition-all cursor-pointer shadow-sm"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        复制范文
+                      </button>
+                      <button
+                        onClick={() => {
+                          playClick();
+                          playWaterDrop();
+                          if (inputMode === 'mild') {
+                            setMildInput(evalResult.revisedVersion);
+                          } else {
+                            setAggressiveInput(evalResult.revisedVersion);
+                          }
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-emerald-650 hover:bg-emerald-600 text-white transition-all cursor-pointer shadow-sm animate-pulse"
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                        一键采纳
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 今日复盘 */}
+                {dailyReview && (
+                  <div className="mt-8 border-t border-slate-200 pt-6">
+                    <h4 className="text-xs font-black text-slate-900 mb-4 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-indigo-600" />
+                      今日训练复盘与明日迭代重点
+                    </h4>
+                    <div className="grid grid-cols-1 gap-3">
+                      <div className="bg-rose-50/30 border border-rose-100 rounded-2xl p-4">
+                        <div className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">今日逻辑短板</div>
+                        <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.shortage}</div>
+                      </div>
+                      <div className="bg-emerald-50/30 border border-emerald-100 rounded-2xl p-4">
+                        <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">今日表达收获</div>
+                        <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.harvest}</div>
+                      </div>
+                      <div className="bg-slate-50 border border-[var(--color-border)] rounded-2xl p-4">
+                        <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">明日迭代重点</div>
+                        <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.tomorrowFocus}</div>
+                      </div>
+                    </div>
                   </div>
                 )}
-
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="针对失分点、分寸度拿捏向AI教练追问 (如: '如何委婉指出处长逻辑漏洞?建议那些改进')"
-                    value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
-                    className="flex-1 text-xs rounded-xl border border-slate-200 px-3 py-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={sendChatMessage}
-                    disabled={isChatLoading || !chatInput.trim()}
-                    className="p-2 bg-slate-950 text-white rounded-xl hover:bg-[var(--color-brand)] transition-colors flex items-center justify-center disabled:opacity-50"
-                  >
-                    {isChatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
               </div>
-
-              {dailyReview && (
-                <div className="mt-8 border-t border-slate-200 pt-6">
-                  <h4 className="text-xs font-black text-slate-900 mb-4 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-indigo-600" />
-                    今日训练复盘与明日迭代重点
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-rose-50/30 border border-rose-100 rounded-2xl p-4">
-                      <div className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1">今日逻辑短板</div>
-                      <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.shortage}</div>
-                    </div>
-                    <div className="bg-emerald-50/30 border border-emerald-100 rounded-2xl p-4">
-                      <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">今日表达收获</div>
-                      <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.harvest}</div>
-                    </div>
-                    <div className="bg-slate-50 border border-[var(--color-border)] rounded-2xl p-4">
-                      <div className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">明日迭代重点</div>
-                      <div className="text-xs text-slate-700 leading-relaxed font-medium">{dailyReview.tomorrowFocus}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
             </div>
           </div>
-          </div> {/* 可滚动区域容器闭合 */}
+
+          {/* 底部钉底追问区 (shrink-0) */}
+          <div className="shrink-0 p-4 bg-white border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+            <div className="flex items-center gap-1.5 mb-2.5">
+              <MessageSquare className="w-4 h-4 text-indigo-600" />
+              <span className="text-xs font-black text-slate-800">漏洞靶向追问 (与AI深入探讨)</span>
+            </div>
+
+            {interactiveChat.length > 0 && (
+              <div className="space-y-2 mb-3 max-h-[160px] overflow-y-auto pr-1">
+                {interactiveChat.map((msg, index) => (
+                  <div key={index} className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[88%] rounded-2xl p-2.5 text-xs leading-relaxed ${
+                      msg.sender === 'user' 
+                        ? 'bg-[var(--color-brand)] text-white rounded-br-none shadow-sm' 
+                        : 'bg-slate-100 text-slate-800 rounded-bl-none border border-slate-200'
+                    }`}>
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                <div ref={chatBottomRef} />
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="针对失分点或分寸度向AI教练追问..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && sendChatMessage()}
+                disabled={isChatLoading}
+                className="flex-1 text-xs rounded-xl border border-slate-200 px-3 py-2 focus:ring-1 focus:ring-indigo-500 focus:outline-none disabled:bg-slate-50"
+              />
+              <button
+                onClick={() => sendChatMessage()}
+                disabled={isChatLoading || !chatInput.trim()}
+                className="p-2 bg-slate-950 text-white rounded-xl hover:bg-[var(--color-brand)] transition-colors flex items-center justify-center disabled:opacity-50 cursor-pointer"
+              >
+                {isChatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
         </motion.div>
       )}
       </AnimatePresence>

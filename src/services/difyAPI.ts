@@ -1466,6 +1466,13 @@ export async function fetchDynamicInsightScenario(
 
 // ── 破局系统（说）相关接口 ─────────────────────────────────────────
 
+export interface SpeakFlaw {
+  id: string;
+  title: string;
+  detail: string;
+  dimension: 'logic' | 'expression' | 'other' | string;
+}
+
 export interface SpeakInfluenceInput {
   training_mode: string;
   scenario: string;
@@ -1479,6 +1486,31 @@ export interface SpeakInfluenceResult {
   critique: string;
   framework_analysis: string;
   revised_version: string;
+  flaws?: SpeakFlaw[];
+}
+
+export interface SpeakCritiqueChatSnapshot {
+  totalScore?: number;
+  logicScore?: number;
+  expressionScore?: number;
+  critique?: string;
+  flaws?: SpeakFlaw[];
+  revisedVersion?: string;
+  userInputExcerpt?: string;
+  scenarioExcerpt?: string;
+}
+
+export interface SpeakCritiqueChatMessage {
+  sender: 'user' | 'ai';
+  text: string;
+}
+
+export interface SpeakCritiqueChatInput {
+  userId?: string;
+  query: string;
+  evalSnapshot?: SpeakCritiqueChatSnapshot;
+  messages?: SpeakCritiqueChatMessage[];
+  mock?: boolean;
 }
 
 export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userId = getAppUserId()): Promise<{
@@ -1508,6 +1540,26 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
     knowledgeSynced: typeof data.knowledgeSynced === 'number' ? data.knowledgeSynced : undefined,
     knowledgeUsed: typeof data.knowledgeUsed === 'number' ? data.knowledgeUsed : undefined,
   };
+}
+
+export async function runSpeakCritiqueChat(
+  input: SpeakCritiqueChatInput
+): Promise<string> {
+  const userId = input.userId || getAppUserId();
+  const res = await fetch('/api/speak/critique-chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...input,
+      userId,
+    }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.success === false) {
+    throw new Error(data?.error || data?.message || '教练追问请求失败');
+  }
+  return String(data.reply || '');
 }
 
 // ── 穿透系统（读）相关接口 ─────────────────────────────────────────

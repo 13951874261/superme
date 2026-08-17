@@ -11565,6 +11565,120 @@ app.post('/api/speak/influence', async (req, res) => {
   })();
 });
 
+const critiqueChatRateLimiter = new Map();
+function checkCritiqueChatRateLimit(key) {
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const max = 10;
+  const record = critiqueChatRateLimiter.get(key) || [];
+  const valid = record.filter(ts => now - ts < windowMs);
+  if (valid.length >= max) {
+    return false;
+  }
+  valid.push(now);
+  critiqueChatRateLimiter.set(key, valid);
+  if (critiqueChatRateLimiter.size > 2000) {
+    for (const [k, timestamps] of critiqueChatRateLimiter.entries()) {
+      if (!timestamps.some(ts => now - ts < windowMs)) {
+        critiqueChatRateLimiter.delete(k);
+      }
+    }
+  }
+  return true;
+}
+
+app.post('/api/speak/critique-chat', async (req, res) => {
+  try {
+    const {
+      userId = 'default-user',
+      query,
+      evalSnapshot = {},
+      messages = [],
+      mock = false
+    } = req.body || {};
+
+    const trimmedQuery = String(query || '').trim();
+    if (!trimmedQuery) {
+      return res.status(400).json({ success: false, error: '追问内容不能为空' });
+    }
+    if (trimmedQuery.length > 500) {
+      return res.status(400).json({ success: false, error: '追问内容不能超过500字' });
+    }
+
+    const rateKey = `${userId}:${req.ip || 'ip'}`;
+    if (!checkCritiqueChatRateLimit(rateKey)) {
+      return res.status(429).json({ success: false, error: '追问过于频繁，请稍候再试（限制 10 次/分钟）' });
+    }
+
+    const {
+      buildCritiqueChatPrompt,
+      generateMockCritiqueReply,
+      runDifyCompletion,
+      parseInsightGenAnswer
+    } = require('./services/insightSpeakProxy');
+
+    if (mock) {
+      const mockReply = generateMockCritiqueReply({ query: trimmedQuery, evalSnapshot });
+      return res.json({ success: true, reply: mockReply });
+    }
+
+    const apiKey = process.env.DIFY_SPEAK_CHAT_KEY
+      || process.env.DIFY_SPEAK_COACH_KEY
+      || process.env.DIFY_SPEAK_INFLUENCE_KEY
+      || process.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+    if (!apiKey) {
+      const mockReply = generateMockCritiqueReply({ query: trimmedQuery, evalSnapshot });
+      return res.json({ success: true, reply: mockReply });
+    }
+
+    const promptContext = buildCritiqueChatPrompt({
+      query: trimmedQuery,
+      evalSnapshot,
+      messages: Array.isArray(messages) ? messages.slice(-8) : []
+    });
+
+    const completionPromise = runDifyCompletion({
+      apiKey,
+      baseUrl,
+      userId,
+      inputs: {
+        eval_context: promptContext
+      },
+      query: `${promptContext}\n\n请针对以上评估上下文与学员追问进行针对性教练指导：`
+    });
+
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('追问请求超时（上限25秒）')), 25000);
+    });
+
+    const data = await Promise.race([completionPromise, timeoutPromise]);
+    let answerText = parseInsightGenAnswer(data);
+    if (!answerText) {
+      answerText = String(data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? data?.answer ?? data?.text ?? '').trim();
+    }
+
+    if (answerText.startsWith('{') && answerText.includes('"score"')) {
+      console.warn('[critique-chat] Detected score JSON from Dify completion, falling back to mock reply');
+      answerText = generateMockCritiqueReply({ query: trimmedQuery, evalSnapshot });
+    }
+
+    if (!answerText) {
+      answerText = generateMockCritiqueReply({ query: trimmedQuery, evalSnapshot });
+    }
+
+    if (answerText.length > 800) {
+      answerText = answerText.slice(0, 800) + '...';
+    }
+
+    return res.json({ success: true, reply: answerText });
+  } catch (err) {
+    console.error('追问接口异常:', err);
+    return res.status(500).json({ success: false, error: err.message || '追问服务暂时不可用' });
+  }
+});
+
 // 资料管理抽屉导出 Word (.docx)
 app.post('/api/knowledge-vault/export-docx', async (req, res) => {
   try {
