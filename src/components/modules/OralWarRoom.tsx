@@ -120,6 +120,11 @@ export default function OralWarRoom(props: OralWarRoomProps) {
           startRecording={session.startRecording}
           stopRecordingAndSend={session.stopRecordingAndSend}
           showNegotiationControls={session.showNegotiationControls}
+          showDailyExpressionDebrief={session.showDailyExpressionDebrief}
+          onEndDailyExpressionReview={session.handleEndDailyExpressionReview}
+          expressionReview={session.expressionReview}
+          expressionReviewStatus={session.expressionReviewStatus}
+          expressionReviewError={session.expressionReviewError}
         />
 
         <AnimatePresence>

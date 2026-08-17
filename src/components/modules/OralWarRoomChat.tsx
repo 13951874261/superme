@@ -21,6 +21,7 @@ import OralWarRoomControlCard from './OralWarRoomControlCard';
 import OralWarRoomRoleSwitcher from './OralWarRoomRoleSwitcher';
 import type { ParsedAiResponse } from '../../services/difyAPI';
 import { playReveal } from '../../utils/soundEffects';
+import type { ExpressionReview } from './oralWarRoom/expressionReview';
 import {
   safeText,
   parseBranchList,
@@ -87,6 +88,11 @@ export interface OralWarRoomChatProps {
   startRecording: () => void;
   stopRecordingAndSend: () => void;
   showNegotiationControls?: boolean;
+  showDailyExpressionDebrief?: boolean;
+  onEndDailyExpressionReview?: () => void;
+  expressionReview?: ExpressionReview | null;
+  expressionReviewStatus?: 'idle' | 'loading' | 'ready' | 'error';
+  expressionReviewError?: string | null;
 }
 
 export default function OralWarRoomChat({
@@ -139,6 +145,11 @@ export default function OralWarRoomChat({
   startRecording,
   stopRecordingAndSend,
   showNegotiationControls = true,
+  showDailyExpressionDebrief = false,
+  onEndDailyExpressionReview,
+  expressionReview = null,
+  expressionReviewStatus = 'idle',
+  expressionReviewError = null,
 }: OralWarRoomChatProps) {
   return (
     <section className={`flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))] relative ${
@@ -184,7 +195,17 @@ export default function OralWarRoomChat({
             >
               {showIntelDetails ? '收起分析' : '展开分析'}
             </button>
-            <div
+            {showDailyExpressionDebrief && (
+              <button
+                type="button"
+                onClick={() => onEndDailyExpressionReview?.()}
+                disabled={expressionReviewStatus === 'loading' || isSending}
+                className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-500 disabled:opacity-50 cursor-pointer whitespace-nowrap"
+                title="结束本场日常对话并生成表达疏漏与更好样例"
+              >
+                {expressionReviewStatus === 'loading' ? '复盘中…' : '结束并复盘'}
+              </button>
+            )}            <div
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-white font-black text-[10px] tracking-widest shadow-md transition-all whitespace-nowrap ${
                 showGoldGlow
                   ? 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 ring-2 ring-yellow-300 scale-105'
@@ -609,6 +630,37 @@ export default function OralWarRoomChat({
                 })}
               </div>
             )}
+          </div>
+        )}
+        {showDailyExpressionDebrief && (expressionReviewStatus === 'ready' || expressionReviewStatus === 'error') && (
+          <div className="bg-white rounded-2xl border border-emerald-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 flex items-center gap-2 border-b border-emerald-100 bg-emerald-50/60">
+              <Star className="w-3.5 h-3.5 text-emerald-700" />
+              <span className="text-xs font-black text-emerald-900">表达复盘 · 疏漏与更好样例</span>
+            </div>
+            <div className="px-4 py-3 space-y-2">
+              {expressionReviewStatus === 'error' && (
+                <p className="text-xs text-red-600">{expressionReviewError || '复盘失败，请重试'}</p>
+              )}
+              {expressionReviewStatus === 'ready' && (!expressionReview?.issues?.length) && (
+                <p className="text-xs text-gray-600">本场未检出明显语法或地道表达疏漏。</p>
+              )}
+              {expressionReview?.issues?.map((issue, idx) => (
+                <div key={`${issue.snippet}-${idx}`} className="bg-emerald-50/40 rounded-xl p-3 border border-emerald-100">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800">
+                      {issue.type === 'grammar' ? '语法' : '地道'}
+                    </span>
+                    <span className="text-[11px] font-mono text-gray-800">{issue.snippet}</span>
+                  </div>
+                  <p className="text-xs text-gray-700 mb-1">{issue.problem}</p>
+                  <p className="text-xs text-emerald-900">
+                    <span className="font-black">更好样例：</span>
+                    {issue.betterExample}
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {latestExchange.branchSuggestions.length > 0 && (

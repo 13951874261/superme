@@ -266,11 +266,12 @@
   1. 切到「日常演练」
   2. 自定义背景：`周末和同事在咖啡馆聊租房续签`
   3. 用文字发送：`I think maybe we can talking about the contract tomorrow?`
-  4. 进行 3 轮后查看点评/样例
+  4. 进行 3 轮后点击「结束并复盘」，查看疏漏/样例
 - **预期结果**：
   1. 明确提示当前为 1VS1 日常演练，不植入谈判破绽
   2. AI 只扮演一名搭档
-  3. 能指出表达疏漏（如 `can talking`），并给出更好样例（如 `we can talk about the contract tomorrow`）
+  3. 点击「结束并复盘」后，能指出表达疏漏（如 `can talking`），并给出更好样例（如 `we can talk about the contract tomorrow`）；条目含类型（语法|地道）、问题说明
+  4. 进行中「AI 四维反馈」仍可展开（与结束后复盘并存）
 - **对应需求**：7.21 英语-6「1VS1 的日常对话……AI 能记录对话，指出疏漏，并给出更好的表达样例」；「增加自定义场景+日常训练」
 
 ### EN-SPEECH-01 即兴演讲试用正常

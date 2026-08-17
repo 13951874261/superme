@@ -31,6 +31,11 @@ import {
   type SandboxMode,
 } from './sandboxMode';
 import {
+  prepareDailyExpressionReviewRequest,
+  requestExpressionReview,
+  type ExpressionReview,
+} from './expressionReview';
+import {
   getSpeakerStyle,
   safeText,
   parseBranchList,
@@ -95,6 +100,9 @@ export function useOralWarRoomSession({
   const [improvElapsed, setImprovElapsed] = useState(0);
   const [improvActive, setImprovActive] = useState(false);
   const [sandboxMode, setSandboxMode] = useState<SandboxMode>('negotiation');
+  const [expressionReview, setExpressionReview] = useState<ExpressionReview | null>(null);
+  const [expressionReviewStatus, setExpressionReviewStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [expressionReviewError, setExpressionReviewError] = useState<string | null>(null);
   const [customBackground, setCustomBackground] = useState('');
   const [customBackgroundEnabled, setCustomBackgroundEnabled] = useState(false);
   const [sessionMemory, setSessionMemory] = useState<SessionMemory>(() => {
@@ -370,12 +378,44 @@ export function useOralWarRoomSession({
     setImprovActive(false);
     setShowControlCard(false);
     setIsInputLocked(false);
+    setExpressionReview(null);
+    setExpressionReviewStatus('idle');
+    setExpressionReviewError(null);
     setSessionMemory(prev => ({
       ...prev,
       lastSceneId: sceneId === DAILY_SCENE_ID ? prev.lastSceneId : sceneId,
     }));
     sceneInitRef.current = sceneId;
   }, [setBreakthroughMenu]);
+
+  const handleEndDailyExpressionReview = useCallback(async () => {
+    const prepared = prepareDailyExpressionReviewRequest(sandboxMode, messages);
+    if (!prepared) return;
+    setExpressionReviewStatus('loading');
+    setExpressionReviewError(null);
+    setLastNotice('正在生成表达复盘…');
+    try {
+      const result = await requestExpressionReview(prepared.utterances, userId || getAppUserId());
+      if (result.status === 'parse_miss') {
+        setExpressionReview(null);
+        setExpressionReviewStatus('error');
+        setExpressionReviewError('复盘结果格式不符，请重试结束并复盘');
+        setLastNotice('⚠️ 复盘结果格式不符，请重试');
+        return;
+      }
+      setExpressionReview(result.review);
+      setExpressionReviewStatus('ready');
+      setIsInputLocked(true);
+      setLastNotice(result.review.issues.length
+        ? `表达复盘完成：共 ${result.review.issues.length} 条疏漏/样例`
+        : '表达复盘完成：本场未检出明显疏漏');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '表达复盘失败';
+      setExpressionReviewStatus('error');
+      setExpressionReviewError(msg);
+      setLastNotice(`⚠️ ${msg}`);
+    }
+  }, [sandboxMode, messages, userId, setIsInputLocked]);
 
   const handleSceneSelect = (sceneId: string) => {
     const scene = SCENE_DATABASE.find(s => s.id === sceneId);
@@ -566,6 +606,11 @@ export function useOralWarRoomSession({
     handleSceneSelect,
     sandboxMode,
     handleSandboxModeChange,
+    handleEndDailyExpressionReview,
+    expressionReview,
+    expressionReviewStatus,
+    expressionReviewError,
+    showDailyExpressionDebrief: sandboxMode === 'daily',
     customBackground,
     setCustomBackground,
     customBackgroundEnabled,

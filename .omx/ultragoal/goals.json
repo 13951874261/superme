@@ -1,92 +1,74 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/plans/prd-daily-cron-task-logs.md",
+  "sourceBrief": ".omx/specs/deep-interview-en-oral-03-1vs1-daily.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for daily-cron-task-logs",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for en-oral-03-1vs1-daily",
   "status": "complete",
-  "createdAt": "2026-08-08T12:23:00Z",
-  "supersedes": "lzhmy-daily-pack-missing (2026-08-04)",
-  "note": "Created manually: omx CLI unavailable in Cursor runtime; user chose ultragoal option 1 after ralplan consensus APPROVE",
+  "createdAt": "2026-08-17T08:06:00Z",
+  "supersedes": "daily-cron-task-logs (2026-08-08, complete)",
+  "note": "Created manually: omx CLI unavailable in Cursor runtime; user chose ultragoal option 1 after deep-interview crystallization",
   "goals": [
     {
       "id": "G001",
-      "title": "DB + dailyCronRunService core",
-      "objective": "Create SQLite tables daily_cron_runs/steps/log_events with UNIQUE(cron_tick_id,user_id); implement sanitize, retention (7d), startup interrupt all running, audit_health helpers.",
+      "title": "Expression review types + pure normalize/parse",
+      "objective": "Define ExpressionIssue model (snippet, type grammar|idiomatic, problem, betterExample) and pure helpers to normalize/parse/validate review payloads; unit tests cover can talking → at least one grammar item.",
       "status": "complete",
       "acceptance": [
-        "Tables created on server init",
-        "sanitize strips Bearer/API keys",
-        "retention deletes pack_date older than 7 Shanghai days but keeps running",
-        "startup marks all running runs/steps failed/interrupted"
+        "Shared type/helper module under oralWarRoom (or adjacent) without UI coupling",
+        "normalize accepts loose LLM JSON and outputs structured issues",
+        "Fixture with can talking yields >=1 type=grammar with betterExample",
+        "sandboxMode daily flaw_point rules unchanged"
       ]
     },
     {
       "id": "G002",
-      "title": "Instrument pack/flaw + short-circuit skipped tree",
-      "objective": "Emit cron_tick_id; materialize per-user runs at loop entry; instrument wakeup/flaw; on pack ready continue mark wakeup/flaw/64 leaves skipped.",
+      "title": "End-session trigger + collect user utterances (daily only)",
+      "objective": "Add/end wire a daily-mode end/debrief action that collects this session's user texts and invokes expression review generation; negotiation mode untouched.",
       "status": "complete",
       "acceptance": [
-        "One per-user run per tick with cron_tick_id",
-        "Short-circuit writes 64 skipped long_article steps + skipped wakeup/flaw",
-        "Progress denominator 67 for standard runs"
+        "Daily mode has explicit end/复盘 entry (or reuse clear stop) that triggers review",
+        "Only user-role utterances included",
+        "Negotiation path has no new debrief side effects",
+        "In-session 四维反馈 still available"
       ]
     },
     {
       "id": "G003",
-      "title": "Long-article Cron adapter await extract",
-      "objective": "Cron/rerun-only adapter awaits extractionTasks terminal; disable detached TTS on cron path; timeout/task_lost handling.",
+      "title": "Review generation path (client/LLM)",
+      "objective": "Implement generation that returns structured grammar|idiomatic issues + better examples from collected utterances; keep daily flaw_point empty semantics.",
       "status": "complete",
       "acceptance": [
-        "Step not completed on HTTP accept alone",
-        "Timeout and task_lost map to failed steps",
-        "No detached TTS from cron long-article path"
+        "Generation callable after end with utterance list",
+        "Output maps through G001 normalize",
+        "Does not plant negotiation flaw_point in daily",
+        "Error/empty handling does not crash session"
       ]
     },
     {
       "id": "G004",
-      "title": "Listen stitch + single owner",
-      "objective": "runDailyListenCronJob(db,{cron_tick_id}) iterates frozen user set; OPEN miss no INSERT; listen owns audio.",
+      "title": "UI: post-session expression review panel",
+      "objective": "Render structured review after end in OralWarRoom daily flow; show snippet, type, problem, betterExample.",
       "status": "complete",
       "acceptance": [
-        "Pack+Listen same run_id for same tick+user",
-        "Drifted listCronTargetUsers does not create second run",
-        "UNIQUE(cron_tick_id,user_id) enforced"
+        "Panel visible after successful daily debrief",
+        "Each issue shows four fields",
+        "Does not replace 四维反馈 during chat",
+        "EN-ORAL-03 menu path still 日常演练"
       ]
     },
     {
       "id": "G005",
-      "title": "APIs + dual rerun executors",
-      "objective": "GET list/detail + POST rerun with owner 404; all_current vs failed_snapshot; 15s idempotency; snapshot executors forbid resolvers.",
+      "title": "Tests + EN-ORAL-03 alignment + quality gate",
+      "objective": "Add/adjust automated tests; align test_cases EN-ORAL-03 notes if needed; run verification + cleanup + review gate.",
       "status": "complete",
       "acceptance": [
-        "Cross-user detail/rerun 404",
-        "failed_snapshot does not call resolvers/random",
-        "Double-click creates one run"
-      ]
-    },
-    {
-      "id": "G006",
-      "title": "Frontend task center merge",
-      "objective": "Rename to 后台任务; merge cron runs into GlobalTaskCenter without TaskItem side-effects; dual-layer input UI; rerun confirms.",
-      "status": "complete",
-      "acceptance": [
-        "Header/drawer copy updated",
-        "Cron card shows 4 modules; no 64 top cards",
-        "taskQueue.js and /api/tasks zero behavior change"
-      ]
-    },
-    {
-      "id": "G007",
-      "title": "Tests + docs + quality gate",
-      "objective": "Cover test-spec critical IDs; sync old cron non-goal + user manual naming; final cleanup/review gate.",
-      "status": "complete",
-      "acceptance": [
-        "Automated tests for sanitize, owner, skip tree, snapshot, retention",
-        "Docs updated",
-        "Final review APPROVE/CLEAR"
+        "Automated coverage for normalize + daily-only trigger invariants",
+        "Manual AC path documented for can talking",
+        "Final quality gate: verification + cleaner + independent review APPROVE/CLEAR"
       ]
     }
-  ]
+  ],
+  "aggregateStatusNote": "G001-G005 complete with conditional quality gate: verification passed; review HIGH findings fixed; architect residual CONCERNS accepted for MVP (heuristic fallback)."
 }
