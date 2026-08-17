@@ -17,7 +17,7 @@ import {
 } from '../../utils/soundEffects';
 import { motion, AnimatePresence } from 'motion/react';
 import UrlFetchPanel from '../UrlFetchPanel';
-import { evaluateReadPushQuality, READ_PUSH_MIN_CHARS } from '../../utils/readPushQuality';
+import { evaluateReadPushQuality, READ_PUSH_MIN_CHARS, ReadPushQualityResult } from '../../utils/readPushQuality';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -83,6 +83,9 @@ export default function ReadModule() {
   const [inputText, setInputText] = useState('');
   const [pushQuality, setPushQuality] = useState<'ok' | 'below_standard' | null>(null);
   const [pushCharCount, setPushCharCount] = useState(0);
+  const [pushQualityResult, setPushQualityResult] = useState<ReadPushQualityResult | null>(null);
+  const [decodeAck, setDecodeAck] = useState(false);
+  const [showBelowStandardConfirm, setShowBelowStandardConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPushLoading, setIsPushLoading] = useState(false);
   const [result, setResult] = useState<CognitivePenetrationResult | null>(null);
@@ -149,7 +152,7 @@ export default function ReadModule() {
     }
   };
 
-  // 1. 动态生成并置入今日素材
+  // 1. 动态生成并置入今日素材（最多自动尝试 3 次：初试 + 重试 2 次）
   const handleLoadDailyPush = async () => {
     setIsPushLoading(true);
     setErrorMsg('');
@@ -159,25 +162,47 @@ export default function ReadModule() {
     setReversalSubmitted(false);
     setChatMessages([]);
     setPushQuality(null);
+    setPushQualityResult(null);
+    setDecodeAck(false);
     playPageTurn();
+
     try {
-      const text = await generateReadMaterial(activeTab, sceneFramework);
-      setInputText(text);
-      const q = evaluateReadPushQuality(text);
-      setPushCharCount(q.charCount);
-      setPushQuality(q.quality);
+      let finalCandidateText = '';
+      let finalCandidateQuality: ReadPushQualityResult | null = null;
+      const maxAttempts = 3;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // 每次生成均不传 conversationId，开启独立新会话
+        const text = await generateReadMaterial(activeTab, sceneFramework);
+        const q = evaluateReadPushQuality(text);
+        finalCandidateText = text;
+        finalCandidateQuality = q;
+
+        // 任一次达到合格标准即立即采纳并停止重试
+        if (q.quality === 'ok') {
+          break;
+        }
+      }
+
+      if (finalCandidateQuality) {
+        setInputText(finalCandidateText);
+        setPushCharCount(finalCandidateQuality.charCount);
+        setPushQuality(finalCandidateQuality.quality);
+        setPushQualityResult(finalCandidateQuality);
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMsg('动态素材投喂失败，请手动录入');
       setPushQuality(null);
+      setPushQualityResult(null);
       setTimeout(() => setErrorMsg(''), 4000);
     } finally {
       setIsPushLoading(false);
     }
   };
 
-  // 2. 启动认知穿透解码
-  const handlePenetrate = async () => {
+  // 实际执行认知穿透解码核心逻辑
+  const executePenetration = async () => {
     if (!inputText.trim()) return;
     setIsLoading(true);
     setResult(null);
@@ -193,7 +218,6 @@ export default function ReadModule() {
       const res = await runCognitivePenetrationEngine({ scene_type: activeTab, text_input: inputText });
       setResult(res);
       setShowContextSheet(true);
-
 
       // 计算随机 AI 深度评分与多维反馈细节
       const score = parseFloat((8.5 + Math.random() * 1.4).toFixed(1)); // 随机 8.5 ~ 9.9 分
@@ -229,7 +253,6 @@ export default function ReadModule() {
         setTimeout(() => {
           setIsReversalTriggered(true);
 
-
           // 根据当前板块定制立场反转 Prompt
           let p = '';
           if (activeTab === 'policy') {
@@ -253,6 +276,17 @@ export default function ReadModule() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // 2. 启动认知穿透解码（含不达标首次二次确认）
+  const handlePenetrate = async () => {
+    if (!inputText.trim()) return;
+    // 若来自推送且未达标、且尚未在当前失败稿确认过，则先弹窗二次确认
+    if (pushQuality === 'below_standard' && !decodeAck) {
+      setShowBelowStandardConfirm(true);
+      return;
+    }
+    await executePenetration();
   };
 
   // 3. 原地 Chat 专属 AI 交互区发送
@@ -821,8 +855,18 @@ export default function ReadModule() {
               rows={4} 
               value={inputText}
               onChange={(e) => {
-                setInputText(e.target.value);
-                setPushQuality(null);
+                const val = e.target.value;
+                setInputText(val);
+                if (pushQuality !== null) {
+                  // 手动改写输入框后即时重算质量
+                  const q = evaluateReadPushQuality(val);
+                  setPushCharCount(q.charCount);
+                  setPushQuality(q.quality);
+                  setPushQualityResult(q);
+                  if (q.quality === 'ok') {
+                    setDecodeAck(true);
+                  }
+                }
               }}
               className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
               placeholder={
@@ -832,8 +876,16 @@ export default function ReadModule() {
               }
             />
             {pushQuality === 'below_standard' && (
-              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 leading-relaxed">
-                未达 {READ_PUSH_MIN_CHARS} 字标准（当前约 {pushCharCount} 字）。仍可继续穿透解码，也可再次点击「每日 AI 素材推送」重试。
+              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 leading-relaxed flex items-start gap-1.5">
+                <span className="text-amber-600 font-black">⚠</span>
+                <div>
+                  <div>
+                    未达详尽标准（当前约 {pushCharCount} 字 / 缺：{pushQualityResult?.missingReasons?.join('、') || '条款/利益方等要素'}）。
+                  </div>
+                  <div className="text-[10px] text-amber-700/80 mt-0.5">
+                    已自动重试 2 次。可再点推送，或确认后仍可解码。
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1183,6 +1235,55 @@ export default function ReadModule() {
             <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-zinc-950 font-black text-xs">✓</div>
             <span className="text-xs font-black uppercase tracking-widest text-zinc-100">深度达成 (Insight Acquired)</span>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 素材未达标首次解码二次确认弹窗 */}
+      <AnimatePresence>
+        {showBelowStandardConfirm && (
+          <div className="fixed inset-0 z-[3500] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18 }}
+              className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-3.5">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-black text-gray-900 mb-2">
+                素材未达详尽标准，仍要解码？
+              </h3>
+              <p className="text-xs text-gray-600 mb-6 leading-relaxed">
+                当前约 <span className="font-bold text-gray-900">{pushCharCount}</span> 字，缺：
+                <span className="font-bold text-amber-700">
+                  {pushQualityResult?.missingReasons?.join('、') || '可引用条款/数据'}
+                </span>
+                。
+              </p>
+              <div className="flex w-full gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBelowStandardConfirm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-xs font-black text-gray-600 hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setDecodeAck(true);
+                    setShowBelowStandardConfirm(false);
+                    await executePenetration();
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer"
+                >
+                  仍要解码
+                </button>
+              </div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </ModuleWrapper>
