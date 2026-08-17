@@ -56,6 +56,7 @@ import {
   flattenInsightScript,
   wrapPlainScenarioAsDraft,
   type InsightScriptQuality,
+  type InsightScriptEvaluation,
 } from '../../utils/insightScript';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
@@ -89,7 +90,13 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
   const [activeCategory, setActiveCategory] = useState<CategoryType>('体制内');
   const [currentScenario, setCurrentScenario] = useState<string>('');
   const [currentDraft, setCurrentDraft] = useState<ScriptWorkshopDraft | null>(null);
-  const [scriptEvaluation, setScriptEvaluation] = useState({ totalWords: 0, estimatedMinutes: 0 });
+  const [scriptEvaluation, setScriptEvaluation] = useState<InsightScriptEvaluation>({
+    totalWords: 0,
+    estimatedMinutes: 0,
+    passedDuration: false,
+    scriptScore: 0,
+    passedScript: false,
+  });
   const [scriptQuality, setScriptQuality] = useState<InsightScriptQuality>('ok');
   const [isLoadingScenario, setIsLoadingScenario] = useState(false);
 
@@ -97,7 +104,13 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     const draft = wrapPlainScenarioAsDraft(text, category);
     const e = evaluateInsightScriptQuality(draft);
     setCurrentDraft(draft);
-    setScriptEvaluation({ totalWords: e.totalWords, estimatedMinutes: e.estimatedMinutes });
+    setScriptEvaluation({
+      totalWords: e.totalWords,
+      estimatedMinutes: e.estimatedMinutes,
+      passedDuration: e.passedDuration,
+      scriptScore: e.scriptScore,
+      passedScript: e.passedScript,
+    });
     setScriptQuality(e.quality);
     setCurrentScenario(flattenInsightScript(draft));
   }, []);
@@ -267,6 +280,9 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       setScriptEvaluation({
         totalWords: result.evaluation.totalWords,
         estimatedMinutes: result.evaluation.estimatedMinutes,
+        passedDuration: result.evaluation.passedDuration,
+        scriptScore: result.evaluation.scriptScore,
+        passedScript: result.evaluation.passedScript,
       });
       setScriptQuality(result.quality);
       setCurrentScenario(result.scenario);
@@ -278,7 +294,13 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
       };
       const e = evaluateInsightScriptQuality(draft);
       setCurrentDraft(draft);
-      setScriptEvaluation({ totalWords: e.totalWords, estimatedMinutes: e.estimatedMinutes });
+      setScriptEvaluation({
+        totalWords: e.totalWords,
+        estimatedMinutes: e.estimatedMinutes,
+        passedDuration: e.passedDuration,
+        scriptScore: e.scriptScore,
+        passedScript: e.passedScript,
+      });
       setScriptQuality(e.quality);
       setCurrentScenario(flattenInsightScript(draft));
     } finally {

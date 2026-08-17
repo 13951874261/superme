@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ScriptWorkshopDraft } from '../components/modules/GameTheory/ScriptWorkshopTypes';
+import { PRESET_BENCHMARK_SCRIPTS } from '../components/modules/GameTheory/scriptEvaluator';
 import {
   flattenInsightScript,
   evaluateInsightScriptQuality,
@@ -22,13 +23,34 @@ function minimalDraft(overrides: Partial<ScriptWorkshopDraft> = {}): ScriptWorks
         redLine: '红线',
         winCondition: '赢面',
       },
+      {
+        id: 'c2',
+        name: '李四',
+        roleTitle: '总监',
+        surfaceGoal: '表面目标2',
+        hiddenMotive: '隐藏底牌2',
+        redLine: '红线2',
+        winCondition: '赢面2',
+      },
+      {
+        id: 'c3',
+        name: '王五',
+        roleTitle: '审计',
+        surfaceGoal: '表面目标3',
+        hiddenMotive: '隐藏底牌3',
+        redLine: '红线3',
+        winCondition: '赢面3',
+      },
     ],
-    infoMatrix: [],
+    infoMatrix: [
+      { id: 'i1', type: 'public', title: '信息1', content: '内容1' },
+      { id: 'i2', type: 'exclusive', title: '信息2', content: '内容2' },
+    ],
     phases: [
-      { phaseId: 1, title: '幕1', targetDuration: '', targetWordsRange: '', targetRatio: 0.25, content: '甲：你好。' },
-      { phaseId: 2, title: '幕2', targetDuration: '', targetWordsRange: '', targetRatio: 0.25, content: '乙：你好。' },
-      { phaseId: 3, title: '幕3', targetDuration: '', targetWordsRange: '', targetRatio: 0.25, content: '甲：对峙。' },
-      { phaseId: 4, title: '幕4', targetDuration: '', targetWordsRange: '', targetRatio: 0.25, content: '乙：收束。' },
+      { phaseId: 1, title: '幕1', targetDuration: '', targetWordsRange: '', targetRatio: 0.18, content: '**张三**：你好。**李四**：你好。**王五**：你好。' },
+      { phaseId: 2, title: '幕2', targetDuration: '', targetWordsRange: '', targetRatio: 0.32, content: '**张三**：试探。**李四**：反驳。**王五**：记录。' },
+      { phaseId: 3, title: '幕3', targetDuration: '', targetWordsRange: '', targetRatio: 0.38, content: '**张三**：对峙。**李四**：揭穿。**王五**：宣判。' },
+      { phaseId: 4, title: '幕4', targetDuration: '', targetWordsRange: '', targetRatio: 0.12, content: '**张三**：认输。**李四**：收束。**王五**：散会。' },
     ],
   };
   return { ...base, ...overrides, phases: (overrides.phases as ScriptWorkshopDraft['phases']) || base.phases };
@@ -39,24 +61,18 @@ test('flattenInsightScript 含标题、角色名、四幕片段', () => {
   assert.match(text, /测试场景/);
   assert.match(text, /张三/);
   assert.match(text, /隐藏底牌/);
-  assert.match(text, /甲：你好/);
-  assert.match(text, /乙：收束/);
+  assert.match(text, /幕1/);
+  assert.match(text, /幕4/);
 });
 
-test('evaluateInsightScriptQuality：2000 字约 8 分钟为 ok', () => {
-  const content = '字'.repeat(2000);
-  const draft = minimalDraft({
-    phases: [
-      { phaseId: 1, title: '1', targetDuration: '', targetWordsRange: '', targetRatio: 1, content },
-      { phaseId: 2, title: '2', targetDuration: '', targetWordsRange: '', targetRatio: 0, content: '' },
-      { phaseId: 3, title: '3', targetDuration: '', targetWordsRange: '', targetRatio: 0, content: '' },
-      { phaseId: 4, title: '4', targetDuration: '', targetWordsRange: '', targetRatio: 0, content: '' },
-    ],
-  });
+test('evaluateInsightScriptQuality：标杆剧本满足合格带 [8, 12] 分钟且 score ≥ 85 为 ok', () => {
+  const draft = PRESET_BENCHMARK_SCRIPTS[0];
   const q = evaluateInsightScriptQuality(draft);
-  assert.equal(q.totalWords, 2000);
-  assert.equal(q.estimatedMinutes, 8);
+  assert.ok(q.totalWords >= 2100);
+  assert.ok(q.estimatedMinutes >= 8 && q.estimatedMinutes <= 12);
   assert.equal(q.passedDuration, true);
+  assert.ok((q.scriptScore || 0) >= 85);
+  assert.equal(q.passedScript, true);
   assert.equal(q.quality, 'ok');
 });
 
@@ -85,11 +101,13 @@ test('parseInsightScenarioPayload 优先 draft，否则 scenario 字符串', () 
   const withDraft = parseInsightScenarioPayload({
     success: true,
     draft: minimalDraft(),
-    evaluation: { totalWords: 10, estimatedMinutes: 0.1, passedDuration: false },
+    evaluation: { totalWords: 10, estimatedMinutes: 0.1, passedDuration: false, scriptScore: 30, passedScript: false },
     quality: 'below_standard',
+    retryCount: 2,
   });
   assert.equal(withDraft.draft.sceneTitle, '测试场景');
   assert.equal(withDraft.quality, 'below_standard');
+  assert.equal(withDraft.retryCount, 2);
 
   const withString = parseInsightScenarioPayload({ success: true, scenario: '旧版字符串案例' });
   assert.equal(withString.draft.phases[0].content, '旧版字符串案例');

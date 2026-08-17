@@ -1,5 +1,5 @@
 import type { ScriptWorkshopDraft, ScriptPhaseData } from '../components/modules/GameTheory/ScriptWorkshopTypes';
-import { countWords, estimateDurationMinutes } from '../components/modules/GameTheory/scriptEvaluator';
+import { countWords, estimateDurationMinutes, evaluateScriptDraft } from '../components/modules/GameTheory/scriptEvaluator';
 
 export type InsightScriptQuality = 'ok' | 'below_standard';
 
@@ -7,6 +7,8 @@ export interface InsightScriptEvaluation {
   totalWords: number;
   estimatedMinutes: number;
   passedDuration: boolean;
+  scriptScore?: number;
+  passedScript?: boolean;
 }
 
 export interface InsightScenarioResult {
@@ -14,6 +16,7 @@ export interface InsightScenarioResult {
   evaluation: InsightScriptEvaluation;
   quality: InsightScriptQuality;
   scenario: string;
+  retryCount?: number;
 }
 
 function emptyPhase(phaseId: 1 | 2 | 3 | 4, content = ''): ScriptPhaseData {
@@ -47,11 +50,17 @@ export function evaluateInsightScriptQuality(draft: ScriptWorkshopDraft): Insigh
   const totalWords = (draft.phases || []).reduce((sum, p) => sum + countWords(p.content || ''), 0);
   const estimatedMinutes = estimateDurationMinutes(totalWords);
   const passedDuration = estimatedMinutes >= 8 && estimatedMinutes <= 12;
+  const report = evaluateScriptDraft(draft);
+  const scriptScore = report ? (Number(report.score) || 0) : 0;
+  const passedScript = scriptScore >= 85 && Boolean(report && report.passed);
+  const quality: InsightScriptQuality = (passedDuration && passedScript) ? 'ok' : 'below_standard';
   return {
     totalWords,
     estimatedMinutes,
     passedDuration,
-    quality: passedDuration ? 'ok' : 'below_standard',
+    scriptScore,
+    passedScript,
+    quality,
   };
 }
 
@@ -79,24 +88,33 @@ function isDraftLike(value: unknown): value is ScriptWorkshopDraft {
 
 export function parseInsightScenarioPayload(data: any): InsightScenarioResult {
   if (isDraftLike(data?.draft)) {
-    const evaluation = data.evaluation && typeof data.evaluation === 'object'
+    const report = evaluateScriptDraft(data.draft);
+    const defaultEval = evaluateInsightScriptQuality(data.draft);
+    const evaluation: InsightScriptEvaluation = data.evaluation && typeof data.evaluation === 'object'
       ? {
-          totalWords: Number(data.evaluation.totalWords) || 0,
-          estimatedMinutes: Number(data.evaluation.estimatedMinutes) || 0,
-          passedDuration: Boolean(data.evaluation.passedDuration),
+          totalWords: Number(data.evaluation.totalWords) || defaultEval.totalWords,
+          estimatedMinutes: Number(data.evaluation.estimatedMinutes) || defaultEval.estimatedMinutes,
+          passedDuration: typeof data.evaluation.passedDuration === 'boolean'
+            ? data.evaluation.passedDuration
+            : defaultEval.passedDuration,
+          scriptScore: typeof data.evaluation.scriptScore === 'number'
+            ? data.evaluation.scriptScore
+            : defaultEval.scriptScore,
+          passedScript: typeof data.evaluation.passedScript === 'boolean'
+            ? data.evaluation.passedScript
+            : defaultEval.passedScript,
         }
-      : (() => {
-          const e = evaluateInsightScriptQuality(data.draft);
-          return { totalWords: e.totalWords, estimatedMinutes: e.estimatedMinutes, passedDuration: e.passedDuration };
-        })();
+      : defaultEval;
+
     const quality: InsightScriptQuality =
       data.quality === 'ok' || data.quality === 'below_standard'
         ? data.quality
-        : evaluation.passedDuration
+        : (evaluation.passedDuration && (evaluation.passedScript ?? true))
           ? 'ok'
           : 'below_standard';
     const scenario = String(data.scenario || flattenInsightScript(data.draft)).trim();
-    return { draft: data.draft, evaluation, quality, scenario };
+    const retryCount = typeof data.retryCount === 'number' ? data.retryCount : 0;
+    return { draft: data.draft, evaluation, quality, scenario, retryCount };
   }
 
   const scenario = String(data?.scenario || '').trim();
@@ -105,8 +123,15 @@ export function parseInsightScenarioPayload(data: any): InsightScenarioResult {
   const e = evaluateInsightScriptQuality(draft);
   return {
     draft,
-    evaluation: { totalWords: e.totalWords, estimatedMinutes: e.estimatedMinutes, passedDuration: e.passedDuration },
+    evaluation: {
+      totalWords: e.totalWords,
+      estimatedMinutes: e.estimatedMinutes,
+      passedDuration: e.passedDuration,
+      scriptScore: e.scriptScore,
+      passedScript: e.passedScript,
+    },
     quality: e.quality,
     scenario: flattenInsightScript(draft),
+    retryCount: 0,
   };
 }

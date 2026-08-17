@@ -11273,29 +11273,108 @@ app.post('/api/insight/listen/scenario', async (req, res) => {
       parseInsightGenAnswer,
       runDifyCompletion,
     } = require('./services/insightSpeakProxy');
-    const { buildScenarioResponse } = require('./services/insightScenarioScript');
+    const {
+      tryParseDraft,
+      evaluateFull,
+      getFallbackDraft,
+      generateRetryHint,
+      buildScenarioResponse,
+      wrapPlain,
+    } = require('./services/insightScenarioScript');
     const prepared = buildInsightGenInputs(body);
     const apiKey = resolveInsightGenApiKey(process.env);
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    let answerText = '';
-    try {
-      const data = await runDifyCompletion({
-        apiKey,
-        baseUrl,
-        inputs: prepared.inputs,
-        userId,
-        query: '',
-      });
-      answerText = parseInsightGenAnswer(data);
-    } catch (difyErr) {
-      // 无密钥或 Dify 失败：走兜底，不直接 500（与听模块前端兜底体验一致）
-      console.warn('[insight/scenario] dify failed, using fallback', difyErr.message);
+
+    let bestDraft = null;
+    let bestEval = null;
+    let bestScore = -1;
+    let lastAnswerText = '';
+    let retryCount = 0;
+    const maxAttempts = 3;
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      let answerText = '';
+      const inputs = { ...prepared.inputs };
+      let query = '';
+
+      if (attempt > 1 && bestEval) {
+        const hint = generateRetryHint(bestEval);
+        query = hint;
+        inputs.retry_hint = hint;
+      }
+
+      try {
+        const data = await runDifyCompletion({
+          apiKey,
+          baseUrl,
+          inputs,
+          userId,
+          query,
+        });
+        answerText = parseInsightGenAnswer(data);
+        lastAnswerText = answerText;
+      } catch (difyErr) {
+        console.warn(`[insight/scenario] attempt ${attempt} dify failed:`, difyErr.message);
+        if (!apiKey || difyErr.statusCode === 503) {
+          break;
+        }
+      }
+
+      const draft = tryParseDraft(answerText);
+      if (draft) {
+        const evalResult = evaluateFull(draft);
+        if (evalResult.quality === 'ok') {
+          return res.json(buildScenarioResponse({
+            draft,
+            category: prepared.category,
+            retryCount: attempt - 1,
+            evaluation: evalResult.evaluation,
+            quality: evalResult.quality,
+          }));
+        }
+
+        const compositeRank = (evalResult.evaluation.passedDuration ? 50 : 0) + (evalResult.evaluation.scriptScore || 0);
+        if (compositeRank > bestScore) {
+          bestScore = compositeRank;
+          bestDraft = draft;
+          bestEval = evalResult.evaluation;
+          retryCount = attempt - 1;
+        }
+      }
     }
-    const payload = buildScenarioResponse({
-      answerText,
+
+    if (bestDraft) {
+      const evalResult = evaluateFull(bestDraft);
+      return res.json(buildScenarioResponse({
+        draft: bestDraft,
+        category: prepared.category,
+        retryCount,
+        evaluation: evalResult.evaluation,
+        quality: 'below_standard',
+      }));
+    }
+
+    if (lastAnswerText && lastAnswerText.trim()) {
+      const draft = wrapPlain(lastAnswerText, prepared.category);
+      const evalResult = evaluateFull(draft);
+      return res.json(buildScenarioResponse({
+        draft,
+        category: prepared.category,
+        retryCount: Math.max(0, retryCount),
+        evaluation: evalResult.evaluation,
+        quality: 'below_standard',
+      }));
+    }
+
+    const fallbackDraft = getFallbackDraft(prepared.category);
+    const fallbackEval = evaluateFull(fallbackDraft);
+    return res.json(buildScenarioResponse({
+      draft: fallbackDraft,
       category: prepared.category,
-    });
-    return res.json(payload);
+      retryCount: 0,
+      evaluation: fallbackEval.evaluation,
+      quality: 'ok',
+    }));
   } catch (error) {
     const badRequest = error.message === 'category required';
     res.status(badRequest ? 400 : 500).json({ success: false, error: error.message });

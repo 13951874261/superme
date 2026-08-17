@@ -1,33 +1,71 @@
 const { extractJsonFromString } = require('./insightSpeakProxy');
+const { countWords, estimateDurationMinutes, evaluateScriptDraft } = require('./scriptEvaluator');
 const FALLBACK_BASE = require('./insightScenarioFallbacks.json');
-
-const CATEGORY_PREFIX = {
-  体制内: '【体制内】',
-  外企: '【外企】',
-  通用社交: '【通用社交】',
-};
-
-function countWords(text) {
-  if (!text) return 0;
-  return String(text).replace(/\s+/g, '').length;
-}
 
 function countScriptWords(draft) {
   const phases = draft && Array.isArray(draft.phases) ? draft.phases : [];
   return phases.reduce((sum, p) => sum + countWords(p && p.content), 0);
 }
 
-function estimateDurationMinutes(words) {
-  return Number((Number(words) / 250).toFixed(1));
-}
-
-function evaluateQuality(minutes) {
+function evaluateQuality(minutes, scriptScore = 100) {
   const m = Number(minutes);
   const passedDuration = m >= 8 && m <= 12;
+  const passedScript = Number(scriptScore) >= 85;
   return {
     passedDuration,
-    quality: passedDuration ? 'ok' : 'below_standard',
+    passedScript,
+    quality: (passedDuration && passedScript) ? 'ok' : 'below_standard',
   };
+}
+
+function evaluateFull(draft) {
+  if (!draft || typeof draft !== 'object') {
+    return {
+      quality: 'below_standard',
+      evaluation: {
+        totalWords: 0,
+        estimatedMinutes: 0,
+        passedDuration: false,
+        scriptScore: 0,
+        passedScript: false,
+      },
+      report: null,
+    };
+  }
+
+  const totalWords = countScriptWords(draft);
+  const estimatedMinutes = estimateDurationMinutes(totalWords);
+  const passedDuration = estimatedMinutes >= 8 && estimatedMinutes <= 12;
+  const report = evaluateScriptDraft(draft);
+  const scriptScore = report ? (Number(report.score) || 0) : 0;
+  const passedScript = scriptScore >= 85 && Boolean(report && report.passed);
+  const quality = (passedDuration && passedScript) ? 'ok' : 'below_standard';
+
+  return {
+    quality,
+    evaluation: {
+      totalWords,
+      estimatedMinutes,
+      passedDuration,
+      scriptScore,
+      passedScript,
+    },
+    report,
+  };
+}
+
+function generateRetryHint(evaluation) {
+  const totalWords = evaluation?.totalWords || 0;
+  const scriptScore = evaluation?.scriptScore || 0;
+  const passedDuration = Boolean(evaluation?.passedDuration);
+  const passedScript = Boolean(evaluation?.passedScript);
+
+  let failedDimension = 'both';
+  if (!passedDuration && passedScript) failedDimension = 'duration';
+  else if (passedDuration && !passedScript) failedDimension = 'score';
+  else if (!passedDuration && !passedScript) failedDimension = 'both';
+
+  return `上次生成未达标：totalWords=${totalWords}（需≥2100），scriptScore=${scriptScore}（需≥85），失败维度=${failedDimension}。请重新生成完整四幕对白，加强阶段三博弈与信息差。`;
 }
 
 function emptyPhase(phaseId, content = '') {
@@ -87,47 +125,51 @@ function tryParseDraft(answerText) {
 
 function getFallbackDraft(category) {
   const cat = String(category || '').trim();
-  const prefix = CATEGORY_PREFIX[cat] || (cat ? `【${cat}】` : '【通用社交】');
-  const draft = JSON.parse(JSON.stringify(FALLBACK_BASE));
-  const baseTitle = String(draft.sceneTitle || '').replace(/^【[^】]+】/, '');
-  draft.sceneTitle = `${prefix}${baseTitle}`;
-  return draft;
+  let selected = FALLBACK_BASE[cat];
+  if (!selected) {
+    if (cat.includes('体制')) selected = FALLBACK_BASE['体制内'];
+    else if (cat.includes('外企')) selected = FALLBACK_BASE['外企'];
+    else selected = FALLBACK_BASE['通用社交'] || FALLBACK_BASE['体制内'];
+  }
+  return JSON.parse(JSON.stringify(selected));
 }
 
-function buildScenarioResponse({ answerText, category } = {}) {
-  const text = String(answerText ?? '');
-  const cat = String(category || '').trim();
-
-  let draft = tryParseDraft(text);
-  if (!draft) {
-    if (text.trim()) {
-      draft = wrapPlain(text, cat);
-    } else {
-      draft = getFallbackDraft(cat || '通用社交');
+function buildScenarioResponse({ draft, answerText, category, retryCount = 0, evaluation, quality } = {}) {
+  let finalDraft = draft;
+  if (!finalDraft) {
+    const text = String(answerText ?? '');
+    const cat = String(category || '').trim();
+    finalDraft = tryParseDraft(text);
+    if (!finalDraft) {
+      if (text.trim()) {
+        finalDraft = wrapPlain(text, cat);
+      } else {
+        finalDraft = getFallbackDraft(cat || '通用社交');
+      }
     }
   }
 
-  const totalWords = countScriptWords(draft);
-  const estimatedMinutes = estimateDurationMinutes(totalWords);
-  const { passedDuration, quality } = evaluateQuality(estimatedMinutes);
+  const evalResult = evaluateFull(finalDraft);
+  const finalEvaluation = evaluation || evalResult.evaluation;
+  const finalQuality = quality || evalResult.quality;
 
   return {
     success: true,
-    draft,
-    evaluation: {
-      totalWords,
-      estimatedMinutes,
-      passedDuration,
-    },
-    quality,
-    scenario: flattenDraft(draft),
+    draft: finalDraft,
+    evaluation: finalEvaluation,
+    quality: finalQuality,
+    retryCount: Number(retryCount) || 0,
+    scenario: flattenDraft(finalDraft),
   };
 }
 
 module.exports = {
+  countWords,
   countScriptWords,
   estimateDurationMinutes,
   evaluateQuality,
+  evaluateFull,
+  generateRetryHint,
   flattenDraft,
   wrapPlain,
   tryParseDraft,

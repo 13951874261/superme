@@ -3,7 +3,13 @@ import type { ScriptWorkshopDraft } from '../GameTheory/ScriptWorkshopTypes';
 
 type Props = {
   draft: ScriptWorkshopDraft;
-  evaluation: { totalWords: number; estimatedMinutes: number };
+  evaluation: {
+    totalWords: number;
+    estimatedMinutes: number;
+    passedDuration?: boolean;
+    scriptScore?: number;
+    passedScript?: boolean;
+  };
   quality: 'ok' | 'below_standard';
   loading?: boolean;
 };
@@ -24,10 +30,19 @@ export default function InsightScriptReadonlyView({
     >
       {quality === 'below_standard' && (
         <div
-          className="rounded-xl border border-amber-500/50 bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-200"
+          className="rounded-xl border border-amber-500/50 bg-amber-500/15 px-3 py-2 text-xs font-bold text-amber-200 flex items-center justify-between"
           role="status"
         >
-          未达 8–10 分钟标准（当前约 {evaluation.estimatedMinutes} 分钟）
+          <span>
+            {evaluation.passedDuration === false && evaluation.passedScript === false
+              ? `未达 8–10 分钟与博弈标准（当前约 ${evaluation.estimatedMinutes} 分钟，博弈分 ${evaluation.scriptScore ?? '—'}）`
+              : evaluation.passedDuration === false
+                ? `未达 8–10 分钟时长标准（当前约 ${evaluation.estimatedMinutes} 分钟）`
+                : evaluation.passedScript === false
+                  ? `未达博弈深度标准（当前博弈分 ${evaluation.scriptScore ?? '—'} / 需≥85）`
+                  : `未达 8–10 分钟标杆标准（当前约 ${evaluation.estimatedMinutes} 分钟）`}
+          </span>
+          <span className="text-[10px] text-amber-300/80 font-normal ml-2">可正常侧写答题</span>
         </div>
       )}
 
@@ -106,10 +121,13 @@ export default function InsightScriptReadonlyView({
       <div className="flex flex-wrap items-center gap-3 text-[10px] font-mono text-slate-400 border-t border-zinc-700/60 pt-3">
         <span>字数 {evaluation.totalWords}</span>
         <span>约 {evaluation.estimatedMinutes} 分钟</span>
+        {evaluation.scriptScore !== undefined && (
+          <span>博弈分 {evaluation.scriptScore}</span>
+        )}
         {quality === 'ok' ? (
-          <span className="text-emerald-400/90">时长达标</span>
+          <span className="text-emerald-400/90 font-bold">质量达标</span>
         ) : (
-          <span className="text-amber-400/90">时长未达标</span>
+          <span className="text-amber-400/90 font-bold">质量待提升</span>
         )}
       </div>
     </div>
