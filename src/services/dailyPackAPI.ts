@@ -1,5 +1,6 @@
 import { getAppUserId, getUserCurrentProfile } from '../utils/profileHelper';
 import { getAllWords, type VocabEntry } from './vocabAPI';
+import { recordL1Response } from '../utils/perfSlaTelemetry';
 
 export interface WakeupWord {
   word: string;
@@ -122,10 +123,14 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
   });
   const path = `/api/daily-pack/today?${q.toString()}`;
   const job = (async () => {
+    const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
     let lastErr: unknown;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        return await request<DailyPackResponse>(path, { timeoutMs: 5_000 });
+        const result = await request<DailyPackResponse>(path, { timeoutMs: 3_000 });
+        const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+        recordL1Response('GET /api/daily-pack/today (Cache Read)', durationMs, true);
+        return result;
       } catch (err) {
         lastErr = err;
         const msg = err instanceof Error ? err.message : '';
@@ -133,6 +138,8 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
         await new Promise((r) => setTimeout(r, 200 * attempt));
       }
     }
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL1Response('GET /api/daily-pack/today (Cache Read)', durationMs, false);
     throw lastErr instanceof Error ? lastErr : new Error('读取今日包失败');
   })();
 

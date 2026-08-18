@@ -10,6 +10,7 @@ import { useEnglishContext } from './modules/english/context/EnglishContext';
 import { playClick, playPageTurn } from '../utils/soundEffects';
 import { isModulePaused } from '../utils/reviewHelper';
 import ModuleSkeleton from './modules/ModuleSkeleton';
+import { startL0Timer } from '../utils/perfSlaTelemetry';
 
 const ListenModule = React.lazy(() => import('./modules/ListenModule'));
 const SpeakModule = React.lazy(() => import('./modules/SpeakModule'));
@@ -63,13 +64,16 @@ function MainContentComponent({
   }, []);
 
   const handleTabClick = useCallback((tabId: ModuleType) => {
+    const endTimer = startL0Timer(`TopTab Switch -> ${tabId}`);
     if (isModulePaused(tabId)) {
       playClick();
       alert('根据复盘战术调度，该模块已暂时挂起。请先完成当前主攻方向的训练。');
+      endTimer();
       return;
     }
     if (isLocked && tabId !== 'english') {
       if (onLockTrigger) onLockTrigger();
+      endTimer();
     } else {
       if (activeModule !== tabId) {
         playClick();
@@ -77,6 +81,7 @@ function MainContentComponent({
       }
       startTransition(() => {
         setActiveModule(tabId);
+        endTimer();
       });
     }
   }, [isLocked, activeModule, onLockTrigger, setActiveModule]);

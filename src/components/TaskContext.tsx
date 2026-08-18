@@ -72,8 +72,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const fetchTasks = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
     try {
-      const response = await fetch(`${API_BASE}/api/tasks`);
+      const response = await fetch(`${API_BASE}/api/tasks`, { signal: controller.signal });
+      clearTimeout(timer);
       if (response.ok) {
         const data = await response.json();
         if (data.success && Array.isArray(data.tasks)) {
@@ -86,6 +89,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
     } catch (e) {
+      clearTimeout(timer);
       console.error('Failed to fetch tasks:', e);
     }
   };
@@ -123,8 +127,12 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       lastGlobalPollTimeRef.current = now;
 
+      const pollController = new AbortController();
+      const pollTimer = setTimeout(() => pollController.abort(), 3000);
+
       try {
-        const response = await fetch(`${API_BASE}/api/tasks/${id}`);
+        const response = await fetch(`${API_BASE}/api/tasks/${id}`, { signal: pollController.signal });
+        clearTimeout(pollTimer);
         if (!response.ok) {
           throw new Error('Task fetch failed');
         }

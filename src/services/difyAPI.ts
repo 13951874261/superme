@@ -1,4 +1,5 @@
 import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
+import { recordL3Response, recordL4TaskEnqueue } from '../utils/perfSlaTelemetry';
 import {
   extractKeywordsFromText,
   generateScenarioMapping,
@@ -378,15 +379,28 @@ export async function callOralSandbox(
   conversationId?: string,
   userId = getAppUserId()
 ): Promise<{ reply: OralSandboxReply; conversationId: string }> {
-  const res = await fetch('/api/english/oral-sandbox', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ inputs: injectUserProfileAndTime(inputs as any), conversationId, userId }),
-  });
-  if (!res.ok) throw new Error(`oral-sandbox HTTP ${res.status}`);
-  const data = await res.json();
-  interceptOutputText(data);
-  return data;
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  try {
+    const res = await fetch('/api/english/oral-sandbox', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inputs: injectUserProfileAndTime(inputs as any), conversationId, userId }),
+    });
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    if (!res.ok) {
+      recordL3Response('Oral Sandbox Turn', durationMs, false);
+      throw new Error(`oral-sandbox HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    interceptOutputText(data);
+    const hasSubject = Boolean(data.reply?.dialogue || data.reply?.current_speaker);
+    recordL3Response('Oral Sandbox Turn', durationMs, hasSubject);
+    return data;
+  } catch (err) {
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL3Response('Oral Sandbox Turn', durationMs, false);
+    throw err;
+  }
 }
 
 /**
@@ -743,36 +757,47 @@ export async function callVocabPurify(
   return data.result as VocabPurifyResult;
 }
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const profile = getUserCurrentProfile();
   const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;
 
-  const res = await fetch('/api/dify/write-review', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      user_text: userText,
-      mail_intent: mailIntent,
-      theme: displayTheme,
-      user_current_profile: profile,
-      userId: getAppUserId(),
-    }),
-  });
+  try {
+    const res = await fetch('/api/dify/write-review', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_text: userText,
+        mail_intent: mailIntent,
+        theme: displayTheme,
+        user_current_profile: profile,
+        userId: getAppUserId(),
+      }),
+    });
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.success) {
-    throw new Error(data.error || data.message || '后端批阅代理接口异常');
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      recordL3Response('English Write Review', durationMs, false);
+      throw new Error(data.error || data.message || '后端批阅代理接口异常');
+    }
+
+    interceptOutputText(data);
+    const reviewData = data.data;
+    const hasSubject = Boolean(reviewData?.optimized_version || reviewData?.L1 || reviewData?.L1_Grammar);
+    recordL3Response('English Write Review', durationMs, hasSubject);
+    return {
+      L1_Grammar: reviewData.L1 || reviewData.L1_Grammar || '',
+      L2_Business_Tone: reviewData.L2 || reviewData.L2_Business_Tone || '',
+      L3_Strategic_Position: reviewData.L3 || reviewData.L3_Strategic_Position || '',
+      optimized_version: reviewData.optimized_version || ''
+    };
+  } catch (err) {
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL3Response('English Write Review', durationMs, false);
+    throw err;
   }
-
-  interceptOutputText(data);
-  const reviewData = data.data;
-  return {
-    L1_Grammar: reviewData.L1 || reviewData.L1_Grammar || '',
-    L2_Business_Tone: reviewData.L2 || reviewData.L2_Business_Tone || '',
-    L3_Strategic_Position: reviewData.L3 || reviewData.L3_Strategic_Position || '',
-    optimized_version: reviewData.optimized_version || ''
-  };
 }
 
 /** 口语类 Chatflow 统一走后端代理（DIFY_ORAL_API_KEY 仅存服务端） */
@@ -1729,6 +1754,7 @@ export async function pushGameTheoryCase(params: {
   excludeIds?: string[];
   userId?: string;
 }): Promise<GameTheoryCasePush> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const query = new URLSearchParams({
     userId: params.userId ?? getAppUserId(),
     env: params.env,
@@ -1736,12 +1762,23 @@ export async function pushGameTheoryCase(params: {
   if (params.excludeIds?.length) {
     query.set('excludeIds', params.excludeIds.join(','));
   }
-  const res = await fetch(`/api/game-theory/cases/push?${query.toString()}`);
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.success) {
-    throw new Error(data?.error || '案例推送失败');
+
+  try {
+    const res = await fetch(`/api/game-theory/cases/push?${query.toString()}`);
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      recordL3Response('Game Theory Case Push', durationMs, false);
+      throw new Error(data?.error || '案例推送失败');
+    }
+    const hasSubject = Boolean(data.result?.background || data.result?.decision_point);
+    recordL3Response('Game Theory Case Push', durationMs, hasSubject);
+    return data.result as GameTheoryCasePush;
+  } catch (err) {
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL3Response('Game Theory Case Push', durationMs, false);
+    throw err;
   }
-  return data.result as GameTheoryCasePush;
 }
 
 export async function getGameTheoryHistory(userId = getAppUserId()): Promise<GameTheoryHistoryItem[]> {
@@ -2042,15 +2079,30 @@ export async function requestTacticsIngestBackground(
   file: File,
   userId = getAppUserId()
 ): Promise<{ taskId: string }> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
   const formData = new FormData();
   formData.append('file', file);
   formData.append('userId', userId);
-  const res = await fetch('/api/game-theory/tactics/ingest-background', { method: 'POST', body: formData });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data?.success || !data?.taskId) {
-    throw new Error(data?.error || '发起资料提炼失败');
+  try {
+    const res = await fetch('/api/game-theory/tactics/ingest-background', {
+      method: 'POST',
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success || !data?.taskId) {
+      throw new Error(data?.error || '发起资料提炼失败');
+    }
+    recordL4TaskEnqueue('Tactics Ingest Background', durationMs, String(data.taskId));
+    return { taskId: data.taskId as string };
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
   }
-  return { taskId: data.taskId as string };
 }
 
 export async function fetchTacticsMedia(
@@ -2092,16 +2144,28 @@ export function exportTacticsToCsv(tactics: TacticItem[]): void {
 export async function requestTacticsExportBackground(
   tactics: TacticItem[]
 ): Promise<{ taskId: string; status: string }> {
-  const res = await fetch('/api/game-theory/tactics/export-background', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ tactics }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data?.success || !data?.taskId) {
-    throw new Error(data?.error || '发起手段库导出失败');
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const res = await fetch('/api/game-theory/tactics/export-background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tactics }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data?.success || !data?.taskId) {
+      throw new Error(data?.error || '发起手段库导出失败');
+    }
+    recordL4TaskEnqueue('Tactics Export Background', durationMs, String(data.taskId));
+    return { taskId: data.taskId as string, status: String(data.status || 'pending') };
+  } catch (err) {
+    clearTimeout(timer);
+    throw err;
   }
-  return { taskId: data.taskId as string, status: String(data.status || 'pending') };
 }
 
 const FLAW_SUB_THEMES = [

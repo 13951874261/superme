@@ -7,6 +7,7 @@ import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../uti
 import { playError } from '../utils/soundEffects';
 import { showToast } from '../components/Toast';
 import { createRequestDeduper } from './vocabRequestDeduper';
+import { recordL1Response } from '../utils/perfSlaTelemetry';
 
 const API_BASE = '/api/vocab';
 const vocabRequestDeduper = createRequestDeduper();
@@ -146,17 +147,20 @@ export interface DictResult {
 
 
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number; silent?: boolean }): Promise<T> {
-  const timeoutMs = options?.timeoutMs ?? 8000;
+  const timeoutMs = options?.timeoutMs ?? 3000;
   const silent = options?.silent === true;
   const { timeoutMs: _t, silent: _s, ...fetchOpts } = options || {};
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       ...fetchOpts,
       signal: controller.signal,
     });
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL1Response(`Vocab API ${path.split('?')[0]}`, durationMs, res.ok);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       console.error('[vocabAPI] Vocab request HTTP error:', path, res.status, err);
@@ -166,6 +170,8 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
     interceptOutputText(data);
     return data;
   } catch (err: any) {
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL1Response(`Vocab API ${path.split('?')[0]}`, durationMs, false);
     const isAbort = err?.name === 'AbortError';
     if (!isAbort) {
       console.error('[vocabAPI] Vocab request exception:', path, err);
@@ -214,7 +220,7 @@ export function clearReviewLightCache(category: VocabCategory): void {
 /** 获取统计：总词数 + 今日待复习数 */
 export async function getStats(): Promise<VocabStats> {
   return vocabRequestDeduper.run('stats', () =>
-    request<VocabStats>('/stats', { timeoutMs: 8000, silent: true })
+    request<VocabStats>('/stats', { timeoutMs: 3000, silent: true })
   );
 }
 

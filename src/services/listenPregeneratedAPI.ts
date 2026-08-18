@@ -1,4 +1,5 @@
 import { getAppUserId } from '../utils/profileHelper';
+import { recordL1Response, recordL2CacheHit, recordL4TaskEnqueue } from '../utils/perfSlaTelemetry';
 
 export type PregenStatus = 'ready' | 'partial' | 'missing' | 'failed' | 'generating' | 'uncached_duration';
 
@@ -21,6 +22,7 @@ export async function fetchPregenerated(params: {
   date?: string;
   userId?: string;
 }): Promise<PregeneratedResponse> {
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const userId = params.userId || getAppUserId();
   const q = new URLSearchParams({
     userId,
@@ -30,10 +32,28 @@ export async function fetchPregenerated(params: {
     duration: String(params.duration),
   });
   if (params.date) q.set('date', params.date);
-  const res = await fetch(`/api/listen/pregenerated?${q}`);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data;
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const res = await fetch(`/api/listen/pregenerated?${q}`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL1Response(`GET /api/listen/pregenerated (${params.duration}m)`, durationMs, res.ok);
+
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    if (data.status === 'ready') {
+      recordL2CacheHit(`Listen Pregenerated Ready (${params.genre}/${params.cefrLevel}/${params.duration}m)`, durationMs);
+    }
+    return data;
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    recordL1Response(`GET /api/listen/pregenerated (${params.duration}m)`, durationMs, false);
+    throw err;
+  }
 }
 
 export async function submitPregeneratedBackfill(body: {
@@ -44,14 +64,28 @@ export async function submitPregeneratedBackfill(body: {
   only?: 'both' | 'article' | 'audio';
   userId?: string;
 }) {
-  const res = await fetch('/api/listen/pregenerated/backfill', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...body, userId: body.userId || getAppUserId() }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-  return data as { success: boolean; taskId: string };
+  const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+  try {
+    const res = await fetch('/api/listen/pregenerated/backfill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...body, userId: body.userId || getAppUserId() }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    recordL4TaskEnqueue(`Listen Backfill Submit (${body.duration}m)`, durationMs, data.taskId || 'unknown');
+    return data as { success: boolean; taskId: string };
+  } catch (err: unknown) {
+    clearTimeout(timeoutId);
+    throw err;
+  }
 }
 
 export async function writebackPregenerated(body: {
