@@ -9,7 +9,7 @@ param(
     [switch]$Force,
     [switch]$FrontendOnly,
     [switch]$BackendOnly,
-    [string]$SSHPassword
+    [string]$SSHPassword = '19890430@lmq'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -65,11 +65,28 @@ if ($Force) {
     $needBackendDeploy = $true
     $backendChanged = @($changedFiles | Where-Object { $_ -match '^vocab-server/' })
     if ($backendChanged.Count -eq 0) {
-        Write-Host "No vocab-server paths in scan; including HEAD~1..HEAD vocab-server files." -ForegroundColor Yellow
         $changedFiles = @(git diff --name-only HEAD~1 HEAD -- vocab-server/)
         if (@($changedFiles).Count -eq 0) {
-            $changedFiles = @('vocab-server/server.js', 'vocab-server/services/gtCaseQuality.js', 'vocab-server/services/toneCorrections.js', 'vocab-server/services/gameTheorySessionService.js', 'vocab-server/services/gameTheoryCasePushService.js', 'vocab-server/services/gameTheoryVerdictGuard.js', 'vocab-server/services/insightSpeakProxy.js', 'vocab-server/services/scriptEvaluator.js', 'vocab-server/services/insightScenarioFallbacks.json', 'vocab-server/services/insightScenarioScript.js', 'vocab-server/services/webFetcher.js')
-            Write-Host "Fallback upload list: server.js + services/gtCaseQuality.js + services/toneCorrections.js + services/gameTheorySessionService.js + services/gameTheoryCasePushService.js + services/gameTheoryVerdictGuard.js + services/insightSpeakProxy.js + services/scriptEvaluator.js + services/insightScenarioFallbacks.json + services/insightScenarioScript.js + services/webFetcher.js" -ForegroundColor Yellow
+            $changedFiles = @(
+                'vocab-server/server.js',
+                'vocab-server/services/gtCaseQuality.js',
+                'vocab-server/services/toneCorrections.js',
+                'vocab-server/services/gameTheorySessionService.js',
+                'vocab-server/services/gameTheoryCasePushService.js',
+                'vocab-server/services/gameTheoryVerdictGuard.js',
+                'vocab-server/services/insightSpeakProxy.js',
+                'vocab-server/services/scriptEvaluator.js',
+                'vocab-server/services/insightScenarioFallbacks.json',
+                'vocab-server/services/insightScenarioScript.js',
+                'vocab-server/services/webFetcher.js',
+                'vocab-server/services/vaultRefine.js',
+                'vocab-server/services/vaultRefineDepthQuality.js',
+                'vocab-server/services/moduleHardnessQuality.js',
+                'vocab-server/services/gameTheoryKnowledge.js',
+                'vocab-server/services/knowledgeTheoryNodes.js',
+                'vocab-server/services/knowledgeVaultExtra.js'
+            )
+            Write-Host "Fallback upload list: core server + game theory + insight + vault refine & hardness services" -ForegroundColor Yellow
         }
     }
 } else {
@@ -195,7 +212,7 @@ try {
         }
         
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
-        Invoke-RemoteCommand "sudo nginx -t && sudo systemctl reload nginx"
+        Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo nginx -t && sudo systemctl reload nginx"
     } else {
         Write-Host "========== Step 2: Skip Frontend ==========" -ForegroundColor DarkGray
     }
@@ -216,6 +233,13 @@ try {
                 'vocab-server/services/scriptEvaluator.js',
                 'vocab-server/services/insightScenarioFallbacks.json',
                 'vocab-server/services/insightScenarioScript.js',
+                'vocab-server/services/webFetcher.js',
+                'vocab-server/services/vaultRefine.js',
+                'vocab-server/services/vaultRefineDepthQuality.js',
+                'vocab-server/services/moduleHardnessQuality.js',
+                'vocab-server/services/gameTheoryKnowledge.js',
+                'vocab-server/services/knowledgeTheoryNodes.js',
+                'vocab-server/services/knowledgeVaultExtra.js',
                 'vocab-server/services/dailyListenPreGenerateService.js',
                 'vocab-server/services/dailyPackService.js',
                 'vocab-server/services/dailyPackCron.js',
@@ -309,7 +333,7 @@ try {
         Write-Host ""
         Write-Host "========== Step 4: Nginx Sync and Reload ==========" -ForegroundColor Cyan
         Send-File "$ProjectRoot\app.liujingzhuwo.site" "/tmp/app.liujingzhuwo.site"
-        Invoke-RemoteCommand "sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-available/app.liujingzhuwo.site && sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site && sudo nginx -t && sudo systemctl reload nginx"
+        Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-available/app.liujingzhuwo.site && sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site && sudo nginx -t && sudo systemctl reload nginx"
         Write-Host "  -> Nginx config synced and reloaded successfully!" -ForegroundColor Green
     } else {
         Write-Host ""
@@ -322,7 +346,7 @@ try {
     Write-Host "--- Node Service Logs (Last 20 lines) ---" -ForegroundColor DarkCyan
     Invoke-RemoteCommand "sudo journalctl -u super-agent-vocab.service -n 20 --no-pager"
     Write-Host "--- Nginx Error Logs (Last 20 lines) ---" -ForegroundColor DarkCyan
-    Invoke-RemoteCommand "sudo tail -n 20 /var/log/nginx/error.log"
+    Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo touch /var/log/nginx/error.log && sudo tail -n 20 /var/log/nginx/error.log"
 
     # 6. Git Commit & Push to GitHub
     Write-Host ""

@@ -12,12 +12,13 @@ const {
   buildReminder
 } = require('../services/gameTheoryKnowledge');
 
-function syncedExtra(moduleTargets, confirmedAt) {
+function syncedExtra(moduleTargets, confirmedAt, difficulty = 1) {
   return JSON.stringify({
     moduleTargets,
     sourceType: 'manual',
     syncStatus: 'synced',
-    confirmedAt
+    confirmedAt,
+    difficulty,
   });
 }
 
@@ -36,6 +37,8 @@ const empty = loadInjectedKnowledge(makeSelectDb([]), 'u1');
 assert.equal(empty.context, '');
 assert.equal(empty.usedCount, 0);
 assert.equal(empty.syncedCount, 0);
+assert.equal(empty.maxDifficulty, 1);
+assert.equal(empty.isDeepened, false);
 assert.equal(empty.reminder, '已同步 0 条，本次使用 0 条');
 assert.deepEqual(attachKnowledgeContext({ scene_type: 'corp_clash' }, ''), { scene_type: 'corp_clash' });
 assert.equal(Object.prototype.hasOwnProperty.call(attachKnowledgeContext({}, ''), 'knowledge_context'), false);
@@ -201,5 +204,21 @@ const aestheticRow = {
 const aestheticInjected = loadInjectedKnowledge(makeSelectDb([aestheticRow]), 'u1', 'aesthetic');
 assert.ok(aestheticInjected.context.startsWith('【审美知识】'));
 assert.equal(aestheticInjected.usedCount, 1);
+
+// XF-FEED-02: 加深难度识别测试
+const deepRow = {
+  id: 'deep1',
+  user_id: 'u1',
+  type: 'theory',
+  title: 'BATNA实战',
+  summary: '公开底线与真实底线',
+  extra_json: syncedExtra(['game_theory'], 100, 3), // difficulty = 3
+  source: 'upload_book',
+  added_at: 100
+};
+const deepInjected = loadInjectedKnowledge(makeSelectDb([deepRow]), 'u1', 'game_theory');
+assert.equal(deepInjected.maxDifficulty, 3);
+assert.equal(deepInjected.isDeepened, true);
+assert.ok(deepInjected.context.includes('（加深）'));
 
 console.log('gameTheoryKnowledge.test.js passed');

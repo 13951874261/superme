@@ -385,16 +385,16 @@ export default function App() {
   }, [isAuthenticated]);
 
   return (
-    <EnglishProvider>
-      <TaskProvider>
-        <AnimatePresence mode="wait">
-          {!isAuthenticated ? (
-            <LoginPage key="login-page" onUnlock={() => setIsAuthenticated(true)} />
-          ) : (
-            <AppContent key="app-content" />
-          )}
-        </AnimatePresence>
-      </TaskProvider>
-    </EnglishProvider>
+    <AnimatePresence mode="wait">
+      {!isAuthenticated ? (
+        <LoginPage key="login-page" onUnlock={() => setIsAuthenticated(true)} />
+      ) : (
+        <EnglishProvider key="app-shell">
+          <TaskProvider>
+            <AppContent />
+          </TaskProvider>
+        </EnglishProvider>
+      )}
+    </AnimatePresence>
   );
 }

@@ -48,7 +48,9 @@ test('frontend login ping rejects non-2xx and unsuccessful JSON responses', () =
     'export async function initializeUserSession',
   );
 
-  assert.match(loginPing, /const res = await fetch\('\/api\/user\/login-ping'/);
+  assert.match(loginPing, /\/api\/user\/login-ping/);
+  assert.match(loginPing, /fetchWithTimeout|AbortController/);
+  assert.match(loginPing, /SESSION_INIT_TIMEOUT_MS|timeoutMs:\s*8000|abort\(\),\s*8000/);
   assert.match(loginPing, /const json = await res\.json\(\)\.catch\(\(\) => \(\{\}\)\)/);
   assert.match(loginPing, /!res\.ok\s*\|\|\s*!json\?\.success/);
   assert.match(loginPing, /userId/);
@@ -56,18 +58,27 @@ test('frontend login ping rejects non-2xx and unsuccessful JSON responses', () =
   assert.match(loginPing, /throw new Error/);
 });
 
-test('session initialization pings before loading the profile', () => {
+test('session init and profile fetch share an 8s timeout and do not block unlock', () => {
   const helper = read('src/utils/profileHelper.ts');
+  assert.match(helper, /SESSION_INIT_TIMEOUT_MS\s*=\s*8000/);
+  assert.match(helper, /function fetchWithTimeout/);
+
+  const profileLoad = extract(
+    helper,
+    'export async function loadUserProfileFromServer',
+    'export function saveUserErrorLedger',
+  );
+  assert.match(profileLoad, /fetchWithTimeout/);
+
   const initialize = extract(
     helper,
     'export async function initializeUserSession',
     '\n}',
   );
-
-  const pingIndex = initialize.indexOf('await recordUserLoginPing(userId)');
-  const profileIndex = initialize.indexOf('await loadUserProfileFromServer(userId)');
-  assert.ok(pingIndex >= 0, 'initializeUserSession must await login ping');
-  assert.ok(profileIndex > pingIndex, 'profile load must happen after login ping');
+  assert.match(initialize, /recordUserLoginPing\(userId\)/);
+  assert.match(initialize, /loadUserProfileFromServer\(userId\)/);
+  assert.match(initialize, /Promise\.allSettled/);
+  assert.match(initialize, /return userId/);
 });
 
 test('authenticated fallback uses reliable ping and logs failures', () => {
@@ -78,4 +89,18 @@ test('authenticated fallback uses reliable ping and logs failures', () => {
     app,
     /void recordUserLoginPing\(userId\)\.catch\(\(error\)\s*=>\s*\{[\s\S]*?console\.warn/,
   );
+});
+
+test('EnglishProvider and TaskProvider mount only after login', () => {
+  const app = read('src/App.tsx');
+  const start = app.indexOf('export default function App()');
+  assert.notEqual(start, -1, 'missing App()');
+  const body = app.slice(start);
+  assert.match(
+    body,
+    /!isAuthenticated \? \([\s\S]*<LoginPage[\s\S]*\) : \([\s\S]*<EnglishProvider[\s\S]*<TaskProvider[\s\S]*<AppContent/,
+  );
+  const providerIdx = body.indexOf('<EnglishProvider');
+  const loginIdx = body.indexOf('<LoginPage');
+  assert.ok(loginIdx >= 0 && providerIdx > loginIdx, 'EnglishProvider must not wrap the login page');
 });

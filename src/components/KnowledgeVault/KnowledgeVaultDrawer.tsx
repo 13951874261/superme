@@ -24,14 +24,21 @@ function MindmapReadonly({ mindmap }: { mindmap: MindmapView }) {
   return (
     <div className="mt-2 rounded-lg border border-zinc-700 bg-zinc-950/80 p-2 space-y-1">
       <p className="text-[10px] font-black text-[#FF5722]">导图 · {mindmap.center || "未命名"}</p>
-      {branches.slice(0, 12).map((br, idx) => (
-        <div key={idx} className="text-[10px] text-zinc-300">
-          <span className="font-bold text-zinc-200">{br.title || `分支${idx + 1}`}</span>
-          {Array.isArray(br.children) && br.children.length > 0 && (
-            <span className="text-zinc-500"> — {br.children.slice(0, 6).join("、")}</span>
-          )}
-        </div>
-      ))}
+      {branches.slice(0, 12).map((br, idx) => {
+        const childList = Array.isArray(br.children)
+          ? br.children
+              .map((c) => (typeof c === "string" ? c : String((c as any)?.title || "")))
+              .filter(Boolean)
+          : [];
+        return (
+          <div key={idx} className="text-[10px] text-zinc-300">
+            <span className="font-bold text-zinc-200">{br.title || `分支${idx + 1}`}</span>
+            {childList.length > 0 && (
+              <span className="text-zinc-400"> — {childList.slice(0, 6).join("、")}</span>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

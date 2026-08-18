@@ -5,6 +5,17 @@ const PROFILE_UPDATED_AT_KEY = 'user_profile_server_updated_at';
 const ERROR_LEDGER_KEY = 'user_error_ledger';
 const USER_ID_KEY = 'super_agent_user_id';
 const PROFILE_STALE_MS = 5 * 60 * 1000;
+export const SESSION_INIT_TIMEOUT_MS = 8000;
+
+async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = SESSION_INIT_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 /** 本地画像时间戳是否过期（供 visibility 等场景决定是否 refetch；不改变 loadUserProfileFromServer 强制拉取语义） */
 export function isProfileStale(): boolean {
@@ -556,7 +567,7 @@ export async function loadUserProfileFromServer(userId?: string): Promise<void> 
   const localUpdatedAt = Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
 
   try {
-    const res = await fetch(`/api/user/profile/${encodeURIComponent(uid)}`);
+    const res = await fetchWithTimeout(`/api/user/profile/${encodeURIComponent(uid)}`, {}, SESSION_INIT_TIMEOUT_MS);
     if (!res.ok) {
       if (localRaw) void syncProfileToServer(localRaw);
       return;
@@ -739,11 +750,11 @@ export function getRecentEpisodesSummaryLocal(): string {
  * 登录成功后调用：确定 userId 并从后端拉取该用户的画像/记忆
  */
 export async function recordUserLoginPing(userId: string): Promise<void> {
-  const res = await fetch('/api/user/login-ping', {
+  const res = await fetchWithTimeout('/api/user/login-ping', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId }),
-  });
+  }, SESSION_INIT_TIMEOUT_MS);
   const json = await res.json().catch(() => ({}));
   if (!res.ok || !json?.success) {
     const detail = json?.error ? `: ${json.error}` : '';
@@ -753,7 +764,14 @@ export async function recordUserLoginPing(userId: string): Promise<void> {
 
 export async function initializeUserSession(customUserId?: string): Promise<string> {
   const userId = ensureAppUserId(customUserId);
-  await recordUserLoginPing(userId);
-  await loadUserProfileFromServer(userId);
+  const results = await Promise.allSettled([
+    recordUserLoginPing(userId),
+    loadUserProfileFromServer(userId),
+  ]);
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.warn('[profileHelper] session init step failed:', result.reason);
+    }
+  }
   return userId;
 }

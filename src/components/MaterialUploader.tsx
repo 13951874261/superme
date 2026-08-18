@@ -10,7 +10,7 @@ interface MaterialUploaderProps {
   topicHint?: string;
   onUploadSuccess?: (fileName: string) => void;
   onExtractionSuccess?: (data?: { article: string, words: string[], phrases: string[], sentences?: string[] }) => void;
-  /** 资料抽屉等窄栏嵌入时隐藏 URL/视频 Tab，只保留文件上传 */
+  /** 资料抽屉等窄栏嵌入时隐藏 URL Tab，保留文件与视频字幕上传 */
   compact?: boolean;
 }
 
@@ -286,7 +286,6 @@ export default function MaterialUploader({
                 网页提取
               </button>
               )}
-              {!compact && (
               <button
                 onClick={() => setActiveTab('video')}
                 className={`flex-1 py-2.5 text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed ${
@@ -297,7 +296,6 @@ export default function MaterialUploader({
                 <Video className="w-3.5 h-3.5" />
                 视频字幕
               </button>
-              )}
             </div>
 
             {/* Tab Contents */}

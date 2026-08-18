@@ -1,20 +1,23 @@
 # Deep-interview state: xf-book-02-map-deepen
 
-- **active:** true
-- **current_phase:** deep-interview
+- **active:** false
+- **current_phase:** crystallized
 - **interview_id:** xf-book-02-20260817
 - **profile:** standard
 - **type:** brownfield
 - **threshold:** 0.20
 - **max_rounds:** 12
-- **rounds_completed:** 0
-- **current_ambiguity:** 1.0
-- **current_stage:** intent-first
-- **current_focus:** intent
-- **pressure_pass_complete:** false
-- **non_goals_explicit:** false
-- **decision_boundaries_explicit:** false
-- **challenge_modes_used:** []
+- **rounds_completed:** 9
+- **current_ambiguity:** 0.09
+- **pressure_pass_complete:** true
+- **non_goals_explicit:** true
+- **decision_boundaries_explicit:** true
+- **challenge_modes_used:** ["contrarian", "simplifier", "terminologist"]
 - **context_snapshot_path:** `.omx/context/xf-book-02-map-deepen-20260817T151100Z.md`
 - **prompt_safe_summary_status:** not_needed
-- **prd_pending:** true（访谈达标后再按 PRD schema 写 `.omx/plans/prd-xf-book-02-map-deepen.md`）
+- **prd_pending:** false
+- **artifacts:**
+  - `.omx/context/xf-book-02-map-deepen-20260817T151100Z.md`
+  - `.omx/interviews/xf-book-02-map-deepen-20260817T153000Z.md`
+  - `.omx/specs/deep-interview-xf-book-02-map-deepen.md`
+  - `.omx/plans/prd-xf-book-02-map-deepen.md`

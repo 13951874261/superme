@@ -65,6 +65,8 @@ function emptyInjection() {
     ids: [],
     syncedCount: 0,
     usedCount: 0,
+    maxDifficulty: 1,
+    isDeepened: false,
     context: '',
     reminder: buildReminder(0, 0)
   };
@@ -82,10 +84,18 @@ function loadInjectedKnowledge(db, userId, moduleName = GAME_THEORY_MODULE) {
       ids: [],
       syncedCount: syncedAll.length,
       usedCount: 0,
+      maxDifficulty: 1,
+      isDeepened: false,
       context: '',
       reminder: buildReminder(syncedAll.length, 0)
     };
   }
+  const maxDifficulty = used.reduce((max, row) => {
+    const parsedExtra = extra.parseKnowledgeVaultExtra(row.extra_json, row.source);
+    return Math.max(max, parsedExtra.difficulty || 1);
+  }, 1);
+  const isDeepened = maxDifficulty >= 3;
+
   const headings = {
     listen: '【听力知识】',
     speak: '【口语知识】',
@@ -99,6 +109,8 @@ function loadInjectedKnowledge(db, userId, moduleName = GAME_THEORY_MODULE) {
     ids: used.map((row) => row.id),
     syncedCount: syncedAll.length,
     usedCount: used.length,
+    maxDifficulty,
+    isDeepened,
     context: truncateContext(`${heading}\n${body}`),
     reminder: buildReminder(syncedAll.length, used.length)
   };

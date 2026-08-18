@@ -112,6 +112,10 @@ if (!fs.existsSync(tacticsMediaDir)) {
 }
 app.use(bodyParser.urlencoded({ extended: true, limit: '100mb' }));
 
+app.get('/api/vocab/health', (_req, res) => {
+  res.json({ success: true, ok: true, service: 'vocab-server' });
+});
+
 const PORT = process.env.PORT || 3001;
 
 // ==========================================
@@ -185,6 +189,7 @@ try {
 // 复习/列表查询索引（无损性能）
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review ON vocabulary(next_review_date, repetitions)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review_optimized ON vocabulary(category, next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at ON vocabulary(added_at)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_word_nocase ON vocabulary(word COLLATE NOCASE)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_category ON vocabulary(category)').run();
@@ -2505,6 +2510,14 @@ app.post('/api/listen/generate-material', async (req, res) => {
     }
     const difyUrl = `${process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1'}/completion-messages`;
 
+    const { loadInjectedKnowledgeSafe, attachKnowledgeContext, appendKnowledgeTracesSafe } = require('./services/gameTheoryKnowledge');
+    const { evaluateListenScriptHardness } = require('./services/moduleHardnessQuality');
+    const injected = loadInjectedKnowledgeSafe(db, userId, 'listen');
+    let effectiveInputs = inputs || {};
+    if (injected.isDeepened) {
+      effectiveInputs = attachKnowledgeContext(effectiveInputs, injected.context);
+    }
+
     const response = await fetch(difyUrl, {
       method: 'POST',
       headers: {
@@ -2512,7 +2525,7 @@ app.post('/api/listen/generate-material', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: inputs || {},
+        inputs: effectiveInputs,
         response_mode: 'blocking',
         user: userId,
       })
@@ -2526,6 +2539,20 @@ app.post('/api/listen/generate-material', async (req, res) => {
 
     if (!data.answer) {
       return res.status(500).json({ success: false, error: 'Dify 未返回听力材料正文，请检查 listen_material_generator 应用配置' });
+    }
+
+    if (injected.isDeepened) {
+      const hardnessEval = evaluateListenScriptHardness(data.answer, { injectedKnowledge: injected.context });
+      if (!hardnessEval.ok) {
+        return res.status(422).json({
+          success: false,
+          error: `听力材料生成未通过加深难度硬卡门禁: ${hardnessEval.reason}，请重试生成`,
+          rejected: true,
+          qualityReason: hardnessEval.reason,
+        });
+      }
+      appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'listen', action: 'generated' });
+      afterKnowledgeInjected(userId, injected.ids);
     }
 
     res.json({ success: true, answer: data.answer });
@@ -2564,6 +2591,24 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
           taskQueue.updateTask(task.id, { status: 'failed', error: '接收成功但答案为空' });
           return;
         }
+
+        const { evaluateListenScriptHardness } = require('./services/moduleHardnessQuality');
+        const { loadInjectedKnowledgeSafe, appendKnowledgeTracesSafe } = require('./services/gameTheoryKnowledge');
+        const injected = loadInjectedKnowledgeSafe(db, userId, 'listen');
+        if (injected.isDeepened) {
+          const hardnessEval = evaluateListenScriptHardness(answer, { injectedKnowledge: injected.context });
+          if (!hardnessEval.ok) {
+            taskQueue.updateTask(task.id, {
+              status: 'failed',
+              error: `长音频剧本未达加深难度门禁 (${hardnessEval.reason})，拒绝录入主文案`,
+              result: { rejected: true, qualityReason: hardnessEval.reason },
+            });
+            return;
+          }
+          appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'listen', action: 'generated', taskId: task.id });
+          afterKnowledgeInjected(userId, injected.ids);
+        }
+
         if (answer.length < 500) {
           console.warn(`[generate-material-long] suspiciously short script (${answer.length} chars) for task ${task.id}`);
         }
@@ -11600,13 +11645,23 @@ app.post('/api/speak/influence', async (req, res) => {
         taskId: task.id,
       });
       afterKnowledgeInjected(userId, injected.ids);
+
+      const { evaluateSpeakScenarioHardness } = require('./services/moduleHardnessQuality');
+      const hardnessQuality = injected.isDeepened
+        ? evaluateSpeakScenarioHardness(scenario, { injectedKnowledge: injected.context })
+        : null;
+
       taskQueue.updateTask(task.id, {
         status: 'completed',
         progress: 100,
-        logs: ['说评估已完成'],
+        logs: [
+          '说评估已完成',
+          ...(hardnessQuality && !hardnessQuality.ok ? [`[提示] 场景未完全达到加深硬度标准 (${hardnessQuality.reason})`] : []),
+        ],
         result: {
           ...parsed,
           knowledgeReminder: injected.reminder,
+          hardnessQuality,
         },
       });
     } catch (err) {
@@ -12073,3 +12128,4 @@ app.listen(PORT, () => {
   dailyPackCron.scheduleDailyPackCron(db);
 });
 }
+

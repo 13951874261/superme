@@ -4,6 +4,8 @@ const {
   countCompactChars,
   evaluateCasePushQuality,
 } = require('./gtCaseQuality');
+const { evaluateGameTheoryCaseHardness } = require('./moduleHardnessQuality');
+const { loadInjectedKnowledgeSafe } = require('./gameTheoryKnowledge');
 
 const FALLBACK_CASES = [
   {
@@ -255,8 +257,9 @@ function isExcluded(caseItem, excludeIds = []) {
 
 function createService({ db, apiKey, baseUrl, fetchImpl } = {}) {
   return {
-    async getCasePush({ env, excludeIds, userProfile, gameModel } = {}) {
+    async getCasePush({ env, excludeIds, userProfile, gameModel, userId } = {}) {
       const catalog = listStoredCatalog(db);
+      const injected = userId && db ? loadInjectedKnowledgeSafe(db, userId, 'game_theory') : null;
       let generated = null;
       let source = 'dify';
       try {
@@ -266,13 +269,23 @@ function createService({ db, apiKey, baseUrl, fetchImpl } = {}) {
           env,
           avoidTopics: excludeIds,
           existingCases: formatExistingCases(catalog),
-          userProfile,
+          userProfile: userProfile || (injected?.isDeepened ? `【加深博弈要求】案例必须体现以下深度博弈概念：\n${injected.context}` : undefined),
           gameModel,
           fetchImpl
         });
       } catch (error) {
         console.warn('[Game Theory Case Push] Dify generation failed:', error.message);
       }
+
+      // 若处于加深状态 (difficulty >= 3)，必须过加深硬卡
+      if (generated && injected && injected.isDeepened) {
+        const hardness = evaluateGameTheoryCaseHardness(generated, { injectedKnowledge: injected.context });
+        if (!hardness.ok) {
+          console.warn('[Game Theory Case Push] generated case rejected by hardness gate:', hardness.reason);
+          generated = null;
+        }
+      }
+
       if (!generated || isExcluded(generated, excludeIds) || conflictsWithCatalog(generated, catalog)) {
         source = 'fallback';
         generated = pickFromDb(db, env, excludeIds) || pickFallback(env, excludeIds);
