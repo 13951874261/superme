@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap, ChevronRight } from 'lucide-react';
 import { getUserCurrentProfile, appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
@@ -23,7 +23,8 @@ function daysSinceLastReview(): number {
   return Math.floor((Date.now() - last) / (1000 * 60 * 60 * 24));
 }
 
-export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
+function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
+
   const { shouldShowCard, shouldForceModal } = useBiweeklyReviewTrigger();
   const [profile, setProfile] = useState('');
   const [latestReview, setLatestReview] = useState<{ factors?: string; date?: string } | null>(null);
@@ -304,3 +305,7 @@ export default function SummaryArea({ selectedDate }: SummaryAreaProps) {
     </div>
   );
 }
+
+const SummaryArea = memo(SummaryAreaComponent);
+export default SummaryArea;
+

@@ -95,7 +95,132 @@ export interface OralWarRoomChatProps {
   expressionReviewError?: string | null;
 }
 
-export default function OralWarRoomChat({
+interface ChatMessageBubbleProps {
+  msg: any;
+  isFirstAiOpening: boolean;
+  activeScene: any;
+  showIntelDetails: boolean;
+  setInputText: (text: string) => void;
+  handleDialogueMouseUp?: () => void;
+}
+
+const ChatMessageBubble = React.memo(function ChatMessageBubble({
+  msg,
+  isFirstAiOpening,
+  activeScene,
+  showIntelDetails,
+  setInputText,
+  handleDialogueMouseUp
+}: ChatMessageBubbleProps) {
+  const branches = msg.parsed ? parseBranchList(msg.parsed.branch_suggestions) : [];
+  const roleAddr = msg.parsed ? safeText(msg.parsed.role_address) : '';
+  const jointP = msg.parsed ? safeText(msg.parsed.joint_pressure) : '';
+
+  return (
+    <div className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} transform-gpu`}>
+      {msg.role === 'user' ? (
+        <div className="max-w-[88%]">
+          <div className="rounded-2xl rounded-tr-sm bg-[var(--color-brand)] text-white px-3 py-2 shadow-[var(--shadow-sm)]">
+            <p className="text-sm leading-relaxed">{msg.content}</p>
+          </div>
+          {msg.feedback && (
+            <div className="mt-1.5 mr-1 flex items-center gap-3 justify-end">
+              {[
+                { label: '逻辑', score: msg.feedback.logicScore, color: 'text-blue-500' },
+                { label: '文化', score: msg.feedback.culturalScore, color: 'text-purple-500' },
+                { label: '流畅', score: msg.feedback.fluencyScore, color: 'text-emerald-500' },
+              ].map(({ label, score, color }) => (
+                <div key={label} className="flex items-center gap-1">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">{label}</span>
+                  <span className={`text-[9px] font-black ${color}`}>{score}/10</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div
+          data-message-id={msg.id}
+          data-ai-message="true"
+          className={`w-full max-w-[92%] rounded-2xl rounded-tl-sm bg-white border px-3 py-2 shadow-[var(--shadow-sm)] ${
+          isFirstAiOpening ? 'border-[var(--color-accent)]/40 ring-1 ring-[var(--color-accent)]/20' : 'border-[var(--color-border)]'
+        }`}>
+          {msg.parsed ? (
+            <>
+              {isFirstAiOpening && (
+                <span className="inline-block mb-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-[#FF5722]/10 text-[#FF5722]">
+                  对话启动句
+                </span>
+              )}
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                {(() => {
+                  const speaker = safeText(msg.parsed.current_speaker);
+                  const style = getSpeakerStyle(speaker, activeScene);
+                  return (
+                    <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${SPEAKER_STYLE_CLASS[style]}`}>
+                      {speaker}
+                    </span>
+                  );
+                })()}
+                {roleAddr && (
+                  <span className="text-[9px] font-bold text-violet-600">→ {roleAddr}</span>
+                )}
+                {jointP && (
+                  <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 font-bold">
+                    联合施压
+                  </span>
+                )}
+                <SpeakButton text={safeText(msg.parsed.dialogue)} title="播放" />
+              </div>
+              <p
+                className={`text-sm leading-relaxed italic select-text cursor-text ${
+                  isFirstAiOpening ? 'text-[#FF5722] border-l-2 border-[#FF5722]/50 pl-2' : 'text-[#202124]'
+                }`}
+                onMouseUp={handleDialogueMouseUp}
+                data-dialogue-select
+              >
+                &ldquo;{safeText(msg.parsed.dialogue)}&rdquo;
+              </p>
+              {branches.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-violet-100">
+                  <span className="text-[8px] font-black uppercase tracking-widest text-violet-500">后续分支</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {branches.map((b, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => setInputText(b)}
+                        className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-violet-50 border border-violet-200 text-violet-700 hover:border-violet-400 hover:bg-violet-100 cursor-pointer transition-colors"
+                      >
+                        → {b}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {showIntelDetails && (
+                <div className="mt-2 pt-2 border-t border-gray-100 space-y-2 text-xs">
+                  <p className="text-blue-800"><span className="font-black text-blue-600">意图 </span>{safeText(msg.parsed.hidden_intent)}</p>
+                  {safeText(msg.parsed.flaw_point) && safeText(msg.parsed.flaw_point) !== '未识别到破绽' && (
+                    <p className="text-red-800"><span className="font-black text-red-600">破绽 </span>{safeText(msg.parsed.flaw_point)}</p>
+                  )}
+                  {safeText(msg.parsed.cultural_signal) && (
+                    <p className="text-purple-800"><span className="font-black text-purple-600">文化信号 </span>{safeText(msg.parsed.cultural_signal)}</p>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.content}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
+
+function OralWarRoomChatComponent({
+
   isContextPanelOpen,
   setIsContextPanelOpen,
   improvElapsed,
@@ -473,114 +598,19 @@ export default function OralWarRoomChat({
           <p className="text-center text-xs text-gray-400 py-4">历史记录将显示于此</p>
         ) : (() => {
           const firstAiIdx = messages.findIndex(m => m.role === 'ai');
-          return messages.map((msg, msgIdx) => {
-            const isFirstAiOpening = msg.role === 'ai' && msgIdx === firstAiIdx;
-            const branches = msg.parsed ? parseBranchList(msg.parsed.branch_suggestions) : [];
-            const roleAddr = msg.parsed ? safeText(msg.parsed.role_address) : '';
-            const jointP = msg.parsed ? safeText(msg.parsed.joint_pressure) : '';
-            return (
-            <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              {msg.role === 'user' ? (
-                <div className="max-w-[88%]">
-                  <div className="rounded-2xl rounded-tr-sm bg-[var(--color-brand)] text-white px-3 py-2 shadow-[var(--shadow-sm)]">
-                    <p className="text-sm leading-relaxed">{msg.content}</p>
-                  </div>
-                  {msg.feedback && (
-                    <div className="mt-1.5 mr-1 flex items-center gap-3 justify-end">
-                      {[
-                        { label: '逻辑', score: msg.feedback.logicScore, color: 'text-blue-500' },
-                        { label: '文化', score: msg.feedback.culturalScore, color: 'text-purple-500' },
-                        { label: '流畅', score: msg.feedback.fluencyScore, color: 'text-emerald-500' },
-                      ].map(({ label, score, color }) => (
-                        <div key={label} className="flex items-center gap-1">
-                          <span className="text-[8px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">{label}</span>
-                          <span className={`text-[9px] font-black ${color}`}>{score}/10</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div
-                  data-message-id={msg.id}
-                  data-ai-message="true"
-                  className={`w-full max-w-[92%] rounded-2xl rounded-tl-sm bg-white border px-3 py-2 shadow-[var(--shadow-sm)] ${
-                  isFirstAiOpening ? 'border-[var(--color-accent)]/40 ring-1 ring-[var(--color-accent)]/20' : 'border-[var(--color-border)]'
-                }`}>
-                  {msg.parsed ? (
-                    <>
-                      {isFirstAiOpening && (
-                        <span className="inline-block mb-1 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest bg-[#FF5722]/10 text-[#FF5722]">
-                          对话启动句
-                        </span>
-                      )}
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        {(() => {
-                          const speaker = safeText(msg.parsed.current_speaker);
-                          const style = getSpeakerStyle(speaker, activeScene);
-                          return (
-                            <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${SPEAKER_STYLE_CLASS[style]}`}>
-                              {speaker}
-                            </span>
-                          );
-                        })()}
-                        {roleAddr && (
-                          <span className="text-[9px] font-bold text-violet-600">→ {roleAddr}</span>
-                        )}
-                        {jointP && (
-                          <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200 font-bold">
-                            联合施压
-                          </span>
-                        )}
-                        <SpeakButton text={safeText(msg.parsed.dialogue)} title="播放" />
-                      </div>
-                      <p
-                        className={`text-sm leading-relaxed italic select-text cursor-text ${
-                          isFirstAiOpening ? 'text-[#FF5722] border-l-2 border-[#FF5722]/50 pl-2' : 'text-[#202124]'
-                        }`}
-                        onMouseUp={handleDialogueMouseUp}
-                        data-dialogue-select
-                      >
-                        &ldquo;{safeText(msg.parsed.dialogue)}&rdquo;
-                      </p>
-                      {branches.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-violet-100">
-                          <span className="text-[8px] font-black uppercase tracking-widest text-violet-500">后续分支</span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {branches.map((b, i) => (
-                              <button
-                                key={i}
-                                type="button"
-                                onClick={() => setInputText(b)}
-                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-violet-50 border border-violet-200 text-violet-700 hover:border-violet-400 hover:bg-violet-100 cursor-pointer transition-colors"
-                              >
-                                → {b}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {showIntelDetails && (
-                        <div className="mt-2 pt-2 border-t border-gray-100 space-y-2 text-xs">
-                          <p className="text-blue-800"><span className="font-black text-blue-600">意图 </span>{safeText(msg.parsed.hidden_intent)}</p>
-                          {safeText(msg.parsed.flaw_point) && safeText(msg.parsed.flaw_point) !== '未识别到破绽' && (
-                            <p className="text-red-800"><span className="font-black text-red-600">破绽 </span>{safeText(msg.parsed.flaw_point)}</p>
-                          )}
-                          {safeText(msg.parsed.cultural_signal) && (
-                            <p className="text-purple-800"><span className="font-black text-purple-600">文化信号 </span>{safeText(msg.parsed.cultural_signal)}</p>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{msg.content}</p>
-                  )}
-                </div>
-              )}
-            </div>
-            );
-          });
+          return messages.map((msg, msgIdx) => (
+            <ChatMessageBubble
+              key={msg.id}
+              msg={msg}
+              isFirstAiOpening={msg.role === 'ai' && msgIdx === firstAiIdx}
+              activeScene={activeScene}
+              showIntelDetails={showIntelDetails}
+              setInputText={setInputText}
+              handleDialogueMouseUp={handleDialogueMouseUp}
+            />
+          ));
         })()}
+
         {showIntelDetails && weaknessLog.length > 0 && (
           <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50/30 p-3">
             <summary className="text-[10px] font-black uppercase tracking-widest text-amber-700 cursor-pointer">CORNELL 复盘 ({weaknessLog.length})</summary>
@@ -848,3 +878,7 @@ export default function OralWarRoomChat({
     </section>
   );
 }
+
+const OralWarRoomChat = React.memo(OralWarRoomChatComponent);
+export default OralWarRoomChat;
+

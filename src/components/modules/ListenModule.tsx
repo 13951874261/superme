@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import ReactMarkdown from 'react-markdown';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+import MarkdownRenderer from '../MarkdownRenderer';
 import { 
   BookOpen, 
   UploadCloud, 
@@ -26,7 +26,8 @@ import {
   UnfoldVertical,
   Network,
   ListTree,
-  Loader2
+  Loader2,
+  Award
 } from 'lucide-react';
 import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB, extractListenKnowledgeDraft } from '../../services/difyAPI';
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
@@ -85,7 +86,8 @@ interface ListenModuleProps {
   selectedDate?: string;
 }
 
-export default function ListenModule({ selectedDate }: ListenModuleProps) {
+function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
+
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [activeCategory, setActiveCategory] = useState<CategoryType>('体制内');
   const [currentScenario, setCurrentScenario] = useState<string>('');
@@ -1555,9 +1557,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
               </div>
             )}
 
-            <div className="prose prose-sm prose-invert prose-indigo max-w-none text-slate-300 leading-relaxed">
-              <ReactMarkdown>{feedback}</ReactMarkdown>
-            </div>
+            <MarkdownRenderer content={feedback} className="prose-invert prose-indigo text-slate-300" />
           </div>
         )}
 
@@ -1616,3 +1616,7 @@ export default function ListenModule({ selectedDate }: ListenModuleProps) {
     </div>
   );
 }
+
+const ListenModule = memo(ListenModuleComponent);
+export default ListenModule;
+

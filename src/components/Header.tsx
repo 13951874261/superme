@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { VOICE_OPTIONS } from '../config/voices';
@@ -7,7 +7,8 @@ import { useTask } from './TaskContext';
 
 const PREVIEW_TEXT_PREFIX = 'Hi! I am ';
 
-export default function Header() {
+function HeaderComponent() {
+
   const [selectedVoice, setSelectedVoice] = useState<string>(() => {
     return localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural';
   });
@@ -306,3 +307,6 @@ export default function Header() {
     </header>
   );
 }
+
+const Header = memo(HeaderComponent);
+export default Header;

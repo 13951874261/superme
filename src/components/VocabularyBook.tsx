@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
+
 import { BookMarked, RefreshCw, Trash2, Brain, ChevronRight, AlertCircle, RotateCcw, FastForward, Rewind, CheckCircle2, Pencil } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import {
@@ -150,7 +151,8 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
 // ==========================================
 // 主生词本组件
 // ==========================================
-export default function VocabularyBook() {
+function VocabularyBookComponent() {
+
   const [vocabTab, setVocabTab] = useState<'business' | 'general'>('business');
   const [stats, setStats] = useState<VocabStats>({ total: 0, dueToday: 0 });
   const [words, setWords] = useState<VocabEntry[]>([]);
@@ -429,7 +431,8 @@ export default function VocabularyBook() {
                   const isPeek = peekId === word.id;
 
                   return (
-                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-zinc-500/5 transition-all" style={{ minHeight: ROW_ESTIMATE_H }}>
+                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-zinc-500/5 transition-all transform-gpu [content-visibility:auto] [contain-intrinsic-size:auto_92px]" style={{ minHeight: ROW_ESTIMATE_H }}>
+
                       <div
                         onClick={() => handleWordClick(word)}
                         onMouseEnter={() => setPeekId(word.id)}
@@ -614,3 +617,7 @@ export default function VocabularyBook() {
     </>
   );
 }
+
+const VocabularyBook = memo(VocabularyBookComponent);
+export default VocabularyBook;
+

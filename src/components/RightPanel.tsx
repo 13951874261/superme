@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock } from 'lucide-react';
 import { getAllWords, queryDictionaryWithCache, type VocabEntry } from '../services/vocabAPI';
 import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
@@ -19,7 +19,8 @@ interface RightPanelProps {
   wordData: any;
 }
 
-export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
+function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
+
   const [profile, setProfile] = useState(() => getUserCurrentProfile());
   const [assistantRefreshKey, setAssistantRefreshKey] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -172,8 +173,9 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
           animate={{ x: 0 }}
           exit={{ x: '100%' }}
           transition={GLOBAL_SPRING}
-          className={`motion-layer h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[10050] overflow-hidden`}
+          className={`motion-layer h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[10050] overflow-hidden transform-gpu will-change-transform`}
         >
+
           {/* 头部 Tab 区域 */}
           <div className={`flex items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
@@ -462,3 +464,7 @@ export default function RightPanel({ isOpen, onClose, activeTab, setActiveTab, w
     </AnimatePresence>
   );
 }
+
+const RightPanel = memo(RightPanelComponent);
+export default RightPanel;
+

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
 interface ModuleWrapperProps {
@@ -13,7 +13,7 @@ interface ModuleWrapperProps {
   compact?: boolean;
 }
 
-export default function ModuleWrapper({ 
+function ModuleWrapperComponent({ 
   id, 
   title, 
   icon, 
@@ -28,7 +28,7 @@ export default function ModuleWrapper({
   const [main, sub] = title.split('｜').map(s => s.trim());
 
   return (
-    <section id={id} className={`w-full flex flex-col ${compact ? 'mb-4' : 'mb-10'}`}>
+    <section id={id} className={`w-full flex flex-col ${compact ? 'mb-4' : 'mb-10'} transform-gpu`}>
       {/* 单行工具台标题：占满横向宽度，避免右侧大片空白 */}
       <div className={`flex items-center gap-2.5 px-0.5 ${compact ? 'mb-2.5' : 'mb-4'}`}>
         <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-lg bg-[var(--color-brand-subtle)] flex items-center justify-center text-[var(--color-brand)] shrink-0 [&>svg]:w-5 [&>svg]:h-5`}>
@@ -61,7 +61,7 @@ export default function ModuleWrapper({
             onClick={onToggleCollapse}
             aria-expanded={isOpen}
             aria-label={isOpen ? '折叠模块' : '展开模块'}
-            className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 shrink-0"
+            className="p-1 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 shrink-0 transition-colors focus:outline-none cursor-pointer"
           >
             {isOpen ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
           </button>
@@ -76,3 +76,7 @@ export default function ModuleWrapper({
     </section>
   );
 }
+
+const ModuleWrapper = memo(ModuleWrapperComponent);
+export default ModuleWrapper;
+

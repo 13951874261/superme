@@ -84,8 +84,10 @@ if ($Force) {
                 'vocab-server/services/moduleHardnessQuality.js',
                 'vocab-server/services/gameTheoryKnowledge.js',
                 'vocab-server/services/knowledgeTheoryNodes.js',
-                'vocab-server/services/knowledgeVaultExtra.js'
+                'vocab-server/services/knowledgeVaultExtra.js',
+                'vocab-server/services/listenAnalysisService.js'
             )
+
             Write-Host "Fallback upload list: core server + game theory + insight + vault refine & hardness services" -ForegroundColor Yellow
         }
     }
@@ -240,7 +242,9 @@ try {
                 'vocab-server/services/gameTheoryKnowledge.js',
                 'vocab-server/services/knowledgeTheoryNodes.js',
                 'vocab-server/services/knowledgeVaultExtra.js',
+                'vocab-server/services/listenAnalysisService.js',
                 'vocab-server/services/dailyListenPreGenerateService.js',
+
                 'vocab-server/services/dailyPackService.js',
                 'vocab-server/services/dailyPackCron.js',
                 'vocab-server/scripts/generate-all-1min-lzhmy.js',

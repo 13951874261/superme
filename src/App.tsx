@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import MainContent from './components/MainContent';
@@ -39,39 +39,41 @@ function AppContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
-  const toggleChatbot = () => {
-    if (!isChatOpen) {
-      // Deferred startup load may not have finished; idempotent ensure + existing profile refresh
-      loadDifyChatbotEmbed();
-      void loadUserProfileFromServer().then(() => refreshDifyChatbotContext());
-    }
+  const toggleSidebar = useCallback(() => {
+    setIsSidebarOpen(prev => !prev);
+  }, []);
 
-    const dify = window.difyChatbot;
-    if (dify) {
-      if (isChatOpen) {
-        if (typeof dify.close === 'function') {
-          dify.close();
+  const toggleChatbot = useCallback(() => {
+    setIsChatOpen(prev => {
+      const nextState = !prev;
+      if (!prev) {
+        loadDifyChatbotEmbed();
+        void loadUserProfileFromServer().then(() => refreshDifyChatbotContext());
+      }
+      const dify = window.difyChatbot;
+      if (dify) {
+        if (prev) {
+          if (typeof dify.close === 'function') {
+            dify.close();
+          } else {
+            document.getElementById('dify-chatbot-bubble-button')?.click();
+          }
         } else {
-          document.getElementById('dify-chatbot-bubble-button')?.click();
+          if (typeof dify.open === 'function') {
+            dify.open();
+          } else {
+            document.getElementById('dify-chatbot-bubble-button')?.click();
+          }
         }
-        setIsChatOpen(false);
       } else {
-        if (typeof dify.open === 'function') {
-          dify.open();
-        } else {
-          document.getElementById('dify-chatbot-bubble-button')?.click();
+        const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
+        if (bubbleBtn) {
+          bubbleBtn.click();
         }
-        setIsChatOpen(true);
       }
-    } else {
-      const bubbleBtn = document.getElementById('dify-chatbot-bubble-button');
-      if (bubbleBtn) {
-        bubbleBtn.click();
-        setIsChatOpen(!isChatOpen);
-      }
-    }
-  };
-
+      return nextState;
+    });
+  }, []);
 
   const [selectedDate, setSelectedDate] = useState(getTodayDateDot()); 
   
@@ -149,14 +151,15 @@ function AppContent() {
     return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
   }, []);
 
-  const handleLockTrigger = () => {
+  const handleLockTrigger = useCallback(() => {
     playError();
     if (shouldForceModal) {
       setIsReviewOpen(true);
       return;
     }
     setIsLockModalOpen(true);
-  };
+  }, [shouldForceModal]);
+
 
   const [isInterceptorEnabled, setIsInterceptorEnabled] = useState(
     localStorage.getItem('super_agent_global_interceptor') !== 'false'
@@ -236,7 +239,7 @@ function AppContent() {
   /**
    * 智能判定并处理左侧空白区域的点击事件，实现 70/30 黄金折叠面板的“即刻收起”
    */
-  const handleLeftAreaClick = (e: React.MouseEvent) => {
+  const handleLeftAreaClick = useCallback((e: React.MouseEvent) => {
     if (!isRightPanelOpen) return;
     
     // 1. 如果存在活跃的文本选择（例如用户正在长按或双击文本进行划词翻译），则忽略，防止干扰划词体验
@@ -246,7 +249,6 @@ function AppContent() {
     }
 
     // 2. 检查点击的目标元素是否为交互式控件，或是这些控件的子元素
-    // 包含：按钮、超链接、输入框、文本域、下拉选择框、具有按钮角色的组件，以及自定义 cursor-pointer/interactive 元素
     const target = e.target as HTMLElement;
     const isInteractive = target.closest(
       'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
@@ -256,7 +258,15 @@ function AppContent() {
     if (!isInteractive) {
       setIsRightPanelOpen(false);
     }
-  };
+  }, [isRightPanelOpen]);
+
+  const handleCloseRightPanel = useCallback(() => {
+    setIsRightPanelOpen(false);
+    // 通知沉浸式阅读层收回右侧让位（ImmersiveReader z-[9999] 遮罩）
+    window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+      detail: { open: false },
+    }));
+  }, []);
 
   return (
     <div className={`text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722] relative w-full transition-colors duration-300 ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
@@ -287,7 +297,7 @@ function AppContent() {
       >
         <Sidebar 
           isOpen={isSidebarOpen} 
-          toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
+          toggleSidebar={toggleSidebar} 
           selectedDate={selectedDate}
           onDateSelect={setSelectedDate}
           activeModule={activeModule}
@@ -307,17 +317,12 @@ function AppContent() {
       {/* 右侧上下文及 AI 助手面板 (30% 宽度，收放微缩) */}
       <RightPanel 
         isOpen={isRightPanelOpen}
-        onClose={() => {
-          setIsRightPanelOpen(false);
-          // 通知沉浸式阅读层收回右侧让位（ImmersiveReader z-[9999] 遮罩）
-          window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-            detail: { open: false },
-          }));
-        }}
+        onClose={handleCloseRightPanel}
         activeTab={rightPanelTab}
         setActiveTab={setRightPanelTab}
         wordData={highlightedWordData}
       />
+
 
       {/* 全局任务中心抽屉：渲染在 App 根级别，独立于 main-content */}
       <GlobalTaskCenter />

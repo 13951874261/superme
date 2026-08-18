@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, memo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
-export default function BackgroundOverlay() {
+function BackgroundOverlayComponent() {
   const [bgEnabled, setBgEnabled] = useState(() => {
     return localStorage.getItem('super_agent_bg_enabled') !== 'false';
   });
@@ -35,7 +35,7 @@ export default function BackgroundOverlay() {
   if (!bgEnabled) return null;
 
   return (
-    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none">
+    <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden select-none transform-gpu [contain:strict] will-change-transform">
       {/* Background image layer with popLayout cross-fade */}
       <AnimatePresence mode="popLayout">
         <motion.div
@@ -44,16 +44,16 @@ export default function BackgroundOverlay() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.6, ease: 'easeInOut' }}
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+          className="absolute inset-0 bg-cover bg-center bg-no-repeat transform-gpu"
           style={{
             backgroundImage: `url(/images/backgrounds/bg-${bgIndex + 1}.jpg)`,
           }}
         />
       </AnimatePresence>
 
-      {/* Glassmorphism glass blur & overlay layer */}
+      {/* Glassmorphism glass blur & overlay layer - GPU isolated */}
       <div 
-        className="absolute inset-0 transition-all duration-300"
+        className="absolute inset-0 transition-opacity duration-300 transform-gpu"
         style={{
           backdropFilter: `blur(${bgBlur}px)`,
           WebkitBackdropFilter: `blur(${bgBlur}px)`,
@@ -63,3 +63,7 @@ export default function BackgroundOverlay() {
     </div>
   );
 }
+
+const BackgroundOverlay = memo(BackgroundOverlayComponent);
+export default BackgroundOverlay;
+

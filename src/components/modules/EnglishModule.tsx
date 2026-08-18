@@ -109,6 +109,6 @@ function EnglishModuleContent() {
   );
 }
 
-export default function EnglishModule() {
-  return <EnglishModuleContent />;
-}
+const EnglishModule = React.memo(EnglishModuleContent);
+export default EnglishModule;
+

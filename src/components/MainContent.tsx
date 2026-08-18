@@ -1,4 +1,4 @@
-import React, { useState, useEffect, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo, startTransition } from 'react';
 import Header from './Header';
 import EnglishModule from './modules/EnglishModule';
 import DailyWakeupModule from './modules/DailyWakeupModule';
@@ -18,6 +18,17 @@ const WriteModule = React.lazy(() => import('./modules/WriteModule'));
 const EntertainmentModule = React.lazy(() => import('./modules/EntertainmentModule'));
 const GameTheoryModule = React.lazy(() => import('./modules/GameTheoryModule'));
 
+// 静态常量抽离至组件外部，杜绝每次 render 重新分配内存
+const TABS = [
+  { id: 'english', label: '英语引擎', icon: <Globe className="w-4 h-4" /> },
+  { id: 'listen', label: '洞察(听)', icon: <Headphones className="w-4 h-4" /> },
+  { id: 'speak', label: '破局(说)', icon: <Mic className="w-4 h-4" /> },
+  { id: 'read', label: '穿透(读)', icon: <BookOpen className="w-4 h-4" /> },
+  { id: 'write', label: '文治(写)', icon: <PenTool className="w-4 h-4" /> },
+  { id: 'gametheory', label: '驭心博弈', icon: <Brain className="w-4 h-4" /> },
+  { id: 'entertainment', label: '高阶审美', icon: <Wine className="w-4 h-4" /> },
+] as const;
+
 interface MainContentProps {
   selectedDate: string;
   activeModule: ModuleType;
@@ -26,14 +37,14 @@ interface MainContentProps {
   onLockTrigger?: () => void;
 }
 
-export default function MainContent({ 
+function MainContentComponent({ 
   selectedDate, 
   activeModule, 
   setActiveModule, 
   isLocked,
   onLockTrigger
 }: MainContentProps) {
-  const { theme, masteryData, setEnglishShellActive } = useEnglishContext();
+  const { setEnglishShellActive } = useEnglishContext();
 
   const [bgEnabled, setBgEnabled] = useState(
     localStorage.getItem('super_agent_bg_enabled') !== 'false'
@@ -51,19 +62,27 @@ export default function MainContent({
     return () => window.removeEventListener('global-settings-changed', handleSettingsChange);
   }, []);
 
-  // 定义金属质感的导航选项卡
-  const TABS = [
-    { id: 'english', label: '英语引擎', icon: <Globe className="w-4 h-4" /> },
-    { id: 'listen', label: '洞察(听)', icon: <Headphones className="w-4 h-4" /> },
-    { id: 'speak', label: '破局(说)', icon: <Mic className="w-4 h-4" /> },
-    { id: 'read', label: '穿透(读)', icon: <BookOpen className="w-4 h-4" /> },
-    { id: 'write', label: '文治(写)', icon: <PenTool className="w-4 h-4" /> },
-    { id: 'gametheory', label: '驭心博弈', icon: <Brain className="w-4 h-4" /> },
-    { id: 'entertainment', label: '高阶审美', icon: <Wine className="w-4 h-4" /> },
-  ] as const;
+  const handleTabClick = useCallback((tabId: ModuleType) => {
+    if (isModulePaused(tabId)) {
+      playClick();
+      alert('根据复盘战术调度，该模块已暂时挂起。请先完成当前主攻方向的训练。');
+      return;
+    }
+    if (isLocked && tabId !== 'english') {
+      if (onLockTrigger) onLockTrigger();
+    } else {
+      if (activeModule !== tabId) {
+        playClick();
+        playPageTurn();
+      }
+      startTransition(() => {
+        setActiveModule(tabId);
+      });
+    }
+  }, [isLocked, activeModule, onLockTrigger, setActiveModule]);
 
   // 英语壳 keep-alive：离开顶栏时隐藏不卸载，避免 flaw-vocab / stay-stats 重复请求
-  const renderActiveModule = () => (
+  const activeModuleNode = useMemo(() => (
     <>
       <div className="space-y-4" hidden={activeModule !== 'english'}>
         <DailyWakeupModule />
@@ -101,30 +120,10 @@ export default function MainContent({
       )}
       {activeModule === 'weekly' && <WeeklyChatModule />}
     </>
-  );
-
-  const handleTabClick = (tabId: ModuleType) => {
-    if (isModulePaused(tabId)) {
-      playClick();
-      alert('根据复盘战术调度，该模块已暂时挂起。请先完成当前主攻方向的训练。');
-      return;
-    }
-    if (isLocked && tabId !== 'english') {
-      if (onLockTrigger) onLockTrigger();
-    } else {
-      if (activeModule !== tabId) {
-        playClick();
-        playPageTurn();
-      }
-      startTransition(() => {
-        setActiveModule(tabId);
-      });
-    }
-  };
-
+  ), [activeModule, selectedDate, setActiveModule]);
 
   return (
-    <main id="main-content" className={`flex-1 flex flex-col h-screen overflow-y-auto relative scroll-smooth font-sans transition-colors duration-300 ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
+    <main id="main-content" className={`flex-1 flex flex-col h-screen overflow-y-auto relative scroll-smooth font-sans transition-colors duration-300 transform-gpu ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
       <Header />
       
       <div className="px-4 md:px-6 lg:px-8 mx-auto w-full max-w-[1600px] pt-2 pb-16 flex flex-col min-h-full">
@@ -137,6 +136,7 @@ export default function MainContent({
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => handleTabClick(tab.id as ModuleType)}
                 className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-t-lg font-bold text-sm transition-all duration-200 cursor-pointer active:scale-95 active:translate-y-[1px] relative ${
                   isActive
@@ -161,7 +161,7 @@ export default function MainContent({
 
         {/* 专注模式：单模块渲染区 */}
         <div className="flex-1 w-full animate-[fadeIn_0.5s_ease-out]">
-          {renderActiveModule()}
+          {activeModuleNode}
         </div>
 
         {/* 专属隔离：康奈尔底部笔记区 (The Summary) */}
@@ -173,3 +173,6 @@ export default function MainContent({
     </main>
   );
 }
+
+const MainContent = memo(MainContentComponent);
+export default MainContent;

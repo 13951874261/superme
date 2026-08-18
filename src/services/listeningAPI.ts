@@ -125,12 +125,14 @@ export async function fetchDifyTTS(
 
 /**
  * 轮询 TTS 任务状态，最长等待 30 分钟
- * 每 2 秒检查一次，直到任务完成或失败
+ * 采用阶梯式快速前置探测机制（800ms -> 1500ms -> 2500ms），短文本无需无谓等待 5 秒
  */
 export async function pollTtsTask(taskId: string): Promise<string> {
-  const MAX_ATTEMPTS = 360; // 360 × 5s = 30 分钟，容纳超长音频
+  const MAX_ATTEMPTS = 720; // 累计容纳约 30 分钟
+  const PROBE_DELAYS = [800, 1500, 2500]; // 快速前置探测梯队
   for (let i = 0; i < MAX_ATTEMPTS; i++) {
-    await new Promise(r => setTimeout(r, 5000));
+    const delay = i < PROBE_DELAYS.length ? PROBE_DELAYS[i] : 2500;
+    await new Promise(r => setTimeout(r, delay));
     try {
       const res = await fetch(`/api/tts/task/${taskId}`);
       if (!res.ok) continue;

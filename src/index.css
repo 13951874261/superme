@@ -513,22 +513,26 @@ details[open] summary ~ * {
     0 10px 30px -10px rgba(0, 0, 0, 0.04);
 }
 
-/* Grain Noise 叠加层 */
+/* Grain Noise 叠加层 (性能友好型静态 GPU 硬件纹理) */
 .grain-overlay {
   position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
+  inset: 0;
   pointer-events: none;
   z-index: 9999;
-  opacity: 0.025;
+  opacity: 0.015;
   background-image: var(--grain-url);
-  animation: grain-shift 1.5s steps(1) infinite;
-  will-change: transform;
+  transform: translateZ(0);
+  contain: strict;
 }
 
 /* 硬件加速与动画优化工具类 (渐进增强，无 GPU 硬件环境自动平滑降级) */
+.motion-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: layout paint;
+}
+
 @supports (will-change: transform) {
   .motion-layer {
     will-change: transform, opacity;
@@ -536,7 +540,7 @@ details[open] summary ~ * {
 }
 
 .motion-transform {
-  /* 使用标准渲染层提示，避免在 CPU 软件渲染器下强行创建 3D 纹理过载 */
+  transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
@@ -551,24 +555,13 @@ details[open] summary ~ * {
   }
   .motion-layer {
     will-change: auto !important;
+    contain: none !important;
   }
   .grain-overlay {
     display: none !important;
   }
 }
 
-@keyframes grain-shift {
-  0%, 100% { transform: translate(0, 0); }
-  10% { transform: translate(-1%, -1%); }
-  20% { transform: translate(1%, 1%); }
-  30% { transform: translate(-1%, 1%); }
-  40% { transform: translate(1%, -1%); }
-  50% { transform: translate(-1%, 0%); }
-  60% { transform: translate(1%, 0%); }
-  70% { transform: translate(0%, -1%); }
-  80% { transform: translate(0%, 1%); }
-  90% { transform: translate(-1%, -1%); }
-}
 
 /* Spotlight 边框效果 */
 .spotlight-border {
