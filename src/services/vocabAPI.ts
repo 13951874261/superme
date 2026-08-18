@@ -224,25 +224,42 @@ export async function getStats(): Promise<VocabStats> {
   );
 }
 
-/** 获取所有词条列表（默认轻量，避免 6k 全 payload） */
+/** 获取词条分页列表（默认第一页 50 条轻量数据，禁止全表拉取） */
 export async function getAllWords(options?: { light?: boolean; limit?: number }): Promise<VocabEntry[]> {
-  const light = options?.light !== false;
-  const limit = options?.limit;
-  if (limit) {
-    const path = `/list?light=1&limit=${limit}`;
-    const res = await request<{ items: VocabEntry[]; hasMore: boolean }>(path, {
-      timeoutMs: 10000,
-      silent: true,
-    });
-    return res?.items || [];
-  }
-  // 禁止默认打全量 /list：6000 条带 payload 会拖垮服务
-  return vocabRequestDeduper.run(`list:${light ? 'light' : 'full'}`, () =>
-    request<VocabEntry[]>(light ? '/list?light=1' : '/list', {
-      timeoutMs: light ? 20000 : 60000,
-      silent: true,
-    })
-  );
+  const safeLimit = Math.min(Math.max(Math.floor(options?.limit || 50), 1), 100);
+  const path = `/list?light=1&limit=${safeLimit}`;
+  const res = await request<{ items: VocabEntry[]; hasMore: boolean }>(path, {
+    timeoutMs: 10000,
+    silent: true,
+  });
+  return res?.items || [];
+}
+
+/** 按单词精确查找轻量词条（走 idx_vocab_word_nocase 索引） */
+export async function getVocabByWord(word: string): Promise<VocabEntry | null> {
+  const trimmed = typeof word === 'string' ? word.trim() : '';
+  if (!trimmed) return null;
+  const path = `/list?light=1&limit=1&word=${encodeURIComponent(trimmed)}`;
+  const res = await request<{ items: VocabEntry[]; hasMore: boolean }>(path, {
+    timeoutMs: 8000,
+    silent: true,
+  });
+  return res?.items?.[0] || null;
+}
+
+/** 批量点查词条（单次上限 100） */
+export async function lookupVocabWords(words: string[]): Promise<VocabEntry[]> {
+  const validWords = Array.from(
+    new Set(words.map((w) => (typeof w === 'string' ? w.trim() : '')).filter(Boolean))
+  ).slice(0, 100);
+  if (validWords.length === 0) return [];
+  const res = await request<{ items: VocabEntry[] }>('/lookup', {
+    method: 'POST',
+    body: JSON.stringify({ words: validWords }),
+    timeoutMs: 10000,
+    silent: true,
+  });
+  return res?.items || [];
 }
 
 export async function getVocabPage(
@@ -271,26 +288,14 @@ export async function getReviewPage(
   );
 }
 
-/** 获取今日待复习词条（默认轻量 + 写缓存） */
+/** 获取今日待复习词条（始终轻量分页 + 写缓存） */
 export async function getReviewWords(
   category: VocabCategory,
-  options?: { light?: boolean },
+  _options?: { light?: boolean },
 ): Promise<VocabEntry[]> {
-  const light = options?.light !== false;
-  // 注意：light 失败时绝不能回退全量 /review（5939×payload 会堵死后端）
-  if (light) {
-    const page = await getReviewPage(category, 50);
-    writeReviewLightCache(category, page.items);
-    return page.items;
-  }
-  const data = await vocabRequestDeduper.run(`review:${category}:${light ? 'light' : 'full'}`, () =>
-    request<VocabEntry[]>(light ? `/review?light=1&category=${category}` : `/review?category=${category}`, {
-      timeoutMs: light ? 20000 : 60000,
-      silent: true,
-    })
-  );
-  if (light && Array.isArray(data)) writeReviewLightCache(category, data);
-  return data;
+  const page = await getReviewPage(category, 50);
+  writeReviewLightCache(category, page.items);
+  return page.items;
 }
 
 /** 按 id 取完整词条（补全 payload） */

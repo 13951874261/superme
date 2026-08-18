@@ -85,7 +85,9 @@ if ($Force) {
                 'vocab-server/services/gameTheoryKnowledge.js',
                 'vocab-server/services/knowledgeTheoryNodes.js',
                 'vocab-server/services/knowledgeVaultExtra.js',
-                'vocab-server/services/listenAnalysisService.js'
+                'vocab-server/services/listenAnalysisService.js',
+                'vocab-server/scripts/backfill-dict-level.js',
+                'vocab-server/scripts/backfill_dict_level.py'
             )
 
             Write-Host "Fallback upload list: core server + game theory + insight + vault refine & hardness services" -ForegroundColor Yellow
@@ -257,7 +259,9 @@ try {
                 'vocab-server/scripts/print-articles.js',
                 'vocab-server/scripts/run-full-production-ready.js',
                 'vocab-server/scripts/test-single-1min.js',
-                'vocab-server/scripts/print-schema.js'
+                'vocab-server/scripts/print-schema.js',
+                'vocab-server/scripts/backfill-dict-level.js',
+                'vocab-server/scripts/backfill_dict_level.py'
             )
             Write-Host "  -> No changed-file list; defaulting to full core backend & script set" -ForegroundColor Yellow
         }
@@ -293,15 +297,23 @@ try {
         }
 
         $runFixOldVocab = $false
+        $runBackfillLevel = $false
         foreach ($file in $changedFiles) {
             if ($file -match "vocab-server/scripts/fix_old_vocab.cjs") {
                 $runFixOldVocab = $true
+            }
+            if ($file -match "vocab-server/scripts/backfill-dict-level.js" -or $file -match "vocab-server/scripts/backfill_dict_level.py") {
+                $runBackfillLevel = $true
             }
         }
 
         if ($runFixOldVocab) {
             Write-Host "  -> Running database fix script: fix_old_vocab.cjs" -ForegroundColor DarkCyan
             Invoke-RemoteCommand "node $RemoteApiRoot/scripts/fix_old_vocab.cjs"
+        }
+        if ($runBackfillLevel) {
+            Write-Host "  -> Running database level backfill: backfill-dict-level.js" -ForegroundColor DarkCyan
+            Invoke-RemoteCommand "node $RemoteApiRoot/scripts/backfill-dict-level.js /var/www/super-agent/vocab.db"
         }
         if ($changedFiles -match "vocab-server/package.json") {
             Write-Host "  -> Installing backend dependencies" -ForegroundColor DarkCyan

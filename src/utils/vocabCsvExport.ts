@@ -2,7 +2,7 @@
  * 生词本 CSV 导出（纯前端 Blob + UTF-8 BOM，以便 Excel 打开中文）
  */
 import type { VocabEntry } from '../services/vocabAPI';
-import { getAllWords, queryDictionaryWithCache, updateWordPayload } from '../services/vocabAPI';
+import { queryDictionaryWithCache, updateWordPayload } from '../services/vocabAPI';
 
 export type VocabExportScope = 'all' | 'current_tab' | 'due_today' | 'words_only' | 'phrases_only' | 'sentences_only';
 export type VocabTabCategory = 'business' | 'general';
@@ -282,7 +282,10 @@ export async function exportVocabCsv(options: {
   words?: VocabEntry[];
   filenamePrefix?: string;
 }): Promise<number> {
-  const list = options.words ?? (await getAllWords());
+  const list = options.words;
+  if (!list || list.length === 0) {
+    throw new Error('浏览器同步导出需要传入当前页词表数据。如需导出完整生词库，请使用后台导出任务。');
+  }
   const filtered = filterWordsForExport(
     list,
     options.scope,

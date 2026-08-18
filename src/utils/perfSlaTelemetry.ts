@@ -20,11 +20,15 @@ export const SLA_THRESHOLDS = {
 
 function isDebugEnabled(): boolean {
   if (typeof window === 'undefined') return false;
-  return (
-    import.meta.env.DEV ||
-    localStorage.getItem('PERF_SLA_DEBUG') === '1' ||
-    sessionStorage.getItem('PERF_SLA_DEBUG') === '1'
-  );
+  try {
+    return (
+      Boolean((import.meta as any)?.env?.DEV) ||
+      (typeof localStorage !== 'undefined' && localStorage?.getItem?.('PERF_SLA_DEBUG') === '1') ||
+      (typeof sessionStorage !== 'undefined' && sessionStorage?.getItem?.('PERF_SLA_DEBUG') === '1')
+    );
+  } catch {
+    return false;
+  }
 }
 
 /**

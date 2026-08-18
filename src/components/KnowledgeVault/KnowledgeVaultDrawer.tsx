@@ -9,6 +9,7 @@ import KnowledgeGraphPanel from "./KnowledgeGraphPanel";
 import MaterialUploader from "../MaterialUploader";
 import { useTask } from "../TaskContext";
 import { playClick, playGentleWarning } from "../../utils/soundEffects";
+import { getVocabItem } from "../../services/vocabAPI";
 
 type MindmapView = { center?: string; branches?: Array<{ title?: string; children?: string[] }> };
 
@@ -386,19 +387,59 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
   const handleSync = async () => {
     setError(null);
     try {
-      const res = await fetch("/api/vocab/list?light=0");
-      const data = await res.json();
-      const words = (data && Array.isArray(data) ? data : (data && data.items ? data.items : []));
-      for (const w of words) {
-        const exists = vault.englishNotes.some(n => n.word.toLowerCase() === (w.word || "").toLowerCase());
-        if (!exists) {
-          await addEnglishNote({
-            word: w.word || "",
-            meaning: w.payload?.translation_main || w.translation || "",
-            example: (w.payload?.examples && w.payload.examples.length > 0 ? w.payload.examples[0].en : ""),
-            source: "生词本同步"
-          });
+      // 1. 分页拉取轻量词条列表（每页 100 条）
+      const existingWordSet = new Set(
+        (vault.englishNotes || []).map(n => (n.word || '').toLowerCase().trim()).filter(Boolean)
+      );
+
+      const candidateWords: Array<{ id: string; word: string }> = [];
+      let offset = 0;
+      const pageSize = 100;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await fetch(`/api/vocab/list?light=1&limit=${pageSize}&offset=${offset}`);
+        if (!res.ok) {
+          throw new Error(`获取生词列表失败: HTTP ${res.status}`);
         }
+        const data = await res.json();
+        const items = Array.isArray(data?.items) ? data.items : [];
+        for (const item of items) {
+          const w = (item?.word || '').trim();
+          if (w && !existingWordSet.has(w.toLowerCase())) {
+            candidateWords.push({ id: item.id, word: w });
+            existingWordSet.add(w.toLowerCase());
+          }
+        }
+        hasMore = Boolean(data?.hasMore && items.length > 0);
+        offset += pageSize;
+      }
+
+      if (candidateWords.length === 0) {
+        await refresh();
+        return;
+      }
+
+      // 2. 仅对需要新建的差集词拉取详情并创建笔记
+      for (const w of candidateWords) {
+        let translation = '';
+        let example = '';
+        try {
+          const detail = await getVocabItem(w.id);
+          const p = detail?.payload || {};
+          translation = p.translation_main || p.meaning || (detail as any)?.translation || '';
+          if (Array.isArray(p.examples) && p.examples.length > 0) {
+            example = p.examples[0]?.en || '';
+          }
+        } catch {
+          // 容错降级
+        }
+        await addEnglishNote({
+          word: w.word,
+          meaning: translation,
+          example: example,
+          source: "生词本同步"
+        });
       }
       await refresh();
     } catch {

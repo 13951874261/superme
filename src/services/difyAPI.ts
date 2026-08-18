@@ -1009,10 +1009,10 @@ export async function runEnglishSentenceEvaluation(
   return mapSentenceEvaluationResult(data.result);
 }
 export async function getDueVocabulary(userId = getAppUserId()) {
-  const res = await fetch(`/api/vocab/review?userId=${encodeURIComponent(userId)}`);
-  const data = await res.json().catch(() => ([]));
+  const res = await fetch(`/api/vocab/review?light=1&limit=50&userId=${encodeURIComponent(userId)}`);
+  const data = await res.json().catch(() => ({ items: [] }));
   if (!res.ok) throw new Error(data?.error || '获取待复习词条失败');
-  return Array.isArray(data) ? data : [];
+  return Array.isArray(data?.items) ? data.items : (Array.isArray(data) ? data : []);
 }
 
 export function mapGenreToDify(genre: string): 'news' | 'meeting' | 'podcast' | 'reading' {

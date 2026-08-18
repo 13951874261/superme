@@ -221,9 +221,15 @@ db.prepare(`
     locale TEXT,
     is_success INTEGER,
     response_payload TEXT,
+    level TEXT,
     created_at INTEGER
   )
 `).run();
+
+try {
+  db.prepare('ALTER TABLE dict_query_log ADD COLUMN level TEXT').run();
+  console.log('Migration: Added level column to dict_query_log table.');
+} catch (e) {}
 
 // ?????????????? (????????????????????????????????)
 db.prepare(`CREATE TABLE IF NOT EXISTS materials (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER)`).run();
@@ -281,6 +287,7 @@ try {
 // 性能加速索引
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_success ON dict_query_log(is_success)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_level ON dict_query_log(is_success, level)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_session ON training_attempts(session_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_user_scene ON training_attempts(user_id, scene_type, module_type)').run();
   console.log('Migration: Created performance indexes successfully.');
@@ -3273,91 +3280,125 @@ function parseVocabCategory(value) {
   return value === 'business' || value === 'general' ? value : null;
 }
 
-// ???????????????
+// 生词本轻量分页列表（强制分页，禁止全量）
 app.get('/api/vocab/list', (req, res) => {
   try {
-    const light = String(req.query.light || '') === '1';
-    if (light) {
-      const limit = Number(req.query.limit);
-      const offset = Math.max(0, Number(req.query.offset) || 0);
-      const category = parseVocabCategory(req.query.category);
-      if (Number.isInteger(limit) && limit > 0) {
-        const pageSize = Math.min(limit, 100);
-        const rows = category
-          ? db.prepare(`
-              SELECT ${LIGHT_SELECT}
-              FROM vocabulary
-              WHERE category = ?
-              ORDER BY added_at DESC
-              LIMIT ? OFFSET ?
-            `).all(category, pageSize + 1, offset)
-          : db.prepare(`
-              SELECT ${LIGHT_SELECT}
-              FROM vocabulary
-              ORDER BY added_at DESC
-              LIMIT ? OFFSET ?
-            `).all(pageSize + 1, offset);
-        return res.json({
-          items: rows.slice(0, pageSize).map(mapLightVocabRow),
-          hasMore: rows.length > pageSize,
-        });
-      }
-      const rows = db.prepare(`SELECT ${LIGHT_SELECT} FROM vocabulary ORDER BY added_at DESC`).all();
-      return res.json(rows.map(mapLightVocabRow));
+    if (String(req.query.light || '') === '0') {
+      return res.status(400).json({ error: 'light=0 is deprecated. Please use pagination or /api/vocab/item/:id' });
     }
-    const rows = db.prepare('SELECT * FROM vocabulary ORDER BY added_at DESC').all();
-    const formatted = rows.map(r => ({
-      ...r,
-      payload: r.payload ? JSON.parse(r.payload) : {},
-      review_history: r.review_history ? JSON.parse(r.review_history) : []
-    }));
-    res.json(formatted);
+    const rawLimit = Number(req.query.limit);
+    const pageSize = Math.min(Math.max(Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100);
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const category = parseVocabCategory(req.query.category);
+    const word = typeof req.query.word === 'string' && req.query.word.trim() ? req.query.word.trim() : null;
+
+    let rows;
+    if (word && category) {
+      rows = db.prepare(`
+        SELECT ${LIGHT_SELECT}
+        FROM vocabulary
+        WHERE category = ? AND word = ? COLLATE NOCASE
+        ORDER BY added_at DESC
+        LIMIT ? OFFSET ?
+      `).all(category, word, pageSize + 1, offset);
+    } else if (word) {
+      rows = db.prepare(`
+        SELECT ${LIGHT_SELECT}
+        FROM vocabulary
+        WHERE word = ? COLLATE NOCASE
+        ORDER BY added_at DESC
+        LIMIT ? OFFSET ?
+      `).all(word, pageSize + 1, offset);
+    } else if (category) {
+      rows = db.prepare(`
+        SELECT ${LIGHT_SELECT}
+        FROM vocabulary
+        WHERE category = ?
+        ORDER BY added_at DESC
+        LIMIT ? OFFSET ?
+      `).all(category, pageSize + 1, offset);
+    } else {
+      rows = db.prepare(`
+        SELECT ${LIGHT_SELECT}
+        FROM vocabulary
+        ORDER BY added_at DESC
+        LIMIT ? OFFSET ?
+      `).all(pageSize + 1, offset);
+    }
+
+    return res.json({
+      items: rows.slice(0, pageSize).map(mapLightVocabRow),
+      hasMore: rows.length > pageSize,
+    });
   } catch (error) {
     console.error('[vocab/list]', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
-// ????????????
+// 今日待复习列表（强制分页，禁止全量）
 app.get('/api/vocab/review', (req, res) => {
   try {
-    const now = Date.now();
-    const light = String(req.query.light || '') === '1';
-    if (light) {
-      const limit = Number(req.query.limit);
-      const offset = Math.max(0, Number(req.query.offset) || 0);
-      const category = parseVocabCategory(req.query.category);
-      if (Number.isInteger(limit) && limit > 0) {
-        const pageSize = Math.min(limit, 100);
-        const rows = category
-          ? db.prepare(`
-              SELECT ${LIGHT_SELECT}
-              FROM vocabulary
-              WHERE next_review_date <= ? AND repetitions < 999 AND category = ?
-              ORDER BY next_review_date ASC
-              LIMIT ? OFFSET ?
-            `).all(now, category, pageSize + 1, offset)
-          : db.prepare(`
-              SELECT ${LIGHT_SELECT}
-              FROM vocabulary
-              WHERE next_review_date <= ? AND repetitions < 999
-              ORDER BY next_review_date ASC
-              LIMIT ? OFFSET ?
-            `).all(now, pageSize + 1, offset);
-        return res.json({
-          items: rows.slice(0, pageSize).map(mapLightVocabRow),
-          hasMore: rows.length > pageSize,
-        });
-      }
-      const rows = db.prepare(
-        `SELECT ${LIGHT_SELECT} FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC`
-      ).all(now);
-      return res.json(rows.map(mapLightVocabRow));
+    if (String(req.query.light || '') === '0') {
+      return res.status(400).json({ error: 'light=0 is deprecated. Please use pagination or /api/vocab/item/:id' });
     }
-    const rows = db.prepare('SELECT * FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999 ORDER BY next_review_date ASC').all(now);
-    res.json(rows.map(r => ({ ...r, payload: r.payload ? JSON.parse(r.payload) : {} })));
+    const now = Date.now();
+    const rawLimit = Number(req.query.limit);
+    const pageSize = Math.min(Math.max(Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100);
+    const offset = Math.max(0, Number(req.query.offset) || 0);
+    const category = parseVocabCategory(req.query.category);
+
+    const rows = category
+      ? db.prepare(`
+          SELECT ${LIGHT_SELECT}
+          FROM vocabulary
+          WHERE next_review_date <= ? AND repetitions < 999 AND category = ?
+          ORDER BY next_review_date ASC
+          LIMIT ? OFFSET ?
+        `).all(now, category, pageSize + 1, offset)
+      : db.prepare(`
+          SELECT ${LIGHT_SELECT}
+          FROM vocabulary
+          WHERE next_review_date <= ? AND repetitions < 999
+          ORDER BY next_review_date ASC
+          LIMIT ? OFFSET ?
+        `).all(now, pageSize + 1, offset);
+
+    return res.json({
+      items: rows.slice(0, pageSize).map(mapLightVocabRow),
+      hasMore: rows.length > pageSize,
+    });
   } catch (error) {
     console.error('[vocab/review]', error);
+    res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// 批量点查生词条目（最多 100 条）
+app.post('/api/vocab/lookup', (req, res) => {
+  try {
+    const rawWords = Array.isArray(req.body?.words) ? req.body.words : [];
+    const words = Array.from(
+      new Set(rawWords.map(w => (typeof w === 'string' ? w.trim() : '')).filter(Boolean))
+    ).slice(0, 100);
+
+    if (words.length === 0) {
+      return res.json({ items: [] });
+    }
+
+    const placeholders = words.map(() => '?').join(', ');
+    const rows = db.prepare(`
+      SELECT ${LIGHT_SELECT}
+      FROM vocabulary
+      WHERE word IN (${placeholders}) COLLATE NOCASE
+      ORDER BY added_at DESC
+    `).all(...words);
+
+    return res.json({
+      items: rows.map(mapLightVocabRow),
+    });
+  } catch (error) {
+    console.error('[vocab/lookup]', error);
     res.status(500).json({ error: 'Database error' });
   }
 });
@@ -3523,10 +3564,12 @@ async function queryDifyDictOnBackend(word, dictType) {
         parsedResult = JSON.parse(cleanStr);
       }
       try {
+        const rawLevel = parsedResult?.payload?.level || parsedResult?.level || null;
+        const level = typeof rawLevel === 'string' && rawLevel.trim() ? rawLevel.trim() : null;
         db.prepare(`
-          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-        `).run(crypto.randomUUID(), word.trim(), cleanDictType, direction, '', 'zh-CN', JSON.stringify(parsedResult), Date.now());
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+        `).run(crypto.randomUUID(), word.trim(), cleanDictType, direction, '', 'zh-CN', JSON.stringify(parsedResult), level, Date.now());
       } catch (logErr) {
         console.error('[Backend Export Worker] Cache Write Error:', logErr.message);
       }
@@ -4919,8 +4962,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
       try {
         db.prepare(`
-          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
       } catch (logErr) {}
 
@@ -4935,8 +4978,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
       try {
         db.prepare(`
-          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
       } catch (logErr) {}
 
@@ -4951,8 +4994,8 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
       try {
         db.prepare(`
-          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
         `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
       } catch (logErr) {}
 
@@ -4960,10 +5003,12 @@ app.post('/api/dify/dict-query', async (req, res) => {
     }
 
     try {
+      const rawLevel = parsedResult?.payload?.level || parsedResult?.level || null;
+      const level = typeof rawLevel === 'string' && rawLevel.trim() ? rawLevel.trim() : null;
       db.prepare(`
-        INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)
-      `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), Date.now());
+        INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+      `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now());
     } catch (logErr) {}
 
     console.log(`[Dict Query] 词条 "${word}" 查询成功，字段:`, Object.keys(parsedResult?.payload || {}));
@@ -5080,14 +5125,14 @@ app.post('/api/dify/write-review', async (req, res) => {
 });
 
 
-// ????????????????????????
+// 词典覆盖率统计接口（COUNT + GROUP BY level，禁止 SELECT response_payload）
 app.get('/api/dify/dict-coverage', (req, res) => {
   try {
     const total = db.prepare('SELECT COUNT(*) as count FROM dict_query_log').get().count;
     const success = db.prepare('SELECT COUNT(*) as count FROM dict_query_log WHERE is_success = 1').get().count;
     const successRate = total > 0 ? (success / total * 100).toFixed(2) : 0;
 
-    const rows = db.prepare('SELECT response_payload FROM dict_query_log WHERE is_success = 1').all();
+    const rows = db.prepare('SELECT level, COUNT(*) as count FROM dict_query_log WHERE is_success = 1 GROUP BY level').all();
     const levelCounts = {
       'CET-4': 0,
       'CET-6': 0,
@@ -5095,22 +5140,20 @@ app.get('/api/dify/dict-coverage', (req, res) => {
       'TOEFL': 0,
       'GRE': 0,
       'BUSINESS': 0,
-      '考研': 0,
+      '其他': 0,
       '未分类': 0
     };
 
     rows.forEach(r => {
-      try {
-        const parsed = JSON.parse(r.response_payload);
-        const level = parsed?.payload?.level || parsed?.level;
-        if (level && levelCounts[level] !== undefined) {
-          levelCounts[level]++;
-        } else if (level) {
-          levelCounts['其他']++;
-        } else {
-          levelCounts['其他']++;
-        }
-      } catch (e) {}
+      const lvl = typeof r.level === 'string' ? r.level.trim() : '';
+      const count = Number(r.count) || 0;
+      if (lvl && Object.prototype.hasOwnProperty.call(levelCounts, lvl) && lvl !== '其他' && lvl !== '未分类') {
+        levelCounts[lvl] += count;
+      } else if (lvl) {
+        levelCounts['其他'] += count;
+      } else {
+        levelCounts['未分类'] += count;
+      }
     });
 
     res.json({
@@ -5121,7 +5164,7 @@ app.get('/api/dify/dict-coverage', (req, res) => {
       level_distribution: levelCounts
     });
   } catch (error) {
-    console.error(error);
+    console.error('[dify/dict-coverage]', error);
     res.status(500).json({ error: 'Database error on dict-coverage' });
   }
 });

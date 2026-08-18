@@ -17,7 +17,7 @@ import { playSuccess, playError, playScan } from '../../../../utils/soundEffects
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
 import { triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
 import { getAppUserId } from '../../../../utils/profileHelper';
-import { addWord, getAllWords, batchAddWords, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
+import { addWord, lookupVocabWords, getVocabItem, batchAddWords, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
 import { VOICE_OPTIONS } from '../../../../config/voices';
@@ -285,34 +285,62 @@ export default function DashboardTab() {
 
   const loadVocabDetails = async () => {
     try {
-      const allWords = await getAllWords();
-      const detailsMap: Record<string, any> = {};
-
-      const extractedKeys = new Set([
+      const extractedKeyList = Array.from(new Set([
         ...extractedWords.map(w => safeToStr(w).toLowerCase()).filter(Boolean),
         ...extractedPhrases.map(p => safeToStr(p).toLowerCase()).filter(Boolean),
         ...extractedSentences.map(s => safeToStr(s).toLowerCase()).filter(Boolean)
-      ]);
+      ]));
 
-      allWords.forEach((item) => {
-        if (item.word) {
-          const key = item.word.toLowerCase().trim();
-          if (extractedKeys.has(key)) {
-            let payload = item.payload;
-            if (typeof payload === 'string') {
-              try {
-                payload = JSON.parse(payload);
-              } catch {
-                payload = {};
-              }
-            }
-            detailsMap[key] = {
-              phonetic: payload?.phonetic || '',
-              meaning: payload?.meaning || '',
-              definition_en: payload?.definition_en || '',
-              business_note: payload?.business_note || '',
-            };
+      if (extractedKeyList.length === 0) {
+        setVocabDetailsMap({});
+        return;
+      }
+
+      // 分批批量点查生词库（每批最多 100 词）
+      const matchedEntries: any[] = [];
+      for (let i = 0; i < extractedKeyList.length; i += 100) {
+        const batch = extractedKeyList.slice(i, i + 100);
+        const res = await lookupVocabWords(batch);
+        if (Array.isArray(res)) {
+          matchedEntries.push(...res);
+        }
+      }
+
+      if (matchedEntries.length === 0) {
+        setVocabDetailsMap({});
+        return;
+      }
+
+      // 对命中的生词按需补全 payload 详情
+      const detailedEntries = await Promise.all(
+        matchedEntries.map(async (item) => {
+          if (!item?.id) return item;
+          try {
+            return await getVocabItem(item.id);
+          } catch {
+            return item;
           }
+        })
+      );
+
+      const detailsMap: Record<string, any> = {};
+      detailedEntries.forEach((item) => {
+        if (item?.word) {
+          const key = item.word.toLowerCase().trim();
+          let payload = item.payload;
+          if (typeof payload === 'string') {
+            try {
+              payload = JSON.parse(payload);
+            } catch {
+              payload = {};
+            }
+          }
+          detailsMap[key] = {
+            phonetic: payload?.phonetic || '',
+            meaning: payload?.meaning || '',
+            definition_en: payload?.definition_en || '',
+            business_note: payload?.business_note || '',
+          };
         }
       });
       setVocabDetailsMap(detailsMap);

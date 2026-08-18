@@ -1,6 +1,6 @@
 import React, { useState, useEffect, memo } from 'react';
 import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock } from 'lucide-react';
-import { getAllWords, queryDictionaryWithCache, type VocabEntry } from '../services/vocabAPI';
+import { getVocabByWord, getVocabItem, queryDictionaryWithCache, type VocabEntry } from '../services/vocabAPI';
 import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
 import MemoryAidPanel from './MemoryAidPanel';
 import DifyAssistantFrame from './DifyAssistantFrame';
@@ -33,9 +33,13 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
     const handleVocabUpdate = async () => {
       if (!wordData?.word) return;
       try {
-        const allWords = await getAllWords();
-        const found = allWords.find(w => w.word.toLowerCase() === wordData.word.toLowerCase());
-        setLocalWordEntry(found || null);
+        const found = await getVocabByWord(wordData.word);
+        if (found?.id) {
+          const item = await getVocabItem(found.id).catch(() => found);
+          setLocalWordEntry(item || found);
+        } else {
+          setLocalWordEntry(null);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -70,10 +74,15 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
         setDictLoading(true);
       }
       try {
-        const allWords = await getAllWords();
+        const found = await getVocabByWord(word);
         if (cancelled) return;
-        const found = allWords.find(w => w.word.toLowerCase() === word.toLowerCase());
-        setLocalWordEntry(found || null);
+        if (found?.id) {
+          const item = await getVocabItem(found.id).catch(() => found);
+          if (cancelled) return;
+          setLocalWordEntry(item || found);
+        } else {
+          setLocalWordEntry(null);
+        }
       } catch (err) {
         console.error('Failed to search local word database:', err);
         if (!cancelled) setLocalWordEntry(null);
