@@ -55,7 +55,7 @@ function EnglishModuleContent() {
       icon={<Globe className="w-8 h-8" strokeWidth={2.5} />}
       description="不仅是交流，而是用英语构建信任、影响他人并主导跨国谈判。可在进度总控的「战略路线图」中自由切换想要练习的主题或阶段。"
     >
-      <div className="flex flex-wrap gap-2 mb-3 bg-[#f8f9fa] p-1.5 rounded-xl border border-gray-100 w-max">
+      <div className="flex flex-wrap items-center justify-between gap-2 mb-3 bg-[#f8f9fa] p-1.5 rounded-xl border border-gray-100 w-full">
         {SUB_TABS.map(tab => (
           <button
             key={tab.id}
@@ -64,7 +64,7 @@ function EnglishModuleContent() {
               if (activeTab !== tab.id) playSwitch();
               setActiveTab(tab.id as EnglishTab);
             }}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-black text-xs tracking-widest uppercase transition-all duration-200 hover:scale-[1.01] active:scale-[0.98] ${
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-black text-xs tracking-widest uppercase transition-all duration-200 hover:scale-[1.01] active:scale-[0.98] shrink-0 ${
               activeTab === tab.id 
                 ? 'bg-[var(--color-brand)] text-white shadow-[0_4px_12px_rgba(0,0,0,0.12)] border border-[var(--color-brand)]' 
                 : 'text-gray-500 hover:text-[var(--color-brand)] hover:bg-white hover:shadow-sm border border-transparent'
