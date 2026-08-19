@@ -166,15 +166,26 @@ export default function ListenTab() {
       addTask({
         id: data.taskId,
         type: 'listen_backfill',
-        name: `听写预生成补跑: ${theme} / ${listenGenre} / ${listenCefr} / ${listenDuration}m`,
+        name: `定制听力训练素材生成: ${theme} / ${listenGenre} / ${listenCefr} / ${listenDuration}分钟`,
         status: 'pending',
         progress: 0,
-        logs: ['已提交后台生成...'],
+        logs: ['[听力生成] 已提交后台生成队列...'],
       });
-      showNotice('listen', '已提交后台生成，请稍后在任务中心查看。', 'info');
+      showNotice('listen', '听力训练材料正在后台加速生成中，您可以继续进行其他练习，稍后前往【任务中心】查看。', 'info');
+      try {
+        const { showToast } = await import('../../../Toast');
+        showToast({
+          message: '听力训练材料正在后台加速生成中，您可以继续进行其他练习，稍后前往【任务中心】查看',
+          type: 'success',
+        });
+      } catch (err) {}
     } catch (e) {
       const msg = e instanceof Error ? e.message : '提交后台生成失败';
       showNotice('listen', msg, 'error');
+      try {
+        const { showToast } = await import('../../../Toast');
+        showToast({ message: msg, type: 'error' });
+      } catch (err) {}
     } finally {
       setIsBackfillSubmitting(false);
     }

@@ -130,7 +130,7 @@ export default function DailyWakeupModule() {
   const handleRegenerate = async () => {
     if (loading) return;
     setLoading(true);
-    setNotice(result ? '正在重新生成今日唤醒…' : '正在生成今日唤醒内容...');
+    setNotice(result ? '正在重新为您定制今日专属唤醒训练…' : '正在为您智能定制今日专属唤醒训练...');
     try {
       void refreshStayStats(true);
       void refreshTodaySession();
@@ -139,7 +139,7 @@ export default function DailyWakeupModule() {
       if (pack.status !== 'ready' || !pack.wakeup) {
         const cached = await getTodayDailyPack(queryInput).catch(() => null);
         if (cached && applyPack(cached)) return;
-        throw new Error(pack.errorMessage || '生成失败');
+        throw new Error(pack.errorMessage || '今日专属唤醒内容定制中');
       }
       applyPack(pack);
       startTimer();
@@ -151,7 +151,12 @@ export default function DailyWakeupModule() {
         return;
       }
       setPackStatus('failed');
-      setNotice(error instanceof Error ? error.message : '生成失败');
+      const fallbackMsg = '今日唤醒包正在后台加速准备，您可先在生词本或听力模块进行热身';
+      setNotice(fallbackMsg);
+      try {
+        const { showToast } = await import('../Toast');
+        showToast({ message: fallbackMsg, type: 'info' });
+      } catch (err) {}
     } finally {
       setLoading(false);
     }

@@ -2752,23 +2752,25 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.createTask(
       'listen_backfill',
-      `听写预生成补跑: ${theme} / ${genre} / ${cefrLevel} / ${duration}m`,
+      `定制听力训练素材生成: ${theme} / ${genre} / ${cefrLevel} / ${duration}分钟`,
     );
+    console.log(`[听力生成] 收到定制听力素材生成请求: ${theme} / ${genre} / ${cefrLevel} / ${duration}分钟 (任务ID: ${task.id})`);
     res.json({ success: true, taskId: task.id, status: task.status });
 
     (async () => {
       try {
-        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['开始后台补生成...'] });
+        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['[听力生成] 正在组织专业听力对话脚本与语境...'] });
         const mode = only === 'audio' || only === 'article' ? only : 'both';
         const result = await dailyListenPreGenerateService.generateOneCombo(
           db,
           { userId, theme, genre, cefrLevel, duration },
           { source: 'backfill', only: mode },
         );
+        console.log(`[听力生成] 定制听力素材生成完成 (任务ID: ${task.id})`);
         taskQueue.updateTask(task.id, {
           status: 'completed',
           progress: 100,
-          logs: ['补生成完成'],
+          logs: ['[听力生成] 定制听力训练素材已全部准备就绪'],
           result: {
             status: result.status,
             genre,
@@ -2781,7 +2783,8 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
           },
         });
       } catch (e) {
-        taskQueue.updateTask(task.id, { status: 'failed', error: e.message });
+        console.warn(`[听力容灾] 定制听力素材生成异常 (任务ID: ${task.id}): ${e.message}`);
+        taskQueue.updateTask(task.id, { status: 'failed', error: `听力生成服务异常: ${e.message}`, logs: [`[听力容灾] 素材生成中断: ${e.message}`] });
       }
     })();
   } catch (e) {
@@ -6167,6 +6170,7 @@ function injectOralSystemTime(inputs = {}) {
 // ==========================================
 // 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow）
 // API Key 仅保存在服务端 DIFY_ORAL_API_KEY
+// 支持 response_mode: 'streaming' (SSE) 与 'blocking' (JSON)
 // ==========================================
 app.post('/api/english/oral/chat', async (req, res) => {
   const {
@@ -6174,16 +6178,20 @@ app.post('/api/english/oral/chat', async (req, res) => {
     conversationId = null,
     userId = 'default-user',
     inputs = {},
+    stream = false,
   } = req.body || {};
 
   if (!query || typeof query !== 'string') {
     return res.status(400).json({ message: '缺少 query 参数。' });
   }
 
+  const isStream = Boolean(stream === true || stream === 'true');
   const apiKey = process.env.DIFY_ORAL_API_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
+
+  console.log(`[沙盘推演] 正在启动多角色谈判沙盘对话推演 (${isStream ? '实时流式通道' : '标准响应通道'})...`);
 
   try {
     const response = await fetch(`${baseUrl}/chat-messages`, {
@@ -6195,20 +6203,61 @@ app.post('/api/english/oral/chat', async (req, res) => {
       body: JSON.stringify({
         inputs: injectOralSystemTime(inputs),
         query,
-        response_mode: 'blocking',
+        response_mode: isStream ? 'streaming' : 'blocking',
         user: userId,
         ...(conversationId ? { conversation_id: conversationId } : {}),
       }),
     });
 
-    const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      console.error('[oral/chat] Dify error:', response.status, data);
-      return res.status(response.status).json(data);
+      const errorData = await response.json().catch(() => ({}));
+      console.warn('[沙盘推演] 远程推演服务响应异常 (' + response.status + '):', errorData);
+      return res.status(response.status).json(errorData);
     }
-    return res.json(data);
+
+    if (isStream) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      if (response.body) {
+        const reader = typeof response.body.getReader === 'function' ? response.body.getReader() : null;
+        if (reader) {
+          let isFirstChunk = true;
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (isFirstChunk) {
+                console.log('[沙盘推演] 收到首段推演思维与发言，正在持续流式呈现...');
+                isFirstChunk = false;
+              }
+              res.write(value);
+              if (typeof res.flush === 'function') res.flush();
+            }
+          } finally {
+            reader.releaseLock?.();
+          }
+          console.log('[沙盘推演] 本轮多角色沙盘推演流式输出完成');
+          return res.end();
+        } else if (typeof response.body.pipe === 'function') {
+          response.body.pipe(res);
+          return;
+        }
+      }
+      return res.end();
+    } else {
+      const data = await response.json().catch(() => ({}));
+      console.log('[沙盘推演] 本轮多角色沙盘推演完成 (标准报文)');
+      return res.json(data);
+    }
   } catch (err) {
-    console.error('[oral/chat] error:', err);
+    console.warn('[沙盘推演] 沙盘推演代理通道异常: ' + err.message);
+    if (isStream && res.headersSent) {
+      res.write(`data: ${JSON.stringify({ event: 'error', message: err.message || '推演中断' })}\n\n`);
+      return res.end();
+    }
     return res.status(500).json({ message: err.message || '口语沙盘对话代理失败' });
   }
 });
@@ -7260,10 +7309,16 @@ app.get('/api/daily-pack/today', (req, res) => {
       if (row) break;
     }
 
+    if (row && row.status === 'ready') {
+      console.log(`[每日唤醒] 成功命中学员专属晨间预生成训练包 (用户: ${rawUserId}, 主题: ${theme})`);
+    } else {
+      console.log(`[每日唤醒] 今日训练包当前状态为 ${row ? row.status : '未生成'} (用户: ${rawUserId})`);
+    }
+
     // 仅返回当前用户（含别名）缓存；不再回退 default-user
     res.json(dailyPackService.serializeDailyPack(row));
   } catch (error) {
-    console.error('[Daily Pack Today]', error);
+    console.warn('[每日唤醒] 读取今日训练包发生异常:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -8249,12 +8304,42 @@ app.post('/api/game-theory/session/:sessionId/control', (req, res) => {
 });
 
 app.post('/api/game-theory/session/:sessionId/round', async (req, res) => {
+  const sessionId = req.params.sessionId;
+  const userId = req.body?.userId || 'default-user';
+  const isStream = Boolean(req.body?.stream === true || req.body?.stream === 'true');
+
+  console.log(`[博弈推演] 正在启动博弈沙盘对抗推演 (会话ID: ${sessionId}, 通道: ${isStream ? '实时流式' : '标准报文'})...`);
+
   try {
-    const userId = req.body?.userId || 'default-user';
-    const result = await gameTheorySession.submitRound(req.params.sessionId, userId, req.body || {});
-    res.json({ success: true, ...result });
+    if (isStream) {
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      const result = await gameTheorySession.submitRound(sessionId, userId, {
+        ...req.body,
+        stream: true,
+        onChunk: (chunk) => {
+          res.write(chunk);
+          if (typeof res.flush === 'function') res.flush();
+        },
+      });
+
+      console.log(`[博弈推演] 本轮博弈对抗推演流式输出完成 (会话ID: ${sessionId})`);
+      res.write(`data: ${JSON.stringify({ event: 'round_finished', result })}\n\n`);
+      return res.end();
+    } else {
+      const result = await gameTheorySession.submitRound(sessionId, userId, req.body || {});
+      console.log(`[博弈推演] 本轮博弈对抗推演完成 (会话ID: ${sessionId}, 标准报文)`);
+      return res.json({ success: true, ...result });
+    }
   } catch (err) {
-    console.error('提交博弈会话回合失败:', err);
+    console.warn(`[博弈容灾] 博弈沙盘推演发生异常 (会话ID: ${sessionId}):`, err.message);
+    if (isStream && res.headersSent) {
+      res.write(`data: ${JSON.stringify({ event: 'error', message: err.message || '推演中断' })}\n\n`);
+      return res.end();
+    }
     sendGameTheorySessionError(res, err);
   }
 });
@@ -8696,8 +8781,9 @@ async function handleWriteGovernanceWorkflow(req, res) {
   if (!originalText) {
     return res.status(400).json({ error: '缺少待批改的原文' });
   }
-  const additionalParams = String(inputs.additional_params || '');
   const userId = req.body?.userId || req.body?.user || 'default-user';
+  const isStream = Boolean(req.body?.stream === true || req.body?.stream === 'true');
+
   const {
     loadInjectedKnowledgeSafe,
     attachKnowledgeContext,
@@ -8708,55 +8794,100 @@ async function handleWriteGovernanceWorkflow(req, res) {
   delete restInputs.knowledge_context;
   delete restInputs.knowledge_refs;
 
-  const toAnalysisResult = (parsed, source) =>
-    res.json({
-      data: { outputs: { analysis_result: JSON.stringify(parsed) } },
-      source,
-      knowledgeReminder: injected.reminder,
-      knowledgeSynced: injected.syncedCount,
-      knowledgeUsed: injected.usedCount,
-    });
+  console.log(`[公文批改] 正在启动深度公文批改与润色分析 (任务类型: ${taskType}, 通道: ${isStream ? '实时流式' : '标准报文'})...`);
 
   try {
-    const payload = await englishWorkflowRunners.writeGovernance({
-      inputs: attachKnowledgeContext({
-        _system_time: new Date().toISOString(),
-        _system_timestamp_ms: Date.now(),
-        ...restInputs,
-      }, injected.context),
-      userId,
-    });
-    const raw = payload?.data?.outputs?.analysis_result
-      ?? payload?.data?.outputs?.result
-      ?? payload?.data?.outputs?.text
-      ?? payload?.answer
-      ?? '';
-    if (raw) {
-      const text = typeof raw === 'string' ? raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim() : JSON.stringify(raw);
-      let parsed = null;
-      try {
-        const m = text.match(/\{[\s\S]*\}/);
-        if (m) parsed = JSON.parse(m[0]);
-      } catch { parsed = null; }
-      if (parsed && isMeaningfulWritingResult(parsed, taskType)) {
-        appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'writing', action: 'analyzed' });
-        return toAnalysisResult(normalizeWritingResult(parsed, taskType), 'dify');
+    const finalInputs = attachKnowledgeContext({
+      _system_time: new Date().toISOString(),
+      _system_timestamp_ms: Date.now(),
+      ...restInputs,
+    }, injected.context);
+
+    if (isStream) {
+      const response = await englishWorkflowRunners.writeGovernance({
+        inputs: finalInputs,
+        userId,
+        responseMode: 'streaming',
+        rawResponse: true,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.warn(`[公文容灾] 远程批改服务响应异常 (${response.status}):`, errorData);
+        return res.status(response.status).json({ error: errorData?.message || '公文批改服务响应异常' });
       }
-    }
-    throw new Error('Dify workflow returned empty or invalid result');
-  } catch (error) {
-    console.warn('[Write Governance] Dify failed, falling back to local LLM:', error.message);
-  }
 
-  try {
-    const apiKey = process.env.WRITE_GOVERNANCE_LLM_API_KEY
-      || process.env.LISTEN_LLM_API_KEY
-      || '';
-    const parsed = await analyzeWriting({ taskType, originalText, additionalParams }, apiKey);
-    return toAnalysisResult(parsed, 'llm_fallback');
-  } catch (fallbackError) {
-    console.error('[Write Governance] LLM fallback also failed:', fallbackError.message);
-    return res.status(502).json({ error: '文治系统暂不可用，请稍后重试' });
+      res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
+      res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+
+      if (response.body) {
+        const reader = typeof response.body.getReader === 'function' ? response.body.getReader() : null;
+        if (reader) {
+          let isFirstChunk = true;
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (isFirstChunk) {
+                console.log('[公文批改] 收到首批专家批改建议，正在持续流式呈现...');
+                isFirstChunk = false;
+              }
+              res.write(value);
+              if (typeof res.flush === 'function') res.flush();
+            }
+          } finally {
+            reader.releaseLock?.();
+          }
+          appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'writing', action: 'analyzed' });
+          console.log('[公文批改] 深度公文批改与润色分析流式输出完成');
+          return res.end();
+        } else if (typeof response.body.pipe === 'function') {
+          response.body.pipe(res);
+          return;
+        }
+      }
+      return res.end();
+    } else {
+      const payload = await englishWorkflowRunners.writeGovernance({
+        inputs: finalInputs,
+        userId,
+        responseMode: 'blocking',
+      });
+      const raw = payload?.data?.outputs?.analysis_result
+        ?? payload?.data?.outputs?.result
+        ?? payload?.data?.outputs?.text
+        ?? payload?.answer
+        ?? '';
+      if (raw) {
+        const text = typeof raw === 'string' ? raw.replace(/^```json\s*/i, '').replace(/```$/i, '').trim() : JSON.stringify(raw);
+        let parsed = null;
+        try {
+          const m = text.match(/\{[\s\S]*\}/);
+          if (m) parsed = JSON.parse(m[0]);
+        } catch { parsed = null; }
+        if (parsed && isMeaningfulWritingResult(parsed, taskType)) {
+          appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'writing', action: 'analyzed' });
+          console.log('[公文批改] 深度公文批改与润色分析完成 (标准报文)');
+          return res.json({
+            data: { outputs: { analysis_result: JSON.stringify(normalizeWritingResult(parsed, taskType)) } },
+            source: 'dify',
+            knowledgeReminder: injected.reminder,
+            knowledgeSynced: injected.syncedCount,
+            knowledgeUsed: injected.usedCount,
+          });
+        }
+      }
+      throw new Error('公文批改服务返回了空或未符合规范的结果');
+    }
+  } catch (error) {
+    console.warn('[公文容灾] 公文批改服务发生异常:', error.message);
+    if (isStream && res.headersSent) {
+      res.write(`data: ${JSON.stringify({ event: 'error', message: error.message || '批改中断' })}\n\n`);
+      return res.end();
+    }
+    return res.status(502).json({ error: '公文批改专家服务暂不可用，请稍后重试' });
   }
 }
 

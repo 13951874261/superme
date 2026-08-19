@@ -25,13 +25,16 @@ function parseResponse(response) {
 
 function createWorkflowRunner({ apiKey, baseUrl, fetchImpl = fetch }) {
   const trimmedBaseUrl = String(baseUrl || '').replace(/\/$/, '');
-  return async function run({ inputs = {}, userId = 'default-user', responseMode = 'blocking' } = {}) {
+  return async function run({ inputs = {}, userId = 'default-user', responseMode = 'blocking', rawResponse = false } = {}) {
     ensureConfigured(apiKey);
     const response = await fetchImpl(`${trimmedBaseUrl}/workflows/run`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ inputs: injectSystemDefaults(inputs), response_mode: responseMode, user: String(userId || 'default-user') }),
     });
+    if (rawResponse || responseMode === 'streaming') {
+      return response;
+    }
     return parseResponse(response);
   };
 }

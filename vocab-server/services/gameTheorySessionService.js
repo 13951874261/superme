@@ -659,29 +659,89 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
     const rounds = loadRounds(sessionId);
     const userProfile = String(input?.user_current_profile || '').trim();
 
-    const payload = await runRoundWorkflow({
-      userId: session.user_id,
-      inputs: {
-        phase: 'play_round',
-        scene_type: session.scene_type,
-        game_model: session.game_model,
-        source_type: session.source_type,
-        psyche_mode: session.psyche_mode,
-        channel: session.channel,
-        title: session.title,
-        scenario: session.scenario,
-        role_count: roles.length,
-        roles_json: JSON.stringify(roles),
-        history_json: JSON.stringify(rounds),
-        user_input: text,
-        input_source: source,
-        current_round: session.current_round,
-        max_rounds: session.max_rounds,
-        elapsed_minutes: elapsedMinutes(state),
-        max_minutes: session.max_minutes,
-        user_current_profile: userProfile,
-      },
-    });
+    const isStream = Boolean(input?.stream === true || input?.stream === 'true');
+    const onChunk = typeof input?.onChunk === 'function' ? input.onChunk : null;
+
+    let payload;
+    if (isStream) {
+      const response = await runRoundWorkflow({
+        userId: session.user_id,
+        responseMode: 'streaming',
+        rawResponse: true,
+        inputs: {
+          phase: 'play_round',
+          scene_type: session.scene_type,
+          game_model: session.game_model,
+          source_type: session.source_type,
+          psyche_mode: session.psyche_mode,
+          channel: session.channel,
+          title: session.title,
+          scenario: session.scenario,
+          role_count: roles.length,
+          roles_json: JSON.stringify(roles),
+          history_json: JSON.stringify(rounds),
+          user_input: text,
+          input_source: source,
+          current_round: session.current_round,
+          max_rounds: session.max_rounds,
+          elapsed_minutes: elapsedMinutes(state),
+          max_minutes: session.max_minutes,
+          user_current_profile: userProfile,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw httpError(response.status || 502, errorData?.message || '博弈推演工作流异常');
+      }
+
+      let accumulated = '';
+      if (response.body) {
+        const reader = typeof response.body.getReader === 'function' ? response.body.getReader() : null;
+        if (reader) {
+          const decoder = new (require('util').TextDecoder)('utf-8');
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (onChunk) onChunk(value);
+              const textChunk = decoder.decode(value, { stream: true });
+              accumulated += textChunk;
+            }
+          } finally {
+            reader.releaseLock?.();
+          }
+        }
+      }
+
+      // 提取 outputs 中的 JSON
+      const cleanJson = extractJson(accumulated);
+      payload = { data: { outputs: { round_result: cleanJson } } };
+    } else {
+      payload = await runRoundWorkflow({
+        userId: session.user_id,
+        inputs: {
+          phase: 'play_round',
+          scene_type: session.scene_type,
+          game_model: session.game_model,
+          source_type: session.source_type,
+          psyche_mode: session.psyche_mode,
+          channel: session.channel,
+          title: session.title,
+          scenario: session.scenario,
+          role_count: roles.length,
+          roles_json: JSON.stringify(roles),
+          history_json: JSON.stringify(rounds),
+          user_input: text,
+          input_source: source,
+          current_round: session.current_round,
+          max_rounds: session.max_rounds,
+          elapsed_minutes: elapsedMinutes(state),
+          max_minutes: session.max_minutes,
+          user_current_profile: userProfile,
+        },
+      });
+    }
 
     const parsed = parseWorkflowOutput(payload, ['round_result']);
     const roundNo = Number(parsed.round_no) || session.current_round + 1;

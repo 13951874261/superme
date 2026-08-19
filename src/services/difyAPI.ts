@@ -288,6 +288,116 @@ function parseMaybeJson<T>(raw: unknown, fallbackMessage: string): T {
   }
 }
 
+/**
+ * 调用文治系统 Governance Dify workflow (实时 SSE 流式通道，严格禁止降级)
+ * 实时触发 onChunk 回调，首包 <= 1.5s 上屏
+ */
+export async function runWriteGovernanceReviewStream(params: {
+  taskType: WriteGovernanceTaskType;
+  originalText: string;
+  additionalParams?: string;
+  onChunk?: (chunkText: string, accumulatedText: string) => void;
+  onStatus?: (status: string) => void;
+}): Promise<WriteGovernanceResult> {
+  const userId = getAppUserId();
+
+  params.onStatus?.('正在启动公文批改深度解析...');
+
+  const res = await fetch('/api/english/write-governance', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      inputs: injectUserProfileAndTime({
+        task_type: params.taskType,
+        original_text: params.originalText,
+        additional_params: params.additionalParams || '',
+      }),
+      stream: true,
+      user: userId,
+      userId,
+    }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData?.error || errData?.message || `公文批改服务异常 (HTTP ${res.status})`);
+  }
+
+  let accumulated = '';
+  if (res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    params.onStatus?.('正在实时生成深度批改与润色建议...');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        const rawJson = trimmed.replace(/^data:\s*/, '');
+        if (rawJson === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(rawJson);
+          if (parsed.event === 'workflow_finished' || parsed.event === 'node_finished') {
+            const outputs = parsed.data?.outputs;
+            const textChunk = outputs?.analysis_result || outputs?.result || outputs?.text || '';
+            if (textChunk && typeof textChunk === 'string') {
+              accumulated = textChunk;
+              params.onChunk?.(textChunk, accumulated);
+            }
+          } else if (parsed.event === 'message' || parsed.event === 'text_chunk') {
+            const delta = parsed.text || parsed.answer || parsed.delta || '';
+            if (delta) {
+              accumulated += delta;
+              params.onChunk?.(delta, accumulated);
+            }
+          }
+        } catch {
+          // ignore stream parse errors
+        }
+      }
+    }
+  }
+
+  const cleanJson = extractJsonFromString(accumulated);
+  let parsedJson: Record<string, unknown> = {};
+  try {
+    parsedJson = JSON.parse(cleanJson);
+  } catch {
+    // raw fallback if json incomplete
+  }
+
+  const result: WriteGovernanceResult = {
+    taskType: params.taskType,
+    rawJson: cleanJson || accumulated,
+  };
+
+  if (params.taskType === 'document_correction') {
+    result.level_1 = String(parsedJson.level_1 || '');
+    result.level_2 = String(parsedJson.level_2 || '');
+    result.level_3 = String(parsedJson.level_3 || '');
+  } else if (params.taskType === 'business_writing') {
+    result.tone_evaluation = String(parsedJson.tone_evaluation || '');
+    result.compressed_text = String(parsedJson.compressed_text || '');
+    result.pyramid_structure = String(parsedJson.pyramid_structure || '');
+    result.final_article = String(parsedJson.final_article || '');
+  } else if (params.taskType === 'logic_optimization') {
+    result.structural_diagnosis = String(parsedJson.structural_diagnosis || '');
+    result.actionable_takeaway = String(parsedJson.actionable_takeaway || '');
+  }
+
+  return result;
+}
+
 /** 从混杂文本中提取可 JSON.parse 的片段（```json 块或最外侧 {}） */
 function extractJsonFromString(raw: unknown): string {
   const rawStr = String(raw ?? '').trim();
@@ -862,6 +972,119 @@ export async function sendOralChatMessage(
   }
 
   return data;
+}
+
+/**
+ * 多角色口语沙盘：实时流式对话（SSE 逐字打字机通道）
+ * 首包 <= 1.5s，实时通知 onChunk，完成后返回最终完整数据
+ */
+export async function sendOralChatMessageStream(
+  query: string,
+  options: {
+    conversationId?: string | null;
+    userId?: string;
+    oralContext?: OralChatContext;
+    onChunk?: (delta: string, accumulated: string) => void;
+    onStatus?: (statusText: string) => void;
+  } = {}
+): Promise<{ answer?: string; message?: string; conversation_id?: string }> {
+  const profile = getUserCurrentProfile();
+  const userId = options.userId ?? getAppUserId();
+  const oralContext = options.oralContext;
+
+  const inputs = injectUserProfileAndTime({
+    user_weakness_profile: profile || '',
+    ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
+    ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
+    ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
+    ...(oralContext?.conflicts ? { conflicts: oralContext.conflicts } : {}),
+    ...(oralContext?.role_switch_instruction ? { role_switch_instruction: oralContext.role_switch_instruction } : {}),
+    ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
+    ...(oralContext?.role_judgement ? { role_judgement: oralContext.role_judgement } : {}),
+    ...(oralContext?.intent_judgement ? { intent_judgement: oralContext.intent_judgement } : {}),
+    ...(oralContext?.custom_background ? { custom_background: oralContext.custom_background } : {}),
+    ...(oralContext?.user_current_profile ? { user_current_profile: oralContext.user_current_profile } : {}),
+    ...(oralContext?.User_Current_Profile && !oralContext?.user_current_profile
+      ? { user_current_profile: oralContext.User_Current_Profile }
+      : {}),
+  });
+
+  options.onStatus?.('正在启动多角色沙盘推演...');
+
+  const res = await fetch('/api/english/oral/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      query,
+      conversationId: options.conversationId ?? null,
+      userId,
+      inputs,
+      stream: true,
+    }),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(String(errData.message || errData.error || `沙盘推演请求异常 (HTTP ${res.status})`));
+  }
+
+  let accumulated = '';
+  let finalConversationId = options.conversationId ?? undefined;
+
+  if (res.body) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+
+    options.onStatus?.('思维推演中，正在实时生成回应...');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) continue;
+        const rawJson = trimmed.replace(/^data:\s*/, '');
+        if (rawJson === '[DONE]') continue;
+        try {
+          const parsed = JSON.parse(rawJson);
+          if (parsed.event === 'message' || parsed.event === 'agent_message') {
+            const answerChunk = parsed.answer || parsed.delta || '';
+            if (answerChunk) {
+              accumulated += answerChunk;
+              options.onChunk?.(answerChunk, accumulated);
+            }
+          }
+          if (parsed.conversation_id) {
+            finalConversationId = parsed.conversation_id;
+          }
+        } catch {
+          // ignore chunk parse failure
+        }
+      }
+    }
+  }
+
+  const result = {
+    answer: accumulated,
+    message: accumulated,
+    conversation_id: finalConversationId,
+  };
+
+  interceptOutputText(result);
+
+  if (finalConversationId) {
+    localStorage.setItem('oral_conversation_context', JSON.stringify({
+      last_conversation_id: finalConversationId,
+      last_round_at: Date.now(),
+    }));
+  }
+
+  return result;
 }
 
 export interface BreakthroughSubmitResult {

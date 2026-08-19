@@ -1,6 +1,9 @@
-﻿const fs = require('fs');
+const fs = require('fs');
 const path = require('path');
 const os = require('os');
+
+let activeLocalJobs = 0;
+const MAX_LOCAL_CONCURRENCY = 1;
 
 async function transcribeAudioFile(fileObj, userId = 'default-user') {
   if (!fileObj?.path || !fs.existsSync(fileObj.path)) {
@@ -13,42 +16,51 @@ async function transcribeAudioFile(fileObj, userId = 'default-user') {
   let rawText = '';
   let rawSuccess = false;
 
-  console.log('[STT Local] 正在发送音频至本地 whisper-server 进行初步识别: ' + originalName);
-  try {
-    const localFormData = new globalThis.FormData();
-    const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
-    localFormData.append('file', localBlob, originalName);
-    localFormData.append('language', 'auto');
-    localFormData.append('initial_prompt', '简体中文, English, transcript, 录音.');
+  // 1. 优先尝试本地专属语音引擎（若本地正忙则自动分流至云端智能通道）
+  if (activeLocalJobs < MAX_LOCAL_CONCURRENCY) {
+    activeLocalJobs++;
+    console.log('[语音识别] 正在通过专属语音引擎解析学员发音音频: ' + originalName);
+    try {
+      const localFormData = new globalThis.FormData();
+      const localBlob = new globalThis.Blob([fileBuffer], { type: mimeType });
+      localFormData.append('file', localBlob, originalName);
+      localFormData.append('language', 'auto');
+      localFormData.append('initial_prompt', '简体中文, English, transcript, 录音.');
 
-    const localResponse = await fetch('http://127.0.0.1:8080/inference', {
-      method: 'POST',
-      body: localFormData,
-    });
+      const localResponse = await fetch('http://127.0.0.1:8080/inference', {
+        method: 'POST',
+        body: localFormData,
+      });
 
-    if (localResponse.ok) {
-      const localData = await localResponse.json().catch(() => ({}));
-      rawText = typeof localData.text === 'string' ? localData.text.trim() : '';
+      if (localResponse.ok) {
+        const localData = await localResponse.json().catch(() => ({}));
+        rawText = typeof localData.text === 'string' ? localData.text.trim() : '';
 
-      rawText = rawText
-        .replace(/\[[^\]]*\]/g, '')
-        .replace(/\([^)]*\)/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
+        rawText = rawText
+          .replace(/\[[^\]]*\]/g, '')
+          .replace(/\([^)]*\)/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-      rawSuccess = true;
-      console.log('[STT Local] 本地 whisper-server 原始识别并洗噪成功:', rawText);
-    } else {
-      console.warn('[STT Local] 本地 whisper-server 返回状态码: ' + localResponse.status);
+        rawSuccess = true;
+        console.log('[语音识别] 专属语音引擎解析完成，已完成背景降噪与文本规整: ' + rawText);
+      } else {
+        console.warn('[语音容灾] 专属语音引擎返回状态异常 (' + localResponse.status + ')，自动转入云端备用通道');
+      }
+    } catch (localErr) {
+      console.warn('[语音容灾] 专属语音引擎暂时不可用，已自动切换至云端智能语音通道保障识别: ' + localErr.message);
+    } finally {
+      activeLocalJobs = Math.max(0, activeLocalJobs - 1);
     }
-  } catch (localErr) {
-    console.warn('[STT Local] 本地 whisper-server 调用失败，将降级使用 Dify STT:', localErr.message);
+  } else {
+    console.log('[语音调度] 专属语音引擎当前正忙，已自动分流至云端智能语音通道加速处理: ' + originalName);
   }
 
+  // 2. 本地未成功或正忙时，走云端智能语音通道
   if (!rawSuccess) {
     const sttApiKey = process.env.DIFY_STT_API_KEY;
     const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-    console.log('[STT Dify] 正在降级发送音频至 Dify 接口: ' + originalName);
+    console.log('[语音识别] 正在通过云端智能语音通道解析学员发音音频: ' + originalName);
     try {
       const formData = new globalThis.FormData();
       const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
@@ -74,29 +86,30 @@ async function transcribeAudioFile(fileObj, userId = 'default-user') {
           .trim();
 
         rawSuccess = true;
-        console.log('[STT Dify] Dify STT 原始识别并洗噪成功:', rawText);
+        console.log('[语音识别] 云端智能语音通道已完成发音解析与文本规整: ' + rawText);
       } else {
         const errData = await response.json().catch(() => ({}));
         const errStr = errData?.error?.message || errData?.error || JSON.stringify(errData);
-        console.error('[STT Dify] Dify STT 接口调用失败，状态码: ' + response.status + ', 详情: ' + errStr);
+        console.error('[语音识别] 云端智能语音通道响应异常，状态码: ' + response.status + ', 详情: ' + errStr);
       }
     } catch (difyErr) {
-      console.error('[STT Dify] 降级 Dify 接口也发生异常:', difyErr.message);
+      console.error('[语音识别] 云端智能语音通道发生异常: ' + difyErr.message);
     }
   }
 
+  // 3. 识别结果后处理与表达规整
   if (rawSuccess && rawText) {
-    console.log('[STT Polish] 正在将原始文本发送至大模型进行润色: "' + rawText + '"');
+    console.log('[发音规整] 正在对识别文本进行口语表达优化与标点还原: "' + rawText + '"');
     try {
       const polishedText = await callPolishLLM(rawText);
-      console.log('[STT Polish] 润色成功: "' + polishedText + '"');
+      console.log('[发音规整] 口语表达优化完成: "' + polishedText + '"');
       return polishedText;
     } catch (polishErr) {
-      console.warn('[STT Polish] 大模型润色失败，将降级直接返回原始文本:', polishErr.message);
+      console.warn('[发音规整] 表达优化服务未响应，直接采用原始识别文本: ' + polishErr.message);
       return rawText;
     }
   } else {
-    console.log('[STT Result] 识别出的原始文本为空，直接返回');
+    console.log('[语音识别] 未检测到有效发音内容，直接返回');
     return rawText || '';
   }
 }

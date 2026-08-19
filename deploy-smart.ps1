@@ -69,6 +69,8 @@ if ($Force) {
         if (@($changedFiles).Count -eq 0) {
             $changedFiles = @(
                 'vocab-server/server.js',
+                'vocab-server/services/audioTranscriptionService.js',
+                'vocab-server/services/englishWorkflowProxy.js',
                 'vocab-server/services/gtCaseQuality.js',
                 'vocab-server/services/toneCorrections.js',
                 'vocab-server/services/gameTheorySessionService.js',
@@ -86,11 +88,21 @@ if ($Force) {
                 'vocab-server/services/knowledgeTheoryNodes.js',
                 'vocab-server/services/knowledgeVaultExtra.js',
                 'vocab-server/services/listenAnalysisService.js',
+                'vocab-server/services/dailyListenPreGenerateService.js',
+                'vocab-server/services/dailyPackService.js',
+                'vocab-server/services/dailyPackCron.js',
+                'vocab-server/tests/audioTranscriptionConcurrency.test.js',
+                'vocab-server/tests/oralChatStream.test.js',
+                'vocab-server/tests/listenBackfillSla.test.js',
+                'vocab-server/tests/dailyPackTodaySla.test.js',
+                'vocab-server/tests/writeGovernanceStreamNoFallback.test.js',
+                'vocab-server/tests/gameTheoryRoundStream.test.js',
+                'vocab-server/tests/vocabQueryPerf.test.js',
                 'vocab-server/scripts/backfill-dict-level.js',
                 'vocab-server/scripts/backfill_dict_level.py'
             )
 
-            Write-Host "Fallback upload list: core server + game theory + insight + vault refine & hardness services" -ForegroundColor Yellow
+            Write-Host "Fallback upload list: core server + all services + SLA tests" -ForegroundColor Yellow
         }
     }
 } else {
@@ -228,6 +240,8 @@ try {
         if (-not $changedFiles -or @($changedFiles).Count -eq 0) {
             $changedFiles = @(
                 'vocab-server/server.js',
+                'vocab-server/services/audioTranscriptionService.js',
+                'vocab-server/services/englishWorkflowProxy.js',
                 'vocab-server/services/gtCaseQuality.js',
                 'vocab-server/services/toneCorrections.js',
                 'vocab-server/services/gameTheorySessionService.js',
@@ -246,9 +260,15 @@ try {
                 'vocab-server/services/knowledgeVaultExtra.js',
                 'vocab-server/services/listenAnalysisService.js',
                 'vocab-server/services/dailyListenPreGenerateService.js',
-
                 'vocab-server/services/dailyPackService.js',
                 'vocab-server/services/dailyPackCron.js',
+                'vocab-server/tests/audioTranscriptionConcurrency.test.js',
+                'vocab-server/tests/oralChatStream.test.js',
+                'vocab-server/tests/listenBackfillSla.test.js',
+                'vocab-server/tests/dailyPackTodaySla.test.js',
+                'vocab-server/tests/writeGovernanceStreamNoFallback.test.js',
+                'vocab-server/tests/gameTheoryRoundStream.test.js',
+                'vocab-server/tests/vocabQueryPerf.test.js',
                 'vocab-server/scripts/generate-all-1min-lzhmy.js',
                 'vocab-server/scripts/simulate-frontend-full-generate.js',
                 'vocab-server/scripts/run-real-2am-lzhmy.js',
@@ -334,6 +354,12 @@ try {
  
         Write-Host "  -> Restarting vocab service" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "sudo systemctl restart super-agent-vocab.service"
+
+        Write-Host "  -> Waiting for service initialization & verifying health on remote" -ForegroundColor DarkCyan
+        Start-Sleep -Seconds 2
+        Invoke-RemoteCommand "for i in 1 2 3 4 5; do if curl -fsS http://127.0.0.1:3001/api/vocab/health >/dev/null 2>&1; then curl -sS http://127.0.0.1:3001/api/vocab/health; break; fi; sleep 1; done"
+        Invoke-RemoteCommand "node /var/www/super-agent/vocab-server/tests/oralChatStream.test.js && node /var/www/super-agent/vocab-server/tests/audioTranscriptionConcurrency.test.js && node /var/www/super-agent/vocab-server/tests/listenBackfillSla.test.js && node /var/www/super-agent/vocab-server/tests/dailyPackTodaySla.test.js && node /var/www/super-agent/vocab-server/tests/writeGovernanceStreamNoFallback.test.js && node /var/www/super-agent/vocab-server/tests/gameTheoryRoundStream.test.js"
+        Write-Host "  -> Remote SLA Contract Tests 100% Passed!" -ForegroundColor Green
 
         if ($saveEnvHash) {
             $saveEnvHash | Out-File -FilePath "$ProjectRoot\.deploy_env_hash" -NoNewline
