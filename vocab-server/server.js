@@ -5191,29 +5191,32 @@ app.post('/api/dify/dict-query', async (req, res) => {
     console.warn('[Dict Query] 检索 vocabulary 库警告:', vocabErr.message);
   }
 
-  // 3. 首次查询：双轨机制（1 秒即时呈现基础卡片 + 异步后台触发 Dify 深度职场解析）
-  const instantPayload = buildInstantDictPayload(cleanWord, dictType);
-  const instantResult = {
-    ok: true,
-    type: dictType,
-    fromCache: false,
-    isQuickPreview: true,
-    payload: instantPayload
-  };
+  // 3. 首次查询：直接同步调用 Dify 获取真实深度解析结果（用户等待期间前端显示加载动效）
+  console.log(`[Dict Query] 首查调用 Dify 深度解析: "${cleanWord}" (${dictType})...`);
+  try {
+    let resolvedDirection = direction || 'auto';
+    if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
+      const hasChinese = /[\u4e00-\u9fa5]/.test(cleanWord);
+      resolvedDirection = hasChinese ? 'zh_to_en' : 'en_to_zh';
+    }
+    const difyResult = await queryDifyDictOnBackend(cleanWord, dictType);
+    if (difyResult && (difyResult.payload || difyResult.ok !== false)) {
+      if (!difyResult.type) difyResult.type = dictType;
+      difyResult.ok = true;
+      difyResult.fromCache = false;
+      console.log(`[Dict Query] Dify 深度解析成功: "${cleanWord}" (${dictType})`);
+      return res.json(difyResult);
+    }
+  } catch (difyErr) {
+    console.warn(`[Dict Query] Dify 调用失败 (${cleanWord}):`, difyErr.message);
+  }
 
-  // 立即在后台静默发起 Dify 深度增强，不阻塞当前响应
-  runBackgroundDifyDictEnrichment({
-    cleanWord,
-    dictType,
-    direction,
-    userContext,
-    locale,
-    user_current_profile,
-    userId
+  // 4. Dify 彻底失败时兜底：返回结构化错误，让前端展示友好提示
+  console.warn(`[Dict Query] Dify 解析失败，返回错误提示: "${cleanWord}"`);
+  return res.status(502).json({
+    ok: false,
+    message: `「${cleanWord}」深度解析暂时失败，请稍后重试。`
   });
-
-  console.log(`[Dict Query] 首查秒级直出词条: "${cleanWord}" (${dictType})，并已触发后台异步深度增强`);
-  return res.json(instantResult);
 });
 
 // 辅助函数：从混杂文本中提取可 JSON.parse 的片段（剥离 <think> 标签，```json 块或最外侧 {}）

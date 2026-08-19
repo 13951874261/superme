@@ -1,5 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Type, BookA, Languages, ChevronRight, Search, Loader2, BookmarkPlus, AlertCircle, ChevronLeft, CheckCircle2, ChevronDown, Sparkles, BookOpen, AlertOctagon } from 'lucide-react';
+import gsap from 'gsap';
+import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
+
+gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
 import { addWord, queryDictionary } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
@@ -738,6 +742,63 @@ const DICT_CONFIG = {
 
 const DICT_ORDER: DictType[] = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'];
 
+function DictLoadingIndicator({ word }: { word: string }) {
+  const statusRef = useRef<HTMLSpanElement>(null);
+  const dotRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (!statusRef.current) return;
+    const phases = [
+      { text: '正在连接词典引擎…', chars: 'ABCDEFabcdef0123456789' },
+      { text: '深度解析语义语境…', chars: 'ABCDEFabcdef0123456789' },
+      { text: '提取职场黑话穿透…', chars: 'ABCDEFabcdef0123456789' },
+      { text: '整合近义辨析与例句…', chars: 'ABCDEFabcdef0123456789' },
+    ];
+    const tl = gsap.timeline({ repeat: -1 });
+    phases.forEach((phase, i) => {
+      tl.to(statusRef.current!, {
+        duration: 1.4,
+        scrambleText: { text: phase.text, chars: phase.chars, revealDelay: 0.3, speed: 0.7 },
+        delay: i === 0 ? 0 : 0.4,
+      });
+    });
+    return () => { tl.kill(); };
+  }, []);
+
+  useEffect(() => {
+    if (!dotRef.current) return;
+    const tl = gsap.timeline({ repeat: -1 });
+    tl.to(dotRef.current, { opacity: 0.2, duration: 0.5, ease: 'power1.inOut' })
+      .to(dotRef.current, { opacity: 1, duration: 0.5, ease: 'power1.inOut' });
+    return () => { tl.kill(); };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center py-7 gap-4">
+      <div className="relative w-10 h-10 flex items-center justify-center">
+        <span ref={dotRef} className="absolute w-10 h-10 rounded-full bg-[#FF5722]/10 border border-[#FF5722]/30" />
+        <Loader2 className="w-5 h-5 text-[#FF5722] animate-spin relative z-10" />
+      </div>
+      {word && (
+        <div className="text-center">
+          <span className="text-[11px] font-black text-[#FF5722] tracking-widest uppercase bg-[#FF5722]/8 border border-[#FF5722]/20 px-3 py-1 rounded-full">
+            {word}
+          </span>
+        </div>
+      )}
+      <span
+        ref={statusRef}
+        className="text-xs text-stone-400 font-medium min-h-[1.2em] text-center"
+      >
+        正在连接词典引擎…
+      </span>
+      <p className="text-[10px] text-stone-300 text-center max-w-[180px] leading-relaxed">
+        首次查询需调用 AI 深度解析，通常需要 10~30 秒
+      </p>
+    </div>
+  );
+}
+
 export default function DictionaryPanel() {
   const [openDict, setOpenDict] = useState<DictType | null>(null);
   const [query, setQuery] = useState('');
@@ -844,12 +905,7 @@ export default function DictionaryPanel() {
                   </div>
 
                   {/* 加载中 */}
-                  {isLoading && (
-                    <div className="flex flex-col items-center py-6 text-stone-400 animate-pulse">
-                      <Loader2 className="w-6 h-6 animate-spin mb-2 text-[#FF5722]" />
-                      <span className="text-xs">查询词典中…</span>
-                    </div>
-                  )}
+                  {isLoading && <DictLoadingIndicator word={query.trim()} />}
 
                   {/* 错误 */}
                   {result?.ok === false && (
