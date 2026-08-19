@@ -4918,25 +4918,97 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
   }
 });
 
-// 词典查询：后端代理 Dify dict_tool_workflow，避免前端暴露 API Key
+// 词典查询：后端代理 Dify dict_tool_workflow，支持本地秒级缓存优先与超时自适应放宽
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
   const dictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(rawDictType) ? rawDictType : 'en_zh_bidirectional';
 
-  if (!word) {
+  if (!word || !String(word).trim()) {
     return res.status(400).json({ ok: false, message: 'Please input a word to query.' });
+  }
+
+  const cleanWord = String(word).trim();
+
+  // 1. 本地缓存优先（秒级直出）：优先检索本地历史成功查询记录
+  try {
+    const cached = db.prepare(`
+      SELECT response_payload, level FROM dict_query_log
+      WHERE word = ? COLLATE NOCASE
+        AND dict_type = ?
+        AND is_success = 1
+        AND response_payload IS NOT NULL
+      ORDER BY created_at DESC LIMIT 1
+    `).get(cleanWord, dictType);
+
+    if (cached?.response_payload) {
+      try {
+        const cachedResult = JSON.parse(cached.response_payload);
+        if (cachedResult && (cachedResult.ok || cachedResult.payload)) {
+          console.log(`[Dict Query] 命中本地词典历史缓存: "${cleanWord}" (${dictType})`);
+          if (!cachedResult.type) cachedResult.type = dictType;
+          return res.json({ ...cachedResult, ok: true, fromCache: true });
+        }
+      } catch (_) {}
+    }
+  } catch (cacheErr) {
+    console.warn('[Dict Query] 读取本地历史缓存警告:', cacheErr.message);
+  }
+
+  // 2. 检查 vocabulary 生词库中是否已有该词条数据（二次秒开兜底）
+  try {
+    const vocabRow = db.prepare(`
+      SELECT payload FROM vocabulary
+      WHERE word = ? COLLATE NOCASE AND payload IS NOT NULL
+      ORDER BY added_at DESC LIMIT 1
+    `).get(cleanWord);
+
+    if (vocabRow?.payload) {
+      try {
+        const p = JSON.parse(vocabRow.payload);
+        if (p && (p.meaning || p.meaning_zh || p.definition_en || p.phonetic)) {
+          const meaningZh = p.meaning || p.meaning_zh || p.zh_meaning || '';
+          const definitionEn = p.definition_en || p.definitionEn || '';
+          const examples = Array.isArray(p.examples) ? p.examples : [];
+          const pos = p.partOfSpeech || p.pos || '';
+          const phonetic = p.phonetic || '';
+
+          const vocabFallbackResult = {
+            ok: true,
+            type: dictType,
+            fromCache: true,
+            payload: {
+              headword: cleanWord,
+              phonetic: phonetic,
+              pos: pos,
+              level: p.level || 'B1',
+              meaning_zh: meaningZh,
+              translation_main: meaningZh,
+              definitions_en: definitionEn ? [definitionEn] : [],
+              definition: meaningZh || definitionEn,
+              business_notes: p.business_note || p.businessNote || '',
+              example_sentences: examples.map((ex) => (typeof ex === 'string' ? { en: ex, zh: '' } : ex)),
+            }
+          };
+          console.log(`[Dict Query] 命中本地 vocabulary 词库: "${cleanWord}"`);
+          return res.json(vocabFallbackResult);
+        }
+      } catch (_) {}
+    }
+  } catch (vocabErr) {
+    console.warn('[Dict Query] 检索 vocabulary 库警告:', vocabErr.message);
   }
 
   const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
   if (!DIFY_DICT_API_KEY) return res.status(500).json({ ok: false, message: "Server missing DIFY_DICT_API_KEY" });
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 30000;
+  // 适当放宽至 45 秒，避免 Dify 大模型生成深度职场语义时过早被中断
+  const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 45000;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
 
   try {
-    console.log(`[Dict Query] 发起查询: "${word}", 词典类型: "${dictType}"`);
+    console.log(`[Dict Query] 发起 Dify 工作流查询: "${cleanWord}", 词典类型: "${dictType}"`);
 
     const response = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
@@ -4946,7 +5018,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
       },
       body: JSON.stringify({
         inputs: injectOralSystemTime({
-          word: word.trim(),
+          word: cleanWord,
           dict_type: dictType || 'en_zh_bidirectional',
           direction: direction || 'auto',
           user_context: userContext || '',
@@ -4967,7 +5039,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
           VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
-        `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
+        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
       } catch (logErr) {}
 
       return res.json({ ok: false, fallback: true, message: `Dify 工作流调用失败: HTTP ${response.status}` });
@@ -4983,7 +5055,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
           VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
-        `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
+        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'Missing result in outputs', raw: data }), Date.now());
       } catch (logErr) {}
 
       return res.json({ ok: false, fallback: true, message: 'Dify 工作流未返回有效结果，请稍后重试' });
@@ -4999,10 +5071,15 @@ app.post('/api/dify/dict-query', async (req, res) => {
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
           VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
-        `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
+        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: 'JSON parse error', raw: resultStr }), Date.now());
       } catch (logErr) {}
 
       return res.json({ ok: false, fallback: true, message: '词典结果格式异常，无法解析' });
+    }
+
+    if (parsedResult && typeof parsedResult === 'object') {
+      if (!parsedResult.type) parsedResult.type = dictType;
+      if (parsedResult.ok === undefined) parsedResult.ok = true;
     }
 
     try {
@@ -5011,10 +5088,10 @@ app.post('/api/dify/dict-query', async (req, res) => {
       db.prepare(`
         INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-      `).run(crypto.randomUUID(), word.trim(), dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now());
+      `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now());
     } catch (logErr) {}
 
-    console.log(`[Dict Query] 词条 "${word}" 查询成功，字段:`, Object.keys(parsedResult?.payload || {}));
+    console.log(`[Dict Query] 词条 "${cleanWord}" 查询成功，字段:`, Object.keys(parsedResult?.payload || {}));
     return res.json(parsedResult);
   } catch (error) {
     const isTimeout = error.name === 'AbortError' || /aborted/i.test(error.message || '');
@@ -6594,6 +6671,24 @@ const handleGetDailyExtractArticle = (req, res) => {
           cacheSource = 'daily_listen_articles (fallback)';
           console.log(`[DailyExtract Row Fallback] Matched today's daily_listen_article via fallback instead of exact signature.`);
         }
+      }
+    }
+
+    if (!row) {
+      // 优雅兜底：若精准主题未命中，但当天该维度已有生成的长文（如 02:00 每日定时生成的主题长文），优先提供，避免前台触发 15~30s 阻塞生成
+      const anyTodayArt = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+          AND quota_date = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...userIds, today, genre, cefrLevel, duration, Number(duration));
+      if (anyTodayArt) {
+        row = anyTodayArt;
+        cacheSource = 'daily_extracted_articles (dimension fallback)';
+        console.log(`[DailyExtract Row Fallback] Matched today's daily_extracted_article via dimension fallback.`);
       }
     }
 

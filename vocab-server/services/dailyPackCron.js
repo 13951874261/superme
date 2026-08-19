@@ -149,83 +149,92 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
 
     const existing = dailyPackService.getDailyPackRow(db, row.user_id, packDate, inputSignature);
     if (existing?.status === 'ready' && existing?.source === 'cron') {
-      // PRD: keep continue behavior; mark wakeup/flaw/64 leaves skipped; Listen still runs later
-      dailyCronRunService.writeShortCircuitSkippedTree(db, {
+      // 标记 wakeup 与 flaw 复用已有缓存，继续向下执行 Step 3 长文预生成与 Listen
+      dailyCronRunService.upsertStep(db, {
         runId: run.id,
         userId: row.user_id,
-        reason: 'daily_pack_ready_cron_cache',
+        module: 'wakeup',
+        status: 'skipped',
+        progress: 100,
+        finishedAt: Date.now(),
+        resultSummary: { reason: 'daily_pack_ready_cron_cache' },
+      });
+      dailyCronRunService.upsertStep(db, {
+        runId: run.id,
+        userId: row.user_id,
+        module: 'flaw',
+        status: 'skipped',
+        progress: 100,
+        finishedAt: Date.now(),
+        resultSummary: { reason: 'daily_pack_ready_cron_cache' },
+      });
+      summary.skipped += 1;
+    } else {
+      const wakeupStep = dailyCronRunService.upsertStep(db, {
+        runId: run.id,
+        userId: row.user_id,
+        module: 'wakeup',
+        status: 'running',
         inputs: inputsSnapshot,
         inputSources,
       });
-      summary.skipped += 1;
-      continue;
-    }
-
-    const wakeupStep = dailyCronRunService.upsertStep(db, {
-      runId: run.id,
-      userId: row.user_id,
-      module: 'wakeup',
-      status: 'running',
-      inputs: inputsSnapshot,
-      inputSources,
-    });
-    const flawStep = dailyCronRunService.upsertStep(db, {
-      runId: run.id,
-      userId: row.user_id,
-      module: 'flaw',
-      status: 'running',
-      inputs: { ...inputsSnapshot, note: 'flaw uses dynamicTheme + slice(-50) inside generateFlawVocabForUser' },
-      inputSources,
-    });
-
-    try {
-      await dailyPackService.generateDailyPackForUser(db, row.user_id, row.theme, 'cron');
-      dailyCronRunService.upsertStep(db, {
-        id: wakeupStep.id,
-        runId: run.id,
-        userId: row.user_id,
-        module: 'wakeup',
-        status: 'completed',
-        progress: 100,
-        finishedAt: Date.now(),
-        resultSummary: { ok: true },
-      });
-      dailyCronRunService.upsertStep(db, {
-        id: flawStep.id,
+      const flawStep = dailyCronRunService.upsertStep(db, {
         runId: run.id,
         userId: row.user_id,
         module: 'flaw',
-        status: 'completed',
-        progress: 100,
-        finishedAt: Date.now(),
-        resultSummary: { ok: true },
+        status: 'running',
+        inputs: { ...inputsSnapshot, note: 'flaw uses dynamicTheme + slice(-50) inside generateFlawVocabForUser' },
+        inputSources,
       });
-      summary.ok += 1;
-    } catch (err) {
-      const msg = err.message || String(err);
-      dailyCronRunService.upsertStep(db, {
-        id: wakeupStep.id,
-        runId: run.id,
-        userId: row.user_id,
-        module: 'wakeup',
-        status: 'failed',
-        progress: 100,
-        errorMessage: msg,
-        finishedAt: Date.now(),
-      });
-      dailyCronRunService.upsertStep(db, {
-        id: flawStep.id,
-        runId: run.id,
-        userId: row.user_id,
-        module: 'flaw',
-        status: 'failed',
-        progress: 100,
-        errorMessage: msg,
-        finishedAt: Date.now(),
-      });
-      summary.failed += 1;
-      summary.errors.push({ userId: row.user_id, error: msg });
-      console.error('[DailyPack Cron] user=%s fail: %s', row.user_id, err.message);
+
+      try {
+        await dailyPackService.generateDailyPackForUser(db, row.user_id, row.theme, 'cron');
+        dailyCronRunService.upsertStep(db, {
+          id: wakeupStep.id,
+          runId: run.id,
+          userId: row.user_id,
+          module: 'wakeup',
+          status: 'completed',
+          progress: 100,
+          finishedAt: Date.now(),
+          resultSummary: { ok: true },
+        });
+        dailyCronRunService.upsertStep(db, {
+          id: flawStep.id,
+          runId: run.id,
+          userId: row.user_id,
+          module: 'flaw',
+          status: 'completed',
+          progress: 100,
+          finishedAt: Date.now(),
+        });
+        summary.ok += 1;
+      } catch (err) {
+        const msg = err.message || String(err);
+        dailyCronRunService.upsertStep(db, {
+          id: wakeupStep.id,
+          runId: run.id,
+          userId: row.user_id,
+          module: 'wakeup',
+          status: 'failed',
+          progress: 100,
+          errorMessage: msg,
+          finishedAt: Date.now(),
+        });
+        dailyCronRunService.upsertStep(db, {
+          id: flawStep.id,
+          runId: run.id,
+          userId: row.user_id,
+          module: 'flaw',
+          status: 'failed',
+          progress: 100,
+          errorMessage: msg,
+          finishedAt: Date.now(),
+        });
+        summary.failed += 1;
+        summary.errors.push({ userId: row.user_id, error: msg });
+        console.error('[DailyPack Cron] user=%s fail: %s', row.user_id, err.message);
+      }
     }
 
     // Step 3: 长文预生成（G003 将改为 await extract 终态；此处先写步骤并调用现有路径）
