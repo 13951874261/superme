@@ -3510,13 +3510,10 @@ async function queryDifyDictOnBackend(word, dictType) {
   const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
   if (!DIFY_DICT_API_KEY) throw new Error("Server missing DIFY_DICT_API_KEY");
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const DICT_QUERY_TIMEOUT_MS = 120000;
   const MAX_RETRY = 2;
   let lastError = null;
 
   for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
     try {
       let direction = 'auto';
       if (cleanDictType === 'en_zh_bidirectional') {
@@ -3540,10 +3537,8 @@ async function queryDifyDictOnBackend(word, dictType) {
           }),
           response_mode: 'blocking',
           user: 'backend-export-worker'
-        }),
-        signal: controller.signal
+        })
       });
-      clearTimeout(timeoutId);
       if (!response.ok) {
         const errText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errText}`);
@@ -3584,8 +3579,6 @@ async function queryDifyDictOnBackend(word, dictType) {
         const delay = attempt * 1500;
         await new Promise(r => setTimeout(r, delay));
       }
-    } finally {
-      clearTimeout(timeoutId);
     }
   }
   console.error(`[Backend Export Worker] Dify query completely failed for "${word}" after ${MAX_RETRY} attempts:`, lastError?.message);
@@ -5113,6 +5106,8 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
 
 // 词典查询：后端代理 Dify dict_tool_workflow，双轨架构（秒级即时直出 + 后台静默增强）
 app.post('/api/dify/dict-query', async (req, res) => {
+  req.setTimeout(0);
+  res.setTimeout(0);
   const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
   const dictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(rawDictType) ? rawDictType : 'en_zh_bidirectional';
 

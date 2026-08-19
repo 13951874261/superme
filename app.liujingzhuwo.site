@@ -9,6 +9,20 @@ server {
         try_files $uri $uri/ /index.html;
     }
 
+    # 词典查询需等待 Dify 工作流（商务英英 LLM 可能超过 2 分钟），本路径不按默认 60s/300s 切断
+    location = /api/dify/dict-query {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
     # 长文听力剧本生成可能耗时 10+ 分钟，单独放宽超时
     location = /api/listen/generate-material-long {
         proxy_pass http://127.0.0.1:3001;
