@@ -1,6 +1,6 @@
 async function diagnoseStream() {
-  const word = 'antigravity';
-  const dictType = 'zh_modern';
+  const word = 'sky';
+  const dictType = 'en_zh_bidirectional';
   const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
   const BASE_URL = 'https://dify.234124123.xyz/v1';
 
@@ -19,7 +19,9 @@ async function diagnoseStream() {
           dict_type: dictType,
           direction: 'auto',
           user_context: '',
-          locale: 'zh-CN'
+          locale: 'zh-CN',
+          _system_time: new Date().toISOString(),
+          _system_timestamp_ms: Date.now()
         },
         response_mode: 'streaming',
         user: 'diagnose-stream-script'

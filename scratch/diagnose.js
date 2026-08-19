@@ -19,7 +19,9 @@ async function diagnose() {
           dict_type: dictType,
           direction: 'auto',
           user_context: '',
-          locale: 'zh-CN'
+          locale: 'zh-CN',
+          _system_time: new Date().toISOString(),
+          _system_timestamp_ms: Date.now()
         },
         response_mode: 'blocking',
         user: 'diagnose-script'
