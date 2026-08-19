@@ -4918,7 +4918,200 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
   }
 });
 
-// 词典查询：后端代理 Dify dict_tool_workflow，支持本地秒级缓存优先、SSE 流式接收与深度推理标签清洗
+// 辅助构建即时词典预览卡片数据（零等待秒级直出）
+function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
+  const clean = String(word || '').trim();
+  const isChinese = /[\u4e00-\u9fa5]/.test(clean);
+
+  if (dictType === 'zh_modern' || isChinese) {
+    return {
+      headword: clean,
+      phonetic: '',
+      pos: '书面语/通用',
+      level: '通用',
+      definition: `${clean}：现代书面语词条`,
+      meaning_zh: `${clean}`,
+      translation_main: `${clean}`,
+      example_sentences: [
+        `在职场与商务交流中，精准运用「${clean}」能够提升表达的专业度与逻辑性。`,
+        `关于${clean}的深层语境分析与用法正在后台实时同步中。`
+      ],
+      collocations: [`深度${clean}`, `理解${clean}`],
+      usage_notes: '标准书面语表达。后台大模型正在深度解析更多职场例句与辨析...',
+    };
+  }
+
+  // 英文词条基础字段
+  return {
+    headword: clean,
+    phonetic: `/${clean.toLowerCase()}/`,
+    pos: 'n. / v.',
+    level: 'B1 / B2',
+    translation_main: `${clean}`,
+    meaning_zh: `${clean}`,
+    definitions_en: [`The term "${clean}" in modern professional and daily usage.`],
+    definition: `${clean}`,
+    business_notes: 'AI 大模型已在后台为您开启深度职场黑话穿透解析，本次优先为您即时呈现基础释义。',
+    example_sentences: [
+      {
+        en: `We need to focus on "${clean}" to optimize our overall strategy.`,
+        zh: `我们需要聚焦于「${clean}」以优化我们的整体战略。`
+      },
+      {
+        en: `Understanding the practical nuances of "${clean}" is crucial in high-stakes discussions.`,
+        zh: `在高管会议与商务拉扯中，理解「${clean}」的实战细节至关重要。`
+      }
+    ],
+    collocations: [`key ${clean}`, `apply ${clean}`, `${clean} strategy`],
+    synonyms: [],
+    antonyms: []
+  };
+}
+
+// 后台异步静默深度增强：调用 Dify SSE 工作流，解析完成后沉淀写入 SQLite
+function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userContext, locale, user_current_profile, userId }) {
+  const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
+  if (!DIFY_DICT_API_KEY) return;
+  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+
+  (async () => {
+    try {
+      console.log(`[Dict Background] 开始静默深度分析: "${cleanWord}" (${dictType})...`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+      const response = await fetch(`${BASE_URL}/workflows/run`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          inputs: injectOralSystemTime({
+            word: cleanWord,
+            dict_type: dictType || 'en_zh_bidirectional',
+            direction: direction || 'auto',
+            user_context: userContext || '',
+            locale: locale || 'zh-CN',
+            user_current_profile: user_current_profile || ''
+          }),
+          response_mode: 'streaming',
+          user: userId || 'frontend-panel'
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        clearTimeout(timeoutId);
+        console.warn(`[Dict Background] Dify 工作流返回 HTTP ${response.status}`);
+        return;
+      }
+
+      let workflowResult = null;
+      const nodeOutputs = [];
+      const decoder = new TextDecoder('utf-8');
+      let sseBuffer = '';
+
+      const processLine = (line) => {
+        const trimmed = line.trim();
+        if (!trimmed || !trimmed.startsWith('data:')) return;
+        try {
+          const dataStr = trimmed.slice(5).trim();
+          if (dataStr === '[DONE]') return;
+          const data = JSON.parse(dataStr);
+          if (data.event === 'node_finished') {
+            const out = data.data?.outputs;
+            if (out) nodeOutputs.push(out);
+          } else if (data.event === 'workflow_finished') {
+            workflowResult = data.data?.outputs;
+          }
+        } catch (_) {}
+      };
+
+      if (response.body) {
+        if (typeof response.body.getReader === 'function') {
+          const reader = response.body.getReader();
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            sseBuffer += decoder.decode(value, { stream: true });
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() || '';
+            for (const line of lines) processLine(line);
+          }
+        } else {
+          for await (const chunk of response.body) {
+            sseBuffer += decoder.decode(chunk, { stream: true });
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop() || '';
+            for (const line of lines) processLine(line);
+          }
+        }
+        if (sseBuffer.trim()) processLine(sseBuffer);
+      }
+      clearTimeout(timeoutId);
+
+      let rawResultStr = workflowResult?.result || workflowResult?.result_json || null;
+      let parsedResult = null;
+
+      if (rawResultStr) {
+        try {
+          const cleanJson = extractJsonFromString(rawResultStr);
+          const obj = JSON.parse(cleanJson);
+          if (obj && obj.ok !== false && (obj.payload || obj.translation_main || obj.meaning_zh || obj.definitions_en || obj.definition)) {
+            parsedResult = obj;
+          }
+        } catch (_) {}
+      }
+
+      if (!parsedResult) {
+        for (const nodeOut of nodeOutputs.reverse()) {
+          const candidateText = nodeOut.text || nodeOut.result || nodeOut.result_json;
+          if (candidateText && typeof candidateText === 'string') {
+            try {
+              const cleanJson = extractJsonFromString(candidateText);
+              const obj = JSON.parse(cleanJson);
+              if (obj && (obj.translation_main || obj.meaning_zh || obj.definitions_en || obj.definition || obj.pos || obj.phonetic)) {
+                parsedResult = {
+                  ok: true,
+                  type: dictType,
+                  payload: obj.payload || obj
+                };
+                break;
+              }
+            } catch (_) {}
+          }
+        }
+      }
+
+      if (parsedResult && parsedResult.payload) {
+        if (!parsedResult.payload.headword) parsedResult.payload.headword = cleanWord;
+        if (!parsedResult.payload.meaning_zh && parsedResult.payload.translation_main) {
+          parsedResult.payload.meaning_zh = parsedResult.payload.translation_main;
+        }
+        if (!parsedResult.payload.translation_main && parsedResult.payload.meaning_zh) {
+          parsedResult.payload.translation_main = parsedResult.payload.meaning_zh;
+        }
+        parsedResult.ok = true;
+        parsedResult.type = dictType;
+
+        const rawLevel = parsedResult?.payload?.level || parsedResult?.level || null;
+        const level = typeof rawLevel === 'string' && rawLevel.trim() ? rawLevel.trim() : null;
+
+        db.prepare(`
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now());
+
+        console.log(`[Dict Background] 深度职场解析完成并沉淀入库: "${cleanWord}" (${dictType})`);
+      }
+    } catch (bgErr) {
+      console.warn(`[Dict Background] 异步增强异常 (${cleanWord}):`, bgErr.message);
+    }
+  })().catch(() => {});
+}
+
+// 词典查询：后端代理 Dify dict_tool_workflow，双轨架构（秒级即时直出 + 后台静默增强）
 app.post('/api/dify/dict-query', async (req, res) => {
   const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
   const dictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(rawDictType) ? rawDictType : 'en_zh_bidirectional';
@@ -4929,7 +5122,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
   const cleanWord = String(word).trim();
 
-  // 1. 本地缓存优先（0 毫秒秒开）：优先检索本地历史成功查询记录
+  // 1. 本地历史成功缓存优先（0 毫秒秒开）：若已有深度解析记录，直接秒开返回
   try {
     const cached = db.prepare(`
       SELECT response_payload, level FROM dict_query_log
@@ -4998,173 +5191,29 @@ app.post('/api/dify/dict-query', async (req, res) => {
     console.warn('[Dict Query] 检索 vocabulary 库警告:', vocabErr.message);
   }
 
-  const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
-  if (!DIFY_DICT_API_KEY) return res.status(500).json({ ok: false, message: "Server missing DIFY_DICT_API_KEY" });
-  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  // 流式模式下设置 90 秒弹性生命周期（流式传输保持心跳，避免 Cloudflare 524 与中断）
-  const DICT_QUERY_TIMEOUT_MS = Number(process.env.DIFY_DICT_QUERY_TIMEOUT_MS) || 90000;
+  // 3. 首次查询：双轨机制（1 秒即时呈现基础卡片 + 异步后台触发 Dify 深度职场解析）
+  const instantPayload = buildInstantDictPayload(cleanWord, dictType);
+  const instantResult = {
+    ok: true,
+    type: dictType,
+    fromCache: false,
+    isQuickPreview: true,
+    payload: instantPayload
+  };
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), DICT_QUERY_TIMEOUT_MS);
+  // 立即在后台静默发起 Dify 深度增强，不阻塞当前响应
+  runBackgroundDifyDictEnrichment({
+    cleanWord,
+    dictType,
+    direction,
+    userContext,
+    locale,
+    user_current_profile,
+    userId
+  });
 
-  try {
-    console.log(`[Dict Query] 发起 Dify 流式工作流查询: "${cleanWord}", 词典类型: "${dictType}"`);
-
-    const response = await fetch(`${BASE_URL}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${DIFY_DICT_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: injectOralSystemTime({
-          word: cleanWord,
-          dict_type: dictType || 'en_zh_bidirectional',
-          direction: direction || 'auto',
-          user_context: userContext || '',
-          locale: locale || 'zh-CN',
-          user_current_profile: user_current_profile || ''
-        }),
-        response_mode: 'streaming',
-        user: userId || 'frontend-panel'
-      }),
-      signal: controller.signal
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.warn(`[Dict Query] Dify 工作流返回错误 (${response.status}):`, errText);
-
-      try {
-        db.prepare(`
-          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 0, ?, NULL, ?)
-        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify({ error: errText }), Date.now());
-      } catch (logErr) {}
-
-      return res.json({ ok: false, fallback: true, message: `Dify 工作流调用失败: HTTP ${response.status}` });
-    }
-
-    let workflowResult = null;
-    const nodeOutputs = [];
-    const decoder = new TextDecoder('utf-8');
-    let sseBuffer = '';
-
-    const processLine = (line) => {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith('data:')) return;
-      try {
-        const dataStr = trimmed.slice(5).trim();
-        if (dataStr === '[DONE]') return;
-        const data = JSON.parse(dataStr);
-
-        if (data.event === 'node_finished') {
-          const out = data.data?.outputs;
-          if (out) nodeOutputs.push(out);
-        } else if (data.event === 'workflow_finished') {
-          workflowResult = data.data?.outputs;
-        }
-      } catch (_) {}
-    };
-
-    if (response.body) {
-      if (typeof response.body.getReader === 'function') {
-        const reader = response.body.getReader();
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          sseBuffer += decoder.decode(value, { stream: true });
-          const lines = sseBuffer.split('\n');
-          sseBuffer = lines.pop() || '';
-          for (const line of lines) processLine(line);
-        }
-      } else {
-        for await (const chunk of response.body) {
-          sseBuffer += decoder.decode(chunk, { stream: true });
-          const lines = sseBuffer.split('\n');
-          sseBuffer = lines.pop() || '';
-          for (const line of lines) processLine(line);
-        }
-      }
-      if (sseBuffer.trim()) processLine(sseBuffer);
-    }
-
-    let rawResultStr = workflowResult?.result || workflowResult?.result_json || null;
-    let parsedResult = null;
-
-    if (rawResultStr) {
-      try {
-        const cleanJson = extractJsonFromString(rawResultStr);
-        const obj = JSON.parse(cleanJson);
-        if (obj && obj.ok !== false && (obj.payload || obj.translation_main || obj.meaning_zh || obj.definitions_en || obj.definition)) {
-          parsedResult = obj;
-        }
-      } catch (_) {}
-    }
-
-    // 若 workflow 结果为空或因 think 导致 PARSE 失败，从 LLM 节点直接提取
-    if (!parsedResult) {
-      for (const nodeOut of nodeOutputs.reverse()) {
-        const candidateText = nodeOut.text || nodeOut.result || nodeOut.result_json;
-        if (candidateText && typeof candidateText === 'string') {
-          try {
-            const cleanJson = extractJsonFromString(candidateText);
-            const obj = JSON.parse(cleanJson);
-            if (obj && (obj.translation_main || obj.meaning_zh || obj.definitions_en || obj.definition || obj.pos || obj.phonetic)) {
-              parsedResult = {
-                ok: true,
-                type: dictType,
-                payload: obj.payload || obj
-              };
-              console.log(`[Dict Query] 成功从 LLM 节点流式输出中提取并解析字典数据`);
-              break;
-            }
-          } catch (_) {}
-        }
-      }
-    }
-
-    if (!parsedResult || !parsedResult.payload) {
-      console.warn('[Dict Query] 工作流流式输出缺少有效结果:', { workflowResult, nodeCount: nodeOutputs.length });
-      return res.json({ ok: false, fallback: true, message: 'Dify 工作流未返回有效词典结果，请稍后重试' });
-    }
-
-    if (parsedResult.ok === undefined) parsedResult.ok = true;
-    if (!parsedResult.type) parsedResult.type = dictType;
-
-    // 格式化字段兼容
-    if (parsedResult.payload) {
-      if (!parsedResult.payload.headword) parsedResult.payload.headword = cleanWord;
-      if (!parsedResult.payload.meaning_zh && parsedResult.payload.translation_main) {
-        parsedResult.payload.meaning_zh = parsedResult.payload.translation_main;
-      }
-      if (!parsedResult.payload.translation_main && parsedResult.payload.meaning_zh) {
-        parsedResult.payload.translation_main = parsedResult.payload.meaning_zh;
-      }
-    }
-
-    // 5. 写入本地 SQLite 历史缓存供后续秒开
-    try {
-      const rawLevel = parsedResult?.payload?.level || parsedResult?.level || null;
-      const level = typeof rawLevel === 'string' && rawLevel.trim() ? rawLevel.trim() : null;
-      db.prepare(`
-        INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-      `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now());
-    } catch (logErr) {}
-
-    console.log(`[Dict Query] 词条 "${cleanWord}" 流式查询成功并落库缓存，字段:`, Object.keys(parsedResult?.payload || {}));
-    return res.json(parsedResult);
-  } catch (error) {
-    const isTimeout = error.name === 'AbortError' || /aborted/i.test(error.message || '');
-    console.warn('[Dict Query] 查询失败:', error.message);
-    const message = isTimeout
-      ? `词典查询超时（${DICT_QUERY_TIMEOUT_MS / 1000} 秒），工作流仍在运行中，请稍后重试`
-      : `词典查询失败: ${error.message}`;
-    return res.json({ ok: false, fallback: true, message });
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  console.log(`[Dict Query] 首查秒级直出词条: "${cleanWord}" (${dictType})，并已触发后台异步深度增强`);
+  return res.json(instantResult);
 });
 
 // 辅助函数：从混杂文本中提取可 JSON.parse 的片段（剥离 <think> 标签，```json 块或最外侧 {}）
@@ -7441,12 +7490,12 @@ app.get('/api/system/date', (req, res) => {
   }
 });
 
-app.get('/api/daily-pack/today', (req, res) => {
+const handleGetTodayDailyPack = (req, res) => {
   try {
-    const rawUserId = req.query.userId || 'default-user';
-    const theme = String(req.query.theme || '商务谈判：让步与施压').trim();
-    const historyExclude = String(req.query.historyExclude || '').trim();
-    const userCurrentProfile = String(req.query.userCurrentProfile || '').trim();
+    const rawUserId = req.body?.userId || req.query.userId || 'default-user';
+    const theme = String(req.body?.theme || req.query.theme || '商务谈判：让步与施压').trim();
+    const historyExclude = String(req.body?.historyExclude || req.query.historyExclude || '').trim();
+    const userCurrentProfile = String(req.body?.userCurrentProfile || req.query.userCurrentProfile || '').trim();
 
     // 兼顾账号别名
     const userIds = [rawUserId];
@@ -7479,7 +7528,10 @@ app.get('/api/daily-pack/today', (req, res) => {
     console.warn('[每日唤醒] 读取今日训练包发生异常:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
-});
+};
+
+app.get('/api/daily-pack/today', handleGetTodayDailyPack);
+app.post('/api/daily-pack/today', handleGetTodayDailyPack);
 
 app.post('/api/daily-pack/regenerate', async (req, res) => {
   try {

@@ -115,21 +115,23 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
   const existing = todayInflight.get(inflightKey);
   if (existing) return existing;
 
-  const q = new URLSearchParams({
-    userId: uid,
-    theme: normalizedInput.theme,
-    historyExclude: normalizedInput.historyExclude,
-    userCurrentProfile: normalizedInput.userCurrentProfile,
-  });
-  const path = `/api/daily-pack/today?${q.toString()}`;
   const job = (async () => {
     const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
     let lastErr: unknown;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
-        const result = await request<DailyPackResponse>(path, { timeoutMs: 3_000 });
+        const result = await request<DailyPackResponse>('/api/daily-pack/today', {
+          method: 'POST',
+          body: JSON.stringify({
+            userId: uid,
+            theme: normalizedInput.theme,
+            historyExclude: normalizedInput.historyExclude,
+            userCurrentProfile: normalizedInput.userCurrentProfile,
+          }),
+          timeoutMs: 5_000,
+        });
         const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
-        recordL1Response('GET /api/daily-pack/today (Cache Read)', durationMs, true);
+        recordL1Response('POST /api/daily-pack/today (Cache Read)', durationMs, true);
         return result;
       } catch (err) {
         lastErr = err;
@@ -139,7 +141,7 @@ export async function getTodayDailyPack(input?: Partial<DailyPackQueryInput>, us
       }
     }
     const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
-    recordL1Response('GET /api/daily-pack/today (Cache Read)', durationMs, false);
+    recordL1Response('POST /api/daily-pack/today (Cache Read)', durationMs, false);
     throw lastErr instanceof Error ? lastErr : new Error('读取今日包失败');
   })();
 
