@@ -3510,8 +3510,8 @@ async function queryDifyDictOnBackend(word, dictType) {
   const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
   if (!DIFY_DICT_API_KEY) throw new Error("Server missing DIFY_DICT_API_KEY");
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-  const DICT_QUERY_TIMEOUT_MS = 30000;
-  const MAX_RETRY = 3;
+  const DICT_QUERY_TIMEOUT_MS = 120000;
+  const MAX_RETRY = 2;
   let lastError = null;
 
   for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
