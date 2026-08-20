@@ -517,51 +517,81 @@ function VocabularyBookComponent() {
                           </div>
                         </div>
 
-                        <div className="opacity-0 group-hover:opacity-100 flex items-center transition-opacity ml-2 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex bg-white/95 shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-1.5 backdrop-blur-sm">
+                        <div className="relative ml-2 shrink-0 flex items-center justify-end min-w-[120px] h-9">
+                          {/* 非悬停状态：展示复习进度面板 */}
+                          <div className="flex flex-col items-end justify-center transition-opacity duration-200 group-hover:opacity-0 group-hover:pointer-events-none text-right select-none">
+                            <div className="text-[10px] text-slate-500 font-medium leading-tight">
+                              {word.repetitions === 999 ? (
+                                <span className="text-emerald-600 font-bold">已归档掌握</span>
+                              ) : (
+                                <>第 <span className="font-bold text-slate-700">{word.repetitions || 0}</span> 轮 · 间隔 <span className="font-bold text-slate-700">{word.interval_days || 1}</span> 天</>
+                              )}
+                            </div>
+                            <div className="w-16 bg-slate-100 h-1.5 rounded-full mt-1.5 overflow-hidden flex" title={`记忆因子: ${word.ease_factor || 2.5}`}>
+                              <div 
+                                className={`h-full rounded-full transition-all ${
+                                  word.repetitions === 999 
+                                    ? 'bg-emerald-500 w-full' 
+                                    : (word.ease_factor || 2.5) >= 2.5 
+                                      ? 'bg-emerald-400' 
+                                      : (word.ease_factor || 2.5) >= 2.0 
+                                        ? 'bg-amber-400' 
+                                        : 'bg-orange-400'
+                                }`}
+                                style={{
+                                  width: word.repetitions === 999 ? '100%' : `${Math.min(100, Math.max(15, (((word.ease_factor || 2.5) - 1.3) / (3.0 - 1.3)) * 100))}%`
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* 悬停状态：显示操作按钮 */}
+                          <div className="absolute right-0 opacity-0 group-hover:opacity-100 flex items-center transition-opacity shrink-0" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex bg-white/95 shadow-sm border border-gray-100 rounded-lg overflow-hidden mr-1.5 backdrop-blur-sm">
+                              <button
+                                title="编辑"
+                                onClick={(e) => { e.stopPropagation(); setEditingWord(word); }}
+                                className="px-1.5 py-1 text-gray-400 hover:bg-orange-50 hover:text-[#FF5722] transition border-r border-gray-100"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                title="重新学习（第一节点）"
+                                onClick={(e) => handleIntervention(word.id, 'restart', e)}
+                                className="px-1.5 py-1 text-gray-400 hover:bg-amber-50 hover:text-amber-500 transition border-r border-gray-100"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                title="退回"
+                                onClick={(e) => handleIntervention(word.id, 'step-back', e)}
+                                className="px-1.5 py-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition border-r border-gray-100"
+                              >
+                                <Rewind className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                title="跳过"
+                                onClick={(e) => handleIntervention(word.id, 'step-forward', e)}
+                                className="px-1.5 py-1 text-gray-400 hover:bg-slate-50 hover:text-slate-600 transition border-r border-gray-100"
+                              >
+                                <FastForward className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                title="归档"
+                                onClick={(e) => handleIntervention(word.id, 'master', e)}
+                                className="px-1.5 py-1 text-gray-400 hover:bg-emerald-50 hover:text-emerald-500 transition"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
                             <button
-                              title="编辑"
-                              onClick={(e) => { e.stopPropagation(); setEditingWord(word); }}
-                              className="px-1.5 py-1 text-gray-400 hover:bg-orange-50 hover:text-[#FF5722] transition border-r border-gray-100"
+                              onClick={(e) => handleDelete(word.id, e)}
+                              className="text-gray-300 hover:text-red-400 p-1 transition rounded-lg"
+                              title="删除"
                             >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              title="重新学习（第一节点）"
-                              onClick={(e) => handleIntervention(word.id, 'restart', e)}
-                              className="px-1.5 py-1 text-gray-400 hover:bg-amber-50 hover:text-amber-500 transition border-r border-gray-100"
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              title="退回"
-                              onClick={(e) => handleIntervention(word.id, 'step-back', e)}
-                              className="px-1.5 py-1 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition border-r border-gray-100"
-                            >
-                              <Rewind className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              title="跳过"
-                              onClick={(e) => handleIntervention(word.id, 'step-forward', e)}
-                              className="px-1.5 py-1 text-gray-400 hover:bg-slate-50 hover:text-slate-600 transition border-r border-gray-100"
-                            >
-                              <FastForward className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              title="归档"
-                              onClick={(e) => handleIntervention(word.id, 'master', e)}
-                              className="px-1.5 py-1 text-gray-400 hover:bg-emerald-50 hover:text-emerald-500 transition"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          <button
-                            onClick={(e) => handleDelete(word.id, e)}
-                            className="text-gray-300 hover:text-red-400 p-1 transition rounded-lg"
-                            title="删除"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                       </div>
 
