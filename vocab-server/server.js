@@ -7179,23 +7179,7 @@ const handleGetDailyExtractArticle = (req, res) => {
       }
     }
 
-    if (!row) {
-      // 优雅兜底：若精准主题未命中，但当天该维度已有生成的长文（如 02:00 每日定时生成的主题长文），优先提供，避免前台触发 15~30s 阻塞生成
-      const anyTodayArt = db.prepare(`
-        SELECT * FROM daily_extracted_articles
-        WHERE user_id IN (${userIds.map(() => '?').join(',')})
-          AND quota_date = ?
-          AND genre = ?
-          AND cefr_level = ?
-          AND (duration = ? OR duration = ?)
-        ORDER BY created_at DESC LIMIT 1
-      `).get(...userIds, today, genre, cefrLevel, duration, Number(duration));
-      if (anyTodayArt) {
-        row = anyTodayArt;
-        cacheSource = 'daily_extracted_articles (dimension fallback)';
-        console.log(`[DailyExtract Row Fallback] Matched today's daily_extracted_article via dimension fallback.`);
-      }
-    }
+    // 有 topic/theme 时不做「无主题维度兜底」，避免返回错误主题的长文
 
     if (!row) {
       return res.json({ success: true, found: false });
@@ -7234,7 +7218,10 @@ app.get('/api/english/daily-extract/article/exact', handleGetDailyExtractArticle
 // 前台发起 daily-extract 生成请求，创建 taskId 后异步后台运行
 app.post('/api/english/daily-extract', async (req, res) => {
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = req.body;
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const bizPackDate = String(req.body?.businessPackDate || '').trim();
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(bizPackDate)
+    ? bizPackDate
+    : dailyPackService.getPackDate();
 
   try {
     // Step 1: ????????????????????????
@@ -7257,22 +7244,8 @@ app.post('/api/english/daily-extract', async (req, res) => {
     const wordsLeft = WORD_DAILY_LIMIT - (quotaRow.words_added || 0);
     const phrasesLeft = PHRASE_DAILY_LIMIT - (quotaRow.phrases_added || 0);
 
-    // Step 2: 词 + 短语入库配额均已耗尽时拦截（避免用户误以为「没提取到词表」）
-    if (wordsLeft <= 0 && phrasesLeft <= 0) {
-      return res.json({
-        success: false,
-        quotaExceeded: true,
-        message: `今日入库配额已用尽（词 ${quotaRow.words_added || 0}/${WORD_DAILY_LIMIT}，短语 ${quotaRow.phrases_added || 0}/${PHRASE_DAILY_LIMIT}）。词表不会为空提取失败，而是无法继续写入生词本。请在弹药库点击「清空今日配额与生词」后重试，或明天再来。`,
-        quota: {
-          wordsLimit: WORD_DAILY_LIMIT,
-          wordsUsed: quotaRow.words_added || 0,
-          wordsLeft: 0,
-          phrasesLimit: PHRASE_DAILY_LIMIT,
-          phrasesUsed: quotaRow.phrases_added || 0,
-          phrasesLeft: 0,
-        }
-      });
-    }
+    // SPEC: quota gate removed for generate
+    // 提取结果只写 daily_extracted_articles 缓存，不再因入库配额耗尽拒绝长文生成
 
     // ??????????????????????????
     const inputText = materialText?.trim() || topic || '';
@@ -7293,11 +7266,22 @@ app.post('/api/english/daily-extract', async (req, res) => {
       });
     }
 
-    // Step 3: ????????????????????
-    const taskId = crypto.randomUUID();
+    // Step 3: 登记 taskQueue（任务中心）+ extractionTasks（status 轮询），共用同一 taskId
+    const taskQueue = require('./services/taskQueue');
+    const topicLabel = String(topic || materialText || '长文').slice(0, 40);
+    const tq = taskQueue.createTask(
+      'daily_extract',
+      `长文生成与提纯: ${topicLabel} (${genre}/${cefrLevel}/${duration}m)`
+    );
+    const taskId = tq.id;
     extractionTasks.set(taskId, {
       status: 'pending',
       createdAt: Date.now()
+    });
+    taskQueue.updateTask(taskId, {
+      status: 'running',
+      progress: 5,
+      logs: ['已受理，正在生成长文并提纯词表（仅写展示缓存，不写入生词本）…'],
     });
 
     res.json({
@@ -7309,7 +7293,11 @@ app.post('/api/english/daily-extract', async (req, res) => {
     // ??????????????
     runDailyExtractAsync(taskId, req.body, wordsLeft, phrasesLeft, quotaRow, today).catch(e => {
       console.error('[Daily Extract Async] Unhandled error:', e);
-      extractionTasks.set(taskId, { status: 'failed', error: e.message || 'Unknown error occurred in background task.', createdAt: Date.now() });
+      const errMsg = e.message || 'Unknown error occurred in background task.';
+      extractionTasks.set(taskId, { status: 'failed', error: errMsg, createdAt: Date.now() });
+      try {
+        require('./services/taskQueue').updateTask(taskId, { status: 'failed', error: errMsg, progress: 100 });
+      } catch (_) {}
     });
 
   } catch (error) {
@@ -7321,10 +7309,26 @@ app.post('/api/english/daily-extract', async (req, res) => {
 });
 
 // ????????????????
-async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft, quotaRow, today) {
+async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft, quotaRow, todayArg) {
   const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile, _system_time, _system_timestamp_ms } = requestBody;
+  const bizPackDate = String(requestBody?.businessPackDate || '').trim();
+  const today = /^\d{4}-\d{2}-\d{2}$/.test(bizPackDate)
+    ? bizPackDate
+    : dailyPackService.getPackDate();
+  const taskQueue = require('./services/taskQueue');
+  const syncFail = (error) => {
+    const msg = String(error || 'Unknown error');
+    extractionTasks.set(taskId, { status: 'failed', error: msg, createdAt: Date.now() });
+    taskQueue.updateTask(taskId, { status: 'failed', error: msg, progress: 100 });
+  };
 
   try {
+    taskQueue.updateTask(taskId, {
+      status: 'running',
+      progress: 15,
+      logs: ['开始调用模型生成长文…'],
+    });
+
     // ????????????????? (history_exclude) ????????? (user_flaws)
     let historyExclude = '';
     try {
@@ -7405,18 +7409,14 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     } catch (fetchErr) {
       clearTimeout(fetchTimeout);
       console.error("[Daily Extract] Dify fetch 请求发起失败:", fetchErr);
-      extractionTasks.set(taskId, { status: 'failed', error: `Dify 服务请求失败: ${fetchErr.message}`, createdAt: Date.now() });
+      syncFail(`Dify 服务请求失败: ${fetchErr.message}`);
       return;
     }
 
     if (!wfResponse.ok) {
       const errText = await wfResponse.text();
       console.error("[Daily Extract] Dify HTTP error:", errText);
-      extractionTasks.set(taskId, {
-        status: 'failed',
-        error: formatDifyModelError(errText || `HTTP ${wfResponse.status}`),
-        createdAt: Date.now(),
-      });
+      syncFail(formatDifyModelError(errText || `HTTP ${wfResponse.status}`));
       return;
     }
 
@@ -7463,7 +7463,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           }
         } catch (readErr) {
           console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          syncFail(`数据流读取异常: ${readErr.message}`);
           return;
         }
       } else {
@@ -7474,7 +7474,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           }
         } catch (readErr) {
           console.error("[Daily Extract] 强行读取流失败:", readErr);
-          extractionTasks.set(taskId, { status: 'failed', error: `数据流读取异常: ${readErr.message}`, createdAt: Date.now() });
+          syncFail(`数据流读取异常: ${readErr.message}`);
           return;
         }
       }
@@ -7495,16 +7495,12 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         }
       }
     } else {
-      extractionTasks.set(taskId, { status: 'failed', error: "Streaming not supported by Dify backend", createdAt: Date.now() });
+      syncFail("Streaming not supported by Dify backend");
       return;
     }
 
     if (streamError) {
-      extractionTasks.set(taskId, {
-        status: 'failed',
-        error: formatDifyModelError(streamError),
-        createdAt: Date.now(),
-      });
+      syncFail(formatDifyModelError(streamError));
       return;
     }
 
@@ -7518,11 +7514,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     }
 
     if (!articleText.trim()) {
-      extractionTasks.set(taskId, {
-        status: 'failed',
-        error: formatDifyModelError(answer || 'Dify 流式响应为空，未生成长文正文'),
-        createdAt: Date.now(),
-      });
+      syncFail(formatDifyModelError(answer || 'Dify 流式响应为空，未生成长文正文'));
       return;
     }
 
@@ -7633,89 +7625,14 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       vocabSource = 'empty';
     }
 
-    // 入库仍受配额限制
-    const wordsToStore = vocabList.filter(v => !v.is_sentence).slice(0, wordsLeft);
-    const phrasesToStore = uniquePhraseList.slice(0, phrasesLeft);
-
-    let wordsAddedCount = 0;
+    // 提取结果仅缓存展示，不自动写入生词本（手动 collect 路径不变）
+    const wordsAddedCount = 0;
+    const phrasesAddedCount = 0;
+    const sentencesAddedCount = 0;
     const now = Date.now();
-    const insertWord = db.transaction((words) => {
-      for (const item of words) {
-        const w = item.word.trim();
-        if (!w || w.length > 100) continue;
-        const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(w);
-        if (!existing) {
-          const id = crypto.randomUUID();
-          const payload = {
-            phonetic: item.phonetic || '',
-            partOfSpeech: item.partOfSpeech || '',
-            meaning: item.meaning || '',
-            definition_en: item.definition_en || '',
-            business_note: item.business_note || '',
-            examples: item.examples || [],
-            source: 'Daily Extract',
-            topic
-          };
-          db.prepare(`
-            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, w, 'ai_extracted', 'business', JSON.stringify(payload), now, now, '[]');
-          wordsAddedCount++;
-        }
-      }
-    });
-    insertWord(wordsToStore);
 
-    let phrasesAddedCount = 0;
-    const insertPhrase = db.transaction((phrases) => {
-      for (const phraseStr of phrases) {
-        const p = typeof phraseStr === 'string' ? phraseStr.trim() : String(phraseStr);
-        if (!p || p.length > 500) continue;
-        const existingPhrase = db.prepare(
-          "SELECT id FROM vocabulary WHERE dict_type = 'ai_phrase' AND payload LIKE ? COLLATE NOCASE"
-        ).get(`%${p.substring(0, 50)}%`);
-        if (!existingPhrase) {
-          const id = crypto.randomUUID();
-          db.prepare(`
-            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, p, 'ai_phrase', 'business', JSON.stringify({ source: 'Daily Extract', topic, type: 'phrase' }), now, now, '[]');
-          phrasesAddedCount++;
-        }
-      }
-    });
-    insertPhrase(phrasesToStore);
-
-    let sentencesAddedCount = 0;
-    const insertSentence = db.transaction((sentences) => {
-      for (const sentStr of sentences) {
-        const s = typeof sentStr === 'string' ? sentStr.trim() : String(sentStr);
-        if (!s || s.length > 500) continue;
-        const probe = s.substring(0, 50).replace(/[%_]/g, '\\$&');
-        const existingSent = db.prepare(
-          "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
-        ).get(`${probe}%`);
-
-        if (!existingSent) {
-          const id = crypto.randomUUID();
-          db.prepare(`
-            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, s, 'ai_sentence', 'business', JSON.stringify({ source: 'Daily Extract', topic, type: 'sentence' }), now, now, '[]');
-          sentencesAddedCount++;
-        }
-      }
-    });
-    insertSentence(uniqueSentenceList);
-
-    db.prepare(`
-      UPDATE daily_vocab_quota
-      SET words_added = words_added + ?, phrases_added = phrases_added + ?, last_extraction_at = ?, updated_at = ?
-      WHERE user_id = ? AND quota_date = ?
-    `).run(wordsAddedCount, phrasesAddedCount, now, now, userId, today);
-
-    const updatedWordsUsed = (quotaRow.words_added || 0) + wordsAddedCount;
-    const updatedPhrasesUsed = (quotaRow.phrases_added || 0) + phrasesAddedCount;
+    const updatedWordsUsed = quotaRow.words_added || 0;
+    const updatedPhrasesUsed = quotaRow.phrases_added || 0;
 
     try {
       const genId = crypto.randomUUID();
@@ -7728,16 +7645,16 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
         topic || 'General Business',
         Date.now(),
         (articleText || '').substring(0, 100),
-        JSON.stringify(wordsToStore.map(w => w.word))
+        JSON.stringify(displayWords)
       );
     } catch (e) {
       console.warn('[Daily Extract] 构建去重上下文失败:', e.message);
     }
 
-    console.log(`[Daily Extract Async] Completed ${taskId}. User ${userId} ${today} added ${wordsAddedCount} words.`);
+    console.log(`[Daily Extract Async] Completed ${taskId}. User ${userId} ${today} cached for display (no vocab book auto-insert).`);
 
     const finalPayload = {
-      message: `Extraction complete: added ${wordsAddedCount} words, ${phrasesAddedCount} phrases, ${sentencesAddedCount} sentences.`,
+      message: 'Extraction complete: cached for display (no vocab book auto-insert).',
       quota: {
         wordsLimit: WORD_DAILY_LIMIT,
         wordsUsed: updatedWordsUsed,
@@ -7761,6 +7678,11 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
 
     // 保存至 daily_extracted_articles 物理持久库
     try {
+      taskQueue.updateTask(taskId, {
+        status: 'running',
+        progress: 85,
+        logs: ['正在写入展示缓存 daily_extracted_articles…'],
+      });
       const artId = crypto.randomUUID();
       const durationVal = requestBody?.duration ? String(requestBody.duration) : (duration ? String(duration) : '25');
       const profileForSig = String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || '').trim();
@@ -7828,14 +7750,25 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       payload: finalPayload,
       createdAt: Date.now()
     });
+    taskQueue.updateTask(taskId, {
+      status: 'completed',
+      progress: 100,
+      logs: ['长文生成与提纯完成（仅写展示缓存，不写入生词本）'],
+      result: {
+        article: finalPayload.article,
+        words: finalPayload.words,
+        phrases: finalPayload.phrases,
+        sentences: finalPayload.sentences,
+        wordCount: finalPayload.wordCount,
+        phraseCount: finalPayload.phraseCount,
+        sentenceCount: finalPayload.sentenceCount,
+        vocabSource: finalPayload.vocabSource,
+      },
+    });
 
   } catch (error) {
     console.error('[Daily Extract Async] Global Error:', error);
-    extractionTasks.set(taskId, {
-      status: 'failed',
-      error: error.message || 'Unknown error',
-      createdAt: Date.now()
-    });
+    syncFail(error.message || 'Unknown error');
   }
 }
 

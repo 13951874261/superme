@@ -856,19 +856,12 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
   try { db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'").run(); } catch (e) {}
   try { db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN input_signature TEXT DEFAULT ''").run(); } catch (e) {}
 
-  let existing;
-  try {
-    existing = db.prepare(
-      'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ? AND duration = ?'
-    ).get(uid, packDate, genre, cefrLevel, String(duration));
-  } catch (e) {
-    existing = db.prepare(
-      'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND genre = ? AND cefr_level = ?'
-    ).get(uid, packDate, genre, cefrLevel);
-  }
+  const existing = db.prepare(
+    'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND theme = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+  ).get(uid, packDate, theme, genre, cefrLevel, String(duration));
 
   if (existing) {
-    console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${genre}/${cefrLevel}/${duration})`);
+    console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${theme}/${genre}/${cefrLevel}/${duration})`);
     return { success: true, status: 'skipped', reason: 'already_generated' };
   }
 

@@ -4,7 +4,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'speak' | 'vocab_add' | 'theme_delete';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'speak' | 'vocab_add' | 'theme_delete' | 'daily_extract';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -134,7 +134,15 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       createdAt: task.createdAt ?? now,
       updatedAt: task.updatedAt ?? now,
     };
-    setTasks((prev) => [normalized, ...prev]);
+    setTasks((prev) => {
+      const idx = prev.findIndex((t) => t.id === normalized.id);
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = { ...prev[idx], ...normalized };
+        return next;
+      }
+      return [normalized, ...prev];
+    });
     if (normalized.status === 'pending' || normalized.status === 'running') {
       startPolling(normalized.id);
     }

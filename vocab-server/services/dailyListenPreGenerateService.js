@@ -55,7 +55,7 @@ function initDailyListenTables(db) {
       input_signature TEXT DEFAULT '',
       created_at INTEGER,
       updated_at INTEGER,
-      UNIQUE(user_id, quota_date, genre, cefr_level)
+      UNIQUE(user_id, quota_date, theme, genre, cefr_level, duration)
     )
   `).run();
 
@@ -115,6 +115,111 @@ function initDailyListenTables(db) {
   `).run();
 
   ensureListenInputSignatureSchema(db);
+  ensureDailyExtractedArticlesSchema(db);
+}
+
+function ensureDailyExtractedArticlesSchema(db) {
+  const tableSql = String(
+    db.prepare(`SELECT sql FROM sqlite_master WHERE type='table' AND name='daily_extracted_articles'`).get()?.sql || ''
+  );
+  const needsRebuild =
+    !tableSql ||
+    !/UNIQUE\s*\(\s*user_id\s*,\s*quota_date\s*,\s*theme\s*,\s*genre\s*,\s*cefr_level\s*,\s*duration\s*\)/i.test(tableSql);
+
+  if (needsRebuild && tableSql) {
+    const cols = db.prepare(`PRAGMA table_info(daily_extracted_articles)`).all();
+    if (!cols.some((c) => c.name === 'duration')) {
+      db.exec(`ALTER TABLE daily_extracted_articles ADD COLUMN duration TEXT DEFAULT '25'`);
+    }
+    if (!cols.some((c) => c.name === 'input_signature')) {
+      db.exec(`ALTER TABLE daily_extracted_articles ADD COLUMN input_signature TEXT DEFAULT ''`);
+    }
+
+    // Prefer GROUP BY + max(updated_at) over ROW_NUMBER for broader SQLite compatibility.
+    const rebuild = db.transaction(() => {
+      db.exec(`DROP TABLE IF EXISTS daily_extracted_articles_v2`);
+      db.exec(`
+        CREATE TABLE daily_extracted_articles_v2 (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          quota_date TEXT NOT NULL,
+          theme TEXT NOT NULL,
+          genre TEXT NOT NULL,
+          cefr_level TEXT NOT NULL,
+          article TEXT NOT NULL,
+          words_json TEXT NOT NULL,
+          phrases_json TEXT NOT NULL,
+          sentences_json TEXT NOT NULL,
+          duration TEXT DEFAULT '25',
+          input_signature TEXT DEFAULT '',
+          created_at INTEGER,
+          updated_at INTEGER,
+          UNIQUE(user_id, quota_date, theme, genre, cefr_level, duration)
+        );
+
+        INSERT INTO daily_extracted_articles_v2
+          (id,user_id,quota_date,theme,genre,cefr_level,article,words_json,phrases_json,sentences_json,duration,input_signature,created_at,updated_at)
+        SELECT d.id, d.user_id, d.quota_date, d.theme, d.genre, d.cefr_level, d.article, d.words_json, d.phrases_json, d.sentences_json,
+               COALESCE(d.duration,'25'), COALESCE(d.input_signature,''), d.created_at, d.updated_at
+        FROM daily_extracted_articles d
+        INNER JOIN (
+          SELECT user_id, quota_date, theme, genre, cefr_level, COALESCE(duration,'25') AS dur,
+                 MAX(COALESCE(updated_at, 0)) AS max_updated
+          FROM daily_extracted_articles
+          GROUP BY user_id, quota_date, theme, genre, cefr_level, COALESCE(duration,'25')
+        ) keep ON keep.user_id = d.user_id
+          AND keep.quota_date = d.quota_date
+          AND keep.theme = d.theme
+          AND keep.genre = d.genre
+          AND keep.cefr_level = d.cefr_level
+          AND keep.dur = COALESCE(d.duration,'25')
+          AND keep.max_updated = COALESCE(d.updated_at, 0)
+        WHERE d.rowid = (
+          SELECT d2.rowid FROM daily_extracted_articles d2
+          WHERE d2.user_id = d.user_id
+            AND d2.quota_date = d.quota_date
+            AND d2.theme = d.theme
+            AND d2.genre = d.genre
+            AND d2.cefr_level = d.cefr_level
+            AND COALESCE(d2.duration,'25') = COALESCE(d.duration,'25')
+            AND COALESCE(d2.updated_at, 0) = COALESCE(d.updated_at, 0)
+          ORDER BY COALESCE(d2.created_at, 0) DESC, d2.rowid DESC
+          LIMIT 1
+        );
+
+        DROP TABLE daily_extracted_articles;
+        ALTER TABLE daily_extracted_articles_v2 RENAME TO daily_extracted_articles;
+      `);
+    });
+    rebuild();
+  } else if (!tableSql) {
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS daily_extracted_articles (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        quota_date TEXT NOT NULL,
+        theme TEXT NOT NULL,
+        genre TEXT NOT NULL,
+        cefr_level TEXT NOT NULL,
+        article TEXT NOT NULL,
+        words_json TEXT NOT NULL,
+        phrases_json TEXT NOT NULL,
+        sentences_json TEXT NOT NULL,
+        duration TEXT DEFAULT '25',
+        input_signature TEXT DEFAULT '',
+        created_at INTEGER,
+        updated_at INTEGER,
+        UNIQUE(user_id, quota_date, theme, genre, cefr_level, duration)
+      )
+    `).run();
+  }
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_dea_user_date_dims
+      ON daily_extracted_articles(user_id, quota_date, theme, genre, cefr_level, duration);
+    CREATE INDEX IF NOT EXISTS idx_dea_user_date_sig
+      ON daily_extracted_articles(user_id, quota_date, input_signature);
+  `);
 }
 
 function ensureListenInputSignatureSchema(db) {

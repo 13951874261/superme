@@ -19,6 +19,7 @@ import { getAppUserId } from '../../../../utils/profileHelper';
 import { lookupVocabWords, getVocabItem, queryDictionaryWithCache, createConcurrencyLimiter } from '../../../../services/vocabAPI';
 import { useVocabCollect } from '../../../../hooks/useVocabCollect';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
+import { useTask } from '../../../TaskContext';
 
 import { VOICE_OPTIONS } from '../../../../config/voices';
 
@@ -56,6 +57,7 @@ export default function DashboardTab() {
   const { collect: collectVocab } = useVocabCollect({
     notify: (message, type) => showNotice('dashboard', message, type),
   });
+  const { addTask, startPolling } = useTask();
 
   const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
   const [isSopExpanded, setIsSopExpanded] = useState(false);
@@ -572,7 +574,13 @@ export default function DashboardTab() {
     playScan();
     showNotice('dashboard', '正在查询缓存 / 准备生成...', 'info');
     try {
-      const { fetchExactArticleIfExists, triggerEnglishMasteryExtraction } = await import('../../../../services/difyAPI');
+      const {
+        fetchExactArticleIfExists,
+        startEnglishMasteryExtraction,
+        waitEnglishMasteryExtraction,
+        withDailyExtractTimeout,
+        DAILY_EXTRACT_RACE_MS,
+      } = await import('../../../../services/difyAPI');
 
       // 1. 先查：优先校验数据库中是否存在匹配当前多维度组合的已生成长文
       const exactRes = await fetchExactArticleIfExists({
@@ -599,88 +607,96 @@ export default function DashboardTab() {
         return;
       }
 
-      // 未命中：用户主动点击后才生成
-      // 说明：长文正文与词表均由 daily-extract（English Mastery）异步生成。
-      // 不再前置调用 /api/listen/generate-material（短文 blocking），避免 Cloudflare 524 超时。
+      // 未命中：用户主动点击后才生成（3 秒竞速，超时转入任务中心）
       showNotice('dashboard', '缓存未命中，开始手动生成...', 'info');
 
-      const result = await triggerEnglishMasteryExtraction(theme, '', getAppUserId(), cefrLevel, genre, duration);
+      const started = await startEnglishMasteryExtraction(theme, '', getAppUserId(), cefrLevel, genre, duration);
 
-      // 更新配额状态
-      if (result.quota) {
-        setQuotaStatus(result.quota);
-      }
-
-      // 配额耗尽：明确说明是「无法入库」，不是「没提取到」
-      if (result.quotaExceeded) {
+      if ((started as any).quotaExceeded) {
         showNotice(
           'dashboard',
-          result.message || '今日词/短语入库配额已用尽，并非提取失败。请清空今日配额后重试。',
+          (started as any).message || '今日词/短语入库配额已用尽，并非提取失败。请清空今日配额后重试。',
           'error'
         );
         playError();
+        setIsAutoGenerating(false);
         return;
       }
 
-      // 保存生成的文章和提取出来的词汇/短语
-      if (result.article) {
-        setGeneratedArticle(result.article);
-        setIsArticleExpanded(false);
-        localStorage.setItem('super_agent_last_generated_article', result.article);
-      }
-      if (result.words) {
-        setExtractedWords(result.words);
-        localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words));
-      }
-      if (result.phrases) {
-        setExtractedPhrases(result.phrases);
-        localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases));
-      }
-      if (result.sentences) {
-        setExtractedSentences(result.sentences);
-        localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences));
+      const applyDisplayResult = (result: any) => {
+        if (result.quota) {
+          setQuotaStatus(result.quota);
+        }
+        if (result.article) {
+          setGeneratedArticle(result.article);
+          setIsArticleExpanded(false);
+          localStorage.setItem('super_agent_last_generated_article', result.article);
+        }
+        if (result.words) {
+          setExtractedWords(result.words);
+          localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words));
+        }
+        if (result.phrases) {
+          setExtractedPhrases(result.phrases);
+          localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases));
+        }
+        if (result.sentences) {
+          setExtractedSentences(result.sentences);
+          localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences));
+        }
+
+        const vocabSource = result.vocabSource as 'dify' | 'fallback' | 'empty' | undefined;
+        const displayWordCount = (result.words || []).length;
+        const displayPhraseCount = (result.phrases || []).length;
+        const displaySentenceCount = (result.sentences || []).length;
+        const hasDisplayVocab = displayWordCount + displayPhraseCount + displaySentenceCount > 0;
+
+        playSuccess();
+        setShowConfetti(true);
+
+        if (vocabSource === 'empty' || !hasDisplayVocab) {
+          showNotice('dashboard', '长文已生成，但词表仍为空（主流程与兜底均未提纯到生词/短语/句型）', 'error');
+        } else {
+          showNotice(
+            'dashboard',
+            `长文与词表已缓存展示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），请逐条「+ 收录」写入生词本`,
+            'success'
+          );
+        }
+      };
+
+      // 无 taskId：同步结果（极少）——直接渲染
+      if (!started.taskId) {
+        applyDisplayResult(started);
+        setIsAutoGenerating(false);
+        return;
       }
 
-      // 根据配额 / 词表来源给出差异化提示
-      const { wordsLeft = 0, phrasesLeft = 0, wordsAddedCount = 0, phrasesAddedCount = 0 } = result as any;
-      const vocabSource = (result as any).vocabSource as 'dify' | 'fallback' | 'empty' | undefined;
-      const displayWordCount = (result.words || []).length;
-      const displayPhraseCount = (result.phrases || []).length;
-      const displaySentenceCount = (result.sentences || []).length;
-      const hasDisplayVocab = displayWordCount + displayPhraseCount + displaySentenceCount > 0;
-      const wordsLimit = result.quota?.wordsLimit ?? 0;
-      const phrasesLimit = result.quota?.phrasesLimit ?? 0;
-      const wordsQuotaFull = wordsLeft === 0;
-      const phrasesQuotaFull = phrasesLeft === 0;
-      
-      // 只要生成成功，始终播放提示音和五彩纸屑
-      playSuccess();
-      setShowConfetti(true);
+      const waitPromise = waitEnglishMasteryExtraction(started.taskId);
 
-      if (vocabSource === 'fallback' && hasDisplayVocab) {
-        const quotaHint = (wordsQuotaFull || phrasesQuotaFull)
-          ? `（入库配额：词剩余 ${wordsLeft}/${wordsLimit}，短语剩余 ${phrasesLeft}/${phrasesLimit}）`
-          : '';
-        showNotice('dashboard', `主流程词表解析为空，已兜底提纯：${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型${quotaHint}`, 'info');
-      } else if (vocabSource === 'empty' || !hasDisplayVocab) {
-        showNotice('dashboard', '长文已生成，但词表仍为空（主流程与兜底均未提纯到生词/短语/句型）', 'error');
-      } else if (hasDisplayVocab && wordsAddedCount === 0 && phrasesAddedCount === 0 && (wordsQuotaFull || phrasesQuotaFull)) {
-        showNotice(
-          'dashboard',
-          `词表已展示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），但今日入库配额不足（词剩余 ${wordsLeft}/${wordsLimit}，短语剩余 ${phrasesLeft}/${phrasesLimit}），未写入生词本。可清空今日配额后重试。`,
-          'info'
-        );
-      } else if (wordsAddedCount > 0 && wordsQuotaFull) {
-        showNotice('dashboard', `词表已展示；今日词汇配额已满(${wordsLimit}/${wordsLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
-      } else if (phrasesAddedCount > 0 && phrasesQuotaFull) {
-        showNotice('dashboard', `词表已展示；今日短语配额已满(${phrasesLimit}/${phrasesLimit})，入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语`, 'info');
-      } else if (wordsAddedCount > 0 || phrasesAddedCount > 0) {
-        showNotice('dashboard', `入库 ${wordsAddedCount} 词 ${phrasesAddedCount} 短语 | 剩余配额：${wordsLeft} 词 ${phrasesLeft} 短语`, 'success');
-      } else {
-        showNotice('dashboard', `长文与词表已就绪（${displayWordCount} 词 / ${displayPhraseCount} 短语），本次无新增入库（词条可能已存在）`, 'success');
+      const race = await withDailyExtractTimeout(waitPromise, DAILY_EXTRACT_RACE_MS);
+      if (race.isTimeout) {
+        addTask({
+          id: started.taskId,
+          type: 'daily_extract',
+          name: `长文生成: ${String(theme).slice(0, 24)} (${genre}/${cefrLevel}/${duration}m)`,
+          status: 'running',
+          progress: 20,
+          logs: ['超过 3 秒未完成，已转入后台继续生成；完成后可再次查询命中缓存'],
+        });
+        startPolling?.(started.taskId);
+        showNotice('dashboard', '生成较久，已转入后台，稍后可在【任务中心】查看', 'info');
+        setIsAutoGenerating(false);
+        // 超时后继续等待：完成后自动回填 Dashboard，避免结果被丢弃
+        waitPromise
+          .then((result) => {
+            applyDisplayResult(result);
+          })
+          .catch(() => {});
+        return;
       }
 
-      window.dispatchEvent(new Event('vocab-updated'));
+      applyDisplayResult(race.result);
     } catch (e: any) {
       playError();
       showNotice('dashboard', `提取失败: ${e.message}`, 'error');
@@ -946,7 +962,7 @@ export default function DashboardTab() {
                 } / {cefrLevel} / {duration}分钟】商业长文
               </h3>
               <p className="text-xs text-slate-500 mt-1 font-medium">
-                AI 大模型正在深度解析语境并提纯核心词汇、精选短语与实战句型，预计需 15~30 秒...
+                正在生成…（超过 3 秒将自动转入后台）
               </p>
             </div>
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">

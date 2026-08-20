@@ -786,17 +786,39 @@ export async function fetchExactArticleIfExists(params: {
 }
 
 
-export async function triggerEnglishMasteryExtraction(
+/** 每日提取 3 秒竞速阈值：超时后转入任务中心后台继续 */
+export const DAILY_EXTRACT_RACE_MS = 3000;
+
+export async function withDailyExtractTimeout<T>(
+  actionPromise: Promise<T>,
+  timeoutMs: number = DAILY_EXTRACT_RACE_MS
+): Promise<{ isTimeout: false; result: T } | { isTimeout: true }> {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) => {
+    timerId = setTimeout(() => resolve({ isTimeout: true }), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      actionPromise.then((result) => ({ isTimeout: false as const, result })),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
+}
+
+/** 仅启动任务，立即返回 taskId（不轮询） */
+export async function startEnglishMasteryExtraction(
   topic: string,
   materialText = '',
   userId = getAppUserId(),
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
   genre: 'news' | 'meeting' | 'podcast' | 'reading' | 'email' | 'report' | 'negotiation' | 'presentation' = 'meeting',
   duration: '15' | '25' | '35' = '25'
-): Promise<DailyExtractResult> {
-  const response = await fetch("/api/english/daily-extract", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+): Promise<{ taskId: string } & Partial<DailyExtractResult>> {
+  const response = await fetch('/api/english/daily-extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       topic,
       materialText,
@@ -804,45 +826,59 @@ export async function triggerEnglishMasteryExtraction(
       cefrLevel,
       genre,
       duration,
-      user_current_profile: getUserCurrentProfile()
+      user_current_profile: getUserCurrentProfile(),
     }),
   });
-
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data?.success) {
-    if (data?.quotaExceeded) {
-      return data as DailyExtractResult;
-    }
+    if (data?.quotaExceeded) return data;
     throw new Error(data?.error || data?.message || '提取词汇操作失败，请检查后端状态');
   }
-
-  // 如果没有输入材料，后端会直接返回配额数据而没有 taskId
   if (!data.taskId) {
     interceptOutputText(data);
-    return data as DailyExtractResult;
+    return data;
   }
+  return data;
+}
 
-  const taskId = data.taskId;
+export async function pollEnglishMasteryExtractionOnce(
+  taskId: string
+): Promise<DailyExtractResult | { status: 'pending' }> {
+  const statusRes = await fetch(`/api/english/daily-extract/status/${taskId}`);
+  const statusData = await statusRes.json().catch(() => ({}));
+  if (!statusRes.ok || !statusData.success) {
+    throw new Error(statusData?.error || '状态轮询失败');
+  }
+  if (statusData.status === 'completed') {
+    interceptOutputText(statusData);
+    return statusData as DailyExtractResult;
+  }
+  if (statusData.status === 'failed') {
+    throw new Error(statusData.error || '后台生成失败');
+  }
+  return { status: 'pending' };
+}
 
-  // 开始轮询 (每3秒一次)
+/** 轮询直到完成（供竞速 Promise 使用；超时后仍可在后台继续） */
+export async function waitEnglishMasteryExtraction(
+  taskId: string,
+  intervalMs = 1000
+): Promise<DailyExtractResult> {
   while (true) {
-    await new Promise(resolve => setTimeout(resolve, 3000));
-    
-    const statusRes = await fetch(`/api/english/daily-extract/status/${taskId}`);
-    const statusData = await statusRes.json().catch(() => ({}));
-    
-    if (!statusRes.ok || !statusData.success) {
-      throw new Error(statusData?.error || '状态轮询失败，请检查网络或后端服务');
+    const once = await pollEnglishMasteryExtractionOnce(taskId);
+    if (!('status' in once && once.status === 'pending')) {
+      return once as DailyExtractResult;
     }
-
-    if (statusData.status === 'completed') {
-      interceptOutputText(statusData);
-      return statusData as DailyExtractResult;
-    } else if (statusData.status === 'failed') {
-      throw new Error(statusData.error || '后台生成失败');
-    }
-    // status === 'pending' 则继续等待
+    await new Promise((r) => setTimeout(r, intervalMs));
   }
+}
+
+export async function triggerEnglishMasteryExtraction(
+  ...args: Parameters<typeof startEnglishMasteryExtraction>
+): Promise<DailyExtractResult> {
+  const started = await startEnglishMasteryExtraction(...args);
+  if (!started.taskId) return started as DailyExtractResult;
+  return waitEnglishMasteryExtraction(started.taskId);
 }
 
 export async function callVocabPurify(
