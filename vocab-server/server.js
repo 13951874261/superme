@@ -8157,15 +8157,29 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
               });
               try {
                 if (fs.module === 'wakeup' || fs.module === 'flaw') {
-                  // Snapshot executor: use snap.theme only; still call generate with that theme
-                  // (generateDailyPackForUser re-resolves history — document known gap vs pure snapshot;
-                  //  prefer callWakeupWorkflow with snap fields when module is wakeup-only)
+                  // 失败步骤重跑：唤醒也走与手动刷新同一套去重/写历史逻辑
                   if (fs.module === 'wakeup' && snap.theme != null) {
-                    await dailyPackService.callWakeupWorkflow({
+                    const wakeup = await dailyPackService.generateWakeupVocabForUser(db, userId, {
                       theme: snap.theme,
-                      userId,
                       historyExclude: snap.history_exclude || '',
                       userCurrentProfile: snap.user_current_profile || '',
+                    });
+                    const packDate = dailyPackService.getPackDate();
+                    const hist = String(snap.history_exclude || '');
+                    const profile = String(snap.user_current_profile || '');
+                    const inputSignature = dailyPackService.computeInputSignature(snap.theme, hist, profile);
+                    const existing = dailyPackService.getDailyPackRow(db, userId, packDate, inputSignature, snap.theme);
+                    const existingFlaw = existing?.flaw_vocab_json ? JSON.parse(existing.flaw_vocab_json) : null;
+                    dailyPackService.upsertDailyPack(db, {
+                      userId,
+                      packDate,
+                      theme: snap.theme,
+                      inputSignature,
+                      wakeup,
+                      flawVocab: existingFlaw,
+                      source: 'user_rerun',
+                      status: 'ready',
+                      errorMessage: null,
                     });
                   } else if (fs.module === 'flaw') {
                     await dailyPackService.generateFlawVocabForUser(db, userId, snap.theme || theme);
