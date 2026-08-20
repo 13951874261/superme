@@ -87,6 +87,11 @@ export function ThemeGateway({
 
       if (race.isTimeout) {
         const queued = await deleteCustomThemeAsync(snapshot.id);
+        if (queued.alreadyDeleted || !queued.taskId) {
+          showNotice('dashboard', queued.message || '场景及相关学习资料已清理', 'success');
+          await refreshCustomThemes();
+          return;
+        }
         addTask({
           id: queued.taskId,
           type: 'theme_delete',

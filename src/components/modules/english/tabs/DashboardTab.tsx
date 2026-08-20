@@ -49,7 +49,7 @@ export default function DashboardTab() {
     grammarNotes, setGrammarNotes,
     impromptuPassed,
     inlineNotice, noticeAnchor, setActiveTab, showNotice,
-    customThemes, refreshCustomThemes,
+    customThemes, setCustomThemes, refreshCustomThemes,
     masteredThemes,
     stayStats,
   } = useEnglishContext();
@@ -165,6 +165,48 @@ export default function DashboardTab() {
     window.addEventListener('global-voice-changed', handleVoiceChange);
     return () => window.removeEventListener('global-voice-changed', handleVoiceChange);
   }, []);
+
+  // 自定义场景后台级联删除完成/失败：刷新列表；失败则恢复选项
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail || {};
+      if (detail.status === 'failed') {
+        const snap = detail.themeSnapshot;
+        if (snap?.id) {
+          setCustomThemes((prev) => {
+            if (prev.some((t) => t.id === snap.id)) return prev;
+            return [{
+              id: snap.id,
+              themeName: snap.themeName || snap.theme_name || '',
+              displayName: snap.displayName || snap.display_name || '',
+              associatedFile: snap.associatedFile || snap.associated_file || '',
+              difyDocumentId: snap.difyDocumentId || snap.dify_document_id || '',
+              difyDatasetId: snap.difyDatasetId || snap.dify_dataset_id || '',
+              extractedKeywords: snap.extractedKeywords || [],
+              source: 'custom' as const,
+              createdAt: snap.createdAt || snap.created_at || Date.now(),
+            }, ...prev];
+          });
+        }
+        showNotice(
+          'dashboard',
+          `场景清理失败，已恢复该场景选项${detail.error ? `：${detail.error}` : ''}`,
+          'error'
+        );
+        return;
+      }
+      void refreshCustomThemes();
+      if (detail.status === 'completed') {
+        showNotice(
+          'dashboard',
+          detail.message || '场景及相关学习资料已清理',
+          'success'
+        );
+      }
+    };
+    window.addEventListener('custom-theme-delete-finished', handler);
+    return () => window.removeEventListener('custom-theme-delete-finished', handler);
+  }, [refreshCustomThemes, setCustomThemes, showNotice]);
 
   // 监听 intel-data-refreshed 事件，触发情报面板即时更新
   useEffect(() => {
@@ -745,6 +787,7 @@ export default function DashboardTab() {
               runMasteryGate={runMasteryGate}
               masteryData={masteryData}
               customThemes={customThemes || []}
+              setCustomThemes={setCustomThemes}
               currentCustomTheme={currentCustomTheme}
               isDeletingTheme={isDeletingTheme}
               setIsDeletingTheme={setIsDeletingTheme}
@@ -755,10 +798,6 @@ export default function DashboardTab() {
               showNotice={showNotice}
               setThemeFocus={async (params) => {
                 await setThemeFocus(params).catch(() => {});
-              }}
-              deleteCustomTheme={async (id) => {
-                 const { deleteCustomTheme } = await import('../../../../services/trainingAPI');
-                 return deleteCustomTheme(id);
               }}
             />
           </div>

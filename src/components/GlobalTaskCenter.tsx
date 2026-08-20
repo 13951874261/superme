@@ -438,7 +438,7 @@ export default function GlobalTaskCenter() {
                             <Mic className="w-4 h-4" />
                           ) : task.type === 'listen_backfill' ? (
                             <Headphones className="w-4 h-4" />
-                          ) : task.type === 'vocab_export' || task.type === 'tactics_export' || task.type === 'vault_export' || task.type === 'vocab_add' ? (
+                          ) : task.type === 'vocab_export' || task.type === 'tactics_export' || task.type === 'vault_export' || task.type === 'vocab_add' || task.type === 'theme_delete' ? (
                             <FileText className="w-4 h-4" />
                           ) : (
                             <Globe className="w-4 h-4" />

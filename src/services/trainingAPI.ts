@@ -339,7 +339,14 @@ export async function deleteCustomTheme(id: string): Promise<CustomThemeDeleteRe
 
 export async function deleteCustomThemeAsync(
   id: string
-): Promise<{ success: boolean; taskId: string; status: string; themeSnapshot?: Partial<CustomTheme> & { id: string } }> {
+): Promise<{
+  success: boolean;
+  taskId: string | null;
+  status: string;
+  alreadyDeleted?: boolean;
+  message?: string;
+  themeSnapshot?: Partial<CustomTheme> & { id: string };
+}> {
   return request(`/api/theme/custom/${id}/delete-async`, {
     method: 'POST',
     body: JSON.stringify({}),

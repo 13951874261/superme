@@ -4951,10 +4951,28 @@ app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
   try {
     const row = db.prepare('SELECT * FROM custom_themes WHERE id = ?').get(id);
     if (!row) {
-      return res.status(404).json({ success: false, error: 'Custom theme not found' });
+      // 同步竞速路径可能已完成级联；视为已清理，避免前端误恢复
+      return res.json({
+        success: true,
+        alreadyDeleted: true,
+        taskId: null,
+        status: 'completed',
+        message: '场景及相关学习资料已清理',
+      });
     }
 
     const label = row.display_name || row.theme_name || '自定义场景';
+    const themeSnapshotForTask = {
+      id: row.id,
+      themeName: row.theme_name,
+      displayName: row.display_name,
+      associatedFile: row.associated_file,
+      difyDocumentId: row.dify_document_id,
+      difyDatasetId: row.dify_dataset_id,
+      extractedKeywords: row.extracted_keywords,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+    };
     const taskQueue = require('./services/taskQueue');
     const task = taskQueue.createTask('theme_delete', `清理练习场景：${String(label).slice(0, 40)}`);
 
@@ -4962,17 +4980,7 @@ app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
       success: true,
       taskId: task.id,
       status: task.status,
-      themeSnapshot: {
-        id: row.id,
-        themeName: row.theme_name,
-        displayName: row.display_name,
-        associatedFile: row.associated_file,
-        difyDocumentId: row.dify_document_id,
-        difyDatasetId: row.dify_dataset_id,
-        extractedKeywords: row.extracted_keywords,
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      },
+      themeSnapshot: themeSnapshotForTask,
     });
 
     (async () => {
@@ -4984,11 +4992,21 @@ app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
         });
         const result = await runCustomThemeCascadeDelete(id);
         if (!result.success) {
+          // 同步路径抢先删完时也会 not found —— 按成功收口
+          if (/not found/i.test(result.error || '')) {
+            taskQueue.updateTask(task.id, {
+              status: 'completed',
+              progress: 100,
+              logs: ['该场景及相关学习资料已清理完毕'],
+              result: { message: '场景及相关学习资料已清理', alreadyDeleted: true },
+            });
+            return;
+          }
           taskQueue.updateTask(task.id, {
             status: 'failed',
             error: result.error || '场景清理失败',
             logs: ['场景清理未能完成，可尝试恢复该场景选项'],
-            result: { themeSnapshot: result.themeSnapshot || null },
+            result: { themeSnapshot: result.themeSnapshot || themeSnapshotForTask },
           });
           return;
         }
@@ -5002,7 +5020,7 @@ app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
           result: {
             stats: result.stats,
             dify: result.dify,
-            themeSnapshot: result.themeSnapshot,
+            themeSnapshot: result.themeSnapshot || themeSnapshotForTask,
             message: result.dify?.cloudCleanupIncomplete
               ? '场景本地资料已清理；云端资料清理未完成'
               : '场景及相关学习资料已清理',
@@ -5013,6 +5031,7 @@ app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
           status: 'failed',
           error: e.message || String(e),
           logs: ['场景清理过程中断，请稍后重试或恢复该场景选项'],
+          result: { themeSnapshot: themeSnapshotForTask },
         });
       }
     })();

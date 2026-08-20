@@ -1,6 +1,29 @@
 /**
  * 自定义场景主题级联删除：本地库事务清理 + 可选 Dify 文档尽力删除。
+ * 匹配键会排除系统预置主题名，词条仅清理 Custom Theme Extract 来源，降低误伤。
  */
+
+/** 与前端 EnglishContext ALL_THEMES.value 对齐，删除时禁止用作级联键 */
+const SYSTEM_THEME_VALUES = [
+  '商务谈判：让步与施压',
+  '危机公关：外媒答疑',
+  '项目汇报：跨国董事会',
+  '商务破冰：高管Small Talk',
+  '会议主持：跨文化控场',
+  '跨部门协调：资源争夺',
+  '绩效反馈：员工评估',
+  '商业路演：投资人汇报',
+  '供应商审计：合规谈判',
+  '组织重组：人事沟通',
+  '跨文化社交：艺术展交流',
+  '应急沟通：海外就医',
+  '文化破冰：外企晚宴',
+  '中日韩三方会议：跨文化破局',
+  '娱乐审美：艺术讲述',
+  '中东商务：跨文化禁忌',
+];
+
+const SYSTEM_THEME_SET = new Set(SYSTEM_THEME_VALUES);
 
 function uniqNonEmpty(values) {
   const seen = new Set();
@@ -14,9 +37,18 @@ function uniqNonEmpty(values) {
   return out;
 }
 
-function buildThemeMatchKeys(row) {
+function buildThemeMatchKeys(row, protectedKeys = SYSTEM_THEME_VALUES) {
   if (!row) return [];
-  return uniqNonEmpty([row.theme_name, row.display_name, row.themeName, row.displayName]);
+  const protectedSet = new Set(
+    (protectedKeys || []).map((k) => String(k || '').trim()).filter(Boolean)
+  );
+  return uniqNonEmpty([row.theme_name, row.display_name, row.themeName, row.displayName])
+    .filter((key) => !protectedSet.has(key));
+}
+
+function isCustomThemeExtractSource(source) {
+  if (typeof source !== 'string') return false;
+  return /custom\s*theme\s*extract/i.test(source.trim());
 }
 
 function deleteVocabularyForThemes(db, themeKeys) {
@@ -37,10 +69,11 @@ function deleteVocabularyForThemes(db, themeKeys) {
       continue;
     }
     const topic = typeof payload.topic === 'string' ? payload.topic.trim() : '';
-    if (topic && keySet.has(topic)) {
-      del.run(row.id);
-      deleted += 1;
-    }
+    if (!topic || !keySet.has(topic)) continue;
+    // 仅删除自定义场景萃取来源，避免同名 topic 误伤日常/长文入库词
+    if (!isCustomThemeExtractSource(payload.source)) continue;
+    del.run(row.id);
+    deleted += 1;
   }
   return deleted;
 }
@@ -56,7 +89,7 @@ function deleteRowsByThemeColumn(db, table, column, themeKeys) {
 
 /**
  * @param {object} db better-sqlite3 / compatible
- * @param {{ id: string, deleteDifyDocument?: (args: { documentId: string, datasetId: string }) => Promise<{ ok: boolean, error?: string }> }} options
+ * @param {{ id: string, deleteDifyDocument?: Function, protectedThemeKeys?: string[] }} options
  */
 async function cascadeDeleteCustomTheme(db, options = {}) {
   const id = options.id;
@@ -69,7 +102,7 @@ async function cascadeDeleteCustomTheme(db, options = {}) {
     return { success: false, error: 'Custom theme not found' };
   }
 
-  const themeKeys = buildThemeMatchKeys(row);
+  const themeKeys = buildThemeMatchKeys(row, options.protectedThemeKeys || SYSTEM_THEME_VALUES);
   const themeSnapshot = {
     id: row.id,
     userId: row.user_id,
@@ -129,7 +162,10 @@ async function cascadeDeleteCustomTheme(db, options = {}) {
 }
 
 module.exports = {
+  SYSTEM_THEME_VALUES,
+  SYSTEM_THEME_SET,
   buildThemeMatchKeys,
   cascadeDeleteCustomTheme,
   deleteVocabularyForThemes,
+  isCustomThemeExtractSource,
 };

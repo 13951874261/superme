@@ -6,3 +6,9 @@
 {"ts":"2026-08-20T15:05:00Z","event":"checkpoint","goalId":"G003","status":"complete","evidence":"TextHighlighter+showConfetti particleCount 18"}
 {"ts":"2026-08-20T15:05:00Z","event":"checkpoint","goalId":"G004","status":"complete","evidence":"AC1-6 static audit; no heavy particleCount left in src; residual browser E2E"}
 {"ts":"2026-08-20T15:05:00Z","event":"aggregate_complete","slug":"confetti-jank-fix"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G001","status":"complete","evidence":"customThemeCascadeDelete service + sync/async routes; unit tests passed"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G002","status":"complete","evidence":"ThemeGateway optimistic+3s task center; restore paths"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G003","status":"complete","evidence":"unit+contract tests passed"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G004","status":"in_progress","evidence":"AC verification in progress"}
+{"ts":"2026-08-20T15:20:00Z","event":"checkpoint","goalId":"G004","status":"complete","evidence":"anti-misdelete+async snapshot fixes; both test suites green; aggregate complete"}
+{"ts":"2026-08-20T15:20:00Z","event":"aggregate_complete","slug":"custom-theme-cascade-delete","status":"complete"}

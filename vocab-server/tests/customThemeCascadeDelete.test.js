@@ -220,9 +220,50 @@ async function main() {
   assert.strictEqual(missing.success, false);
   assert.match(missing.error || '', /not found/i);
 
+  console.log('=== 用例 5：自定义名撞系统主题时不级联系统数据；非萃取来源词保留 ===');
+  const db3 = openDatabase();
+  createSchema(db3);
+  // 恶意/撞名：theme_name 故意等于系统主题
+  const clash = seedTheme(db3, {
+    id: 't-clash',
+    theme_name: '危机公关：外媒答疑',
+    display_name: '危机公关：外媒答疑',
+  });
+  db3.prepare(`
+    INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    'v-system-topic',
+    'crisis',
+    'ai_extracted',
+    'business',
+    JSON.stringify({ topic: '危机公关：外媒答疑', source: 'Daily Pack', meaning: '应保留' }),
+    Date.now(), Date.now(), '[]'
+  );
+  db3.prepare(`
+    INSERT INTO generation_history (id, user_id, theme, generated_at, article_summary, keywords)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run('g-system', 'u1', '危机公关：外媒答疑', Date.now(), 'system article', '[]');
+  db3.prepare(`
+    INSERT INTO training_attempts (id, session_id, user_id, module_type, scene_type, created_at)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run('a-system', 's1', 'u1', 'oral', '危机公关：外媒答疑', Date.now());
+
+  const clashResult = await cascadeDeleteCustomTheme(db3, {
+    id: clash.id,
+    deleteDifyDocument: async () => ({ ok: true }),
+  });
+  assert.strictEqual(clashResult.success, true);
+  assert.deepStrictEqual(clashResult.themeKeys, [], '撞名系统主题时匹配键应为空');
+  assert.strictEqual(db3.prepare("SELECT COUNT(*) AS c FROM vocabulary WHERE id = 'v-system-topic'").get().c, 1);
+  assert.strictEqual(db3.prepare("SELECT COUNT(*) AS c FROM generation_history WHERE id = 'g-system'").get().c, 1);
+  assert.strictEqual(db3.prepare("SELECT COUNT(*) AS c FROM training_attempts WHERE id = 'a-system'").get().c, 1);
+  assert.strictEqual(db3.prepare('SELECT COUNT(*) AS c FROM custom_themes WHERE id = ?').get(clash.id).c, 0);
+
   console.log('customThemeCascadeDelete tests passed');
   db.close();
   db2.close();
+  db3.close();
 }
 
 main().catch((err) => {

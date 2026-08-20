@@ -4,7 +4,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'speak' | 'vocab_add';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'speak' | 'vocab_add' | 'theme_delete';
   name: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
@@ -36,6 +36,19 @@ export interface TaskItem {
     transcript?: string;
     inserted?: number;
     sourceName?: string;
+    themeSnapshot?: {
+      id?: string;
+      themeName?: string;
+      displayName?: string;
+      associatedFile?: string;
+      difyDocumentId?: string;
+      difyDatasetId?: string;
+      extractedKeywords?: unknown;
+      createdAt?: number;
+      [key: string]: unknown;
+    };
+    message?: string;
+    alreadyDeleted?: boolean;
   } | null;
 }
 
@@ -156,6 +169,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data.status === 'completed' || data.status === 'failed') {
             clearInterval(interval);
             activePolls.current.delete(id);
+            if (data.type === 'theme_delete') {
+              window.dispatchEvent(new CustomEvent('custom-theme-delete-finished', {
+                detail: {
+                  status: data.status,
+                  error: data.error,
+                  themeSnapshot: data.result?.themeSnapshot || null,
+                  message: data.result?.message || data.error || null,
+                },
+              }));
+            }
             if (data.status === 'completed') {
               window.dispatchEvent(new CustomEvent('vocab-updated'));
               if (data.type === 'material' || data.type === 'vault_refine') {

@@ -1,64 +1,56 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-confetti-jank-fix.md",
+  "sourceBrief": ".omx/specs/deep-interview-custom-theme-cascade-delete.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for confetti-jank-fix",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for custom-theme-cascade-delete",
   "status": "complete",
-  "createdAt": "2026-08-20T14:57:00Z",
-  "completedAt": "2026-08-20T15:05:00Z",
-  "supersedes": "en-oral-03-1vs1-daily (2026-08-17, complete)",
-  "note": "Created/completed manually: omx CLI unavailable in Cursor runtime",
+  "createdAt": "2026-08-20T14:57:30Z",
+  "updatedAt": "2026-08-20T15:20:00Z",
+  "completedAt": "2026-08-20T15:20:00Z",
+  "supersedes": "confetti-jank-fix",
+  "note": "omx CLI unavailable; manual ultragoal. Review blockers (name collision / async snapshot) fixed before complete.",
   "goals": [
     {
       "id": "G001",
-      "title": "Confetti.tsx single-fire + light particles",
-      "objective": "Make shared Confetti mount fire once per show cycle despite unstable onComplete; hold onComplete in ref; drastically lighten canvas-confetti params; optionally skip particles under prefers-reduced-motion. Banner copy/style unchanged.",
+      "title": "Backend cascade delete for custom theme",
       "status": "complete",
-      "acceptance": [
-        "useEffect does not re-fire confetti when parent re-renders with new onComplete identity",
-        "particle/wave/ticks/duration clearly lighter than previous 60x2 / ticks 200 / 3000ms baseline",
-        "Banner text remains 挑战达成 (Challenge Completed); no new animation dependencies",
-        "onComplete still called once at end of duration"
-      ],
-      "evidence": "src/components/Confetti.tsx: onCompleteRef + effect deps [duration] only; LIGHT_CONFETTI_OPTIONS particleCount 18 single wave; duration default 2200; prefers-reduced-motion skip; banner text unchanged"
+      "evidence": "customThemeCascadeDelete.js + DELETE/delete-async; system theme key protection; Custom Theme Extract vocab filter"
     },
     {
       "id": "G002",
-      "title": "ImprovTimer milestone once-only",
-      "objective": "Ensure OralWarRoomImprovTimer invokes onMilestone (and success sound) exactly once when elapsed reaches TARGET_SECONDS, even if onMilestone callback identity changes on later renders.",
+      "title": "Optimistic UI + 3s task-center handoff",
       "status": "complete",
-      "acceptance": [
-        "Crossing 5:00 triggers milestone at most once per active run",
-        "Subsequent parent re-renders with new onMilestone do not re-trigger",
-        "No change to success-business logic elsewhere"
-      ],
-      "evidence": "src/components/modules/OralWarRoomImprovTimer.tsx: milestoneFiredRef latch + onMilestoneRef; reset when elapsed===0"
+      "evidence": "ThemeGateway + TaskContext theme_delete + Dashboard restore on failed event"
     },
     {
       "id": "G003",
-      "title": "Align TextHighlighter + showConfetti",
-      "objective": "Lighten direct canvas-confetti calls in TextHighlighter and exported showConfetti to match Confetti.tsx light strategy.",
+      "title": "Automated contract tests",
       "status": "complete",
-      "acceptance": [
-        "Direct paths no longer use heavier defaults (e.g. particleCount 120) than shared Confetti",
-        "No unrelated highlighter behavior changes"
-      ],
-      "evidence": "showConfetti uses LIGHT_CONFETTI_OPTIONS; TextHighlighter particleCount 18 + reduced-motion guard; no remaining particleCount 60/120 in src/"
+      "evidence": "customThemeCascadeDelete.test.js (5 cases) + Contract.test.js passed"
     },
     {
       "id": "G004",
       "title": "Verify acceptance + quality gate",
-      "objective": "Verify AC from deep-interview spec; run focused checks and final review gate before marking aggregate complete.",
       "status": "complete",
-      "acceptance": [
-        "Evidence covers AC1–AC6 from deep-interview-confetti-jank-fix.md",
-        "No unrelated files changed",
-        "Final quality gate recorded before aggregate complete"
-      ],
-      "evidence": "Static AC audit passed; tsc has no errors in touched files (repo has pre-existing unrelated tsc failures); omx quality-gate CLI unavailable — residual: browser E2E of沙盘庆祝 not run in this session"
+      "evidence": "AC1-6 covered by code+tests; review REQUEST CHANGES addressed (anti-misdelete + async snapshot); residual: sync+async may both hit Dify once"
     }
   ],
-  "aggregateStatusNote": "G001-G004 complete with code-evidence gate; browser runtime confirmation recommended by user on 多角色沙盘 challenge success path."
+  "qualityGate": {
+    "verification": {
+      "status": "passed",
+      "commands": [
+        "node tests/customThemeCascadeDelete.test.js",
+        "node tests/customThemeCascadeDeleteContract.test.js"
+      ]
+    },
+    "codeReview": {
+      "recommendation": "APPROVE_AFTER_FIXES",
+      "independentReview": {
+        "explore": "6daae5c5-fa09-4c56-9142-c7b4cf5dbe54 REQUEST CHANGES then fixes landed"
+      },
+      "note": "Formal omx ultragoal architect dual-subagent gate unavailable; defect-first explore review + remediation used"
+    }
+  }
 }
