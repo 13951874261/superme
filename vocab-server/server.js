@@ -138,6 +138,7 @@ db.pragma('journal_mode = WAL');
 db.prepare(`
   CREATE TABLE IF NOT EXISTS vocabulary (
     id TEXT PRIMARY KEY,
+    user_id TEXT DEFAULT 'lzhmy',
     word TEXT NOT NULL,
     dict_type TEXT,
     category TEXT DEFAULT 'business',
@@ -153,12 +154,17 @@ db.prepare(`
   )
 `).run();
 
-// ????????????????????????????????category ?????????????????????
+// 生词本字段 Migration
+try {
+  db.prepare("ALTER TABLE vocabulary ADD COLUMN user_id TEXT DEFAULT 'lzhmy'").run();
+  console.log('Migration: Added user_id column to vocabulary table.');
+} catch (err) {}
+
 try {
   db.prepare("ALTER TABLE vocabulary ADD COLUMN category TEXT DEFAULT 'business'").run();
   console.log('Migration: Added category column to vocabulary table.');
 } catch (err) {
-  // ???????????????
+  // 已经存在该列
 }
 
 try {
@@ -178,16 +184,34 @@ try {
   db.prepare("ALTER TABLE vocabulary ADD COLUMN interval_days INTEGER DEFAULT 1").run();
 } catch (err) {}
 
-// ??????????????? memory_aids ???
+// 迁移历史 memory_aids 列
 try {
   db.prepare("ALTER TABLE vocabulary ADD COLUMN memory_aids TEXT").run();
   console.log('Migration: Added memory_aids column to vocabulary table.');
 } catch (err) {
-  // ???????????????
+  // 已经存在该列
 }
 
-// 复习/列表查询索引（无损性能）
+// 归属存量历史数据至主账号 lzhmy
 try {
+  const normUserResult = db.prepare(`
+    UPDATE vocabulary
+    SET user_id = 'lzhmy'
+    WHERE user_id IS NULL OR user_id = ''
+  `).run();
+  if (normUserResult.changes > 0) {
+    console.log(`[Vocab] Backfilled ${normUserResult.changes} legacy vocabulary rows to user_id 'lzhmy'`);
+  }
+} catch (err) {
+  console.warn('Migration: vocabulary user_id backfill skipped:', err?.message || err);
+}
+
+// 复习/列表查询索引（支持按账号多租户隔离与毫秒级查询）
+try {
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_user_id ON vocabulary(user_id)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_user_category_added ON vocabulary(user_id, category, added_at DESC)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_user_review_opt ON vocabulary(user_id, category, next_review_date, repetitions)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_user_word ON vocabulary(user_id, word COLLATE NOCASE)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review ON vocabulary(next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review_optimized ON vocabulary(category, next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at ON vocabulary(added_at)').run();
@@ -3246,11 +3270,21 @@ app.post('/api/user/error-ledger/append', (req, res) => {
 // ==========================================
 
 // ??????????
+function parseVocabUserId(req) {
+  const id = req.query?.userId || req.query?.user_id || req.body?.userId || req.body?.user_id || req.headers?.['x-user-id'];
+  if (typeof id === 'string' && id.trim()) {
+    return id.trim().slice(0, 64);
+  }
+  return 'lzhmy';
+}
+
+// 统计：按当前登录账号隔离
 app.get('/api/vocab/stats', (req, res) => {
   try {
-    const total = db.prepare('SELECT COUNT(*) as count FROM vocabulary').get().count;
+    const userId = parseVocabUserId(req);
+    const total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ?').get(userId)?.count || 0;
     const now = Date.now();
-    const dueToday = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE next_review_date <= ? AND repetitions < 999').get(now).count;
+    const dueToday = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND next_review_date <= ? AND repetitions < 999').get(userId, now)?.count || 0;
     res.json({ total, dueToday });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });
@@ -3260,6 +3294,7 @@ app.get('/api/vocab/stats', (req, res) => {
 function mapLightVocabRow(r) {
   return {
     id: r.id,
+    user_id: r.user_id,
     word: r.word,
     dict_type: r.dict_type,
     category: r.category,
@@ -3278,19 +3313,20 @@ function mapLightVocabRow(r) {
 
 // 轻量列表：只取标量列，禁止 json_extract（6000 行会打满事件循环导致全站超时）
 const LIGHT_SELECT = `
-  id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date
+  id, user_id, word, dict_type, category, scene_type, added_at, repetitions, ease_factor, interval_days, next_review_date, last_review_date
 `;
 
 function parseVocabCategory(value) {
   return value === 'business' || value === 'general' ? value : null;
 }
 
-// 生词本轻量分页列表（强制分页，禁止全量）
+// 生词本轻量分页列表（强制按账号 user_id 过滤 + 参数化分页）
 app.get('/api/vocab/list', (req, res) => {
   try {
     if (String(req.query.light || '') === '0') {
       return res.status(400).json({ error: 'light=0 is deprecated. Please use pagination or /api/vocab/item/:id' });
     }
+    const userId = parseVocabUserId(req);
     const rawLimit = Number(req.query.limit);
     const pageSize = Math.min(Math.max(Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100);
     const offset = Math.max(0, Number(req.query.offset) || 0);
@@ -3303,37 +3339,38 @@ app.get('/api/vocab/list', (req, res) => {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
         FROM vocabulary
-        WHERE category = ? AND word = ? COLLATE NOCASE
+        WHERE user_id = ? AND category = ? AND word = ? COLLATE NOCASE
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
-      `).all(category, word, pageSize + 1, offset);
-      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE category = ? AND word = ? COLLATE NOCASE').get(category, word)?.count || 0;
+      `).all(userId, category, word, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND category = ? AND word = ? COLLATE NOCASE').get(userId, category, word)?.count || 0;
     } else if (word) {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
         FROM vocabulary
-        WHERE word = ? COLLATE NOCASE
+        WHERE user_id = ? AND word = ? COLLATE NOCASE
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
-      `).all(word, pageSize + 1, offset);
-      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word)?.count || 0;
+      `).all(userId, word, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND word = ? COLLATE NOCASE').get(userId, word)?.count || 0;
     } else if (category) {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
         FROM vocabulary
-        WHERE category = ?
+        WHERE user_id = ? AND category = ?
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
-      `).all(category, pageSize + 1, offset);
-      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE category = ?').get(category)?.count || 0;
+      `).all(userId, category, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND category = ?').get(userId, category)?.count || 0;
     } else {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
         FROM vocabulary
+        WHERE user_id = ?
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
-      `).all(pageSize + 1, offset);
-      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary').get()?.count || 0;
+      `).all(userId, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ?').get(userId)?.count || 0;
     }
 
     return res.json({
@@ -3347,12 +3384,13 @@ app.get('/api/vocab/list', (req, res) => {
   }
 });
 
-// 今日待复习列表（强制分页，禁止全量）
+// 今日待复习列表（强制按账号 user_id 过滤 + 分页）
 app.get('/api/vocab/review', (req, res) => {
   try {
     if (String(req.query.light || '') === '0') {
       return res.status(400).json({ error: 'light=0 is deprecated. Please use pagination or /api/vocab/item/:id' });
     }
+    const userId = parseVocabUserId(req);
     const now = Date.now();
     const rawLimit = Number(req.query.limit);
     const pageSize = Math.min(Math.max(Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100);
@@ -3363,17 +3401,17 @@ app.get('/api/vocab/review', (req, res) => {
       ? db.prepare(`
           SELECT ${LIGHT_SELECT}
           FROM vocabulary
-          WHERE next_review_date <= ? AND repetitions < 999 AND category = ?
+          WHERE user_id = ? AND next_review_date <= ? AND repetitions < 999 AND category = ?
           ORDER BY next_review_date ASC
           LIMIT ? OFFSET ?
-        `).all(now, category, pageSize + 1, offset)
+        `).all(userId, now, category, pageSize + 1, offset)
       : db.prepare(`
           SELECT ${LIGHT_SELECT}
           FROM vocabulary
-          WHERE next_review_date <= ? AND repetitions < 999
+          WHERE user_id = ? AND next_review_date <= ? AND repetitions < 999
           ORDER BY next_review_date ASC
           LIMIT ? OFFSET ?
-        `).all(now, pageSize + 1, offset);
+        `).all(userId, now, pageSize + 1, offset);
 
     return res.json({
       items: rows.slice(0, pageSize).map(mapLightVocabRow),
@@ -3385,9 +3423,10 @@ app.get('/api/vocab/review', (req, res) => {
   }
 });
 
-// 批量点查生词条目（最多 100 条）
+// 批量点查生词条目（按账号 user_id 隔离）
 app.post('/api/vocab/lookup', (req, res) => {
   try {
+    const userId = parseVocabUserId(req);
     const rawWords = Array.isArray(req.body?.words) ? req.body.words : [];
     const words = Array.from(
       new Set(rawWords.map(w => (typeof w === 'string' ? w.trim() : '')).filter(Boolean))
@@ -3401,9 +3440,9 @@ app.post('/api/vocab/lookup', (req, res) => {
     const rows = db.prepare(`
       SELECT ${LIGHT_SELECT}
       FROM vocabulary
-      WHERE word IN (${placeholders}) COLLATE NOCASE
+      WHERE user_id = ? AND word IN (${placeholders}) COLLATE NOCASE
       ORDER BY added_at DESC
-    `).all(...words);
+    `).all(userId, ...words);
 
     return res.json({
       items: rows.map(mapLightVocabRow),
@@ -3429,16 +3468,16 @@ app.get('/api/vocab/item/:id', (req, res) => {
   }
 });
 
-// ???????
+// 单条词汇存入生词本（绑定 userId）
 app.post('/api/vocab/add', (req, res) => {
   try {
+    const userId = parseVocabUserId(req);
     const { word, dictType, category, scene_type = 'business', payload } = req.body;
 
-    // ?????????????? category?????????? scene_type ??????
     const actualCategory = category || (scene_type === 'general' ? 'general' : 'business');
 
-    // ??????
-    const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
+    // 针对当前账号查重
+    const existing = db.prepare('SELECT id FROM vocabulary WHERE user_id = ? AND word = ? COLLATE NOCASE').get(userId, word);
     if (existing) {
       return res.json({ success: false, message: '词条已存在', id: existing.id });
     }
@@ -3447,9 +3486,9 @@ app.post('/api/vocab/add', (req, res) => {
     const now = Date.now();
 
     db.prepare(`
-      INSERT INTO vocabulary (id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(id, word, dictType, actualCategory, scene_type, JSON.stringify(payload || {}), now, now, '[]', 0, 1, 2.5);
+      INSERT INTO vocabulary (id, user_id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, userId, word, dictType, actualCategory, scene_type, JSON.stringify(payload || {}), now, now, '[]', 0, 1, 2.5);
 
     res.json({ success: true, id, message: '存入成功' });
   } catch (error) {
@@ -3458,10 +3497,12 @@ app.post('/api/vocab/add', (req, res) => {
   }
 });
 
-// ????????????? (???? Dify ????????HTTP ???????????????????????????????
+// 批量生成/推送词条存入（绑定 userId）
 app.post('/api/vocab/batch-add', (req, res) => {
   try {
-    const items = req.body;
+    const userId = parseVocabUserId(req);
+    const rawBody = req.body;
+    const items = Array.isArray(rawBody) ? rawBody : (Array.isArray(rawBody?.items) ? rawBody.items : []);
     if (!Array.isArray(items)) {
       return res.status(400).json({ success: false, error: 'Expected a JSON array of vocabulary items' });
     }
@@ -3469,7 +3510,6 @@ app.post('/api/vocab/batch-add', (req, res) => {
     let addedCount = 0;
     const now = Date.now();
 
-    // ???????SQLite ??????????????????????????????????????????????????????
     const insertMany = db.transaction((words) => {
       for (const item of words) {
         const word = item.word;
@@ -3484,28 +3524,29 @@ app.post('/api/vocab/batch-add', (req, res) => {
         const category = item.category || (scene_type === 'general' ? 'general' : 'business');
         const payload = item.payload || {};
 
-        const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word);
+        const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE user_id = ? AND word = ? COLLATE NOCASE').get(userId, word);
         if (!existing) {
           const id = crypto.randomUUID();
           db.prepare(`
-            INSERT INTO vocabulary (id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, word, dictType, category, scene_type, JSON.stringify(payload), now, now, '[]', 0, 1, 2.5);
+            INSERT INTO vocabulary (id, user_id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `).run(id, userId, word, dictType, category, scene_type, JSON.stringify(payload), now, now, '[]', 0, 1, 2.5);
           addedCount++;
         } else {
-          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, scene_type = ?, payload = ? WHERE id = ?').run(
+          db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, scene_type = ?, payload = ? WHERE id = ? AND user_id = ?').run(
             dictType,
             category,
             scene_type,
             JSON.stringify(payload),
-            existing.id
+            existing.id,
+            userId
           );
         }
       }
     });
     insertMany(items);
 
-    console.log(`[Batch Add] Success: callback batch added ${addedCount} words.`);
+    console.log(`[Batch Add] Success: callback batch added ${addedCount} words for user ${userId}.`);
     res.json({ success: true, addedCount, message: `Successfully batch added ${addedCount} words.` });
   } catch (error) {
     console.error('Batch Add Error:', error);

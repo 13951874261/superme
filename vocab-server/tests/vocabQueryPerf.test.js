@@ -37,7 +37,7 @@ assert.match(
 );
 assert.match(
   reviewRouteBody,
-  /SELECT \$\{LIGHT_SELECT\}[\s\S]*?FROM vocabulary[\s\S]*?WHERE next_review_date <= \?[\s\S]*?LIMIT \? OFFSET \?/,
+  /SELECT \$\{LIGHT_SELECT\}[\s\S]*?FROM vocabulary[\s\S]*?WHERE (user_id = \? AND )?next_review_date <= \?[\s\S]*?LIMIT \? OFFSET \?/,
   'review route enforces parameterized pagination'
 );
 assert.doesNotMatch(
@@ -53,7 +53,7 @@ const lookupRouteBody = lookupRouteMatch[1];
 
 assert.match(
   lookupRouteBody,
-  /WHERE word IN \(\$\{placeholders\}\) COLLATE NOCASE/,
+  /WHERE (user_id = \? AND )?word IN \(\$\{placeholders\}\) COLLATE NOCASE/,
   'lookup route exists with parameterized NOCASE IN query'
 );
 

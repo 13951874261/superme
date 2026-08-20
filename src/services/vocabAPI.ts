@@ -188,7 +188,7 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
 }
 
 function reviewLightCacheKey(category: VocabCategory): string {
-  return `sa_vocab_review_light_v1:${category}`;
+  return `sa_vocab_review_light_v1:${getAppUserId()}:${category}`;
 }
 
 export function readReviewLightCache(category: VocabCategory): VocabEntry[] | null {
@@ -218,17 +218,19 @@ export function clearReviewLightCache(category: VocabCategory): void {
   }
 }
 
-/** 获取统计：总词数 + 今日待复习数 */
+/** 获取统计：总词数 + 今日待复习数（按当前登录账号隔离） */
 export async function getStats(): Promise<VocabStats> {
-  return vocabRequestDeduper.run('stats', () =>
-    request<VocabStats>('/stats', { timeoutMs: 3000, silent: true })
+  const uid = getAppUserId();
+  return vocabRequestDeduper.run(`stats:${uid}`, () =>
+    request<VocabStats>(`/stats?userId=${encodeURIComponent(uid)}`, { timeoutMs: 3000, silent: true })
   );
 }
 
-/** 获取词条分页列表（默认第一页 50 条轻量数据，禁止全表拉取） */
+/** 获取词条分页列表（默认第一页 50 条轻量数据，按账号隔离） */
 export async function getAllWords(options?: { light?: boolean; limit?: number }): Promise<VocabEntry[]> {
   const safeLimit = Math.min(Math.max(Math.floor(options?.limit || 50), 1), 100);
-  const path = `/list?light=1&limit=${safeLimit}`;
+  const uid = getAppUserId();
+  const path = `/list?light=1&limit=${safeLimit}&userId=${encodeURIComponent(uid)}`;
   const res = await request<{ items: VocabEntry[]; hasMore: boolean }>(path, {
     timeoutMs: 10000,
     silent: true,
@@ -236,11 +238,12 @@ export async function getAllWords(options?: { light?: boolean; limit?: number })
   return res?.items || [];
 }
 
-/** 按单词精确查找轻量词条（走 idx_vocab_word_nocase 索引） */
+/** 按单词精确查找轻量词条（按账号隔离） */
 export async function getVocabByWord(word: string): Promise<VocabEntry | null> {
   const trimmed = typeof word === 'string' ? word.trim() : '';
   if (!trimmed) return null;
-  const path = `/list?light=1&limit=1&word=${encodeURIComponent(trimmed)}`;
+  const uid = getAppUserId();
+  const path = `/list?light=1&limit=1&word=${encodeURIComponent(trimmed)}&userId=${encodeURIComponent(uid)}`;
   const res = await request<{ items: VocabEntry[]; hasMore: boolean }>(path, {
     timeoutMs: 8000,
     silent: true,
@@ -248,15 +251,16 @@ export async function getVocabByWord(word: string): Promise<VocabEntry | null> {
   return res?.items?.[0] || null;
 }
 
-/** 批量点查词条（单次上限 100） */
+/** 批量点查词条（单次上限 100，按账号隔离） */
 export async function lookupVocabWords(words: string[]): Promise<VocabEntry[]> {
   const validWords = Array.from(
     new Set(words.map((w) => (typeof w === 'string' ? w.trim() : '')).filter(Boolean))
   ).slice(0, 100);
   if (validWords.length === 0) return [];
+  const uid = getAppUserId();
   const res = await request<{ items: VocabEntry[] }>('/lookup', {
     method: 'POST',
-    body: JSON.stringify({ words: validWords }),
+    body: JSON.stringify({ words: validWords, userId: uid }),
     timeoutMs: 10000,
     silent: true,
   });
@@ -270,8 +274,9 @@ export async function getVocabPage(
 ): Promise<VocabPage> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
   const safeOffset = Math.max(Math.floor(offset), 0);
-  const path = `/list?light=1&category=${category}&limit=${safeLimit}&offset=${safeOffset}`;
-  return vocabRequestDeduper.run(`list:page:${category}:${safeOffset}:${safeLimit}`, () =>
+  const uid = getAppUserId();
+  const path = `/list?light=1&category=${category}&limit=${safeLimit}&offset=${safeOffset}&userId=${encodeURIComponent(uid)}`;
+  return vocabRequestDeduper.run(`list:page:${uid}:${category}:${safeOffset}:${safeLimit}`, () =>
     request<VocabPage>(path, { timeoutMs: 20000, silent: true })
   );
 }
@@ -283,13 +288,14 @@ export async function getReviewPage(
 ): Promise<VocabPage> {
   const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 100);
   const safeOffset = Math.max(Math.floor(offset), 0);
-  const path = `/review?light=1&category=${category}&limit=${safeLimit}&offset=${safeOffset}`;
-  return vocabRequestDeduper.run(`review:page:${category}:${safeLimit}:${safeOffset}`, () =>
+  const uid = getAppUserId();
+  const path = `/review?light=1&category=${category}&limit=${safeLimit}&offset=${safeOffset}&userId=${encodeURIComponent(uid)}`;
+  return vocabRequestDeduper.run(`review:page:${uid}:${category}:${safeLimit}:${safeOffset}`, () =>
     request<VocabPage>(path, { timeoutMs: 20000, silent: true })
   );
 }
 
-/** 获取今日待复习词条（始终轻量分页 + 写缓存） */
+/** 获取今日待复习词条（始终轻量分页 + 写缓存，按账号隔离） */
 export async function getReviewWords(
   category: VocabCategory,
   _options?: { light?: boolean },
@@ -304,7 +310,7 @@ export async function getVocabItem(id: string): Promise<VocabEntry> {
   return request<VocabEntry>(`/item/${encodeURIComponent(id)}`, { timeoutMs: 8000, silent: true });
 }
 
-/** 收录词条 */
+/** 收录词条（自动绑定当前登录账号） */
 export async function addWord(params: {
   word: string;
   dictType: string;
@@ -312,9 +318,10 @@ export async function addWord(params: {
   scene_type?: string;
   payload: any;
 }): Promise<{ success: boolean; id?: string; message: string }> {
+  const uid = getAppUserId();
   return request('/add', {
     method: 'POST',
-    body: JSON.stringify({ ...params, category: params.category || 'business' }),
+    body: JSON.stringify({ ...params, category: params.category || 'business', userId: uid }),
   });
 }
 

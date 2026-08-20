@@ -241,8 +241,29 @@ function VocabularyBookComponent() {
           .catch(() => {});
       }
     };
+
+    const handleUserChange = () => {
+      clearReviewLightCache('business');
+      clearReviewLightCache('general');
+      setCurrentPage(1);
+      loadStats();
+      if (isExpanded) {
+        loadWords(1, vocabTab);
+      } else {
+        getReviewWords(vocabTab, { light: true })
+          .then((review) => {
+            setDueWords(review);
+          })
+          .catch(() => {});
+      }
+    };
+
     window.addEventListener('vocab-updated', handleUpdate);
-    return () => window.removeEventListener('vocab-updated', handleUpdate);
+    window.addEventListener('global-user-id-changed', handleUserChange);
+    return () => {
+      window.removeEventListener('vocab-updated', handleUpdate);
+      window.removeEventListener('global-user-id-changed', handleUserChange);
+    };
   }, [loadStats, loadWords, isExpanded, vocabTab, currentPage]);
 
   const handleExpand = () => {
