@@ -242,11 +242,7 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
     let CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
     let DURATIONS = dailyCronRunService.LONG_DURATIONS;
 
-    if (process.env.MVP_MODE === 'true') {
-      GENRES = ['meeting'];
-      CEFR_LEVELS = ['B1'];
-      DURATIONS = [1];
-    }
+    // 取消 MVP_MODE 限制，支持 4体裁 x 4等级 x 4时长 共 64 种组合长文生成与落库
 
     for (const genre of GENRES) {
       if (filterOptions?.genre && genre !== filterOptions.genre) continue;
@@ -330,30 +326,65 @@ function resolveCronHour() {
   return hour;
 }
 
+let isExecutingCron = false;
+
+function hasCronRunToday(db, packDate) {
+  try {
+    const row = db.prepare(`
+      SELECT COUNT(*) as cnt FROM daily_cron_runs
+      WHERE pack_date = ? AND trigger_source = 'cron'
+    `).get(packDate);
+    return Number(row?.cnt || 0) > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
 function scheduleDailyPackCron(db) {
   if (process.env.DAILY_PACK_CRON_ENABLED === 'false') {
     console.log('[DailyPack Cron] disabled via DAILY_PACK_CRON_ENABLED=false');
     return;
   }
   const cronHour = resolveCronHour();
+  const WINDOW_MINUTES = 15; // 02:00 ~ 02:15 容错触发窗口
+
   setInterval(() => {
+    if (isExecutingCron) return;
+
     const { hour, minute } = dailyPackService.getShanghaiHourMinute();
     const packDate = dailyPackService.getPackDate();
-    if (hour === cronHour && minute === 0 && lastCronPackDate !== packDate) {
+
+    // 处于 02:00 ~ 02:15 窗口内，且内存与数据库记录均显示当天 cron 尚未运行，即触发
+    const inWindow = hour === cronHour && minute >= 0 && minute <= WINDOW_MINUTES;
+    const shouldRun = inWindow && lastCronPackDate !== packDate && !hasCronRunToday(db, packDate);
+
+    if (shouldRun) {
       lastCronPackDate = packDate;
+      isExecutingCron = true;
+      console.log(`⏰ [DailyPack Cron Triggered] 上海时间 ${hour}:${String(minute).padStart(2, '0')} (packDate: ${packDate}) 满足定时触发条件`);
       (async () => {
-        const packSummary = await runDailyPackCronJob(db);
-        if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
-          await dailyListenPreGenerateService.runDailyListenCronJob(db, {
-            cronTickId: packSummary.cronTickId,
-          });
+        try {
+          const packSummary = await runDailyPackCronJob(db);
+          if (process.env.DAILY_LISTEN_CRON_ENABLED !== 'false') {
+            await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+              cronTickId: packSummary.cronTickId,
+            });
+          }
+        } finally {
+          isExecutingCron = false;
         }
-      })().catch((e) => console.error('[DailyPack/Listen Cron] failed:', e));
+      })().catch((e) => {
+        isExecutingCron = false;
+        console.error('[DailyPack/Listen Cron] failed:', e);
+      });
     }
-  }, 60 * 1000);
+  }, 30 * 1000); // 每 30 秒检查一次
+
   console.log(
-    '[DailyPack Cron] scheduled for %s:00 then DailyListen (%s; DAILY_PACK_CRON_HOUR=%s)',
+    '[DailyPack Cron] scheduled for %s:00-%s:%s window then DailyListen (%s; DAILY_PACK_CRON_HOUR=%s)',
     String(cronHour).padStart(2, '0'),
+    String(cronHour).padStart(2, '0'),
+    WINDOW_MINUTES,
     dailyPackService.PACK_TZ,
     cronHour,
   );

@@ -479,7 +479,7 @@ export default function ListenTab() {
 
     try {
       const uploadData = await uploadLocalListeningAudio(file, 'default-user');
-      if (!uploadData.success) throw new Error(uploadData.error || '上传失败');
+      if (!uploadData.success) throw new Error((uploadData as any).error || '上传失败');
 
       setListenAudioUrl(uploadData.audioUrl);
       setUploadProgress(50);

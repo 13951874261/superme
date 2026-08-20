@@ -1032,11 +1032,7 @@ async function runDailyListenForUser(
   let genreList = GENRES;
   let cefrList = CEFR_LEVELS;
 
-  if (process.env.MVP_MODE === 'true') {
-    genreList = ['meeting'];
-    cefrList = ['B1'];
-    durationList = [1];
-  }
+  // 取消 MVP_MODE 限制，支持 4体裁 x 4等级 x 4时长 共 64 种组合精听生成
 
   for (const genre of genreList) {
     for (const cefrLevel of cefrList) {
