@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { fetchDailyCronRuns, DailyCronRunSummary } from '../services/dailyCronAPI';
+import { fetchDailyCronRuns, DailyCronRunSummary, deleteDailyCronRun, clearFinishedDailyCronRuns } from '../services/dailyCronAPI';
 import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
@@ -10,6 +10,9 @@ export interface TaskItem {
   progress: number;
   logs: string[];
   error?: string | null;
+  createdAt?: number;
+  updatedAt?: number;
+  completedAt?: number;
   result?: {
     name?: string;
     content?: string;
@@ -61,6 +64,9 @@ interface TaskContextType {
   startPolling: (id: string) => void;
   fetchTasks: () => Promise<void>;
   fetchCronRuns: () => Promise<void>;
+  deleteTask: (id: string) => Promise<void>;
+  deleteCronRun: (id: string) => Promise<void>;
+  clearFinished: () => Promise<{ deletedTasks: number; deletedCronRuns: number }>;
   pendingCount: number;
 }
 
@@ -122,10 +128,75 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [isOpen, fetchCronRuns]);
 
   const addTask = (task: TaskItem) => {
-    setTasks((prev) => [task, ...prev]);
-    if (task.status === 'pending' || task.status === 'running') {
-      startPolling(task.id);
+    const now = Date.now();
+    const normalized = {
+      ...task,
+      createdAt: task.createdAt ?? now,
+      updatedAt: task.updatedAt ?? now,
+    };
+    setTasks((prev) => [normalized, ...prev]);
+    if (normalized.status === 'pending' || normalized.status === 'running') {
+      startPolling(normalized.id);
     }
+  };
+
+  const deleteTask = async (id: string) => {
+    const res = await fetch(`${API_BASE}/api/tasks/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (res.status === 404) {
+      setTasks((prev) => prev.filter((t) => t.id !== id));
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    if (res.status === 409) {
+      await fetchTasks();
+      throw new Error(data.error || '进行中的任务不能删除');
+    }
+    if (!res.ok || !data.success) throw new Error(data.error || `delete task HTTP ${res.status}`);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    activePolls.current.delete(id);
+  };
+
+  const deleteCronRun = async (id: string) => {
+    try {
+      await deleteDailyCronRun(id);
+    } catch (e: any) {
+      if (String(e?.message || '').includes('进行中')) {
+        await fetchCronRuns();
+      }
+      throw e;
+    }
+    setCronRuns((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const clearFinished = async () => {
+    let deletedTasks = 0;
+    let deletedCronRuns = 0;
+    const errors: string[] = [];
+
+    try {
+      const res = await fetch(`${API_BASE}/api/tasks/clear-finished`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) errors.push(data.error || '清空普通任务失败');
+      else deletedTasks = Number(data.deleted || 0);
+    } catch (e: any) {
+      errors.push(e.message || '清空普通任务失败');
+    }
+
+    try {
+      const r = await clearFinishedDailyCronRuns();
+      deletedCronRuns = r.deletedRuns;
+    } catch (e: any) {
+      errors.push(e.message || '清空定时任务失败');
+    }
+
+    await Promise.all([fetchTasks(), fetchCronRuns()]);
+
+    if (errors.length) {
+      throw new Error(
+        `已删除普通任务 ${deletedTasks} 条、定时任务 ${deletedCronRuns} 条。失败：${errors.join('；')}`
+      );
+    }
+    return { deletedTasks, deletedCronRuns };
   };
 
   const startPolling = (id: string) => {
@@ -161,6 +232,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     logs: data.logs,
                     error: data.error,
                     result: data.result,
+                    createdAt: data.createdAt ?? t.createdAt,
+                    updatedAt: data.updatedAt ?? t.updatedAt,
+                    completedAt: data.completedAt ?? t.completedAt,
                   }
                 : t
             )
@@ -255,6 +329,9 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         startPolling,
         fetchTasks,
         fetchCronRuns,
+        deleteTask,
+        deleteCronRun,
+        clearFinished,
         pendingCount,
       }}
     >

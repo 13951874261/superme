@@ -158,6 +158,31 @@ class InMemoryTaskQueue {
     }
   }
 
+  isFinishedStatus(status) {
+    return status === 'completed' || status === 'failed';
+  }
+
+  deleteTask(id) {
+    const task = this.tasks.get(id);
+    if (!task) return { ok: false, code: 404 };
+    if (!this.isFinishedStatus(task.status)) return { ok: false, code: 409, task };
+    this.tasks.delete(id);
+    this._save();
+    return { ok: true, code: 200 };
+  }
+
+  clearFinishedTasks() {
+    let deleted = 0;
+    for (const [id, task] of this.tasks.entries()) {
+      if (this.isFinishedStatus(task.status)) {
+        this.tasks.delete(id);
+        deleted += 1;
+      }
+    }
+    if (deleted > 0) this._save();
+    return { deleted };
+  }
+
   /**
    * 获取所有任务列表（按创建时间逆序）
    */

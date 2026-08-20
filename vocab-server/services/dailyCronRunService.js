@@ -175,6 +175,56 @@ function retentionCutoffDate(now = new Date()) {
   return addShanghaiDays(getPackDate(now), -RETENTION_DAYS);
 }
 
+const FINISHED_RUN_STATUSES = ['completed', 'failed', 'partial_failed'];
+
+function isFinishedRunStatus(status) {
+  return FINISHED_RUN_STATUSES.includes(status);
+}
+
+function deleteRunRows(db, runIds) {
+  if (!runIds.length) {
+    return { deletedRuns: 0, deletedSteps: 0, deletedEvents: 0 };
+  }
+  const placeholders = runIds.map(() => '?').join(',');
+  const delEvents = db.prepare(
+    `DELETE FROM daily_cron_log_events WHERE run_id IN (${placeholders})`,
+  ).run(...runIds);
+  const delSteps = db.prepare(
+    `DELETE FROM daily_cron_steps WHERE run_id IN (${placeholders})`,
+  ).run(...runIds);
+  const delRuns = db.prepare(
+    `DELETE FROM daily_cron_runs WHERE id IN (${placeholders})`,
+  ).run(...runIds);
+  return {
+    deletedRuns: delRuns.changes,
+    deletedSteps: delSteps.changes,
+    deletedEvents: delEvents.changes,
+  };
+}
+
+function deleteRunForUser(db, runId, userId) {
+  const ownership = assertRunOwner(db, runId, userId);
+  if (!ownership.ok) return { ok: false, code: ownership.code || 404 };
+  const status = ownership.run.status;
+  if (!isFinishedRunStatus(status)) {
+    return { ok: false, code: 409 };
+  }
+  const stats = deleteRunRows(db, [runId]);
+  return { ok: true, code: 200, ...stats };
+}
+
+function clearFinishedRunsForUser(db, userId) {
+  const uid = normalizeUserId(userId);
+  const statusPlaceholders = FINISHED_RUN_STATUSES.map(() => '?').join(',');
+  const rows = db.prepare(`
+    SELECT id FROM daily_cron_runs
+    WHERE user_id = ?
+      AND status IN (${statusPlaceholders})
+  `).all(uid, ...FINISHED_RUN_STATUSES);
+  const ids = rows.map((r) => r.id);
+  return deleteRunRows(db, ids);
+}
+
 function cleanupOldCronRuns(db, now = new Date()) {
   const cutoff = retentionCutoffDate(now);
   const oldIds = db.prepare(`
@@ -187,22 +237,13 @@ function cleanupOldCronRuns(db, now = new Date()) {
     return { cutoff, deletedRuns: 0, deletedSteps: 0, deletedEvents: 0 };
   }
 
-  const placeholders = oldIds.map(() => '?').join(',');
-  const delEvents = db.prepare(
-    `DELETE FROM daily_cron_log_events WHERE run_id IN (${placeholders})`,
-  ).run(...oldIds);
-  const delSteps = db.prepare(
-    `DELETE FROM daily_cron_steps WHERE run_id IN (${placeholders})`,
-  ).run(...oldIds);
-  const delRuns = db.prepare(
-    `DELETE FROM daily_cron_runs WHERE id IN (${placeholders})`,
-  ).run(...oldIds);
+  const { deletedRuns, deletedSteps, deletedEvents } = deleteRunRows(db, oldIds);
 
   return {
     cutoff,
-    deletedRuns: delRuns.changes,
-    deletedSteps: delSteps.changes,
-    deletedEvents: delEvents.changes,
+    deletedRuns,
+    deletedSteps,
+    deletedEvents,
   };
 }
 
@@ -679,6 +720,10 @@ module.exports = {
   initDailyCronRunTables,
   markInterruptedRunning,
   retentionCutoffDate,
+  isFinishedRunStatus,
+  deleteRunRows,
+  deleteRunForUser,
+  clearFinishedRunsForUser,
   cleanupOldCronRuns,
   aggregateExecutionStatus,
   computeRunProgress,

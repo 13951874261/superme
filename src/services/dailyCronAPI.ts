@@ -107,3 +107,25 @@ export async function rerunDailyCronRun(
   }
   return { runId: data.runId };
 }
+
+export async function deleteDailyCronRun(runId: string, userId = getAppUserId()): Promise<void> {
+  const res = await fetch(
+    `/api/daily-cron/runs/${encodeURIComponent(runId)}?userId=${encodeURIComponent(userId)}`,
+    { method: 'DELETE' },
+  );
+  if (res.status === 404) return;
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 409) throw new Error(data.error || '进行中的任务不能删除');
+  if (!res.ok || !data.success) throw new Error(data.error || `delete run HTTP ${res.status}`);
+}
+
+export async function clearFinishedDailyCronRuns(userId = getAppUserId()): Promise<{ deletedRuns: number }> {
+  const res = await fetch('/api/daily-cron/runs/clear-finished', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.success) throw new Error(data.error || `clear cron HTTP ${res.status}`);
+  return { deletedRuns: Number(data.deletedRuns || 0) };
+}

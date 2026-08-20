@@ -8343,6 +8343,34 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
   }
 });
 
+app.delete('/api/daily-cron/runs/:runId', (req, res) => {
+  try {
+    const userId = req.query.userId || req.body?.userId || 'default-user';
+    const result = dailyCronRunService.deleteRunForUser(db, req.params.runId, userId);
+    if (!result.ok) {
+      return res.status(result.code).json({
+        success: false,
+        error: result.code === 409 ? '进行中的任务不能删除' : 'not found',
+      });
+    }
+    res.json({ success: true, deletedRuns: result.deletedRuns });
+  } catch (error) {
+    console.error('[DailyCron delete run]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/daily-cron/runs/clear-finished', (req, res) => {
+  try {
+    const userId = req.body?.userId || req.query.userId || 'default-user';
+    const result = dailyCronRunService.clearFinishedRunsForUser(db, userId);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[DailyCron clear finished]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // ?????????????????????????????
 app.get('/api/daily-quota/status', (req, res) => {
   try {
@@ -11008,6 +11036,32 @@ app.get('/api/tasks/:taskId', (req, res) => {
       return res.status(404).json({ success: false, error: '任务不存在或已过期' });
     }
     res.json({ success: true, ...task });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/tasks/:taskId', (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    const result = taskQueue.deleteTask(req.params.taskId);
+    if (!result.ok) {
+      return res.status(result.code).json({
+        success: false,
+        error: result.code === 409 ? '进行中的任务不能删除' : '任务不存在或已过期',
+      });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/tasks/clear-finished', (req, res) => {
+  try {
+    const taskQueue = require('./services/taskQueue');
+    const result = taskQueue.clearFinishedTasks();
+    res.json({ success: true, deleted: result.deleted });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
