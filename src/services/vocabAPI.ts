@@ -37,6 +37,7 @@ export interface VocabStats {
 export interface VocabPage {
   items: VocabEntry[];
   hasMore: boolean;
+  total?: number;
 }
 
 export type VocabCategory = 'business' | 'general';

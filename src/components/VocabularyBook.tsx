@@ -25,7 +25,6 @@ import EbbinghausChart from './EbbinghausChart';
 import VocabExportControl from './VocabExportControl';
 import { getWordTranslation } from '../utils/vocabCsvExport';
 
-const LIST_VIEWPORT_H = 550;
 const ROW_ESTIMATE_H = 92;
 
 // ==========================================
@@ -153,12 +152,16 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
 // ==========================================
 function VocabularyBookComponent() {
 
+  const PAGE_SIZE = 50;
+
   const [vocabTab, setVocabTab] = useState<'business' | 'general'>('business');
   const [stats, setStats] = useState<VocabStats>({ total: 0, dueToday: 0 });
   const [words, setWords] = useState<VocabEntry[]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasMoreWords, setHasMoreWords] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalWords, setTotalWords] = useState(0);
+  const [pageInputValue, setPageInputValue] = useState('');
   const [showFlashCard, setShowFlashCard] = useState(false);
   const [showCustomCardModal, setShowCustomCardModal] = useState(false);
   const [editingWord, setEditingWord] = useState<VocabEntry | null>(null);
@@ -168,8 +171,9 @@ function VocabularyBookComponent() {
   const [expandedWordId, setExpandedWordId] = useState<string | null>(null);
   const [peekId, setPeekId] = useState<string | null>(null);
   const [dueWords, setDueWords] = useState<VocabEntry[]>([]);
-  const [scrollTop, setScrollTop] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+
+  const totalPages = Math.max(1, Math.ceil(totalWords / PAGE_SIZE));
 
   const loadStats = useCallback(async () => {
     try {
@@ -181,29 +185,33 @@ function VocabularyBookComponent() {
     }
   }, []);
 
-  const loadWords = useCallback(async (append = false, category = vocabTab) => {
+  const loadWords = useCallback(async (page = 1, category = vocabTab) => {
     setIsLoading(true);
+    setExpandedWordId(null);
     try {
       const cached = readReviewLightCache(category);
       if (cached) setDueWords(cached);
 
+      const offset = (page - 1) * PAGE_SIZE;
       const { list, review } = await loadExpandedVocab(
-        () => getVocabPage(category, append ? words.length : 0),
+        () => getVocabPage(category, offset, PAGE_SIZE),
         cached,
         () => getReviewWords(category, { light: true }).catch(() => [])
       );
-      setWords(prev => append ? [...prev, ...list.items] : list.items);
-      setHasMoreWords(list.hasMore);
+      setWords(list.items);
+      if (typeof list.total === 'number') setTotalWords(list.total);
       if (Array.isArray(review)) {
         setDueWords(review);
         writeReviewLightCache(category, review);
       }
+      // 翻页后滚动回顶部
+      if (listRef.current) listRef.current.scrollTop = 0;
     } catch {
       // ignore
     } finally {
       setIsLoading(false);
     }
-  }, [vocabTab, words.length]);
+  }, [vocabTab]);
 
   useEffect(() => {
     loadStats();
@@ -224,7 +232,7 @@ function VocabularyBookComponent() {
       clearReviewLightCache(vocabTab);
       loadStats();
       if (isExpanded) {
-        loadWords();
+        loadWords(currentPage, vocabTab);
       } else {
         getReviewWords(vocabTab, { light: true })
           .then((review) => {
@@ -235,23 +243,25 @@ function VocabularyBookComponent() {
     };
     window.addEventListener('vocab-updated', handleUpdate);
     return () => window.removeEventListener('vocab-updated', handleUpdate);
-  }, [loadStats, loadWords, isExpanded, vocabTab]);
+  }, [loadStats, loadWords, isExpanded, vocabTab, currentPage]);
 
   const handleExpand = () => {
     const next = !isExpanded;
     setIsExpanded(next);
-    if (next) loadWords();
+    if (next) {
+      setCurrentPage(1);
+      loadWords(1);
+    }
+  };
+
+  const goToPage = (page: number) => {
+    const p = Math.max(1, Math.min(totalPages, page));
+    setCurrentPage(p);
+    loadWords(p);
   };
 
   const filteredWords = words;
   const dueInZone = dueWords.length;
-
-  const startIdx = Math.max(0, Math.floor(scrollTop / ROW_ESTIMATE_H) - 3);
-  const visibleCount = Math.ceil(LIST_VIEWPORT_H / ROW_ESTIMATE_H) + 6;
-  const endIdx = Math.min(filteredWords.length, startIdx + visibleCount);
-  const virtualSlice = filteredWords.slice(startIdx, endIdx);
-  const padTop = startIdx * ROW_ESTIMATE_H;
-  const padBottom = Math.max(0, (filteredWords.length - endIdx) * ROW_ESTIMATE_H);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -259,6 +269,7 @@ function VocabularyBookComponent() {
     clearReviewLightCache(vocabTab);
     setWords(prev => prev.filter(w => w.id !== id));
     setDueWords(prev => prev.filter(w => w.id !== id));
+    setTotalWords(prev => Math.max(0, prev - 1));
     loadStats();
   };
 
@@ -268,7 +279,7 @@ function VocabularyBookComponent() {
       await manualIntervention(id, action);
       clearReviewLightCache(vocabTab);
       loadStats();
-      loadWords();
+      loadWords(currentPage);
     } catch {
       // ignore
     }
@@ -283,7 +294,7 @@ function VocabularyBookComponent() {
   const handleReviewDone = () => {
     setShowFlashCard(false);
     loadStats();
-    if (isExpanded) loadWords();
+    if (isExpanded) loadWords(currentPage);
   };
 
   const selectVocabTab = (category: 'business' | 'general') => {
@@ -291,9 +302,9 @@ function VocabularyBookComponent() {
     setVocabTab(category);
     setWords([]);
     setDueWords([]);
-    setHasMoreWords(false);
-    setScrollTop(0);
-    loadWords(false, category);
+    setCurrentPage(1);
+    setTotalWords(0);
+    loadWords(1, category);
   };
 
   const formatNextReview = (ts: number) => {
@@ -366,7 +377,7 @@ function VocabularyBookComponent() {
               <div className="flex items-center gap-1.5 ml-auto">
                 <div className="w-px h-5 bg-gray-200 mx-0.5 hidden sm:block" aria-hidden />
                 <button
-                  onClick={(e) => { e.stopPropagation(); loadWords(); }}
+                  onClick={(e) => { e.stopPropagation(); loadWords(currentPage); }}
                   className="p-1.5 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition"
                   title="刷新词条"
                 >
@@ -412,7 +423,6 @@ function VocabularyBookComponent() {
             <div
               ref={listRef}
               className="divide-y divide-gray-50 border-t border-gray-100 max-h-[550px] overflow-y-auto scrollbar-thin"
-              onScroll={(e) => setScrollTop((e.target as HTMLDivElement).scrollTop)}
             >
               {isLoading ? (
                 <div className="text-center text-gray-400 text-xs py-6">加载中...</div>
@@ -421,8 +431,8 @@ function VocabularyBookComponent() {
                   暂无词条，从词典查询后点击「收录」添加
                 </div>
               ) : (
-                <div style={{ paddingTop: padTop, paddingBottom: padBottom }}>
-                  {virtualSlice.map(word => {
+                <div>
+                  {filteredWords.map(word => {
                   const payload = word.payload || {};
                   const pos = payload.pos || '';
                   const phonetic = payload.phonetic || '';
@@ -431,7 +441,7 @@ function VocabularyBookComponent() {
                   const isPeek = peekId === word.id;
 
                   return (
-                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-zinc-500/5 transition-all transform-gpu [content-visibility:auto] [contain-intrinsic-size:auto_92px]" style={{ minHeight: ROW_ESTIMATE_H }}>
+                    <div key={word.id} className="flex flex-col border-b border-gray-50 last:border-0 hover:bg-zinc-500/5 transition-all transform-gpu" style={{ minHeight: ROW_ESTIMATE_H }}>
 
                       <div
                         onClick={() => handleWordClick(word)}
@@ -563,17 +573,123 @@ function VocabularyBookComponent() {
                 })}
                 </div>
               )}
-            {!isLoading && hasMoreWords && (
-              <div className="border-t border-gray-100 p-3 text-center">
-                <button
-                  onClick={() => loadWords(true)}
-                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
-                >
-                  加载更多
-                </button>
-              </div>
-            )}
             </div>
+
+            {/* ===== 标准数字分页器 ===== */}
+            {!isLoading && totalWords > PAGE_SIZE && (() => {
+              const maxPageButtons = 5;
+              let startPage = Math.max(1, currentPage - Math.floor(maxPageButtons / 2));
+              const endPage = Math.min(totalPages, startPage + maxPageButtons - 1);
+              if (endPage - startPage < maxPageButtons - 1) {
+                startPage = Math.max(1, endPage - maxPageButtons + 1);
+              }
+              const pageButtons: number[] = [];
+              for (let i = startPage; i <= endPage; i++) pageButtons.push(i);
+
+              return (
+                <div className="border-t border-gray-100 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap select-none">
+                  {/* 左侧：总数信息 */}
+                  <span className="text-[10px] text-slate-400 shrink-0">
+                    共 {totalWords} 词，第 {currentPage}/{totalPages} 页
+                  </span>
+
+                  {/* 中间：翻页控件 */}
+                  <div className="flex items-center gap-1">
+                    {/* 首页 */}
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => goToPage(1)}
+                      className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      «
+                    </button>
+                    {/* 上一页 */}
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => goToPage(currentPage - 1)}
+                      className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      ‹
+                    </button>
+
+                    {/* 页码按钮 */}
+                    {startPage > 1 && (
+                      <>
+                        <button onClick={() => goToPage(1)} className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 transition">1</button>
+                        {startPage > 2 && <span className="text-[10px] text-slate-400 px-0.5">…</span>}
+                      </>
+                    )}
+                    {pageButtons.map(p => (
+                      <button
+                        key={p}
+                        onClick={() => goToPage(p)}
+                        className={`px-2 py-1 text-[10px] font-bold rounded border transition ${
+                          p === currentPage
+                            ? 'bg-[#FF5722] border-[#FF5722] text-white shadow-sm'
+                            : 'border-gray-200 text-slate-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                    {endPage < totalPages && (
+                      <>
+                        {endPage < totalPages - 1 && <span className="text-[10px] text-slate-400 px-0.5">…</span>}
+                        <button onClick={() => goToPage(totalPages)} className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 transition">{totalPages}</button>
+                      </>
+                    )}
+
+                    {/* 下一页 */}
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => goToPage(currentPage + 1)}
+                      className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      ›
+                    </button>
+                    {/* 尾页 */}
+                    <button
+                      disabled={currentPage === totalPages}
+                      onClick={() => goToPage(totalPages)}
+                      className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition"
+                    >
+                      »
+                    </button>
+                  </div>
+
+                  {/* 右侧：跳页输入 */}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-slate-400">跳至</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={totalPages}
+                      value={pageInputValue}
+                      onChange={(e) => setPageInputValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const p = parseInt(pageInputValue, 10);
+                          if (!isNaN(p)) goToPage(p);
+                          setPageInputValue('');
+                        }
+                      }}
+                      placeholder={String(currentPage)}
+                      className="w-12 px-1.5 py-0.5 text-[10px] border border-gray-200 rounded text-center text-slate-600 focus:outline-none focus:border-[#FF5722]"
+                    />
+                    <button
+                      onClick={() => {
+                        const p = parseInt(pageInputValue, 10);
+                        if (!isNaN(p)) goToPage(p);
+                        setPageInputValue('');
+                      }}
+                      className="px-2 py-1 text-[10px] font-bold rounded border border-gray-200 text-slate-500 hover:bg-gray-50 transition"
+                    >
+                      Go
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
 
             {!isLoading && stats.dueToday === 0 && stats.total > 0 && (
               <div className="px-4 py-2.5 border-t border-gray-50 flex items-center justify-center gap-1.5 text-[11px] text-emerald-500 font-bold bg-emerald-50/30">
@@ -583,6 +699,7 @@ function VocabularyBookComponent() {
             )}
           </div>
         )}
+
       </div>
 
       {showFlashCard && (

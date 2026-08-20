@@ -191,6 +191,8 @@ try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review ON vocabulary(next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_review_optimized ON vocabulary(category, next_review_date, repetitions)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at ON vocabulary(added_at)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_added_at_desc ON vocabulary(added_at DESC)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_category_added_at ON vocabulary(category, added_at DESC)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_word_nocase ON vocabulary(word COLLATE NOCASE)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_vocab_category ON vocabulary(category)').run();
 } catch (err) {
@@ -3296,6 +3298,7 @@ app.get('/api/vocab/list', (req, res) => {
     const word = typeof req.query.word === 'string' && req.query.word.trim() ? req.query.word.trim() : null;
 
     let rows;
+    let total = 0;
     if (word && category) {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
@@ -3304,6 +3307,7 @@ app.get('/api/vocab/list', (req, res) => {
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
       `).all(category, word, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE category = ? AND word = ? COLLATE NOCASE').get(category, word)?.count || 0;
     } else if (word) {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
@@ -3312,6 +3316,7 @@ app.get('/api/vocab/list', (req, res) => {
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
       `).all(word, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE word = ? COLLATE NOCASE').get(word)?.count || 0;
     } else if (category) {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
@@ -3320,6 +3325,7 @@ app.get('/api/vocab/list', (req, res) => {
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
       `).all(category, pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE category = ?').get(category)?.count || 0;
     } else {
       rows = db.prepare(`
         SELECT ${LIGHT_SELECT}
@@ -3327,11 +3333,13 @@ app.get('/api/vocab/list', (req, res) => {
         ORDER BY added_at DESC
         LIMIT ? OFFSET ?
       `).all(pageSize + 1, offset);
+      total = db.prepare('SELECT COUNT(*) as count FROM vocabulary').get()?.count || 0;
     }
 
     return res.json({
       items: rows.slice(0, pageSize).map(mapLightVocabRow),
       hasMore: rows.length > pageSize,
+      total,
     });
   } catch (error) {
     console.error('[vocab/list]', error);
