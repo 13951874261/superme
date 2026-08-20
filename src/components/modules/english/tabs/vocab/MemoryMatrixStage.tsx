@@ -57,7 +57,7 @@ export default function MemoryMatrixStage({
       </div>
 
       {/* 核心舞台（圆形环状布局结构） */}
-      <div className="relative w-full max-w-lg aspect-square flex items-center justify-center my-2">
+      <div className="relative w-full max-w-lg h-[340px] flex items-center justify-center my-2">
         {/* 外外环（第二环轨道） */}
         <div className="absolute inset-4 rounded-full border border-dashed border-indigo-400/20 animate-[spin_60s_linear_infinite] pointer-events-none" />
         

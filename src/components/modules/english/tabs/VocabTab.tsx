@@ -495,104 +495,112 @@ export default function VocabTab() {
                   </div>
                 </div>
               ) : (
-                <div className="animate-[fadeIn_0.4s_ease-out] grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* 左栏：核心全量词典视图 + 左下圆形记忆矩阵主舞台（彻底填满左下空白） */}
-                  <div className="lg:col-span-7 space-y-6">
-                    {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
-                    {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
-                    {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+                <div className="animate-[fadeIn_0.4s_ease-out] space-y-6">
+                  {/* =================【第 1 行：核心情报 + 记忆辅助工具卡 强水平对齐】================= */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                    {/* 左 7 栏：核心词典主卡 */}
+                    <div className="lg:col-span-7 flex flex-col">
+                      {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
+                      {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
+                      {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+                    </div>
 
-                    {/* 圆形记忆矩阵主舞台 */}
-                    <MemoryMatrixStage
-                      word={currentWord.word}
-                      payload={adaptedWord.payload}
-                      memoryAids={memoryAidsData}
-                    />
-                  </div>
-
-                  {/* 右栏：全高度对齐填充（记忆辅助 + SM-2算法仪表盘 + 高管商务语态SOP） */}
-                  <div className="lg:col-span-5 space-y-4">
-                    {/* 1. 生词记忆辅助 */}
-                    <div className="bg-slate-50/60 border border-slate-200/80 rounded-2xl p-4 shadow-sm">
+                    {/* 右 5 栏：1. 生词记忆辅助 */}
+                    <div className="lg:col-span-5 bg-slate-50/60 border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col">
                       <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
                         <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
                         1. 生词记忆辅助 (Memory Aids)
                       </h4>
                       <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
                     </div>
+                  </div>
 
-                    {/* 2. SM-2 记忆健康度与衰退曲线仪表盘 (填补右下区域) */}
-                    <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 border border-slate-800 shadow-md space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <Activity className="w-4 h-4 text-emerald-400" />
-                          <span className="text-xs font-black uppercase tracking-wider text-slate-200">2. SM-2 记忆健康度仪表盘</span>
-                        </div>
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          {currentWord.repetitions >= 3 ? '记忆稳固' : '巩固期'}
-                        </span>
-                      </div>
-
-                      {/* 记忆留存率进度条 */}
-                      <div>
-                        <div className="flex justify-between text-[11px] font-bold mb-1.5 text-slate-300">
-                          <span>艾宾浩斯记忆留存率</span>
-                          <span className="text-emerald-400 font-mono">
-                            {Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%
-                          </span>
-                        </div>
-                        <div className="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
-                          <div
-                            className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-300 rounded-full transition-all duration-500"
-                            style={{ width: `${Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%` }}
-                          />
-                        </div>
-                      </div>
-
-                      {/* 算法三要素卡片 */}
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                        <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">复习轮次</div>
-                          <div className="text-sm font-black text-amber-400 mt-0.5">{currentWord.repetitions || 0} 次</div>
-                        </div>
-                        <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">衰退间隔</div>
-                          <div className="text-sm font-black text-cyan-400 mt-0.5">{currentWord.interval_days || 0} 天</div>
-                        </div>
-                        <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">难易因子</div>
-                          <div className="text-sm font-black text-emerald-400 mt-0.5">{((currentWord.ease_factor || 2500) / 1000).toFixed(2)}</div>
-                        </div>
-                      </div>
-
-                      <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 font-mono">
-                        <span>下次智能排期:</span>
-                        <span className="text-slate-200 font-bold">
-                          {new Date(currentWord.next_review_date || Date.now()).toLocaleDateString('zh-CN')}
-                        </span>
-                      </div>
+                  {/* =================【第 2 行：圆形记忆矩阵主舞台 + 算法/SOP 仪表盘 强水平对齐】================= */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                    {/* 左 7 栏：圆形记忆矩阵主舞台 */}
+                    <div className="lg:col-span-7 flex flex-col">
+                      <MemoryMatrixStage
+                        word={currentWord.word}
+                        payload={adaptedWord.payload}
+                        memoryAids={memoryAidsData}
+                      />
                     </div>
 
-                    {/* 3. 高管商务语态与实战 SOP (填补右下区域) */}
-                    <div className="bg-amber-50/40 border border-amber-200/70 rounded-2xl p-4 shadow-sm space-y-3">
-                      <div className="flex items-center gap-2 text-amber-900 border-b border-amber-200/50 pb-2">
-                        <ShieldAlert className="w-4 h-4 text-amber-600" />
-                        <span className="text-xs font-black uppercase tracking-wider">3. 高管商务语态与分寸 SOP</span>
-                      </div>
-                      <div className="text-xs text-amber-950/80 leading-relaxed font-medium space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-amber-800 uppercase">语态分寸:</span>
-                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
-                            High Power / 决策级
+                    {/* 右 5 栏：2. SM-2 算法健康度仪表盘 + 3. 高管商务 SOP */}
+                    <div className="lg:col-span-5 flex flex-col justify-between gap-4">
+                      {/* 2. SM-2 记忆健康度与衰退曲线仪表盘 */}
+                      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 border border-slate-800 shadow-md space-y-4 flex-1">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <Activity className="w-4 h-4 text-emerald-400" />
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-200">2. SM-2 记忆健康度仪表盘</span>
+                          </div>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {currentWord.repetitions >= 3 ? '记忆稳固' : '巩固期'}
                           </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold text-amber-800 uppercase">推荐应用场景:</span>
-                          <span className="text-[10px] text-slate-700 font-semibold">QBR 汇报 · 高层谈判 · 战略方案</span>
+
+                        {/* 记忆留存率进度条 */}
+                        <div>
+                          <div className="flex justify-between text-[11px] font-bold mb-1.5 text-slate-300">
+                            <span>艾宾浩斯记忆留存率</span>
+                            <span className="text-emerald-400 font-mono">
+                              {Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%
+                            </span>
+                          </div>
+                          <div className="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                            <div
+                              className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-300 rounded-full transition-all duration-500"
+                              style={{ width: `${Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%` }}
+                            />
+                          </div>
                         </div>
-                        <p className="text-[11px] text-slate-600 italic bg-white/70 p-2.5 rounded-xl border border-amber-100/80 mt-1">
-                          💡 提示：在商务汇报中使用此词可显著提升句式的掌控力与专业气场，建议配合下方强制造句提交评估。
-                        </p>
+
+                        {/* 算法三要素卡片 */}
+                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase">复习轮次</div>
+                            <div className="text-sm font-black text-amber-400 mt-0.5">{currentWord.repetitions || 0} 次</div>
+                          </div>
+                          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase">衰退间隔</div>
+                            <div className="text-sm font-black text-cyan-400 mt-0.5">{currentWord.interval_days || 0} 天</div>
+                          </div>
+                          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase">难易因子</div>
+                            <div className="text-sm font-black text-emerald-400 mt-0.5">{((currentWord.ease_factor || 2500) / 1000).toFixed(2)}</div>
+                          </div>
+                        </div>
+
+                        <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 font-mono">
+                          <span>下次智能排期:</span>
+                          <span className="text-slate-200 font-bold">
+                            {new Date(currentWord.next_review_date || Date.now()).toLocaleDateString('zh-CN')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* 3. 高管商务语态与实战 SOP */}
+                      <div className="bg-amber-50/40 border border-amber-200/70 rounded-2xl p-4 shadow-sm space-y-3">
+                        <div className="flex items-center gap-2 text-amber-900 border-b border-amber-200/50 pb-2">
+                          <ShieldAlert className="w-4 h-4 text-amber-600" />
+                          <span className="text-xs font-black uppercase tracking-wider">3. 高管商务语态与分寸 SOP</span>
+                        </div>
+                        <div className="text-xs text-amber-950/80 leading-relaxed font-medium space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase">语态分寸:</span>
+                            <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
+                              High Power / 决策级
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase">推荐应用场景:</span>
+                            <span className="text-[10px] text-slate-700 font-semibold">QBR 汇报 · 高层谈判 · 战略方案</span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 italic bg-white/70 p-2.5 rounded-xl border border-amber-100/80 mt-1">
+                            💡 提示：在商务汇报中使用此词可显著提升句式的掌控力与专业气场，建议配合下方强制造句提交评估。
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </div>
