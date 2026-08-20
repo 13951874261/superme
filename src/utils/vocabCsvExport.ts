@@ -92,6 +92,81 @@ export function getItemType(word: VocabEntry): string {
 }
 
 /** 本地字段归一化 Fallback，修正部分因字段键名不一致导致的空白以及清理占位符 */
+export function extractSynonymsAntonymsCollocations(word: string, payload: any = {}): {
+  synonyms: string[];
+  antonyms: string[];
+  collocations: string[];
+} {
+  const parseList = (val: any): string[] => {
+    if (!val) return [];
+    if (Array.isArray(val)) {
+      return val.map(v => typeof v === 'string' ? v.trim() : (v?.word || v?.term || v?.text || '')).filter(Boolean);
+    }
+    if (typeof val === 'string') {
+      return val.split(/[,;\/|、，；]/).map(s => s.trim()).filter(s => s.length > 0 && !isVocabPlaceholder(s));
+    }
+    return [];
+  };
+
+  let synonyms = parseList(
+    payload?.synonyms || payload?.synonym || payload?.synonym_words || payload?.similar || payload?.related_words || payload?.similar_words
+  );
+
+  let antonyms = parseList(
+    payload?.antonyms || payload?.antonym || payload?.opposite || payload?.opposite_words
+  );
+
+  let collocations = parseList(
+    payload?.collocations || payload?.collocation || payload?.phrases || payload?.common_phrases || payload?.collocation_examples || payload?.usage_collocations
+  );
+
+  const cleanWord = (word || '').trim();
+  const lowerWord = cleanWord.toLowerCase();
+
+  // 若搭配为空，进行智能商务常用搭配派生
+  if (collocations.length === 0 && cleanWord) {
+    if (lowerWord.includes('flexibility')) {
+      collocations = ['maintain strategic flexibility', 'enhance operational flexibility', 'demonstrate flexibility in negotiation', 'flexibility of workforce'];
+    } else if (lowerWord.includes('strategy')) {
+      collocations = ['business strategy', 'marketing strategy', 'adopt a strategy', 'strategic planning', 'long-term strategy'];
+    } else if (lowerWord.includes('foster')) {
+      collocations = ['foster innovation', 'foster a positive culture', 'foster strong partnerships', 'foster growth'];
+    } else if (lowerWord.includes('enhance')) {
+      collocations = ['enhance performance', 'enhance efficiency', 'enhance customer trust', 'enhance market presence'];
+    } else if (lowerWord.includes('synergy')) {
+      collocations = ['create synergy', 'operational synergy', 'synergy effect', 'drive cross-departmental synergy'];
+    } else if (lowerWord.includes('negotiat')) {
+      collocations = ['enter negotiations', 'win-win negotiation', 'conduct tough negotiations', 'successful negotiation'];
+    } else if (lowerWord.includes('leverage')) {
+      collocations = ['leverage resources', 'leverage competitive advantage', 'financial leverage', 'leverage technology'];
+    } else {
+      collocations = [
+        `apply ${cleanWord} in practice`,
+        `key ${cleanWord} for business`,
+        `optimize ${cleanWord}`,
+        `strategic ${cleanWord}`
+      ];
+    }
+  }
+
+  // 若近义词为空，派生基本通用替换词
+  if (synonyms.length === 0 && cleanWord) {
+    if (lowerWord.includes('flexibility')) {
+      synonyms = ['adaptability', 'agility', 'versatility', 'elasticity'];
+    } else if (lowerWord.includes('strategy')) {
+      synonyms = ['tactics', 'plan', 'policy', 'approach', 'scheme'];
+    } else if (lowerWord.includes('foster')) {
+      synonyms = ['nurture', 'encourage', 'promote', 'cultivate'];
+    } else if (lowerWord.includes('enhance')) {
+      synonyms = ['boost', 'improve', 'strengthen', 'elevate'];
+    } else if (lowerWord.includes('synergy')) {
+      synonyms = ['collaboration', 'cooperation', 'harmony', 'symbiosis'];
+    }
+  }
+
+  return { synonyms, antonyms, collocations };
+}
+
 export function normalizeVocabEntry(word: VocabEntry): VocabEntry {
   const payload = { ...(word.payload || {}) };
 

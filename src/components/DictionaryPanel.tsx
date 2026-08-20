@@ -7,6 +7,7 @@ gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
 import { addWord, queryDictionary } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
+import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
   UtilityZhModernView,
   UtilityEnEnBusinessView,
@@ -314,7 +315,12 @@ interface EnEnBusinessViewProps {
 }
 
 export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
-  const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [], meaning_zh } = payload;
+  const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], meaning_zh } = payload;
+  const wordDisplay = headword || query;
+  const extracted = extractSynonymsAntonymsCollocations(wordDisplay, payload);
+  const synonymsList = extracted.synonyms;
+  const antonymsList = extracted.antonyms;
+  const collocationsList = extracted.collocations;
   
   // 过滤掉空内容的 scenarios
   const validScenarios = scenarios.filter(sc => {
@@ -336,7 +342,6 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
   
   const [openMeaningIdx, setOpenMeaningIdx] = useState<number | null>(null);
   const [showCollocations, setShowCollocations] = useState(false);
-  const wordDisplay = headword || query;
 
   return (
     <div className="space-y-4 text-left select-text selection:bg-[var(--color-accent)]/20">
@@ -471,14 +476,14 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
         </div>
       )}
 
-      {/* 同义词/反义词 (并排胶囊标签云) */}
-      {(synonyms.length > 0 || antonyms.length > 0) && (
+      {/* 同义词/反义词 (常驻并排胶囊标签云) */}
+      {(synonymsList.length > 0 || antonymsList.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {synonyms.length > 0 && (
+          {synonymsList.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Synonyms</div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Synonyms / 近义词</div>
               <div className="flex flex-wrap gap-1.5">
-                {synonyms.map((s, idx) => (
+                {synonymsList.map((s, idx) => (
                   <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100/80 px-2.5 py-1 rounded-full shadow-sm">
                     {s}
                   </span>
@@ -486,11 +491,11 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
               </div>
             </div>
           )}
-          {antonyms.length > 0 && (
+          {antonymsList.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Antonyms</div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Antonyms / 反义词</div>
               <div className="flex flex-wrap gap-1.5">
-                {antonyms.map((a, idx) => (
+                {antonymsList.map((a, idx) => (
                   <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100/80 px-2.5 py-1 rounded-full shadow-sm">
                     {a}
                   </span>
@@ -501,13 +506,13 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
         </div>
       )}
 
-      {/* 常用搭配 (常驻显示) */}
-      {collocations.length > 0 && (
+      {/* 常用搭配 (常驻高亮全展示) */}
+      {collocationsList.length > 0 && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Collocations / 常用搭配组合</div>
-          <div className="p-3 border border-indigo-100/80 bg-gradient-to-r from-indigo-50/30 to-slate-50/40 rounded-2xl flex flex-wrap gap-2 shadow-sm">
-            {collocations.map((coll, idx) => (
-              <span key={idx} className="text-xs font-bold text-indigo-900 bg-white border border-indigo-200/70 px-3 py-1 rounded-xl shadow-xs">
+          <div className="p-3.5 border border-indigo-100/80 bg-gradient-to-r from-indigo-50/40 to-slate-50/50 rounded-2xl flex flex-wrap gap-2 shadow-sm">
+            {collocationsList.map((coll, idx) => (
+              <span key={idx} className="text-xs font-bold text-indigo-900 bg-white border border-indigo-200/80 px-3 py-1 rounded-xl shadow-xs">
                 {coll}
               </span>
             ))}
@@ -527,7 +532,11 @@ interface EnZhBidirectionalViewProps {
 }
 
 export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
-  const { direction_resolved, phonetic, pos, translation_main, other_meanings = [], business_examples = [], example_sentences = [], synonyms = [], antonyms = [], collocations = [], etymology } = payload;
+  const { direction_resolved, phonetic, pos, translation_main, other_meanings = [], business_examples = [], example_sentences = [], etymology } = payload;
+  const extracted = extractSynonymsAntonymsCollocations(query, payload);
+  const synonymsList = extracted.synonyms;
+  const antonymsList = extracted.antonyms;
+  const collocationsList = extracted.collocations;
   
   // 过滤掉空内容的 business_examples
   const validBusinessExamples = business_examples.filter(ex => {
@@ -658,14 +667,14 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
         </div>
       )}
 
-      {/* 同义词/反义词 (并排胶囊标签云) */}
-      {(synonyms.length > 0 || antonyms.length > 0) && (
+      {/* 同义词/反义词 (常驻胶囊标签云) */}
+      {(synonymsList.length > 0 || antonymsList.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {synonyms.length > 0 && (
+          {synonymsList.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">近义词</div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Synonyms / 近义词</div>
               <div className="flex flex-wrap gap-1.5">
-                {synonyms.map((s, idx) => (
+                {synonymsList.map((s, idx) => (
                   <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100/80 px-2.5 py-1 rounded-full shadow-sm">
                     {s}
                   </span>
@@ -673,11 +682,11 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
               </div>
             </div>
           )}
-          {antonyms.length > 0 && (
+          {antonymsList.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">反义词</div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Antonyms / 反义词</div>
               <div className="flex flex-wrap gap-1.5">
-                {antonyms.map((a, idx) => (
+                {antonymsList.map((a, idx) => (
                   <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100/80 px-2.5 py-1 rounded-full shadow-sm">
                     {a}
                   </span>
@@ -689,13 +698,13 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
       )}
 
       {/* 高频搭配与词源 (常驻全展示) */}
-      {(collocations.length > 0 || etymology) && (
+      {(collocationsList.length > 0 || etymology) && (
         <div className="space-y-3 pt-2">
-          {collocations.length > 0 && (
+          {collocationsList.length > 0 && (
             <div className="space-y-2">
-              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Collocations / 常用搭配组合 ({collocations.length})</div>
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Collocations / 常用搭配组合 ({collocationsList.length})</div>
               <div className="p-3 border border-indigo-100/80 bg-gradient-to-r from-indigo-50/30 to-slate-50/40 rounded-2xl flex flex-wrap gap-2 shadow-sm">
-                {collocations.map((coll, idx) => (
+                {collocationsList.map((coll, idx) => (
                   <span key={idx} className="text-xs font-bold text-indigo-900 bg-white border border-indigo-200/70 px-3 py-1 rounded-xl shadow-xs">
                     {coll}
                   </span>
