@@ -3,7 +3,7 @@ import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, 
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { submitReview, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache } from '../../../../services/vocabAPI';
+import { submitReview, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache, getMemoryAids, type MemoryAids } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
@@ -12,6 +12,7 @@ import MemoryAidPanel from '../../../MemoryAidPanel';
 import VocabExportControl from '../../../VocabExportControl';
 import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
 import { showError, showSuccess } from '../../../Toast';
+import MemoryMatrixStage from './vocab/MemoryMatrixStage';
 
 // --- Payload Adapter ---
 function adaptWordPayload(word: any) {
@@ -198,6 +199,16 @@ export default function VocabTab() {
       cancelled = true;
     };
   }, [currentWord?.id, currentWord?._light, setDueWords]);
+
+  const [memoryAidsData, setMemoryAidsData] = useState<MemoryAids | null>(null);
+
+  useEffect(() => {
+    if (!currentWord?.id) {
+      setMemoryAidsData(null);
+      return;
+    }
+    getMemoryAids(currentWord.id).then(data => setMemoryAidsData(data)).catch(() => setMemoryAidsData(null));
+  }, [currentWord?.id]);
 
   // 适配词典视图所需的 payload 结构
   const adaptedWord = useMemo(() => adaptWordPayload(currentWord), [currentWord]);
@@ -485,11 +496,18 @@ export default function VocabTab() {
                 </div>
               ) : (
                 <div className="animate-[fadeIn_0.4s_ease-out] grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                  {/* 左栏：核心全量词典视图（音标、释义、例句、近/反义词、常用搭配组合） */}
-                  <div className="lg:col-span-7 space-y-4">
+                  {/* 左栏：核心全量词典视图 + 左下圆形记忆矩阵主舞台（彻底填满左下空白） */}
+                  <div className="lg:col-span-7 space-y-6">
                     {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
                     {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
                     {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+
+                    {/* 圆形记忆矩阵主舞台 */}
+                    <MemoryMatrixStage
+                      word={currentWord.word}
+                      payload={adaptedWord.payload}
+                      memoryAids={memoryAidsData}
+                    />
                   </div>
 
                   {/* 右栏：全高度对齐填充（记忆辅助 + SM-2算法仪表盘 + 高管商务语态SOP） */}
