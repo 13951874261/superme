@@ -550,6 +550,41 @@ export async function batchAddWords(
   });
 }
 
+/** 异步批量收录词条（解耦返回 taskId 接入任务中心） */
+export async function batchAddWordsAsync(
+  items: BatchAddWordItem[],
+  topic: string = '通用主题',
+  source: string = 'User Manual Selection'
+): Promise<{ success: boolean; taskId: string; status: string }> {
+  return request('/batch-add-async', {
+    method: 'POST',
+    body: JSON.stringify({ items, topic, source }),
+  });
+}
+
+/** 包装 3 秒 Timeout 竞速添加词汇 */
+export async function addVocabWithTimeout<T>(
+  actionPromise: Promise<T>,
+  timeoutMs: number = 3000
+): Promise<{ isTimeout: false; result: T } | { isTimeout: true }> {
+  let timerId: any = null;
+  const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) => {
+    timerId = setTimeout(() => {
+      resolve({ isTimeout: true });
+    }, timeoutMs);
+  });
+
+  try {
+    const res = await Promise.race([
+      actionPromise.then((result) => ({ isTimeout: false as const, result })),
+      timeoutPromise,
+    ]);
+    return res;
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
+}
+
 // ============================================================
 // 字典查询请求去重 & 并发限制（页面初始请求过载优化）
 // ============================================================

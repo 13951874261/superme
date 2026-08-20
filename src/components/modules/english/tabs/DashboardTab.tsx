@@ -15,9 +15,9 @@ import MaterialUploader from '../../../MaterialUploader';
 import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
-import { triggerEnglishMasteryExtraction, getDailyQuotaStatus } from '../../../../services/difyAPI';
 import { getAppUserId } from '../../../../utils/profileHelper';
-import { addWord, lookupVocabWords, getVocabItem, batchAddWords, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
+import { addWord, lookupVocabWords, getVocabItem, batchAddWords, batchAddWordsAsync, addVocabWithTimeout, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
+import { useTask } from '../../../TaskContext';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
 import { VOICE_OPTIONS } from '../../../../config/voices';
@@ -39,6 +39,7 @@ export default function DashboardTab() {
     masteredThemes,
     stayStats,
   } = useEnglishContext();
+  const { addTask } = useTask();
 
   const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
   const [isSopExpanded, setIsSopExpanded] = useState(false);
@@ -470,7 +471,7 @@ export default function DashboardTab() {
     return () => window.removeEventListener('vocab-updated', handleUpdate);
   }, [extractedWords, extractedPhrases, extractedSentences]);
 
-  // 一键将提纯出来的生词或短语手动加入生词本
+  // 一键将提纯出来的生词或短语手动加入生词本（带 3 秒竞速超时，超时解耦转后台任务中心）
   const handleAddWordToVocab = async (text: string, isPhrase: boolean = false) => {
     const cleanText = text.trim();
     if (!cleanText) return;
@@ -482,11 +483,10 @@ export default function DashboardTab() {
       return;
     }
 
-    try {
+    const doAddAction = async () => {
       let meaning = asyncMeanings[cleanKey]?.meaning || '';
       let phonetic = asyncMeanings[cleanKey]?.phonetic || '';
 
-      // 若释义未在缓存中，则尝试调用英汉双向译制接口快速补齐（使用缓存版本避免重复请求）
       if (!meaning) {
         try {
           const res = await queryDictionaryWithCache({
@@ -498,9 +498,7 @@ export default function DashboardTab() {
             meaning = payload.translation_main || payload.meaning_zh || payload.meaning || '';
             phonetic = payload.phonetic || phonetic;
           }
-        } catch {
-          // 即使补齐失败，也允许继续添加
-        }
+        } catch {}
       }
 
       await addWord({
@@ -515,6 +513,27 @@ export default function DashboardTab() {
           topic: theme,
         },
       });
+    };
+
+    try {
+      const raceRes = await addVocabWithTimeout(doAddAction(), 3000);
+      if (raceRes.isTimeout) {
+        const asyncRes = await batchAddWordsAsync(
+          [{ word: cleanText, is_phrase: isPhrase }],
+          theme || '素材提纯',
+          'Manual Select'
+        );
+        addTask({
+          id: asyncRes.taskId,
+          type: 'vocab_add',
+          name: `生词本收录: ${cleanText}`,
+          status: 'running',
+          progress: 20,
+          logs: [`[生词收录] 3秒未同步，已托管至后台任务中心写入...`],
+        });
+        showNotice('dashboard', `“${cleanText}” 收录请求已转入后台处理，稍后可在【任务中心】查看`, 'info');
+        return;
+      }
 
       showNotice('dashboard', `“${cleanText}” 已成功加入生词本`, 'success');
       playSuccess();
@@ -524,6 +543,48 @@ export default function DashboardTab() {
       const msg = err instanceof Error ? err.message : String(err);
       showNotice('dashboard', `收录失败: ${msg}`, 'error');
       playError();
+    }
+  };
+
+  // 一键批量收录页面所有提纯出来的词汇与短语（带 3 秒竞速超时）
+  const handleBatchAddAllToVocab = async (items: Array<{ word: string; isPhrase?: boolean }>) => {
+    if (!items || items.length === 0) return;
+
+    const doBatchAddAction = async () => {
+      const batchItems = items.map((it) => ({
+        word: it.word,
+        is_phrase: it.isPhrase,
+        dictType: it.isPhrase ? 'ai_phrase' : 'ai_extracted',
+      }));
+      await batchAddWords(batchItems);
+    };
+
+    try {
+      const raceRes = await addVocabWithTimeout(doBatchAddAction(), 3000);
+      if (raceRes.isTimeout) {
+        const asyncRes = await batchAddWordsAsync(
+          items.map((it) => ({ word: it.word, is_phrase: it.isPhrase })),
+          theme || '批量收录',
+          'Batch Selection'
+        );
+        addTask({
+          id: asyncRes.taskId,
+          type: 'vocab_add',
+          name: `一键批量收录: ${items.length} 个词句`,
+          status: 'running',
+          progress: 20,
+          logs: [`[生词收录] 3秒未同步完成，已转入后台队列异步写入...`],
+        });
+        showNotice('dashboard', `批量收录已转入后台加速处理（共 ${items.length} 项），稍后可在【任务中心】查看`, 'info');
+        return;
+      }
+
+      showNotice('dashboard', `已成功批量收录 ${items.length} 个词句至生词本`, 'success');
+      playSuccess();
+      window.dispatchEvent(new Event('vocab-updated'));
+      loadVocabDetails();
+    } catch (err: any) {
+      showNotice('dashboard', `批量收录异常: ${err.message || err}`, 'error');
     }
   };
 

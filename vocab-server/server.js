@@ -3553,6 +3553,94 @@ app.post('/api/vocab/batch-add', (req, res) => {
     res.status(500).json({ success: false, error: 'Database error on batch add' });
   }
 });
+// 异步批量写入生词本（支持前端 3 秒超时解耦托管至 TaskQueue 任务中心）
+app.post('/api/vocab/batch-add-async', async (req, res) => {
+  try {
+    const userId = parseVocabUserId(req);
+    const { items = [], topic = '通用主题', source = 'User Manual Selection' } = req.body || {};
+    const itemList = Array.isArray(items) ? items : [];
+
+    if (itemList.length === 0) {
+      return res.status(400).json({ success: false, error: 'items array is empty' });
+    }
+
+    const taskQueue = require('./services/taskQueue');
+    const task = taskQueue.createTask(
+      'vocab_add',
+      `生词本批量收录: ${itemList.length} 个词句 (${topic})`,
+    );
+
+    console.log(`[Vocab Async] 收到生词批量后台入库请求: ${itemList.length} 项 (任务ID: ${task.id})`);
+    res.json({ success: true, taskId: task.id, status: task.status });
+
+    (async () => {
+      try {
+        taskQueue.updateTask(task.id, {
+          status: 'running',
+          progress: 10,
+          logs: [`[生词收录] 开始异步写入 ${itemList.length} 个词句至生词本...`],
+        });
+
+        const now = Date.now();
+        let addedCount = 0;
+        let existCount = 0;
+
+        for (let i = 0; i < itemList.length; i++) {
+          const item = itemList[i];
+          const rawText = typeof item === 'string' ? item : (item.word || item.phrase || item.sentence || '');
+          const word = rawText.trim();
+          if (!word) continue;
+
+          const isPhrase = !!item.is_phrase;
+          const isSentence = !!item.is_sentence || item.dictType === 'ai_sentence' || item.dict_type === 'ai_sentence';
+          const dictType = item.dictType || item.dict_type || (isSentence ? 'ai_sentence' : (isPhrase ? 'ai_phrase' : 'ai_extracted'));
+          const scene_type = item.scene_type || 'business';
+          const category = item.category || (scene_type === 'general' ? 'general' : 'business');
+          const payload = typeof item === 'object' ? (item.payload || { ...item, source, topic }) : { source, topic };
+
+          const existing = db.prepare('SELECT id FROM vocabulary WHERE user_id = ? AND word = ? COLLATE NOCASE').get(userId, word);
+          if (!existing) {
+            const id = crypto.randomUUID();
+            db.prepare(`
+              INSERT INTO vocabulary (id, user_id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(id, userId, word, dictType, category, scene_type, JSON.stringify(payload), now, now, '[]', 0, 1, 2.5);
+            addedCount++;
+          } else {
+            existCount++;
+            db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, scene_type = ?, payload = ? WHERE id = ? AND user_id = ?').run(
+              dictType,
+              category,
+              scene_type,
+              JSON.stringify(payload),
+              existing.id,
+              userId
+            );
+          }
+
+          const progress = Math.min(95, Math.floor(((i + 1) / itemList.length) * 85) + 10);
+          taskQueue.updateTask(task.id, { progress });
+        }
+
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: [`[生词收录完成] 新增收录 ${addedCount} 个词句，已存在及更新 ${existCount} 个`],
+          result: { addedCount, existCount, total: itemList.length },
+        });
+      } catch (e) {
+        console.error('[Vocab Async Fail]:', e);
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: `生词入库异常: ${e.message}`,
+          logs: [`[生词收录失败] ${e.message}`],
+        });
+      }
+    })();
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
 
 async function queryDifyDictOnBackend(word, dictType) {
   const cleanDictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(dictType) ? dictType : 'en_zh_bidirectional';
