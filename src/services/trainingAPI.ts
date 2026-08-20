@@ -314,10 +314,55 @@ export async function addCustomTheme(params: {
   });
 }
 
-export async function deleteCustomTheme(id: string): Promise<{ success: boolean }> {
+/** 自定义场景级联删除竞速阈值：3 秒内未完成则转入【任务中心】 */
+export const THEME_DELETE_RACE_MS = 3000;
+
+export interface CustomThemeDeleteResult {
+  success: boolean;
+  stats?: {
+    vocabularyDeleted: number;
+    generationDeleted: number;
+    attemptsDeleted: number;
+    themeDeleted: number;
+  };
+  dify?: { ok: boolean; cloudCleanupIncomplete?: boolean; error?: string };
+  themeSnapshot?: Partial<CustomTheme> & { id: string };
+  message?: string;
+  error?: string;
+}
+
+export async function deleteCustomTheme(id: string): Promise<CustomThemeDeleteResult> {
   return request(`/api/theme/custom/${id}`, {
     method: 'DELETE',
   });
+}
+
+export async function deleteCustomThemeAsync(
+  id: string
+): Promise<{ success: boolean; taskId: string; status: string; themeSnapshot?: Partial<CustomTheme> & { id: string } }> {
+  return request(`/api/theme/custom/${id}/delete-async`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** 包装 3 秒 Timeout 竞速（与生词收录 SLA 对齐） */
+export async function withThemeDeleteTimeout<T>(
+  actionPromise: Promise<T>,
+  timeoutMs: number = THEME_DELETE_RACE_MS
+): Promise<{ isTimeout: false; result: T } | { isTimeout: true }> {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) => {
+    timerId = setTimeout(() => resolve({ isTimeout: true }), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      actionPromise.then((result) => ({ isTimeout: false as const, result })),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
 }
 
 export async function getThemeStayStats(theme: string, userId = getAppUserId()): Promise<ThemeStayStats> {

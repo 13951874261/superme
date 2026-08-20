@@ -1,6 +1,14 @@
 import React from 'react';
 import { AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
 import { GhostButton } from '../ui/Button/GhostButton';
+import { useTask } from '../../../../TaskContext';
+import {
+  deleteCustomTheme,
+  deleteCustomThemeAsync,
+  withThemeDeleteTimeout,
+  THEME_DELETE_RACE_MS,
+  CustomTheme,
+} from '../../../../../services/trainingAPI';
 
 export interface ThemeGatewayProps {
   theme: string;
@@ -9,17 +17,31 @@ export interface ThemeGatewayProps {
   setThemeSwitchError: (error: React.ReactNode | null) => void;
   runMasteryGate: () => Promise<boolean>;
   masteryData: any;
-  customThemes: any[];
-  currentCustomTheme: any;
+  customThemes: CustomTheme[];
+  setCustomThemes: React.Dispatch<React.SetStateAction<CustomTheme[]>>;
+  currentCustomTheme: CustomTheme | undefined;
   isDeletingTheme: boolean;
   setIsDeletingTheme: (val: boolean) => void;
   setIsCustomThemeModalOpen: (val: boolean) => void;
-  getThemeOptions: (stage: 'business' | 'all') => any[];
+  getThemeOptions: (stage: 'business' | 'all') => { value: string; label: string }[];
   stage: string;
   refreshCustomThemes: () => Promise<void>;
   showNotice: (anchor: string, msg: string, type: string) => void;
   setThemeFocus: (arg: any) => Promise<void>;
-  deleteCustomTheme: (id: string) => Promise<any>;
+}
+
+function toRestorableTheme(snapshot: any, fallback: CustomTheme): CustomTheme {
+  return {
+    id: snapshot?.id || fallback.id,
+    themeName: snapshot?.themeName || snapshot?.theme_name || fallback.themeName,
+    displayName: snapshot?.displayName || snapshot?.display_name || fallback.displayName,
+    associatedFile: snapshot?.associatedFile || snapshot?.associated_file || fallback.associatedFile,
+    difyDocumentId: snapshot?.difyDocumentId || snapshot?.dify_document_id || fallback.difyDocumentId,
+    difyDatasetId: snapshot?.difyDatasetId || snapshot?.dify_dataset_id || fallback.difyDatasetId,
+    extractedKeywords: snapshot?.extractedKeywords || fallback.extractedKeywords || [],
+    source: 'custom',
+    createdAt: snapshot?.createdAt || snapshot?.created_at || fallback.createdAt,
+  };
 }
 
 export function ThemeGateway({
@@ -30,6 +52,7 @@ export function ThemeGateway({
   runMasteryGate,
   masteryData,
   customThemes,
+  setCustomThemes,
   currentCustomTheme,
   isDeletingTheme,
   setIsDeletingTheme,
@@ -39,8 +62,74 @@ export function ThemeGateway({
   refreshCustomThemes,
   showNotice,
   setThemeFocus,
-  deleteCustomTheme
 }: ThemeGatewayProps) {
+  const { addTask, startPolling } = useTask();
+
+  const handleDeleteCustomTheme = async () => {
+    if (!currentCustomTheme) return;
+    if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步清理该场景下的学习资料与练习记录。`)) return;
+
+    const snapshot = currentCustomTheme;
+    const options = getThemeOptions(stage as 'business' | 'all');
+    const fallbackTheme = options[0]?.value || theme;
+
+    // 乐观移除：下拉立刻消失并切回系统主题
+    setCustomThemes((prev) => prev.filter((t) => t.id !== snapshot.id));
+    setTheme(fallbackTheme);
+    void setThemeFocus({ theme: fallbackTheme }).catch(() => {});
+    showNotice('dashboard', '正在清理该场景下的学习资料与练习记录…', 'info');
+
+    setIsDeletingTheme(true);
+    try {
+      const action = deleteCustomTheme(snapshot.id);
+      action.catch(() => {});
+      const race = await withThemeDeleteTimeout(action, THEME_DELETE_RACE_MS);
+
+      if (race.isTimeout) {
+        const queued = await deleteCustomThemeAsync(snapshot.id);
+        addTask({
+          id: queued.taskId,
+          type: 'theme_delete',
+          name: `清理练习场景：${(snapshot.displayName || snapshot.themeName || '').slice(0, 40)}`,
+          status: 'running',
+          progress: 20,
+          logs: ['清理时间较长，已转入后台继续处理该场景的相关学习资料…'],
+        });
+        startPolling(queued.taskId);
+        showNotice(
+          'dashboard',
+          '场景清理已转入后台，稍后可在【任务中心】查看进度',
+          'info'
+        );
+        return;
+      }
+
+      if (!race.result.success) {
+        throw new Error(race.result.error || '场景清理失败');
+      }
+
+      const msg = race.result.dify?.cloudCleanupIncomplete
+        ? '场景本地资料已清理；云端资料清理未完成'
+        : (race.result.message || '场景及相关学习资料已清理');
+      showNotice('dashboard', msg, race.result.dify?.cloudCleanupIncomplete ? 'info' : 'success');
+      await refreshCustomThemes();
+    } catch (e: any) {
+      // 失败恢复：把主题选项加回列表并可选切回
+      setCustomThemes((prev) => {
+        if (prev.some((t) => t.id === snapshot.id)) return prev;
+        return [toRestorableTheme(null, snapshot), ...prev];
+      });
+      setTheme(snapshot.displayName || snapshot.themeName);
+      showNotice(
+        'dashboard',
+        `场景清理失败，已恢复该场景选项：${e?.message || '请稍后重试'}`,
+        'error'
+      );
+    } finally {
+      setIsDeletingTheme(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-1.5">
       <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">
@@ -106,23 +195,7 @@ export function ThemeGateway({
         {currentCustomTheme && (
           <button
             disabled={isDeletingTheme}
-            onClick={async () => {
-              if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步删除在 Dify 知识库关联的文档。`)) return;
-              setIsDeletingTheme(true);
-              try {
-                 const res = await deleteCustomTheme(currentCustomTheme.id);
-                 if (res.success) {
-                   showNotice('dashboard', '成功删除自定义场景', 'success');
-                   const options = getThemeOptions(stage as 'business' | 'all');
-                   setTheme(options[0].value);
-                   await refreshCustomThemes();
-                 }
-              } catch (e: any) {
-                 showNotice('dashboard', `删除失败: ${e.message}`, 'error');
-              } finally {
-                 setIsDeletingTheme(false);
-              }
-            }}
+            onClick={handleDeleteCustomTheme}
             className="text-red-500 hover:text-red-700 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             title="删除当前自定义场景"
           >
@@ -132,7 +205,6 @@ export function ThemeGateway({
 
         <GhostButton
           onClick={() => {
-            console.log('[ThemeGateway] Opening CustomThemeModal');
             setIsCustomThemeModalOpen(true);
           }}
           className="flex items-center gap-1 text-[var(--color-brand)] border-[var(--color-border)] hover:bg-slate-50 !px-2 !py-1.5"

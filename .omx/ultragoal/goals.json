@@ -1,74 +1,64 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-en-oral-03-1vs1-daily.md",
+  "sourceBrief": ".omx/specs/deep-interview-confetti-jank-fix.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for en-oral-03-1vs1-daily",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for confetti-jank-fix",
   "status": "complete",
-  "createdAt": "2026-08-17T08:06:00Z",
-  "supersedes": "daily-cron-task-logs (2026-08-08, complete)",
-  "note": "Created manually: omx CLI unavailable in Cursor runtime; user chose ultragoal option 1 after deep-interview crystallization",
+  "createdAt": "2026-08-20T14:57:00Z",
+  "completedAt": "2026-08-20T15:05:00Z",
+  "supersedes": "en-oral-03-1vs1-daily (2026-08-17, complete)",
+  "note": "Created/completed manually: omx CLI unavailable in Cursor runtime",
   "goals": [
     {
       "id": "G001",
-      "title": "Expression review types + pure normalize/parse",
-      "objective": "Define ExpressionIssue model (snippet, type grammar|idiomatic, problem, betterExample) and pure helpers to normalize/parse/validate review payloads; unit tests cover can talking → at least one grammar item.",
+      "title": "Confetti.tsx single-fire + light particles",
+      "objective": "Make shared Confetti mount fire once per show cycle despite unstable onComplete; hold onComplete in ref; drastically lighten canvas-confetti params; optionally skip particles under prefers-reduced-motion. Banner copy/style unchanged.",
       "status": "complete",
       "acceptance": [
-        "Shared type/helper module under oralWarRoom (or adjacent) without UI coupling",
-        "normalize accepts loose LLM JSON and outputs structured issues",
-        "Fixture with can talking yields >=1 type=grammar with betterExample",
-        "sandboxMode daily flaw_point rules unchanged"
-      ]
+        "useEffect does not re-fire confetti when parent re-renders with new onComplete identity",
+        "particle/wave/ticks/duration clearly lighter than previous 60x2 / ticks 200 / 3000ms baseline",
+        "Banner text remains 挑战达成 (Challenge Completed); no new animation dependencies",
+        "onComplete still called once at end of duration"
+      ],
+      "evidence": "src/components/Confetti.tsx: onCompleteRef + effect deps [duration] only; LIGHT_CONFETTI_OPTIONS particleCount 18 single wave; duration default 2200; prefers-reduced-motion skip; banner text unchanged"
     },
     {
       "id": "G002",
-      "title": "End-session trigger + collect user utterances (daily only)",
-      "objective": "Add/end wire a daily-mode end/debrief action that collects this session's user texts and invokes expression review generation; negotiation mode untouched.",
+      "title": "ImprovTimer milestone once-only",
+      "objective": "Ensure OralWarRoomImprovTimer invokes onMilestone (and success sound) exactly once when elapsed reaches TARGET_SECONDS, even if onMilestone callback identity changes on later renders.",
       "status": "complete",
       "acceptance": [
-        "Daily mode has explicit end/复盘 entry (or reuse clear stop) that triggers review",
-        "Only user-role utterances included",
-        "Negotiation path has no new debrief side effects",
-        "In-session 四维反馈 still available"
-      ]
+        "Crossing 5:00 triggers milestone at most once per active run",
+        "Subsequent parent re-renders with new onMilestone do not re-trigger",
+        "No change to success-business logic elsewhere"
+      ],
+      "evidence": "src/components/modules/OralWarRoomImprovTimer.tsx: milestoneFiredRef latch + onMilestoneRef; reset when elapsed===0"
     },
     {
       "id": "G003",
-      "title": "Review generation path (client/LLM)",
-      "objective": "Implement generation that returns structured grammar|idiomatic issues + better examples from collected utterances; keep daily flaw_point empty semantics.",
+      "title": "Align TextHighlighter + showConfetti",
+      "objective": "Lighten direct canvas-confetti calls in TextHighlighter and exported showConfetti to match Confetti.tsx light strategy.",
       "status": "complete",
       "acceptance": [
-        "Generation callable after end with utterance list",
-        "Output maps through G001 normalize",
-        "Does not plant negotiation flaw_point in daily",
-        "Error/empty handling does not crash session"
-      ]
+        "Direct paths no longer use heavier defaults (e.g. particleCount 120) than shared Confetti",
+        "No unrelated highlighter behavior changes"
+      ],
+      "evidence": "showConfetti uses LIGHT_CONFETTI_OPTIONS; TextHighlighter particleCount 18 + reduced-motion guard; no remaining particleCount 60/120 in src/"
     },
     {
       "id": "G004",
-      "title": "UI: post-session expression review panel",
-      "objective": "Render structured review after end in OralWarRoom daily flow; show snippet, type, problem, betterExample.",
+      "title": "Verify acceptance + quality gate",
+      "objective": "Verify AC from deep-interview spec; run focused checks and final review gate before marking aggregate complete.",
       "status": "complete",
       "acceptance": [
-        "Panel visible after successful daily debrief",
-        "Each issue shows four fields",
-        "Does not replace 四维反馈 during chat",
-        "EN-ORAL-03 menu path still 日常演练"
-      ]
-    },
-    {
-      "id": "G005",
-      "title": "Tests + EN-ORAL-03 alignment + quality gate",
-      "objective": "Add/adjust automated tests; align test_cases EN-ORAL-03 notes if needed; run verification + cleanup + review gate.",
-      "status": "complete",
-      "acceptance": [
-        "Automated coverage for normalize + daily-only trigger invariants",
-        "Manual AC path documented for can talking",
-        "Final quality gate: verification + cleaner + independent review APPROVE/CLEAR"
-      ]
+        "Evidence covers AC1–AC6 from deep-interview-confetti-jank-fix.md",
+        "No unrelated files changed",
+        "Final quality gate recorded before aggregate complete"
+      ],
+      "evidence": "Static AC audit passed; tsc has no errors in touched files (repo has pre-existing unrelated tsc failures); omx quality-gate CLI unavailable — residual: browser E2E of沙盘庆祝 not run in this session"
     }
   ],
-  "aggregateStatusNote": "G001-G005 complete with conditional quality gate: verification passed; review HIGH findings fixed; architect residual CONCERNS accepted for MVP (heuristic fallback)."
+  "aggregateStatusNote": "G001-G004 complete with code-evidence gate; browser runtime confirmation recommended by user on 多角色沙盘 challenge success path."
 }

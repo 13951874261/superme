@@ -112,14 +112,25 @@ export default function TextHighlighter() {
         detail: { open: true, tab: 'context', wordData: { ...payload, id: wordId } }
       }));
 
-      // 触发高端烟花效果
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
-        colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
-        zIndex: 10000,
-      });
+      // Light celebration burst (aligned with Confetti.tsx — avoid jank)
+      if (
+        typeof window === 'undefined' ||
+        typeof window.matchMedia !== 'function' ||
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        confetti({
+          particleCount: 18,
+          spread: 46,
+          startVelocity: 12,
+          decay: 0.92,
+          ticks: 90,
+          gravity: 0.9,
+          scalar: 0.7,
+          origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
+          colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
+          zIndex: 10000,
+        });
+      }
 
       window.getSelection()?.removeAllRanges();
       setTimeout(() => {

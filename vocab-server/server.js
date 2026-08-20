@@ -4898,32 +4898,126 @@ app.get('/api/theme/list', (req, res) => {
 });
 
 // ???????????????? (??????????????????????)
-app.delete('/api/theme/custom/:id', async (req, res) => {
-  const id = req.params.id;
+async function deleteCustomThemeDifyDocument({ documentId, datasetId }) {
   const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
   const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  console.log(`[Delete Theme] Deleting document ${documentId} from dataset ${datasetId}`);
+  const delResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${documentId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${DATASET_KEY}` },
+  });
+  if (!delResponse.ok) {
+    const errText = await delResponse.text();
+    console.warn(`[Delete Theme] Failed to delete Dify document: ${errText}`);
+    return { ok: false, error: errText || `HTTP ${delResponse.status}` };
+  }
+  return { ok: true };
+}
 
+async function runCustomThemeCascadeDelete(id) {
+  const { cascadeDeleteCustomTheme } = require('./services/customThemeCascadeDelete');
+  return cascadeDeleteCustomTheme(db, {
+    id,
+    deleteDifyDocument: deleteCustomThemeDifyDocument,
+  });
+}
+
+app.delete('/api/theme/custom/:id', async (req, res) => {
+  const id = req.params.id;
+  try {
+    const result = await runCustomThemeCascadeDelete(id);
+    if (!result.success) {
+      const status = /not found/i.test(result.error || '') ? 404 : 400;
+      return res.status(status).json({ success: false, error: result.error });
+    }
+    res.json({
+      success: true,
+      stats: result.stats,
+      dify: result.dify,
+      themeSnapshot: result.themeSnapshot,
+      message: result.dify?.cloudCleanupIncomplete
+        ? '场景本地资料已清理；云端资料清理未完成'
+        : '场景及相关学习资料已清理',
+    });
+  } catch (error) {
+    console.error('Failed to delete custom theme:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// 异步级联删除自定义场景（前端 3 秒超时后托管至任务中心）
+app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
+  const id = req.params.id;
   try {
     const row = db.prepare('SELECT * FROM custom_themes WHERE id = ?').get(id);
     if (!row) {
       return res.status(404).json({ success: false, error: 'Custom theme not found' });
     }
 
-    if (row.dify_document_id && row.dify_dataset_id) {
-      console.log(`[Delete Theme] Deleting document ${row.dify_document_id} from dataset ${row.dify_dataset_id}`);
-      const delResponse = await fetch(`${BASE_URL}/datasets/${row.dify_dataset_id}/documents/${row.dify_document_id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
-      });
-      if (!delResponse.ok) {
-        console.warn(`[Delete Theme] Failed to delete Dify document: ${await delResponse.text()}`);
-      }
-    }
+    const label = row.display_name || row.theme_name || '自定义场景';
+    const taskQueue = require('./services/taskQueue');
+    const task = taskQueue.createTask('theme_delete', `清理练习场景：${String(label).slice(0, 40)}`);
 
-    db.prepare('DELETE FROM custom_themes WHERE id = ?').run(id);
-    res.json({ success: true });
+    res.json({
+      success: true,
+      taskId: task.id,
+      status: task.status,
+      themeSnapshot: {
+        id: row.id,
+        themeName: row.theme_name,
+        displayName: row.display_name,
+        associatedFile: row.associated_file,
+        difyDocumentId: row.dify_document_id,
+        difyDatasetId: row.dify_dataset_id,
+        extractedKeywords: row.extracted_keywords,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      },
+    });
+
+    (async () => {
+      try {
+        taskQueue.updateTask(task.id, {
+          status: 'running',
+          progress: 15,
+          logs: ['正在清理该场景下的学习资料与练习记录...'],
+        });
+        const result = await runCustomThemeCascadeDelete(id);
+        if (!result.success) {
+          taskQueue.updateTask(task.id, {
+            status: 'failed',
+            error: result.error || '场景清理失败',
+            logs: ['场景清理未能完成，可尝试恢复该场景选项'],
+            result: { themeSnapshot: result.themeSnapshot || null },
+          });
+          return;
+        }
+        const cloudNote = result.dify?.cloudCleanupIncomplete
+          ? '；云端资料清理未完成'
+          : '';
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: [`该场景及相关学习资料已清理完毕${cloudNote}`],
+          result: {
+            stats: result.stats,
+            dify: result.dify,
+            themeSnapshot: result.themeSnapshot,
+            message: result.dify?.cloudCleanupIncomplete
+              ? '场景本地资料已清理；云端资料清理未完成'
+              : '场景及相关学习资料已清理',
+          },
+        });
+      } catch (e) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: e.message || String(e),
+          logs: ['场景清理过程中断，请稍后重试或恢复该场景选项'],
+        });
+      }
+    })();
   } catch (error) {
-    console.error('Failed to delete custom theme:', error);
+    console.error('Failed to enqueue custom theme delete:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Clock, Trophy } from 'lucide-react';
 import { playSuccess } from '../../utils/soundEffects';
@@ -27,6 +27,9 @@ export default function OralWarRoomImprovTimer({
   onMilestone,
 }: Props) {
   const passed = elapsed >= TARGET_SECONDS;
+  const onMilestoneRef = useRef(onMilestone);
+  onMilestoneRef.current = onMilestone;
+  const milestoneFiredRef = useRef(false);
 
   useEffect(() => {
     if (!isActive || passed) return;
@@ -36,12 +39,17 @@ export default function OralWarRoomImprovTimer({
     return () => window.clearInterval(id);
   }, [isActive, passed, onElapsedChange]);
 
+  // Reset latch when a new run starts from zero
   useEffect(() => {
-    if (elapsed === TARGET_SECONDS) {
-      playSuccess();
-      onMilestone?.();
-    }
-  }, [elapsed, onMilestone]);
+    if (elapsed === 0) milestoneFiredRef.current = false;
+  }, [elapsed]);
+
+  useEffect(() => {
+    if (elapsed !== TARGET_SECONDS || milestoneFiredRef.current) return;
+    milestoneFiredRef.current = true;
+    playSuccess();
+    onMilestoneRef.current?.();
+  }, [elapsed]);
 
   if (!isActive && elapsed === 0) return null;
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import confetti from 'canvas-confetti';
 import { gsap } from 'gsap';
 import { playPageTurn } from '../utils/soundEffects';
@@ -8,49 +8,53 @@ interface ConfettiProps {
   onComplete?: () => void;
 }
 
-export default function Confetti({ duration = 3000, onComplete }: ConfettiProps) {
+/** Shared light palette for celebration bursts (banner + bypass helpers). */
+export const CELEBRATION_CONFETTI_COLORS = ['#71717A', '#A1A1AA', '#D4D4D8', '#FF5722'] as const;
+
+/** Extremely light burst — feedback over spectacle; safe under frequent re-renders. */
+export const LIGHT_CONFETTI_OPTIONS: confetti.Options = {
+  particleCount: 18,
+  spread: 46,
+  startVelocity: 12,
+  decay: 0.92,
+  ticks: 90,
+  gravity: 0.9,
+  scalar: 0.7,
+  colors: [...CELEBRATION_CONFETTI_COLORS],
+  shapes: ['square', 'circle'] as confetti.Shape[],
+  zIndex: 3000,
+};
+
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function fireLightBurst(originY = 0.7) {
+  if (prefersReducedMotion()) return;
+
+  const defaults: confetti.Options = {
+    ...LIGHT_CONFETTI_OPTIONS,
+    origin: { y: originY },
+  };
+
+  // Single wave only — avoids stacking cost under re-mount races
+  confetti({
+    ...defaults,
+    angle: 90,
+    spread: 55,
+  });
+}
+
+export default function Confetti({ duration = 2200, onComplete }: ConfettiProps) {
   const [show, setShow] = useState(true);
   const bannerRef = useRef<HTMLDivElement>(null);
-
-  // 触发极简高端行政级彩带特效
-  const fireConfetti = useCallback(() => {
-    const colors = ['#71717A', '#A1A1AA', '#D4D4D8', '#FF5722']; // Zinc-500, Zinc-400, Zinc-300, Primary Accent (Orange)
-    const particleCount = 60; // 保持粒子数量适中，避免廉价感
-
-    const defaults: confetti.Options = {
-      origin: { y: 0.7 },
-      particleCount: particleCount,
-      spread: 70,
-      startVelocity: 15,
-      decay: 0.9,
-      ticks: 200,
-      zIndex: 3000,
-      colors: colors,
-      shapes: ['square', 'circle'] as confetti.Shape[], // 使用方形和圆形粒子，避免过于花哨
-      gravity: 0.8,
-      scalar: 0.8,
-    };
-
-    // 发射两波彩带，模拟优雅的节奏
-    confetti({
-      ...defaults,
-      angle: 60,
-      spread: 50,
-    });
-
-    setTimeout(() => {
-      confetti({
-        ...defaults,
-        angle: 120,
-        spread: 50,
-      });
-    }, 250);
-
-    // 播放沉浸式行政级音效（物理翻页质感）
-    playPageTurn();
-  }, []);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   useEffect(() => {
+    let cancelled = false;
+
     if (bannerRef.current) {
       gsap.fromTo(
         bannerRef.current,
@@ -59,13 +63,14 @@ export default function Confetti({ duration = 3000, onComplete }: ConfettiProps)
       );
     }
 
-    // 延迟 300ms 后触发特效与音效，确保用户体验到进入动画的过渡
     const confettiTimer = setTimeout(() => {
-      fireConfetti();
+      if (cancelled) return;
+      fireLightBurst(0.7);
+      playPageTurn();
     }, 300);
 
-    // 提前 300ms 隐藏文字提示框，准备退出动画
     const completeTimer = setTimeout(() => {
+      if (cancelled) return;
       if (bannerRef.current) {
         gsap.to(bannerRef.current, {
           opacity: 0,
@@ -73,24 +78,29 @@ export default function Confetti({ duration = 3000, onComplete }: ConfettiProps)
           scale: 0.95,
           duration: 0.25,
           ease: 'power2.in',
-          onComplete: () => setShow(false),
+          onComplete: () => {
+            if (!cancelled) setShow(false);
+          },
         });
       } else {
         setShow(false);
       }
     }, Math.max(100, duration - 300));
 
-    // 彻底销毁并触发 onComplete 回调
     const destroyTimer = setTimeout(() => {
-      if (onComplete) onComplete();
+      if (cancelled) return;
+      onCompleteRef.current?.();
     }, duration);
 
     return () => {
+      cancelled = true;
       clearTimeout(confettiTimer);
       clearTimeout(completeTimer);
       clearTimeout(destroyTimer);
     };
-  }, [duration, onComplete, fireConfetti]);
+    // Single-fire per mount: onComplete held in ref so parent re-renders do not re-burst
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional; duration only
+  }, [duration]);
 
   if (!show) return null;
 
@@ -106,9 +116,9 @@ export default function Confetti({ duration = 3000, onComplete }: ConfettiProps)
 }
 
 export const showConfetti = () => {
+  if (prefersReducedMotion()) return;
   confetti({
-    particleCount: 120,
-    spread: 70,
+    ...LIGHT_CONFETTI_OPTIONS,
     origin: { y: 0.6 },
     colors: ['#202124', '#FF5722', '#FFFFFF'],
   });
