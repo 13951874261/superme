@@ -32,9 +32,9 @@ export default function MemoryMatrixStage({
   synonyms.slice(0, 3).forEach((s) => ring1Nodes.push({ text: s, type: 'synonym' }));
   collocations.slice(0, 3).forEach((c) => ring1Nodes.push({ text: c, type: 'collocation' }));
 
-  // 2. 第二环节点：助记钩子、词根摘要、脑图图例
-  const rootText = memoryAids?.root_memory ? `词根: ${memoryAids.root_memory.slice(0, 16)}...` : null;
-  const assocText = memoryAids?.association_memory ? `联想: ${memoryAids.association_memory.slice(0, 16)}...` : null;
+  // 2. 第二环节点：助记钩子、词根摘要、脑图图例（全量展示，取消截断）
+  const rootText = memoryAids?.root_memory ? `词根: ${memoryAids.root_memory}` : null;
+  const assocText = memoryAids?.association_memory ? `联想: ${memoryAids.association_memory}` : null;
   const imageUrl = memoryAids?.image_url;
 
   return (
@@ -65,15 +65,15 @@ export default function MemoryMatrixStage({
         <div className="absolute inset-20 rounded-full border border-indigo-500/30 pointer-events-none" />
 
         {/* ------------------ 圆心层 (Center Node) ------------------ */}
-        <div className="z-20 bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 border-2 border-indigo-400/50 rounded-full w-40 h-40 shadow-[0_0_30px_rgba(79,70,229,0.3)] flex flex-col items-center justify-center p-4 text-center transform transition-transform hover:scale-105 duration-300">
-          <div className="text-xs font-black text-indigo-200 tracking-wider flex items-center gap-1 mb-1">
+        <div className="z-20 bg-gradient-to-br from-indigo-600 via-indigo-700 to-slate-900 border-2 border-indigo-400/50 rounded-full w-44 h-44 shadow-[0_0_30px_rgba(79,70,229,0.3)] flex flex-col items-center justify-center p-3 text-center transform transition-transform hover:scale-105 duration-300">
+          <div className="text-[10px] font-black text-indigo-200 tracking-wider flex items-center gap-1 mb-0.5">
             <Zap className="w-3 h-3 text-amber-400" />
             TARGET
           </div>
-          <div className="text-base font-black text-white leading-tight tracking-tight line-clamp-1 select-all">
+          <div className="text-xs md:text-sm font-black text-white leading-tight tracking-tight whitespace-normal max-h-12 overflow-y-auto custom-scrollbar select-all px-1">
             {cleanWord}
           </div>
-          <div className="text-[11px] text-indigo-200/90 font-medium line-clamp-2 mt-1 px-1">
+          <div className="text-[10px] text-indigo-200/90 font-medium leading-tight mt-1 px-1 max-h-16 overflow-y-auto custom-scrollbar">
             {meaning}
           </div>
         </div>
@@ -82,7 +82,7 @@ export default function MemoryMatrixStage({
         {ring1Nodes.map((node, idx) => {
           const total = ring1Nodes.length;
           const angle = (idx * (360 / total) - 90) * (Math.PI / 180);
-          const radius = 125; // 距离圆心的像素半径
+          const radius = 135; // 距离圆心的像素半径
           const x = Math.cos(angle) * radius;
           const y = Math.sin(angle) * radius;
 
@@ -90,10 +90,10 @@ export default function MemoryMatrixStage({
             <div
               key={idx}
               style={{ transform: `translate(${x}px, ${y}px)` }}
-              className="absolute z-10 bg-slate-800/90 hover:bg-indigo-950 border border-indigo-400/40 hover:border-indigo-300 text-slate-100 px-3 py-1.5 rounded-full text-xs font-bold shadow-lg backdrop-blur-md transition-all duration-300 flex items-center gap-1.5 cursor-default hover:scale-110"
+              className="absolute z-10 bg-slate-800/95 hover:bg-indigo-950 border border-indigo-400/50 hover:border-indigo-300 text-slate-100 px-3 py-1.5 rounded-2xl text-[11px] font-bold shadow-lg backdrop-blur-md transition-all duration-300 flex items-center gap-1.5 cursor-default hover:scale-110 max-w-[160px]"
             >
-              <span className={`w-1.5 h-1.5 rounded-full ${node.type === 'synonym' ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
-              <span className="max-w-[110px] truncate">{node.text}</span>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${node.type === 'synonym' ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
+              <span className="whitespace-normal leading-tight text-center max-h-12 overflow-y-auto custom-scrollbar">{node.text}</span>
             </div>
           );
         })}
@@ -101,20 +101,20 @@ export default function MemoryMatrixStage({
         {/* ------------------ 第二环节点 (Ring 2 Outer Nodes) ------------------ */}
         {/* 左上: 词根词缀 */}
         {rootText && (
-          <div className="absolute top-2 left-2 z-10 bg-slate-900/90 border border-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-[11px] font-medium shadow-md backdrop-blur-sm max-w-[150px] truncate">
+          <div className="absolute top-0 left-0 z-10 bg-slate-900/95 border border-slate-700 text-slate-200 p-2.5 rounded-xl text-[10px] font-medium shadow-md backdrop-blur-sm max-w-[200px] max-h-20 overflow-y-auto leading-relaxed custom-scrollbar">
             🌱 {rootText}
           </div>
         )}
 
         {/* 右上: 趣味联想 */}
         {assocText && (
-          <div className="absolute top-2 right-2 z-10 bg-slate-900/90 border border-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-[11px] font-medium shadow-md backdrop-blur-sm max-w-[150px] truncate">
+          <div className="absolute top-0 right-0 z-10 bg-slate-900/95 border border-slate-700 text-slate-200 p-2.5 rounded-xl text-[10px] font-medium shadow-md backdrop-blur-sm max-w-[200px] max-h-20 overflow-y-auto leading-relaxed custom-scrollbar">
             💡 {assocText}
           </div>
         )}
 
         {/* 右下: AI 脑图画卷入口 */}
-        <div className="absolute bottom-2 right-2 z-10">
+        <div className="absolute bottom-1 right-1 z-10">
           {imageUrl ? (
             <div className="w-14 h-14 rounded-xl border border-indigo-400/50 overflow-hidden shadow-lg group relative">
               <img src={imageUrl} alt="AI 记忆脑图" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300" />
@@ -135,12 +135,12 @@ export default function MemoryMatrixStage({
       </div>
 
       {/* ------------------ 下沿记忆钩子与操作辅助条 ------------------ */}
-      <div className="w-full border-t border-slate-800/90 pt-3 mt-2 flex items-center justify-between text-xs text-slate-300 font-medium">
-        <div className="flex items-center gap-2">
-          <Brain className="w-4 h-4 text-indigo-400 shrink-0" />
-          <span className="text-[11px] text-indigo-200 italic line-clamp-1">
+      <div className="w-full border-t border-slate-800/90 pt-3 mt-2 flex items-start justify-between gap-3 text-xs text-slate-300 font-medium">
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <Brain className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+          <div className="text-[11px] text-indigo-200 italic leading-relaxed max-h-16 overflow-y-auto custom-scrollbar pr-1">
             "{memoryAids?.mnemonic_phrase || `掌握 ${cleanWord} 的核心搭配与场景分寸，提升商务表达气场`}"
-          </span>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <SpeakButton text={cleanWord} title="播放音轨" className="w-7 h-7 bg-slate-800 hover:bg-indigo-600 border border-slate-700 rounded-lg flex items-center justify-center" iconClassName="w-3.5 h-3.5 text-white" />
