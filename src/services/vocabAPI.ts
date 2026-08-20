@@ -536,6 +536,7 @@ export interface BatchAddWordItem {
   word: string;
   category?: 'business' | 'general';
   is_phrase?: boolean;
+  is_sentence?: boolean;
   dictType?: string;
   payload?: any;
 }

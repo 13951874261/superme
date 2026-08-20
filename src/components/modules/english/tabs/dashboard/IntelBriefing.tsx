@@ -29,8 +29,10 @@ export interface IntelBriefingProps {
   extractedSentences: string[];
   vocabDetailsMap: Record<string, any>;
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
-  handleAddWordToVocab: (text: string, isPhrase?: boolean) => Promise<void>;
+  handleAddWordToVocab: (text: string, isPhrase?: boolean, isSentence?: boolean) => Promise<void>;
   fetchBilingualTranslation: (text: string) => Promise<void>;
+  handleBatchAddCategory?: (category: 'words' | 'phrases' | 'sentences') => Promise<void>;
+  handleBatchAddAll?: () => Promise<void>;
 }
 
 export function IntelBriefing({
@@ -59,7 +61,9 @@ export function IntelBriefing({
   vocabDetailsMap,
   asyncMeanings,
   handleAddWordToVocab,
-  fetchBilingualTranslation
+  fetchBilingualTranslation,
+  handleBatchAddCategory,
+  handleBatchAddAll
 }: IntelBriefingProps) {
   
   return (
@@ -204,6 +208,8 @@ export function IntelBriefing({
             asyncMeanings={asyncMeanings}
             handleAddWordToVocab={handleAddWordToVocab}
             fetchBilingualTranslation={fetchBilingualTranslation}
+            handleBatchAddCategory={handleBatchAddCategory}
+            handleBatchAddAll={handleBatchAddAll}
           />
         </>
       ) : (
