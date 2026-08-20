@@ -1,7 +1,7 @@
 # 词汇矩阵页面高密度重设计
 
 **日期：** 2026-08-20  
-**状态：** 已获口头批准，待用户审阅本 spec 后进入实施计划  
+**状态：** Spec 已确认；实施计划见 `docs/superpowers/plans/2026-08-20-vocab-matrix-density-redesign.md`  
 **范围：** 英语模块 → 词汇矩阵（`VocabTab` 翻转后 `Target Revealed` 态）
 
 ## 1. 问题与目标
