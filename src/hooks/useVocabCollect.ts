@@ -30,7 +30,7 @@ const normalizeKey = (text: string) => text.trim().toLowerCase();
  * 收录即由服务端补齐词汇矩阵；3 秒未完成则转入任务中心继续补齐。
  */
 export function useVocabCollect(options: UseVocabCollectOptions = {}) {
-  const { addTask } = useTask();
+  const { addTask, startPolling } = useTask();
   const { notify } = options;
   const [collecting, setCollecting] = useState<Record<string, boolean>>({});
   const [collected, setCollected] = useState<Record<string, boolean>>({});
@@ -77,23 +77,55 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
           progress: 20,
           logs: ['[生词收录] 3秒未完成，已托管至后台任务中心写入并补齐词汇矩阵...'],
         });
+        startPolling?.(queued.taskId);
         notify?.(`“${label}” 收录与词汇矩阵补齐已转入后台处理，稍后可在【任务中心】查看`, 'info');
         return 'queued';
       }
 
+      const result = race.result as { matrixReady?: boolean };
       setCollected((prev) => ({ ...prev, [key]: true }));
       playSuccess();
       window.dispatchEvent(new Event('vocab-updated'));
-      notify?.(`“${label}” 已加入生词本，词汇矩阵已补齐`, 'success');
+      if (result?.matrixReady === false) {
+        notify?.(
+          `“${label}” 已加入生词本；词汇矩阵稍后续补，可在【任务中心】查看进度`,
+          'info'
+        );
+      } else {
+        notify?.(`“${label}” 已加入生词本，词汇矩阵已补齐`, 'success');
+      }
       return 'collected';
     } catch (error: any) {
-      playError();
-      notify?.(`收录失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
-      return 'failed';
+      // 同步路径真失败时仍尝试托管后台，避免用户只能看到红条
+      try {
+        const queued = await batchAddWordsAsync(
+          [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType }],
+          request.topic || '逐条收录',
+          request.source || 'Manual Select'
+        );
+        addTask({
+          id: queued.taskId,
+          type: 'vocab_add',
+          name: `生词本收录: ${label}`,
+          status: 'running',
+          progress: 20,
+          logs: ['[生词收录] 同步失败，已改由后台任务中心继续补齐词汇矩阵...'],
+        });
+        startPolling?.(queued.taskId);
+        notify?.(
+          `“${label}” 收录已转入【任务中心】后台处理（同步矩阵暂未完成）`,
+          'info'
+        );
+        return 'queued';
+      } catch {
+        playError();
+        notify?.(`收录失败: ${error instanceof Error ? error.message : String(error)}`, 'error');
+        return 'failed';
+      }
     } finally {
       setCollecting((prev) => ({ ...prev, [key]: false }));
     }
-  }, [addTask, notify]);
+  }, [addTask, startPolling, notify]);
 
   return {
     collect,

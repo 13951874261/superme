@@ -20,7 +20,12 @@ assert.ok(
   '后台批量任务必须复用同一套矩阵补齐逻辑'
 );
 assert.match(serverSource, /inflightVocabEnrichment/, '缺少进行中去重，3 秒竞速会重复生成矩阵');
-assert.match(serverSource, /DELETE FROM vocabulary WHERE id = \?/, '矩阵生成失败必须回滚，避免留下无矩阵的半成品词条');
+assert.match(serverSource, /forceNew/, '后台异步路径必须可 forceNew，避免复用同步失败的 inflight Promise');
+assert.match(serverSource, /matrix_pending_retry/, '矩阵超时/失败须软保留词条并标记可重试，不得硬删');
+assert.ok(
+  !/矩阵生成失败时不留半成品词条[\s\S]{0,120}DELETE FROM vocabulary WHERE id = \?/.test(serverSource),
+  '矩阵生成失败不得再 DELETE 刚入库词条'
+);
 
 // 2. 三类词条（单词/短语/句式）都必须走矩阵补齐
 assert.match(serverSource, /vocabMatrixEnricher\.classifyKind/, '缺少词/短语/句式口径判定');

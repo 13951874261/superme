@@ -356,6 +356,8 @@ export async function addWordEnriched(params: {
     method: 'POST',
     // 矩阵补齐需调用大模型，放宽单次请求时长；前端另有 3 秒竞速托管机制
     timeoutMs: 120000,
+    // 静默：迟到失败不得 Toast，提示统一由 useVocabCollect（成功 / 转入任务中心）负责
+    silent: true,
     body: JSON.stringify({ ...params, category: params.category || 'business', userId: uid }),
   });
 }

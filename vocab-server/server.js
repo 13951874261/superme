@@ -3536,6 +3536,7 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
   if (item.payload && typeof item.payload === 'object') payload = { ...payload, ...item.payload };
 
   // 2) 补齐矩阵正文（音标释义 / 同近义词 / 搭配 / 记忆钩子 / 高管 SOP；句式另含翻译、语法结构、替换表达、场景 SOP）
+  let matrixError = null;
   if (!vocabMatrixEnricher.isMatrixComplete(payload, kind)) {
     try {
       const matrix = await vocabMatrixEnricher.generateVocabMatrix({
@@ -3549,11 +3550,20 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
         ...matrix,
         source: source || payload.source || '',
         topic: topic || payload.topic || '',
+        matrix_pending_retry: false,
+        matrix_error: '',
       };
     } catch (error) {
-      // 矩阵生成失败时不留半成品词条，让调用方感知失败并可重试
-      if (created) db.prepare('DELETE FROM vocabulary WHERE id = ?').run(row.id);
-      throw new Error(`词汇矩阵生成失败: ${error.message}`);
+      // 软失败：保留已入库词条，标记可重试；不 DELETE，避免「红条 + 词条消失」
+      matrixError = error?.message || String(error);
+      console.warn(`[Vocab Matrix] 软保留词条，矩阵待重试: "${word}" -> ${matrixError}`);
+      payload = {
+        ...payload,
+        source: source || payload.source || '',
+        topic: topic || payload.topic || '',
+        matrix_pending_retry: true,
+        matrix_error: matrixError,
+      };
     }
   }
 
@@ -3597,21 +3607,36 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
     created,
     matrixReady: vocabMatrixEnricher.isMatrixComplete(payload, kind),
     memoryReady,
+    matrixError: matrixError || undefined,
   };
 }
 
 // 3 秒竞速会让同一词条同时出现同步请求与后台任务，这里做进行中去重，避免重复生成矩阵
 const inflightVocabEnrichment = new Map();
 
-function enrichAndPersistVocabEntry(args) {
+async function enrichAndPersistVocabEntry(args) {
   const word = readVocabItemText(args?.item);
-  if (!word) return Promise.reject(new Error('word is required'));
+  if (!word) throw new Error('word is required');
 
   const key = `${args?.userId || 'default'}::${word.toLowerCase()}`;
-  const existing = inflightVocabEnrichment.get(key);
-  if (existing) return existing;
+  const forceNew = !!args?.forceNew;
 
-  const promise = runVocabEntryEnrichment(args).finally(() => inflightVocabEnrichment.delete(key));
+  if (forceNew) {
+    // 后台路径：等同步 inflight 结束后再独立重试，避免复用已失败的 Promise
+    const existing = inflightVocabEnrichment.get(key);
+    if (existing) {
+      try { await existing; } catch (_) { /* ignore prior failure */ }
+    }
+  } else {
+    const existing = inflightVocabEnrichment.get(key);
+    if (existing) return existing;
+  }
+
+  const promise = runVocabEntryEnrichment(args).finally(() => {
+    if (inflightVocabEnrichment.get(key) === promise) {
+      inflightVocabEnrichment.delete(key);
+    }
+  });
   inflightVocabEnrichment.set(key, promise);
   return promise;
 }
@@ -3753,8 +3778,13 @@ app.post('/api/vocab/batch-add-async', async (req, res) => {
               item: typeof item === 'string' ? { word } : item,
               topic,
               source,
+              forceNew: true,
             });
-            if (result.created) addedCount++; else existCount++;
+            if (result.created) addedCount++;
+            else existCount++;
+            if (!result.matrixReady) {
+              failures.push(`${word.slice(0, 24)}: matrix pending (${result.matrixError || 'incomplete'})`);
+            }
           } catch (error) {
             failedCount++;
             failures.push(`${word.slice(0, 24)}: ${error.message}`);
@@ -3765,13 +3795,14 @@ app.post('/api/vocab/batch-add-async', async (req, res) => {
           taskQueue.updateTask(task.id, { progress });
         }
 
-        const summary = `[生词收录完成] 新增 ${addedCount} 个，已存在或更新 ${existCount} 个，矩阵补齐失败 ${failedCount} 个`;
+        const pendingMatrix = failures.filter((f) => f.includes('matrix pending')).length;
+        const summary = `[生词收录完成] 新增 ${addedCount} 个，已存在或更新 ${existCount} 个，硬失败 ${failedCount} 个，矩阵待续补 ${pendingMatrix} 个`;
         taskQueue.updateTask(task.id, {
           status: failedCount > 0 && addedCount === 0 && existCount === 0 ? 'failed' : 'completed',
           progress: 100,
           error: failedCount > 0 && addedCount === 0 && existCount === 0 ? failures.join('; ') : undefined,
-          logs: failedCount > 0 ? [summary, `失败明细: ${failures.slice(0, 5).join('; ')}`] : [summary],
-          result: { addedCount, existCount, failedCount, total: itemList.length },
+          logs: failures.length > 0 ? [summary, `明细: ${failures.slice(0, 5).join('; ')}`] : [summary],
+          result: { addedCount, existCount, failedCount, pendingMatrix, total: itemList.length },
         });
       } catch (e) {
         console.error('[Vocab Async Fail]:', e);
