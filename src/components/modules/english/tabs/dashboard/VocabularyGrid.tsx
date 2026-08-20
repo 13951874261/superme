@@ -1,6 +1,6 @@
 import React from 'react';
 import SpeakButton from '../../../../SpeakButton';
-import { Eye, BookmarkPlus, CheckCircle2, Sparkles } from 'lucide-react';
+import { Eye, CheckCircle2 } from 'lucide-react';
 
 export interface VocabularyGridProps {
   extractedWords: string[];
@@ -10,8 +10,6 @@ export interface VocabularyGridProps {
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
   handleAddWordToVocab: (text: string, isPhrase?: boolean, isSentence?: boolean) => Promise<void>;
   fetchBilingualTranslation: (text: string) => Promise<void>;
-  handleBatchAddCategory?: (category: 'words' | 'phrases' | 'sentences') => Promise<void>;
-  handleBatchAddAll?: () => Promise<void>;
 }
 
 export function VocabularyGrid({
@@ -21,9 +19,7 @@ export function VocabularyGrid({
   vocabDetailsMap,
   asyncMeanings,
   handleAddWordToVocab,
-  fetchBilingualTranslation,
-  handleBatchAddCategory,
-  handleBatchAddAll
+  fetchBilingualTranslation
 }: VocabularyGridProps) {
   
   if (extractedWords.length === 0 && extractedPhrases.length === 0 && extractedSentences.length === 0) {
@@ -40,37 +36,8 @@ export function VocabularyGrid({
     return val;
   };
 
-  const totalItemCount = extractedWords.length + extractedPhrases.length + extractedSentences.length;
-
   return (
     <div className="flex flex-col gap-4 pt-4">
-      {/* 顶栏：一键全量收录长文所有词句控制条 */}
-      {handleBatchAddAll && totalItemCount > 0 && (
-        <div className="flex items-center justify-between p-3.5 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 rounded-2xl text-white shadow-md border border-slate-700/50">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-500/20 rounded-xl border border-indigo-400/30 text-indigo-300">
-              <Sparkles className="w-4 h-4 animate-pulse" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold tracking-wide text-slate-100">
-                长文提纯结果汇总（共 {totalItemCount} 项）
-              </h4>
-              <p className="text-[10px] text-slate-400 font-sans mt-0.5">
-                含 {extractedWords.length} 生词 · {extractedPhrases.length} 短语 · {extractedSentences.length} 句型，全量生成词汇矩阵
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => handleBatchAddAll()}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-900 bg-gradient-to-r from-amber-300 via-amber-200 to-yellow-400 hover:from-amber-200 hover:to-yellow-300 rounded-xl shadow-sm transition-all cursor-pointer btn-press shrink-0"
-            title="一键将生词、短语和句型全部收录至生词本并生成全维度词汇矩阵"
-          >
-            <BookmarkPlus className="w-3.5 h-3.5" />
-            一键全量收录长文所有词句
-          </button>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* 词汇专区 - 权重 5 */}
         {extractedWords.length > 0 && (
@@ -80,16 +47,6 @@ export function VocabularyGrid({
                 <span className="w-1.5 h-3 bg-[var(--color-brand)] rounded-full"></span>
                 成功提纯商战生词 ({extractedWords.length})
               </h5>
-              {handleBatchAddCategory && (
-                <button
-                  onClick={() => handleBatchAddCategory('words')}
-                  className="text-[10px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-all cursor-pointer btn-press shrink-0 flex items-center gap-1"
-                  title="批量收录全部生词"
-                >
-                  <BookmarkPlus className="w-3 h-3" />
-                  批量收录生词
-                </button>
-              )}
             </div>
             <div className="flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
               <div className="grid grid-cols-1 sm:grid-cols-1 gap-3.5">
@@ -112,7 +69,8 @@ export function VocabularyGrid({
                   }
 
                   const finalPhonetic = phonetic || asyncMeanings[cleanKey]?.phonetic || '';
-                  const isStored = !!vocabDetailsMap[cleanKey];
+                  // 仅矩阵齐备才算已收录：自动翻译缓存写入的词条仍需逐条补齐矩阵
+                  const isStored = !!vocabDetailsMap[cleanKey]?.matrixReady;
 
                   return (
                     <div
@@ -142,7 +100,7 @@ export function VocabularyGrid({
                                 handleAddWordToVocab(word, false, false);
                               }}
                               className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-all cursor-pointer shrink-0 btn-press"
-                              title="收录入生词本"
+                              title="收录入生词本并补齐词汇矩阵"
                             >
                               + 收录
                             </button>
@@ -181,16 +139,6 @@ export function VocabularyGrid({
                 <span className="w-1.5 h-3 bg-amber-500 rounded-full"></span>
                 成功提纯高频短语 ({extractedPhrases.length})
               </h5>
-              {handleBatchAddCategory && (
-                <button
-                  onClick={() => handleBatchAddCategory('phrases')}
-                  className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-600 hover:text-white px-2 py-0.5 rounded-lg border border-amber-100 transition-all cursor-pointer shrink-0 flex items-center gap-1"
-                  title="批量收录全部短语"
-                >
-                  <BookmarkPlus className="w-3 h-3" />
-                  批量收录短语
-                </button>
-              )}
             </div>
             <div className="flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
               <div className="space-y-3">
@@ -200,7 +148,7 @@ export function VocabularyGrid({
                   const cleanKey = phrase.toLowerCase();
                   const details = vocabDetailsMap[cleanKey];
                   let rawMeaning = getDisplayMeaning(details?.meaning);
-                  const isPhraseStored = !!vocabDetailsMap[cleanKey];
+                  const isPhraseStored = !!vocabDetailsMap[cleanKey]?.matrixReady;
 
                   if (!rawMeaning) {
                     if (asyncMeanings[cleanKey]?.meaning) {
@@ -243,7 +191,7 @@ export function VocabularyGrid({
                                 handleAddWordToVocab(phrase, true, false);
                               }}
                               className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-600 hover:text-white px-2 py-0.5 rounded-lg border border-amber-100 transition-all cursor-pointer shrink-0 btn-press"
-                              title="收录入生词本"
+                              title="收录短语入生词本并补齐词汇矩阵"
                             >
                               + 收录
                             </button>
@@ -279,16 +227,6 @@ export function VocabularyGrid({
                 <span className="w-1.5 h-3 bg-emerald-500 rounded-full"></span>
                 成功提纯高频句型 ({extractedSentences.length})
               </h5>
-              {handleBatchAddCategory && (
-                <button
-                  onClick={() => handleBatchAddCategory('sentences')}
-                  className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white px-2 py-0.5 rounded-lg border border-emerald-100 transition-all cursor-pointer shrink-0 flex items-center gap-1"
-                  title="批量收录全部句型"
-                >
-                  <BookmarkPlus className="w-3 h-3" />
-                  批量收录句型
-                </button>
-              )}
             </div>
             <div className="flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>
               <div className="space-y-3">
@@ -298,7 +236,7 @@ export function VocabularyGrid({
                   const cleanKey = phrase.toLowerCase();
                   const details = vocabDetailsMap[cleanKey];
                   let rawMeaning = getDisplayMeaning(details?.meaning);
-                  const isSentenceStored = !!vocabDetailsMap[cleanKey];
+                  const isSentenceStored = !!vocabDetailsMap[cleanKey]?.matrixReady;
 
                   if (!rawMeaning) {
                     if (asyncMeanings[cleanKey]?.meaning) {

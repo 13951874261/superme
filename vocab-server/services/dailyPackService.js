@@ -7,6 +7,17 @@ const FLAW_SUB_THEMES = [
   'false dilemmas and oversimplification',
 ];
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+// 去重滚动窗口：窗口内推送过的词不再重复出现
+const DEDUPE_WINDOW_DAYS = Number(process.env.DAILY_PACK_DEDUPE_WINDOW_DAYS || 30);
+// 历史保留期：超期记录物理删除，避免表无限增长
+const DEDUPE_RETENTION_DAYS = Number(process.env.DAILY_PACK_DEDUPE_RETENTION_DAYS || 90);
+const WAKEUP_VOCAB_TARGET = 10;
+const FLAW_VOCAB_TARGET = 6;
+// 命中重复后最多再调 LLM 一次
+const DEDUPE_RETRY_COUNT = 1;
+const DEDUPE_BACKFILL_NOTICE = '本主题近期新词不足，已用较早推送词补齐至满额';
+
 function normalizeUserId(raw) {
   if (!raw) return 'default-user';
   const base = String(raw).split('@')[0].trim();
@@ -106,6 +117,29 @@ function initDailyPackTables(db) {
     })();
     console.log('[DailyPack] migrated daily_packs: added input_signature, updated UNIQUE constraint');
   }
+
+  // 已推送词汇历史：唤醒与破绽共用同一张表，用于跨模块、跨天去重
+  // UNIQUE(user_id, word) 只保留每个词最近一次推送时间，
+  // 既支撑「窗口内是否出现过」查询，也支撑「最久未出现」排序补齐
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS pushed_vocab_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      word TEXT NOT NULL,
+      word_json TEXT,
+      module TEXT NOT NULL DEFAULT 'wakeup',
+      pushed_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      UNIQUE(user_id, word)
+    )
+  `).run();
+
+  db.prepare(
+    'CREATE INDEX IF NOT EXISTS idx_pushed_vocab_user_time ON pushed_vocab_history(user_id, pushed_at)'
+  ).run();
+  db.prepare(
+    'CREATE INDEX IF NOT EXISTS idx_pushed_vocab_user_word ON pushed_vocab_history(user_id, word)'
+  ).run();
 }
 
 function upsertUserTheme(db, userId, theme) {
@@ -172,8 +206,12 @@ function getFallbackFlawVocab() {
 }
 
 function getUserVocabWords(db) {
-  const rows = db.prepare('SELECT word FROM vocabulary ORDER BY added_at DESC').all();
-  return rows.map((r) => String(r.word || '').toLowerCase().trim()).filter(Boolean);
+  try {
+    const rows = db.prepare('SELECT word FROM vocabulary ORDER BY added_at DESC').all();
+    return rows.map((r) => String(r.word || '').toLowerCase().trim()).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 function buildFlawDisplayWords(rawVocab, dbWordStrings, sessionExclude = []) {
@@ -236,6 +274,236 @@ function getHistoryExclude(db) {
   return dbWords.slice(0, 50).join(', ');
 }
 
+function normalizePushedWord(raw) {
+  return String(raw || '').toLowerCase().trim();
+}
+
+/** 窗口内已推送过的词（小写归一化），唤醒与破绽共用 */
+function getRecentPushedWords(db, userId, windowDays = DEDUPE_WINDOW_DAYS) {
+  const uid = normalizeUserId(userId);
+  const since = Date.now() - Math.max(0, Number(windowDays) || 0) * DAY_MS;
+  try {
+    const rows = db.prepare(
+      'SELECT word FROM pushed_vocab_history WHERE user_id = ? AND pushed_at >= ? ORDER BY pushed_at DESC'
+    ).all(uid, since);
+    return rows.map((r) => normalizePushedWord(r.word)).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/** 记录本批推送词；同一词重复推送时刷新为最近一次推送时间与最新词条快照 */
+function recordPushedWords(db, userId, moduleName, items) {
+  const uid = normalizeUserId(userId);
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return 0;
+  const now = Date.now();
+  const mod = String(moduleName || 'wakeup').trim() || 'wakeup';
+  const stmt = db.prepare(`
+    INSERT INTO pushed_vocab_history (id, user_id, word, word_json, module, pushed_at, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(user_id, word) DO UPDATE SET
+      word_json = excluded.word_json,
+      module = excluded.module,
+      pushed_at = excluded.pushed_at
+  `);
+  let saved = 0;
+  const seen = new Set();
+  const runAll = db.transaction((entries) => {
+    for (const entry of entries) {
+      const item = typeof entry === 'string' ? { word: entry } : (entry || {});
+      const key = normalizePushedWord(item.word);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      stmt.run(crypto.randomUUID(), uid, key, JSON.stringify(item), mod, now, now);
+      saved += 1;
+    }
+  });
+  try {
+    runAll(list);
+  } catch (err) {
+    console.error('[DailyPack] recordPushedWords failed:', err.message || err);
+    return 0;
+  }
+  return saved;
+}
+
+/** 最久未出现的历史词，用于去重后数量不足时补齐 */
+function getOldestPushedWords(db, userId, { limit = 10, exclude = [] } = {}) {
+  const uid = normalizeUserId(userId);
+  const excludeSet = new Set((exclude || []).map(normalizePushedWord).filter(Boolean));
+  const max = Math.max(0, Number(limit) || 0);
+  if (!max) return [];
+  try {
+    const rows = db.prepare(
+      'SELECT word, word_json FROM pushed_vocab_history WHERE user_id = ? ORDER BY pushed_at ASC'
+    ).all(uid);
+    const picked = [];
+    for (const row of rows) {
+      if (picked.length >= max) break;
+      const key = normalizePushedWord(row.word);
+      if (!key || excludeSet.has(key)) continue;
+      let item = null;
+      try {
+        item = row.word_json ? JSON.parse(row.word_json) : null;
+      } catch {
+        item = null;
+      }
+      if (!item || !item.word) item = { word: row.word };
+      picked.push(item);
+      excludeSet.add(key);
+    }
+    return picked;
+  } catch {
+    return [];
+  }
+}
+
+/** 清理超过保留期的历史，避免表无限增长 */
+function purgeExpiredPushedWords(db, retentionDays = DEDUPE_RETENTION_DAYS) {
+  const days = Math.max(0, Number(retentionDays) || 0);
+  if (!days) return 0;
+  try {
+    const info = db.prepare('DELETE FROM pushed_vocab_history WHERE pushed_at < ?')
+      .run(Date.now() - days * DAY_MS);
+    return Number(info.changes || 0);
+  } catch {
+    return 0;
+  }
+}
+
+/** 合并多路排除词（生词本 / 推送历史 / 本轮拒收），统一小写去重 */
+function mergeExcludeLists(...parts) {
+  const set = new Set();
+  for (const part of parts) {
+    const tokens = Array.isArray(part)
+      ? part
+      : String(part || '').split(/[,，]/).map((s) => normalizePushedWord(s)).filter(Boolean);
+    for (const t of tokens) set.add(t);
+  }
+  return [...set];
+}
+
+/**
+ * LLM 实际使用的 history_exclude = 原生词本排除 + 近窗口已推送词。
+ * 注意：不得用此结果参与 input_signature，否则会破坏 daily_packs 缓存键稳定性。
+ */
+function buildEffectiveHistoryExclude(db, userId, baseExclude = '') {
+  return mergeExcludeLists(baseExclude, getRecentPushedWords(db, userId)).join(', ');
+}
+
+function filterVocabAgainstExclude(items, excludeList) {
+  const exclude = new Set(mergeExcludeLists(excludeList));
+  const kept = [];
+  const rejected = [];
+  for (const item of items || []) {
+    const key = normalizePushedWord(item?.word);
+    if (!key) continue;
+    if (exclude.has(key)) {
+      rejected.push(key);
+      continue;
+    }
+    if (kept.some((k) => normalizePushedWord(k.word) === key)) continue;
+    kept.push(item);
+    exclude.add(key);
+  }
+  return { kept, rejected };
+}
+
+function fillVocabToTarget(db, userId, kept, targetCount, extraFallback = []) {
+  const result = [...(kept || [])];
+  const have = new Set(result.map((i) => normalizePushedWord(i.word)).filter(Boolean));
+  let usedBackfill = false;
+
+  if (result.length < targetCount) {
+    const oldest = getOldestPushedWords(db, userId, {
+      limit: targetCount - result.length,
+      exclude: [...have],
+    });
+    for (const item of oldest) {
+      if (result.length >= targetCount) break;
+      const key = normalizePushedWord(item.word);
+      if (!key || have.has(key)) continue;
+      result.push(item);
+      have.add(key);
+      usedBackfill = true;
+    }
+  }
+
+  if (result.length < targetCount) {
+    for (const fb of extraFallback || []) {
+      if (result.length >= targetCount) break;
+      const key = normalizePushedWord(fb.word);
+      if (!key || have.has(key)) continue;
+      result.push(fb);
+      have.add(key);
+      usedBackfill = true;
+    }
+  }
+
+  return { words: result.slice(0, targetCount), usedBackfill };
+}
+
+/**
+ * 生成后硬过滤 + 可选重试 + 最久未出现补齐。
+ * callLlm(excludeCsv) 由调用方注入，便于单测 mock。
+ */
+async function generateVocabWithDedupe(db, userId, {
+  moduleName,
+  targetCount,
+  baseExclude = '',
+  callLlm,
+  extraFallback = [],
+}) {
+  const uid = normalizeUserId(userId);
+  const dbWords = getUserVocabWords(db);
+  const recent = getRecentPushedWords(db, uid);
+  let excludeList = mergeExcludeLists(baseExclude, recent, dbWords);
+  let allKept = [];
+  let lastParsed = null;
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= DEDUPE_RETRY_COUNT; attempt++) {
+    try {
+      lastParsed = await callLlm(excludeList.join(', '));
+      lastError = null;
+    } catch (err) {
+      lastError = err;
+      if (attempt === 0 && allKept.length === 0) {
+        // 首次即失败：仍尽量用 fallback/历史补齐，避免空屏
+        break;
+      }
+      break;
+    }
+    const rawVocab = Array.isArray(lastParsed)
+      ? lastParsed
+      : (lastParsed?.vocab || []);
+    const { kept, rejected } = filterVocabAgainstExclude(rawVocab, excludeList);
+    for (const item of kept) {
+      const key = normalizePushedWord(item.word);
+      if (!allKept.some((k) => normalizePushedWord(k.word) === key)) allKept.push(item);
+    }
+    if (allKept.length >= targetCount) break;
+    if (attempt < DEDUPE_RETRY_COUNT) {
+      excludeList = mergeExcludeLists(excludeList, rejected, kept.map((k) => k.word));
+      continue;
+    }
+    break;
+  }
+
+  const filled = fillVocabToTarget(db, uid, allKept, targetCount, extraFallback);
+  recordPushedWords(db, uid, moduleName, filled.words);
+  try { purgeExpiredPushedWords(db); } catch { /* ignore */ }
+
+  return {
+    words: filled.words,
+    usedBackfill: filled.usedBackfill,
+    notice: filled.usedBackfill ? DEDUPE_BACKFILL_NOTICE : null,
+    raw: lastParsed,
+    error: lastError,
+  };
+}
+
 async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurrentProfile = '' }) {
   const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
   if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
@@ -263,9 +531,55 @@ async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurr
   return JSON.parse(clean);
 }
 
-async function generateFlawVocabForUser(db, userId, themeOverride) {
+/** 唤醒 10 词：排除推送历史 + 硬过滤 + 重试 1 次 + 补齐 + 写历史 */
+async function generateWakeupVocabForUser(db, userId, {
+  theme,
+  historyExclude = '',
+  userCurrentProfile = '',
+  callLlm,
+} = {}) {
+  const uid = normalizeUserId(userId);
+  const profile = userCurrentProfile || getUserCurrentProfile(db, uid);
+  const baseExclude = String(historyExclude || '').trim();
+  const runner = typeof callLlm === 'function'
+    ? callLlm
+    : (excludeCsv) => callWakeupWorkflow({
+      theme,
+      userId: uid,
+      historyExclude: excludeCsv,
+      userCurrentProfile: profile,
+    });
+
+  const result = await generateVocabWithDedupe(db, uid, {
+    moduleName: 'wakeup',
+    targetCount: WAKEUP_VOCAB_TARGET,
+    baseExclude,
+    callLlm: runner,
+    extraFallback: [],
+  });
+
+  if (result.error && result.words.length === 0) {
+    throw result.error;
+  }
+
+  const base = (result.raw && typeof result.raw === 'object' && !Array.isArray(result.raw))
+    ? result.raw
+    : {};
+  const wakeup = {
+    ...base,
+    theme: base.theme || theme,
+    vocab: result.words,
+  };
+  if (result.notice) wakeup._dedupeNotice = result.notice;
+  return wakeup;
+}
+
+/** 破绽 6 词：与唤醒共用推送历史池 */
+async function generateFlawVocabForUser(db, userId, themeOverride, { callLlm } = {}) {
+  const uid = normalizeUserId(userId);
   const dbWords = getUserVocabWords(db);
-  const apiExclude = dbWords.slice(-50).join(', ');
+  // 缓存签名仍用生词本排除；LLM 侧额外合并推送历史（在 generateVocabWithDedupe 内完成）
+  const baseExclude = dbWords.slice(0, 50).join(', ');
   const todayStr = getPackDate();
   const randomSalt = Math.floor(Math.random() * 10000);
   const randomFocus = FLAW_SUB_THEMES[Math.floor(Math.random() * FLAW_SUB_THEMES.length)];
@@ -273,18 +587,29 @@ async function generateFlawVocabForUser(db, userId, themeOverride) {
   const dynamicTheme = userTheme
     ? `${userTheme} | identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`
     : `identifying logical flaws and business counterattack (Focus: ${randomFocus}, Date: ${todayStr}, Salt: ${randomSalt})`;
-  const profile = getUserCurrentProfile(db, userId);
-  try {
-    const parsed = await callWakeupWorkflow({
+  const profile = getUserCurrentProfile(db, uid);
+
+  const runner = typeof callLlm === 'function'
+    ? callLlm
+    : async (excludeCsv) => callWakeupWorkflow({
       theme: dynamicTheme,
-      userId,
-      historyExclude: apiExclude,
+      userId: uid,
+      historyExclude: excludeCsv,
       userCurrentProfile: profile,
     });
-    return buildFlawDisplayWords(parsed.vocab || [], dbWords);
-  } catch {
-    return buildFlawDisplayWords([], dbWords);
-  }
+
+  const result = await generateVocabWithDedupe(db, uid, {
+    moduleName: 'flaw',
+    targetCount: FLAW_VOCAB_TARGET,
+    baseExclude,
+    callLlm: runner,
+    extraFallback: getFallbackFlawVocab(),
+  });
+
+  // 保持返回值为纯数组，兼容前端 Array.isArray(pack.flawVocab)
+  return result.words.length
+    ? result.words
+    : buildFlawDisplayWords([], dbWords, []);
 }
 
 function upsertDailyPack(db, { userId, packDate, theme, inputSignature, wakeup, flawVocab, source, status, errorMessage }) {
@@ -369,9 +694,8 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
     errorMessage: null,
   });
   try {
-    const wakeup = await callWakeupWorkflow({
+    const wakeup = await generateWakeupVocabForUser(db, uid, {
       theme,
-      userId: uid,
       historyExclude,
       userCurrentProfile: profile,
     });
@@ -599,6 +923,22 @@ module.exports = {
   buildFlawDisplayWords,
   getUserCurrentProfile,
   getHistoryExclude,
+  DEDUPE_WINDOW_DAYS,
+  DEDUPE_RETENTION_DAYS,
+  DEDUPE_BACKFILL_NOTICE,
+  WAKEUP_VOCAB_TARGET,
+  FLAW_VOCAB_TARGET,
+  normalizePushedWord,
+  getRecentPushedWords,
+  recordPushedWords,
+  getOldestPushedWords,
+  purgeExpiredPushedWords,
+  mergeExcludeLists,
+  buildEffectiveHistoryExclude,
+  filterVocabAgainstExclude,
+  fillVocabToTarget,
+  generateVocabWithDedupe,
+  generateWakeupVocabForUser,
   generateFlawVocabForUser,
   generateDailyPackForUser,
   generateLongArticleForUser,

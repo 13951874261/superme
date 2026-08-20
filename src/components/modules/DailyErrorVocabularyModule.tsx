@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BookOpen, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { addWord } from '../../services/vocabAPI';
 import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack } from '../../services/dailyPackAPI';
-import { playSuccess, playError } from '../../utils/soundEffects';
+import { useVocabCollect } from '../../hooks/useVocabCollect';
+import { showToast } from '../Toast';
 import SpeakButton from '../SpeakButton';
 import { useEnglishContext } from './english/context/EnglishContext';
 
@@ -19,8 +19,9 @@ export default function DailyErrorVocabularyModule() {
   const [words, setWords] = useState<FlawVocabWord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [addingWord, setAddingWord] = useState<Record<string, boolean>>({});
-  const [addedWords, setAddedWords] = useState<Record<string, boolean>>({});
+  const { collect, isCollecting, isCollected } = useVocabCollect({
+    notify: (message, type) => showToast({ message, type }),
+  });
 
   const fetchFlawVocab = async (regenerate = false) => {
     setIsLoading(true);
@@ -59,29 +60,19 @@ export default function DailyErrorVocabularyModule() {
     void fetchFlawVocab(false);
   }, []);
 
+  // 逐条收录：收录即补齐词汇矩阵，3 秒未完成转入任务中心
   const handleAddWord = async (word: FlawVocabWord) => {
-    setAddingWord(prev => ({ ...prev, [word.word]: true }));
-    try {
-      await addWord({
-        word: word.word,
-        dictType: 'flaw-vocab',
-        category: 'business',
-        payload: {
-          phonetic: word.ipa,
-          meaning: word.meaning_zh,
-          business_note: word.pronunciation_note,
-          examples: [word.example]
-        }
-      });
-      setAddedWords(prev => ({ ...prev, [word.word]: true }));
-      playSuccess();
-      window.dispatchEvent(new Event('vocab-updated'));
-    } catch (e) {
-      playError();
-      console.error(e);
-    } finally {
-      setAddingWord(prev => ({ ...prev, [word.word]: false }));
-    }
+    await collect({
+      text: word.word,
+      topic: theme,
+      source: 'Daily Flaw Vocab',
+      payload: {
+        phonetic: word.ipa,
+        meaning: word.meaning_zh,
+        business_note: word.pronunciation_note,
+        examples: [word.example],
+      },
+    });
   };
 
   return (
@@ -157,19 +148,20 @@ export default function DailyErrorVocabularyModule() {
 
               <button
                 onClick={() => handleAddWord(item)}
-                disabled={addingWord[item.word] || addedWords[item.word]}
+                disabled={isCollecting(item.word) || isCollected(item.word)}
+                title="收录入生词本并补齐词汇矩阵"
                 className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  addedWords[item.word]
+                  isCollected(item.word)
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white shadow-md hover:shadow-[var(--color-brand)]/20'
                 }`}
               >
-                {addingWord[item.word] ? (
+                {isCollecting(item.word) ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : addedWords[item.word] ? (
+                ) : isCollected(item.word) ? (
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 ) : null}
-                {addingWord[item.word] ? '收录中...' : addedWords[item.word] ? '已收录' : '收录生词本'}
+                {isCollecting(item.word) ? '收录并补齐矩阵中...' : isCollected(item.word) ? '已收录' : '收录生词本'}
               </button>
             </div>
           ))}

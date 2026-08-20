@@ -332,6 +332,34 @@ export async function addWord(params: {
   });
 }
 
+/** 单条收录并同步补齐词汇矩阵（音标释义/同近义词/搭配/记忆节点/高管 SOP；句式另含翻译与语法结构） */
+export async function addWordEnriched(params: {
+  word: string;
+  dictType: string;
+  category?: 'business' | 'general';
+  scene_type?: string;
+  is_phrase?: boolean;
+  is_sentence?: boolean;
+  payload?: any;
+  topic?: string;
+  source?: string;
+}): Promise<{
+  success: boolean;
+  id?: string;
+  kind?: 'word' | 'phrase' | 'sentence';
+  created?: boolean;
+  matrixReady?: boolean;
+  memoryReady?: boolean;
+}> {
+  const uid = getAppUserId();
+  return request('/add-enriched', {
+    method: 'POST',
+    // 矩阵补齐需调用大模型，放宽单次请求时长；前端另有 3 秒竞速托管机制
+    timeoutMs: 120000,
+    body: JSON.stringify({ ...params, category: params.category || 'business', userId: uid }),
+  });
+}
+
 /** 更新词条 payload */
 export async function updateWordPayload(
   wordId: string,

@@ -16,14 +16,28 @@ import Confetti from '../../../Confetti';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingAPI';
 import { getAppUserId } from '../../../../utils/profileHelper';
-import { addWord, lookupVocabWords, getVocabItem, batchAddWords, batchAddWordsAsync, addVocabWithTimeout, queryDictionaryWithCache, createConcurrencyLimiter, DictQueryParams } from '../../../../services/vocabAPI';
-import { useTask } from '../../../TaskContext';
+import { lookupVocabWords, getVocabItem, queryDictionaryWithCache, createConcurrencyLimiter } from '../../../../services/vocabAPI';
+import { useVocabCollect } from '../../../../hooks/useVocabCollect';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 
 import { VOICE_OPTIONS } from '../../../../config/voices';
 
 
 const safeToStr = (item: any) => (typeof item === 'string' ? item : (item?.word || item?.phrase || item?.text || String(item || ''))).trim();
+
+/**
+ * 判断词条是否已具备完整词汇矩阵。
+ * 自动翻译缓存也会把词句写入生词库，因此仅凭"库里有这条"不能算已收录，
+ * 必须矩阵（释义 + 记忆节点 + 高管 SOP）齐备才视为收录完成。
+ */
+const isVocabMatrixReady = (payload: any): boolean => {
+  if (!payload) return false;
+  if (payload.matrix_generated_at) return true;
+  const hasNodes = (Array.isArray(payload.synonyms) && payload.synonyms.length > 0)
+    || (Array.isArray(payload.collocations) && payload.collocations.length > 0);
+  const hasSop = !!payload.executive_sop?.register;
+  return hasNodes && hasSop;
+};
 
 export default function DashboardTab() {
   const {
@@ -39,7 +53,9 @@ export default function DashboardTab() {
     masteredThemes,
     stayStats,
   } = useEnglishContext();
-  const { addTask } = useTask();
+  const { collect: collectVocab } = useVocabCollect({
+    notify: (message, type) => showNotice('dashboard', message, type),
+  });
 
   const [isCustomThemeModalOpen, setIsCustomThemeModalOpen] = useState(false);
   const [isSopExpanded, setIsSopExpanded] = useState(false);
@@ -261,22 +277,11 @@ export default function DashboardTab() {
         const phone = payload.phonetic || '';
 
         if (mainTrans) {
+          // 仅缓存到界面展示，不落生词本：入库只能由用户逐条点击「+ 收录」触发
           setAsyncMeanings(prev => ({
             ...prev,
             [keyStr]: { meaning: mainTrans, phonetic: phone }
           }));
-
-          // 静默落库到本地 SQLite 词库中，以便持久化
-          await addWord({
-            word: text,
-            dictType: 'en_zh_bidirectional',
-            category: 'business',
-            payload: {
-              meaning: mainTrans,
-              phonetic: phone,
-              translation_main: mainTrans
-            }
-          }).catch(() => {});
         }
       }
     } finally {
@@ -341,6 +346,7 @@ export default function DashboardTab() {
             meaning: payload?.meaning || '',
             definition_en: payload?.definition_en || '',
             business_note: payload?.business_note || '',
+            matrixReady: isVocabMatrixReady(payload),
           };
         }
       });
@@ -352,12 +358,12 @@ export default function DashboardTab() {
     }
   };
 
-  // 1. 批量翻译与批量落库 useEffect (优化初始页面加载 N+1 请求过载)
+  // 1. 批量翻译 useEffect（仅补齐界面释义缓存，不入库；入库只能逐条手动收录）
   useEffect(() => {
     let active = true;
     const queryLimiter = createConcurrencyLimiter(3);
 
-    const translateAndBatchSave = async () => {
+    const translateExtractedItems = async () => {
       // 收集待翻译的生词、短语、句型
       const allTextItems = [
         ...extractedWords.map(w => safeToStr(w)),
@@ -375,16 +381,6 @@ export default function DashboardTab() {
 
       if (toTranslate.length === 0) return;
 
-      const batchWordsToSave: Array<{
-        word: string;
-        category?: 'business' | 'general';
-        dictType: string;
-        payload: any;
-      }> = [];
-
-      let completedCount = 0;
-      const totalToTranslate = toTranslate.length;
-
       toTranslate.forEach((word) => {
         const key = word.toLowerCase().trim();
         pendingTranslationsRef.current.add(key);
@@ -401,58 +397,23 @@ export default function DashboardTab() {
               const mainTrans = payload.translation_main || payload.meaning_zh || payload.meaning || '';
               const phone = payload.phonetic || '';
               if (mainTrans) {
-                // 更新前端缓存
+                // 只更新界面释义缓存，不写入生词本
                 setAsyncMeanings(prev => ({
                   ...prev,
                   [key]: { meaning: mainTrans, phonetic: phone }
                 }));
-
-                // 区分生词、短语还是句型
-                let dictType = 'en_zh_bidirectional';
-                if (extractedPhrases.includes(word)) {
-                  dictType = 'ai_phrase';
-                } else if (extractedSentences.includes(word)) {
-                  dictType = 'ai_sentence';
-                } else if (extractedWords.includes(word)) {
-                  dictType = 'ai_extracted';
-                }
-
-                batchWordsToSave.push({
-                  word,
-                  dictType,
-                  category: 'business',
-                  payload: {
-                    meaning: mainTrans,
-                    phonetic: phone,
-                    translation_main: mainTrans,
-                    source: 'auto_translation_batch',
-                    topic: theme
-                  }
-                });
               }
             }
           } catch (err) {
             console.warn(`Failed to translate "${word}":`, err);
           } finally {
             pendingTranslationsRef.current.delete(key);
-            completedCount++;
-
-            // 所有异步请求处理完后触发批量落库
-            if (completedCount === totalToTranslate && batchWordsToSave.length > 0 && active) {
-              try {
-                console.log(`[DashboardTab] Batch saving ${batchWordsToSave.length} words to SQLite...`);
-                await batchAddWords(batchWordsToSave);
-                window.dispatchEvent(new Event('vocab-updated'));
-              } catch (batchErr) {
-                console.error('Failed to batch save translated words:', batchErr);
-              }
-            }
           }
         });
       });
     };
 
-    translateAndBatchSave();
+    translateExtractedItems();
 
     return () => {
       active = false;
@@ -471,154 +432,31 @@ export default function DashboardTab() {
     return () => window.removeEventListener('vocab-updated', handleUpdate);
   }, [extractedWords, extractedPhrases, extractedSentences]);
 
-  // 一键将提纯出来的生词或短语手动加入生词本（带 3 秒竞速超时，超时解耦转后台任务中心）
+  // 逐条收录生词/短语/句式，收录即补齐词汇矩阵（带 3 秒竞速超时，超时解耦转后台任务中心）
   const handleAddWordToVocab = async (text: string, isPhrase: boolean = false, isSentence: boolean = false) => {
     const cleanText = text.trim();
     if (!cleanText) return;
     const cleanKey = cleanText.toLowerCase().trim();
 
-    // 已收录则跳过
-    if (vocabDetailsMap[cleanKey]) {
-      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '...' : ''}” 已在生词本中`, 'info');
+    // 已收录且矩阵齐备则跳过；仅有自动翻译缓存的词条仍需补齐矩阵
+    if (vocabDetailsMap[cleanKey]?.matrixReady) {
+      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '...' : ''}” 已在生词本中且词汇矩阵完整`, 'info');
       return;
     }
 
-    const dictType = isSentence ? 'ai_sentence' : (isPhrase ? 'ai_phrase' : 'ai_extracted');
+    const result = await collectVocab({
+      text: cleanText,
+      isPhrase,
+      isSentence,
+      topic: theme,
+      source: 'Material Upload',
+      payload: {
+        meaning: asyncMeanings[cleanKey]?.meaning || '',
+        phonetic: asyncMeanings[cleanKey]?.phonetic || '',
+      },
+    });
 
-    const doAddAction = async () => {
-      let meaning = asyncMeanings[cleanKey]?.meaning || '';
-      let phonetic = asyncMeanings[cleanKey]?.phonetic || '';
-
-      if (!meaning) {
-        try {
-          const res = await queryDictionaryWithCache({
-            word: cleanText,
-            dictType: 'en_zh_bidirectional',
-          });
-          if (res.ok && res.payload) {
-            const payload = res.payload as any;
-            meaning = payload.translation_main || payload.meaning_zh || payload.meaning || '';
-            phonetic = payload.phonetic || phonetic;
-          }
-        } catch {}
-      }
-
-      await addWord({
-        word: cleanText,
-        dictType,
-        category: 'business',
-        payload: {
-          meaning: meaning || '',
-          phonetic: phonetic || '',
-          translation_main: meaning || '',
-          source: 'Material Upload',
-          topic: theme,
-        },
-      });
-    };
-
-    try {
-      const raceRes = await addVocabWithTimeout(doAddAction(), 3000);
-      if (raceRes.isTimeout) {
-        const asyncRes = await batchAddWordsAsync(
-          [{ word: cleanText, is_phrase: isPhrase, is_sentence: isSentence, dictType }],
-          theme || '素材提纯',
-          'Manual Select'
-        );
-        addTask({
-          id: asyncRes.taskId,
-          type: 'vocab_add',
-          name: `生词本收录: ${cleanText.slice(0, 20)}${cleanText.length > 20 ? '...' : ''}`,
-          status: 'running',
-          progress: 20,
-          logs: [`[生词收录] 3秒未同步，已托管至后台任务中心写入...`],
-        });
-        showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '...' : ''}” 收录请求已转入后台处理，稍后可在【任务中心】查看`, 'info');
-        return;
-      }
-
-      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '...' : ''}” 已成功加入生词本`, 'success');
-      playSuccess();
-      window.dispatchEvent(new Event('vocab-updated'));
-      loadVocabDetails();
-    } catch (err: any) {
-      const msg = err instanceof Error ? err.message : String(err);
-      showNotice('dashboard', `收录失败: ${msg}`, 'error');
-      playError();
-    }
-  };
-
-  // 批量收录提纯出来的词汇、短语与句型（带 3 秒竞速超时）
-  const handleBatchAddAllToVocab = async (items: Array<{ word: string; isPhrase?: boolean; isSentence?: boolean }>) => {
-    if (!items || items.length === 0) return;
-
-    const doBatchAddAction = async () => {
-      const batchItems = items.map((it) => ({
-        word: it.word,
-        is_phrase: it.isPhrase,
-        is_sentence: it.isSentence,
-        dictType: it.isSentence ? 'ai_sentence' : (it.isPhrase ? 'ai_phrase' : 'ai_extracted'),
-      }));
-      await batchAddWords(batchItems);
-    };
-
-    try {
-      const raceRes = await addVocabWithTimeout(doBatchAddAction(), 3000);
-      if (raceRes.isTimeout) {
-        const asyncRes = await batchAddWordsAsync(
-          items.map((it) => ({
-            word: it.word,
-            is_phrase: it.isPhrase,
-            is_sentence: it.isSentence,
-            dictType: it.isSentence ? 'ai_sentence' : (it.isPhrase ? 'ai_phrase' : 'ai_extracted'),
-          })),
-          theme || '批量收录',
-          'Batch Selection'
-        );
-        addTask({
-          id: asyncRes.taskId,
-          type: 'vocab_add',
-          name: `一键批量收录: ${items.length} 个词句`,
-          status: 'running',
-          progress: 20,
-          logs: [`[生词收录] 3秒未同步完成，已转入后台队列异步写入...`],
-        });
-        showNotice('dashboard', `批量收录已转入后台加速处理（共 ${items.length} 项），稍后可在【任务中心】查看`, 'info');
-        return;
-      }
-
-      showNotice('dashboard', `已成功批量收录 ${items.length} 个词句至生词本`, 'success');
-      playSuccess();
-      window.dispatchEvent(new Event('vocab-updated'));
-      loadVocabDetails();
-    } catch (err: any) {
-      showNotice('dashboard', `批量收录异常: ${err.message || err}`, 'error');
-    }
-  };
-
-  // 按分区分类批量收录
-  const handleBatchAddCategory = async (category: 'words' | 'phrases' | 'sentences') => {
-    let targets: Array<{ word: string; isPhrase?: boolean; isSentence?: boolean }> = [];
-    if (category === 'words') {
-      targets = extractedWords.map((w) => ({ word: w, isPhrase: false, isSentence: false }));
-    } else if (category === 'phrases') {
-      targets = extractedPhrases.map((p) => ({ word: p, isPhrase: true, isSentence: false }));
-    } else if (category === 'sentences') {
-      targets = extractedSentences.map((s) => ({ word: s, isPhrase: false, isSentence: true }));
-    }
-    if (targets.length === 0) return;
-    await handleBatchAddAllToVocab(targets);
-  };
-
-  // 一键全量收录所有长文词句（生词+短语+句型）
-  const handleBatchAddAllExtracted = async () => {
-    const allItems = [
-      ...extractedWords.map((w) => ({ word: w, isPhrase: false, isSentence: false })),
-      ...extractedPhrases.map((p) => ({ word: p, isPhrase: true, isSentence: false })),
-      ...extractedSentences.map((s) => ({ word: s, isPhrase: false, isSentence: true })),
-    ];
-    if (allItems.length === 0) return;
-    await handleBatchAddAllToVocab(allItems);
+    if (result === 'collected') loadVocabDetails();
   };
 
   // 加载每日配额状态（延迟执行，避免初始请求过载）
@@ -986,8 +824,6 @@ export default function DashboardTab() {
           asyncMeanings={asyncMeanings}
           handleAddWordToVocab={handleAddWordToVocab}
           fetchBilingualTranslation={fetchBilingualTranslation}
-          handleBatchAddCategory={handleBatchAddCategory}
-          handleBatchAddAll={handleBatchAddAllExtracted}
         />
 
         <MaterialUploader 

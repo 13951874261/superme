@@ -501,6 +501,7 @@ const gameTheoryCasePush = gameTheoryCasePushService.createService({
 });
 const { evaluateSentence } = require('./services/sentenceEvaluationService');
 const { purifyVocabulary } = require('./services/vocabPurifyService');
+const vocabMatrixEnricher = require('./services/vocabMatrixEnricher');
 const { analyzeWriting, normalizeResult: normalizeWritingResult, isMeaningfulResult: isMeaningfulWritingResult } = require('./services/writeGovernanceFallback');
 const difyWorkflowBaseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 const analyzeReadPenetration = createReadPenetrationAnalyzer({
@@ -3497,6 +3498,160 @@ app.post('/api/vocab/add', (req, res) => {
   }
 });
 
+function readVocabItemText(item) {
+  const rawText = typeof item === 'string' ? item : (item?.word || item?.phrase || item?.sentence || '');
+  return String(rawText || '').trim();
+}
+
+// 词条落库 + 词汇矩阵深度补齐（单词/短语/句式共用同一套补齐逻辑）
+async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source = '', userProfile = '' }) {
+  const word = readVocabItemText(item);
+  if (!word) throw new Error('word is required');
+
+  const isSentence = !!item.is_sentence || item.dictType === 'ai_sentence' || item.dict_type === 'ai_sentence';
+  const isPhrase = !!item.is_phrase;
+  const kind = vocabMatrixEnricher.classifyKind({ isPhrase, isSentence, text: word });
+  const dictType = item.dictType || item.dict_type
+    || (kind === 'sentence' ? 'ai_sentence' : (kind === 'phrase' ? 'ai_phrase' : 'ai_extracted'));
+  const sceneType = item.scene_type || 'business';
+  const category = item.category || (sceneType === 'general' ? 'general' : 'business');
+  const now = Date.now();
+
+  // 1) 先落库并初始化 SM-2 基线，保证矩阵留存率仪表盘有数据来源
+  let row = db.prepare('SELECT * FROM vocabulary WHERE user_id = ? AND word = ? COLLATE NOCASE').get(userId, word);
+  let created = false;
+  if (!row) {
+    const id = crypto.randomUUID();
+    const seedPayload = { ...(item.payload || {}), word, source: source || item.source || '', topic: topic || '' };
+    db.prepare(`
+      INSERT INTO vocabulary (id, user_id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id, userId, word, dictType, category, sceneType, JSON.stringify(seedPayload), now, now, '[]', 0, 1, 2.5);
+    row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(id);
+    created = true;
+  }
+
+  let payload = {};
+  try { payload = row.payload ? JSON.parse(row.payload) : {}; } catch { payload = {}; }
+  if (item.payload && typeof item.payload === 'object') payload = { ...payload, ...item.payload };
+
+  // 2) 补齐矩阵正文（音标释义 / 同近义词 / 搭配 / 记忆钩子 / 高管 SOP；句式另含翻译、语法结构、替换表达、场景 SOP）
+  if (!vocabMatrixEnricher.isMatrixComplete(payload, kind)) {
+    try {
+      const matrix = await vocabMatrixEnricher.generateVocabMatrix({
+        text: word,
+        kind,
+        topic,
+        apiKey: process.env.VOCAB_MATRIX_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
+      });
+      payload = {
+        ...payload,
+        ...matrix,
+        source: source || payload.source || '',
+        topic: topic || payload.topic || '',
+      };
+    } catch (error) {
+      // 矩阵生成失败时不留半成品词条，让调用方感知失败并可重试
+      if (created) db.prepare('DELETE FROM vocabulary WHERE id = ?').run(row.id);
+      throw new Error(`词汇矩阵生成失败: ${error.message}`);
+    }
+  }
+
+  db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, scene_type = ?, payload = ? WHERE id = ? AND user_id = ?')
+    .run(dictType, category, sceneType, JSON.stringify(payload), row.id, userId);
+
+  // 3) 补齐记忆辅助与记忆节点（沿用既有 Dify 记忆工作流，失败时用矩阵内置钩子兜底）
+  let memoryAids = {};
+  try { memoryAids = row.memory_aids ? JSON.parse(row.memory_aids) : {}; } catch { memoryAids = {}; }
+  let memoryReady = !!(memoryAids.root_memory || memoryAids.association_memory || memoryAids.mnemonic_phrase);
+  if (!memoryReady) {
+    const definition = [payload.meaning, payload.definition_en, payload.grammar_structure].filter(Boolean).join('; ');
+    const examples = Array.isArray(payload.examples) ? payload.examples.join('\n') : '';
+    let generated = null;
+    try {
+      generated = await vocabMatrixEnricher.runMemoryAidWorkflow({
+        word,
+        phonetic: payload.phonetic || '',
+        pos: payload.partOfSpeech || '',
+        definition,
+        examples,
+        userProfile,
+        apiKey: process.env.DIFY_MEMORY_AID_API_KEY,
+        baseUrl: process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1',
+      });
+    } catch (error) {
+      console.warn(`[Vocab Matrix] 记忆辅助工作流失败，改用矩阵内置钩子兜底: "${word}" -> ${error.message}`);
+    }
+    if (!generated || !(generated.root_memory || generated.association_memory || generated.mnemonic_phrase)) {
+      generated = vocabMatrixEnricher.buildFallbackMemoryAids(payload);
+    }
+    memoryAids = { ...memoryAids, ...generated, generated_at: Date.now() };
+    memoryReady = !!(memoryAids.root_memory || memoryAids.association_memory || memoryAids.mnemonic_phrase);
+    db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?').run(JSON.stringify(memoryAids), row.id);
+  }
+
+  return {
+    id: row.id,
+    word,
+    kind,
+    created,
+    matrixReady: vocabMatrixEnricher.isMatrixComplete(payload, kind),
+    memoryReady,
+  };
+}
+
+// 3 秒竞速会让同一词条同时出现同步请求与后台任务，这里做进行中去重，避免重复生成矩阵
+const inflightVocabEnrichment = new Map();
+
+function enrichAndPersistVocabEntry(args) {
+  const word = readVocabItemText(args?.item);
+  if (!word) return Promise.reject(new Error('word is required'));
+
+  const key = `${args?.userId || 'default'}::${word.toLowerCase()}`;
+  const existing = inflightVocabEnrichment.get(key);
+  if (existing) return existing;
+
+  const promise = runVocabEntryEnrichment(args).finally(() => inflightVocabEnrichment.delete(key));
+  inflightVocabEnrichment.set(key, promise);
+  return promise;
+}
+
+// 单条收录并同步补齐词汇矩阵（前端 3 秒竞速，超时由任务中心接管）
+app.post('/api/vocab/add-enriched', async (req, res) => {
+  try {
+    const userId = parseVocabUserId(req);
+    const {
+      word,
+      dictType,
+      category,
+      scene_type,
+      is_phrase,
+      is_sentence,
+      payload,
+      topic = '',
+      source = 'Manual Select',
+      user_current_profile = '',
+    } = req.body || {};
+
+    if (!word || !String(word).trim()) {
+      return res.status(400).json({ success: false, error: 'word is required' });
+    }
+
+    const result = await enrichAndPersistVocabEntry({
+      userId,
+      item: { word, dictType, category, scene_type, is_phrase, is_sentence, payload },
+      topic,
+      source,
+      userProfile: user_current_profile,
+    });
+
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[vocab/add-enriched]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // 批量生成/推送词条存入（绑定 userId）
 app.post('/api/vocab/batch-add', (req, res) => {
   try {
@@ -3578,55 +3733,45 @@ app.post('/api/vocab/batch-add-async', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'running',
           progress: 10,
-          logs: [`[生词收录] 开始异步写入 ${itemList.length} 个词句至生词本...`],
+          logs: [`[生词收录] 开始异步写入 ${itemList.length} 个词句并补齐词汇矩阵...`],
         });
 
-        const now = Date.now();
         let addedCount = 0;
         let existCount = 0;
+        let failedCount = 0;
+        const failures = [];
 
         for (let i = 0; i < itemList.length; i++) {
           const item = itemList[i];
           const rawText = typeof item === 'string' ? item : (item.word || item.phrase || item.sentence || '');
-          const word = rawText.trim();
+          const word = String(rawText || '').trim();
           if (!word) continue;
 
-          const isPhrase = !!item.is_phrase;
-          const isSentence = !!item.is_sentence || item.dictType === 'ai_sentence' || item.dict_type === 'ai_sentence';
-          const dictType = item.dictType || item.dict_type || (isSentence ? 'ai_sentence' : (isPhrase ? 'ai_phrase' : 'ai_extracted'));
-          const scene_type = item.scene_type || 'business';
-          const category = item.category || (scene_type === 'general' ? 'general' : 'business');
-          const payload = typeof item === 'object' ? (item.payload || { ...item, source, topic }) : { source, topic };
-
-          const existing = db.prepare('SELECT id FROM vocabulary WHERE user_id = ? AND word = ? COLLATE NOCASE').get(userId, word);
-          if (!existing) {
-            const id = crypto.randomUUID();
-            db.prepare(`
-              INSERT INTO vocabulary (id, user_id, word, dict_type, category, scene_type, payload, added_at, next_review_date, review_history, repetitions, interval_days, ease_factor)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(id, userId, word, dictType, category, scene_type, JSON.stringify(payload), now, now, '[]', 0, 1, 2.5);
-            addedCount++;
-          } else {
-            existCount++;
-            db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, scene_type = ?, payload = ? WHERE id = ? AND user_id = ?').run(
-              dictType,
-              category,
-              scene_type,
-              JSON.stringify(payload),
-              existing.id,
-              userId
-            );
+          try {
+            const result = await enrichAndPersistVocabEntry({
+              userId,
+              item: typeof item === 'string' ? { word } : item,
+              topic,
+              source,
+            });
+            if (result.created) addedCount++; else existCount++;
+          } catch (error) {
+            failedCount++;
+            failures.push(`${word.slice(0, 24)}: ${error.message}`);
+            console.error(`[Vocab Async] 词条矩阵补齐失败 "${word}":`, error.message);
           }
 
           const progress = Math.min(95, Math.floor(((i + 1) / itemList.length) * 85) + 10);
           taskQueue.updateTask(task.id, { progress });
         }
 
+        const summary = `[生词收录完成] 新增 ${addedCount} 个，已存在或更新 ${existCount} 个，矩阵补齐失败 ${failedCount} 个`;
         taskQueue.updateTask(task.id, {
-          status: 'completed',
+          status: failedCount > 0 && addedCount === 0 && existCount === 0 ? 'failed' : 'completed',
           progress: 100,
-          logs: [`[生词收录完成] 新增收录 ${addedCount} 个词句，已存在及更新 ${existCount} 个`],
-          result: { addedCount, existCount, total: itemList.length },
+          error: failedCount > 0 && addedCount === 0 && existCount === 0 ? failures.join('; ') : undefined,
+          logs: failedCount > 0 ? [summary, `失败明细: ${failures.slice(0, 5).join('; ')}`] : [summary],
+          result: { addedCount, existCount, failedCount, total: itemList.length },
         });
       } catch (e) {
         console.error('[Vocab Async Fail]:', e);
@@ -7732,9 +7877,8 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
             return;
           }
           if (type === 'wakeup') {
-            const wakeup = await dailyPackService.callWakeupWorkflow({
+            const wakeup = await dailyPackService.generateWakeupVocabForUser(db, uid, {
               theme: resolvedTheme,
-              userId: uid,
               historyExclude: resolvedHistoryExclude,
               userCurrentProfile: resolvedUserCurrentProfile,
             });
@@ -7752,9 +7896,8 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
             return;
           }
 
-          const wakeup = await dailyPackService.callWakeupWorkflow({
+          const wakeup = await dailyPackService.generateWakeupVocabForUser(db, uid, {
             theme: resolvedTheme,
-            userId: uid,
             historyExclude: resolvedHistoryExclude,
             userCurrentProfile: resolvedUserCurrentProfile,
           });

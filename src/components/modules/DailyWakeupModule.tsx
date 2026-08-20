@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Clock3, Loader2, TimerReset, Volume2, Zap } from 'lucide-react';
+import { BookmarkPlus, CheckCircle2, Clock3, Loader2, TimerReset, Volume2, Zap } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
+import { useVocabCollect } from '../../hooks/useVocabCollect';
+import { showToast } from '../Toast';
 import PronunciationTrainer from './PronunciationTrainer';
 import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
-import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, buildDailyPackQueryInput } from '../../services/dailyPackAPI';
+import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, WakeupWord, buildDailyPackQueryInput } from '../../services/dailyPackAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
 
@@ -38,6 +40,9 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
+  const { collect, isCollecting, isCollected } = useVocabCollect({
+    notify: (message, type) => showToast({ message, type }),
+  });
   
   const startRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
@@ -185,6 +190,21 @@ export default function DailyWakeupModule() {
     } finally {
       setCheckInLoading(false);
     }
+  };
+
+  // 逐条收录唤醒高频词：收录即补齐词汇矩阵，3 秒未完成转入任务中心
+  const handleCollectWord = async (item: WakeupWord) => {
+    await collect({
+      text: item.word,
+      topic: result?.theme || theme,
+      source: 'Daily Wakeup',
+      payload: {
+        phonetic: item.ipa,
+        meaning: item.meaning_zh,
+        business_note: item.pronunciation_note,
+        examples: [item.example],
+      },
+    });
   };
 
   const completedCount = useMemo(() => result?.vocab?.length || 0, [result]);
@@ -388,9 +408,30 @@ export default function DailyWakeupModule() {
                     key={item.word}
                     className="text-left rounded-xl border border-gray-100 p-3 bg-[#f8f9fa] hover:border-[#FF5722] hover:bg-white transition-colors group"
                   >
-                    <div className="flex items-center gap-2">
-                      <div className="text-base font-black text-[#202124]">{item.word}</div>
-                      <SpeakButton text={item.word} title={`播放 ${item.word}`} />
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="text-base font-black text-[#202124]">{item.word}</div>
+                        <SpeakButton text={item.word} title={`播放 ${item.word}`} />
+                      </div>
+                      <button
+                        onClick={() => handleCollectWord(item)}
+                        disabled={isCollecting(item.word) || isCollected(item.word)}
+                        title="收录入生词本并补齐词汇矩阵"
+                        className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 disabled:cursor-default ${
+                          isCollected(item.word)
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : 'text-[#FF5722] bg-orange-50 border-orange-200 hover:bg-[#FF5722] hover:text-white'
+                        }`}
+                      >
+                        {isCollecting(item.word) ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : isCollected(item.word) ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <BookmarkPlus className="w-3 h-3" />
+                        )}
+                        {isCollecting(item.word) ? '收录中' : isCollected(item.word) ? '已收录' : '收录'}
+                      </button>
                     </div>
                     <div className="text-xs text-blue-600 font-mono mt-0.5">{item.ipa}</div>
                     <div className="text-sm text-gray-600 mt-1.5">{item.meaning_zh}</div>
