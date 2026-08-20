@@ -1,0 +1,365 @@
+app:
+  description: 决策文治与价值提炼引擎，支持三级纵深批改、极限字数压缩和业务价值包装；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（45天半衰期）衰减重排。
+  icon: ✒️
+  icon_background: '#F5F8FF'
+  icon_type: emoji
+  mode: workflow
+  name: 文治系统分析引擎 (Write Governance)
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: start-knowledge-retrieval
+      source: start
+      sourceHandle: source
+      target: c3d4e5f6-a7b8-4901-c234-567890wgov0
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: knowledge-retrieval-time-decay
+      source: c3d4e5f6-a7b8-4901-c234-567890wgov0
+      sourceHandle: source
+      target: d4e5f6a7-b8c9-4012-d345-678901wgov1
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: time-decay-llm
+      source: d4e5f6a7-b8c9-4012-d345-678901wgov1
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 任务类型
+          options:
+          - document_correction
+          - business_writing
+          - value_proposal
+          required: true
+          type: select
+          variable: task_type
+        - label: 原始文本
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: original_text
+        - label: 附加要求
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: additional_params
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 240
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - start
+        - original_text
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: c3d4e5f6-a7b8-4901-c234-567890wgov0
+      position:
+        x: 228
+        y: 282
+      positionAbsolute:
+        x: 228
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 决策风格与文治策略的半衰期设为 45 天\n    HALF_LIFE_MS = 45 * 24 * 60 * 60\
+          \ * 1000\n    decay_rate = math.log(2) / HALF_LIFE_MS\n\n    reranked_docs\
+          \ = []\n\n    if not retrieved_docs:\n        return {\"reranked_context\"\
+          : \"\"}\n\n    ts = int(current_timestamp) if current_timestamp is not None\
+          \ else 0\n\n    for doc in retrieved_docs:\n        if not isinstance(doc,\
+          \ dict):\n            continue\n        content = doc.get(\"content\", \"\
+          \")\n        orig_score = float(doc.get(\"score\", 0.5))\n        metadata\
+          \ = doc.get(\"metadata\", {}) or {}\n\n        doc_time = int(metadata.get(\"\
+          updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff = max(0, ts - doc_time)\n\
+          \        decay_factor = math.exp(-decay_rate * time_diff)\n        final_score\
+          \ = orig_score * decay_factor\n\n        doc_age_days = round(time_diff\
+          \ / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该决策/策略距今已 {doc_age_days}\
+          \ 天]\"\n\n        reranked_docs.append({\n            \"content\": f\"{time_tag}\
+          \ {content}\",\n            \"final_score\": final_score,\n            \"\
+          metadata\": metadata\n        })\n\n    reranked_docs.sort(key=lambda x:\
+          \ x[\"final_score\"], reverse=True)\n\n    merged_context = \"\\n\\n---\\\
+          n\\n\".join([d[\"content\"] for d in reranked_docs])\n\n    return {\n \
+          \       \"reranked_context\": merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 45 天半衰期做时间衰减重排，并为每段策略注入「该决策/策略距今 X 天」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - c3d4e5f6-a7b8-4901-c234-567890wgov0
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - start
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: d4e5f6a7-b8c9-4012-d345-678901wgov1
+      position:
+        x: 376
+        y: 282
+      positionAbsolute:
+        x: 376
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: "【全局时间感知】\n当前系统时间是：{{#start._system_time#}}。\n\n【文治策略时效性判定】\n上下文提供了文治策略和历史决策的\
+            \ 「[该决策/策略距今已 X 天]」 信息。\n1. 请优先采信录入时间在 45 天以内的决策风格和管理习惯。\n2. 对于超过 180\
+            \ 天的陈旧文治标准，请在分析时予以降级，或在必要时提示用户：「您的管理风格可能已发生演进，以下为早期的决策特征...」。\n\n【知识库检索\
+            \ — 决策风格与文治策略】\n检索到的历史决策风格、公文批阅记录与价值提炼标准：\n{{#d4e5f6a7-b8c9-4012-d345-678901wgov1.reranked_context#}}\n\
+            须优先参考上述内容；与最新记忆冲突时以距今天数更小的记录为准。\n\n你是一个顶级的企业沟通教练、体制内公文专家和商业战略顾问。你的任务是根据用户输入的材料类型和具体内容，进行文治与价值提炼。\n\
+            \n【画像自适应诊断约束】\n当前学习者的国家/地区画像习惯设定为：{{user_current_profile}}\n在对原始公文文本进行三维度评估以及生成重构优化文本时，你必须根据该值动态调整你的诊断标准与输出：\n\
+            \n1. L1 维度（词汇与语法）诊断：\n   - 如果 {{user_current_profile}} 包含 \"英国\" 或 \"\
+            UK\"，你必须仔细检查原始文本的拼写（如 color/colour, analyze/analyse, program/programme），指出不符合英国书写规范的地方，并给出修正意见。\n\
+            2. L2 维度（商业语气与地道表达）诊断：\n   - 如果 {{user_current_profile}} 包含 \"英国\" 或 \"\
+            UK\"，你必须评估语气是否足够温和、含蓄委婉（Understatement）与专业得体，指出过于直接、强硬的美式表述或生硬的中式直译，并提供符合英式绅士化商业信函的润色表达。\n\
+            3. L3 维度（价值提炼与商业博弈）诊断：\n   - 结合该国家/地区的商业交往习惯，评估原始文本在此背景下的战略沟通效果与博弈价值。\n\
+            4. 优化重构版本生成约束：\n   - 你在 JSON 相应字段输出的优化文章/文本（如 level_3 中的优化段落、compressed_text、business_proposal），其拼写系统与行文语气必须完全贴合\
+            \ {{user_current_profile}} 画像的要求。\n\n【JSON 输出规范】\n你需要以 JSON 格式输出结果，以便前端系统进行解析。\n\
+            \n如果 task_type 为 document_correction (体制内公文三级纵深批改):\n{\n  \"level_1\"\
+            : \"浅层：指出格式、错别字、措辞专业性与合规性问题（必须包含画像拼写适配检测）。\",\n  \"level_2\": \"中层：指出逻辑结构与层次的缺陷，评估行文语气与画像设定文化的契合度及优化建议。\"\
+            ,\n  \"level_3\": \"深层：拔高政治站位、政策契合度，并提供一篇完全对齐该画像国家拼写与语气要求的完整优化重构公文。\"\n\
+            }\n\n如果 task_type 为 business_writing (高阶商务行文与字数极限挑战):\n{\n  \"tone_evaluation\"\
+            : \"对现有语体分寸感、职业度以及与画像文化契合度的点评。\",\n  \"compressed_text\": \"在不丢失核心结论的前提下，根据附加要求极限压缩，且拼写和表达语气完全贴合该画像要求的优化文本。\"\
+            ,\n  \"skill_point\": \"长话短说、结论先行以及画像特有表达方式的技巧点拨。\"\n}\n\n如果 task_type\
+            \ 为 value_proposal (业务型提案与个人价值包装):\n{\n  \"admin_flaws\": \"指出原文本纯行政视角的局限性与不足。\"\
+            ,\n  \"value_extraction\": \"将行政统筹优势转化为可量化商业价值（如针对画像国家的合规与跨文化运营优势）。\"\
+            ,\n  \"business_proposal\": \"提供重新包装后、完全贴合画像国家拼写与表达习惯的高阶业务型提案范本。\"\n}\n\
+            \n请严格以合法的 JSON 字符串返回，不要包含 markdown 代码块包裹（如 ```json ），直接返回 JSON 本身。"
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: 'task_type: {{task_type}}
+
+
+            additional_params: {{additional_params}}
+
+
+            user_current_profile: {{user_current_profile}}
+
+
+            original_text: {{original_text}}'
+        selected: true
+        title: 决策文治核心引擎
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 572
+        y: 282
+      positionAbsolute:
+        x: 572
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: analysis_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 824
+        y: 282
+      positionAbsolute:
+        x: 824
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 63
+      y: 25
+      zoom: 1
+  rag_pipeline_variables: []

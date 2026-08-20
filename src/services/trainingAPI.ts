@@ -1,3 +1,5 @@
+import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
+
 export interface SessionUpsertResponse {
   success: boolean;
   sessionId: string;
@@ -50,15 +52,22 @@ export interface KnowledgeNode {
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    headers: { 'Content-Type': 'application/json' },
-    ...options,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+  try {
+    const res = await fetch(path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      console.error('[trainingAPI] Training API HTTP error:', path, res.status, data);
+      throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    }
+    interceptOutputText(data);
+    return data as T;
+  } catch (err: any) {
+    console.error('[trainingAPI] Training API request failed:', path, err);
+    throw err;
   }
-  return data as T;
 }
 
 export async function upsertTrainingSession(params: {
@@ -94,9 +103,20 @@ export interface ThemeMasteryCheck {
   isMastered: boolean;
 }
 
-export async function checkThemeMastery(theme: string, userId = 'default-user'): Promise<ThemeMasteryCheck> {
+export async function checkThemeMastery(theme: string, userId = getAppUserId()): Promise<ThemeMasteryCheck> {
   const q = new URLSearchParams({ theme, userId });
   return request<ThemeMasteryCheck>(`/api/theme/check-mastery?${q.toString()}`);
+}
+
+export interface ThemeMasteredListResponse {
+  success: boolean;
+  userId?: string;
+  masteredThemes: string[];
+}
+
+export async function getMasteredThemes(userId = getAppUserId()): Promise<ThemeMasteredListResponse> {
+  const q = new URLSearchParams({ userId });
+  return request<ThemeMasteredListResponse>(`/api/theme/mastered-list?${q.toString()}`);
 }
 
 export async function setThemeFocus(params: {
@@ -144,7 +164,7 @@ export async function getTrainingSessionByDate(params: {
 }): Promise<TrainingSessionDetail> {
   const query = new URLSearchParams({
     trainingDate: params.trainingDate,
-    userId: params.userId || 'default-user',
+    userId: params.userId || getAppUserId(),
   });
   return request(`/api/training/session-by-date?${query.toString()}`);
 }
@@ -226,7 +246,7 @@ export async function deleteMaterialDocument(materialId: string) {
   });
 }
 
-export async function listMaterialIngestJobs(userId = 'default-user') {
+export async function listMaterialIngestJobs(userId = getAppUserId()) {
   return request<MaterialIngestJob[]>(`/api/material/list?userId=${encodeURIComponent(userId)}`);
 }
 
@@ -247,8 +267,112 @@ export async function upsertKnowledgeNode(params: {
   });
 }
 
-export async function listKnowledgeNodes(userId = 'default-user', sourceMaterialId = '') {
+export async function listKnowledgeNodes(userId = getAppUserId(), sourceMaterialId = '') {
   const query = new URLSearchParams({ userId: encodeURIComponent(userId) });
   if (sourceMaterialId) query.set('sourceMaterialId', sourceMaterialId);
   return request<KnowledgeNode[]>(`/api/knowledge-node/list?${query.toString()}`);
+}
+
+export interface CustomTheme {
+  id: string;
+  themeName: string;
+  displayName: string;
+  associatedFile: string;
+  difyDocumentId: string;
+  difyDatasetId: string;
+  extractedKeywords: any[];
+  source: 'custom';
+  createdAt: number;
+}
+
+export interface ThemeStayStats {
+  success: boolean;
+  stayDays: number;
+  articleCount: number;
+  wordCount: number;
+  phraseCount: number;
+  weakPoints: { pronunciation: string; grammar: string };
+  todaySuggestion: string;
+}
+
+export async function listCustomThemes(userId = getAppUserId()): Promise<{ success: boolean; themes: CustomTheme[] }> {
+  return request<{ success: boolean; themes: CustomTheme[] }>(`/api/theme/list?userId=${encodeURIComponent(userId)}`);
+}
+
+
+export async function addCustomTheme(params: {
+  themeName: string;
+  file: { fileName: string; content: string };
+  userId?: string;
+}): Promise<{ success: boolean; theme: CustomTheme; addedWordsCount: number; addedPhrasesCount: number }> {
+  return request('/api/theme/custom-add', {
+    method: 'POST',
+    body: JSON.stringify({
+      ...params,
+      user_current_profile: getUserCurrentProfile(),
+    }),
+  });
+}
+
+/** 自定义场景级联删除竞速阈值：3 秒内未完成则转入【任务中心】 */
+export const THEME_DELETE_RACE_MS = 3000;
+
+export interface CustomThemeDeleteResult {
+  success: boolean;
+  stats?: {
+    vocabularyDeleted: number;
+    generationDeleted: number;
+    attemptsDeleted: number;
+    themeDeleted: number;
+  };
+  dify?: { ok: boolean; cloudCleanupIncomplete?: boolean; error?: string };
+  themeSnapshot?: Partial<CustomTheme> & { id: string };
+  message?: string;
+  error?: string;
+}
+
+export async function deleteCustomTheme(id: string): Promise<CustomThemeDeleteResult> {
+  return request(`/api/theme/custom/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function deleteCustomThemeAsync(
+  id: string
+): Promise<{
+  success: boolean;
+  taskId: string | null;
+  status: string;
+  alreadyDeleted?: boolean;
+  message?: string;
+  themeSnapshot?: Partial<CustomTheme> & { id: string };
+}> {
+  return request(`/api/theme/custom/${id}/delete-async`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+/** 包装 3 秒 Timeout 竞速（与生词收录 SLA 对齐） */
+export async function withThemeDeleteTimeout<T>(
+  actionPromise: Promise<T>,
+  timeoutMs: number = THEME_DELETE_RACE_MS
+): Promise<{ isTimeout: false; result: T } | { isTimeout: true }> {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) => {
+    timerId = setTimeout(() => resolve({ isTimeout: true }), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      actionPromise.then((result) => ({ isTimeout: false as const, result })),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
+}
+
+export async function getThemeStayStats(theme: string, userId = getAppUserId()): Promise<ThemeStayStats> {
+  const query = new URLSearchParams({ theme, userId });
+  return request<ThemeStayStats>(`/api/theme/stay-stats?${query.toString()}`);
 }

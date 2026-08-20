@@ -1,0 +1,651 @@
+app:
+  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)；注入 _system_time/_system_timestamp_ms，支持 1分钟/15分钟/25分钟/35分钟与 A2/B1/B2/C1 CEFR 四级难度深度差异化生成。
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: materail_generate_url_enhanced
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.56@75919c1c6a600f8c217b3e30e271b7f3f1e7a45a28c66544d00e93091a5534c3
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables:
+  - description: 产生的历史记录
+    id: 6c1a096b-aeec-47d1-97e0-28038d21066f
+    name: generated_history
+    selector:
+    - conversation
+    - generated_history
+    value: []
+    value_type: array[string]
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInLoop: false
+        sourceType: start
+        targetType: assigner
+      id: 1780382595776-source-1780385608087-target
+      source: '1780382595776'
+      sourceHandle: source
+      target: '1780385608087'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: assigner
+        targetType: knowledge-retrieval
+      id: 1780385608087-source-material-kb-target
+      source: '1780385608087'
+      sourceHandle: source
+      target: e5f6a7b8-c9d0-4891-mat0-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: material-kb-decay-target
+      source: e5f6a7b8-c9d0-4891-mat0-012345678901
+      sourceHandle: source
+      target: f6a7b8c9-d0e1-4902-mat1-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: material-decay-llm-target
+      source: f6a7b8c9-d0e1-4902-mat1-123456789012
+      sourceHandle: source
+      target: '1780389832514'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: parameter-extractor
+      id: 1780389832514-source-1780387351165-target
+      source: '1780389832514'
+      sourceHandle: source
+      target: '1780387351165'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: parameter-extractor
+        targetType: iteration
+      id: 1780387351165-source-1780396184720-target
+      source: '1780387351165'
+      sourceHandle: source
+      target: '1780396184720'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1780396184720'
+        sourceType: iteration-start
+        targetType: llm
+      id: 1780396184720start-source-1780396257514-target
+      source: 1780396184720start
+      sourceHandle: source
+      target: '1780396257514'
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: iteration
+        targetType: template-transform
+      id: 1780396184720-source-1780396408329-target
+      source: '1780396184720'
+      sourceHandle: source
+      target: '1780396408329'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: template-transform
+        targetType: llm
+      id: 1780396408329-source-1780396475903-target
+      source: '1780396408329'
+      sourceHandle: source
+      target: '1780396475903'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: answer
+      id: 1780396475903-source-answer-target
+      source: '1780396475903'
+      sourceHandle: source
+      target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables:
+        - default: 商务谈判：让步与施压
+          hint: ''
+          label: 主题
+          max_length: 999999
+          options: []
+          placeholder: ''
+          required: true
+          type: paragraph
+          variable: theme
+        - default: B1
+          hint: ''
+          label: 难度等级
+          options:
+          - A2
+          - B1
+          - B2
+          - C1
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: cefr_level
+        - default: meeting
+          hint: ''
+          label: 题材
+          options:
+          - news
+          - podcast
+          - meeting
+          - reading
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: genre
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          max_length: 999999
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: ''
+          label: 历史避重列表
+          max_length: 65535
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: history_exclude
+        - default: ''
+          hint: ''
+          label: 用户薄弱点
+          max_length: 65535
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_flaws
+        - default: '15'
+          hint: 前端传入的长文目标时长，单位为分钟；可选值为 1、15、25、35
+          label: 时长（分钟）
+          options:
+          - '1'
+          - '15'
+          - '25'
+          - '35'
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: duration
+        - default: ''
+          hint: 前端自动注入的格式化时间
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: false
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: _system_timestamp_ms
+      height: 291
+      id: '1780382595776'
+      position:
+        x: 0
+        y: 0
+      positionAbsolute:
+        x: 0
+        y: 0
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        assigned_variable_selector:
+        - conversation
+        - generated_history
+        id: '1780385608087'
+        operations:
+        - value:
+          - '1780382595776'
+          - theme
+          value_type: variable
+        selected: false
+        title: 变量赋值器
+        type: assigner
+        write_mode: append
+      height: 88
+      id: '1780385608087'
+      position:
+        x: 342
+        y: 167
+      positionAbsolute:
+        x: 342
+        y: 167
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids: []
+        desc: 检索用户私有记忆与兴趣
+        multiple_retrieval_config:
+          reranking_enable: false
+          top_k: 4
+        query_variable_selector:
+        - '1780382595776'
+        - theme
+        retrieval_mode: multiple
+        selected: false
+        single_retrieval_config:
+          model:
+            completion_params: {}
+            mode: chat
+            name: dify
+            provider: langgenius/openai_api_compatible/openai_api_compatible
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 92
+      id: e5f6a7b8-c9d0-4891-mat0-012345678901
+      position:
+        x: 684
+        y: 167
+      positionAbsolute:
+        x: 684
+        y: 167
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\ndef main(retrieved_docs: list, current_timestamp: int) -> dict:\n    HALF_LIFE_MS = 7 * 24 * 60 * 60 * 1000\n    decay_rate = math.log(2) / HALF_LIFE_MS\n    reranked_docs = []\n    if not retrieved_docs:\n        return {\"reranked_context\": \"\"}\n    ts = int(current_timestamp) if current_timestamp is not None else 0\n    for doc in retrieved_docs:\n        if not isinstance(doc, dict):\n            continue\n        content = doc.get(\"content\", \"\")\n        orig_score = float(doc.get(\"score\", 0.5))\n        metadata = doc.get(\"metadata\", {}) or {}\n        doc_time = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n        time_diff = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate * time_diff)\n        final_score = orig_score * decay_factor\n        doc_age_days = round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该兴趣记录于：{doc_age_days} 天前]\"\n        reranked_docs.append({\n            \"content\": f\"{time_tag} {content}\",\n            \"final_score\": final_score,\n            \"metadata\": metadata\n        })\n    reranked_docs.sort(key=lambda x: x[\"final_score\"], reverse=True)\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"content\"] for d in reranked_docs])\n    return {\"reranked_context\": merged_context}\n"
+        code_language: python3
+        desc: 对知识检索结果按 7 天半衰期做时间衰减重排
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - e5f6a7b8-c9d0-4891-mat0-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - '1780382595776'
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 112
+      id: f6a7b8c9-d0e1-4902-mat1-123456789012
+      position:
+        x: 1026
+        y: 167
+      positionAbsolute:
+        x: 1026
+        y: 167
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.9
+          mode: chat
+          name: dify
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 3463f8ff-ff06-41e8-8c37-2f330a0ce225
+          role: system
+          text: "You are a top-tier Business English curriculum architect. Your task is to design an outline for a long-form business English project based on the user's chosen theme, genre, and CEFR level.\n\n【CONTEXT】\nTheme: {{#1780382595776.theme#}}\nGenre: {{#1780382595776.genre#}}\nCEFR Level: {{#1780382595776.cefr_level#}}\nTarget Duration: {{#1780382595776.duration#}}\n\n【CRITICAL RULE: CAPACITY CONSTRAINTS BASED ON DURATION】\n- If duration is '1' or '1m': Output EXACTLY 1 single segment outline for a 80-120 word short brief.\n- If duration is '15': Output 2-3 concise segment outlines.\n- If duration is '25': Output 4-5 chapter outlines.\n- If duration is '35': Output 6-8 independent segment outlines.\n\n【OUTPUT FORMAT】\n- Output ONLY a pure JSON array of strings: [\"Segment 1: ...\", \"Segment 2: ...\"].\n- STRICTLY in English. Do NOT wrap in Markdown code blocks. No extra text."
+        - id: 64ff8548-e432-4b92-ae12-aa6444a36b16
+          role: user
+          text: "Please output the outline JSON array now."
+        selected: false
+        structured_output_enabled: false
+        title: LLM 1 (大纲设计器)
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780389832514'
+      position:
+        x: 1368
+        y: 197
+      positionAbsolute:
+        x: 1368
+        y: 197
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        instruction: 从上文提取章节列表，生成纯净的字符串数组
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: dify
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        parameters:
+        - description: 提取大纲中的所有章节或环节
+          name: chapters_array
+          required: false
+          type: array[string]
+        query:
+        - '1780389832514'
+        - text
+        reasoning_mode: prompt
+        selected: false
+        title: 参数提取器
+        type: parameter-extractor
+        vision:
+          enabled: false
+      height: 88
+      id: '1780387351165'
+      position:
+        x: 1710
+        y: 212
+      positionAbsolute:
+        x: 1710
+        y: 212
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        error_handle_mode: terminated
+        flatten_output: true
+        height: 208
+        is_parallel: false
+        iterator_input_type: array[string]
+        iterator_selector:
+        - '1780387351165'
+        - chapters_array
+        output_selector:
+        - '1780396257514'
+        - text
+        output_type: array[string]
+        parallel_nums: 10
+        selected: false
+        start_node_id: 1780396184720start
+        title: 迭代
+        type: iteration
+        width: 486
+      height: 208
+      id: '1780396184720'
+      position:
+        x: 2052
+        y: 167
+      positionAbsolute:
+        x: 2052
+        y: 167
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 486
+      zIndex: 1
+    - data:
+        desc: ''
+        isInIteration: true
+        selected: false
+        title: ''
+        type: iteration-start
+      draggable: false
+      height: 48
+      id: 1780396184720start
+      parentId: '1780396184720'
+      position:
+        x: 60
+        y: 72
+      positionAbsolute:
+        x: 2112
+        y: 239
+      selectable: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom-iteration-start
+      width: 44
+      zIndex: 1002
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        isInIteration: true
+        isInLoop: false
+        iteration_id: '1780396184720'
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: dify
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 5c6e984d-68be-48a4-b029-9d3f68e08ec5
+          role: system
+          text: "You are a lead writer specializing in cross-cultural business English scripts and long-form articles. You are writing ONE specific segment of a business material.\n\n【CONTEXT PARAMETERS】\n- Target CEFR Level: {{#1780382595776.cefr_level#}}\n- Genre: {{#1780382595776.genre#}}\n- Target Duration: {{#1780382595776.duration#}}\n\n【CEFR LEVEL SPECIFICATIONS】\n1. A2 Level (Elementary): Use basic 1,000 common words. Simple SVO sentences. Direct daily business tone.\n2. B1 Level (Intermediate): Standard 2,000 workplace vocabulary. Clear compound sentences (because, if, when). Professional tone.\n3. B2 Level (Upper-Intermediate): Advanced 4,000 business terms, collocations. Complex nested clauses, formal transitions.\n4. C1 Level (Advanced C-Suite): 6,000+ C-suite executive vocabulary (juxtaposed, scrupulously, counterproposals). Sophisticated sentence structures and inversions.\n\n【CRITICAL RULES: DYNAMIC LENGTH BASED ON DURATION】\n1. IF duration IS '1' OR '1m': Write a single short paragraph strictly between 80 and 120 words.\n2. IF duration IS '15': Write between 300 and 500 words.\n3. IF duration IS '25': Write between 600 and 800 words.\n4. IF duration IS '35': Write between 1000 and 1200 words.\n5. Output PURE ENGLISH only. NO MARKDOWN formatting."
+        - id: 732f7c1e-b8a6-4a5d-b203-cc5ae57edc54
+          role: user
+          text: "当前需要你扩写的具体章节/环节大纲为：\n\n{{#1780396184720.item#}}\n\n请开始扩写："
+        selected: false
+        title: LLM 2 - 逐章扩写器
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780396257514'
+      parentId: '1780396184720'
+      position:
+        x: 184
+        y: 60
+      positionAbsolute:
+        x: 2236
+        y: 227
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+      zIndex: 1002
+    - data:
+        selected: false
+        template: "{% for chapter in arg1 %}\r\n{{ chapter }}\r\n\r\n{% endfor %}"
+        title: LLM 3 (全局提纯)模版转换
+        type: template-transform
+        variables:
+        - value_selector:
+          - '1780396184720'
+          - output
+          value_type: array[string]
+          variable: arg1
+      height: 52
+      id: '1780396408329'
+      position:
+        x: 2638
+        y: 279
+      positionAbsolute:
+        x: 2638
+        y: 279
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: dify
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 2d3e6cd0-ee35-4422-b9e9-da9721ddb648
+          role: system
+          text: "You are a senior business English pedagogy expert. Read the full long-form material provided below and extract key business vocabulary words, phrases, and sentence structures.\n\n【INPUT MATERIAL】\n{{#1780396408329.output#}}\n\n【OUTPUT FORMAT】\nOutput pure text article followed by extracted vocabulary."
+        - id: 4e7f8a9b-0c1d-2e3f-4a5b-6c7d8e9f0a1b
+          role: user
+          text: "请进行提取："
+        selected: false
+        title: LLM 3 (全局提纯)
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: '1780396475903'
+      position:
+        x: 2980
+        y: 279
+      positionAbsolute:
+        x: 2980
+        y: 279
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - '1780396475903'
+          - text
+          variable: answer
+        selected: false
+        title: 直接回答
+        type: answer
+      height: 88
+      id: answer
+      position:
+        x: 3322
+        y: 279
+      positionAbsolute:
+        x: 3322
+        y: 279
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242

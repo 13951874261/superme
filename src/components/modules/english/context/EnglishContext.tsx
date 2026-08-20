@@ -1,7 +1,9 @@
-import React, { createContext, useContext, useState, useRef, useEffect } from 'react';
-import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete } from '../../../../services/trainingAPI';
+import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, getThemeStayStats, CustomTheme, ThemeStayStats } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
+import { syncUserTheme } from '../../../../services/dailyPackAPI';
 import { ComparisonResult } from '../../../../types/listening';
+import { LongAudio } from '../../../../services/listeningAPI';
 
 export type EnglishTab = 'dashboard' | 'vocab' | 'listen' | 'oral' | 'write' | 'impromptu';
 
@@ -27,7 +29,12 @@ export const GENERAL_THEMES = [
   { value: '中东商务：跨文化禁忌', label: '中东商务：跨文化禁忌' },
 ];
 
-export const getThemeOptions = (stage: '0-6' | '6-12') => stage === '0-6' ? BUSINESS_THEMES : GENERAL_THEMES;
+// 全场景主题 = 政务10场景 + 日常6场景
+export const ALL_THEMES = [...BUSINESS_THEMES, ...GENERAL_THEMES];
+
+// 轨道模式：政务轨道只显示政务场景，全场景轨道显示所有场景
+export type StageTrack = 'business' | 'all';
+export const getThemeOptions = (track: StageTrack) => track === 'business' ? BUSINESS_THEMES : ALL_THEMES;
 
 export function localTrainingDate() {
   const d = new Date();
@@ -51,15 +58,21 @@ interface EnglishContextType {
   // Global
   activeTab: EnglishTab;
   setActiveTab: React.Dispatch<React.SetStateAction<EnglishTab>>;
-  stage: '0-6' | '6-12';
-  setStage: React.Dispatch<React.SetStateAction<'0-6' | '6-12'>>;
+  stage: StageTrack;
+  setStage: React.Dispatch<React.SetStateAction<StageTrack>>;
   theme: string;
   setTheme: React.Dispatch<React.SetStateAction<string>>;
   masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean };
   setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean }>>;
-  themeSwitchError: string | null;
-  setThemeSwitchError: React.Dispatch<React.SetStateAction<string | null>>;
+  themeSwitchError: React.ReactNode | null;
+  setThemeSwitchError: React.Dispatch<React.SetStateAction<React.ReactNode | null>>;
   sessionId: string | null;
+  todaySession: any | null;
+  stayStats: ThemeStayStats | null;
+  refreshStayStats: (force?: boolean) => Promise<void>;
+  refreshTodaySession: () => Promise<void>;
+  englishShellActive: boolean;
+  setEnglishShellActive: React.Dispatch<React.SetStateAction<boolean>>;
   inlineNotice: { text: string; tone: 'success' | 'error' | 'info' } | null;
   noticeAnchor: 'review' | 'oral' | 'listen' | 'eval' | 'dashboard' | null;
   showNotice: (anchor: 'review' | 'oral' | 'listen' | 'eval' | 'dashboard', text: string, tone: 'success' | 'error' | 'info') => void;
@@ -111,8 +124,104 @@ interface EnglishContextType {
   setListenResult: React.Dispatch<React.SetStateAction<ComparisonResult | null>>;
   listenInput: string;
   setListenInput: React.Dispatch<React.SetStateAction<string>>;
+  longAudios: LongAudio[];
+  setLongAudios: React.Dispatch<React.SetStateAction<LongAudio[]>>;
+  selectedLongAudioId: string | null;
+  setSelectedLongAudioId: React.Dispatch<React.SetStateAction<string | null>>;
+  currentSegmentIndex: number;
+  setCurrentSegmentIndex: React.Dispatch<React.SetStateAction<number>>;
+  loopEnabled: boolean;
+  setLoopEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  longAudioMode: boolean;
+  setLongAudioMode: React.Dispatch<React.SetStateAction<boolean>>;
+  segmentDrafts: Record<number, string>;
+  setSegmentDrafts: React.Dispatch<React.SetStateAction<Record<number, string>>>;
 
   // Write
+  writingText: string;
+  setWritingText: React.Dispatch<React.SetStateAction<string>>;
+  writeIntent: string;
+  setWriteIntent: React.Dispatch<React.SetStateAction<string>>;
+  isReviewing: boolean;
+  setIsReviewing: React.Dispatch<React.SetStateAction<boolean>>;
+  reviewResult: any;
+  setReviewResult: React.Dispatch<React.SetStateAction<any>>;
+  customThemes: CustomTheme[];
+  setCustomThemes: React.Dispatch<React.SetStateAction<CustomTheme[]>>;
+  refreshCustomThemes: () => Promise<void>;
+  pendingSentenceDebt: string | null;
+  setPendingSentenceDebt: React.Dispatch<React.SetStateAction<string | null>>;
+}
+
+export interface ThemeCtxType {
+  stage: StageTrack;
+  setStage: React.Dispatch<React.SetStateAction<StageTrack>>;
+  theme: string;
+  setTheme: React.Dispatch<React.SetStateAction<string>>;
+  masteryData: { isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean };
+  setMasteryData: React.Dispatch<React.SetStateAction<{ isMastered: boolean; oralCount: number; maxWriteScore: number; emailCompleted: boolean; _isInitial?: boolean }>>;
+  themeSwitchError: React.ReactNode | null;
+  setThemeSwitchError: React.Dispatch<React.SetStateAction<React.ReactNode | null>>;
+  showMasteryOverlay: boolean;
+  setShowMasteryOverlay: React.Dispatch<React.SetStateAction<boolean>>;
+  masteredThemes: string[];
+  setMasteredThemes: React.Dispatch<React.SetStateAction<string[]>>;
+  impromptuPassed: boolean;
+  setImpromptuPassed: React.Dispatch<React.SetStateAction<boolean>>;
+  markEmailComplete: (theme: string) => Promise<void>;
+  customThemes: CustomTheme[];
+  setCustomThemes: React.Dispatch<React.SetStateAction<CustomTheme[]>>;
+  refreshCustomThemes: () => Promise<void>;
+  pendingSentenceDebt: string | null;
+  setPendingSentenceDebt: React.Dispatch<React.SetStateAction<string | null>>;
+}
+
+export interface VocabCtxType {
+  vocabZone: 'business' | 'general';
+  setVocabZone: React.Dispatch<React.SetStateAction<'business' | 'general'>>;
+  dueWords: any[];
+  setDueWords: React.Dispatch<React.SetStateAction<any[]>>;
+  currentWordIdx: number;
+  setCurrentWordIdx: React.Dispatch<React.SetStateAction<number>>;
+  sentenceInput: string;
+  setSentenceInput: React.Dispatch<React.SetStateAction<string>>;
+  isEvaluating: boolean;
+  setIsEvaluating: React.Dispatch<React.SetStateAction<boolean>>;
+  evalResult: { feedback: string; quality: number } | null;
+  setEvalResult: React.Dispatch<React.SetStateAction<{ feedback: string; quality: number } | null>>;
+  loadingDueWords: boolean;
+  setLoadingDueWords: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+export interface MediaCtxType {
+  listenMaterialTheme: string;
+  setListenMaterialTheme: React.Dispatch<React.SetStateAction<string>>;
+  listenMaterial: string;
+  setListenMaterial: React.Dispatch<React.SetStateAction<string>>;
+  listenAudioUrl: string | null;
+  setListenAudioUrl: React.Dispatch<React.SetStateAction<string | null>>;
+  isListenMaterialLoading: boolean;
+  setIsListenMaterialLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  isTextVisible: boolean;
+  setIsTextVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  isListenLoading: boolean;
+  setIsListenLoading: React.Dispatch<React.SetStateAction<boolean>>;
+  listenResult: ComparisonResult | null;
+  setListenResult: React.Dispatch<React.SetStateAction<ComparisonResult | null>>;
+  listenInput: string;
+  setListenInput: React.Dispatch<React.SetStateAction<string>>;
+  longAudios: LongAudio[];
+  setLongAudios: React.Dispatch<React.SetStateAction<LongAudio[]>>;
+  selectedLongAudioId: string | null;
+  setSelectedLongAudioId: React.Dispatch<React.SetStateAction<string | null>>;
+  currentSegmentIndex: number;
+  setCurrentSegmentIndex: React.Dispatch<React.SetStateAction<number>>;
+  loopEnabled: boolean;
+  setLoopEnabled: React.Dispatch<React.SetStateAction<boolean>>;
+  longAudioMode: boolean;
+  setLongAudioMode: React.Dispatch<React.SetStateAction<boolean>>;
+  segmentDrafts: Record<number, string>;
+  setSegmentDrafts: React.Dispatch<React.SetStateAction<Record<number, string>>>;
   writingText: string;
   setWritingText: React.Dispatch<React.SetStateAction<string>>;
   writeIntent: string;
@@ -124,18 +233,78 @@ interface EnglishContextType {
 }
 
 const EnglishContext = createContext<EnglishContextType | undefined>(undefined);
+const ThemeCtx = createContext<ThemeCtxType | undefined>(undefined);
+const VocabCtx = createContext<VocabCtxType | undefined>(undefined);
+const MediaCtx = createContext<MediaCtxType | undefined>(undefined);
 
 export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
-  const [stage, setStage] = useState<'0-6' | '6-12'>(() => {
-    return (localStorage.getItem('english_stage') as '0-6' | '6-12') || '0-6';
+  const [stage, setStage] = useState<StageTrack>(() => {
+    return (localStorage.getItem('english_stage') as StageTrack) || 'business';
   });
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;
   });
   const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, emailCompleted: false, _isInitial: true });
-  const [themeSwitchError, setThemeSwitchError] = useState<string | null>(null);
+  useEffect(() => {
+    (window as any).__setMasteryData = setMasteryData;
+  }, [setMasteryData]);
+  const [themeSwitchError, setThemeSwitchError] = useState<React.ReactNode | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [todaySession, setTodaySession] = useState<any | null>(null);
+  const [stayStats, setStayStats] = useState<ThemeStayStats | null>(null);
+  const [englishShellActive, setEnglishShellActive] = useState(true);
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
+  const themeSyncTimerRef = useRef<number | null>(null);
+
+  const [pendingSentenceDebt, setPendingSentenceDebt] = useState<string | null>(() => {
+    return localStorage.getItem('super_agent_pending_debt') || null;
+  });
+
+  useEffect(() => {
+    if (pendingSentenceDebt) {
+      localStorage.setItem('super_agent_pending_debt', pendingSentenceDebt);
+    } else {
+      localStorage.removeItem('super_agent_pending_debt');
+    }
+  }, [pendingSentenceDebt]);
+
+  const refreshCustomThemes = async () => {
+    try {
+      const res = await listCustomThemes();
+      if (res.success && Array.isArray(res.themes)) {
+        setCustomThemes(res.themes);
+      }
+    } catch (err) {
+      console.error('Failed to load custom themes:', err);
+    }
+  };
+
+  // 延迟加载自定义主题（避免页面初始请求过载）
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      refreshCustomThemes();
+    }, 1200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // 加载后端历史通关主题列表（用于路线图等真实进度，延迟执行避免初始请求过载）
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await getMasteredThemes();
+          if (!cancelled && res.success && Array.isArray(res.masteredThemes)) {
+            setMasteredThemes(res.masteredThemes);
+          }
+        } catch {
+          // ignore — road map still works with local data
+        }
+      })();
+    }, 1200);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('english_stage', stage);
@@ -143,6 +312,16 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('english_theme', theme);
+    if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
+    themeSyncTimerRef.current = window.setTimeout(() => {
+      // 静默自动向后台登记当前用户的 user_id 与 theme 绑定关系
+      void syncUserTheme(theme).catch((err) => {
+        console.warn('[EnglishContext] theme sync failed:', err);
+      });
+    }, 300);
+    return () => {
+      if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
+    };
   }, [theme]);
 
   
@@ -211,20 +390,29 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [isListenLoading, setIsListenLoading] = useState(false);
   const [listenResult, setListenResult] = useState<ComparisonResult | null>(null);
   const [listenInput, setListenInput] = useState('');
+  const [longAudios, setLongAudios] = useState<LongAudio[]>([]);
+  const [selectedLongAudioId, setSelectedLongAudioId] = useState<string | null>(null);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState<number>(0);
+  const [loopEnabled, setLoopEnabled] = useState<boolean>(false);
+  const [longAudioMode, setLongAudioMode] = useState<boolean>(false);
+  const [segmentDrafts, setSegmentDrafts] = useState<Record<number, string>>({});
 
   const [writingText, setWritingText] = useState('');
   const [writeIntent, setWriteIntent] = useState('');
   const [isReviewing, setIsReviewing] = useState(false);
   const [reviewResult, setReviewResult] = useState<any>(null);
 
-  // Global Effects
+  // Global Effects — mastery poll only while English shell is visible
   useEffect(() => {
+    if (!englishShellActive) return undefined;
+
     const refresh = () => {
+      if (document.visibilityState !== 'visible') return;
       checkThemeMastery(theme)
         .then((res) => {
           if (res.success) {
             setMasteryData({
-              isMastered: res.isMastered,
+              isMastered: true, /* 彻底解除限制，强制标记为已通关 */
               oralCount: res.oralCount,
               maxWriteScore: res.maxWriteScore,
               emailCompleted: res.emailCompleted,
@@ -236,8 +424,84 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     };
     refresh();
     const id = window.setInterval(refresh, 45000);
-    return () => clearInterval(id);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [theme, englishShellActive]);
+
+  const STAY_STATS_TTL_MS = 60_000;
+  const stayStatsCacheRef = useRef<{ theme: string; at: number; data: ThemeStayStats | null }>({
+    theme: '',
+    at: 0,
+    data: null,
+  });
+  const stayStatsInflightRef = useRef<Promise<void> | null>(null);
+
+  const refreshStayStats = useCallback(async (force = false) => {
+    if (!theme) return;
+    const now = Date.now();
+    const cached = stayStatsCacheRef.current;
+    if (
+      !force
+      && cached.theme === theme
+      && cached.data
+      && now - cached.at < STAY_STATS_TTL_MS
+    ) {
+      setStayStats(cached.data);
+      return;
+    }
+    if (stayStatsInflightRef.current) {
+      await stayStatsInflightRef.current;
+      return;
+    }
+    const pending = (async () => {
+      try {
+        const data = await getThemeStayStats(theme);
+        stayStatsCacheRef.current = { theme, at: Date.now(), data };
+        setStayStats(data);
+      } catch (err) {
+        console.error('Failed to load theme stay stats:', err);
+      }
+    })().finally(() => {
+      stayStatsInflightRef.current = null;
+    });
+    stayStatsInflightRef.current = pending;
+    await pending;
   }, [theme]);
+
+  const refreshTodaySession = useCallback(async () => {
+    const td = localTrainingDate();
+    try {
+      const detail = await getTrainingSessionByDate({ trainingDate: td });
+      setTodaySession(detail.session ?? null);
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void refreshStayStats();
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [theme, refreshStayStats]);
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      void refreshStayStats(true);
+    };
+    window.addEventListener('vocab-updated', handleUpdate);
+    return () => window.removeEventListener('vocab-updated', handleUpdate);
+  }, [refreshStayStats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -255,6 +519,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         } catch { parsed = {}; }
         const ef = (parsed.englishFoundation as Record<string, unknown>) || {};
         if (cancelled) return;
+        setTodaySession(detail.session ?? null);
         if (typeof ef.pronunciationNotes === 'string') setPronunciationNotes(ef.pronunciationNotes);
         if (typeof ef.grammarNotes === 'string') setGrammarNotes(ef.grammarNotes);
       } catch { /* ignore */ }
@@ -280,8 +545,11 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   }, [pronunciationNotes, grammarNotes, sessionId]);
 
   useEffect(() => {
-    void setThemeFocus({ theme }).catch(() => {});
-  }, []);
+    const timer = setTimeout(() => {
+      void setThemeFocus({ theme }).catch(() => {});
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [theme]);
 
   const handleMarkEmailComplete = async (t: string) => {
     await markEmailComplete({ theme: t }).catch(() => {});
@@ -295,45 +563,95 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const themeValue = React.useMemo<ThemeCtxType>(() => ({
+    stage, setStage,
+    theme, setTheme,
+    masteryData, setMasteryData,
+    themeSwitchError, setThemeSwitchError,
+    showMasteryOverlay, setShowMasteryOverlay,
+    masteredThemes, setMasteredThemes,
+    impromptuPassed, setImpromptuPassed,
+    markEmailComplete: handleMarkEmailComplete,
+    customThemes, setCustomThemes,
+    refreshCustomThemes,
+    pendingSentenceDebt, setPendingSentenceDebt,
+  }), [
+    stage, theme, masteryData, themeSwitchError, showMasteryOverlay,
+    masteredThemes, impromptuPassed, customThemes, pendingSentenceDebt
+  ]);
+
+  const vocabValue = React.useMemo<VocabCtxType>(() => ({
+    vocabZone, setVocabZone,
+    dueWords, setDueWords,
+    currentWordIdx, setCurrentWordIdx,
+    sentenceInput, setSentenceInput,
+    isEvaluating, setIsEvaluating,
+    evalResult, setEvalResult,
+    loadingDueWords, setLoadingDueWords,
+  }), [
+    vocabZone, dueWords, currentWordIdx, sentenceInput,
+    isEvaluating, evalResult, loadingDueWords
+  ]);
+
+  const mediaValue = React.useMemo<MediaCtxType>(() => ({
+    listenMaterialTheme, setListenMaterialTheme,
+    listenMaterial, setListenMaterial,
+    listenAudioUrl, setListenAudioUrl,
+    isListenMaterialLoading, setIsListenMaterialLoading,
+    isTextVisible, setIsTextVisible,
+    isListenLoading, setIsListenLoading,
+    listenResult, setListenResult,
+    listenInput, setListenInput,
+    longAudios, setLongAudios,
+    selectedLongAudioId, setSelectedLongAudioId,
+    currentSegmentIndex, setCurrentSegmentIndex,
+    loopEnabled, setLoopEnabled,
+    longAudioMode, setLongAudioMode,
+    segmentDrafts, setSegmentDrafts,
+    writingText, setWritingText,
+    writeIntent, setWriteIntent,
+    isReviewing, setIsReviewing,
+    reviewResult, setReviewResult,
+  }), [
+    listenMaterialTheme, listenMaterial, listenAudioUrl,
+    isListenMaterialLoading, isTextVisible, isListenLoading,
+    listenResult, listenInput, longAudios, selectedLongAudioId,
+    currentSegmentIndex, loopEnabled, longAudioMode, segmentDrafts,
+    writingText, writeIntent, isReviewing, reviewResult
+  ]);
+
+  const legacyValue = React.useMemo<EnglishContextType>(() => ({
+    activeTab, setActiveTab,
+    sessionId,
+    todaySession,
+    stayStats,
+    refreshStayStats,
+    refreshTodaySession,
+    englishShellActive,
+    setEnglishShellActive,
+    inlineNotice, noticeAnchor, showNotice, hideNotice,
+    pronunciationNotes, setPronunciationNotes,
+    grammarNotes, setGrammarNotes,
+    ...themeValue,
+    ...vocabValue,
+    ...mediaValue,
+  }), [
+    activeTab, sessionId, todaySession, stayStats, refreshStayStats, refreshTodaySession,
+    englishShellActive, inlineNotice, noticeAnchor,
+    pronunciationNotes, grammarNotes,
+    themeValue, vocabValue, mediaValue
+  ]);
+
   return (
-    <EnglishContext.Provider
-      value={{
-        activeTab, setActiveTab,
-        stage, setStage,
-        theme, setTheme,
-        masteryData, setMasteryData,
-        themeSwitchError, setThemeSwitchError,
-        sessionId,
-        inlineNotice, noticeAnchor, showNotice, hideNotice,
-        showMasteryOverlay, setShowMasteryOverlay,
-        masteredThemes, setMasteredThemes,
-        impromptuPassed, setImpromptuPassed,
-        markEmailComplete: handleMarkEmailComplete,
-        pronunciationNotes, setPronunciationNotes,
-        grammarNotes, setGrammarNotes,
-        vocabZone, setVocabZone,
-        dueWords, setDueWords,
-        currentWordIdx, setCurrentWordIdx,
-        sentenceInput, setSentenceInput,
-        isEvaluating, setIsEvaluating,
-        evalResult, setEvalResult,
-        loadingDueWords, setLoadingDueWords,
-        listenMaterialTheme, setListenMaterialTheme,
-        listenMaterial, setListenMaterial,
-        listenAudioUrl, setListenAudioUrl,
-        isListenMaterialLoading, setIsListenMaterialLoading,
-        isTextVisible, setIsTextVisible,
-        isListenLoading, setIsListenLoading,
-        listenResult, setListenResult,
-        listenInput, setListenInput,
-        writingText, setWritingText,
-        writeIntent, setWriteIntent,
-        isReviewing, setIsReviewing,
-        reviewResult, setReviewResult,
-      }}
-    >
-      {children}
-    </EnglishContext.Provider>
+    <ThemeCtx.Provider value={themeValue}>
+      <VocabCtx.Provider value={vocabValue}>
+        <MediaCtx.Provider value={mediaValue}>
+          <EnglishContext.Provider value={legacyValue}>
+            {children}
+          </EnglishContext.Provider>
+        </MediaCtx.Provider>
+      </VocabCtx.Provider>
+    </ThemeCtx.Provider>
   );
 }
 
@@ -341,6 +659,30 @@ export function useEnglishContext() {
   const context = useContext(EnglishContext);
   if (context === undefined) {
     throw new Error('useEnglishContext must be used within an EnglishProvider');
+  }
+  return context;
+}
+
+export function useThemeMastery() {
+  const context = useContext(ThemeCtx);
+  if (context === undefined) {
+    throw new Error('useThemeMastery must be used within an EnglishProvider');
+  }
+  return context;
+}
+
+export function useVocabState() {
+  const context = useContext(VocabCtx);
+  if (context === undefined) {
+    throw new Error('useVocabState must be used within an EnglishProvider');
+  }
+  return context;
+}
+
+export function useMediaState() {
+  const context = useContext(MediaCtx);
+  if (context === undefined) {
+    throw new Error('useMediaState must be used within an EnglishProvider');
   }
   return context;
 }

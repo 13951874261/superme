@@ -1,11 +1,40 @@
 server {
     server_name app.liujingzhuwo.site;
+    client_max_body_size 1024m;
 
     root /var/www/super-agent/dist;
     index index.html;
 
     location / {
         try_files $uri $uri/ /index.html;
+    }
+
+    # 词典查询需等待 Dify 工作流（商务英英 LLM 可能超过 2 分钟），本路径不按默认 60s/300s 切断
+    location = /api/dify/dict-query {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 86400s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 86400s;
+        proxy_buffering off;
+    }
+
+    # 长文听力剧本生成可能耗时 10+ 分钟，单独放宽超时
+    location = /api/listen/generate-material-long {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 900s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 900s;
+        proxy_buffering off;
     }
 
     location /api/ {
@@ -19,13 +48,43 @@ server {
         proxy_read_timeout 300s;
         proxy_connect_timeout 60s;
         proxy_send_timeout 300s;
+
+        # 禁用缓冲区以支持 Server-Sent Events (SSE) 流式传输
+        proxy_buffering off;
+        proxy_cache off;
+        chunked_transfer_encoding off;
+
+        # 隐藏 Connection 相关的 HTTP/1.1 头，防止 HTTP/2 协议冲突
+        proxy_hide_header Connection;
+        proxy_hide_header Keep-Alive;
+    }
+
+    # Dify API 反向代理，完美解决浏览器端直连 Dify 接口导致的 CORS 跨域问题
+    location /dify/ {
+        # 强制仅解析 IPv4, 禁用 IPv6
+        resolver 8.8.8.8 ipv6=off;
+        set $dify_upstream "dify.234124123.xyz";
+
+        rewrite ^/dify/(.*)$ /v1/$1 break;
+        proxy_pass https://$dify_upstream;
+
+        proxy_ssl_server_name on;
+        proxy_http_version 1.1;
+        proxy_set_header Host dify.234124123.xyz;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 300s;
+        proxy_buffering off;
     }
 
     location = /api/material/ {
         return 301 /api/material;
     }
 
-    location ^~ /api/material/ {
+    location ^~ /api/material {
         proxy_pass http://127.0.0.1:3001;
         proxy_http_version 1.1;
 

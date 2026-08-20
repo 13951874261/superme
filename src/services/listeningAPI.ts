@@ -1,9 +1,8 @@
 import { ComparisonResult } from '../types/listening';
+import { transcribeAudioWithWhisper } from './difyAPI';
+import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+import { buildTtsModel, requestTtsSpeech, type TtsSpeechResult } from './ttsAPI';
 
-// 优先从 localStorage 获取密钥，实现本地优先管理
-const getApiKey = (keyName: string) => localStorage.getItem(keyName) || import.meta.env[`VITE_${keyName}`];
-
-const DIFY_BASE_URL = import.meta.env.VITE_DIFY_BASE_URL || 'https://dify.234124123.xyz/v1'; // 适配自定义部署的 Dify
 
 /**
  * 将任意 Audio Blob 转换为标准 PCM WAV Blob
@@ -14,7 +13,7 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
   const originalBuffer = await tempContext.decodeAudioData(arrayBuffer);
   
   // 核心修复：强制重采样为 16kHz 单声道
-  // 【关键追加】：为了防止单侧单词时间太短（<1秒）被大模型的 VAD (人声检测) 引擎当成噪音过滤掉，我们在前后各追加 0.5 秒静音。
+  // 为了防止单侧单词时间太短被大模型的 VAD (人声检测) 引擎当成噪音过滤掉，我们在前后各追加 0.5 秒静音。
   const targetSampleRate = 16000;
   const paddingSeconds = 0.5;
   const paddingFrames = Math.floor(paddingSeconds * targetSampleRate);
@@ -69,78 +68,178 @@ async function convertToWav(audioBlob: Blob): Promise<Blob> {
  * 调用 Dify 内置的语音转文字接口 (底层为阿里 Paraformer 或 Whisper)
  */
 export async function transcribeAudio(audioBlob: Blob): Promise<string> {
-  const apiKey = getApiKey('DIFY_STT_API_KEY');
-  
-  // 因为 Dify (部分版本或配置下) 不接受 WebM (415 Unsupported Media Type)，所以必须由前端转为 WAV
-  const wavBlob = await convertToWav(audioBlob);
-  
-  const formData = new FormData();
-  formData.append('file', wavBlob, 'recording.wav');
-
-  const response = await fetch(`${DIFY_BASE_URL}/audio-to-text`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${apiKey}` },
-    body: formData,
-  });
-
-  if (!response.ok) throw new Error('语音识别请求失败');
-  const data = await response.json();
-  return data.text;
+  // 统一调用 transcribeAudioWithWhisper 以使用高精度的三个接口轮询
+  return transcribeAudioWithWhisper(audioBlob);
 }
 
 /**
  * 运行 Listening_Comparison_Engine 工作流
  */
 export async function runListeningEngine(userInput: string, standardText: string, theme: string): Promise<ComparisonResult> {
-  const apiKey = getApiKey('DIFY_WORKFLOW_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY'); // 兼容新版配置
-  
-  const response = await fetch(`${DIFY_BASE_URL}/workflows/run`, {
+  const profile = getUserCurrentProfile();
+  const displayTheme = profile && !theme.includes('Weakness:') ? `${theme} (Weakness: ${profile})` : theme;
+  const response = await fetch('/api/listen/analyze', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      inputs: { user_input: userInput, standard_text: standardText, theme: theme },
-      response_mode: 'blocking',
-      user: 'local-user'
+      userInput,
+      standardText,
+      theme: displayTheme,
+      user_current_profile: profile,
+      userId: 'local-user',
     }),
   });
-
-  if (!response.ok) throw new Error('比对引擎运行失败');
-  const data = await response.json();
-  
-  // 工作流节点输出的变量名为 result，内容为 JSON 字符串，需要解析
-  const resultString = data.data?.outputs?.result;
-  if (!resultString) throw new Error('工作流未返回有效结果');
-  
-  try {
-    return JSON.parse(resultString) as ComparisonResult;
-  } catch (e) {
-    throw new Error('解析 AI 返回的 JSON 格式失败');
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data?.success || !data?.result) {
+    const error = data?.error || `比对引擎运行失败 (HTTP ${response.status})`;
+    console.error('[listeningAPI] runListeningEngine HTTP error:', error, data);
+    throw new Error(error);
   }
+  interceptOutputText(data.result);
+  return data.result as ComparisonResult;
+}
+export type TtsResponse = TtsSpeechResult;
+
+/**
+ * 调用 /api/tts/speech 获取高保真 MP3 音频流
+ * 短文本同步返回 audioUrl；长文本自动进入异步轮询模式
+ */
+export async function fetchDifyTTS(
+  text: string, 
+  options: { 
+    isAsync?: boolean;
+    voiceId?: string;
+    effects?: {
+      packet_loss?: boolean;
+      interruptions?: boolean;
+      information_gap?: boolean;
+    };
+  } = {}
+): Promise<TtsResponse> {
+  return requestTtsSpeech(text, {
+    model: buildTtsModel(options.voiceId),
+    isAsync: options.isAsync ?? true,
+    effects: options.effects,
+  });
 }
 
 /**
- * 调用 Dify 的 /text-to-audio 获取高保真 MP3 音频流
+ * 轮询 TTS 任务状态，最长等待 30 分钟
+ * 采用阶梯式快速前置探测机制（800ms -> 1500ms -> 2500ms），短文本无需无谓等待 5 秒
  */
-export async function fetchDifyTTS(text: string, userId = 'default-user'): Promise<string> {
-  const apiKey = getApiKey('DIFY_LISTEN_GEN_API_KEY') || getApiKey('DIFY_LISTEN_API_KEY');
-  
-  const response = await fetch(`${DIFY_BASE_URL}/text-to-audio`, {
+export async function pollTtsTask(taskId: string): Promise<string> {
+  const MAX_ATTEMPTS = 720; // 累计容纳约 30 分钟
+  const PROBE_DELAYS = [800, 1500, 2500]; // 快速前置探测梯队
+  for (let i = 0; i < MAX_ATTEMPTS; i++) {
+    const delay = i < PROBE_DELAYS.length ? PROBE_DELAYS[i] : 2500;
+    await new Promise(r => setTimeout(r, delay));
+    try {
+      const res = await fetch(`/api/tts/task/${taskId}`);
+      if (!res.ok) continue;
+      const task = await res.json();
+
+      if (task.status === 'completed' && task.audioUrl) {
+        return task.audioUrl;
+      }
+      if (task.status === 'failed') {
+        console.error('[listeningAPI] pollTtsTask task failed:', task.error);
+        throw new Error(`音频合成失败: ${task.error || '未知错误'}`);
+      }
+      // pending / running 状态继续等待
+    } catch (e) {
+      // 网络异常，继续重试
+      console.warn('[listeningAPI] pollTtsTask transient error:', e);
+      continue;
+    }
+  }
+  throw new Error('音频合成超时（已等待 30 分钟，请稍后重试）');
+}
+
+/**
+ * 长音频数据结构
+ */
+export interface LongAudioSegment {
+  index: number;
+  title: string;
+  start: number; // 秒
+  end: number;   // 秒
+  text: string;
+  jargons: { word: string; meaning: string }[];
+}
+
+export interface LongAudio {
+  id: string;
+  title: string;
+  description: string;
+  duration: number; // 秒
+  audioUrl: string;
+  genre: 'news' | 'meeting' | 'podcast';
+  cefrLevel: 'A2' | 'B1' | 'B2' | 'C1';
+  segments: LongAudioSegment[];
+}
+
+/**
+ * 获取长音频列表
+ */
+export async function fetchLongAudioList(): Promise<LongAudio[]> {
+  const response = await fetch('/api/listen/long-audio/list');
+  if (!response.ok) {
+    console.error('[listeningAPI] fetchLongAudioList HTTP failed:', response.status);
+    throw new Error('获取长音频列表失败');
+  }
+  const data = await response.json();
+  if (!data.success) {
+    console.error('[listeningAPI] fetchLongAudioList data error:', data.error);
+    throw new Error(data.error || '获取长音频列表失败');
+  }
+  return data.data;
+}
+
+/**
+ * 获取长音频详情（含分段）
+ */
+export async function fetchLongAudioDetail(id: string): Promise<LongAudio> {
+  const response = await fetch(`/api/listen/long-audio/${id}`);
+  if (!response.ok) {
+    console.error('[listeningAPI] fetchLongAudioDetail HTTP failed for ID:', id, response.status);
+    throw new Error('获取长音频详情失败');
+  }
+  const data = await response.json();
+  if (!data.success) {
+    console.error('[listeningAPI] fetchLongAudioDetail data error:', data.error);
+    throw new Error(data.error || '获取长音频详情失败');
+  }
+  return data.data;
+}
+
+
+/**
+ * 上传本地听力音频文件，并触发转录返回原文
+ */
+export async function uploadLocalListeningAudio(file: File, userId: string = 'local-user'): Promise<{
+  success: boolean;
+  audioUrl: string;
+  fileName: string;
+  uniqueName: string;
+  transcript: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('userId', userId);
+
+  const response = await fetch('/api/listen/upload-audio', {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text,
-      user: userId
-    }),
+    body: formData,
   });
 
-  if (!response.ok) throw new Error('生成高保真音频失败');
-  
-  const blob = await response.blob();
-  return URL.createObjectURL(blob); // 返回可供 <audio> 播放的本地虚拟 URL
+  if (!response.ok) {
+    throw new Error(`音频上传失败: HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (!data.success) {
+    throw new Error(data.error || '音频上传处理失败');
+  }
+
+  return data;
 }

@@ -1,5 +1,6 @@
-import React from 'react';
-import { Volume2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Volume2, Loader2, Pause } from 'lucide-react';
+import { buildTtsModel, getGlobalVoiceId, requestTtsSpeech } from '../services/ttsAPI';
 
 interface SpeakButtonProps {
   text?: unknown;
@@ -21,47 +22,296 @@ function normalizeSpeakText(value: unknown) {
   }
 }
 
-export function speakEnglish(text: unknown, rate = 0.92, roleType?: 'ally' | 'blocker' | 'neutral' | 'ai') {
-  const content = normalizeSpeakText(text);
-  if (!content || typeof window === 'undefined' || !('speechSynthesis' in window)) return false;
+// 句子切分：按句号、问号、叹号切分，避开常见英文缩写（Mr., Dr., e.g., i.e. 等）
+function splitIntoSentences(text: string): string[] {
+  return text
+    .split(/(?<!\b(?:Mr|Ms|Mrs|Dr|Co|Ltd|Inc|e\.g|i\.e|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Assoc|Univ|Prof|Dept))(?<=[.?!])\s+|\n+/i)
+    .map(s => s.trim())
+    .filter(Boolean)
+    // 强制丢弃完全没有英文字母/数字/中文字符的句子（比如单纯的标点），防止它们进入播放队列
+    .filter(s => /[a-zA-Z0-9一-龥]/.test(s));
+}
 
-  // 读取全局语速乘数，穿透到所有发音按钮
-  const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
-  const effectiveRate = rate * globalRateMultiplier;
+// 播放音频缓存（缓存 URL 字符串，避免复用已失效的 Audio 对象导致 416 错误）
+const audioCache = new Map<string, string>();
+// 当前正在播放的音频实例
+let currentAudio: HTMLAudioElement | null = null;
+// 当前处于播放状态的内容
+let currentPlayingContent: string | null = null;
 
-  const synth = window.speechSynthesis;
-  const utterance = new SpeechSynthesisUtterance(content);
-  utterance.lang = 'en-US';
-  utterance.rate = effectiveRate;
-  utterance.pitch = 1.0;
+// 活动句子播放队列
+let activeQueue: {
+  sentences: string[];
+  index: number;
+  rate: number;
+  isCancelled: boolean;
+} | null = null;
 
-  const voices = synth.getVoices();
-  const enVoices = voices.filter((voice) => /en/i.test(voice.lang) || /english/i.test(voice.name));
-  
-  if (roleType === 'blocker') {
-    utterance.pitch = 0.7; // 低沉压迫
-    utterance.rate = rate * 1.05;
-    utterance.voice = enVoices.find(v => /male|guy/i.test(v.name)) || enVoices[0];
-  } else if (roleType === 'ally') {
-    utterance.pitch = 1.3; // 高频轻快
-    utterance.rate = rate * 1.1;
-    utterance.voice = enVoices.find(v => /female|girl/i.test(v.name)) || enVoices[enVoices.length - 1];
-  } else if (roleType === 'neutral') {
-    utterance.pitch = 1.0;
-    utterance.rate = rate * 0.95;
-    utterance.voice = enVoices.find(v => /google|microsoft/i.test(v.name)) || enVoices[0];
-  } else if (roleType === 'ai') {
-    utterance.pitch = 1.1;
-    utterance.rate = rate * 1.1;
-    const preferredVoice = enVoices.find((voice) => /en/i.test(voice.lang) || /english/i.test(voice.name));
-    if (preferredVoice) utterance.voice = preferredVoice;
+// 分发 TTS 状态自定义事件，以便让对应的 SpeakButton 按钮切换 loading / playing / stopped 图标
+function dispatchTtsState(content: string, state: 'loading' | 'playing' | 'stopped') {
+  window.dispatchEvent(new CustomEvent('tts-state', { detail: { content, state } }));
+}
+
+// 分发 TTS 播放错误自定义事件，以提供红色的即时视觉报错反馈
+function dispatchTtsError(content: string) {
+  window.dispatchEvent(new CustomEvent('tts-error', { detail: { content } }));
+}
+
+async function checkAudioFileExists(url: string): Promise<boolean> {
+  try {
+    const response = await fetch(url, { method: 'HEAD' });
+    if (!response.ok) return false;
+    const len = response.headers.get('Content-Length');
+    return len !== null && parseInt(len, 10) > 0;
+  } catch (error) {
+    console.error('Error checking audio file existence:', error);
+    return false;
+  }
+}
+
+async function resolveTtsAudioUrl(
+  text: string,
+  model: string,
+  cacheKey: string,
+  forceRefresh = false
+): Promise<string> {
+  if (!forceRefresh) {
+    const cached = audioCache.get(cacheKey);
+    if (cached && await checkAudioFileExists(cached)) {
+      return cached;
+    }
+    if (cached) audioCache.delete(cacheKey);
   } else {
-    const preferredVoice = enVoices.find((voice) => /en/i.test(voice.lang) || /english/i.test(voice.name));
-    if (preferredVoice) utterance.voice = preferredVoice;
+    audioCache.delete(cacheKey);
   }
 
-  synth.cancel();
-  synth.speak(utterance);
+  const resJson = await requestTtsSpeech(text, { model });
+  if (!resJson.success || !resJson.audioUrl) {
+    throw new Error('Invalid TTS response');
+  }
+
+  const audioUrl = resJson.audioUrl as string;
+  if (!(await checkAudioFileExists(audioUrl))) {
+    throw new Error('Audio file not found or empty');
+  }
+
+  audioCache.set(cacheKey, audioUrl);
+  return audioUrl;
+}
+
+// 流式句子队列播放器：实现“边听边预加载”极速体验
+async function playSentenceQueue(sentences: string[], rate: number, content: string) {
+  const voiceCode = getGlobalVoiceId();
+  const model = buildTtsModel(voiceCode);
+  const myQueue = {
+    sentences,
+    index: 0,
+    rate,
+    isCancelled: false
+  };
+  activeQueue = myQueue;
+
+  const fetchAudioForSentence = async (idx: number, forceRefresh = false): Promise<HTMLAudioElement> => {
+    const sText = sentences[idx];
+    const cacheKey = `${model}_${sText}`;
+    const audioUrl = await resolveTtsAudioUrl(sText, model, cacheKey, forceRefresh);
+    return new Audio(audioUrl);
+  };
+
+  const prefetchNext = (idx: number) => {
+    if (idx + 1 < sentences.length) {
+      fetchAudioForSentence(idx + 1).catch(() => {});
+    }
+    if (idx + 2 < sentences.length) {
+      fetchAudioForSentence(idx + 2).catch(() => {});
+    }
+  };
+
+  // 发送加载中状态
+  dispatchTtsState(content, 'loading');
+
+  for (let i = 0; i < sentences.length; i++) {
+    if (myQueue.isCancelled) return;
+
+    try {
+      // 预加载后面的句子
+      prefetchNext(i);
+
+      const cacheKey = `${model}_${sentences[i]}`;
+      let audio: HTMLAudioElement;
+      try {
+        audio = await fetchAudioForSentence(i);
+      } catch (fetchErr) {
+        audioCache.delete(cacheKey);
+        audio = await fetchAudioForSentence(i, true);
+      }
+      if (myQueue.isCancelled) return;
+
+      const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
+      audio.playbackRate = rate * globalRateMultiplier;
+
+      currentAudio = audio;
+      dispatchTtsState(content, 'playing');
+      window.dispatchEvent(new CustomEvent('tts-sentence-progress', { detail: { content, index: i, sentence: sentences[i] } }));
+      await new Promise<void>((resolve, reject) => {
+        const onEnded = () => {
+          audio.removeEventListener('ended', onEnded);
+          audio.removeEventListener('error', onError);
+          resolve();
+        };
+        const onError = (e: any) => {
+          audio.removeEventListener('ended', onEnded);
+          audio.removeEventListener('error', onError);
+          audioCache.delete(cacheKey);
+          reject(e);
+        };
+        audio.addEventListener('ended', onEnded);
+        audio.addEventListener('error', onError);
+
+        // 轮询检查队列是否被中途取消
+        const checkInterval = setInterval(() => {
+          if (myQueue.isCancelled) {
+            clearInterval(checkInterval);
+            audio.removeEventListener('ended', onEnded);
+            audio.removeEventListener('error', onError);
+            audio.pause();
+            audio.currentTime = 0;
+            resolve();
+          }
+        }, 50);
+
+        audio.play().catch((e) => {
+          clearInterval(checkInterval);
+          audio.removeEventListener('ended', onEnded);
+          audio.removeEventListener('error', onError);
+          reject(e);
+        });
+      });
+
+    } catch (err) {
+      console.error(`Queue playback failed at sentence ${i}:`, err);
+      dispatchTtsError(content);
+      audioCache.delete(`${model}_${sentences[i]}`);
+      // 降级：剩余未读部分使用浏览器原生合成器一次性播放
+      if ('speechSynthesis' in window) {
+        const remainingText = sentences.slice(i).join(' ');
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(remainingText);
+        const langPrefix = voiceCode.split('-').slice(0, 2).join('-');
+        utterance.lang = langPrefix || 'en-US';
+        window.speechSynthesis.speak(utterance);
+      }
+      break;
+    }
+  }
+
+  if (activeQueue === myQueue) {
+    activeQueue = null;
+    currentPlayingContent = null;
+    dispatchTtsState(content, 'stopped');
+  }
+}
+
+export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' | 'blocker' | 'neutral' | 'ai') {
+  const content = normalizeSpeakText(text);
+  if (!content) return false;
+
+  // 安全阀：如果内容中没有任何英文字母、数字或中文字符，直接忽略
+  if (!/[a-zA-Z0-9一-龥]/.test(content)) return false;
+
+  const userVoiceCode = getGlobalVoiceId();
+  // 智能语言检测：如果包含中文字符，对于该段话直接使用中文女声，否则使用用户设置的声线
+  const isChinese = /[一-龥]/.test(content);
+  const voiceCode = isChinese ? 'zh-CN-XiaoxiaoNeural' : userVoiceCode;
+  const model = buildTtsModel(voiceCode);
+
+  // Toggle 功能：如果是相同内容正在播放，再次点击则停止播放
+  if (currentPlayingContent === content) {
+    if (activeQueue) {
+      activeQueue.isCancelled = true;
+      activeQueue = null;
+    }
+    if (currentAudio) {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+      currentAudio = null;
+    }
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    currentPlayingContent = null;
+    dispatchTtsState(content, 'stopped');
+    return true;
+  }
+  
+  // 否则，停止之前所有的播放
+  if (activeQueue) {
+    activeQueue.isCancelled = true;
+    activeQueue = null;
+  }
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+  if (currentPlayingContent) {
+    dispatchTtsState(currentPlayingContent, 'stopped');
+  }
+  
+  currentPlayingContent = content;
+  
+  const sentences = splitIntoSentences(content);
+  // 当文本包含多个句子且总长度较长时，使用流式句子队列播放，极大降低首字节卡顿感
+  if (sentences.length > 1 && content.length > 120) {
+    await playSentenceQueue(sentences, rate, content);
+  } else {
+    // 较短文本直接单请求播放
+    const cacheKey = `${model}_${content}`;
+    dispatchTtsState(content, 'loading');
+    
+    try {
+      let audioUrl: string;
+      try {
+        audioUrl = await resolveTtsAudioUrl(content, model, cacheKey);
+      } catch (fetchErr) {
+        audioUrl = await resolveTtsAudioUrl(content, model, cacheKey, true);
+      }
+      const audio = new Audio(audioUrl);
+
+      const globalRateMultiplier = parseFloat(localStorage.getItem('super_agent_global_rate') || '1.0');
+      audio.playbackRate = rate * globalRateMultiplier;
+      currentAudio = audio;
+      dispatchTtsState(content, 'playing');
+      window.dispatchEvent(new CustomEvent('tts-sentence-progress', { detail: { content, index: 0, sentence: sentences[0] || content } }));
+      await new Promise<void>((resolve, reject) => {
+        audio.onended = () => resolve();
+        audio.onerror = (e) => {
+          audioCache.delete(cacheKey);
+          reject(e);
+        };
+        audio.play().catch(reject);
+      });
+    } catch (error) {
+      console.error('Single TTS playback failed:', error);
+      dispatchTtsError(content);
+      audioCache.delete(cacheKey);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(content);
+        const langPrefix = voiceCode.split('-').slice(0, 2).join('-');
+        utterance.lang = langPrefix || 'en-US';
+        window.speechSynthesis.speak(utterance);
+      }
+    } finally {
+      if (currentPlayingContent === content) {
+        currentPlayingContent = null;
+        dispatchTtsState(content, 'stopped');
+        window.dispatchEvent(new CustomEvent('tts-stopped', { detail: { content } }));      }
+    }
+  }
   return true;
 }
 
@@ -75,6 +325,56 @@ export default function SpeakButton({
   roleType,
 }: SpeakButtonProps) {
   const content = normalizeSpeakText(text);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    
+    const handleTtsState = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail.content === content) {
+        if (customEvent.detail.state === 'loading') {
+          setIsLoading(true);
+          setIsPlaying(false);
+          setHasError(false);
+        } else if (customEvent.detail.state === 'playing') {
+          setIsLoading(false);
+          setIsPlaying(true);
+          setHasError(false);
+        } else {
+          setIsLoading(false);
+          setIsPlaying(false);
+        }
+      } else {
+        setIsLoading(false);
+        setIsPlaying(false);
+      }
+    };
+
+    const handleTtsError = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail.content === content) {
+        setIsLoading(false);
+        setIsPlaying(false);
+        setHasError(true);
+        
+        timer = setTimeout(() => {
+          setHasError(false);
+        }, 2000);
+      }
+    };
+
+    window.addEventListener('tts-state', handleTtsState);
+    window.addEventListener('tts-error', handleTtsError);
+    return () => {
+      window.removeEventListener('tts-state', handleTtsState);
+      window.removeEventListener('tts-error', handleTtsError);
+      if (timer) clearTimeout(timer);
+    };
+  }, [content]);
+
   if (!content) return null;
 
   return (
@@ -85,12 +385,28 @@ export default function SpeakButton({
         event.stopPropagation();
         speakEnglish(content, rate, roleType);
       }}
-      className={`inline-flex items-center justify-center gap-1.5 rounded-full bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722] hover:text-white transition-colors ${label ? 'px-3 py-1.5 text-[10px] font-black uppercase tracking-widest' : 'w-9 h-9'} ${className}`}
-      title={title}
-      aria-label={title}
+      className={`inline-flex items-center justify-center gap-1.5 rounded-full transition-all duration-300 ${
+        label ? 'px-4 py-2 text-[10px] font-black uppercase tracking-widest' : ''
+      } ${
+        hasError 
+          ? 'bg-red-100 text-red-500 border border-red-300 hover:bg-red-200' 
+          : isPlaying 
+            ? 'bg-[#FF5722] text-white shadow-md' 
+            : 'bg-[#FF5722]/10 text-[#FF5722] hover:bg-[#FF5722] hover:text-white'
+      } ${!label && !className.includes('w-') ? 'w-9 h-9' : ''} ${className}`}
+      title={hasError ? '播放失败' : isPlaying ? '停止播放' : title}
+      aria-label={hasError ? '播放失败' : isPlaying ? '停止播放' : title}
     >
-      <Volume2 className={iconClassName} />
-      {label ? <span>{label}</span> : null}
+      {isLoading ? (
+        <Loader2 className={`${iconClassName} animate-spin`} />
+      ) : hasError ? (
+        <Volume2 className={`${iconClassName} text-red-500 animate-bounce`} />
+      ) : isPlaying ? (
+        <Pause className={iconClassName} />
+      ) : (
+        <Volume2 className={iconClassName} />
+      )}
+      {label ? <span>{hasError ? '播放失败' : isPlaying ? '停止播放' : label}</span> : null}
     </button>
   );
 }

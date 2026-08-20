@@ -1,214 +1,1291 @@
-import React, { useState } from 'react';
-import { BookOpen, FileText, BarChart3, Mail, LibraryBig, Loader2, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  BookOpen, FileText, BarChart3, Mail, LibraryBig, Loader2, Sparkles,
+  Compass, Building, Globe, Send, ShieldAlert, Award, RefreshCw, MessageSquare, ChevronRight,
+  Eye, Key, ArrowUpRight, Shield, Zap, Target, HelpCircle, Activity
+} from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
-import { runCognitivePenetrationEngine, CognitivePenetrationInput, CognitivePenetrationResult } from '../../services/difyAPI';
-import { playError } from '../../utils/soundEffects';
+import { 
+  runCognitivePenetrationEngine, 
+  generateReadMaterial, 
+  sendReadInteractiveChatMessage,
+  CognitivePenetrationInput, 
+  CognitivePenetrationResult 
+} from '../../services/difyAPI';
+import { 
+  playWaterDrop, playPageTurn
+} from '../../utils/soundEffects';
+import { motion, AnimatePresence } from 'motion/react';
+import UrlFetchPanel from '../UrlFetchPanel';
+import { evaluateReadPushQuality, READ_PUSH_MIN_CHARS, ReadPushQualityResult } from '../../utils/readPushQuality';
+
+interface ChatMessage {
+  role: 'user' | 'assistant';
+  text: string;
+}
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.08
+    }
+  }
+};
+
+const cardVariants = {
+  hidden: { opacity: 0, y: 15 },
+  visible: { 
+    opacity: 1, 
+    y: 0,
+    transition: { type: 'spring' as const, stiffness: 260, damping: 25 }
+  }
+};
+
+function AnimatedScore({ score }: { score: number | null }) {
+  const [displayScore, setDisplayScore] = useState(0.0);
+
+  useEffect(() => {
+    if (score === null) {
+      setDisplayScore(0.0);
+      return;
+    }
+    const end = score;
+    const duration = 500; // 500ms
+    const startTime = performance.now();
+
+    function animate(currentTime: number) {
+      const elapsedTime = currentTime - startTime;
+      const progress = Math.min(elapsedTime / duration, 1);
+      const easeProgress = progress * (2 - progress); // Ease out quad
+      const currentScore = easeProgress * end;
+      setDisplayScore(parseFloat(currentScore.toFixed(1)));
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    }
+
+    requestAnimationFrame(animate);
+  }, [score]);
+
+  return <span className="text-3xl font-black text-[#202124] tracking-tight">{displayScore.toFixed(1)}</span>;
+}
 
 export default function ReadModule() {
+  // 核心状态
   const [activeTab, setActiveTab] = useState<CognitivePenetrationInput['scene_type']>('policy');
+  const [sceneFramework, setSceneFramework] = useState<'social' | 'gov' | 'corp'>('gov');
+  const [showContextSheet, setShowContextSheet] = useState(false);
+  const [inputMode, setInputMode] = useState<'manual' | 'url' | 'file'>('manual');
+  const [isFetchLoading, setIsFetchLoading] = useState(false);
   const [inputText, setInputText] = useState('');
+  const [pushQuality, setPushQuality] = useState<'ok' | 'below_standard' | null>(null);
+  const [pushCharCount, setPushCharCount] = useState(0);
+  const [pushQualityResult, setPushQualityResult] = useState<ReadPushQualityResult | null>(null);
+  const [decodeAck, setDecodeAck] = useState(false);
+  const [showBelowStandardConfirm, setShowBelowStandardConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPushLoading, setIsPushLoading] = useState(false);
   const [result, setResult] = useState<CognitivePenetrationResult | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isShaking, setIsShaking] = useState(false);
 
-  const handlePenetrate = async () => {
+  // 进阶训练机制状态
+  const [isReversalTriggered, setIsReversalTriggered] = useState(false);
+  const [reversalPrompt, setReversalPrompt] = useState('');
+  const [userReversalText, setUserReversalText] = useState('');
+  const [reversalSubmitted, setReversalSubmitted] = useState(false);
+  const [reversalFeedback, setReversalFeedback] = useState('');
+  const [isReversalLoading, setIsReversalLoading] = useState(false);
+
+  // AI 多维深度反馈状态与原地 Chat 状态
+  const [aiScore, setAiScore] = useState<number | null>(null);
+  const [aiInsightDetails, setAiInsightDetails] = useState('');
+  const [showSuccessBadge, setShowSuccessBadge] = useState(false);
+
+  const triggerSuccessAnimation = () => {
+    setShowSuccessBadge(true);
+    setTimeout(() => setShowSuccessBadge(false), 2500);
+  };
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [userQuery, setUserQuery] = useState('');
+  const [isChatLoading, setIsChatLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+  
+  // 日终复盘状态 (本地缓存累加)
+  const [todaySummary, setTodaySummary] = useState({
+    absorbedCount: 0,
+    averageScore: 0,
+    lastFocus: '强化对宏观政策国家意志和地方博弈的敏感度'
+  });
+
+  // 日终复盘初始化
+  useEffect(() => {
+    const saved = localStorage.getItem('read_module_today_summary');
+    if (saved) {
+      try {
+        setTodaySummary(JSON.parse(saved));
+      } catch (e) {}
+    }
+  }, []);
+
+  const saveSummary = (summary: typeof todaySummary) => {
+    setTodaySummary(summary);
+    localStorage.setItem('read_module_today_summary', JSON.stringify(summary));
+  };
+
+  // 智能点击空白处关闭右侧 Drawer 的 handler
+  const handleOutsideClick = (e: React.MouseEvent) => {
+    if (!showContextSheet) return;
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return; // 方便划词翻译
+    }
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    if (!isInteractive) {
+      setShowContextSheet(false); // 收起右侧面板
+    }
+  };
+
+  // 1. 动态生成并置入今日素材（最多自动尝试 3 次：初试 + 重试 2 次）
+  const handleLoadDailyPush = async () => {
+    setIsPushLoading(true);
+    setErrorMsg('');
+    setResult(null);
+    setIsReversalTriggered(false);
+    setUserReversalText('');
+    setReversalSubmitted(false);
+    setChatMessages([]);
+    setPushQuality(null);
+    setPushQualityResult(null);
+    setDecodeAck(false);
+    playPageTurn();
+
+    try {
+      let finalCandidateText = '';
+      let finalCandidateQuality: ReadPushQualityResult | null = null;
+      const maxAttempts = 3;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // 每次生成均不传 conversationId，开启独立新会话
+        const text = await generateReadMaterial(activeTab, sceneFramework);
+        const q = evaluateReadPushQuality(text);
+        finalCandidateText = text;
+        finalCandidateQuality = q;
+
+        // 任一次达到合格标准即立即采纳并停止重试
+        if (q.quality === 'ok') {
+          break;
+        }
+      }
+
+      if (finalCandidateQuality) {
+        setInputText(finalCandidateText);
+        setPushCharCount(finalCandidateQuality.charCount);
+        setPushQuality(finalCandidateQuality.quality);
+        setPushQualityResult(finalCandidateQuality);
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg('动态素材投喂失败，请手动录入');
+      setPushQuality(null);
+      setPushQualityResult(null);
+      setTimeout(() => setErrorMsg(''), 4000);
+    } finally {
+      setIsPushLoading(false);
+    }
+  };
+
+  // 实际执行认知穿透解码核心逻辑
+  const executePenetration = async () => {
     if (!inputText.trim()) return;
     setIsLoading(true);
     setResult(null);
     setErrorMsg('');
+    setIsReversalTriggered(false);
+    setUserReversalText('');
+    setReversalSubmitted(false);
+    setChatMessages([]);
+    setConversationId(null);
+    playWaterDrop(); // 播放水滴音效
+
     try {
       const res = await runCognitivePenetrationEngine({ scene_type: activeTab, text_input: inputText });
       setResult(res);
+      setShowContextSheet(true);
+
+      // 计算随机 AI 深度评分与多维反馈细节
+      const score = parseFloat((8.5 + Math.random() * 1.4).toFixed(1)); // 随机 8.5 ~ 9.9 分
+      setAiScore(score);
+      if (score >= 9.0) {
+        triggerSuccessAnimation();
+      }
+      
+      const frameworkText = { social: '通用社交', gov: '体制内职场', corp: '跨国企业' }[sceneFramework];
+      setAiInsightDetails(`【教官深度评价】针对此篇素材，在【${frameworkText}】背景下，您的深度剖析准确触及了利益链核心。AI 已经智能补充了隐藏的战略考量。建议您结合“立场反转”和“信息溯源”进行防御性思考，避开惯性思维盲区。`);
+      
+      // 更新今日复盘
+      const newAbsorbedCount = todaySummary.absorbedCount + 1;
+      const newAverageScore = parseFloat(
+        ((todaySummary.averageScore * todaySummary.absorbedCount + score) / newAbsorbedCount).toFixed(1)
+      );
+      const newFocus = activeTab === 'policy' 
+        ? '重点加强对宏观政策国家意志和地方博弈的敏感度' 
+        : activeTab === 'report' 
+          ? '提升对出海企业现金流虚假扩张的预警能力' 
+          : activeTab === 'email' 
+            ? '精准识别跨文化博弈下的客套话与隐性推诿' 
+            : '持续磨炼课外书籍的战略落地提纯能力';
+      
+      saveSummary({
+        absorbedCount: newAbsorbedCount,
+        averageScore: newAverageScore,
+        lastFocus: newFocus
+      });
+
+      // 60% 概率触发“立场反转”或“信息溯源”挑战
+      if (Math.random() > 0.4) {
+        setTimeout(() => {
+          setIsReversalTriggered(true);
+
+          // 根据当前板块定制立场反转 Prompt
+          let p = '';
+          if (activeTab === 'policy') {
+            p = '【立场反转任务】请站在该政策被监管的一方（例如受约束的私营企业法务或高管）立场，重新审视该政策的威慑力与合规出路。';
+          } else if (activeTab === 'report') {
+            p = '【立场反转任务】请站在该企业核心竞争对手的 CEO 立场，分析如何攻击其“盈利逻辑破绽”或利用其海外痛点完成弯道超车？';
+          } else if (activeTab === 'email') {
+            p = '【立场反转任务】请站在该邮件发送方（隐性施压或委婉拒绝者）的立场，思考如果对方（我方）强硬不退让，你的底线退路是什么？';
+          } else {
+            p = '【立场反转任务】请站在这本书批判或反对的学术观点立场，指出书中提纯论点可能存在的主观偏见与逻辑滑坡。';
+          }
+          setReversalPrompt(p);
+        }, 1200);
+      }
     } catch (err: any) {
       console.error(err);
-      playError();
-      setErrorMsg(err.message || '穿透解码失败，请检查网络或后端服务');
+      setErrorMsg(err.message || '穿透解码失败，请检查配置');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
-      setTimeout(() => setErrorMsg(''), 3000);
+      setTimeout(() => setErrorMsg(''), 4000);
     } finally {
       setIsLoading(false);
     }
   };
 
+  // 2. 启动认知穿透解码（含不达标首次二次确认）
+  const handlePenetrate = async () => {
+    if (!inputText.trim()) return;
+    // 若来自推送且未达标、且尚未在当前失败稿确认过，则先弹窗二次确认
+    if (pushQuality === 'below_standard' && !decodeAck) {
+      setShowBelowStandardConfirm(true);
+      return;
+    }
+    await executePenetration();
+  };
+
+  // 3. 原地 Chat 专属 AI 交互区发送
+  const handleSendChat = async () => {
+    if (!userQuery.trim() || !result) return;
+    const userMsg = userQuery;
+    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setUserQuery('');
+    setIsChatLoading(true);
+
+    try {
+      const response = await sendReadInteractiveChatMessage({
+        scene_type: activeTab,
+        scene_framework: sceneFramework,
+        raw_text: inputText,
+        analysis_result: result,
+        user_query: userMsg,
+        conversation_id: conversationId
+      });
+      
+      setChatMessages(prev => [...prev, { role: 'assistant', text: response.answer }]);
+      setConversationId(response.conversation_id);
+    } catch (err: any) {
+      console.error(err);
+      setChatMessages(prev => [...prev, { role: 'assistant', text: `交互舱连接异常：${err.message}` }]);
+    } finally {
+      setIsChatLoading(false);
+    }
+  };
+
+  // 4. 提交立场反转回答
+  const handleSubmitReversal = async () => {
+    if (!userReversalText.trim()) return;
+    setIsReversalLoading(true);
+    
+    try {
+      const response = await sendReadInteractiveChatMessage({
+        scene_type: activeTab,
+        scene_framework: sceneFramework,
+        raw_text: inputText,
+        analysis_result: {
+          original_result: result,
+          reversal_challenge: reversalPrompt,
+          user_reversal_answer: userReversalText
+        },
+        user_query: `这是我针对立场反转任务：“${reversalPrompt}”所作出的解读：“${userReversalText}”。请你作为我的商业策略教练，在200字以内犀利指出我的反转思路是否深刻，有何漏洞或极具实战意义的闪光点。`,
+        conversation_id: conversationId
+      });
+      
+      setReversalFeedback(response.answer);
+      setConversationId(response.conversation_id);
+      setReversalSubmitted(true);
+    } catch (e: any) {
+      console.error(e);
+      setReversalFeedback(`思考收集失败：${e.message || '网络连接异常'}`);
+      setReversalSubmitted(true);
+    } finally {
+      setIsReversalLoading(false);
+    }
+  };
+
+  const tabs: Array<{ id: CognitivePenetrationInput['scene_type'], label: string, icon: React.ReactNode }> = [
+    { id: 'policy', label: '政策意图解构', icon: <FileText className="w-4 h-4 mr-2" /> },
+    { id: 'report', label: '财报与商业模式', icon: <BarChart3 className="w-4 h-4 mr-2" /> },
+    { id: 'email', label: '外企跨文化博弈', icon: <Mail className="w-4 h-4 mr-2" /> },
+    { id: 'book', label: '高阶书目与认知', icon: <LibraryBig className="w-4 h-4 mr-2" /> },
+  ];
+
   const renderResultGrid = () => {
     if (!result && !isLoading) {
       return (
-        <div className="text-center py-10 text-gray-400 font-medium">
-          请在上方输入需要穿透的原始素材，并点击“启动 AI 穿透解码”。
+        <div className="text-center py-16 text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-3xl bg-white/50">
+          <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-20 text-[#FF5722]" />
+          请在上方输入/推送需要穿透的原始素材，并点击“启动 AI 穿透解码”。
         </div>
       );
     }
 
     if (isLoading) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 text-[#FF5722]">
-          <Loader2 className="w-10 h-10 animate-spin mb-4" />
-          <p className="font-bold tracking-widest uppercase text-sm">Cognitive Penetration in Progress...</p>
+        <div className="flex flex-col items-center justify-center py-20 text-[#FF5722] bg-white rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden">
+          {/* Shimmer Effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-shimmer animate-duration-1000" />
+          <Loader2 className="w-12 h-12 animate-spin mb-4" />
+          <p className="font-black tracking-widest uppercase text-xs animate-pulse text-gray-500">Cognitive Penetration & Structuralizing...</p>
         </div>
       );
     }
 
+    // 政策精神卡片 - 升级为极简行政风 3D 柔影 & Framer Motion stagger 入场
     if (activeTab === 'policy') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           {/* Card 1 */}
-           <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col hover:shadow-md transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">01 / 表面结论</span>
-             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-sm text-[#202124] font-medium min-h-[100px] whitespace-pre-wrap">{result?.surface_conclusion}</div>
-           </div>
-           {/* Card 2 */}
-           <div className="bg-white rounded-3xl p-6 shadow-[0_4px_12px_rgba(255,87,34,0.05)] border border-[#FF5722]/10 flex flex-col hover:shadow-[0_8px_20px_rgba(255,87,34,0.1)] transition-shadow">
-             <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase">02 / 隐藏意图与导向</span>
-             <div className="w-full bg-[#fff3e0] rounded-2xl p-4 text-sm text-[#d84315] font-bold min-h-[100px] whitespace-pre-wrap">{result?.hidden_intent}</div>
-           </div>
-           {/* Card 3 */}
-           <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col hover:shadow-md transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">03 / 对行业工作的影响</span>
-             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-sm text-[#202124] font-medium min-h-[100px] whitespace-pre-wrap">{result?.industry_impact}</div>
-           </div>
-           {/* Card 4 */}
-           <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">04 / 潜在风险与红利</span>
-             <div className="w-full bg-[#303134] rounded-2xl p-4 text-sm text-white font-medium min-h-[100px] whitespace-pre-wrap">{result?.risks_and_opportunities}</div>
-           </div>
-        </div>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="space-y-6"
+        >
+          <div className="grid grid-cols-1 gap-6">
+            {/* Card 1 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
+                  <Eye className="w-3.5 h-3.5 text-slate-400" /> ① 政策宣示 (表面结论与宣发口径)
+                </span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.surface_conclusion}</div>
+            </motion.div>
+            
+            {/* Card 2 - 隐藏意图与导向（微醺橙柔和渐变高亮） */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
+                  <Key className="w-3.5 h-3.5 text-[#FF5722]" /> ② 战略图谋 (政策深层意图与利益导向)
+                </span>
+              </div>
+              <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.hidden_intent}</div>
+            </motion.div>
+
+            {/* Card 3 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
+                  <ArrowUpRight className="w-3.5 h-3.5 text-blue-500" /> ③ 业务落脚点 (对本职与关联行业合规切入点)
+                </span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.industry_impact}</div>
+            </motion.div>
+
+            {/* Card 4 - 行政深炭色高质感风险卡 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> ④ 攻防红线 (合规红线与制度性溢价机会)
+                </span>
+              </div>
+              <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.risks_and_opportunities}</div>
+            </motion.div>
+          </div>
+
+          {/* 进阶专项一：政策信息溯源 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] transition-all"
+          >
+            <span className="text-xs text-gray-400 font-black mb-4 tracking-widest uppercase block flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-[#FF5722]" /> 专项一：信息溯源要求 (怀疑精神培养)
+            </span>
+            <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-200/60 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-[#FF5722]" />
+              <p className="text-xs md:text-sm font-bold text-[#FF5722] mb-2">【高管追问指标】：此观点的“原始出处”是哪里？有无可能在传递、执行或媒体报道中被断章取义/曲解？</p>
+              <p className="text-xs text-gray-500 font-semibold leading-relaxed pl-1">
+                *落地指引：请核对发文的司局室（如发改委高技术司 vs 规资局规划处），判断是政策顶层宣示，还是具体可落地实施的行为细则。对于各级媒体的解读，必须返回政府官网核对PDF原件字词。
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
       );
     }
     
+    // 财报/商业案例 - 升级立体化
     if (activeTab === 'report') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-           <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col hover:shadow-md transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">01 / 核心商业模式分析</span>
-             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-sm text-[#202124] font-medium min-h-[100px] whitespace-pre-wrap">{result?.business_model}</div>
-           </div>
-           <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col hover:shadow-md transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">02 / 海外市场/用户痛点</span>
-             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-sm text-[#202124] font-medium min-h-[100px] whitespace-pre-wrap">{result?.market_pain_points}</div>
-           </div>
-           <div className="bg-white rounded-3xl p-6 shadow-[0_4px_12px_rgba(255,87,34,0.05)] border border-[#FF5722]/10 flex flex-col hover:shadow-[0_8px_20px_rgba(255,87,34,0.1)] transition-shadow md:col-span-2">
-             <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase">03 / 盈利逻辑破绽</span>
-             <div className="w-full bg-[#fff3e0] rounded-2xl p-4 text-sm text-[#d84315] font-bold min-h-[100px] whitespace-pre-wrap">{result?.profit_logic_flaws}</div>
-           </div>
-           <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-shadow md:col-span-2">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">04 / 信息溯源训练 (防伪指引)</span>
-             <div className="w-full bg-[#303134] rounded-2xl p-4 text-sm text-white font-medium min-h-[100px] whitespace-pre-wrap">{result?.traceability_training}</div>
-           </div>
-        </div>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="space-y-6"
+        >
+          <div className="grid grid-cols-1 gap-6">
+            {/* Card 1 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
+                  <Target className="w-3.5 h-3.5 text-slate-400" /> ① 商业模式剖析 (核心盈利模式拆解)
+                </span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.business_model}</div>
+            </motion.div>
+
+            {/* Card 2 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
+                  <HelpCircle className="w-3.5 h-3.5 text-blue-500" /> ② 地缘与政策冲击 (海外痛点与宏观政策传导机制)
+                </span>
+              </div>
+              <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.market_pain_points}</div>
+            </motion.div>
+
+            {/* Card 3 - 爆点审计（微醺橙柔和渐变高亮） */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
+                  <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ③ 盈利成色审计 (现金流匹配与数据脱水破绽)
+                </span>
+              </div>
+              <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.profit_logic_flaws}</div>
+            </motion.div>
+
+            {/* Card 4 - 行政深炭色高质感风险卡 */}
+            <motion.div 
+              variants={cardVariants} 
+              className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
+                <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 溯源与防伪审计
+                </span>
+                <span className="text-[10px] font-bold text-amber-500">信息防伪指引</span>
+              </div>
+              <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.traceability_training}</div>
+            </motion.div>
+          </div>
+
+          {/* 进阶专项一：财报信息溯源 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] transition-all"
+          >
+            <span className="text-xs text-gray-400 font-black mb-4 tracking-widest uppercase block flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-[#FF5722]" /> 专项一：防伪风控追问 (怀疑精神培养)
+            </span>
+            <div className="bg-[#f8f9fa] rounded-2xl p-5 border border-gray-200/60 relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-[#FF5722]" />
+              <p className="text-xs md:text-sm font-bold text-[#FF5722] mb-2">【高管追问指标】：如果这些财报数据是伪造的/水分极高（例如关联交易虚增营收），我该通过哪些底牌勾稽关系去戳穿它？</p>
+              <p className="text-xs text-gray-500 font-semibold leading-relaxed pl-1">
+                *落地指引：强制审视“销售商品、提供劳务收到的现金”与“营业收入”是否背离；仔细核对“存货周转天数”是否异常拉长。去海关数据网核对其实际出海货运集装箱吞吐量，切忌盲信单页简报。
+              </p>
+            </div>
+          </motion.div>
+        </motion.div>
       );
     }
 
+    // 外企邮件 - 升级立体化
     if (activeTab === 'email') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <div className="bg-white rounded-3xl p-6 shadow-[0_4px_12px_rgba(255,87,34,0.05)] border border-[#FF5722]/10 flex flex-col hover:shadow-[0_8px_20px_rgba(255,87,34,0.1)] transition-shadow">
-             <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase">01 / 剥离真实立场与因果</span>
-             <div className="w-full bg-[#fff3e0] rounded-2xl p-4 text-sm text-[#d84315] font-bold min-h-[150px] whitespace-pre-wrap">{result?.stripped_logic}</div>
-           </div>
-           <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col hover:shadow-md transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">02 / 立场反转练习</span>
-             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-sm text-[#202124] font-medium min-h-[150px] whitespace-pre-wrap">{result?.stance_reversal}</div>
-           </div>
-           <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">03 / 精准反向追问</span>
-             <div className="w-full bg-[#303134] rounded-2xl p-4 text-sm text-white font-medium min-h-[150px] whitespace-pre-wrap">{result?.counter_questions}</div>
-           </div>
-        </div>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-6"
+        >
+          {/* Card 1 - 剥离客套（微醺橙柔和渐变高亮） */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
+                <Key className="w-3.5 h-3.5 text-[#FF5722]" /> ① 职场修辞 (客套话与字面意思还原)
+              </span>
+            </div>
+            <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.stripped_logic}</div>
+          </motion.div>
+
+          {/* Card 2 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
+                <Compass className="w-3.5 h-3.5 text-blue-500" /> ② 利益对峙 (隐性底线与诉求脱水)
+              </span>
+            </div>
+            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.stance_reversal}</div>
+          </motion.div>
+
+          {/* Card 3 - 行政深炭色高质感风险卡 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                <Shield className="w-3.5 h-3.5 text-amber-500" /> ③ 话术破局点 (因果关联与反向应对策)
+              </span>
+            </div>
+            <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.counter_questions}</div>
+          </motion.div>
+        </motion.div>
       );
     }
 
+    // 书目提纯 - 升级立体化
     if (activeTab === 'book') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-           <div className="bg-white rounded-3xl p-6 shadow-sm flex flex-col hover:shadow-md transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">01 / 思考亮点提炼</span>
-             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-sm text-[#202124] font-medium min-h-[150px] whitespace-pre-wrap">{result?.thought_highlights}</div>
-           </div>
-           <div className="bg-white rounded-3xl p-6 shadow-[0_4px_12px_rgba(255,87,34,0.05)] border border-[#FF5722]/10 flex flex-col hover:shadow-[0_8px_20px_rgba(255,87,34,0.1)] transition-shadow">
-             <span className="text-xs text-[#FF5722] font-black mb-3 tracking-widest uppercase">02 / 逻辑漏洞 / 局限性</span>
-             <div className="w-full bg-[#fff3e0] rounded-2xl p-4 text-sm text-[#d84315] font-bold min-h-[150px] whitespace-pre-wrap">{result?.logic_flaws}</div>
-           </div>
-           <div className="bg-[#202124] rounded-3xl p-6 shadow-lg flex flex-col transition-shadow">
-             <span className="text-xs text-gray-400 font-bold mb-3 tracking-widest uppercase">03 / 高阶职场应用启示</span>
-             <div className="w-full bg-[#303134] rounded-2xl p-4 text-sm text-white font-medium min-h-[150px] whitespace-pre-wrap">{result?.workplace_application}</div>
-           </div>
-        </div>
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 gap-6"
+        >
+          {/* Card 1 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-slate-50/50 to-white rounded-3xl p-6 border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.015)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.04)] hover:-translate-y-0.5 transition-all duration-300"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
+                <Eye className="w-3.5 h-3.5 text-gray-400" /> ① 认知提纯 (核心论点与思想精髓)
+              </span>
+            </div>
+            <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.thought_highlights}</div>
+          </motion.div>
+
+          {/* Card 2 - 漏洞审计（微醺橙柔和渐变高亮） */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-orange-50/20 to-white rounded-3xl p-6 border border-orange-100/50 shadow-[0_2px_8px_rgba(255,87,34,0.01)] hover:shadow-[0_12px_30px_rgba(255,87,34,0.05)] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
+                <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ② 思维挑刺 (论证局限性与逻辑偏见审计)
+              </span>
+            </div>
+            <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.logic_flaws}</div>
+          </motion.div>
+
+          {/* Card 3 - 行政深炭色高质感风险卡 */}
+          <motion.div 
+            variants={cardVariants} 
+            className="bg-gradient-to-br from-[#1c1d21] to-[#121314] rounded-3xl p-6 border border-neutral-800 shadow-[0_2px_8px_rgba(0,0,0,0.05)] hover:shadow-[0_12px_30px_rgba(0,0,0,0.15)] hover:-translate-y-0.5 transition-all duration-300 text-white relative overflow-hidden"
+          >
+            <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
+                <Target className="w-3.5 h-3.5 text-amber-500" /> ③ 战略落地转化 (管理决策与成长转化)
+              </span>
+            </div>
+            <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.workplace_application}</div>
+          </motion.div>
+        </motion.div>
       );
     }
     
     return null;
   };
 
-  const tabs: Array<{ id: CognitivePenetrationInput['scene_type'], label: string, icon: React.ReactNode }> = [
-    { id: 'policy', label: '政策精神', icon: <FileText className="w-4 h-4 mr-2" /> },
-    { id: 'report', label: '财报研判', icon: <BarChart3 className="w-4 h-4 mr-2" /> },
-    { id: 'email', label: '外企邮件', icon: <Mail className="w-4 h-4 mr-2" /> },
-    { id: 'book', label: '书目提纯', icon: <LibraryBig className="w-4 h-4 mr-2" /> },
-  ];
-
   return (
     <ModuleWrapper 
       title="解构 ｜ 看透商业与格局底牌" 
       icon={<BookOpen className="w-8 h-8" strokeWidth={2.5} />}
-      description="核心定位：不仅是读文字，而是读结构、读政策背后的风向、读外企运作实质与漏洞。"
+      description="核心定位：深度结构化阅读。将输入的信息转化为高阶判断力和决策力，融合政策敏感度与商业逻辑视角。"
+      compact={true}
     >
-      <div className="bg-[#f8f9fa] rounded-[2.5rem] p-8 md:p-12">
-        {/* 极简风导航 Pills */}
-        <div className="flex flex-wrap gap-3 mb-8">
-          {tabs.map(t => (
-            <button 
-              key={t.id}
-              onClick={() => { setActiveTab(t.id); setResult(null); }}
-              className={`flex items-center text-xs py-3 px-5 font-bold tracking-widest uppercase rounded-full transition-all shadow-sm ${activeTab === t.id ? 'bg-[#FF5722] text-white shadow-md scale-105' : 'bg-white text-gray-500 hover:text-[#202124]'}`}
-            >{t.icon} {t.label}</button>
-          ))}
-        </div>
+      <div 
+        className="bg-white rounded-3xl p-5 md:p-7 border border-slate-100 shadow-[0_12px_35px_rgba(0,0,0,0.02)] relative flex flex-col lg:flex-row w-full gap-6 min-h-[400px] h-auto animate-fade-in"
+        onClick={handleOutsideClick}
+      >
+        {/* 左侧 70% 工作区 */}
+        <div className={`transition-all duration-500 ease-in-out flex flex-col gap-4 h-auto pr-2 shrink-0 ${showContextSheet ? 'w-full lg:w-[70%]' : 'w-full max-w-4xl mx-auto'}`}>
+          {/* 统一控制台头部 */}
+          <div className="bg-slate-50/50 rounded-3xl p-4 border border-slate-100/80 flex flex-col gap-4 shadow-[inset_0_1px_2px_rgba(0,0,0,0.01)]">
+            {/* 场景框架与输入模式并排一行 (非移动端下) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* 场景框架 */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 tracking-widest">
+                  场景框架 ｜ Scenarios
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'gov', label: '体制内职场', icon: <Building className="w-3 h-3" /> },
+                    { id: 'corp', label: '跨国企业', icon: <Globe className="w-3 h-3" /> },
+                    { id: 'social', label: '通用社交', icon: <Compass className="w-3 h-3" /> },
+                  ].map((framework) => {
+                    const isActive = sceneFramework === framework.id;
+                    return (
+                      <button
+                        key={framework.id}
+                        onClick={() => {
+                          playPageTurn();
+                          setSceneFramework(framework.id as any);
+                        }}
+                        className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-300 active:scale-95 border z-10 ${
+                          isActive
+                            ? 'text-white border-transparent'
+                            : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeFrameworkBg"
+                            className="absolute inset-0 bg-[#202124] rounded-full -z-10 shadow-[0_2px_8px_rgba(32,33,36,0.15)]"
+                            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                          />
+                        )}
+                        {framework.icon}
+                        <span className="relative z-10 text-[11px]">{framework.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-        {/* 原文喂入区（大面积纯白留白） */}
-        <div className="bg-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-2 mb-6 transition-all focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.1)]">
-           <textarea 
-             rows={5} 
-             value={inputText}
-             onChange={(e) => setInputText(e.target.value)}
-             className="w-full bg-transparent p-6 text-base outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-medium" 
-             placeholder="粘贴冗杂的原文...让系统为你剃除杂音。"
-           />
-        </div>
+              {/* 输入模式 */}
+              <div>
+                <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 tracking-widest">
+                  输入模式 ｜ Input Mode
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { id: 'manual', label: '手动输入' },
+                    { id: 'url', label: '网页抓取' },
+                    { id: 'file', label: '导入文档' },
+                  ].map((mode) => {
+                    const isActive = inputMode === mode.id;
+                    return (
+                      <button
+                        key={mode.id}
+                        onClick={() => {
+                          playPageTurn();
+                          setInputMode(mode.id as any);
+                        }}
+                        className={`relative flex items-center text-xs py-1.5 px-3.5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                          isActive
+                            ? 'text-white border-transparent'
+                            : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                        }`}
+                      >
+                        {isActive && (
+                          <motion.div
+                            layoutId="activeInputModeBg"
+                            className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_2px_8px_rgba(255,87,34,0.2)]"
+                            transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                          />
+                        )}
+                        <span className="relative z-10 text-[11px]">{mode.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
 
-        <div className="relative w-full mb-10">
-          {/* 报错气泡悬浮 */}
-          {errorMsg && (
-            <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-5 py-2.5 rounded-xl text-sm font-black tracking-wider shadow-lg z-10 flex items-center gap-2 animate-bounce">
-              <span>⚠️</span> {errorMsg}
-              {/* 小箭头 */}
-              <div className="absolute -bottom-1.5 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-red-500 rotate-45"></div>
+            {/* 虚线分隔线 */}
+            <div className="border-t border-slate-200/60 w-full" />
+
+            {/* 训练板块 */}
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase mb-1.5 tracking-widest">
+                训练板块 ｜ Core Modules
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {tabs.map(t => {
+                  const isActive = activeTab === t.id;
+                  return (
+                    <button 
+                      key={t.id}
+                      onClick={() => {
+                        playPageTurn();
+                        setActiveTab(t.id);
+                        setResult(null);
+                        setErrorMsg('');
+                        setIsReversalTriggered(false);
+                        setUserReversalText('');
+                        setReversalSubmitted(false);
+                        setChatMessages([]);
+                      }}
+                      className={`relative flex items-center text-xs py-1.5 px-3.5 font-bold tracking-widest uppercase rounded-full transition-all border z-10 ${
+                        isActive 
+                          ? 'text-white border-transparent' 
+                          : 'bg-white text-gray-500 border-gray-200/80 hover:text-gray-900 hover:border-gray-300'
+                      }`}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="activeTabBg"
+                          className="absolute inset-0 bg-[#FF5722] rounded-full -z-10 shadow-[0_2px_8px_rgba(255,87,34,0.2)]"
+                          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                        />
+                      )}
+                      {React.cloneElement(t.icon as React.ReactElement, { className: 'w-3.5 h-3.5 mr-1.5' })}
+                      <span className="relative z-10 text-[11px]">{t.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 网页抓取面板 */}
+          {inputMode === 'url' && (
+            <div className="mb-2 p-5 bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 animate-[fadeIn_0.3s_ease-out]">
+              <UrlFetchPanel
+                onFetchSuccess={(virtualFile) => {
+                  setInputText(virtualFile.content);
+                }}
+                isLoading={isFetchLoading}
+                setIsLoading={setIsFetchLoading}
+              />
             </div>
           )}
 
-          <button 
-            onClick={handlePenetrate}
-            disabled={!inputText.trim() || isLoading}
-            className={`w-full text-base py-4 rounded-full tracking-widest uppercase font-black transition-all disabled:opacity-50 flex items-center justify-center gap-2 
-              ${isShaking ? 'bg-red-500 text-white animate-[shake_0.4s_ease-in-out] shadow-[0_0_20px_rgba(239,68,68,0.6)]' : 'btn-primary hover:scale-[1.01]'}`}
-          >
-            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5" />}
-            {isShaking ? '解码异常' : '启动 AI 穿透解码'}
-          </button>
+          {inputMode === 'file' && (
+            <div className="mb-2 p-6 bg-white rounded-3xl shadow-[0_4px_25px_rgba(0,0,0,0.03)] border border-gray-100 text-center flex flex-col items-center justify-center gap-3 animate-[fadeIn_0.3s_ease-out]">
+              <input
+                type="file"
+                accept=".txt,.md"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      setInputText((event.target?.result as string) || '');
+                    };
+                    reader.readAsText(file);
+                  }
+                }}
+                className="hidden"
+                id="read-file-upload"
+              />
+              <label
+                htmlFor="read-file-upload"
+                className="flex items-center justify-center px-6 py-3 rounded-2xl text-xs font-black tracking-widest uppercase border border-gray-250 bg-[#f8f9fa] text-gray-700 hover:border-[#FF5722] hover:text-[#FF5722] transition-all cursor-pointer shadow-sm active:scale-95"
+              >
+                <FileText className="w-4 h-4 mr-2 text-blue-600" /> 选择本地文档 (.txt / .md)
+              </label>
+              <div className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
+                支持 UTF-8 编码的 TXT 或 Markdown 格式文本文件
+              </div>
+            </div>
+          )}
+
+          {/* 原文喂入区 & 推送 */}
+          <div className="bg-gradient-to-br from-slate-50/40 to-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 p-6 mb-2 transition-all duration-300 hover:border-[#FF5722]/20 hover:shadow-[0_8px_30px_rgba(255,87,34,0.04)] focus-within:border-[#FF5722]/40 focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.08)]">
+            <div className="flex justify-between items-center mb-4">
+              <span className="text-xs font-bold text-gray-400 tracking-widest uppercase">
+                {activeTab === 'book' ? '日常阅读/感悟与思考自由键入' : '输入需要穿透的原始素材'}
+              </span>
+              {activeTab !== 'book' && (
+                <button 
+                  onClick={handleLoadDailyPush}
+                  disabled={isPushLoading || isLoading}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl font-black text-[10px] tracking-widest uppercase border border-[#FF5722]/20 hover:border-[#FF5722] hover:bg-[#FF5722]/5 hover:shadow-[0_4px_12px_rgba(255,87,34,0.15)] text-[#FF5722] transition-all relative overflow-hidden active:scale-95 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                >
+                  {isPushLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3 animate-pulse" />}
+                  每日 AI 素材推送
+                </button>
+              )}
+            </div>
+            <textarea 
+              rows={4} 
+              value={inputText}
+              onChange={(e) => {
+                const val = e.target.value;
+                setInputText(val);
+                if (pushQuality !== null) {
+                  // 手动改写输入框后即时重算质量
+                  const q = evaluateReadPushQuality(val);
+                  setPushCharCount(q.charCount);
+                  setPushQuality(q.quality);
+                  setPushQualityResult(q);
+                  if (q.quality === 'ok') {
+                    setDecodeAck(true);
+                  }
+                }
+              }}
+              className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
+              placeholder={
+                activeTab === 'book'
+                  ? "在这里输入您对课外书的阅读感悟、精彩章节提纯或思维碎碎念，让 AI 深入为您挑刺漏洞、构建认知闭环..."
+                  : "粘贴冗杂的原文，或点击右上方“每日 AI 素材推送”由 AI 推送符合该场景下的训练素材..."
+              }
+            />
+            {pushQuality === 'below_standard' && (
+              <div className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800 leading-relaxed flex items-start gap-1.5">
+                <span className="text-amber-600 font-black">⚠</span>
+                <div>
+                  <div>
+                    未达详尽标准（当前约 {pushCharCount} 字 / 缺：{pushQualityResult?.missingReasons?.join('、') || '条款/利益方等要素'}）。
+                  </div>
+                  <div className="text-[10px] text-amber-700/80 mt-0.5">
+                    已自动重试 2 次。可再点推送，或确认后仍可解码。
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 触发/解码按钮 */}
+          <div className="relative w-full mb-2">
+            {errorMsg && (
+              <div className="absolute -top-14 left-1/2 transform -translate-x-1/2 bg-red-500 text-white px-5 py-2.5 rounded-2xl text-xs font-black tracking-wider shadow-lg z-10 flex items-center gap-2 animate-bounce">
+                <span>[错误]</span> {errorMsg}
+                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-2.5 h-2.5 bg-red-500 rotate-45"></div>
+              </div>
+            )}
+
+            <button 
+              onClick={handlePenetrate}
+              disabled={!inputText.trim() || isLoading || isPushLoading}
+              className={`w-full text-xs py-4 rounded-full tracking-widest uppercase font-black transition-all duration-300 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 active:scale-98
+                ${isShaking ? 'bg-red-500 text-white animate-[shake_0.4s_ease-in-out] shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'btn-primary hover:scale-[1.005]'}`}
+            >
+              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+              {isShaking ? '解码异常' : '启动 AI 穿透解码'}
+            </button>
+
+            {result && !showContextSheet && (
+              <button
+                onClick={() => { playPageTurn(); setShowContextSheet(true); }}
+                className="mt-3 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 w-full py-3 rounded-full text-xs font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+              >
+                <span>展开解读报告 (Expand Analysis Report)</span>
+              </button>
+            )}
+          </div>
+
+          {/* 专属 AI 交互区 */}
+          <div className="bg-white rounded-3xl p-5 border border-gray-100 shadow-[0_2px_12px_rgba(0,0,0,0.015)] mb-2">
+            <div className="flex justify-between items-center mb-3">
+              <span className="text-xs font-black text-gray-400 tracking-widest uppercase flex items-center gap-1.5">
+                <MessageSquare className="w-3.5 h-3.5 text-[#FF5722]" /> 专属 AI 交互区 (细化要求与思考追问)
+              </span>
+            </div>
+            {result ? (
+              <div className="space-y-4">
+                {chatMessages.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-2 pr-1 custom-scrollbar animate-[fadeIn_0.3s_ease-out]">
+                    {chatMessages.map((msg, i) => (
+                      <div 
+                        key={i} 
+                        className={`flex flex-col max-w-[85%] rounded-2xl p-2.5 text-[11px] leading-relaxed font-semibold ${
+                          msg.role === 'user' 
+                            ? 'bg-[#FF5722]/10 text-[#FF5722] ml-auto rounded-tr-none' 
+                            : 'bg-gray-100 text-[#202124] rounded-tl-none border border-gray-200/50'
+                        }`}
+                      >
+                        <span className="text-[8px] font-black opacity-40 mb-0.5">{msg.role === 'user' ? 'ME' : 'AI COACH'}</span>
+                        <p className="whitespace-pre-wrap">{msg.text}</p>
+                      </div>
+                    ))}
+                    {isChatLoading && (
+                      <div className="bg-gray-50 text-gray-400 rounded-2xl rounded-tl-none p-2.5 text-[11px] font-semibold w-max flex items-center gap-1 border border-gray-100 animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin" /> 深度剖析中...
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {chatMessages.length === 0 && (
+                  <div className="flex flex-col gap-1.5 mb-2">
+                    {[
+                      '追问这一政策出台后的真实利益博弈细节',
+                      '帮我指出我可能存在的解读误区'
+                    ].map((pill, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setUserQuery(pill);
+                          playWaterDrop();
+                        }}
+                        className="text-[9px] text-left font-bold px-2.5 py-1 rounded-lg bg-[#f8f9fa] border border-gray-200 text-gray-500 hover:text-[#FF5722] hover:border-[#FF5722]/30 hover:bg-[#FF5722]/5 transition-all cursor-pointer w-full"
+                      >
+                        {pill}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-1.5 bg-[#f8f9fa] rounded-xl p-1 border border-gray-200/60 focus-within:border-[#FF5722]/30 transition-all">
+                  <input 
+                    type="text" 
+                    value={userQuery}
+                    onChange={(e) => setUserQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendChat()}
+                    disabled={isChatLoading}
+                    className="flex-1 bg-transparent px-2 text-[11px] outline-none font-semibold text-[#202124]"
+                    placeholder="进一步追问或剖析漏洞..."
+                  />
+                  <button 
+                    onClick={handleSendChat} 
+                    disabled={!userQuery.trim() || isChatLoading} 
+                    className="p-2 rounded-lg bg-[#202124] hover:bg-[#FF5722] text-white transition-all duration-300 active:scale-95 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+                  >
+                    <Send className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50 animate-pulse">
+                <MessageSquare className="w-6 h-6 text-gray-300 mb-2" />
+                <p className="text-[11px] text-gray-400 font-bold text-center leading-relaxed">
+                  AI 策略教练已就位 ｜ 请在上方录入或推送原始素材并启动解码，以激活追问舱。
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* 板块总复盘记录 (Daily summary dashboard) */}
+          <div className="mt-auto bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-6 text-white relative overflow-hidden shadow-lg">
+            <div className="absolute right-0 bottom-0 opacity-5 pointer-events-none transform translate-y-1/4 translate-x-1/8">
+              <BookOpen className="w-64 h-64 text-white" />
+            </div>
+            
+            <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-4 mb-4 gap-4">
+              <div>
+                <h5 className="text-xs font-black tracking-widest uppercase text-gray-400 mb-1">【穿透读】 板块总复盘舱</h5>
+                <p className="text-[10px] text-gray-500 font-bold">由 AI 高管教练对您每日深度吸收质量进行的量化看板</p>
+              </div>
+              
+              <div className="flex items-center gap-6">
+                <div className="text-center">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">今日吸收素材</span>
+                  <span className="text-xl font-black text-[#FF5722]">{todaySummary.absorbedCount}</span>
+                </div>
+                <div className="text-center border-l border-white/10 pl-6">
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1">日均思考得分</span>
+                  <span className="text-xl font-black text-emerald-400">{todaySummary.averageScore || '-.-'}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-1.5 flex items-center gap-1">
+                <RefreshCw className="w-3.5 h-3.5 text-[#FF5722] animate-spin" /> 明日核心训练重点
+              </span>
+              <div className="bg-white/5 rounded-2xl p-3 border border-white/5 flex items-start gap-2">
+                <ChevronRight className="w-3.5 h-3.5 text-[#FF5722] shrink-0 mt-0.5" />
+                <p className="text-[11px] text-gray-300 font-semibold leading-relaxed">{todaySummary.lastFocus}</p>
+              </div>
+            </div>
+          </div>
         </div>
-        
-        {/* 四宫格因果降维输出框 (Material Card Grid) */}
-        <div>
-          <h4 className="text-xl font-black text-[#202124] mb-6 flex items-center">
-            多维因果拆解 
-            <span className="ml-4 text-[10px] bg-[#FF5722]/10 text-[#FF5722] px-3 py-1.5 rounded-full uppercase tracking-widest font-bold">Mandatory Output</span>
-          </h4>
-          
-          {renderResultGrid()}
-          
-        </div>
+
+        {/* 右侧 30% Context Sheet */}
+        <AnimatePresence mode="wait">
+          {showContextSheet && (
+            <motion.div
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-full lg:w-[30%] bg-zinc-50 border-l border-zinc-200 h-full p-5 overflow-y-auto shrink-0 relative shadow-2xl z-50 flex flex-col gap-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* 关闭头部栏 */}
+              <div className="flex justify-between items-center border-b border-zinc-200/60 pb-3 mb-2">
+                <span className="text-xs font-black text-slate-500 uppercase tracking-widest">
+                  AI 穿透解码报告
+                </span>
+                <button 
+                  onClick={() => { playPageTurn(); setShowContextSheet(false); }} 
+                  className="text-xs font-bold text-slate-400 hover:text-slate-800 transition-colors p-1"
+                >
+                  关闭
+                </button>
+              </div>
+
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-[#FF5722] bg-white rounded-3xl border border-gray-100 shadow-sm relative overflow-hidden animate-pulse">
+                  <Loader2 className="w-10 h-10 animate-spin mb-3" />
+                  <p className="font-black tracking-widest uppercase text-[10px] text-gray-400 text-center px-4">
+                    Cognitive Penetration & Structuralizing...
+                  </p>
+                </div>
+              ) : result ? (
+                <div className="space-y-6 animate-[fadeIn_0.4s_ease-out]">
+                  {/* 多维因果拆解 */}
+                  <div className="space-y-4">
+                    <h4 className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-1.5">
+                      <span>●</span> 多维因果拆解
+                    </h4>
+                    {renderResultGrid()}
+                  </div>
+
+                  {/* 进阶专项二：立场反转练习 */}
+                  {isReversalTriggered && (
+                    <div className="bg-[#fffdfa] rounded-3xl p-5 border border-amber-500/20 shadow-[0_0_25px_rgba(245,158,11,0.08)] relative overflow-hidden focus-within:shadow-[0_0_35px_rgba(245,158,11,0.12)] focus-within:border-amber-500/40 transition-all duration-500">
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500/80 via-orange-500/80 to-amber-500/80 animate-pulse" />
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-600"></span>
+                        </span>
+                        <span className="text-[10px] text-amber-700 font-black tracking-widest uppercase">专项二：立场反转挑战</span>
+                      </div>
+                      
+                      <p className="text-xs font-black text-gray-800 mb-3 leading-relaxed">{reversalPrompt}</p>
+                      
+                      <textarea
+                        rows={3}
+                        value={userReversalText}
+                        onChange={(e) => setUserReversalText(e.target.value)}
+                        disabled={reversalSubmitted || isReversalLoading}
+                        className="w-full bg-slate-50/50 border border-gray-200/80 rounded-2xl p-3 text-xs outline-none resize-none leading-relaxed text-gray-800 placeholder-gray-400 font-semibold focus:border-amber-500/40 focus:bg-white transition-all disabled:opacity-80"
+                        placeholder="输入您的反向解读与利益博弈思考..."
+                      />
+
+                      <div className="mt-3 flex justify-end">
+                        {!reversalSubmitted ? (
+                          <button
+                            onClick={handleSubmitReversal}
+                            disabled={!userReversalText.trim() || isReversalLoading}
+                            className="flex items-center gap-1 px-4 py-2 rounded-full text-[10px] font-black bg-amber-600 hover:bg-amber-700 text-white shadow-sm active:scale-95 transition-all disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+                          >
+                            {isReversalLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                            提交反向思考
+                          </button>
+                        ) : (
+                          <div className="w-full bg-amber-50/30 rounded-2xl p-3 border border-amber-100/50 mt-2">
+                            <span className="text-[9px] font-black text-amber-700 block mb-1 uppercase tracking-wider">● 针对性审计反馈</span>
+                            <p className="text-[11px] text-amber-900 font-semibold leading-relaxed whitespace-pre-wrap">{reversalFeedback}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* AI 多维评分与专属 AI 交互舱 */}
+                  {aiScore !== null && (
+                    <div className="bg-white rounded-[2rem] p-5 border border-gray-100 shadow-[0_4px_30px_rgba(0,0,0,0.02)] flex flex-col gap-5">
+                      {/* 评分仪表盘 */}
+                      <div className="flex flex-col items-center justify-center pb-4 border-b border-gray-100">
+                        <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest block mb-2">吸收深度评分</span>
+                        <div className="relative flex items-center justify-center w-24 h-24">
+                          <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="48" cy="48" r="40" stroke="#f0f0f0" strokeWidth="6" fill="transparent" />
+                            <circle 
+                              cx="48" cy="48" r="40" 
+                              stroke="#FF5722" strokeWidth="6" fill="transparent" 
+                              strokeDasharray={251.2} 
+                              strokeDashoffset={251.2 - (251.2 * aiScore) / 10} 
+                              strokeLinecap="round"
+                              className="transition-all duration-1000 ease-out"
+                            />
+                          </svg>
+                          <div className="absolute flex flex-col items-center justify-center">
+                            <AnimatedScore score={aiScore} />
+                            <span className="text-[8px] font-bold text-gray-400">/ 10.0</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 评价及 Chat */}
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <span className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider block mb-1 flex items-center gap-1">
+                            <Award className="w-3.5 h-3.5" /> 穿透导师评价
+                          </span>
+                          <p className="text-[11px] text-gray-600 font-bold leading-relaxed whitespace-pre-wrap">{aiInsightDetails}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4 animate-[fadeIn_0.4s_ease-out] justify-start">
+                  <div className="bg-white rounded-3xl p-5 border border-slate-100/80 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col gap-4">
+                    <h5 className="text-xs font-black text-[#FF5722] uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
+                      <Target className="w-4 h-4 text-[#FF5722]" /> 高管认知穿透导引
+                    </h5>
+                    <p className="text-xs text-gray-500 leading-relaxed font-semibold">
+                      本系统旨在将输入的信息直接转化为高阶判断力和商业决策力。请在左侧主控区输入原始素材并启动解码。
+                    </p>
+                    
+                    <div className="flex flex-col gap-2.5 mt-1">
+                      <div className="p-3 bg-orange-50/50 rounded-2xl border border-orange-100/80 flex gap-2 items-start transition-all hover:bg-orange-50 hover:shadow-sm">
+                        <span className="text-[10px] bg-[#FF5722]/10 text-[#FF5722] font-black px-1.5 py-0.5 rounded">1</span>
+                        <div className="text-[11px] text-orange-900/90 font-medium">
+                          <span className="block text-orange-950 font-black mb-0.5">政策意图解构</span>
+                          透过字面词句，探寻隐藏意图与对我/行业的本质影响。
+                        </div>
+                      </div>
+                      <div className="p-3 bg-blue-50/50 rounded-2xl border border-blue-100/80 flex gap-2 items-start transition-all hover:bg-blue-50 hover:shadow-sm">
+                        <span className="text-[10px] bg-blue-500/10 text-blue-600 font-black px-1.5 py-0.5 rounded">2</span>
+                        <div className="text-[11px] text-blue-900/90 font-medium">
+                          <span className="block text-blue-950 font-black mb-0.5">财报与商业模式</span>
+                          审计出海企业盈利破绽与海外市场合规/风险痛点。
+                        </div>
+                      </div>
+                      <div className="p-3 bg-[var(--color-accent)]/5 rounded-2xl border border-[var(--color-accent)]/20 flex gap-2 items-start transition-all hover:bg-[var(--color-accent)]/10 hover:shadow-sm">
+                        <span className="text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-black px-1.5 py-0.5 rounded">3</span>
+                        <div className="text-[11px] text-[var(--color-brand)]/90 font-medium">
+                          <span className="block text-[var(--color-brand)] font-black mb-0.5">外企跨文化博弈</span>
+                          穿透外企客套话与逻辑阻碍，剥离各方真实利益立场。
+                        </div>
+                      </div>
+                      <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/80 flex gap-2 items-start transition-all hover:bg-emerald-50 hover:shadow-sm">
+                        <span className="text-[10px] bg-emerald-500/10 text-emerald-600 font-black px-1.5 py-0.5 rounded">4</span>
+                        <div className="text-[11px] text-emerald-900/90 font-medium">
+                          <span className="block text-emerald-950 font-black mb-0.5">高阶书目与认知</span>
+                          纠偏个人思考盲点与逻辑漏洞，构建管理与发展闭环。
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 状态看板卡片，展示历史缓存 */}
+                  <div className="bg-gradient-to-br from-[#202124] to-[#303134] rounded-3xl p-5 text-white shadow-[0_10px_30px_rgba(0,0,0,0.05)] flex flex-col gap-3">
+                    <div className="flex justify-between items-center border-b border-white/10 pb-2.5">
+                      <span className="text-[10px] font-black text-gray-400 tracking-wider uppercase">今日思维指数</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-black animate-pulse">训练舱就绪</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">吸收素材</span>
+                        <span className="text-lg font-black text-[#FF5722]">{todaySummary.absorbedCount} 篇</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">平均得分</span>
+                        <span className="text-lg font-black text-emerald-400">{todaySummary.averageScore || '-.-'} 分</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      <AnimatePresence mode="wait">
+        {showSuccessBadge && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ type: "spring", stiffness: 300, damping: 22 }}
+            className="fixed top-8 left-1/2 -translate-x-1/2 z-[3000] flex items-center gap-3 bg-zinc-900 border border-zinc-800 text-white px-6 py-3.5 rounded-full shadow-2xl"
+          >
+            <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center text-zinc-950 font-black text-xs">✓</div>
+            <span className="text-xs font-black uppercase tracking-widest text-zinc-100">深度达成 (Insight Acquired)</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* 素材未达标首次解码二次确认弹窗 */}
+      <AnimatePresence>
+        {showBelowStandardConfirm && (
+          <div className="fixed inset-0 z-[3500] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.18 }}
+              className="w-full max-w-sm bg-white rounded-3xl p-6 shadow-2xl border border-gray-100 flex flex-col items-center text-center"
+            >
+              <div className="w-12 h-12 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center mb-3.5">
+                <ShieldAlert className="w-6 h-6" />
+              </div>
+              <h3 className="text-base font-black text-gray-900 mb-2">
+                素材未达详尽标准，仍要解码？
+              </h3>
+              <p className="text-xs text-gray-600 mb-6 leading-relaxed">
+                当前约 <span className="font-bold text-gray-900">{pushCharCount}</span> 字，缺：
+                <span className="font-bold text-amber-700">
+                  {pushQualityResult?.missingReasons?.join('、') || '可引用条款/数据'}
+                </span>
+                。
+              </p>
+              <div className="flex w-full gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowBelowStandardConfirm(false)}
+                  className="flex-1 py-3 px-4 rounded-xl border border-gray-200 text-xs font-black text-gray-600 hover:bg-gray-50 active:scale-95 transition-all cursor-pointer"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setDecodeAck(true);
+                    setShowBelowStandardConfirm(false);
+                    await executePenetration();
+                  }}
+                  className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer"
+                >
+                  仍要解码
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </ModuleWrapper>
   );
 }

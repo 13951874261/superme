@@ -6,3 +6,15 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Python Virtual Environment
+.venv/
+
+# Local portable Node (used to rebuild better-sqlite3, not part of the app)
+.tools/
+
+# SQLite local runtime (do not deploy/commit)
+*.db-shm
+*.db-wal
+vocab-server/vocab.db
+vocab-server/data/

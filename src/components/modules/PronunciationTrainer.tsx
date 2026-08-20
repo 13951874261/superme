@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Mic, Loader2, History, ChevronDown, CheckCircle, AlertCircle, Volume2 } from 'lucide-react';
+import { Mic, Loader2, History, ChevronDown, CheckCircle, AlertCircle, Volume2, Upload } from 'lucide-react';
 import { transcribeAudio } from '../../services/listeningAPI';
+import { getAppUserId } from '../../utils/profileHelper';
 
 interface PronunciationTrainerProps {
   initialNotes: string;
@@ -19,7 +20,7 @@ interface AssessmentResult {
   recognized_text: string;
 }
 
-export default function PronunciationTrainer({ initialNotes, onNotesChange, userId = 'default-user' }: PronunciationTrainerProps) {
+export default function PronunciationTrainer({ initialNotes, onNotesChange, userId = getAppUserId() }: PronunciationTrainerProps) {
   const [targetText, setTargetText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isAssessing, setIsAssessing] = useState(false);
@@ -39,6 +40,30 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const recognitionTextRef = useRef<string>('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log('[PronunciationTrainer] 未选择任何文件');
+      return;
+    }
+    console.log('[PronunciationTrainer] 已选择文件:', file.name, file.type, file.size);
+    if (!targetText.trim()) {
+      showToast('请先输入您要练习的目标单词或句子！');
+      // 清空 value 确保下次选同一个文件依然能触发
+      e.target.value = '';
+      return;
+    }
+
+    // 清空 value 确保下次选同一个文件依然能触发
+    e.target.value = '';
+
+    // 开始评估
+    await handleAssessment(file);
+  };
 
   // 同步外部状态
   useEffect(() => {
@@ -96,9 +121,30 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         await handleAssessment(audioBlob);
-        // 核心修复：绝对不要在这里 stop track！保持麦克风热启动状态，实现零延迟按住即录
-        // stream.getTracks().forEach(track => track.stop());
       };
+
+      // 启动浏览器原生 SpeechRecognition 托底
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+        
+        recognitionTextRef.current = '';
+        recognition.onresult = (event: any) => {
+          let text = '';
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            text += event.results[i][0].transcript;
+          }
+          recognitionTextRef.current = text.trim();
+        };
+        recognition.onerror = (err: any) => {
+          console.warn('SpeechRecognition error:', err);
+        };
+        recognition.start();
+        recognitionRef.current = recognition;
+      }
 
       mediaRecorder.start();
       setIsRecording(true);
@@ -113,13 +159,34 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
       mediaRecorderRef.current.stop();
       setIsRecording(false);
     }
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
   };
 
   const handleAssessment = async (audioBlob: Blob) => {
     setIsAssessing(true);
     setLastResult(null);
     try {
-      const recognizedText = await transcribeAudio(audioBlob);
+      let recognizedText = '';
+      try {
+        recognizedText = await transcribeAudio(audioBlob);
+      } catch (err) {
+        console.error('语音转写接口失败，尝试使用原生识别托底:', err);
+        recognizedText = recognitionTextRef.current;
+        if (!recognizedText) {
+          // 不再直接 throw Error，而是允许兜底为空，或者赋值特定的兜底字符，让 Dify 进行低分评价
+          console.warn('语音识别失败，且本地托底为空，采用 [Unrecognized] 占位符');
+          recognizedText = '[Unrecognized]';
+        } else {
+          console.log('已应用原生语音识别托底内容: ', recognizedText);
+        }
+      }
+
+      // 二次保障：万一 Whisper 返回了完全空的文本
+      if (!recognizedText || !recognizedText.trim()) {
+         recognizedText = '[Unrecognized]';
+      }
 
       const response = await fetch(`/api/pronunciation-assessment`, {
         method: 'POST',
@@ -191,7 +258,24 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
           className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#FF5722]/50 transition-colors"
           disabled={isRecording || isAssessing}
         />
-        
+
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          accept="audio/*"
+          style={{ display: 'none' }}
+        />
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isAssessing}
+          className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white"
+          title="上传音频文件"
+        >
+          <Upload className="w-5 h-5" />
+        </button>
+
         <button
           onMouseDown={startRecording}
           onMouseUp={stopRecording}
@@ -251,13 +335,13 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
         </div>
       )}
 
-      {/* 内容展示区：使用自适应高度，通过 rows=6 保证初始可见度 */}
+      {/* 内容展示区：初始 rows=3，避免空状态过高；可手动拖拽增高 */}
       <div className="flex-1 relative mt-1">
         <textarea
           value={records.length > 0 ? records[selectedIndex]?.content : localNotes}
           onChange={handleNotesEdit}
           onClick={(e) => e.stopPropagation()}
-          rows={6}
+          rows={3}
           className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-sm text-white/90 placeholder-gray-600 outline-none resize-y focus:border-white/20 transition-colors"
           placeholder="录音后的 AI 诊断结果将自动填充于此，您也可以手动补充笔记..."
         />
@@ -321,7 +405,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
             {/* 问题类型标签 */}
             <span className={`px-2 py-1 rounded text-xs font-medium ${
               lastResult.issueType === 'vowel' ? 'bg-blue-500/20 text-blue-400' :
-              lastResult.issueType === 'consonant' ? 'bg-purple-500/20 text-purple-400' :
+              lastResult.issueType === 'consonant' ? 'bg-[var(--color-info)]/20 text-[var(--color-info)]' :
               lastResult.issueType === 'stress' ? 'bg-orange-500/20 text-orange-400' :
               lastResult.issueType === 'rhythm' ? 'bg-cyan-500/20 text-cyan-400' :
               'bg-gray-500/20 text-gray-400'

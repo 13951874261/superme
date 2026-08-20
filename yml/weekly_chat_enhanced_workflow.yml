@@ -1,0 +1,189 @@
+# 对应 API Key: app-1imBRwdxi4dxa1bSLbMLTvNu (VITE_DIFY_WEEKLY_CHAT_ENHANCED_API_KEY)
+app:
+  description: 每周夜话增强工作流，根据心智投喂和定制方向生成训练重组计划
+  icon: 🔮
+  icon_background: '#09090B'
+  icon_type: emoji
+  mode: workflow
+  name: Weekly Chat Enhanced Workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+      enabled: false
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 心智投喂文本
+          max_length: 2000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_text
+        - label: 定制方向
+          max_length: 500
+          options: []
+          required: false
+          type: text-input
+          variable: selected_directions
+        - label: 用户当前画像
+          max_length: 500
+          options: []
+          required: false
+          type: text-input
+          variable: user_current_profile
+        - label: 近期情景记忆摘要
+          max_length: 1500
+          options: []
+          required: false
+          type: paragraph
+          variable: recent_episodes_summary
+        - label: 结构化短板记录
+          max_length: 800
+          options: []
+          required: false
+          type: paragraph
+          variable: error_ledger_summary
+      height: 115
+      id: start
+      position:
+        x: 80
+        y: 200
+      positionAbsolute:
+        x: 80
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 每周夜话深度研判与训练重组
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-4o
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: weekly-enhanced-sys-prompt
+          role: system
+          text: |-
+            你是Superme系统的每周夜话智囊。请对用户的心智投喂进行深度分析，并生成下周训练重组计划。
+
+            【输出规范】
+            请必须且只能按照以下 XML 格式返回，不要包含任何多余文字：
+            <response>
+              <analysis>150字左右的深度研判分析，指出思维盲区和突破路径</analysis>
+              <core_themes>2-5个核心主题，英文逗号分隔</core_themes>
+              <next_week_push>
+                <yuxin_game_theory>驭心博弈推送主题，逗号分隔</yuxin_game_theory>
+                <oral_scenario>口语沙盘场景描述</oral_scenario>
+                <oral_roles>口语沙盘角色设定</oral_roles>
+                <oral_focus>口语沙盘训练重点</oral_focus>
+                <oral_difficulty>1-5的难度级别</oral_difficulty>
+                <impromptu_topic>即兴表达主题</impromptu_topic>
+                <impromptu_levels>目标层级，逗号分隔</impromptu_levels>
+                <general_focus>通用训练焦点，逗号分隔</general_focus>
+              </next_week_push>
+              <preview>下周推送预告（100字以内）</preview>
+              <profile_factors>画像更新因子（1-3个关键词，英文逗号分隔）</profile_factors>
+            </response>
+        - id: weekly-enhanced-user-prompt
+          role: user
+          text: |-
+            用户当前画像：{{#start.user_current_profile#}}
+
+            近期情景记忆（L2，跨会话沉淀）：
+            {{#start.recent_episodes_summary#}}
+
+            结构化短板记录（error_ledger）：
+            {{#start.error_ledger_summary#}}
+
+            心智投喂文本：
+            """
+            {{#start.user_text#}}
+            """
+
+            定制方向：{{#start.selected_directions#}}
+        selected: false
+        title: 深度研判LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 200
+      positionAbsolute:
+        x: 380
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+  rag_pipeline_variables: []

@@ -1,27 +1,17 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckCircle2, Clock3, Loader2, Target, TimerReset, Volume2, Zap } from 'lucide-react';
+import { BookmarkPlus, CheckCircle2, Clock3, Loader2, TimerReset, Volume2, Zap } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import SpeakButton from '../SpeakButton';
-import { runEnglishWakeupRoutine } from '../../services/difyAPI';
+import { useVocabCollect } from '../../hooks/useVocabCollect';
+import { showToast } from '../Toast';
+import PronunciationTrainer from './PronunciationTrainer';
+import GrammarPolishTrainer from './GrammarPolishTrainer';
+import { useEnglishContext } from './english/context/EnglishContext';
+import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, WakeupWord, buildDailyPackQueryInput } from '../../services/dailyPackAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
+import { getAppUserId } from '../../utils/profileHelper';
 
-interface WakeupWord {
-  word: string;
-  ipa: string;
-  pronunciation_note: string;
-  meaning_zh: string;
-  example: string;
-}
-
-interface WakeupResult {
-  theme: string;
-  vocab: WakeupWord[];
-  grammar: {
-    point: string;
-    explanation: string;
-    examples: Array<{ correct: string; incorrect: string }>;
-  };
-}
+interface WakeupResult extends WakeupPayload {}
 
 function formatSeconds(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
@@ -30,13 +20,30 @@ function formatSeconds(totalSeconds: number) {
 }
 
 export default function DailyWakeupModule() {
-  const [theme, setTheme] = useState('银团贷款');
+  const {
+    pronunciationNotes,
+    setPronunciationNotes,
+    grammarNotes,
+    setGrammarNotes,
+    theme,
+    setTheme,
+    stayStats,
+    todaySession,
+    refreshStayStats,
+    refreshTodaySession,
+  } = useEnglishContext();
+  const [isOpen, setIsOpen] = useState(true);
   const [result, setResult] = useState<WakeupResult | null>(null);
+  const [packStatus, setPackStatus] = useState<'missing' | 'ready' | 'failed' | 'generating' | null>(null);
   const [loading, setLoading] = useState(false);
   const [checkInLoading, setCheckInLoading] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
+  const { collect, isCollecting, isCollected } = useVocabCollect({
+    notify: (message, type) => showToast({ message, type }),
+  });
+  
   const startRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
 
@@ -61,16 +68,100 @@ export default function DailyWakeupModule() {
 
   useEffect(() => () => stopTimer(), []);
 
-  const handleStart = async () => {
-    setLoading(true);
-    setNotice('正在生成今日唤醒内容...');
+  const applyPack = (pack: Awaited<ReturnType<typeof getTodayDailyPack>>) => {
+    setPackStatus(pack.status);
+    if (pack.status === 'ready' && pack.wakeup) {
+      setResult(pack.wakeup);
+      setNotice(`已加载今日唤醒：${pack.wakeup.theme || theme}`);
+      return true;
+    }
+    setResult(null);
+    if (pack.status === 'failed') {
+      setNotice(pack.errorMessage || '今日唤醒生成失败，可立即生成');
+    } else if (pack.status === 'generating') {
+      setNotice('暂无可用缓存，请点击「刷新今日包」手动生成');
+    } else {
+      setNotice(`暂无缓存（${getAppUserId()}），请点击「刷新今日包」手动生成`);
+    }
+    return false;
+  };
+
+  const loadTodayPack = async (reason: string) => {
     try {
-      const data = await runEnglishWakeupRoutine(theme);
-      setResult(data);
-      setNotice(`已生成主题：${data.theme || theme}`);
+      // D1: 与破绽/生成共用稳定入参，避免空 history 与满 history 两套签名
+      const queryInput = await buildDailyPackQueryInput(theme);
+      const pack = await getTodayDailyPack(queryInput);
+      applyPack(pack);
+      return pack;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : '加载失败';
+      setNotice(`读取今日包失败：${msg}`);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    // 不使用 cancelled 短路：StrictMode 双挂载时，旧请求结果也应写入，避免永远停在初始 notice
+    void loadTodayPack('mount');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const refreshIfEmpty = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (result || loading) return;
+      void loadTodayPack('visibility');
+    };
+    document.addEventListener('visibilitychange', refreshIfEmpty);
+    window.addEventListener('focus', refreshIfEmpty);
+    return () => {
+      document.removeEventListener('visibilitychange', refreshIfEmpty);
+      window.removeEventListener('focus', refreshIfEmpty);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, loading]);
+
+  const handleStartPractice = () => {
+    if (!result) {
+      setNotice('请先生成今日唤醒内容');
+      return;
+    }
+    void refreshStayStats(true);
+    void refreshTodaySession();
+    startTimer();
+    setNotice(`练习计时已开始：${result.theme || theme}`);
+  };
+
+  const handleRegenerate = async () => {
+    if (loading) return;
+    setLoading(true);
+    setNotice(result ? '正在重新为您定制今日专属唤醒训练…' : '正在为您智能定制今日专属唤醒训练...');
+    try {
+      void refreshStayStats(true);
+      void refreshTodaySession();
+      const queryInput = await buildDailyPackQueryInput(theme);
+      const pack = await regenerateDailyPack('wakeup', queryInput);
+      if (pack.status !== 'ready' || !pack.wakeup) {
+        const cached = await getTodayDailyPack(queryInput).catch(() => null);
+        if (cached && applyPack(cached)) return;
+        throw new Error(pack.errorMessage || '今日专属唤醒内容定制中');
+      }
+      applyPack(pack);
       startTimer();
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : '生成失败');
+      const queryInput = await buildDailyPackQueryInput(theme).catch(() => null);
+      const cached = queryInput ? await getTodayDailyPack(queryInput).catch(() => null) : null;
+      if (cached && applyPack(cached)) {
+        startTimer();
+        return;
+      }
+      setPackStatus('failed');
+      const fallbackMsg = '今日唤醒包正在后台加速准备，您可先在生词本或听力模块进行热身';
+      setNotice(fallbackMsg);
+      try {
+        const { showToast } = await import('../Toast');
+        showToast({ message: fallbackMsg, type: 'info' });
+      } catch (err) {}
     } finally {
       setLoading(false);
     }
@@ -93,6 +184,7 @@ export default function DailyWakeupModule() {
       });
       setNotice(`打卡成功，今日练习时长 ${formatSeconds(seconds)}`);
       stopTimer();
+      await Promise.all([refreshStayStats(true), refreshTodaySession()]);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : '打卡失败');
     } finally {
@@ -100,108 +192,253 @@ export default function DailyWakeupModule() {
     }
   };
 
+  // 逐条收录唤醒高频词：收录即补齐词汇矩阵，3 秒未完成转入任务中心
+  const handleCollectWord = async (item: WakeupWord) => {
+    await collect({
+      text: item.word,
+      topic: result?.theme || theme,
+      source: 'Daily Wakeup',
+      payload: {
+        phonetic: item.ipa,
+        meaning: item.meaning_zh,
+        business_note: item.pronunciation_note,
+        examples: [item.example],
+      },
+    });
+  };
+
   const completedCount = useMemo(() => result?.vocab?.length || 0, [result]);
 
+  // 动态徽章
+  const stickerBadge = useMemo(() => {
+    const isCompleted = todaySession && todaySession.totalMinutes > 0;
+    const days = stayStats?.stayDays || 0;
+    
+    if (isCompleted) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 animate-fade-in relative z-20">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          唤醒打卡已完成
+        </div>
+      );
+    }
+    
+    if (running) {
+      return (
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse relative z-20">
+          <Clock3 className="w-3.5 h-3.5" />
+          唤醒打卡计时中
+        </div>
+      );
+    }
+    
+    return (
+      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black bg-[#FF5722]/10 text-[#FF5722] border border-[#FF5722]/20 relative z-20">
+        <span>主题研习第 {days} 天</span>
+      </div>
+    );
+  }, [todaySession, stayStats, running]);
+
+  const checkInLabel = running
+    ? `计时中 (${formatSeconds(seconds)})`
+    : todaySession && todaySession.totalMinutes > 0
+      ? `已打卡 (${todaySession.totalMinutes} 分钟)`
+      : '未打卡';
+
   return (
-    <ModuleWrapper
+    <ModuleWrapper 
+      isOpen={isOpen}
+      onToggleCollapse={() => setIsOpen(prev => !prev)}
       title="每日唤醒 ｜ 发音与语法闭环"
-      icon={<Target className="w-8 h-8" strokeWidth={2.5} />}
-      description="根据主题生成发音注意点与关联语法点，配合 TTS 朗读和训练时长打卡，形成每日唤醒闭环。"
+      icon={<TimerReset className="w-8 h-8" strokeWidth={2.5} />}
+      description="主题生成发音注意点与关联语法点，配合 TTS 与时长打卡形成闭环。"
+      badge={stickerBadge}
+      compact
     >
-      <div className="space-y-6">
-        <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex flex-col gap-4">
-          <div className="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between">
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-2">Daily Wakeup // 基础唤醒</div>
-              <h3 className="text-2xl font-black text-[#202124]">发音与语法唤醒机制</h3>
-              <p className="text-sm text-gray-500 mt-2">主题驱动生成 10 个高频词 + 1 个关联语法点，并记录练习时长。</p>
-            </div>
-            <div className="flex items-center gap-4">
-              {/* 右上角：简短功能说明区 */}
-              <div className="hidden md:flex flex-col items-start justify-center gap-1.5 text-xs text-gray-500 font-medium mr-4 border-l-2 border-gray-100 pl-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
-                  <span>场景高频词汇实时生成</span>
+      <style>{`
+        @keyframes border-glow {
+          0%, 100% { border-color: rgba(245, 158, 11, 0.15); box-shadow: 0 8px 20px rgba(245, 158, 11, 0.02); }
+          50% { border-color: rgba(245, 158, 11, 0.45); box-shadow: 0 8px 24px rgba(245, 158, 11, 0.1); }
+        }
+        .animate-glow-pulse {
+          animation: border-glow 3s infinite ease-in-out;
+        }
+      `}</style>
+
+      <div className="bg-white rounded-2xl p-3 md:p-4 border border-slate-100/80 shadow-[0_8px_24px_rgba(0,0,0,0.02)] flex flex-col gap-3 h-auto animate-fade-in">
+
+        {/* 合并工作台：状态 + 操作 + 计时 */}
+        <div className={`w-full rounded-xl text-white relative overflow-hidden transition-all duration-500 ${
+          running
+            ? 'bg-[#1b1c1e] border border-amber-500/30 ring-1 ring-amber-500/10 animate-glow-pulse'
+            : 'bg-[#202124] border border-white/5'
+        }`}>
+          <div
+            className="absolute inset-0 opacity-[0.03] pointer-events-none"
+            style={{
+              backgroundImage: `
+                linear-gradient(to right, rgba(255,255,255,0.1) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.1) 1px, transparent 1px)
+              `,
+              backgroundSize: '20px 20px'
+            }}
+          />
+          <div className={`absolute -right-16 -bottom-16 w-40 h-40 rounded-full blur-3xl pointer-events-none ${
+            running ? 'bg-amber-500/10' : 'bg-emerald-500/5'
+          }`} />
+
+          <div className="relative z-10 p-3 md:p-3.5 flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1 flex flex-col gap-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest bg-white/10 text-gray-300 border border-white/5">
+                    Status
+                  </span>
+                  <span className={`h-1.5 w-1.5 rounded-full ${running ? 'bg-amber-500 animate-ping' : todaySession && todaySession.totalMinutes > 0 ? 'bg-emerald-500' : 'bg-gray-500'}`} />
+                  <span className="text-xs font-bold text-gray-400">
+                    {running ? '唤醒计时中' : todaySession && todaySession.totalMinutes > 0 ? '今日已完成' : '等待开启'}
+                  </span>
+                  <span className="text-[11px] font-semibold text-gray-400">·</span>
+                  <span className={`text-[11px] font-bold ${running ? 'text-amber-400' : todaySession && todaySession.totalMinutes > 0 ? 'text-emerald-400' : 'text-gray-400'}`}>
+                    {checkInLabel}
+                  </span>
+                  <span className="text-[11px] font-semibold text-gray-500">· 累计 {stayStats?.stayDays || 0} 天</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
-                  <span>标准发音示范与影子跟读</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#FF5722]"></div>
-                  <span>商业语法提取与正误对比</span>
+                <div className="text-sm font-black text-white truncate">
+                  <span className="text-gray-500 font-bold text-[11px] uppercase tracking-wider mr-2">主题</span>
+                  <span className="text-amber-400">{theme}</span>
                 </div>
               </div>
 
-              {/* 计时器组件 */}
-              <div className="flex items-center gap-3 rounded-2xl bg-[#f8f9fa] border border-gray-100 px-4 py-3">
-                <Clock3 className="w-5 h-5 text-[#FF5722]" />
-                <div>
-                  <div className="text-[10px] uppercase tracking-widest text-gray-400 font-black">专注时长</div>
-                  <div className="text-lg font-black text-[#202124]">{formatSeconds(seconds)}</div>
-                </div>
+              <div className="relative flex flex-col items-center justify-center w-16 h-16 shrink-0 rounded-full bg-white/5 border border-white/10">
+                <svg className="absolute w-full h-full transform -rotate-90" viewBox="0 0 64 64" aria-hidden>
+                  <circle cx="32" cy="32" r="26" stroke="rgba(255,255,255,0.08)" strokeWidth="4" fill="transparent" />
+                  <circle
+                    cx="32" cy="32" r="26" stroke="#FF5722" strokeWidth="4" fill="transparent"
+                    strokeDasharray={163.4}
+                    strokeDashoffset={163.4 - (seconds % 60) * (163.4 / 60)}
+                    className="transition-all duration-1000 ease-linear"
+                  />
+                </svg>
+                <span className="text-sm font-bold font-mono tabular-nums z-10">{formatSeconds(seconds)}</span>
               </div>
             </div>
-          </div>
 
-          <div className="flex flex-col lg:flex-row gap-3">
-            <input
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-              className="flex-1 rounded-2xl border border-gray-200 px-4 py-3 text-sm font-bold outline-none focus:border-[#FF5722]"
-              placeholder="输入主题，例如：银团贷款"
-            />
-            <button
-              onClick={handleStart}
-              disabled={loading}
-              className="px-6 py-3 rounded-2xl bg-[#202124] text-white font-black text-xs tracking-widest uppercase hover:bg-[#FF5722] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
-              {loading ? '唤醒生成中' : '开始今日唤醒'}
-            </button>
-            <button
-              onClick={handleCheckIn}
-              disabled={checkInLoading || !result}
-              className="px-6 py-3 rounded-2xl bg-emerald-500 text-white font-black text-xs tracking-widest uppercase hover:bg-emerald-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {checkInLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-              完成打卡
-            </button>
-          </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+                className="flex-1 bg-white/5 rounded-xl border border-white/10 px-3 py-2 text-sm font-bold text-white outline-none focus:border-[#FF5722] focus:ring-2 focus:ring-[#FF5722]/20 transition-all placeholder:text-gray-500"
+                placeholder="输入主题，例如：银团贷款"
+              />
+              <div className="flex gap-2 shrink-0">
+                {result ? (
+                  <>
+                    <button
+                      onClick={handleStartPractice}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      开始练习
+                    </button>
+                    <button
+                      onClick={handleRegenerate}
+                      disabled={loading}
+                      className="px-4 py-2 rounded-xl border border-white/20 bg-white/5 text-white font-black text-xs tracking-wide hover:bg-white/10 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <TimerReset className="w-3.5 h-3.5" />}
+                      {loading ? '生成中' : '重新生成'}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={loading}
+                    className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Zap className="w-3.5 h-3.5" />}
+                    {loading ? '生成中' : packStatus === 'failed' ? '立即生成' : '开始今日唤醒'}
+                  </button>
+                )}
+                <button
+                  onClick={handleCheckIn}
+                  disabled={checkInLoading || !result}
+                  className="px-4 py-2 rounded-xl border border-emerald-500/40 bg-emerald-500/10 text-emerald-300 font-black text-xs tracking-wide hover:bg-emerald-500/20 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {checkInLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                  完成打卡
+                </button>
+              </div>
+            </div>
 
-          <div className="rounded-2xl bg-[#f8f9fa] border border-gray-100 p-4 text-sm text-gray-600 flex items-center justify-between gap-4">
-            <span>{notice}</span>
-            <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">已生成 {completedCount} 个词</span>
+            <div className="flex items-center justify-between gap-3 text-xs text-gray-400 border-t border-white/5 pt-2.5">
+              <span className="flex items-center gap-2 min-w-0">
+                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${running ? 'bg-emerald-500 animate-pulse' : 'bg-gray-500'}`} />
+                <span className="truncate" title={notice}>{notice}</span>
+              </span>
+              <span className="flex items-center gap-2 shrink-0">
+                {!result && (
+                  <button
+                    type="button"
+                    onClick={() => void loadTodayPack('manual')}
+                    className="text-[10px] font-black uppercase tracking-widest text-amber-400 hover:text-amber-300 cursor-pointer"
+                  >
+                    刷新今日包
+                  </button>
+                )}
+                <span className="text-[10px] font-black uppercase tracking-widest text-gray-500">
+                  已生成 {completedCount} 词
+                </span>
+              </span>
+            </div>
           </div>
         </div>
 
         {result && (
           <>
-            <div className="bg-white rounded-[2rem] border border-gray-100 p-6 shadow-sm">
-              <div className="flex items-center gap-2 mb-5">
-                <Volume2 className="w-5 h-5 text-[#FF5722]" />
-                <h4 className="text-sm font-black uppercase tracking-widest text-[#202124]">10 个高频词发音注意点</h4>
+            <div className="bg-white rounded-xl border border-slate-100 p-3.5">
+              <div className="flex items-center gap-2 mb-3">
+                <Volume2 className="w-4 h-4 text-[#FF5722]" />
+                <h4 className="text-xs font-black uppercase tracking-widest text-[#202124]">10 个高频词发音注意点</h4>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {result.vocab.map((item) => (
                   <div
                     key={item.word}
-                    className="text-left rounded-2xl border border-gray-100 p-4 bg-[#f8f9fa] hover:border-[#FF5722] hover:bg-white transition-colors group"
+                    className="text-left rounded-xl border border-gray-100 p-3 bg-[#f8f9fa] hover:border-[#FF5722] hover:bg-white transition-colors group"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <div className="text-lg font-black text-[#202124]">{item.word}</div>
-                          <SpeakButton text={item.word} title={`播放 ${item.word}`} />
-                        </div>
-                        <div className="text-sm text-blue-600 font-mono mt-1">{item.ipa}</div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <div className="text-base font-black text-[#202124]">{item.word}</div>
+                        <SpeakButton text={item.word} title={`播放 ${item.word}`} />
                       </div>
+                      <button
+                        onClick={() => handleCollectWord(item)}
+                        disabled={isCollecting(item.word) || isCollected(item.word)}
+                        title="收录入生词本并补齐词汇矩阵"
+                        className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 disabled:cursor-default ${
+                          isCollected(item.word)
+                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                            : 'text-[#FF5722] bg-orange-50 border-orange-200 hover:bg-[#FF5722] hover:text-white'
+                        }`}
+                      >
+                        {isCollecting(item.word) ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : isCollected(item.word) ? (
+                          <CheckCircle2 className="w-3 h-3" />
+                        ) : (
+                          <BookmarkPlus className="w-3 h-3" />
+                        )}
+                        {isCollecting(item.word) ? '收录中' : isCollected(item.word) ? '已收录' : '收录'}
+                      </button>
                     </div>
-                    <div className="text-sm text-gray-600 mt-2">{item.meaning_zh}</div>
-                    <div className="mt-3 rounded-xl bg-orange-50 text-orange-700 text-xs font-medium p-3 leading-relaxed">
+                    <div className="text-xs text-blue-600 font-mono mt-0.5">{item.ipa}</div>
+                    <div className="text-sm text-gray-600 mt-1.5">{item.meaning_zh}</div>
+                    <div className="mt-2 rounded-lg bg-orange-50 text-orange-700 text-xs font-medium p-2 leading-relaxed">
                       {item.pronunciation_note}
                     </div>
-                    <div className="mt-3 text-xs text-gray-500 italic leading-relaxed flex items-start justify-between gap-3">
+                    <div className="mt-2 text-xs text-gray-500 italic leading-relaxed flex items-start justify-between gap-2">
                       <span>{item.example}</span>
                       <SpeakButton text={item.example} title="播放例句" className="flex-shrink-0" />
                     </div>
@@ -210,50 +447,39 @@ export default function DailyWakeupModule() {
               </div>
             </div>
 
-            <div className="bg-[#202124] rounded-[2rem] border border-gray-900 p-6 lg:p-8 text-white shadow-sm flex flex-col gap-6">
-              <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+            <div className="bg-[#202124] rounded-xl border border-gray-900 p-3.5 text-white flex flex-col gap-3">
+              <div className="flex flex-col md:flex-row md:items-start justify-between gap-2.5">
                 <div className="flex items-center gap-2">
-                  <TimerReset className="w-5 h-5 text-[#FF5722]" />
-                  <h4 className="text-sm font-black uppercase tracking-widest">关联语法点</h4>
+                  <TimerReset className="w-4 h-4 text-[#FF5722]" />
+                  <h4 className="text-xs font-black uppercase tracking-widest">关联语法点</h4>
                 </div>
-                <div className="text-[11px] text-gray-400 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 flex flex-col gap-1.5 leading-relaxed">
-                  <div className="flex items-start gap-1.5">
-                    <div className="w-1 h-1 rounded-full bg-[#FF5722] mt-1.5 shrink-0"></div>
-                    <div><span className="text-gray-300 font-bold">作用：</span>提供造句底层骨架，完成从单词发音到严谨商务长句的升维闭环。</div>
-                  </div>
-                  <div className="flex items-start gap-1.5">
-                    <div className="w-1 h-1 rounded-full bg-[#FF5722] mt-1.5 shrink-0"></div>
-                    <div><span className="text-gray-300 font-bold">用法：</span>结合上方高频词，对照正误示例进行场景化跟读与造句训练。</div>
-                  </div>
+                <div className="text-[11px] text-gray-400 bg-white/5 border border-white/10 rounded-lg px-3 py-2 flex flex-col gap-1 leading-relaxed">
+                  <div><span className="text-gray-300 font-bold">作用：</span>提供造句骨架，完成发音到商务长句的闭环。</div>
+                  <div><span className="text-gray-300 font-bold">用法：</span>结合高频词，对照正误示例跟读与造句。</div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center mt-2">
-                {/* 左侧：语法核心与释义 */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                 <div className="lg:col-span-5 flex flex-col">
-                  <h5 className="text-2xl lg:text-3xl font-black mb-4">{result.grammar.point}</h5>
-                  <p className="text-gray-300 text-sm lg:text-base leading-relaxed">{result.grammar.explanation}</p>
+                  <h5 className="text-xl font-black mb-2">{result.grammar.point}</h5>
+                  <p className="text-gray-300 text-sm leading-relaxed">{result.grammar.explanation}</p>
                 </div>
-                
-                {/* 右侧：实战例句对错阵列 */}
-                <div className="lg:col-span-7 flex flex-col gap-4">
+                <div className="lg:col-span-7 flex flex-col gap-2.5">
                   {result.grammar.examples.map((ex, idx) => (
-                    <div key={idx} className="rounded-2xl bg-white/5 border border-white/10 p-5 flex flex-col md:flex-row gap-6">
+                    <div key={idx} className="rounded-xl bg-white/5 border border-white/10 p-3 flex flex-col md:flex-row gap-3">
                       <div className="flex-1">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-2">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
                             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div> Correct
                           </div>
                           <SpeakButton text={ex.correct} title="播放正确商务例句" />
                         </div>
                         <div className="text-sm text-white font-medium leading-relaxed">{ex.correct}</div>
                       </div>
-                      
                       <div className="hidden md:block w-px bg-white/10"></div>
-                      
                       <div className="flex-1">
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-[10px] font-black uppercase tracking-widest text-red-400 flex items-center gap-2">
+                        <div className="flex items-center justify-between mb-1.5">
+                          <div className="text-[10px] font-black uppercase tracking-widest text-red-400 flex items-center gap-1.5">
                             <div className="w-1.5 h-1.5 rounded-full bg-red-400"></div> Incorrect
                           </div>
                           <SpeakButton text={ex.incorrect} title="播放常见错误发音以作比对" />
@@ -267,6 +493,37 @@ export default function DailyWakeupModule() {
             </div>
           </>
         )}
+
+        {/* 基础唤醒追踪 */}
+        <div className="bg-[#202124] rounded-xl p-3.5 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-[#FF5722]/10 rounded-full blur-3xl pointer-events-none"></div>
+          <h4 className="text-xs font-black uppercase tracking-widest text-[#FF5722] mb-3 flex items-center">
+            <Clock3 className="w-4 h-4 mr-2" /> 基础唤醒追踪
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 relative z-10">
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col">
+              <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1.5 flex-shrink-0">发音纠正 (10min/Day)</span>
+              <div className="flex-1 min-h-0">
+                <PronunciationTrainer
+                  initialNotes={pronunciationNotes}
+                  onNotesChange={setPronunciationNotes}
+                  userId={getAppUserId()}
+                />
+              </div>
+            </div>
+            <div className="bg-white/5 border border-white/10 rounded-xl p-3 flex flex-col">
+              <span className="text-[10px] text-gray-400 uppercase tracking-widest block mb-1.5 flex-shrink-0">核心语法复健 (8-10个核心点)</span>
+              <div className="flex-1 min-h-0">
+                <GrammarPolishTrainer
+                  initialNotes={grammarNotes}
+                  onNotesChange={setGrammarNotes}
+                  userId={getAppUserId()}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </ModuleWrapper>
   );

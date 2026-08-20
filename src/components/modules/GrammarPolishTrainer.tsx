@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Sparkles, Loader2, History, ChevronDown } from 'lucide-react';
+import { getAppUserId } from '../../utils/profileHelper';
 
 interface GrammarPolishTrainerProps {
   initialNotes: string;
@@ -7,7 +8,7 @@ interface GrammarPolishTrainerProps {
   userId?: string;
 }
 
-export default function GrammarPolishTrainer({ initialNotes, onNotesChange, userId = 'default-user' }: GrammarPolishTrainerProps) {
+export default function GrammarPolishTrainer({ initialNotes, onNotesChange, userId = getAppUserId() }: GrammarPolishTrainerProps) {
   const [targetText, setTargetText] = useState('');
   const [isPolishing, setIsPolishing] = useState(false);
   const [localNotes, setLocalNotes] = useState(initialNotes);
@@ -101,10 +102,10 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
       {/* 顶部操作区 */}
       <div className="flex gap-2 items-center relative">
         {toast.show && (
-          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#202124] border border-[#00BCD4]/30 text-white text-xs px-4 py-2 rounded-lg shadow-[0_4px_12px_rgba(0,188,212,0.15)] z-50 whitespace-nowrap animate-fade-in-up flex items-center gap-2 transition-opacity duration-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#00BCD4] animate-pulse"></span>
+          <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-[#202124] border border-[var(--color-accent)]/30 text-white text-xs px-4 py-2 rounded-lg shadow-[0_4px_12px_rgba(255,87,34,0.15)] z-50 whitespace-nowrap animate-fade-in-up flex items-center gap-2 transition-opacity duration-300">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse"></span>
             {toast.message}
-            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#202124] rotate-45 border-r border-b border-[#00BCD4]/30"></div>
+            <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-[#202124] rotate-45 border-r border-b border-[var(--color-accent)]/30"></div>
           </div>
         )}
         <input
@@ -117,7 +118,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
             }
           }}
           placeholder="输入原始英文 (如 I will do it...)"
-          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#00BCD4]/50 transition-colors"
+          className="flex-1 bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[var(--color-accent)]/50 transition-colors"
           disabled={isPolishing}
         />
         
@@ -127,12 +128,12 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
           className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
             isPolishing
               ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-              : 'bg-[#00BCD4] text-white hover:bg-[#00BCD4]/80 shadow-[0_0_10px_rgba(0,188,212,0.3)]'
+              : 'bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent)]/80 shadow-[0_4px_12px_rgba(255,87,34,0.25)]'
           }`}
           title="点击进行高管级语法润色"
         >
           {isPolishing ? (
-            <Loader2 className="w-5 h-5 animate-spin text-[#00BCD4]" />
+            <Loader2 className="w-5 h-5 animate-spin text-[var(--color-accent)]" />
           ) : (
             <Sparkles className="w-5 h-5" />
           )}
@@ -147,7 +148,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
             className="w-full flex items-center justify-between bg-black/30 border border-white/5 rounded-lg px-3 py-1.5 text-xs text-gray-300 hover:bg-black/50 transition-colors"
           >
             <div className="flex items-center gap-2 truncate">
-              <History className="w-3.5 h-3.5 text-[#00BCD4]" />
+              <History className="w-3.5 h-3.5 text-[var(--color-accent)]" />
               <span className="truncate">{records[selectedIndex]?.title || '选择历史记录'}</span>
             </div>
             <ChevronDown className={`w-4 h-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
@@ -163,7 +164,7 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
                     setIsDropdownOpen(false);
                   }}
                   className={`w-full text-left px-3 py-2 text-xs transition-colors border-b border-white/5 last:border-0 ${
-                    i === selectedIndex ? 'bg-[#00BCD4]/20 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
+                    i === selectedIndex ? 'bg-[var(--color-accent)]/20 text-white' : 'text-gray-400 hover:bg-white/5 hover:text-white'
                   }`}
                 >
                   {r.title}
@@ -174,19 +175,19 @@ export default function GrammarPolishTrainer({ initialNotes, onNotesChange, user
         </div>
       )}
 
-      {/* 内容展示区：使用自适应高度，通过 rows=6 保证初始可见度 */}
+      {/* 内容展示区：初始 rows=3，避免空状态过高；可手动拖拽增高 */}
       <div className="flex-1 relative mt-1">
         <textarea
           value={records.length > 0 ? records[selectedIndex]?.content : localNotes}
           onChange={handleNotesEdit}
           onClick={(e) => e.stopPropagation()}
-          rows={6}
+          rows={3}
           className="w-full bg-black/20 border border-white/5 rounded-xl p-3 text-sm text-white/90 placeholder-gray-600 outline-none resize-y focus:border-white/20 transition-colors"
           placeholder="AI 语法润色与解析将填充于此，您也可随时手动编辑..."
         />
         {isPolishing && (
           <div className="absolute inset-0 bg-black/50 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm z-10">
-            <div className="flex items-center gap-2 text-[#00BCD4] font-semibold text-xs tracking-widest uppercase">
+            <div className="flex items-center gap-2 text-[var(--color-accent)] font-semibold text-xs tracking-widest uppercase">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>AI 重构中...</span>
             </div>

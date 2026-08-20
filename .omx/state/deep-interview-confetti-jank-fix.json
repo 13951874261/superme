@@ -1,0 +1,20 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "e88dd70c-0718-4eca-abfd-6a5b3925716e",
+    "profile": "standard",
+    "type": "brownfield",
+    "slug": "confetti-jank-fix",
+    "rounds_completed": 6,
+    "current_ambiguity": 0.12,
+    "threshold": 0.2,
+    "pressure_pass_complete": true,
+    "non_goals_explicit": true,
+    "decision_boundaries_explicit": true,
+    "context_snapshot_path": ".omx/context/confetti-jank-fix-20260820T144552Z.md",
+    "interview_path": ".omx/interviews/confetti-jank-fix-20260820T145500Z.md",
+    "spec_path": ".omx/specs/deep-interview-confetti-jank-fix.md",
+    "handoff_pending": true
+  }
+}

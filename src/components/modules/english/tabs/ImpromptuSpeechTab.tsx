@@ -1,10 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy, ArrowRight, Sparkles } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
+import SpeakButton from '../../../SpeakButton';
+import { getUserCurrentProfile } from '../../../../utils/profileHelper';
+import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../../../utils/reviewHelper';
 
-const MAX_SECONDS = 300; // 5分钟上限
+const MAX_SECONDS = 1800; // 30分钟上限
 
 interface SpeechPrompterResult {
   outline: {
@@ -32,7 +35,91 @@ export default function ImpromptuSpeechTab() {
   const [isEngineReady, setIsEngineReady] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [transcript, setTranscript] = useState('');
-  const [isEvaluating, setIsEvaluating] = useState(false);
+  const [evaluatingStage, setEvaluatingStage] = useState<'idle' | 'transcribing' | 'evaluating' | 'generating'>('idle');
+  const isEvaluating = evaluatingStage !== 'idle';
+  const [exemplarText, setExemplarText] = useState('');
+
+  const [userProfile, setUserProfile] = useState('');
+  const [rebalanceTopic, setRebalanceTopic] = useState<string | null>(() => {
+    const plan = getNextWeekPushPlan();
+    return plan?.impromptuSpeech?.topic || null;
+  });
+
+  const effectiveTheme = rebalanceTopic || theme;
+
+  useEffect(() => {
+    setUserProfile(getUserCurrentProfile());
+    const handleProfileChange = () => {
+      setUserProfile(getUserCurrentProfile());
+    };
+    window.addEventListener('global-profile-changed', handleProfileChange);
+    const handleRebalance = (e: Event) => {
+      const plan = (e as CustomEvent<TrainingRebalancePlan>).detail || getNextWeekPushPlan();
+      setRebalanceTopic(plan?.impromptuSpeech?.topic || null);
+    };
+    window.addEventListener('global-training-rebalance', handleRebalance);
+    return () => {
+      window.removeEventListener('global-profile-changed', handleProfileChange);
+      window.removeEventListener('global-training-rebalance', handleRebalance);
+    };
+  }, []);
+
+  const parsedProfile = useMemo(() => {
+    if (!userProfile) return [];
+    return userProfile.split(';').map(s => s.trim()).filter(Boolean);
+  }, [userProfile]);
+
+  const [activeExemplarIdx, setActiveExemplarIdx] = useState<number | null>(null);
+  const exemplarContainerRef = useRef<HTMLDivElement>(null);
+
+  // 完美示范文本句切分
+  const exemplarSentences = useMemo(() => {
+    if (!exemplarText) return [];
+    return exemplarText
+      .split(/(?<!\b(?:Mr|Ms|Mrs|Dr|Co|Ltd|Inc|e\.g|i\.e|vs|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Assoc|Univ|Prof|Dept))(?<=[.?!])\s+|\n+/i)
+      .map(s => s.trim())
+      .filter(Boolean);
+  }, [exemplarText]);
+
+  useEffect(() => {
+    const handleProgress = (e: Event) => {
+      const { content, index } = (e as CustomEvent).detail;
+      if (typeof content === 'string' && exemplarText && content.trim() === exemplarText.trim()) {
+        setActiveExemplarIdx(index);
+        // 自动滚动到对应句子
+        const activeSpan = exemplarContainerRef.current?.querySelector(`[data-idx="${index}"]`);
+        if (activeSpan) {
+          activeSpan.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }
+    };
+
+    const handleStateChange = (e: Event) => {
+      const { content, state } = (e as CustomEvent).detail;
+      if (typeof content === 'string' && exemplarText && content.trim() === exemplarText.trim()) {
+        if (state === 'stopped') {
+          setActiveExemplarIdx(null);
+        }
+      }
+    };
+
+    const handleStopped = (e: Event) => {
+      const { content } = (e as CustomEvent).detail;
+      if (typeof content === 'string' && exemplarText && content.trim() === exemplarText.trim()) {
+        setActiveExemplarIdx(null);
+      }
+    };
+
+    window.addEventListener('tts-sentence-progress', handleProgress);
+    window.addEventListener('tts-state', handleStateChange);
+    window.addEventListener('tts-stopped', handleStopped);
+    return () => {
+      window.removeEventListener('tts-sentence-progress', handleProgress);
+      window.removeEventListener('tts-state', handleStateChange);
+      window.removeEventListener('tts-stopped', handleStopped);
+    };
+  }, [exemplarText]);
+
   const [evalResult, setEvalResult] = useState<{
     score: number;
     logic: number;
@@ -73,6 +160,50 @@ export default function ImpromptuSpeechTab() {
     };
   }, []);
 
+  // 当 theme 改变时，重置即兴演讲状态并停止任何正在进行的录音或播放
+  useEffect(() => {
+    // 1. 停止录音
+    manualStopRef.current = true;
+    recognitionRef.current?.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn('停止 MediaRecorder 失败:', e);
+      }
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    setIsEngineReady(false);
+
+    // 2. 停止回放与重置音频
+    if (audioPlaybackRef.current) {
+      try {
+        audioPlaybackRef.current.pause();
+      } catch (e) {
+        console.warn('暂停音频播放失败:', e);
+      }
+      audioPlaybackRef.current = null;
+    }
+    setIsPlaying(false);
+    setAudioUrl(null);
+    setAudioBlob(null);
+
+    // 3. 重置提示与评估状态
+    setElapsed(0);
+    setTranscript('');
+    accumulatedTranscriptRef.current = '';
+    setEvalResult(null);
+    setExemplarText('');
+    setPrompterResult(null);
+    setShowPrompter(false);
+    setIsLoadingPrompter(false);
+    setEvaluatingStage('idle');
+  }, [effectiveTheme]);
+
   // 自动向下滚动锚定
   useEffect(() => {
     if (scrollRef.current) {
@@ -89,7 +220,11 @@ export default function ImpromptuSpeechTab() {
     setIsLoadingPrompter(true);
     try {
       const { runSpeechPrompter } = await import('../../../../services/difyAPI');
-      const result = await runSpeechPrompter(theme, '中等');
+      const userProfile = getUserCurrentProfile();
+      const targetTheme = userProfile 
+        ? `${effectiveTheme} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)` 
+        : effectiveTheme;
+      const result = await runSpeechPrompter(targetTheme, '中等');
       setPrompterResult(result);
       setShowPrompter(true);
     } catch (err: any) {
@@ -99,9 +234,8 @@ export default function ImpromptuSpeechTab() {
     }
   };
 
-  const startAudioRecording = async () => {
+  const startAudioRecording = (stream: MediaStream) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
@@ -121,8 +255,9 @@ export default function ImpromptuSpeechTab() {
       };
 
       mediaRecorder.start();
-    } catch (err) {
-      console.warn('音频录制初始化失败:', err);
+    } catch (err: any) {
+      console.warn('录音引擎初始化失败:', err);
+      showNotice('oral', `录音引擎初始化失败: ${err.message || err}`, 'error');
     }
   };
 
@@ -156,11 +291,30 @@ export default function ImpromptuSpeechTab() {
     setAudioBlob(null);
   };
 
-  const startRecording = (isContinue = false) => {
+  const startRecording = async (isContinue = false) => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) {
       showNotice('oral', '当前浏览器不支持语音识别（建议使用 Chrome）', 'error');
       return;
+    }
+
+    let stream: MediaStream | null = null;
+    if (!isContinue) {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (err: any) {
+        console.warn('音频录制初始化失败:', err);
+        const errName = err.name || '';
+        const errMsg = err.message || '';
+        if (errName === 'NotFoundError' || errMsg.includes('not found') || errMsg.includes('Requested device not found')) {
+          showNotice('oral', '未检测到麦克风设备，请确保已插入麦克风或启用了录音设备。', 'error');
+        } else if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errMsg.includes('denied') || errMsg.includes('Permission denied')) {
+          showNotice('oral', '麦克风权限被拒。请在浏览器地址栏允许网页访问麦克风，并检查系统麦克风授权。', 'error');
+        } else {
+          showNotice('oral', `麦克风初始化失败: ${errMsg || err}`, 'error');
+        }
+        return;
+      }
     }
 
     manualStopRef.current = false;
@@ -182,7 +336,10 @@ export default function ImpromptuSpeechTab() {
 
     recognition.onerror = (event: any) => {
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        showNotice('oral', `麦克风权限被拒: ${event.error}`, 'error');
+        const errorMsg = event.error === 'not-allowed'
+          ? '麦克风权限被拒。请在浏览器地址栏允许网页访问麦克风，并检查系统麦克风授权。'
+          : '语音识别服务不可用，请确保浏览器允许该服务。';
+        showNotice('oral', errorMsg, 'error');
         stopRecording();
         return;
       }
@@ -217,7 +374,9 @@ export default function ImpromptuSpeechTab() {
       setEvalResult(null);
       setIsEngineReady(false);
       resetAudio();
-      startAudioRecording();
+      if (stream) {
+        startAudioRecording(stream);
+      }
     }
   };
 
@@ -234,25 +393,52 @@ export default function ImpromptuSpeechTab() {
   };
 
   const handleEvaluate = async () => {
-    if (!transcript.trim()) {
-      showNotice('oral', '请先完成演讲录音', 'error');
-      return;
-    }
-    if (elapsed < 300) {
-      const remaining = 300 - elapsed;
+    if (elapsed < 180) {
+      const remaining = 180 - elapsed;
       const remMin = Math.floor(remaining / 60);
       const remSec = remaining % 60;
       const remStr = remMin > 0 ? `${remMin} 分 ${remSec} 秒` : `${remSec} 秒`;
-      showNotice('oral', `演讲时长需达到 5 分钟，还差 ${remStr}，请继续录音`, 'error');
+      showNotice('oral', `演讲时长需达到 3 分钟，还差 ${remStr}，请继续录音`, 'error');
       return;
     }
-    setIsEvaluating(true);
-    playScan();
-    try {
-      const { runImpromptuSpeechEvaluation } = await import('../../../../services/difyAPI');
-      const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
 
-      const res = await runImpromptuSpeechEvaluation(theme, durationStr, transcript);
+    let finalTranscript = transcript;
+    playScan();
+
+    try {
+      const { runImpromptuSpeechEvaluation, transcribeAudioWithWhisper, runSpeechExemplar } = await import('../../../../services/difyAPI');
+
+      // 阶段 1：高精度语音转译
+      if (audioBlob) {
+        setEvaluatingStage('transcribing');
+        try {
+          const whisperText = await transcribeAudioWithWhisper(audioBlob);
+          if (whisperText) {
+            finalTranscript = whisperText;
+            setTranscript(whisperText);
+          }
+        } catch (whisperErr: any) {
+          console.error('Whisper 转译失败:', whisperErr);
+          if (!finalTranscript.trim()) {
+            throw new Error(`语音转译失败且无本地转录文本: ${whisperErr.message}`);
+          }
+        }
+      }
+
+      if (!finalTranscript.trim()) {
+        showNotice('oral', '请先完成录音或提供转录文本', 'error');
+        return;
+      }
+
+      // 阶段 2：AI 评测
+      setEvaluatingStage('evaluating');
+      const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
+      const profileStrForEval = getUserCurrentProfile();
+      let enrichedThemeForEval = effectiveTheme;
+      if (profileStrForEval) {
+        enrichedThemeForEval = `${effectiveTheme} (针对画像短板进行挑战判定: ${profileStrForEval})`;
+      }
+      const res = await runImpromptuSpeechEvaluation(enrichedThemeForEval, durationStr, finalTranscript);
 
       const score = Number(res.total_score || 0);
       setEvalResult({
@@ -263,11 +449,29 @@ export default function ImpromptuSpeechTab() {
         relevance: Number(res.relevance || 0),
         feedback: String(res.feedback || '')
       });
+
+      // 阶段 3：生成高阶完美示范范文
+      setEvaluatingStage('generating');
+      try {
+        const exemplar = await runSpeechExemplar(enrichedThemeForEval, finalTranscript);
+        setExemplarText(exemplar);
+      } catch (exemplarErr: any) {
+        console.error('生成演讲范文失败:', exemplarErr);
+        showNotice('oral', '评测已完成，但生成演讲范文失败', 'error');
+      }
+
       if (score >= 8) {
         playSuccess();
         setImpromptuPassed(true);
         setShowConfetti(true);
         showNotice('oral', '🎖 即兴演讲达标！通关门槛已解锁', 'success');
+
+        // 【I-3 新增】联动 XP 积分
+        const currentXp = parseInt(localStorage.getItem('oral_sandbox_xp') || '0', 10);
+        const newXp = currentXp + 20;
+        localStorage.setItem('oral_sandbox_xp', String(newXp));
+        // 派发全局事件，通知 OralWarRoom 刷新 XP
+        window.dispatchEvent(new CustomEvent('xp-updated', { detail: { xp: newXp } }));
       } else {
         playError();
         showNotice('oral', `得分 ${score.toFixed(1)}/10，未达 8 分，请再练习`, 'error');
@@ -276,7 +480,7 @@ export default function ImpromptuSpeechTab() {
       playError();
       showNotice('oral', `评估失败: ${err.message}`, 'error');
     } finally {
-      setIsEvaluating(false);
+      setEvaluatingStage('idle');
     }
   };
 
@@ -285,9 +489,23 @@ export default function ImpromptuSpeechTab() {
     setTranscript('');
     accumulatedTranscriptRef.current = '';
     setEvalResult(null);
+    setExemplarText('');
     setIsEngineReady(false);
     manualStopRef.current = false;
     resetAudio();
+  };
+
+  const handleCopyExemplar = async () => {
+    if (exemplarText) {
+      try {
+        await navigator.clipboard.writeText(exemplarText);
+        showNotice('oral', '演讲范文已复制到剪贴板', 'success');
+        playSuccess();
+      } catch (err) {
+        playError();
+        showNotice('oral', '复制失败', 'error');
+      }
+    }
   };
 
   const formatTime = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
@@ -295,6 +513,12 @@ export default function ImpromptuSpeechTab() {
 
   return (
     <div className="flex flex-col gap-6 animate-[fadeIn_0.3s_ease-out] relative">
+      <style>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
 
       {inlineNotice && noticeAnchor === 'oral' && (
@@ -304,21 +528,45 @@ export default function ImpromptuSpeechTab() {
       )}
 
       {/* SOP 指南 */}
-      <div className="bg-violet-50/50 border border-violet-100 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
-        <div className="bg-violet-500 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-sm">
+      <div className="bg-slate-50 border border-[var(--color-border)] rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
+        <div className="bg-[var(--color-brand)] text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
           <Mic className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-violet-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
-          <div className="text-[13px] text-violet-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
-            <div><span className="font-black text-violet-600 mr-2">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>5 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</div>
-            <div><span className="font-black text-violet-600 mr-2">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</div>
-            <div><span className="font-black text-violet-600 mr-2">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</div>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
+              <span className="text-amber-500 mt-0.5"></span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>3 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
+              <span className="text-amber-500 mt-0.5"></span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</p>
+            </div>
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
+              <span className="text-amber-500 mt-0.5"></span>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 通关状态徽章 */}
+      {/* 全局画像自适应阻碍提示器 */}
+      {parsedProfile.length > 0 && (
+        <div className="bg-slate-100 border border-slate-200/80 rounded-xl p-4 mb-5 flex items-center justify-between text-xs text-slate-700 shadow-sm animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-slate-400 animate-pulse" />
+            <div>
+              <span className="font-bold text-slate-900">画像自适应系统已激活：</span>
+              已靶向侦测您的能力短板 <span className="bg-slate-200 text-slate-800 font-bold px-2 py-0.5 rounded mx-1">{userProfile}</span>，已为您动态定制即兴大纲与逻辑对抗阻碍。
+            </div>
+          </div>
+          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">High-Obstacle Mode</span>
+        </div>
+      )}
+{/* 通关状态徽章 */}
       {impromptuPassed && (
         <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4">
           <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
@@ -331,13 +579,16 @@ export default function ImpromptuSpeechTab() {
       )}
 
       {/* 录音主控区 */}
-      <div className="bg-[#202124] rounded-[2rem] p-8 text-white relative overflow-hidden">
-        <div className="absolute -right-10 -top-10 w-48 h-48 bg-violet-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="bg-[#202124] rounded-3xl p-5 md:p-6 text-white relative overflow-hidden">
+        <div className="absolute -right-10 -top-10 w-48 h-48 bg-[var(--color-accent)]/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-6">
             <div>
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">当前主题</span>
-              <h3 className="text-lg font-black text-white">{theme}</h3>
+              <h3 className="text-lg font-black text-white">{effectiveTheme}</h3>
+              {rebalanceTopic && (
+                <span className="text-[10px] text-amber-300 font-bold mt-1 block">心智投喂重组主题</span>
+              )}
             </div>
             <div className="text-right">
               <div className="flex items-center gap-2 justify-end mb-1">
@@ -346,7 +597,7 @@ export default function ImpromptuSpeechTab() {
                   {!isRecording ? 'STANDBY' : (isEngineReady ? 'REC' : 'CONNECTING')}
                 </span>
               </div>
-              <div className={`text-3xl font-black font-mono tabular-nums ${elapsed >= 300 ? 'text-emerald-400' : elapsed >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
+              <div className={`text-3xl font-black font-mono tabular-nums ${elapsed >= 180 ? 'text-emerald-400' : elapsed >= 60 ? 'text-amber-400' : 'text-gray-400'}`}>
                 {formatTime(elapsed)}
               </div>
             </div>
@@ -355,7 +606,7 @@ export default function ImpromptuSpeechTab() {
           {/* 进度条 */}
           <div className="w-full h-2 bg-white/10 rounded-full mb-6 overflow-hidden">
             <div
-              className="h-2 bg-gradient-to-r from-violet-500 to-[#FF5722] rounded-full transition-all"
+              className="h-2 bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-all"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -380,7 +631,7 @@ export default function ImpromptuSpeechTab() {
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">录音回放</span>
                 <button
                   onClick={togglePlayback}
-                  className="flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
+                  className="flex items-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
                 >
                   {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
                   {isPlaying ? '暂停' : '播放'}
@@ -403,7 +654,7 @@ export default function ImpromptuSpeechTab() {
               <button
                 onClick={() => startRecording(elapsed > 0)}
                 disabled={isEvaluating}
-                className="flex-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
               >
                 <Mic className="w-5 h-5" /> {elapsed > 0 ? '继续录音' : '开始演讲'}
               </button>
@@ -417,10 +668,19 @@ export default function ImpromptuSpeechTab() {
             )}
             <button
               onClick={handleEvaluate}
-              disabled={isEvaluating || isRecording || !transcript.trim()}
-              className="flex-1 flex items-center justify-center gap-2 bg-[#FF5722] hover:bg-[#e64a19] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
+              disabled={isEvaluating || isRecording || (!transcript.trim() && !audioBlob)}
+              className="flex-1 flex items-center justify-center gap-2 bg-[#FF5722] hover:bg-[#e64a19] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer animate-[all_0.3s_ease]"
             >
-              {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin" /> AI 评测中...</> : '提交 AI 评测 ➔'}
+              {evaluatingStage !== 'idle' ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin shrink-0 text-white" />
+                  <span className="text-[11px] tracking-normal font-black text-white/95 animate-pulse">
+                    {evaluatingStage === 'transcribing' && '转译中... (正在通过 Whisper 转译高精度语音文本)'}
+                    {evaluatingStage === 'evaluating' && '评测中... (正在调用 AI 评测接口)'}
+                    {evaluatingStage === 'generating' && '生成中... (正在为您生成高阶完美示范范文)'}
+                  </span>
+                </>
+              ) : '提交 AI 评测 ➔'}
             </button>
           </div>
 
@@ -441,7 +701,7 @@ export default function ImpromptuSpeechTab() {
               </button>
               <button
                 onClick={handleReset}
-                className="flex items-center gap-2 text-violet-300 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
+                className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4" /> 重置
               </button>
@@ -453,7 +713,7 @@ export default function ImpromptuSpeechTab() {
             <div className="mt-4 flex justify-end">
                <button
                  onClick={handleReset}
-                 className="flex items-center gap-2 text-violet-300 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
+                 className="flex items-center gap-2 text-white/70 hover:text-white transition-colors text-xs font-black uppercase tracking-widest cursor-pointer"
                >
                  ↺ 开启新一轮演讲
                </button>
@@ -464,15 +724,24 @@ export default function ImpromptuSpeechTab() {
 
       {/* 主题提示面板 */}
       {showPrompter && prompterResult && (
-        <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-[2rem] p-6 animate-[fadeIn_0.3s_ease-out]">
-          <div className="flex items-center justify-between mb-4">
-            <h4 className="text-sm font-black uppercase tracking-widest text-amber-800 flex items-center gap-2">
-              <Lightbulb className="w-5 h-5 text-amber-500" />
-              演讲准备提示
-            </h4>
+        <div className="bg-gradient-to-br from-orange-50/70 to-amber-50/70 border border-amber-500/20 ring-1 ring-amber-500/5 rounded-3xl p-5 md:p-6 shadow-[0_10px_35px_-5px_rgba(245,158,11,0.08)] animate-[fadeIn_0.3s_ease-out]">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-amber-500/10">
+            <div className="flex items-center gap-3">
+              <div className="bg-amber-500/10 p-2 rounded-xl text-amber-500">
+                <Lightbulb className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black text-amber-800 leading-tight">
+                  演讲准备提示
+                </h4>
+                <p className="text-[10px] text-amber-700/60 font-medium mt-0.5">
+                  AI 实时梳理逻辑骨架与实用语料库
+                </p>
+              </div>
+            </div>
             <button
               onClick={() => setShowPrompter(false)}
-              className="text-amber-600 hover:text-amber-800 cursor-pointer"
+              className="text-amber-600 hover:text-amber-800 hover:bg-amber-500/5 p-2 rounded-lg transition-colors cursor-pointer"
             >
               <ChevronUp className="w-5 h-5" />
             </button>
@@ -480,20 +749,33 @@ export default function ImpromptuSpeechTab() {
 
           <div className="space-y-4">
             {/* 思维导图 */}
-            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
-              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">思维导图</h5>
-              <div className="flex flex-wrap gap-2">
-                <span className="bg-amber-500 text-white px-3 py-1.5 rounded-full text-xs font-black">
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-5 border border-amber-100/60 shadow-[0_2px_12px_rgba(245,158,11,0.02)]">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-4 flex items-center gap-1.5">
+                <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                思维导图
+              </h5>
+              <div className="flex flex-col md:flex-row md:items-center gap-4 flex-wrap">
+                <span className="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-4 py-2 rounded-full text-xs font-black shadow-[0_3px_10px_rgba(245,158,11,0.2)] select-none shrink-0 self-start md:self-center animate-[spin-slow_30s_linear_infinite]">
                   {prompterResult.mindmap.center}
                 </span>
                 {prompterResult.mindmap.branches.map((branch, i) => (
-                  <div key={i} className="flex flex-wrap gap-1 items-center">
-                    <span className="text-amber-600">→</span>
-                    <div className="flex flex-col gap-1">
-                      <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-bold">{branch.title}</span>
-                      <div className="flex flex-wrap gap-1">
+                  <div key={i} className="flex flex-col md:flex-row md:items-center gap-3 animate-[spin-slow_30s_linear_infinite]" style={{ animationDelay: `${i * 0.5}s` }}>
+                    <div className="flex items-center justify-center pl-1 md:pl-0">
+                      <span className="text-amber-500/60 md:hidden font-bold text-xs py-1">↓</span>
+                      <ArrowRight className="w-4 h-4 text-amber-500/60 animate-pulse hidden md:inline shrink-0" />
+                    </div>
+                    <div className="bg-amber-50/20 border border-amber-100/60 rounded-2xl p-3.5 flex flex-col gap-1.5 shadow-[0_1px_3px_rgba(245,158,11,0.01)]">
+                      <span className="text-amber-900 font-black text-xs tracking-wider border-b border-amber-200/30 pb-1.5">
+                        {branch.title}
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
                         {branch.keywords.map((kw, j) => (
-                          <span key={j} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-[10px]">{kw}</span>
+                          <span
+                            key={j}
+                            className="bg-white text-gray-700 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-amber-200/50 shadow-sm hover:border-amber-400 hover:text-amber-700 transition-colors duration-200"
+                          >
+                            {kw}
+                          </span>
                         ))}
                       </div>
                     </div>
@@ -502,56 +784,171 @@ export default function ImpromptuSpeechTab() {
               </div>
             </div>
 
-            {/* 演讲结构 */}
-            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
-              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">演讲结构</h5>
-              <div className="space-y-2 text-xs">
-                <div><span className="font-black text-amber-600">开场：</span>{prompterResult.outline.opening}</div>
-                <div className="ml-4 space-y-1">
-                  {prompterResult.outline.main_points.map((p, i) => (
-                    <div key={i} className="flex gap-2"><span className="text-amber-400">•</span>{p}</div>
-                  ))}
+            {/* 演讲结构与核心论点 */}
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-5 border border-amber-100/60 shadow-[0_2px_12px_rgba(245,158,11,0.02)]">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-6 flex items-center gap-1.5">
+                <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                演讲结构与核心论点
+              </h5>
+              
+              <div className="relative pl-6 border-l-2 border-dashed border-amber-200/80 space-y-6 ml-3">
+                {/* 节点 1：开场 */}
+                <div className="relative">
+                  <span className="absolute -left-[37px] top-0.5 w-6 h-6 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-md">
+                    1
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="font-black text-amber-800 text-xs tracking-wider">阶段一：引人入胜的开场 // Opening</span>
+                    <div className="bg-amber-50/20 border border-amber-100/40 rounded-xl p-3 text-xs text-gray-700 leading-relaxed shadow-sm">
+                      {prompterResult.outline.opening}
+                    </div>
+                  </div>
                 </div>
-                <div><span className="font-black text-amber-600">结尾：</span>{prompterResult.outline.closing}</div>
+
+                {/* 节点 2：核心论点 */}
+                <div className="relative">
+                  <span className="absolute -left-[37px] top-0.5 w-6 h-6 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-md">
+                    2
+                  </span>
+                  <div className="flex flex-col gap-2">
+                    <span className="font-black text-amber-800 text-xs tracking-wider">阶段二：核心观点与实证 // Main Arguments</span>
+                    
+                    {prompterResult.key_arguments && prompterResult.key_arguments.length > 0 ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {prompterResult.key_arguments.map((arg, i) => (
+                          <div key={i} className="bg-white border border-amber-100/60 shadow-sm hover:border-amber-300 hover:shadow-md transition-all duration-300 p-4 rounded-xl flex flex-col justify-between">
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-wider text-amber-600 mb-1.5">
+                                核心论点 {i + 1}
+                              </div>
+                              <h6 className="text-xs font-black text-gray-800 mb-2 leading-relaxed">
+                                {arg.point}
+                              </h6>
+                              <div className="border-l-2 border-amber-400 pl-2.5 bg-amber-50/15 py-1.5 text-xs text-gray-600 italic leading-relaxed">
+                                {arg.evidence}
+                              </div>
+                            </div>
+                            {arg.transition && (
+                              <div className="text-[10px] text-amber-700/80 bg-amber-50/30 px-2 py-1 rounded-md mt-3 italic font-medium">
+                                过渡衔接：{arg.transition}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      /* 降级渲染：只显示 outline.main_points */
+                      <div className="bg-amber-50/20 border border-amber-100/40 rounded-xl p-3.5 space-y-2.5 shadow-sm">
+                        {prompterResult.outline.main_points.map((p, i) => (
+                          <div key={i} className="flex gap-2.5 items-start text-xs text-gray-700 leading-relaxed">
+                            <span className="text-amber-500 font-bold shrink-0">•</span>
+                            <span>{p}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 节点 3：结尾 */}
+                <div className="relative">
+                  <span className="absolute -left-[37px] top-0.5 w-6 h-6 rounded-full bg-amber-500 text-white font-black text-xs flex items-center justify-center shadow-md">
+                    3
+                  </span>
+                  <div className="flex flex-col gap-1.5">
+                    <span className="font-black text-amber-800 text-xs tracking-wider">阶段三：强力收尾与展望 // Conclusion</span>
+                    <div className="bg-amber-50/20 border border-amber-100/40 rounded-xl p-3 text-xs text-gray-700 leading-relaxed shadow-sm">
+                      {prompterResult.outline.closing}
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
             {/* 实用短语 */}
-            <div className="bg-white/60 rounded-2xl p-4 border border-amber-100">
-              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-3">实用短语</h5>
-              <div className="grid grid-cols-2 gap-4 text-[11px]">
-                <div>
-                  <span className="font-black text-emerald-600 block mb-1">开场</span>
-                  {prompterResult.useful_phrases.openings.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+            <div className="bg-white/50 backdrop-blur-sm rounded-2xl p-5 border border-amber-100/60 shadow-[0_2px_12px_rgba(245,158,11,0.02)]">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-700 mb-4 flex items-center gap-1.5">
+                <span className="w-1.5 h-3 bg-amber-500 rounded-full" />
+                实用短语
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 开场 */}
+                <div className="bg-emerald-50/25 border border-emerald-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-emerald-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="font-black text-emerald-700 text-xs uppercase tracking-wider">开场 // Intro</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.openings.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-emerald-500/5 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-black text-blue-600 block mb-1">过渡</span>
-                  {prompterResult.useful_phrases.transitions.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+
+                {/* 过渡 */}
+                <div className="bg-blue-50/25 border border-blue-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-blue-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                    <span className="font-black text-blue-700 text-xs uppercase tracking-wider">过渡 // Transition</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.transitions.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-blue-500/5 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-black text-purple-600 block mb-1">强调</span>
-                  {prompterResult.useful_phrases.emphasizing.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+
+                {/* 强调 */}
+                <div className="bg-[var(--color-accent)]/5 border border-[var(--color-accent)]/20 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-purple-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-accent)] animate-pulse" />
+                    <span className="font-black text-[var(--color-accent)] text-xs uppercase tracking-wider">强调 // Focus</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.emphasizing.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-purple-500/5 hover:bg-white hover:border-purple-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <span className="font-black text-orange-600 block mb-1">结尾</span>
-                  {prompterResult.useful_phrases.conclusions.map((p, i) => (
-                    <div key={i} className="text-gray-600 mb-1">{p}</div>
-                  ))}
+
+                {/* 结尾 */}
+                <div className="bg-orange-50/25 border border-orange-100/80 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2 pb-2 border-b border-orange-100/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+                    <span className="font-black text-orange-700 text-xs uppercase tracking-wider">结尾 // Closing</span>
+                  </div>
+                  <div className="space-y-2">
+                    {prompterResult.useful_phrases.conclusions.map((p, i) => (
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-orange-500/5 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-200">
+                        {p}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* 小贴士 */}
-            <div className="bg-amber-100/50 rounded-xl p-3 border border-amber-200">
-              <div className="flex gap-2 flex-wrap">
+            {/* 实战指南 */}
+            <div className="bg-amber-500/5 rounded-2xl p-5 border border-amber-500/10">
+              <h5 className="text-xs font-black uppercase tracking-widest text-amber-800 mb-4 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse shrink-0" />
+                演讲实战指南
+              </h5>
+              <div className="flex gap-2.5 flex-wrap">
                 {prompterResult.tips.map((tip, i) => (
-                  <span key={i} className="text-[10px] text-amber-800 bg-amber-50 px-2 py-1 rounded-full">💡 {tip}</span>
+                  <span
+                    key={i}
+                    className="text-xs text-amber-900 bg-white border border-amber-100/85 rounded-full px-3.5 py-1.5 shadow-[0_1px_2px_rgba(245,158,11,0.02)] font-semibold select-none hover:-translate-y-0.5 hover:shadow-md hover:border-amber-400 hover:text-amber-700 transition-all duration-300 transform cursor-default flex items-center gap-1.5"
+                  >
+                    <span></span>
+                    <span>{tip}</span>
+                  </span>
                 ))}
               </div>
             </div>
@@ -561,89 +958,159 @@ export default function ImpromptuSpeechTab() {
 
       {/* 评测结果 */}
       {evalResult && (
-        <div className={`rounded-[2rem] p-8 border-2 animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8">
-            <h4 className={`text-sm font-black uppercase tracking-widest ${evalResult.score >= 8 ? 'text-emerald-700' : 'text-red-700'}`}>
-              AI 四维评测报告
-            </h4>
-            <div className={`text-4xl font-black ${evalResult.score >= 8 ? 'text-emerald-600' : 'text-red-600'}`}>
-              {evalResult.score.toFixed(1)} <span className={`text-xl ${evalResult.score >= 8 ? 'text-emerald-600/50' : 'text-red-600/50'}`}>/ 10</span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* 维度得分网格 */}
-            <div className="lg:col-span-5 grid grid-cols-2 gap-3">
-              {[
-                { label: 'Logic', title: '逻辑连贯', score: evalResult.logic },
-                { label: 'Vocab', title: '词汇丰富', score: evalResult.vocabulary },
-                { label: 'Fluency', title: '语言流利', score: evalResult.fluency },
-                { label: 'Relevance', title: '主题相关', score: evalResult.relevance }
-              ].map((item, idx) => (
-                <div key={idx} className="bg-white/60 rounded-2xl p-4 border border-black/5 shadow-sm flex flex-col justify-between">
-                  <div>
-                    <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{item.label}</div>
-                    <div className="text-xs font-bold text-gray-800 mb-2">{item.title}</div>
-                  </div>
-                  <div className="flex items-baseline gap-0.5">
-                    <span className="text-2xl font-black text-gray-900 leading-none">{item.score}</span>
-                    <span className="text-[10px] text-gray-400 font-bold">/10</span>
-                  </div>
-                </div>
-              ))}
-              {/* 音频特征（如果有） */}
-              {evalResult.audio_features && (
-                <div className="col-span-2 bg-amber-50/50 rounded-2xl p-3 border border-amber-200">
-                  <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-2">音频特征</div>
-                  <div className="flex gap-3 text-[10px]">
-                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                      语速: {evalResult.audio_features.estimated_pace}
-                    </span>
-                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                      清晰度: {evalResult.audio_features.estimated_clarity}
-                    </span>
-                    <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
-                      自信度: {evalResult.audio_features.estimated_confidence}
-                    </span>
-                  </div>
-                </div>
-              )}
+        <>
+          <div className={`rounded-3xl p-5 md:p-6 border animate-[fadeIn_0.3s_ease-out] relative overflow-hidden ${evalResult.score >= 8 ? 'bg-emerald-50/40 border-emerald-200/60 shadow-[0_12px_35px_rgba(16,185,129,0.015)]' : 'bg-red-50/40 border-red-200/60 shadow-[0_12px_35px_rgba(239,68,68,0.015)]'}`}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-8">
+              <h4 className={`text-sm font-black uppercase tracking-widest ${evalResult.score >= 8 ? 'text-emerald-700' : 'text-red-700'}`}>
+                AI 四维评测报告
+              </h4>
+              <div className={`text-4xl font-black ${evalResult.score >= 8 ? 'text-emerald-600' : 'text-red-600'}`}>
+                {evalResult.score.toFixed(1)} <span className={`text-xl ${evalResult.score >= 8 ? 'text-emerald-600/50' : 'text-red-600/50'}`}>/ 10</span>
+              </div>
             </div>
 
-            {/* 名师点评 */}
-            <div className="lg:col-span-7 bg-white/60 rounded-2xl p-6 border border-black/5 shadow-sm flex flex-col">
-              <h5 className="text-[11px] font-black uppercase tracking-widest text-gray-800 mb-4 flex items-center gap-2">
-                <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> 名师点评
-              </h5>
-              <div className="flex-1">
-                <p className="text-[13px] leading-relaxed text-gray-700 font-medium whitespace-pre-line">
-                  {evalResult.feedback}
-                </p>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* 维度得分网格 */}
+              <div className="lg:col-span-5 grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Logic', title: '逻辑连贯', score: evalResult.logic },
+                  { label: 'Vocab', title: '词汇丰富', score: evalResult.vocabulary },
+                  { label: 'Fluency', title: '语言流利', score: evalResult.fluency },
+                  { label: 'Relevance', title: '主题相关', score: evalResult.relevance }
+                ].map((item, idx) => (
+                  <div key={idx} className="bg-white/60 rounded-2xl p-4 border border-black/5 shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">{item.label}</div>
+                      <div className="text-xs font-bold text-gray-800 mb-2">{item.title}</div>
+                    </div>
+                    <div className="flex items-baseline gap-0.5">
+                      <span className="text-2xl font-black text-gray-900 leading-none">{item.score}</span>
+                      <span className="text-[10px] text-gray-400 font-bold">/10</span>
+                    </div>
+                  </div>
+                ))}
+                {/* 音频特征（如果有） */}
+                {evalResult.audio_features && (
+                  <div className="col-span-2 bg-amber-50/50 rounded-2xl p-3 border border-amber-200">
+                    <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-2">音频特征</div>
+                    <div className="flex flex-wrap gap-3 text-[10px]">
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        语速: {evalResult.audio_features.estimated_pace}
+                      </span>
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        清晰度: {evalResult.audio_features.estimated_clarity}
+                      </span>
+                      <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-full">
+                        自信度: {evalResult.audio_features.estimated_confidence}
+                      </span>
+                    </div>
+                    {/* 下一步行动建议：根据音频特征弱点生成 */}
+                    <div className="mt-3 pt-2 border-t border-amber-100">
+                      <div className="text-[9px] font-black uppercase tracking-widest text-amber-600 mb-1.5">定向深化建议</div>
+                      <div className="flex flex-wrap gap-2">
+                        {(evalResult.audio_features.estimated_pace && evalResult.audio_features.estimated_pace < 130
+                          ? ['语速偏慢，建议跟读 AI 示范音频，每天练习 5 分钟提速']
+                          : []
+                        ).map((tip, ti) => (
+                          <span key={ti} className="bg-amber-200/40 text-amber-800 text-[9px] font-bold px-2 py-1 rounded-lg border border-amber-200/50">
+                            {tip}
+                          </span>
+                        ))}
+                        {(evalResult.audio_features.estimated_clarity && evalResult.audio_features.estimated_clarity < 7
+                          ? ['清晰度偏低，建议对着镜子练习，注意每个辅音结尾']
+                          : []
+                        ).map((tip, ti) => (
+                          <span key={`clarity-${ti}`} className="bg-emerald-50 text-emerald-700 text-[9px] font-bold px-2 py-1 rounded-lg border border-emerald-200/50">
+                            {tip}
+                          </span>
+                        ))}
+                        {(evalResult.audio_features.estimated_confidence && evalResult.audio_features.estimated_confidence < 6
+                          ? ['自信度不足，建议录音后回听，重点标注不自信处并跟读']
+                          : []
+                        ).map((tip, ti) => (
+                          <span key={`conf-${ti}`} className="bg-[var(--color-info)]/10 text-[var(--color-info)] text-[9px] font-bold px-2 py-1 rounded-lg border border-[var(--color-info)]/25">
+                            {tip}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* 改进建议 */}
-              {evalResult.improvement_suggestions && evalResult.improvement_suggestions.length > 0 && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">改进建议</div>
-                  <div className="flex flex-wrap gap-2">
-                    {evalResult.improvement_suggestions.map((s, i) => (
-                      <span key={i} className="text-[11px] text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
-                        → {s}
-                      </span>
-                    ))}
-                  </div>
+              {/* 名师点评 */}
+              <div className="lg:col-span-7 bg-white/60 rounded-2xl p-6 border border-black/5 shadow-sm flex flex-col">
+                <h5 className="text-[11px] font-black uppercase tracking-widest text-gray-800 mb-4 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500 fill-amber-500" /> 名师点评
+                </h5>
+                <div className="flex-1">
+                  <p className="text-[13px] leading-relaxed text-gray-700 font-medium whitespace-pre-line">
+                    {evalResult.feedback}
+                  </p>
                 </div>
-              )}
 
-              {evalResult.score < 8 && (
-                <div className="mt-6 inline-flex items-center gap-2 bg-red-100/80 text-red-700 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-200/50 self-start">
-                  ⚠️ 未达标 (8分及格线) — 请重置开启新一轮挑战
-                </div>
-              )}
+                {/* 改进建议 */}
+                {evalResult.improvement_suggestions && evalResult.improvement_suggestions.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">改进建议</div>
+                    <div className="flex flex-wrap gap-2">
+                      {evalResult.improvement_suggestions.map((s, i) => (
+                        <span key={i} className="text-[11px] text-blue-700 bg-blue-50 px-2 py-1 rounded-full">
+                          → {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {evalResult.score < 8 && (
+                  <div className="mt-6 inline-flex items-center gap-2 bg-red-100/80 text-red-700 px-4 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-widest border border-red-200/50 self-start">
+                    未达标 (8分及格线) — 请重置开启新一轮挑战
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* AI 高管级完美示范范文 */}
+          {exemplarText && (
+            <div className="mt-5 bg-white/60 rounded-3xl p-5 md:p-6 border border-[#E9D5FF]/80 shadow-[0_10px_30px_rgba(233,213,255,0.015)] animate-[fadeIn_0.3s_ease-out]">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-brand)]">
+                  AI 高管级完美示范示范 (Optimized Speech)
+                </h4>
+                <div className="flex items-center gap-2">
+                  <SpeakButton text={exemplarText} title="播放 AI 完美示范示范" />
+                  <button
+                    onClick={handleCopyExemplar}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white transition-all cursor-pointer shadow-sm animate-[all_0.3s_ease]"
+                  >
+                    <Copy className="w-3.5 h-3.5" /> 复制范文
+                  </button>
+                </div>
+              </div>
+              <div 
+                ref={exemplarContainerRef}
+                className="text-[13px] leading-relaxed text-slate-850 font-serif italic bg-slate-50/80 p-5 rounded-2xl border border-[var(--color-border)] max-h-[250px] overflow-y-auto scroll-smooth"
+              >
+                {exemplarSentences.map((s, idx) => (
+                  <span
+                    key={idx}
+                    data-idx={idx}
+                    className={`transition-all duration-300 mx-0.5 rounded px-0.5 inline ${
+                      activeExemplarIdx === idx 
+                        ? 'bg-amber-100 ring-2 ring-amber-400 font-bold text-slate-900' 
+                        : 'text-slate-800'
+                    }`}
+                  >
+                    {s}{' '}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

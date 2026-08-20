@@ -1,305 +1,219 @@
-# Dify 驱动的商务英语训练引擎
+根据 `surgical-modification` 技能规范，以下为经评估完善后的「外科手术式修改计划」。  
+**已确认约束：** 方案 A（后端代理调 Dify `/audio-to-text`）；Dify 失败时**不**保留 Whisper / 9router 轮询降级。  
+该技能只输出计划模板及代码对比，**不直接执行物理文件写入**（待你确认后再改代码）。
 
-**Date**: May 16, 2026 at 07:19 PM
-**Turns**: 1
-**Source**: [Gemini Chat](https://gemini.google.com/app/010d731f91d4c16a)
-
----
-
-## Turn 1
-
-
-
-分析实现如下需求，给出具体的实现方案，包括待完善文档目录结构、文件名称、新增或修改标识、参考代码等。
-一、 UI/UX 体验提升情况 (前端界面重构)
-为了匹配您对于“高阶商务质感”与“极度克制”的审美要求，系统前端彻底抛弃了传统的聊天界面和弹窗堆叠模式，实现了以下重大提升：
-废除嵌套模态框，采用70/30空间折叠布局（全局主控台 DashboardShell.tsx）：
-系统抛弃了繁琐的居中弹窗，采用70%左侧主工作区（用于高阶政商长文阅读、多维表单输入）与30%右侧动态滑出面板（Context Sheet）的黄金比例布局。当您需要深度解析生词或分析职场“潜台词”时，右侧会平滑滑出解析面板，目光只需左移即可比对原文，实现了零认知摩擦和随时收放的信息掌控感。
-强制控制论任务闭环（Cybernetic Closed-Loops）：
-取代了看完即忘的“开环聊天流水线”，UI中引入了“动态任务收件箱”（Active Cognitive Loops）。当AI在英语交互中发现您的逻辑破绽或表达分寸不当时，会在顶层生成一个必须处理的“微任务卡片”（如强制重写一段英文反问句）。只有您按要求完成并达标后，UI进度条才会解锁闭环，变被动阅读为高压刻意练习。
-极简的高端商务美学：
-全面采用Shadcn UI组件库与Tailwind CSS，抛弃高饱和度色彩和廉价装饰，使用低调的冷灰调（Zinc或Slate色系）与大面积留白。仅在核心逻辑节点使用唯一的深邃靛蓝色进行强调，配合全局命令面板（Ctrl+K快速呼出工具），呈现出顶级外企软件的严肃权威感。
-二、 核心业务需求满足情况 (后端Dify逻辑链实现)
-现有的后端代码逻辑已经通过Dify引擎的DSL（领域特定语言）文件进行了深度重构，完美承接了前期的英语战略目标：
-1. 听力分析与跨文化心理侧写（多角色博弈与找破绽）—— ✅ 高度满足
-实现方式： 通过部署 listen_analysis_chatflow.yml 引擎。
-功能对应： 针对您要求的“识别盟友与阻力”、“找破绽”与“识别弦外之音”，系统在您提交语料前，强制要求您输入三个前置变量：scene_type（物理与社会环境）、role_judgement（权力层级判断）和intent_judgement（真实诉求潜台词）。
-结果： AI接收这些变量后，会输出结构化洞察报告（包含权力博弈分析、跨文化潜台词解码），并指导您起草一句符合当前站位高度的“极度克制的英文反问句”，完美满足您“精准提问与找破绽”的高管沟通需求。
-2. 词汇阅读与双区生词本闭环 —— ✅ 深度拓展满足
-实现方式： 通过部署 dict_tool_workflow.yml 双轨制智能词典工作流。
-功能对应： 满足了生词划分“政商务”与“全场景”的需求。当您遇到盲点时，词典工作流提供条件路由：选择 en_en_business 模式则提供哈佛商学院级别的高阶商务解析；选择 en_zh_bidirectional 则提供CATTI二级难度的双语分寸度对比。
-结果： 系统引入了 user_context（用户上下文）变量，生成的例句会强制与您当前的真实业务场景绑定（如起草跨部门邮件），让词汇真正落地到实战应用。
-3. 全局进度追踪与能力动态调参（掌握度判定机制）—— ✅ 核心突破
-实现方式： 利用Dify v0.6+的持久化会话变量（Conversation Variables）和 variable_assigner 节点。
-功能对应： 您提出的“严格的主题通关机制”与“阶段反馈”在此得到了根本性解决。系统定义了 User_Current_Profile 全局持久化数组变量。
-结果： 每次交互后，系统提取您的认知短板或进步（如：“在解读中东客户意图时过于字面化”）并存入该雷达图。在接下来的模拟谈判或口语对话中，Agent会动态调高针对性训练的难度，确保训练不仅不松散，反而极度严密地追踪您的能力演进轨迹。
-总结：
-整体来看，通过前端非对称布局与强制闭环任务卡，结合后端Dify的持续化记忆（User_Current_Profile）与定制工作流（DSL），您的英语能力训练体系已经完全超越了常规语言学习软件，成功重构为一个具备高阶商业审美、专注于跨文化博弈与人性侧写的决策者级训练引擎。
-
-### 🤖 Assistant
-
-为了将“高阶商务质感”的UI/UX体验与Dify底层的深度业务逻辑完美融合，以下是针对superme项目的具体技术落地实施方案。本方案将彻底废弃原有的离散式本地服务，转向基于Dify编排引擎的云端/私有化后端，以及基于React + Tailwind CSS + Shadcn UI的现代化前端架构。
+依据 Dify 官方文档：[语音转文字](https://docs.dify.ai/zh/api-reference/audio/convert-audio-to-text)（`POST /audio-to-text`；`file` + `user`；Key **必须放服务端**）。
 
 ---
 
-### 一、 待完善文档目录结构与重构标识
-现有的物理代码库需要进行深度的规范化清理，剥离陈旧的后端本地逻辑，全面拥抱前端视图层与Dify API的中台化对接。
+# Surgical Precision Modification Plan (外科手术式修改计划) — 方案 A 完善版
 
-```plaintext
-superme/
-├── .agents/                 [删除] (逻辑上移至 Dify 编排引擎)
-├── vocab-server/            [删除] (彻底废弃，词汇管理交由 Dify Workflow 与持久化变量)
-├── yml/                     [修改] (集中管理 Dify 导出的 DSL 文件)
-│   ├── listen_analysis_chatflow.yml  [新增] (跨文化听力与破绽分析引擎)
-│   ├── dict_tool_workflow.yml        [新增] (双轨制智能词典工作流)
-│   └── ...
-├── src/                     [修改] (前端工程核心目录重组)
-│   ├── app/                 [新增] (Next.js App Router 或页面级路由)
-│   │   ├── layout.tsx       [新增] (全局布局)
-│   │   └── page.tsx         [新增] (主控台入口)
-│   ├── components/          [新增] (UI 组件库)
-│   │   ├── ui/              [新增] (存放 Shadcn UI 基础组件：Sheet, Button, Card等)
-│   │   ├── layout/          [新增] (核心布局组件)
-│   │   │   ├── DashboardShell.tsx    [新增] (70/30 比例的折叠主控台)
-│   │   │   └── Sidebar.tsx           [新增] (左侧极简导航)
-│   │   ├── chat/            [新增] (对话与闭环组件)
-│   │   │   ├── DifyChatInterface.tsx [新增] (流式对话与打字机特效渲染)
-│   │   │   └── CognitiveLoopCard.tsx [新增] (控制论强制闭环任务卡片)
-│   │   └── tools/           [新增] (右侧 30% 面板工具组件)
-│   │       └── SubtextAnalysisPanel.tsx [新增] (潜台词与破绽分析展示面板)
-│   ├── lib/                 [新增] (核心工具类)
-│   │   ├── dify/            [新增] (Dify API 交互层)
-│   │   │   ├── client.ts    [新增] (封装 Dify Messages/Workflows API)
-│   │   │   └── session.ts   [新增] (管理 sys.user_id 与 sys.conversation_id)
-│   │   └── utils.ts         [新增] (Tailwind 类名合并等通用工具)
-│   └── hooks/               [新增] (自定义状态管理)
-│       ├── useDifyChat.ts   [新增] (处理大模型流式输出与状态追踪)
-│       └── useTaskLoop.ts   [新增] (追踪强制微任务的完成状态)
-├── package.json             [修改] (新增 tailwindcss, class-variance-authority, lucide-react 等依赖)
-└── tailwind.config.js       [新增] (配置冷灰调 Zinc/Slate 高级商务色彩规范)
-
-```
+### 1. Problem Description (问题描述)
+- **主要文件路径**：
+  - `D:\cursor\work\super-agent\vocab-server\server.js`（约行 8065–8205）
+  - `D:\cursor\work\super-agent\src\services\difyAPI.ts`（约行 2301–2325）
+- **现象描述**：
+  - 前端 `transcribeAudioWithWhisper` 请求本站 `/api/audio/transcriptions`，后端对 local Whisper / 9router 多模型轮询。
+  - 目标改为：仅通过后端调用 Dify 官方 `POST /audio-to-text`，获得工作空间默认 STT 转写结果。
+  - Dify 失败时直接返回错误，**不**回退 Whisper 轮询。
+- **影响范围评估**：
+  - 所有调用 `transcribeAudioWithWhisper` 的路径：`SpeakModule`、`ImpromptuSpeechTab`、`listeningAPI`。
+  - 仍走 `/api/audio/transcriptions` 的其它调用方（含 `file_url` 下载再转写）一并改为只走 Dify。
+  - **不**改 UI 布局；**不**改已有前端直连函数 `audioToText()`（发音纠正链路，仍用 `VITE_DIFY_STT_API_KEY`，本次范围外）。
+- **能力边界说明**：Dify `/audio-to-text` 仅为语音转文字，本身不提供「纠错闭环」；若需纠错，应走其它工作流（本次不做）。
 
 ---
 
-### 二、 核心前端架构参考代码
-
-#### 1. 70/30 空间折叠布局 (DashboardShell.tsx)
-此组件通过 Shadcn UI 的 `Sheet` 原语实现右侧 30% 分析面板的平滑滑出，消灭居中模态框嵌套，保持左侧主工作区可见。
-
-```typescript
-import React, { useState } from 'react';
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { DifyChatInterface } from '@/components/chat/DifyChatInterface';
-import { SubtextAnalysisPanel } from '@/components/tools/SubtextAnalysisPanel';
-import { Menu, BookOpen, Briefcase, BrainCircuit } from 'lucide-react';
-
-export default function DashboardShell() {
-  const [isAnalysisPanelOpen, setIsAnalysisPanelOpen] = useState(false);
-  const [activeFocusText, setActiveFocusText] = useState<string | null>(null);
-
-  // 触发破绽分析或深层词汇解析
-  const handleDeepDiveRequest = (text: string) => {
-    setActiveFocusText(text);
-    setIsAnalysisPanelOpen(true);
-  };
-
-  return (
-    <div className="flex h-screen w-full bg-zinc-50 overflow-hidden font-sans text-zinc-900">
-      
-      {/* 极简左侧导航栏 (缩缩版) */}
-      <aside className="w-20 border-r border-zinc-200 bg-white flex flex-col items-center py-6 gap-8">
-        <div className="w-10 h-10 bg-indigo-950 text-white rounded-lg flex items-center justify-center font-bold text-xl">
-          S
-        </div>
-        <nav className="flex flex-col gap-6 text-zinc-400">
-          <button className="hover:text-indigo-900 transition-colors"><Briefcase size={24} /></button>
-          <button className="hover:text-indigo-900 transition-colors"><BookOpen size={24} /></button>
-          <button className="hover:text-indigo-900 transition-colors"><BrainCircuit size={24} /></button>
-        </nav>
-      </aside>
-
-      {/* 中央主工作区 (70% 视窗) */}
-      <main className="flex-1 flex flex-col min-w-0 transition-all duration-300 ease-in-out px-12 py-8 overflow-y-auto">
-        <header className="mb-8">
-          <h1 className="text-3xl font-light tracking-tight text-zinc-800">跨国并购意向谈判推演</h1>
-          <p className="text-sm text-zinc-500 mt-2 tracking-wide">Scene: Formal Boardroom | Role: VP of Operations</p>
-        </header>
-
-        {/* 流式聊天与核心交互接口 */}
-        <div className="flex-1 bg-white border border-zinc-200 rounded-xl shadow-sm p-6">
-          <DifyChatInterface onDeepDive={handleDeepDiveRequest} />
-        </div>
-      </main>
-
-      {/* 右侧 30% 动态上下文面板 (Context Sheet) */}
-      <Sheet open={isAnalysisPanelOpen} onOpenChange={setIsAnalysisPanelOpen}>
-        <SheetContent 
-          side="right" 
-          className="w-[30vw] min-w-[400px] bg-white border-l border-zinc-200 p-0 shadow-2xl sm:max-w-none"
-        >
-          {activeFocusText && (
-             <SubtextAnalysisPanel 
-                focusText={activeFocusText} 
-                onClose={() => setIsAnalysisPanelOpen(false)} 
-             />
-          )}
-        </SheetContent>
-      </Sheet>
-    </div>
-  );
-}
-
-```
-
-#### 2. 控制论强制闭环任务卡 (CognitiveLoopCard.tsx)
-用于替代传统的开放式对话。当大模型判定用户的回复存在逻辑漏洞或分寸失当时，触发此强制任务卡片，未完成前冻结主线推进。
-
-```typescript
-import React, { useState } from 'react';
-import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { AlertCircle, CheckCircle2 } from 'lucide-react';
-
-interface LoopCardProps {
-  insight: string;           // Dify 返回的逻辑短板诊断
-  taskRequirement: string;   // 强制重写或改写的具体要求
-  onLoopClosed: (revisedText: string) => Promise<boolean>; // 提交给 Dify 验证
-}
-
-export function CognitiveLoopCard({ insight, taskRequirement, onLoopClosed }: LoopCardProps) {
-  const [input, setInput] = useState('');
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isResolved, setIsResolved] = useState(false);
-
-  const handleSubmit = async () => {
-    if (!input.trim()) return;
-    setIsVerifying(true);
-    const passed = await onLoopClosed(input);
-    setIsVerifying(false);
-    if (passed) {
-      setIsResolved(true);
-    }
-  };
-
-  if (isResolved) {
-    return (
-      <div className="flex items-center gap-3 text-emerald-600 bg-emerald-50 p-4 rounded-lg border border-emerald-100 my-4">
-        <CheckCircle2 size={20} />
-        <span className="text-sm font-medium tracking-wide">认知闭环已达成：表达分寸已修正。</span>
-      </div>
-    );
-  }
-
-  return (
-    <Card className="border-indigo-100 bg-indigo-50/30 shadow-none my-6 relative overflow-hidden">
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600" />
-      <CardHeader className="pb-2 flex flex-row items-center gap-2">
-        <AlertCircle size={18} className="text-indigo-700" />
-        <CardTitle className="text-sm font-semibold text-indigo-900 tracking-wide">强制微任务：逻辑/分寸修正</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="text-sm text-zinc-700 leading-relaxed">
-          <strong className="block text-zinc-900 mb-1">系统诊断：</strong>
-          {insight}
-        </div>
-        <div className="text-sm text-zinc-700 leading-relaxed">
-          <strong className="block text-zinc-900 mb-1">重构要求：</strong>
-          {taskRequirement}
-        </div>
-        <Textarea 
-          placeholder="在此处输入修正后的英文表达..."
-          className="min-h-[100px] resize-none bg-white border-zinc-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={isVerifying}
-        />
-      </CardContent>
-      <CardFooter className="pt-0 justify-end">
-        <Button 
-          onClick={handleSubmit} 
-          disabled={isVerifying || !input.trim()}
-          className="bg-indigo-950 text-white hover:bg-indigo-900 px-6"
-        >
-          {isVerifying ? '验证中...' : '提交验证并闭环'}
-        </Button>
-      </CardFooter>
-    </Card>
-  );
-}
-
-```
-
-#### 3. Dify API 客户端封装桥接 (src/lib/dify/client.ts)
-取代直接在前端硬编码请求，将 `conversation_id` 和会话变量的管理封装在中转层，实现持续的上下文追踪。
-
-```typescript
-// src/lib/dify/client.ts
-const DIFY_API_URL = process.env.NEXT_PUBLIC_DIFY_API_URL || 'https://api.dify.ai/v1';
-
-export class DifyClient {
-  private apiKey: string;
-  private userId: string;
-
-  constructor(apiKey: string, userId: string = 'superme_admin_01') {
-    this.apiKey = apiKey;
-    this.userId = userId;
-  }
-
-  /**
-   * 调用 Chatflow/Agent 进行带有持久化记忆的对话
-   */
-  async sendMessage(
-    query: string, 
-    conversationId: string | null = null,
-    inputs: Record<string, any> = {} // 传入 scene_type, role_judgement 等必填坐标
-  ) {
-    const response = await fetch(`${DIFY_API_URL}/chat-messages`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs,
-        query,
-        response_mode: 'streaming',
-        conversation_id: conversationId || "",
-        user: this.userId,
-      }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Dify API Request Failed: ${response.statusText}`);
-    }
-
-    return response.body; // 交由前端 Hooks 处理 SSE 流式渲染
-  }
-
-  /**
-   * 调用单次 Workflow (例如字典工具)
-   */
-  async runWorkflow(inputs: Record<string, any>) {
-    const response = await fetch(`${DIFY_API_URL}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        inputs,
-        response_mode: 'blocking',
-        user: this.userId,
-      }),
-    });
-    return response.json();
-  }
-}
-
-```
+### 2. Improvement Plan (改进方案)
+- **修改目标**：STT 唯一上游改为 Dify `/audio-to-text`；API Key 仅存服务端；前端去掉明文 Bearer。
+- **实现步骤**：
+  1. **服务端环境变量**：新增 `DIFY_STT_API_KEY`（值为指定的 App API Key）。`DIFY_API_BASE_URL` 沿用现有（默认 `https://dify.234124123.xyz/v1`）。
+  2. **改造** `vocab-server/server.js` 的 `POST /api/audio/transcriptions`：
+     - 保留：multipart 收文件、`file_url`/`fileUrl` 下载到临时文件、finally 清理临时文件。
+     - 删除：`modelsToTry` 整段轮询（local whisper / groq / openai / aai / 9router）。
+     - 新增：用服务端 Key 组 `FormData`（`file` + `user`）请求 ``${difyBase}/audio-to-text``；成功返回 `{ text }`；失败透传 Dify 状态码与错误体，**不降级**。
+     - `user` 取自 `req.body.user`，缺省为 `'default-user'`。
+     - 下载 `file_url` 时的 Authorization：优先用 `DIFY_STT_API_KEY`，去掉硬编码 `sk-899c9c...`。
+  3. **改造** `difyAPI.ts` 的 `transcribeAudioWithWhisper`：
+     - 继续请求 `/api/audio/transcriptions`（不直连 Dify）。
+     - 删除前端硬编码 `Authorization: Bearer sk-...`。
+     - `FormData` 增加 `user`；文件名按 `blob.type` 映射到官方允许扩展名（见下方 MIME 注意）。
+     - 错误文案改为「语音转文字失败」，避免再写 Whisper。
+  4. **不修改** `audioToText()`（行 1385 附近）；避免重复造轮子，但发音纠正直连链路留待后续单独治理。
+- **注意事项（Dify 官方约束）**：
+  - 接受 MIME：`audio/mp3`、`audio/m4a`、`audio/wav`、`audio/amr`、`audio/mpga`；`audio/mpeg`、常见浏览器 `audio/webm` 会 `415 unsupported_audio_type`。
+  - 文件 ≤ 30 MB。
+  - Key 禁止写入前端源码 / `VITE_*`（本方案符合官方「Key 放服务端」）。
+  - 计划与代码中**不要**再粘贴明文 App Key；仅写入服务器 `.env`。
 
 ---
 
-*Exported from [Voyager](https://github.com/Nagi-ovo/gemini-voyager)*  
-*Generated on May 16, 2026 at 07:19 PM*
+### 3. Files to Modify (待修改文件列表)
+- **主要修改文件（后端）**：
+  - `D:\cursor\work\super-agent\vocab-server\server.js`
+- **次要修改文件（前端服务层）**：
+  - `D:\cursor\work\super-agent\src\services\difyAPI.ts`
+- **配置（部署侧，非仓库明文）**：
+  - 服务器 / 本地 `vocab-server` 环境：`DIFY_STT_API_KEY=<指定 App Key>`
+- **明确不改**：
+  - UI 组件、`audioToText()`、`server_good_backup.js`、Whisper 相关测试脚本（除非另开任务）
+
+---
+
+### 4. File Names (涉及文件名)
+- `server.js` — STT 中转：Whisper 轮询 → 仅 Dify `/audio-to-text`
+- `difyAPI.ts` — `transcribeAudioWithWhisper`：去明文 Key、传 `user`、MIME 文件名映射
+
+---
+
+### 5. Reference Code (参考代码对比)
+
+#### 5.1 前端 `difyAPI.ts`
+
+```diff
+@@ -2301,25 +2301,36 @@
+ /**
+- * 高精度语音转文字 (Whisper) 接口
++ * 语音转文字：经本站后端代理调用 Dify /audio-to-text（Key 仅存服务端）
+  */
+ export async function transcribeAudioWithWhisper(audioBlob: Blob, userId = getAppUserId()): Promise<string> {
++  const mime = (audioBlob.type || '').toLowerCase();
++  const extByMime: Record<string, string> = {
++    'audio/mp3': 'mp3',
++    'audio/mpeg': 'mp3', // 官方拒 audio/mpeg；扩展名用 mp3，仍可能 415，需录制端尽量产出允许类型
++    'audio/mpga': 'mpga',
++    'audio/m4a': 'm4a',
++    'audio/wav': 'wav',
++    'audio/wave': 'wav',
++    'audio/x-wav': 'wav',
++    'audio/amr': 'amr',
++  };
++  const ext = extByMime[mime] || 'mp3';
++
+   const formData = new FormData();
+-  // Whisper-1 接口强制要求传递 file 字段，格式这里转换为 mp3 规范以保障兼容性
+-  formData.append('file', audioBlob, 'audio.mp3');
+-  // 由后端中转接口轮询确定具体的模型与参数，这里仅作为原始文件流上传
++  formData.append('file', audioBlob, `audio.${ext}`);
++  formData.append('user', userId || 'default-user');
+ 
+   const res = await fetch('/api/audio/transcriptions', {
+     method: 'POST',
+-    headers: {
+-      'Authorization': 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
+-    },
+     body: formData,
+   });
+ 
+   if (!res.ok) {
+     const errText = await res.text().catch(() => '');
+-    throw new Error(`Whisper 语音转文字失败 (${res.status}): ${errText}`);
++    throw new Error(`语音转文字失败 (${res.status}): ${errText}`);
+   }
+ 
+   const data = await res.json().catch(() => ({}));
+   return typeof data.text === 'string' ? data.text.trim() : '';
+ }
+```
+
+#### 5.2 后端 `server.js`（核心：删除轮询，改为唯一 Dify 调用）
+
+```diff
+@@ -8065,10 +8065,14 @@
+-// Whisper ... 9router ...
++// STT 中转：仅代理 Dify POST /audio-to-text（无 Whisper 降级）
+ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
+   let fileObj = null;
+   let tempFilePath = null;
+ 
+   try {
+     // ... 保留 file_url 下载 / multipart 取 file 逻辑 ...
++    const sttApiKey = process.env.DIFY_STT_API_KEY;
++    if (!sttApiKey) {
++      return res.status(500).json({ error: 'Server missing DIFY_STT_API_KEY' });
++    }
++    const difyBase = process.env.DIFY_API_BASE_URL
++      || process.env.VITE_DIFY_API_BASE_URL
++      || 'https://dify.234124123.xyz/v1';
++    const userId = (req.body && (req.body.user || req.body.userId)) || 'default-user';
+ 
+-    // 下载 file_url 时：
+-    headers: { 'Authorization': req.headers.authorization || 'Bearer sk-899c9c...' }
++    // 下载 file_url 时：
++    headers: { 'Authorization': `Bearer ${sttApiKey}` }
+ 
+-    // 删除整段 modelsToTry 轮询（local/groq/openai/aai/9router）
++    const fileBuffer = fs.readFileSync(fileObj.path);
++    const mimeType = fileObj.mimetype || 'audio/mp3';
++    const originalName = fileObj.originalname || 'audio.mp3';
++
++    const formData = new globalThis.FormData();
++    const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
++    formData.append('file', blob, originalName);
++    formData.append('user', String(userId));
++
++    const response = await fetch(`${difyBase}/audio-to-text`, {
++      method: 'POST',
++      headers: { 'Authorization': `Bearer ${sttApiKey}` },
++      body: formData,
++    });
++    const data = await response.json().catch(() => ({}));
++
++    if (!response.ok) {
++      console.error('[STT Dify] audio-to-text failed:', response.status, data);
++      return res.status(response.status).json(
++        typeof data === 'object' && data ? data : { error: 'Dify audio-to-text failed.' }
++      );
++    }
++
++    // 与前端约定：返回 { text }
++    return res.json({
++      text: typeof data.text === 'string' ? data.text : '',
++    });
+   } catch (error) {
+-    console.error('Whisper 中转失败:', error);
++    console.error('Dify STT 中转失败:', error);
+     return res.status(500).json({ error: error.message });
+   } finally {
+     // ... 保留临时文件清理 ...
+   }
+ });
+```
+
+> 执行时应对 `server.js` 8065–8205 整段做精确替换，避免残留 `modelsToTry`。
+
+---
+
+### 6. UI/UX Modification Plan (UI/UX 修改说明)
+- **视觉改变**：无。录音按钮、波形、上传态保持原样。
+- **交互逻辑**：停止录制 → 上传 `/api/audio/transcriptions` → 后端调 Dify → 文本填入输入框。
+- **失败体验**：Dify 报错时直接抛错/提示（如 `speech_to_text_disabled`、`unsupported_audio_type`、`401`），无静默降级到 Whisper。
+- **无障碍 / 响应式**：无额外改动。
+
+---
+
+### 7. 验收标准与测试用例（完善增补）
+
+| # | 菜单路径 | 测试数据 | 预期结果 | 对应需求 |
+|---|---|---|---|---|
+| 1 | 说模块 → 录音 → 停止 | 合法 `mp3`/`wav`/`m4a` 短音频 + 已配置 `DIFY_STT_API_KEY` | 输入框出现 Dify 返回的 `text` | A：代理 STT |
+| 2 | 同上 | 故意清空服务端 `DIFY_STT_API_KEY` | HTTP 500，文案含 missing key；**不**出现 9router/Whisper 日志 | 无降级 |
+| 3 | 同上 | 上传 `audio/webm`（若录制端产出） | Dify `415` 或明确失败；不轮询 Whisper | MIME 约束 |
+| 4 | 即兴演讲 Tab → 录音提交 | 正常英文短句 | 转写文本进入后续评估链路 | 影响面覆盖 |
+| 5 | 安全抽查 | 前端打包 / Network | 请求仅打本站 `/api/audio/...`；响应头/源码中**无** App Key | Key 服务端 |
+
+**部署检查清单**：
+1. 本机/服务器 `.env` 写入 `DIFY_STT_API_KEY`（勿提交仓库）。
+2. 确认对应 Dify 应用已开启语音转文字，且工作空间默认 STT 模型可用。
+3. `curl` 本机：`POST http://127.0.0.1:3001/api/audio/transcriptions`（multipart `file` + `user`）应返回 `{ "text": "..." }`。
+
+---
+
+### 8. 风险与后续（非本次必做）
+- 浏览器默认 `MediaRecorder` 常为 `webm`：若线上大量 `415`，需另开任务做前端转码或改录制 MIME（本次仅做扩展名映射 + 失败提示）。
+- 现存 `audioToText()` 仍把 `VITE_DIFY_STT_API_KEY` 暴露给浏览器，与官方安全要求不符；建议后续统一改为走本代理。
+- 计划/历史聊天中曾出现明文 Key：上线前建议在 Dify 控制台**轮换**该 App Key。
+
+---
+
+**请确认：** 以上完善版计划是否符合预期？回复「同意」或「确认」后，再按此计划分步改代码（先后端，再前端，再验收用例 1）。

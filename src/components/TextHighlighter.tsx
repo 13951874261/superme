@@ -1,11 +1,13 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { BookmarkPlus, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { addWord, updateWordPayload } from '../services/vocabAPI';
 import { runWordEnrichment, toVocabEnrichmentPayload } from '../services/difyAPI';
 import CustomCardModal from './CustomCardModal';
+import { useEnglishContext, BUSINESS_THEMES } from './modules/english/context/EnglishContext';
 
 export default function TextHighlighter() {
+  const { theme } = useEnglishContext();
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -80,17 +82,19 @@ export default function TextHighlighter() {
 
     try {
       try {
-        const theme = localStorage.getItem('english_theme') || '政商务沟通';
         const enriched = await runWordEnrichment(targetWord, theme);
         payload = toVocabEnrichmentPayload(enriched);
       } catch (enrichError) {
         console.error('词汇补全失败，使用占位 payload 继续入库:', enrichError);
       }
 
+      const isBusiness = BUSINESS_THEMES.some(t => t.value === theme);
+      const category = isBusiness ? 'business' : 'general';
+
       const created = await addWord({
         word: targetWord,
         dictType: 'manual_capture',
-        category: 'general',  // 划词属于日常场景，存入全场景区
+        category: category,  // 动态智能分类
         payload,
       });
 
@@ -100,21 +104,33 @@ export default function TextHighlighter() {
       }
 
       const existedMessage = created?.success === false ? '（已自动更新释义）' : '';
-      setSaveResult({ message: `战术词汇「${targetWord}」已存入全场景区！${existedMessage}`, isError: false });
+      const categoryLabel = category === 'business' ? '政商务区' : '全场景区';
+      setSaveResult({ message: `战术词汇「${targetWord}」已存入${categoryLabel}！${existedMessage}`, isError: false });
       
       // 触发右侧 30% 视窗自动弹出并显示该词详情
       window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-        detail: { open: true, tab: 'context', wordData: payload }
+        detail: { open: true, tab: 'context', wordData: { ...payload, id: wordId } }
       }));
 
-      // 触发高端烟花效果
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
-        colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
-        zIndex: 10000,
-      });
+      // Light celebration burst (aligned with Confetti.tsx — avoid jank)
+      if (
+        typeof window === 'undefined' ||
+        typeof window.matchMedia !== 'function' ||
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        confetti({
+          particleCount: 18,
+          spread: 46,
+          startVelocity: 12,
+          decay: 0.92,
+          ticks: 90,
+          gravity: 0.9,
+          scalar: 0.7,
+          origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
+          colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
+          zIndex: 10000,
+        });
+      }
 
       window.getSelection()?.removeAllRanges();
       setTimeout(() => {
@@ -123,7 +139,7 @@ export default function TextHighlighter() {
       }, 3000);
     } catch (error) {
       console.error(error);
-      setSaveResult({ message: '🚫 截获失败，请检查指挥中心网络。', isError: true });
+      setSaveResult({ message: '截获失败，请检查指挥中心网络。', isError: true });
       setTimeout(() => {
         setSaveResult(null);
         setPosition(null);

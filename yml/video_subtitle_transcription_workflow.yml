@@ -1,0 +1,298 @@
+﻿app:
+  description: 视频与音频字幕提取工作流。接收 MP3 音频文件，调用内置 ASR 进行语音转写，通过 LLM 整理为 Markdown 规范文本并配合听辨生成标准的带有时间轴的 SRT 字幕文件。
+  icon: 📹
+  icon_background: '#FFEFEA'
+  icon_type: emoji
+  mode: workflow
+  name: video_subtitle_transcription_workflow
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .mp3
+      - .wav
+      - .m4a
+      allowed_file_types:
+      - audio
+      allowed_file_upload_methods:
+      - local_file
+      enabled: true
+      fileUploadConfig:
+        audio_file_size_limit: 150
+        batch_count_limit: 1
+        file_size_limit: 150
+        file_upload_limit: 1
+        workflow_file_upload_limit: 1
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: tool
+      id: 1779417423684-source-1779418423033-target
+      source: '1779417423684'
+      sourceHandle: source
+      target: '1779418423033'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: llm
+      id: 1779418423033-source-1779418462729-target
+      source: '1779418423033'
+      sourceHandle: source
+      target: '1779418462729'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: 1779418462729-source-1779418592897-target
+      source: '1779418462729'
+      sourceHandle: source
+      target: '1779418592897'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: 1779418592897-source-1779418693000-target
+      source: '1779418592897'
+      sourceHandle: source
+      target: '1779418693000'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: '输入 MP3 音频文件与指定语言进行解析'
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - allowed_file_extensions:
+          - .mp3
+          - .wav
+          - .m4a
+          allowed_file_types:
+          - audio
+          allowed_file_upload_methods:
+          - local_file
+          default: ''
+          hint: '请上传需要进行字幕提取的 MP3/WAV 格式音频文件'
+          label: 音频文件
+          options: []
+          placeholder: ''
+          required: true
+          type: file
+          variable: audio_file
+        - default: 'auto'
+          hint: '指定音频内的主要语言，如 en/zh，默认 auto 自动检测'
+          label: 语言
+          max_length: 10
+          options: []
+          placeholder: 'auto'
+          required: false
+          type: text-input
+          variable: language
+      height: 140
+      id: '1779417423684'
+      position:
+        x: 80
+        y: 100
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 240
+    - data:
+        params:
+          audio_file: ''
+          model: ''
+        plugin_id: null
+        plugin_unique_identifier: ''
+        provider_icon: /console/api/workspaces/current/tool-provider/builtin/audio/icon
+        provider_id: audio
+        provider_name: audio
+        provider_type: builtin
+        selected: false
+        tool_configurations:
+          model:
+            type: constant
+            value: langgenius/tongyi/tongyi#paraformer-realtime-v1
+        tool_description: 将音频文件转换为文本。
+        tool_label: Speech To Text
+        tool_name: asr
+        tool_node_version: '2'
+        tool_parameters:
+          audio_file:
+            type: variable
+            value:
+            - '1779417423684'
+            - audio_file
+        type: tool
+      height: 90
+      id: '1779418423033'
+      position:
+        x: 380
+        y: 125
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 240
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: '将语音识别文本重构成规整的 Markdown 文本并生成带精确时间轴的 SRT 字幕结构。'
+        model:
+          completion_params:
+            temperature: 0.2
+            response_format:
+              type: json_object
+          mode: chat
+          name: gpt-4o
+          provider: openai
+        prompt_template:
+        - id: system
+          role: system
+          text: |
+            你是一个专业的多媒体字幕与内容整理助手。
+            你将接收到语音转写出的原始文本（可能存在部分词语听辨错误或由于连读、顿挫造成的文字缺失）。
+
+            请你从两个维度整理这份材料：
+            1. 【transcript_text】: 将其整理为符合商业规范、排版合理、标题层级清晰的 Markdown 格式纯文本。修正其中明显的拼写与听辨错误（尤其是政商黑话、连读变音），不要包含任何时间轴。
+            2. 【srt_text】: 为整段文本生成标准的带有时间轴的 SRT 格式字幕内容。根据语义与说话停顿合理进行断句切分，严格遵循 SRT 规范。例如：
+               1
+               00:00:01,000 --> 00:00:04,500
+               We will finalize the loan pricing strategy by tomorrow.
+
+               2
+               00:00:04,500 --> 00:00:08,200
+               Please verify the interest rate indexes with the syndicate.
+
+            【强制要求】：你必须以 JSON 格式输出，不要有任何 Markdown 包裹标签（如 ```json ）。输出格式必须严格如下：
+            {
+              "transcript_text": "此处是排版优美的 Markdown 文本",
+              "srt_text": "此处是完整的 SRT 字幕文本，使用 \n 换行"
+            }
+        - id: user
+          role: user
+          text: |
+            原始听写文本：
+            {{#1779418423033.text#}}
+        selected: false
+        title: 内容规范与字幕格式化
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 90
+      id: '1779418462729'
+      position:
+        x: 680
+        y: 125
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 240
+    - data:
+        code: |
+          import json
+          import re
+
+          def main(llm_output: str) -> dict:
+              result = {
+                  "transcript_text": "",
+                  "srt_text": ""
+              }
+              try:
+                  clean_text = llm_output.strip()
+                  if clean_text.startswith("```json"):
+                      clean_text = clean_text[7:]
+                  if clean_text.endswith("```"):
+                      clean_text = clean_text[:-3]
+                  clean_text = clean_text.strip()
+                  
+                  parsed = json.loads(clean_text)
+                  result["transcript_text"] = parsed.get("transcript_text", "")
+                  result["srt_text"] = parsed.get("srt_text", "")
+              except Exception as e:
+                  result["transcript_text"] = f"解析失败，原始输出:\n{llm_output}"
+                  srt_match = re.search(r'("srt_text"\s*:\s*"(.*?)")|(\d+\n\d{2}:\d{2}:\d{2})', llm_output, re.DOTALL)
+                  if srt_match:
+                      result["srt_text"] = "已从异常输出中粗暴提取，请人工核对。"
+                  else:
+                      result["srt_text"] = "无法提取字幕时间轴。"
+              return result
+        code_language: python3
+        desc: '解析 LLM 吐出的 JSON 内容，分别提取纯文本与 SRT 字幕'
+        outputs:
+          srt_text:
+            children: null
+            type: string
+          transcript_text:
+            children: null
+            type: string
+        selected: false
+        title: 解析 JSON
+        type: code
+        variables:
+        - value_selector:
+          - '1779418462729'
+          - text
+          value_type: string
+          variable: llm_output
+      height: 90
+      id: '1779418592897'
+      position:
+        x: 980
+        y: 125
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 240
+    - data:
+        desc: '最终输出纯文本内容与时间轴字幕内容'
+        outputs:
+        - value_selector:
+          - '1779418592897'
+          - transcript_text
+          variable: transcript_text
+        - value_selector:
+          - '1779418592897'
+          - srt_text
+          variable: srt_text
+        selected: false
+        title: 结束
+        type: end
+      height: 90
+      id: '1779418693000'
+      position:
+        x: 1280
+        y: 125
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 240
+  rag_pipeline_variables: []

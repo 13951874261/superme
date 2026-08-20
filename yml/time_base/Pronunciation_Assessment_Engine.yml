@@ -1,0 +1,451 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-gfR3SBAHyXp3iKnIWyyRpmlI (VITE_PRONUNCIATION_API_KEY)
+# 用途: 英语发音评估引擎 — 时间感知版
+# 改造: 注入 _system_time/_system_timestamp_ms；知识检索后经 Time_Decay_Rerank（7天半衰期）衰减重排
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 专门用于处理用户英语发音评测的高阶工作流；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（7天半衰期）优先近期发音问题。
+  icon: 🗣️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Pronunciation_Assessment_Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: start-knowledge-retrieval
+      source: start
+      sourceHandle: source
+      target: a1b2c3d4-e5f6-4901-pron-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: knowledge-retrieval-time-decay
+      source: a1b2c3d4-e5f6-4901-pron-012345678901
+      sourceHandle: source
+      target: b2c3d4e5-f6a7-4012-pron-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: time-decay-llm
+      source: b2c3d4e5-f6a7-4012-pron-123456789012
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: llm-to-code
+      source: llm
+      sourceHandle: source
+      target: code
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: code-to-end
+      source: code
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - desc: 用户原本想说的目标词汇或句子
+          label: target_text
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: target_text
+        - desc: 通过 Whisper 或 STT 识别出的用户实际录音文本
+          label: recognized_text
+          max_length: null
+          options: []
+          required: false
+          type: paragraph
+          variable: recognized_text
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-30 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 200
+      id: start
+      position:
+        x: 0
+        y: 200
+      positionAbsolute:
+        x: 0
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 5
+        query_attachment_selector: []
+        query_variable_selector:
+        - start
+        - target_text
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: a1b2c3d4-e5f6-4901-pron-012345678901
+      position:
+        x: 300
+        y: 200
+      positionAbsolute:
+        x: 300
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 发音错误的半衰期设为 7 天\n    # 发音矫正需要高频重复，7天内的错误是最需要关注的\n    HALF_LIFE_MS\
+          \ = 7 * 24 * 60 * 60 * 1000\n    decay_rate = math.log(2) / HALF_LIFE_MS\n\
+          \n    reranked_docs = []\n\n    if not retrieved_docs:\n        return {\"\
+          reranked_context\": \"\"}\n\n    ts = int(current_timestamp) if current_timestamp\
+          \ is not None else 0\n\n    for doc in retrieved_docs:\n        if not isinstance(doc,\
+          \ dict):\n            continue\n        content = doc.get(\"content\", \"\
+          \")\n        orig_score = float(doc.get(\"score\", 0.5))\n        metadata\
+          \ = doc.get(\"metadata\", {}) or {}\n\n        # 获取发音错误记录时间戳\n        doc_time\
+          \ = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff\
+          \ = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate * time_diff)\n\
+          \        final_score = orig_score * decay_factor\n\n        doc_age_days =\
+          \ round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该发音问题记录于：{doc_age_days}\
+          \ 天前]\"\n\n        reranked_docs.append({\n            \"content\": f\"{time_tag}\
+          \ {content}\",\n            \"final_score\": final_score,\n            \"metadata\"\
+          : metadata\n        })\n\n    # 根据时间衰减后的分数重新降序排序\n    reranked_docs.sort(key=lambda\
+          \ x: x[\"final_score\"], reverse=True)\n\n    # 拼接为纯文本供 LLM 使用\n    merged_context\
+          \ = \"\\n\\n---\\n\\n\".join([d[\"content\"] for d in reranked_docs])\n\n\
+          \    return {\n        \"reranked_context\": merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 7 天半衰期做时间衰减重排，并为每段发音问题注入「该发音问题记录于 X 天前」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - a1b2c3d4-e5f6-4901-pron-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - start
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: b2c3d4e5-f6a7-4012-pron-123456789012
+      position:
+        x: 600
+        y: 200
+      positionAbsolute:
+        x: 600
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.3
+            top_p: 0.8
+          mode: chat
+          name: '111'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 6fd756ac-eb0f-4cb6-ad2e-0f1308c2d41e
+          role: system
+          text: "你是一名极其严苛的顶尖英语发音教练。请比对 target_text（目标发音）和 recognized_text（实际识别），给出专业的发音评测结果。\n\
+            \n【全局时间感知】\n当前系统时间是：{{#start._system_time#}}。\n\n【发音问题时效性判定】\n上下文提供了发音问题的\
+            \ \"[该发音问题记录于：X 天前]\" 状态。\n1. 请优先评估和指正记录时间在 7 天以内的近期发音问题。\n2. 超过 30 天的历史发音问题，若在本次评测中未明显出现，请标记为\"\
+            已纠正\"而非\"当前问题\"。\n3. 评估报告应明确指出：\"您当前最需纠正的发音是 [问题名称]（记录于 [X] 天前）\"。\n\n\
+            【知识库检索 — 用户历史发音错误与矫正建议】\n检索到的用户历史发音错误与矫正建议（已按时间衰减重排）：\n{{#b2c3d4e5-f6a7-4012-pron-123456789012.reranked_context#}}\n\
+            须优先参考上述检索内容中的近期发音问题；与当前 target_text 冲突时以 7 天内近期问题为主。\n\n# 评测维度\n1. 发音准确度\
+            \ - 元音、辅音是否标准\n2. 重音位置 - 单词重音是否正确\n3. 连读弱读 - 是否影响理解\n\n# 输出格式\n严格输出 JSON\
+            \ 格式，禁止包含 markdown 代码块（不要输出 ```json）：\n{\n  \"score\": 0-100的整数分数,\n \
+            \ \"phonetic\": \"目标词的音标\",\n  \"issue_type\": \"vowel|consonant|stress|rhythm|other\"\
+            ,\n  \"analysis\": \"简洁的问题分析（20-50字；若命中近期发音问题，须注明记录天数）\",\n  \"suggestion\"\
+            : \"改进建议（20-50字）\"\n}"
+        - id: c5fbe526-b667-4b1e-bafb-c259f8c580d5
+          role: user
+          text: '目标发音: {{#start.target_text#}}
+
+            实际识别: {{#start.recognized_text#}}'
+        selected: false
+        title: 发音诊断 (LLM)
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 900
+        y: 200
+      positionAbsolute:
+        x: 900
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\nimport re\n\ndef main(llm_text: str, target_text: str,\
+          \ recognized_text: str) -> dict:\n    result = {\n        \"score\": 0,\n\
+          \        \"phonetic\": \"\",\n        \"issue_type\": \"other\",\n     \
+          \   \"analysis\": \"\",\n        \"suggestion\": \"\",\n        \"target_text\"\
+          : target_text,\n        \"recognized_text\": recognized_text\n    }\n  \
+          \  try:\n        clean_str = llm_text.strip().strip('```json').strip('```').strip()\n\
+          \        json_match = re.search(r'\\{[\\s\\S]*\\}', clean_str)\n       \
+          \ if json_match:\n            parsed = json.loads(json_match.group())\n\
+          \            result[\"score\"] = max(0, min(100, int(parsed.get(\"score\"\
+          , 0))))\n            result[\"phonetic\"] = parsed.get(\"phonetic\", \"\"\
+          )\n            result[\"issue_type\"] = parsed.get(\"issue_type\", \"other\"\
+          )\n            result[\"analysis\"] = parsed.get(\"analysis\", \"\")\n \
+          \           result[\"suggestion\"] = parsed.get(\"suggestion\", \"\")\n\
+          \        else:\n            result[\"analysis\"] = \"评测完成\"\n          \
+          \  result[\"suggestion\"] = \"请参考评分\"\n    except Exception as e:\n    \
+          \    result[\"analysis\"] = \"评测完成\"\n    return result"
+        code_language: python3
+        outputs:
+          analysis:
+            children: null
+            type: string
+          issue_type:
+            children: null
+            type: string
+          phonetic:
+            children: null
+            type: string
+          recognized_text:
+            children: null
+            type: string
+          score:
+            children: null
+            type: number
+          suggestion:
+            children: null
+            type: string
+          target_text:
+            children: null
+            type: string
+        selected: false
+        title: 解析评测结果
+        type: code
+        variables:
+        - value_selector:
+          - llm
+          - text
+          value_type: string
+          variable: llm_text
+        - value_selector:
+          - start
+          - target_text
+          value_type: string
+          variable: target_text
+        - value_selector:
+          - start
+          - recognized_text
+          value_type: string
+          variable: recognized_text
+      height: 52
+      id: code
+      position:
+        x: 1200
+        y: 200
+      positionAbsolute:
+        x: 1200
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - code
+          - score
+          variable: score
+        - value_selector:
+          - code
+          - phonetic
+          variable: phonetic
+        - value_selector:
+          - code
+          - issue_type
+          variable: issue_type
+        - value_selector:
+          - code
+          - analysis
+          variable: analysis
+        - value_selector:
+          - code
+          - suggestion
+          variable: suggestion
+        - value_selector:
+          - code
+          - target_text
+          variable: target_text
+        - value_selector:
+          - code
+          - recognized_text
+          variable: recognized_text
+        selected: false
+        title: 结束
+        type: end
+      height: 245
+      id: end
+      position:
+        x: 1500
+        y: 200
+      positionAbsolute:
+        x: 1500
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 58
+      y: 84
+      zoom: 0.7
+  rag_pipeline_variables: []

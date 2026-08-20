@@ -1,0 +1,237 @@
+﻿app:
+  description: 生词本记忆辅助引擎。根据单词及释义，调用 LLM 生成词根词缀、联想记忆、助记短语、图片提示词四维记忆辅助内容。
+  icon: 🧠
+  icon_background: '#FFF4E5'
+  icon_type: emoji
+  mode: workflow
+  name: Memory_Aid_Engine
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.1
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 15
+        image_file_size_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: edge-start-llm
+      selected: false
+      source: start_node
+      sourceHandle: source
+      target: llm_memory_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: end
+      id: edge-llm-end
+      selected: false
+      source: llm_memory_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 接收前端传入的单词、音标、词性、释义、例句，作为记忆辅助生成的输入上下文。
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 目标单词/词组
+          max_length: 200
+          options: []
+          required: true
+          type: text-input
+          variable: word
+        - label: 音标
+          max_length: 200
+          options: []
+          required: false
+          type: text-input
+          variable: phonetic
+        - label: 词性
+          max_length: 50
+          options: []
+          required: false
+          type: text-input
+          variable: pos
+        - label: 核心释义
+          max_length: 500
+          options: []
+          required: false
+          type: paragraph
+          variable: definition
+        - label: 参考例句
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: examples
+      height: 130
+      id: start_node
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 调用 LLM 根据单词信息生成四维记忆辅助：词根词缀、联想记忆、助记短语、图片提示词。
+        model:
+          completion_params:
+            max_tokens: 2048
+            temperature: 0.3
+          mode: chat
+          name: gpt-4o
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: memory-aid-sys
+          role: system
+          text: |
+            你是一位精通词源学、认知心理学和记忆术的顶级英语词汇教学专家。
+            你的任务是为给定的英语单词生成四维记忆辅助内容。
+
+            ## 输入信息
+            - 单词: {{#start_node.word#}}
+            - 音标: {{#start_node.phonetic#}}
+            - 词性: {{#start_node.pos#}}
+            - 释义: {{#start_node.definition#}}
+            - 例句: {{#start_node.examples#}}
+
+            ## 核心定位
+            你是陪伴个人成长的专属 AI 智能体，风格清冷稳重、理性克制、专业干练。所有记忆辅助内容必须专业、有学术依据，不卖萌、不幼稚。
+
+            ## 输出要求
+            必须返回合法的 JSON 格式，不包含 `json 等 Markdown 标记，直接输出以花括号 {} 包裹的 JSON 字符串。
+
+            ### 1. root_memory（词根词缀记忆）
+            从词源学角度拆解单词结构，说明前缀/词根/后缀的含义及演变逻辑。
+            必须包含：词根来源语言（拉丁语/希腊语/古英语等）、原意、各部分的组合逻辑、语义演变链条。
+            格式示例: "lev-（拉丁语 levare = 举起/减轻）+ -erage（工具/手段后缀）→ 用来举重物的工具 → 杠杆 → 引申为'影响力、优势、借力手段'"
+
+            ### 2. association_memory（联想记忆）
+            提供一个生动、有画面感的场景联想或谐音法，帮助右脑形象记忆。
+            可以是：① 场景故事联想 ② 谐音联想 ③ 形近词联想 ④ 生活经验关联。
+            格式示例: "lever（杠杆）+ age（年龄/时代）→ 用杠杆撬动整个时代 → 四两拨千斤、借力打力。想象一位高管用一个小小的支点撬动了整个行业格局。"
+
+            ### 3. mnemonic_phrase（助记短语）
+            一个包含目标词的地道英文句子，句子本身有实际商务/职场意义且便于回忆。
+            要求：句子自然流畅，贴合跨国企业高管日常沟通场景，20-60 词。
+            格式示例: "To leverage our core competencies and gain a competitive edge, we must realign our cross-functional teams around this strategic pivot."
+
+            ### 4. image_prompt（图片记忆提示词）
+            一段英文描述，用于 AI（Midjourney / DALL-E 3）生成一张帮助记忆该单词含义的配图。
+            要求：具象化、视觉冲击力强、40-80 词，包含构图、风格、色调、主体元素。
+            格式示例: "A minimalist 3D illustration showing a small golden lever effortlessly lifting a massive concrete boulder. The lever is labeled 'LEVERAGE'. Dramatic lighting, clean background, professional color palette. 8K render, isometric view."
+
+            ## 输出 JSON 结构（严格遵守）
+            {
+              "root_memory": "词根词缀记忆内容",
+              "association_memory": "联想记忆内容",
+              "mnemonic_phrase": "助记地道句子",
+              "image_prompt": "AI图片生成提示词"
+            }
+
+            ## 质量红线
+            - 四个字段必须全部非空，内容必须具体、翔实、有学术依据。
+            - 禁止使用模板化敷衍表述（如"暂无"、"待补充"、"类似某词"）。
+            - 禁止输出 JSON 以外的任何文字（包括解释、道歉、Markdown 标记）。
+            - 只输出一行纯 JSON 字符串。
+        selected: false
+        title: 记忆辅助引擎·LLM
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 98
+      id: llm_memory_node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        desc: 将 LLM 生成的记忆辅助 JSON 字符串作为最终结果输出给调用方。
+        outputs:
+        - value_selector:
+          - llm_memory_node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 90
+      id: end_node
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
+  rag_pipeline_variables: []

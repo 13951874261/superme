@@ -1,0 +1,14 @@
+{"ts":"2026-08-20T14:57:00Z","event":"plan_created","slug":"confetti-jank-fix","mode":"aggregate","source":".omx/specs/deep-interview-confetti-jank-fix.md","goals":["G001","G002","G003","G004"],"note":"manual create-goals; omx CLI unavailable"}
+{"ts":"2026-08-20T14:57:00Z","event":"supersedes","previous":"en-oral-03-1vs1-daily","status":"complete"}
+{"ts":"2026-08-20T14:57:30Z","event":"create_goals","slug":"custom-theme-cascade-delete","source":".omx/specs/deep-interview-custom-theme-cascade-delete.md","goals":["G001","G002","G003","G004"],"supersedes":"confetti-jank-fix","note":"manual create-goals; omx CLI unavailable; awaiting user consent before complete-goals"}
+{"ts":"2026-08-20T15:05:00Z","event":"checkpoint","goalId":"G001","status":"complete","evidence":"Confetti.tsx single-fire ref + light particles 18"}
+{"ts":"2026-08-20T15:05:00Z","event":"checkpoint","goalId":"G002","status":"complete","evidence":"ImprovTimer milestoneFiredRef once-only"}
+{"ts":"2026-08-20T15:05:00Z","event":"checkpoint","goalId":"G003","status":"complete","evidence":"TextHighlighter+showConfetti particleCount 18"}
+{"ts":"2026-08-20T15:05:00Z","event":"checkpoint","goalId":"G004","status":"complete","evidence":"AC1-6 static audit; no heavy particleCount left in src; residual browser E2E"}
+{"ts":"2026-08-20T15:05:00Z","event":"aggregate_complete","slug":"confetti-jank-fix"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G001","status":"complete","evidence":"customThemeCascadeDelete service + sync/async routes; unit tests passed"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G002","status":"complete","evidence":"ThemeGateway optimistic+3s task center; restore paths"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G003","status":"complete","evidence":"unit+contract tests passed"}
+{"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G004","status":"in_progress","evidence":"AC verification in progress"}
+{"ts":"2026-08-20T15:20:00Z","event":"checkpoint","goalId":"G004","status":"complete","evidence":"anti-misdelete+async snapshot fixes; both test suites green; aggregate complete"}
+{"ts":"2026-08-20T15:20:00Z","event":"aggregate_complete","slug":"custom-theme-cascade-delete","status":"complete"}

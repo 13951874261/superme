@@ -1,0 +1,386 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 名称: 驭心博弈会话回合引擎 (Game Theory Session Round)
+# 类型: Workflow（一次性运行，会话态由本站 SQLite 持久化）
+# 官方依据: https://docs.dify.ai/zh/api-reference/guides/workflow
+#           https://docs.dify.ai/zh/api-reference/workflow-runs/run-workflow
+# 调用: POST /v1/workflows/run  response_mode=blocking
+# 输出变量: round_result（纯 JSON 字符串，勿包 markdown）
+# 建议服务端 Key: DIFY_GAME_THEORY_SESSION_ROUND_KEY
+# 导入: Dify 工作室 → 导入 DSL → 绑定本工作区可用模型后发布
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 多人群体博弈会话回合引擎。phase=generate_roles 时按场景生成 2-5 个可编辑角色；phase=play_round 时让全部非用户角色并行发言，并给出轻量提示。
+  icon: ♟️
+  icon_background: '#EBF4FF'
+  icon_type: emoji
+  mode: workflow
+  name: 驭心博弈会话回合引擎 (Game Theory Session Round)
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 任务阶段
+          options:
+          - generate_roles
+          - play_round
+          required: true
+          type: select
+          variable: phase
+        - label: 场景类型
+          options:
+          - gov_struggle
+          - corp_clash
+          - upward_takeover
+          required: true
+          type: select
+          variable: scene_type
+        - label: 博弈模型
+          options:
+          - prisoner_dilemma
+          - pig_game
+          - info_asymmetry
+          - cold_trigger
+          required: true
+          type: select
+          variable: game_model
+        - label: 来源类型
+          options:
+          - guided_simulation
+          - real_record
+          required: true
+          type: select
+          variable: source_type
+        - label: 心理侧写模式
+          options:
+          - evidence_bound
+          - assertive
+          required: true
+          type: select
+          variable: psyche_mode
+        - label: 输入通道
+          options:
+          - text
+          - voice
+          - mixed
+          required: false
+          type: select
+          variable: channel
+        - label: 场景标题
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: title
+        - label: 场景描述
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: scenario
+        - default: 4
+          hint: 仅 phase=generate_roles 时使用，必须是 2 到 5 的整数
+          label: 角色人数
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: role_count
+        - label: 角色阵容JSON
+          max_length: 100000
+          options: []
+          required: false
+          type: paragraph
+          variable: roles_json
+        - label: 历史回合JSON
+          max_length: 100000
+          options: []
+          required: false
+          type: paragraph
+          variable: history_json
+        - label: 本轮用户发言
+          max_length: 100000
+          options: []
+          required: false
+          type: paragraph
+          variable: user_input
+        - label: 本轮输入来源
+          options:
+          - text
+          - voice
+          required: false
+          type: select
+          variable: input_source
+        - default: 0
+          hint: 当前已完成回合数；play_round 时后端传入，本轮完成后 round_no = current_round + 1
+          label: 当前回合
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: current_round
+        - default: 12
+          label: 最大回合
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: max_rounds
+        - default: 0
+          label: 已用分钟
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: elapsed_minutes
+        - default: 30
+          label: 最大分钟
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: max_minutes
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 后端自动注入的格式化时间
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 后端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 280
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 按 phase 生成角色阵容或并行回合发言
+        model:
+          completion_params:
+            temperature: 0.75
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: 7f3c1a2b-4d5e-4f6a-8b9c-0d1e2f3a4b5c
+          role: system
+          text: |-
+            当前系统时间：{{#start._system_time#}}。
+            你是驭心博弈会话引擎，负责多人群体博弈的角色生成与单回合并行发言。
+            必须且只能返回合法 JSON 字符串：不要 markdown 代码块，不要注释，不要 JSON 以外的文字。
+
+            【phase 分流】
+            - generate_roles：只生成角色阵容，禁止输出 round_no / role_replies。
+            - play_round：只生成本轮全部非用户角色的并行发言，禁止改写角色设定。
+
+            【场景编码】
+            - scene_type: gov_struggle=体制内派系, corp_clash=外企高管倾轧, upward_takeover=以下克上
+            - game_model: prisoner_dilemma=囚徒困境, pig_game=智猪博弈, info_asymmetry=信息不对称, cold_trigger=冷启动摊牌
+            - source_type: guided_simulation=模拟推演, real_record=真实记录复盘
+            - psyche_mode: evidence_bound=证据约束（默认）, assertive=强结论（仅模拟可强化）
+            - 若 source_type=real_record，无论 psyche_mode 为何，心理暗示都必须证据约束，禁止无线索定性。
+
+            【generate_roles 规则】
+            1. 生成恰好 role_count 个角色；若 role_count 缺失或越界，则生成 4 个，且最终人数必须在 2 到 5。
+            2. roles[0] 是用户将扮演的己方角色，其余为在场对手/盟友/外部角色。
+            3. hierarchy_level 只能是 executive / middle / peer / external。
+            4. 角色必须彼此利益冲突、可对话、符合 scenario；不要脸谱化口号。
+            5. hidden_motive 只写可被后续对白验证的潜在动机，不要写无法落地的阴谋。
+            6. role_id 使用 r1, r2, r3... 与数组顺序一致。
+
+            generate_roles 输出：
+            {
+              "phase": "generate_roles",
+              "roles": [
+                {
+                  "role_id": "r1",
+                  "name": "姓名",
+                  "position": "职务",
+                  "hierarchy_level": "executive",
+                  "stance": "本场公开立场",
+                  "interest": "核心利益",
+                  "hidden_motive": "可验证的潜在动机"
+                }
+              ]
+            }
+
+            【play_round 规则】
+            1. 解析 roles_json。找不到 is_user=true 时，默认 roles[0] 为用户角色。
+            2. 用户本轮发言是 user_input；input_source=voice 时保留口语痕迹，不要改写成书面稿再让别人「听懂」。
+            3. 必须为每一个非用户角色生成一条 role_replies，同一回合同时表态，禁止排队等待。
+            4. reply 是该角色当场会说出口的话（1 段，80-180 字），带职务口吻与利益算计，不要旁白。
+            5. style 用短标签描述说话方式，如「先认共性再抽预算权」。
+            6. risk_hint 可选；只在该角色话里藏刀或设套时给一句，不超过 30 字。
+            7. light_signals 给 1-3 条给用户的轻量提示（不是复盘），每条不超过 40 字。
+            8. round_no = current_round + 1。
+            9. need_checkpoint=true 的条件（满足其一即可）：
+               - current_round + 1 >= max_rounds
+               - elapsed_minutes >= max_minutes
+               - 本轮出现公开站队、预算/编制易主、或关系破裂
+            10. 禁止替用户发言。禁止总结全场。禁止输出全景图字段。
+
+            play_round 输出：
+            {
+              "phase": "play_round",
+              "round_no": 1,
+              "role_replies": [
+                {
+                  "role_id": "r2",
+                  "name": "角色名",
+                  "reply": "当场台词",
+                  "style": "说话方式",
+                  "risk_hint": "可选风险提示"
+                }
+              ],
+              "light_signals": ["提示1"],
+              "need_checkpoint": false
+            }
+
+            【画像约束】
+            学习者画像：{{#start.user_current_profile#}}
+            对白语气需符合该画像的职场文化；不要把美式摊牌硬套进英式/体制语境。
+        - id: 8a4d2b3c-5e6f-407b-9c0d-1e2f3a4b5c6d
+          role: user
+          text: |-
+            phase: {{#start.phase#}}
+            scene_type: {{#start.scene_type#}}
+            game_model: {{#start.game_model#}}
+            source_type: {{#start.source_type#}}
+            psyche_mode: {{#start.psyche_mode#}}
+            channel: {{#start.channel#}}
+            title: {{#start.title#}}
+            scenario: {{#start.scenario#}}
+            role_count: {{#start.role_count#}}
+            roles_json: {{#start.roles_json#}}
+            history_json: {{#start.history_json#}}
+            user_input: {{#start.user_input#}}
+            input_source: {{#start.input_source#}}
+            current_round: {{#start.current_round#}}
+            max_rounds: {{#start.max_rounds#}}
+            elapsed_minutes: {{#start.elapsed_minutes#}}
+            max_minutes: {{#start.max_minutes#}}
+            user_current_profile: {{#start.user_current_profile#}}
+        selected: false
+        title: 会话回合LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: round_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []

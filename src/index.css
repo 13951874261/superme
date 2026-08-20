@@ -1,12 +1,43 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
 @theme {
-  --color-brand: #FF5722;
-  --color-brand-hover: #E64A19;
-  --color-brand-light: #FFCCBC;
+  /* 阴影系统 */
+  --shadow-sm: 0 1px 2px 0 oklch(50% 0 0 / 0.05);
+  --shadow-card: 0 4px 16px -4px oklch(30% 0 0 / 0.08), 0 2px 6px -2px oklch(30% 0 0 / 0.04);
+  --shadow-hover: 0 12px 32px -8px oklch(30% 0 0 / 0.12), 0 4px 12px -4px oklch(30% 0 0 / 0.06);
+  --shadow-modal: 0 24px 48px -12px oklch(30% 0 0 / 0.15), 0 8px 16px -4px oklch(30% 0 0 / 0.08);
+  --shadow-spotlight: 0 0 0 1px oklch(60% 0 0 / 0.08), 0 8px 24px -8px oklch(30% 0 0 / 0.10);
+
+  --grain-url: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+
+  --color-brand: #202124;
+  --color-brand-light: #3A3B3C;
+  --color-brand-dark: #0F1115;
+  --color-brand-hover: #3A3B3C;
+  --color-accent: #FF5722;
   
-  --font-sans: 'Google Sans', 'Product Sans', Roboto, ui-sans-serif, system-ui, sans-serif;
+  /* 中性色 */
+  --color-canvas: oklch(98% 0 0);
+  --color-surface: oklch(100% 0 0);
+  --color-ink-primary: #202124;
+  --color-ink-secondary: #5F6368;
+  --color-ink-muted: #9AA0A6;
+  --color-border: #E8EAED;
+  
+  /* 功能色 */
+  --color-success: #34A853;
+  --color-warning: #FBBC05;
+  --color-danger: #EA4335;
+  --color-info: #4285F4;
+  
+  /* 轨道色 */
+  --color-track-orange: #FF5722;
+  --color-track-indigo: #4285F4;
+  
+  --font-sans: 'Outfit', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
   --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 }
 
@@ -113,4 +144,493 @@ details[open] summary ~ * {
 .animate-shimmer {
   animation: shimmer 1.8s infinite linear;
 }
+
+/* Custom scrollbar matching the theme color #FF5722 */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 5px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 87, 34, 0.3);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 87, 34, 0.6);
+}
+
+/* Ripple effect - 平滑扩散 */
+.ripple {
+  position: relative;
+  overflow: hidden;
+}
+.ripple::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  transition: width 0.5s var(--ease-premium),
+              height 0.5s var(--ease-premium),
+              opacity 0.3s ease;
+}
+.ripple:active::after {
+  width: 300%;
+  height: 300%;
+  opacity: 1;
+}
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-slide-in-up {
+  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in-scale {
+  animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes iconSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-icon-spin {
+  animation: iconSpin 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 87, 34, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 87, 34, 0);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* 属性级精准过渡与高性能 Transform 工具类 */
+.motion-transform-only {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+@supports (will-change: transform) {
+  .motion-transform-only {
+    will-change: transform;
+  }
+}
+
+.transition-transform-opacity {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interactive-card {
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.08);
+}
+
+/* 极雅行政卡片风格：采用极致静雅的微投影和柔和的灰白过渡光效，去霓虹/去粒子 */
+.admin-card {
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border: 1px solid #f3f4f6;
+  box-shadow: 0 4px 20px -4px rgba(9, 9, 11, 0.04), 0 8px 24px rgba(0, 0, 0, 0.02);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.admin-card:hover {
+  transform: scale(1.01) translateY(-2px);
+  box-shadow: 0 10px 30px -10px rgba(9, 9, 11, 0.08), 0 16px 40px rgba(0, 0, 0, 0.03);
+  border-color: #e5e7eb;
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+}
+
+.admin-glow-soft {
+  background: linear-gradient(135deg, #ffffff 0%, #f3f4f6 100%);
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.01), 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+
+:root {
+  /* Legacy token mapping for existing components */
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+  --color-primary: var(--color-brand);
+  --color-primary-hover: var(--color-brand-hover);
+  --color-primary-light: var(--color-brand-light);
+  --color-surface-dark: var(--color-ink-primary);
+  --color-surface-mid: var(--color-canvas);
+  --radius-sm: 0.5rem;    /* 8px */
+  --radius-md: 1rem;      /* 16px */
+  --radius-lg: 1.5rem;   /* 24px */
+  --radius-xl: 2rem;       /* 32px */
+  --shadow-card: 0 4px 24px -8px rgba(0,0,0,0.06);
+  --shadow-hover: 0 12px 40px -12px rgba(0,0,0,0.12);
+}
+
+/* === 排版系统 === */
+.font-display {
+  font-family: var(--font-sans);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.font-body {
+  font-family: var(--font-sans);
+  letter-spacing: 0;
+  line-height: 1.65;
+}
+
+.text-display-xl { font-size: clamp(2rem, 4vw, 3rem); font-weight: 800; letter-spacing: -0.04em; }
+.text-display    { font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 800; letter-spacing: -0.03em; }
+.text-heading    { font-size: 1.125rem;  font-weight: 700; letter-spacing: -0.02em; } /* 18px */
+.text-subhead    { font-size: 0.875rem;  font-weight: 600; letter-spacing: 0; }        /* 14px */
+.text-body       { font-size: 0.875rem;  font-weight: 400; letter-spacing: 0; }        /* 14px */
+.text-caption    { font-size: 0.75rem;   font-weight: 500; letter-spacing: 0.02em; }   /* 12px */
+.text-micro      { font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; } /* 11px */
+.text-label      { font-size: 0.625rem;  font-weight: 700; letter-spacing: 0.15em; } /* 10px */
+
+/* === 间距节奏 (8pt Grid) === */
+.space-section { padding: 4rem 0; }
+.space-element { padding: 1.5rem 0; }
+.space-tight { padding: 0.75rem 0; }
+
+/* === Bento Grid 布局 === */
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.5rem;
+}
+.bento-card {
+  background: var(--color-surface);
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 1.5rem;
+  padding: 1.75rem;
+  box-shadow: var(--shadow-card);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bento-card:hover {
+  box-shadow: var(--shadow-hover);
+  transform: translateY(-2px);
+}
+
+/* === 物理按压反馈 === */
+.btn-press:active {
+  transform: scale(0.97) translateY(1px);
+  transition: transform 0.1s ease-out;
+}
+
+/* === 骨架屏加载态 === */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* === Hover 翻译揭示 — 从"不可见"改为"淡入" === */
+.reveal-translation {
+  position: relative;
+  min-height: 2rem;
+}
+.reveal-translation .hint {
+  font-size: 0.6875rem; /* 11px */
+  color: var(--color-ink-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: opacity 0.2s ease;
+}
+.reveal-translation .translation {
+  font-size: 0.75rem; /* 12px */
+  color: var(--color-info);
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.group:hover .reveal-translation .hint { opacity: 0; }
+.group:hover .reveal-translation .translation {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* === SOP ָ��ר�ÿ�Ƭ���� === */
+.card-sop {
+  background: linear-gradient(135deg,
+    color-mix(in oklch, var(--color-indigo-50) 40%, var(--color-surface)) 0%,
+    var(--color-surface) 100%
+  );
+  border-left: 4px solid oklch(65% 0.18 270 / 0.6);
+  border-radius: 0 1.5rem 1.5rem 0;
+}
+
+/* === ״̬ͼ�� SVG ��� emoji === */
+.status-ok   { color: oklch(70% 0.18 145); }  /* success green */
+.status-warn  { color: oklch(80% 0.16 85); }   /* warning amber */
+.status-fail  { color: oklch(60% 0.20 25); }   /* danger red   */
+.status-muted { color: oklch(70% 0 0); }        /* ink-muted   */
+
+/* === �ƶ��˺�������ǿ === */
+@media (max-width: 767px) {
+  .bento-card {
+    padding: 1.25rem;      /* �ƶ�����С padding */
+    border-radius: 1.25rem; /* �ƶ�����СԲ�� */
+    margin-bottom: 0.75rem;  /* ��Ƭ�����Ӵ�ֱ��� */
+  }
+
+  .space-y-section > * + * {
+    margin-top: 1.5rem;     /* �����ǿ�ƺ������ */
+  }
+}
+
+/* === Eyebrow ��ǩϵͳ === */
+.eyebrow {
+  font-size: 0.625rem;       /* 10px */
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+/* === Utility ����ר����ʽ�����ܶȣ� === */
+.utility-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
+  border-radius: 0.75rem;
+  color: var(--color-ink-secondary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.utility-item:hover {
+  background: var(--color-canvas);
+  color: var(--color-ink-primary);
+}
+.utility-item .icon {
+  width: 1rem;
+  height: 1rem;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+.utility-item:hover .icon {
+  opacity: 1;
+}
+.utility-badge {
+  font-size: 0.625rem;
+  font-weight: 800;
+  color: var(--color-ink-muted);
+  background: var(--color-canvas);
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+}
+
+/* ����˫���� Bezel ��Ƭ��ϵ */
+.haptic-card {
+  background: var(--color-surface);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+  border-radius: 1.5rem;
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 4px 20px -4px rgba(9, 9, 11, 0.02),
+    0 8px 24px rgba(0, 0, 0, 0.01);
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.haptic-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 255, 255, 0.9),
+    0 10px 30px -10px rgba(9, 9, 11, 0.06),
+    0 16px 40px rgba(0, 0, 0, 0.02);
+}
+
+/* ������̬ web �ƽ������������������ */
+.liquid-glass-approx {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(20px) saturate(190%);
+  -webkit-backdrop-filter: blur(20px) saturate(190%);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    0 10px 30px -10px rgba(0, 0, 0, 0.04);
+}
+
+/* Grain Noise 叠加层 (性能友好型静态 GPU 硬件纹理) */
+.grain-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.015;
+  background-image: var(--grain-url);
+  transform: translateZ(0);
+  contain: strict;
+}
+
+/* 硬件加速与动画优化工具类 (渐进增强，无 GPU 硬件环境自动平滑降级) */
+.motion-layer {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  contain: layout paint;
+}
+
+@supports (will-change: transform) {
+  .motion-layer {
+    will-change: transform, opacity;
+  }
+}
+
+.motion-transform {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* 针对无 GPU / 低速显示更新设备与无障碍减弱动效偏好的通用回退保护 */
+@media (prefers-reduced-motion: reduce), (update: slow) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .motion-layer {
+    will-change: auto !important;
+    contain: none !important;
+  }
+  .grain-overlay {
+    display: none !important;
+  }
+}
+
+
+/* Spotlight 边框效果 */
+.spotlight-border {
+  position: relative;
+  border: 1px solid var(--color-border);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.spotlight-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, transparent 40%, oklch(70% 0.05 270) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.spotlight-border:hover::before {
+  opacity: 1;
+}
+
+/* 极致考究的超长单词/短语悬浮平缓滚动气泡机制 */
+.word-tooltip-container {
+  max-width: 260px;
+  overflow: hidden;
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  background-color: #202124;
+  color: #ffffff;
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.15), 0 8px 16px -6px rgba(0,0,0,0.15);
+  border: 1px solid rgba(255,255,255,0.1);
+  z-index: 90;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+/* 仅在父级 group-hover 且子级 tooltip 激活时展现并滚动 */
+.group\/word:hover .word-tooltip-container {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.word-tooltip-text {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.group\/word:hover .word-tooltip-text {
+  animation: tooltip-marquee 7s linear infinite alternate;
+  padding-right: 12px;
+}
+
+@keyframes tooltip-marquee {
+  0%, 20% {
+    transform: translateX(0);
+  }
+  80%, 100% {
+    transform: translateX(calc(-100% + 236px)); /* 260px - 24px padding */
+  }
+}
+
 

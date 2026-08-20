@@ -1,0 +1,399 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-YysFumsmeSAeJaQMobMpW24r (VITE_DIFY_GAME_THEORY_KEY)
+# 用途: 驭心博弈系统分析引擎 — 时间感知版
+# 改造: 注入 _system_time/_system_timestamp_ms；知识检索后经 Time_Decay_Rerank（60天半衰期）衰减重排
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 驭心博弈系统分析引擎，支持真实高管斗争研判、博弈论落地实操、双向权力驭控手段匹配与5-10层因果链推演；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（60天半衰期）优先近期博弈记录。
+  icon: 🧠
+  icon_background: '#EBF4FF'
+  icon_type: emoji
+  mode: workflow
+  name: 驭心博弈系统分析引擎 (Game Theory Engine)
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: start-knowledge-retrieval
+      source: start
+      sourceHandle: source
+      target: c7d8e9f0-a1b2-4901-game-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: knowledge-retrieval-time-decay
+      source: c7d8e9f0-a1b2-4901-game-012345678901
+      sourceHandle: source
+      target: d8e9f0a1-b2c3-4012-game-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: time-decay-llm
+      source: d8e9f0a1-b2c3-4012-game-123456789012
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景类型
+          options:
+          - gov_struggle
+          - corp_clash
+          - upward_takeover
+          required: true
+          type: select
+          variable: scene_type
+        - label: 博弈模型
+          options:
+          - prisoner_dilemma
+          - pig_game
+          - info_asymmetry
+          - cold_trigger
+          required: true
+          type: select
+          variable: game_model
+        - label: 危机场景
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: case_text
+        - label: 用户对策
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_answer
+        - label: 选用权力手段
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: applied_tactics
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 280
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - start
+        - case_text
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: c7d8e9f0-a1b2-4901-game-012345678901
+      position:
+        x: 228
+        y: 282
+      positionAbsolute:
+        x: 228
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 博弈策略分析的半衰期设为 60 天\n    # 博弈对手的策略变化周期较长，60天的半衰期可以平衡\"近期战术\"\
+          与\"历史战略洞察\"\n    HALF_LIFE_MS = 60 * 24 * 60 * 60 * 1000\n    decay_rate\
+          \ = math.log(2) / HALF_LIFE_MS\n\n    reranked_docs = []\n\n    if not retrieved_docs:\n\
+          \        return {\"reranked_context\": \"\"}\n\n    ts = int(current_timestamp)\
+          \ if current_timestamp is not None else 0\n\n    for doc in retrieved_docs:\n\
+          \        if not isinstance(doc, dict):\n            continue\n        content\
+          \ = doc.get(\"content\", \"\")\n        orig_score = float(doc.get(\"score\"\
+          , 0.5))\n        metadata = doc.get(\"metadata\", {}) or {}\n\n        doc_time\
+          \ = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff\
+          \ = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate * time_diff)\n\
+          \        final_score = orig_score * decay_factor\n\n        doc_age_days =\
+          \ round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该博弈记录于：{doc_age_days}\
+          \ 天前]\"\n\n        reranked_docs.append({\n            \"content\": f\"{time_tag}\
+          \ {content}\",\n            \"final_score\": final_score,\n            \"metadata\"\
+          : metadata\n        })\n\n    reranked_docs.sort(key=lambda x: x[\"final_score\"\
+          ], reverse=True)\n\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"content\"\
+          ] for d in reranked_docs])\n\n    return {\n        \"reranked_context\":\
+          \ merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 60 天半衰期做时间衰减重排，并为每段博弈记录注入「该博弈记录于 X 天前」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - c7d8e9f0-a1b2-4901-game-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - start
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: d8e9f0a1-b2c3-4012-game-123456789012
+      position:
+        x: 376
+        y: 282
+      positionAbsolute:
+        x: 376
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: "【全局时间感知】\n当前系统时间是：{{#start._system_time#}}。\n\n【博弈策略时效性判定】\n上下文提供了博弈记录的\
+            \ \"[该博弈记录于：X 天前]\" 状态。\n1. 请优先分析记录时间在 60 天以内的近期博弈记录，这些战术更可能反映对手当前的策略走向。\n\
+            2. 对于记录时间超过 180 天的历史博弈，请在分析中标注\"该策略可能已过时，对手可能已调整应对方式\"。\n3. 最终分析必须明确指出\"\
+            基于您 [X] 天前的博弈记录，建议采取以下策略...\"。\n\n【知识库检索 — 历史博弈记录与对手特征】\n检索到的历史博弈记录与对手行为模式：\n\
+            {{#d8e9f0a1-b2c3-4012-game-123456789012.reranked_context#}}\n须优先参考上述近期博弈记录；与当前局势冲突时以距今天数更小的记录为准。\n\
+            \n你是一个顶级的人性心理专家、高管斗争顾问和博弈论实操教练。你的任务是评估用户在特定博弈场景下采取的博弈策略，并给出多维度深度分析。\n\
+            你需要以合法的 JSON 格式输出结果，以便前端系统进行解析。\n\n输入变量：\n- scene_type: 场景类型 (gov_struggle:体制内派系博弈,\
+            \ corp_clash:外企高管倾轧, upward_takeover:以下克上)\n- game_model: 博弈模型 (prisoner_dilemma,\
+            \ pig_game, info_asymmetry, cold_trigger)\n- case_text: 危机场景\n- user_answer:\
+            \ 用户选择的对策/陈述\n- applied_tactics: 选用的双向权力手段 (如: 制衡术, 分而治之, 信息垄断, 软对抗等)\n\
+            - user_current_profile: 国家/地区画像背景\n\n【画像自适应博弈研判约束】\n当前学习者的国家/地区画像设定为：{{user_current_profile}}\n\
+            你在分析决策和评估人性原型时，必须契合该画像所指向的地域商业博弈特征：\n\n1. 对策博弈性分析（画像契合度检测）：\n   - 如果 {{user_current_profile}}\
+            \ 包含 \"英国\" 或 \"UK\"，重点评估用户的对策是否符合英式高层商业博弈中常用的“均势平衡 (Balance of Power)”、“冷处理/以退为进\
+            \ (Understatement & Indirectness)”及“长线渐进妥协”策略。\n   - 指出过于美式的直截了当、单刀直入、或者过度张扬的利益侵略性在英式商业语境中可能带来的反弹与互信瓦解。\n\
+            2. 人性原型归档（对齐 JSON 中的 \"prototype_archive\" 对象）：\n   - 根据该画像环境下用户的表现，将用户归档为对应的人性原型（例如在英式背景下，展现出高情商和委婉谈判特征的用户，可归档为“英伦平衡家\
+            \ (The Diplomat)”或“隐士策士 (The Silent Strategist)”）。\n\n输出 JSON 结构必须包含以下字段：\n\
+            {\n  \"is_success\": true/false (评估用户的策略是否在当前局势中能够实现战略破局、免受反噬。用布尔类型表示),\n\
+            \  \"score\": 0-100之间的整数 (对用户策略的综合评分),\n  \"stakeholder_interests\": \"\
+            利益结构分析：阐明涉事各方核心利益所在、诉求冲突点。\",\n  \"motives_analysis\": \"动机透视：深入剖析对手是利益驱动、恐惧驱动、面子驱动还是安全感驱动。\"\
+            ,\n  \"weaknesses\": \"对手的致命死穴与权力防线弱点。\",\n  \"causal_chain\": [\n   \
+            \ \"L1: [第1层因果传导] 用户的行动直接引发的第一步连锁反应（如对手情绪反弹或盟友表态）。\",\n    \"L2: [第2层因果传导]\
+            \ 对方的次级反应与防御机制启动。\",\n    \"L3: [第3层因果传导] 对体制/部门合规与资源重新分配的隐性影响。\",\n \
+            \   \"L4: [第4层因果传导] 局势朝更有利/不利方向演进的临界点。\",\n    \"L5: [第5层因果传导] 5层以上的长期因果影响，是否促成大局妥协或彻底出局。\"\
+            ,\n    \"L6: [第6层因果传导] ... (根据复杂度，推演5到10层深层因果关系链)\",\n    \"L7: [第7层因果传导]\
+            \ ...\",\n    \"L8: [第8层因果传导] ...\",\n    \"L9: [第9层因果传导] ...\",\n   \
+            \ \"L10: [第10层因果传导] [最底层因果] 权力格局的稳固或权力体系的重塑结晶。\"\n  ],\n  \"prototype_archive\"\
+            : {\n    \"name\": \"用户判定的人性原型名称（如：英伦平衡家、美式开山斧等）\",\n    \"type\": \"\
+            人性原型分类（如：博弈防御型、主动进攻型）\",\n    \"description\": \"基于用户在当前画像设定下的表现进行归档归类的原因，以及特征解密。\"\
+            \n  },\n  \"suggestion\": \"高级驭人技术点评与未来策略修正方向（结合画像语境给出修正建议）。\"\n}\n\n\
+            请严格以合法的 JSON 字符串返回，不要包含 markdown 代码块包裹（如 ```json ），直接返回 JSON 本身。如果 JSON\
+            \ 格式不合法，会导致前端解析失败。"
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: 'scene_type: {{scene_type}}
+
+
+            game_model: {{game_model}}
+
+
+            case_text: {{case_text}}
+
+
+            user_answer: {{user_answer}}
+
+
+            applied_tactics: {{applied_tactics}}
+
+
+            user_current_profile: {{user_current_profile}}'
+        selected: true
+        title: 驭心博弈分析LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 572
+        y: 282
+      positionAbsolute:
+        x: 572
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: analysis_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 824
+        y: 282
+      positionAbsolute:
+        x: 824
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 63
+      y: 25
+      zoom: 1
+  rag_pipeline_variables: []
