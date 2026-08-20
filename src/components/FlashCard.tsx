@@ -7,6 +7,7 @@ import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPaylo
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation } from '../utils/vocabCsvExport';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
+import MemoryAidPanel from './MemoryAidPanel';
 
 interface FlashCardProps {
   onClose: () => void;
@@ -366,7 +367,12 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                     </div>
                   )}
 
-                  <div className="text-[10px] text-gray-300 text-right">
+                  {/* 记忆辅助面板 */}
+                  <div className="border-t border-slate-100 pt-3 mt-3">
+                    <MemoryAidPanel wordId={current.id} wordText={current.word} />
+                  </div>
+
+                  <div className="text-[10px] text-gray-300 text-right mt-2">
                     已复习 {current.repetitions} 次 · 间隔 {current.interval_days} 天
                   </div>
                 </div>

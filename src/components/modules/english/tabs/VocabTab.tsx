@@ -473,6 +473,15 @@ export default function VocabTab() {
                       <span className="text-[10px] text-slate-400">拼不出？点上方按钮跳过拼写，直接进入释义学习</span>
                     </div>
                   </div>
+
+                  {/* 未翻转时亦提供可折叠展开的记忆辅助 */}
+                  <div className="w-full border-t border-slate-100 pt-6 mt-6">
+                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center justify-center gap-1.5 select-none">
+                      <BrainCircuit className="w-4 h-4 text-amber-500" />
+                      预看记忆辅助提示 (Memory Aid)
+                    </h4>
+                    <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
+                  </div>
                 </div>
               ) : (
                 <div className="animate-[fadeIn_0.4s_ease-out]">

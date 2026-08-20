@@ -148,17 +148,22 @@ export interface DictResult {
 
 
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number; silent?: boolean }): Promise<T> {
-  const timeoutMs = options?.timeoutMs ?? 3000;
+  const timeoutMs = options?.timeoutMs ?? 15000;
   const silent = options?.silent === true;
   const { timeoutMs: _t, silent: _s, ...fetchOpts } = options || {};
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  let timer: number | null = null;
+
+  // 如果 timeoutMs > 0 才开启超时限制；如果 timeoutMs === 0 则不做时长限制
+  if (timeoutMs > 0) {
+    timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  }
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   try {
     const res = await fetch(`${API_BASE}${path}`, {
       headers: { 'Content-Type': 'application/json' },
       ...fetchOpts,
-      signal: controller.signal,
+      ...(timer ? { signal: controller.signal } : {}),
     });
     const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
     recordL1Response(`Vocab API ${path.split('?')[0]}`, durationMs, res.ok);
@@ -183,7 +188,9 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
     }
     throw err;
   } finally {
-    window.clearTimeout(timer);
+    if (timer !== null) {
+      window.clearTimeout(timer);
+    }
   }
 }
 
@@ -450,14 +457,15 @@ export interface DictCoverageData {
 
 /** 获取缓存的记忆辅助 */
 export async function getMemoryAids(id: string): Promise<MemoryAids> {
-  return request<MemoryAids>(`/memory/${id}`);
+  return request<MemoryAids>(`/memory/${id}`, { timeoutMs: 0, silent: true });
 }
 
-/** 生成/更新记忆辅助 */
+/** 生成/更新记忆辅助（无时长限制） */
 export async function enrichMemory(id: string): Promise<MemoryAids> {
   return request<MemoryAids>(`/enrich-memory/${id}`, {
     method: 'POST',
-    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() })
+    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() }),
+    timeoutMs: 0,
   });
 }
 
@@ -466,11 +474,12 @@ export async function getEbbinghausData(id: string): Promise<EbbinghausData> {
   return request<EbbinghausData>(`/ebbinghaus/${id}`);
 }
 
-/** 生成记忆配图 */
+/** 生成记忆配图（无时长限制） */
 export async function generateMemoryImage(id: string): Promise<{ success: boolean; id: string; image_url: string; download_url: string }> {
   const initialRes = await request<{ success: boolean; taskId?: string; id?: string; image_url?: string; download_url?: string }>(`/generate-image/${id}`, {
     method: 'POST',
-    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() })
+    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() }),
+    timeoutMs: 0,
   });
 
   if (initialRes.taskId) {

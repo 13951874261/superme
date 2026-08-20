@@ -46,7 +46,12 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
       window.dispatchEvent(new Event('vocab-updated'));
     } catch (e: any) {
       console.error(e);
-      setError(e.message || '调用AI记忆引擎失败，请重试');
+      const msg = String(e?.message || '');
+      if (msg.includes('aborted') || e?.name === 'AbortError') {
+        setError('AI 记忆构建生成中，请重试');
+      } else {
+        setError(msg || '调用AI记忆引擎失败，请重试');
+      }
     } finally {
       setIsLoading(false);
     }
