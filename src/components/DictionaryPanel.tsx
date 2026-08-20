@@ -501,25 +501,17 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
         </div>
       )}
 
-      {/* 搭配 (折叠面板) */}
+      {/* 常用搭配 (常驻显示) */}
       {collocations.length > 0 && (
-        <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowCollocations(!showCollocations); }}
-            className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition font-bold text-xs text-gray-600 select-none"
-          >
-            <span>Collocations ({collocations.length})</span>
-            <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showCollocations ? 'rotate-90' : ''}`} />
-          </button>
-          {showCollocations && (
-            <div className="p-3 border-t border-gray-50 bg-gray-50/30 flex flex-wrap gap-1.5">
-              {collocations.map((coll, idx) => (
-                <span key={idx} className="text-xs font-medium text-gray-600 bg-white border border-gray-200/80 px-2.5 py-1 rounded-lg">
-                  {coll}
-                </span>
-              ))}
-            </div>
-          )}
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Collocations / 常用搭配组合</div>
+          <div className="p-3 border border-indigo-100/80 bg-gradient-to-r from-indigo-50/30 to-slate-50/40 rounded-2xl flex flex-wrap gap-2 shadow-sm">
+            {collocations.map((coll, idx) => (
+              <span key={idx} className="text-xs font-bold text-indigo-900 bg-white border border-indigo-200/70 px-3 py-1 rounded-xl shadow-xs">
+                {coll}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -696,36 +688,25 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
         </div>
       )}
 
-      {/* 搭配与词源 (折叠面板) */}
+      {/* 高频搭配与词源 (常驻全展示) */}
       {(collocations.length > 0 || etymology) && (
-        <div className="border border-gray-100 rounded-xl overflow-hidden bg-white shadow-sm">
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowCollocations(!showCollocations); }}
-            className="w-full flex items-center justify-between p-3 text-left hover:bg-gray-50/50 transition font-bold text-xs text-gray-600 select-none"
-          >
-            <span>高频搭配与词源 ({collocations.length + (etymology ? 1 : 0)})</span>
-            <ChevronRight className={`w-4 h-4 transition-transform duration-200 ${showCollocations ? 'rotate-90' : ''}`} />
-          </button>
-          {showCollocations && (
-            <div className="p-3 border-t border-gray-50 bg-gray-50/30 space-y-3">
-              {collocations.length > 0 && (
-                <div className="space-y-1">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-0.5 select-none">常用词组/搭配</div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {collocations.map((coll, idx) => (
-                      <span key={idx} className="text-xs font-medium text-gray-605 bg-white border border-gray-200/80 px-2.5 py-1 rounded-lg">
-                        {coll}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {etymology && (
-                <div className="space-y-1 pt-1.5 border-t border-gray-100/60">
-                  <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-0.5 select-none">词汇探源 (Etymology)</div>
-                  <div className="text-xs text-gray-500 leading-relaxed pl-0.5 select-text font-medium">{etymology}</div>
-                </div>
-              )}
+        <div className="space-y-3 pt-2">
+          {collocations.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Collocations / 常用搭配组合 ({collocations.length})</div>
+              <div className="p-3 border border-indigo-100/80 bg-gradient-to-r from-indigo-50/30 to-slate-50/40 rounded-2xl flex flex-wrap gap-2 shadow-sm">
+                {collocations.map((coll, idx) => (
+                  <span key={idx} className="text-xs font-bold text-indigo-900 bg-white border border-indigo-200/70 px-3 py-1 rounded-xl shadow-xs">
+                    {coll}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {etymology && (
+            <div className="space-y-1.5 border border-amber-100/80 bg-amber-50/20 p-3.5 rounded-2xl">
+              <div className="text-[10px] font-bold text-amber-700 uppercase tracking-widest select-none">词汇探源 (Etymology)</div>
+              <div className="text-xs text-slate-700 leading-relaxed select-text font-medium">{etymology}</div>
             </div>
           )}
         </div>

@@ -484,17 +484,19 @@ export default function VocabTab() {
                   </div>
                 </div>
               ) : (
-                <div className="animate-[fadeIn_0.4s_ease-out]">
-                  {/* 1. 核心词典视图渲染 */}
-                  {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
-                  {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
-                  {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+                <div className="animate-[fadeIn_0.4s_ease-out] grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                  {/* 左栏：核心全量词典视图（音标、释义、例句、近/反义词、常用搭配组合） */}
+                  <div className="lg:col-span-7 space-y-4">
+                    {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
+                    {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
+                    {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
+                  </div>
 
-                  {/* 2. 生词记忆辅助面板 */}
-                  <div className="border-t border-slate-100 pt-6 mt-6">
-                    <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
+                  {/* 右栏：生词记忆辅助面板（词根词缀、趣味联想、AI 脑图） */}
+                  <div className="lg:col-span-5 bg-slate-50/60 border border-slate-200/80 rounded-2xl p-4 shadow-sm sticky top-4">
+                    <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
                       <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
-                      生词记忆辅助
+                      生词记忆辅助 (Memory Aids)
                     </h4>
                     <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
                   </div>

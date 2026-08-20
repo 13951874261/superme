@@ -361,6 +361,45 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                     </div>
                   )}
 
+                  {Array.isArray(currentPayload?.synonyms) && currentPayload.synonyms.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-black text-emerald-600 uppercase tracking-wider mb-1.5">近义词 (Synonyms)</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentPayload.synonyms.map((s: string, idx: number) => (
+                          <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                            {s}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Array.isArray(currentPayload?.antonyms) && currentPayload.antonyms.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-black text-rose-600 uppercase tracking-wider mb-1.5">反义词 (Antonyms)</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {currentPayload.antonyms.map((a: string, idx: number) => (
+                          <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full">
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {Array.isArray(currentPayload?.collocations) && currentPayload.collocations.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-black text-indigo-600 uppercase tracking-wider mb-1.5">常用搭配 (Collocations)</div>
+                      <div className="flex flex-wrap gap-1.5 bg-indigo-50/40 p-2.5 rounded-xl border border-indigo-100/60">
+                        {currentPayload.collocations.map((coll: string, idx: number) => (
+                          <span key={idx} className="text-xs font-bold text-indigo-800 bg-white border border-indigo-200/80 px-2.5 py-1 rounded-lg">
+                            {coll}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {enrichError && (
                     <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
                       {enrichError}
