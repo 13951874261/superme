@@ -114,7 +114,7 @@ export function ArsenalPanel({
               onClick={() => setShowClearConfirm(!showClearConfirm)}
               disabled={isAutoGenerating || isClearingAndReGenerating}
               className="flex items-center bg-slate-100 text-slate-700 hover:bg-red-50 hover:text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-slate-200 disabled:opacity-50 cursor-pointer btn-press px-2.5 py-1.5"
-              title="清空今日提纯数据与生词，重置配额并重新运行AI生成"
+              title="清空今日配额与生词，并删除当前题材/难度/时长下的长文与音频后重新生成"
             >
               {isClearingAndReGenerating ? (
                 <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin"/> 清理中</>
@@ -132,7 +132,7 @@ export function ArsenalPanel({
                   <div>
                     <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">确认清空今日数据？</h5>
                     <p className="text-[11px] text-slate-500 font-medium leading-relaxed mt-1">
-                      将删除今日生词与短语，重置配额后重新生成。
+                      将删除今日生词与短语、重置配额，并删除当前条件下的长文与对应音频，然后重新生成。
                     </p>
                   </div>
                 </div>

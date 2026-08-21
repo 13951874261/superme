@@ -2720,13 +2720,29 @@ export function getFallbackFlawVocab(): Array<{
 }
 
 
-export async function clearTodayQuotaAndData(userId = getAppUserId()): Promise<{ success: boolean; message: string }> {
+export async function clearTodayQuotaAndData(
+  userId = getAppUserId(),
+  combo?: {
+    topic?: string;
+    theme?: string;
+    genre?: string;
+    cefrLevel?: string;
+    duration?: string;
+  }
+): Promise<{ success: boolean; message: string; clearedCombo?: any }> {
   const res = await fetch('/api/english/clear-today', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ userId }),
+    body: JSON.stringify({
+      userId,
+      topic: combo?.topic || combo?.theme || '',
+      theme: combo?.theme || combo?.topic || '',
+      genre: combo?.genre || '',
+      cefrLevel: combo?.cefrLevel || '',
+      duration: combo?.duration || '',
+    }),
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {

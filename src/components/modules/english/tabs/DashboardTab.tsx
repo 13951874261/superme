@@ -708,13 +708,19 @@ export default function DashboardTab() {
   const handleClearTodayAndReGenerate = async () => {
     setIsClearingAndReGenerating(true);
     playScan();
-    showNotice('dashboard', '正在清理今日配额与生词数据...', 'info');
+    showNotice('dashboard', '正在清理今日配额，并删除当前条件下的长文与音频...', 'info');
 
     try {
       const { clearTodayQuotaAndData } = await import('../../../../services/difyAPI');
       
-      // 调用后端 API 清除今日配额与数据
-      await clearTodayQuotaAndData();
+      // 调用后端：清空配额/生词 + 删除当前账号今日 主题/题材/难度/时长 下的长文与音频
+      await clearTodayQuotaAndData(getAppUserId(), {
+        topic: theme,
+        theme,
+        genre,
+        cefrLevel,
+        duration,
+      });
       
       // 清空本地状态与 localStorage
       setGeneratedArticle('');
@@ -730,7 +736,7 @@ export default function DashboardTab() {
       // 重新拉取最新的配额状态
       await loadQuotaStatus();
       
-      showNotice('dashboard', '今日配额和数据已清空，正在重新呼叫 AI 生成...', 'info');
+      showNotice('dashboard', '当前条件缓存已清空，正在重新呼叫 AI 生成...', 'info');
       
       // 触发重新生成 (由于 handleAutoGenerate 内部调用了 setIsAutoGenerating，这里我们可以直接执行)
       // 为了确保 setIsClearingAndReGenerating 已经为 false, 我们在 handleAutoGenerate 之前或之后设为 false

@@ -6714,35 +6714,128 @@ app.post('/api/material/process-and-extract', async (req, res) => {
   });
 });// ==========================================
 // 清空今日配额与当日新增词条（生词本日清）
+// 若传入 theme/genre/cefrLevel/duration：同步删除当前条件下的长文与对应音频
 // ==========================================
 app.post('/api/english/clear-today', (req, res) => {
-  const { userId = 'default-user' } = req.body;
-  const today = new Date().toISOString().split('T')[0];
+  const { userId = 'default-user' } = req.body || {};
+  const uid = dailyPackService.normalizeUserId(userId);
+  const today = dailyPackService.getPackDate();
+  const theme = String(req.body?.topic || req.body?.theme || '').trim();
+  const genre = String(req.body?.genre || '').trim();
+  const cefrLevel = String(req.body?.cefrLevel || req.body?.cefr_level || '').trim();
+  const duration = String(req.body?.duration ?? '').trim();
+  const clearCombo = Boolean(theme && genre && cefrLevel && duration);
 
-  // ?????????????????????? 00:00:00 ??????
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayStartMs = todayStart.getTime();
 
   try {
-    // 1. ?????????????????????????????
-    const deleteWords = db.prepare("DELETE FROM vocabulary WHERE added_at >= ? AND (dict_type = 'ai_extracted' OR dict_type = 'ai_phrase')");
+    // 1. 删除今日入库生词/短语，并重置配额（原行为保留）
+    const deleteWords = db.prepare(
+      "DELETE FROM vocabulary WHERE added_at >= ? AND (dict_type = 'ai_extracted' OR dict_type = 'ai_phrase')",
+    );
     const wordsResult = deleteWords.run(todayStartMs);
 
-    // 2. ????????????????
-    const resetQuota = db.prepare("UPDATE daily_vocab_quota SET words_added = 0, phrases_added = 0 WHERE user_id = ? AND quota_date = ?");
-    const quotaResult = resetQuota.run(userId, today);
+    const resetQuota = db.prepare(
+      'UPDATE daily_vocab_quota SET words_added = 0, phrases_added = 0 WHERE user_id = ? AND quota_date = ?',
+    );
+    const quotaResult = resetQuota.run(uid, today);
 
-    console.log(`[Clear Today] User ${userId}: deleted ${wordsResult.changes} words/phrases, reset quota for ${today}`);
+    let deletedExtracted = 0;
+    let deletedListenArticles = 0;
+    let deletedListenAudios = 0;
+    let unlinkedFiles = 0;
+
+    // 2. 按当前条件删除长文缓存 + 听力正文/音频记录与磁盘文件
+    if (clearCombo) {
+      const durationNum = Number(duration);
+      deletedExtracted = db.prepare(`
+        DELETE FROM daily_extracted_articles
+        WHERE user_id = ?
+          AND quota_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+      `).run(uid, today, theme, genre, cefrLevel, duration, durationNum).changes;
+
+      const listenArts = db.prepare(`
+        SELECT id, file_path FROM daily_listen_articles
+        WHERE user_id = ?
+          AND pack_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+      `).all(uid, today, theme, genre, cefrLevel, duration, durationNum);
+      for (const row of listenArts) {
+        dailyListenPreGenerateService.unlinkQuiet(row.file_path);
+        if (row.file_path) unlinkedFiles += 1;
+      }
+      deletedListenArticles = db.prepare(`
+        DELETE FROM daily_listen_articles
+        WHERE user_id = ?
+          AND pack_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+      `).run(uid, today, theme, genre, cefrLevel, duration, durationNum).changes;
+
+      const listenAuds = db.prepare(`
+        SELECT id, audio_path FROM daily_listen_audios
+        WHERE user_id = ?
+          AND pack_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+      `).all(uid, today, theme, genre, cefrLevel, duration, durationNum);
+      for (const row of listenAuds) {
+        dailyListenPreGenerateService.unlinkQuiet(row.audio_path);
+        if (row.audio_path) unlinkedFiles += 1;
+      }
+      deletedListenAudios = db.prepare(`
+        DELETE FROM daily_listen_audios
+        WHERE user_id = ?
+          AND pack_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+      `).run(uid, today, theme, genre, cefrLevel, duration, durationNum).changes;
+    }
+
+    console.log(
+      `[Clear Today] User ${uid}: vocab=${wordsResult.changes}, quotaReset=${quotaResult.changes > 0}, ` +
+        `combo=${clearCombo ? `${theme}/${genre}/${cefrLevel}/${duration}` : 'none'}, ` +
+        `extracted=${deletedExtracted}, listenArt=${deletedListenArticles}, listenAud=${deletedListenAudios}, files=${unlinkedFiles}`,
+    );
 
     return res.json({
       success: true,
-      message: 'Successfully cleared today\'s vocabulary entries and reset daily quota.',
+      message: clearCombo
+        ? '已清空今日配额/生词，并删除当前条件下的长文与对应音频。'
+        : "Successfully cleared today's vocabulary entries and reset daily quota.",
       deletedCount: wordsResult.changes,
-      quotaReset: quotaResult.changes > 0
+      quotaReset: quotaResult.changes > 0,
+      clearedCombo: clearCombo
+        ? {
+            theme,
+            genre,
+            cefrLevel,
+            duration,
+            packDate: today,
+            deletedExtracted,
+            deletedListenArticles,
+            deletedListenAudios,
+            unlinkedFiles,
+          }
+        : null,
     });
   } catch (error) {
-    console.error('Failed to clear today\'s data:', error);
+    console.error("Failed to clear today's data:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 });
