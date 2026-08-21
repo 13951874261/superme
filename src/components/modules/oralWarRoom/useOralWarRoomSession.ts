@@ -68,7 +68,7 @@ export function useOralWarRoomSession({
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [lastNotice, setLastNotice] = useState('沙盘已就绪，AI 角色即将开场。');
+  const [lastNotice, setLastNotice] = useState('练习已就绪，AI 角色即将开场。');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const [combatPoints, setCombatPoints] = useState(() => Number(localStorage.getItem('oral_combat_points') || '0'));
@@ -236,11 +236,11 @@ export function useOralWarRoomSession({
     } else if (activeSceneId === 'dynamic-scene') {
       base = {
         id: 'dynamic-scene',
-        title: `当前阵地：${sceneTheme}`,
+        title: `当前场景：${sceneTheme}`,
         shortTitle: sceneTheme.split('：')[1] || sceneTheme,
         tier: '高阶',
         level: 4,
-        desc: `围绕核心阵地【${sceneTheme}】展开的高压口语对抗。`,
+        desc: `围绕主题【${sceneTheme}】进行口语练习。`,
         roleList: `我 + 业务助攻 + 施压方 + 关键决策人`,
         allies: [{ name: '业务助攻', label: '盟友', desc: '尝试推进流程' }],
         blockers: [{ name: '施压方', label: '阻力', desc: '抛出尖锐问题' }],
@@ -442,7 +442,7 @@ export function useOralWarRoomSession({
       : 'scene-1';
     const scene = SCENE_DATABASE.find(s => s.id === fallbackId) || SCENE_DATABASE[0];
     resetBattleState(scene.id);
-    setLastNotice(`已切换至谈判沙盘。进入：${scene.shortTitle}`);
+    setLastNotice(`已切换至谈判练习。进入：${scene.shortTitle}`);
     void initiateSceneDialogue(scene, 'negotiation');
   };
 

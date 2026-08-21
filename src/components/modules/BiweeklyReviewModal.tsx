@@ -203,7 +203,7 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
               />
               <QuestionField
                 icon={<Send className="w-4 h-4 text-zinc-500" />}
-                label="4. 战术火力调度"
+                label="4. 训练重点调整"
                 hint="下两周是否需要挂起不紧急板块，集中火力击穿最痛短板？"
                 value={answers.tacticalDispatch}
                 onChange={(v) => setAnswers({ ...answers, tacticalDispatch: v })}

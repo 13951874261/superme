@@ -18,7 +18,7 @@ export default function OralWarRoomTacticalSop() {
           <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
             <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
               <span className="font-black text-amber-700 mr-1">操作说明：</span>
-              长按下方麦克风语音反击，或打字回复。沙盘会根据当前 Theme 自动锁定剧本。倒计时 10 秒内必须给出回应。
+              长按下方麦克风语音回复，或打字回复。系统会按当前主题自动匹配练习剧本。倒计时 10 秒内必须给出回应。
             </p>
           </div>
           <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">

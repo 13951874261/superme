@@ -722,7 +722,7 @@ export default function VocabTab() {
                     }}
                     className="w-full bg-[#FF5722] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-[background-color,box-shadow,transform] cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200 flex justify-center items-center"
                   >
-                    下一个战术目标 (Next Target) ➔
+                    下一个词 ➔
                   </button>
                 ) : (
                   <>

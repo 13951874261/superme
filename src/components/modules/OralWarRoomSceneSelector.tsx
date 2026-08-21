@@ -60,11 +60,11 @@ export default function OralWarRoomSceneSelector({
         </div>
         <div
           role="tablist"
-          aria-label="沙盘模式"
+          aria-label="练习模式"
           className="flex items-center p-0.5 rounded-full bg-[var(--color-canvas)] border border-[var(--color-border)] self-start sm:self-auto"
         >
           {([
-            { id: 'negotiation', label: '谈判沙盘' },
+            { id: 'negotiation', label: '谈判练习' },
             { id: 'daily', label: '日常演练' },
           ] as const).map((item) => {
             const selected = sandboxMode === item.id;
@@ -141,7 +141,7 @@ export default function OralWarRoomSceneSelector({
 
       {sandboxMode === 'daily' ? (
         <p className="text-xs text-[var(--color-ink-secondary)] leading-relaxed">
-          当前为 1VS1 日常演练：AI 只扮演一名对话搭档，沿用沙盘 JSON 回复，但不植入谈判破绽。
+          当前为 1VS1 日常演练：AI 只扮演一名对话搭档，沿用练习回复格式，但不植入谈判破绽。
         </p>
       ) : (
         <>

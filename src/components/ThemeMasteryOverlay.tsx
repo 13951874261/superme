@@ -26,8 +26,8 @@ export default function ThemeMasteryOverlay({ theme, onDismiss }: { theme: strin
         <h3 className="text-emerald-400 text-lg font-bold mb-6">{theme}</h3>
         <p className="text-gray-400 text-sm leading-relaxed mb-8">
           本主题已完成<strong className="text-white mx-1">10</strong>轮口语练习，并取得了写作满分。<br/><br/>
-          系统为您颁发最高级别勋章：<br/>
-          <strong className="text-[#FF5722] text-lg block mt-3 uppercase tracking-widest">「战略破局者 / Game Changer」</strong>
+          恭喜完成本主题：<br/>
+          <strong className="text-[#FF5722] text-lg block mt-3 uppercase tracking-widest">「战略破局者」</strong>
         </p>
         <button 
           onClick={() => { setShow(false); onDismiss(); }}

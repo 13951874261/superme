@@ -309,7 +309,7 @@ function OralWarRoomChatComponent({
               onClick={() => setBriefCollapsed(v => !v)}
               className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-600 hover:border-[#FF5722] cursor-pointer whitespace-nowrap"
             >
-              {briefCollapsed ? '战术简报' : '收起简报'}
+              {briefCollapsed ? '练习简报' : '收起简报'}
             </button>
             <button
               type="button"

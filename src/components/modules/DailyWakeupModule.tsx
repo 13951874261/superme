@@ -250,7 +250,7 @@ export default function DailyWakeupModule() {
     <ModuleWrapper 
       isOpen={isOpen}
       onToggleCollapse={() => setIsOpen(prev => !prev)}
-      title="每日唤醒 ｜ 发音与语法闭环"
+      title="每日唤醒 ｜ 发音与语法练习"
       icon={<TimerReset className="w-8 h-8" strokeWidth={2.5} />}
       description="主题生成发音注意点与关联语法点，配合 TTS 与时长打卡形成闭环。"
       badge={stickerBadge}

@@ -41,7 +41,7 @@ export default function DailyErrorVocabularyModule() {
         setWords([]);
         setError(
           pack.status === 'failed'
-            ? (pack.errorMessage || '今日破绽词生成失败，请点击刷新重试')
+            ? (pack.errorMessage || '今日易错词生成失败，请点击刷新重试')
             : '暂无缓存，请点击「刷新词汇」手动生成',
         );
         return;
@@ -50,7 +50,7 @@ export default function DailyErrorVocabularyModule() {
       setWords([]);
       setError('暂无缓存，请点击「刷新词汇」手动生成');
     } catch (e: any) {
-      setError(e.message || '获取每日破绽词汇失败，请重试');
+      setError(e.message || '获取每日易错词汇失败，请重试');
     } finally {
       setIsLoading(false);
     }
@@ -87,7 +87,7 @@ export default function DailyErrorVocabularyModule() {
           </div>
           <div className="text-left">
             <h4 className="text-base font-black tracking-widest uppercase flex items-center gap-2">
-              每日破绽词汇推送 <span className="text-indigo-400">// Daily Flaw Vocab</span>
+              每日易错词汇
             </h4>
             <p className="text-xs text-slate-400 mt-1 font-medium">今日预生成 · 可刷新</p>
           </div>
@@ -105,7 +105,7 @@ export default function DailyErrorVocabularyModule() {
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
-          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider animate-pulse">正在加载今日破绽词汇…</span>
+          <span className="text-xs text-slate-400 font-bold uppercase tracking-wider animate-pulse">正在加载今日易错词汇…</span>
         </div>
       ) : error ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">

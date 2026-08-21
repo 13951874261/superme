@@ -538,7 +538,7 @@ ${benchmarkText
             {/* 行文规范指南 */}
             <div className="bg-white border border-slate-100/85 rounded-2xl p-4 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex-1 flex flex-col min-h-[250px]">
               <h4 className="text-[11px] font-bold text-zinc-700 border-b border-zinc-100 pb-1.5">
-                Writing SOP // 行文战术锦囊
+                行文写作提示
               </h4>
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2">
                 <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">

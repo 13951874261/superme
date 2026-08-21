@@ -828,7 +828,7 @@ export default function GameTheoryModule() {
         {([
           { id: 'cases', name: '高管斗争案例研判' },
           { id: 'tactics', name: '驭人术与人性档案' },
-          { id: 'simulation', name: '人机对战沙盘' },
+          { id: 'simulation', name: '人机对战练习' },
           { id: 'session', name: '多人群体博弈会话' },
           { id: 'history', name: '对局历史' },
           { id: 'ascension', name: '顶层认知升维' }
@@ -938,7 +938,7 @@ export default function GameTheoryModule() {
                       {/* 案例详情与模型 */}
                       <div className="flex items-center justify-between pb-4 mb-4 border-b border-zinc-100">
                         <h4 className="font-bold text-sm text-zinc-800 flex items-center gap-2">
-                          <Swords className="w-4 h-4 text-zinc-600" /> 危机场景详情与沙盘装配
+                          <Swords className="w-4 h-4 text-zinc-600" /> 危机场景详情与练习准备
                         </h4>
                         
                         <div className="flex items-center gap-2">
@@ -1017,7 +1017,7 @@ export default function GameTheoryModule() {
                       {/* 强制四维度拆解表单 */}
                       <div className="space-y-4 mb-6">
                         <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block border-b border-zinc-100 pb-2">
-                          高层局势强制四维度拆解表单 (Forced Structural Analysis)
+                          局势四维拆解表单
                         </span>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
