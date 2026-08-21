@@ -30,7 +30,7 @@ export default function OralWarRoomTacticalSop() {
           <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
             <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
               <span className="font-black text-amber-700 mr-1">生态定位：</span>
-              【肌肉记忆】消化前面整理好的词汇。强迫您在毫秒级的高压对抗中，建立直觉性的、不打草稿的商务谈判反击能力。
+              多练几轮，把前面学过的词练成脱口而出的表达。
             </p>
           </div>
         </div>

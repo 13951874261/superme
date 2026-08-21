@@ -208,7 +208,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                 }`}
               >
                 <Globe className="w-3.5 h-3.5" />
-                情报解密舱
+                词义解析
               </button>
             </div>
 
@@ -308,7 +308,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                       <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400 px-4">
                         <BookOpen className="w-12 h-12 mb-3 text-gray-300 stroke-[1.5]" />
                         <div className="font-bold text-xs uppercase tracking-widest text-gray-600 mb-1">
-                          情报解密就绪
+                          词义解析就绪
                         </div>
                         <p className="text-[11px] leading-relaxed max-w-[240px]">
                           在左侧主工作区选中任意英文商务词汇，系统将自动调取深层商业洞察并在此呈现。
@@ -324,7 +324,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                               已解密
                             </span>
                             <span className="text-[9px] font-bold text-gray-400">
-                              来源: {wordData.source || '划词截获'}
+                              来源: {wordData.source || '划词收录'}
                             </span>
                           </div>
                           <div className="flex items-center justify-between">
@@ -355,7 +355,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                         {dictLoading ? (
                           <div className="flex flex-col items-center justify-center py-10">
                             <Loader2 className="w-6 h-6 text-[#FF5722] animate-spin mb-2" />
-                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">正在加载商业字典情报...</span>
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">正在加载商业词典…</span>
                           </div>
                         ) : dictResult && dictResult.ok && dictResult.payload ? (
                           <div className="border border-gray-100 rounded-2xl p-4 bg-white shadow-sm space-y-4">

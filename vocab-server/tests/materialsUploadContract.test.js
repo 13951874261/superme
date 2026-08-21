@@ -31,4 +31,11 @@ const chunkSegment = routeSegment('/api/materials/upload-chunk');
 assert.match(chunkSegment, /EXDEV/, 'upload-chunk 必须处理 EXDEV 跨分区错误');
 assert.match(chunkSegment, /copyFileSync/, 'upload-chunk 必须在 rename 失败时回退 copyFileSync');
 
+// 材料提纯工作流 Key：允许环境变量，但缺省必须有与 videoTranscriber 一致的兜底，避免 Bearer 空 token 401
+assert.match(
+  source,
+  /const WORKFLOW_KEY = process\.env\.DIFY_VIDEO_WORKFLOW_KEY \|\| 'app-cArGQg7bAnePU0ts63FoHrAG';/,
+  '材料提纯必须对 DIFY_VIDEO_WORKFLOW_KEY 提供兜底 Key'
+);
+
 console.log('materialsUploadContract tests passed');

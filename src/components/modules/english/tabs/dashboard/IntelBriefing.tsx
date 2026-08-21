@@ -114,7 +114,7 @@ export function IntelBriefing({
             今日学习材料
           </h4>
           <p className="text-xs text-gray-400 font-medium">
-            基于主阵地主题【{theme}】生成的高阶商业实战材料，支持 {currentVoiceName} 语音收听与沉浸式阅读。
+            基于当前主题【{theme}】生成的高阶商业实战材料，支持 {currentVoiceName} 语音收听与沉浸式阅读。
           </p>
         </div>
         {generatedArticle && (

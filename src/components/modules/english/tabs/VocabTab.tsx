@@ -672,7 +672,7 @@ export default function VocabTab() {
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <label htmlFor="vocab-sentence-input" className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-2">
                   <Zap aria-hidden="true" className="w-5 h-5 text-[#FF5722]" />
-                  Forced Application (强制闭环造句)
+                  强制造句练习
                 </label>
               </div>
 
@@ -683,7 +683,7 @@ export default function VocabTab() {
                 onChange={(e) => setSentenceInput(e.target.value)}
                 disabled={isEvaluating || (!!evalResult && evalResult.quality >= 3)}
                 className="w-full flex-1 min-h-[120px] bg-slate-50 border-2 border-transparent focus-visible:border-[#FF5722] focus-visible:ring-2 focus-visible:ring-[#FF5722]/20 rounded-2xl p-5 text-sm text-[#202124] outline-none resize-none shadow-inner transition-[border-color,box-shadow] disabled:bg-white/50"
-                placeholder={`使用 [ ${currentWord.word} ] \n结合当前阵地【${theme}】造句。\n\nAI 教官将实时从「语法精确度」与「商务权力分寸」两方面进行判卷…`}
+                placeholder={`使用 [ ${currentWord.word} ] \n结合当前主题【${theme}】造句。\n\n系统将从「语法精确度」与「商务表达」两方面评分…`}
               />
 
               {/* 评估结果回显 */}
@@ -691,7 +691,7 @@ export default function VocabTab() {
                 <div className="p-6 bg-white rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.05)] border border-slate-100 animate-[fadeIn_0.3s_ease-out]">
                   <div className="flex items-center justify-between mb-4">
                     <h5 className={`text-[11px] font-black uppercase tracking-widest ${evalResult.quality >= 3 ? 'text-emerald-500' : 'text-red-500'}`}>
-                      AI 教官判卷 (SM-2 权重: {evalResult.quality}/5)
+                      评分结果 ({evalResult.quality}/5)
                     </h5>
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${evalResult.quality >= 3 ? 'bg-emerald-500' : 'bg-red-500'}`}>
                       {evalResult.quality >= 3 ? 'PASS' : 'REJECT'}

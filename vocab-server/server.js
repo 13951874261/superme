@@ -6197,7 +6197,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
   setImmediate(async () => {
     // 创建 Dify 知识库文档，轮询索引状态，触发提纯工作流，写入生词本
     const DATASET_KEY = 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
-    const WORKFLOW_KEY = process.env.DIFY_VIDEO_WORKFLOW_KEY;
+    const WORKFLOW_KEY = process.env.DIFY_VIDEO_WORKFLOW_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
     const BASE_URL = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     try {

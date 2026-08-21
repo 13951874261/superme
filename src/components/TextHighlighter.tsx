@@ -77,7 +77,7 @@ export default function TextHighlighter() {
       definition_en: '',
       business_note: '',
       examples: [] as string[],
-      source: '全局划线截获',
+      source: '全局划线收录',
     };
 
     try {
@@ -139,7 +139,7 @@ export default function TextHighlighter() {
       }, 3000);
     } catch (error) {
       console.error(error);
-      setSaveResult({ message: '截获失败，请检查指挥中心网络。', isError: true });
+      setSaveResult({ message: '加入失败，请检查网络后重试', isError: true });
       setTimeout(() => {
         setSaveResult(null);
         setPosition(null);

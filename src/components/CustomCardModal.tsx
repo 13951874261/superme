@@ -212,7 +212,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
         setExtractedItems(items);
         playSuccess();
       } else {
-        setErrorMsg('段落中未提取到有效生词或专业黑话。');
+        setErrorMsg('段落中未提取到有效生词或专业表达。');
       }
     } catch (err: any) {
       playError();

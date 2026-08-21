@@ -568,7 +568,7 @@ export default function ListenTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform hover:-translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>盲听截获的高管音频，在下方草稿区速记关键意图。完成后点击「开始分析这段听写」查看听辨误差。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>盲听高管音频，在下方草稿区速记关键意图。完成后点击「开始分析这段听写」查看听辨误差。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
@@ -576,7 +576,7 @@ export default function ListenTab() {
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【听觉撕网】它提取的“截获黑话”将反向丰富您的全局词库，培养在真实高压会议中“听音辨意”的肌肉记忆。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>听写中划出的词会进入生词本，帮助你在会议里听懂关键意图。</p>
             </div>
           </div>
         </div>
@@ -589,7 +589,7 @@ export default function ListenTab() {
             <div className="flex flex-col gap-4 mb-6 relative z-10 border-b border-white/10 pb-5">
               <h4 className="text-[13px] font-black uppercase tracking-widest text-[#FF5722] leading-relaxed">
                 Daily Interception <br/> 
-                <span className="text-[10px] text-white/50">// 截获片段</span>
+                <span className="text-[10px] text-white/50">// 听力片段</span>
               </h4>
               <div className="flex flex-wrap items-center gap-2">
                 <select
@@ -814,7 +814,7 @@ export default function ListenTab() {
                   )}
                   <button 
                     type="button"
-                    aria-label={isPlaying ? '暂停' : '播放截获音频'}
+                    aria-label={isPlaying ? '暂停' : '播放听力音频'}
                     onClick={() => {
                       setHasPlayed(true);
                       if (audioRef.current) {
@@ -828,7 +828,7 @@ export default function ListenTab() {
                       }
                     }} 
                     className={`text-white hover:text-[#FF5722] transition-colors cursor-pointer shrink-0 rounded-full duration-300 ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : (listenAudioUrl && !hasPlayed ? 'animate-soft-pulse text-[#FF5722]' : '')}`} 
-                    title={isPlaying ? "暂停" : "播放截获音频"}
+                    title={isPlaying ? "暂停" : "播放听力音频"}
                   >
                     {isPlaying ? <PauseCircle className="w-10 h-10" aria-hidden="true" /> : <PlayCircle className="w-10 h-10" aria-hidden="true" />}
                   </button>
@@ -945,7 +945,7 @@ export default function ListenTab() {
                 disabled={isListenLoading || listenResult !== null}
                 className="w-full relative z-10 bg-[#FF5722] text-white py-3.5 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-colors disabled:opacity-50 flex items-center justify-center cursor-pointer shadow-lg ripple"
               >
-                {isListenLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在解码潜台词…</> : (listenResult ? <span className="flex items-center"><Target className="w-4 h-4 mr-2" /> 潜台词已解码 (见右侧)</span> : <span className="flex items-center"><Zap className="w-4 h-4 mr-2" /> 开始分析这段听写</span>)}
+                {isListenLoading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin"/> 正在分析听写…</> : (listenResult ? <span className="flex items-center"><Target className="w-4 h-4 mr-2" /> 听写已分析 (见右侧)</span> : <span className="flex items-center"><Zap className="w-4 h-4 mr-2" /> 开始分析这段听写</span>)}
               </button>
             </div>
           </div>
@@ -961,7 +961,7 @@ export default function ListenTab() {
               value={listenInput}
               onChange={(e) => setListenInput(e.target.value)}
               className="w-full bg-[#f8f9fa] border-2 border-transparent focus-visible:border-blue-200 focus-visible:ring-2 focus-visible:ring-blue-200/60 rounded-xl p-4 text-sm text-[#202124] outline-none resize-none flex-1 mb-4 shadow-inner transition-[border-color,box-shadow]"
-              placeholder="边听音频，边将您捕捉到的职场黑话或复述文本键入此区域（此区域仅作自我比对草稿，不上传云端）…"
+              placeholder="边听音频，边把听到的关键表达或复述内容写在这里（仅作自我比对草稿）…"
             />
             <button 
               onClick={() => setIsTextVisible(true)}
@@ -974,14 +974,14 @@ export default function ListenTab() {
 
         <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
-            <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">Decrypted Intelligence // 情报解密</h4>
+            <h4 className="text-xs font-black text-gray-400 uppercase tracking-widest">听写分析结果</h4>
             {listenResult && (
               <button 
                 onClick={() => generateListenMaterial(theme)}
                 disabled={isListenMaterialLoading}
                 className="px-4 py-2 bg-[#1a1a1a] text-white text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-[#FF5722] transition-colors disabled:opacity-50 cursor-pointer shadow-sm flex items-center ripple"
               >
-                {isListenMaterialLoading ? <><Loader2 className="w-3 h-3 animate-spin mr-1"/> 扫描中</> : '截获下一段 (Next Interception) ➔'}
+                {isListenMaterialLoading ? <><Loader2 className="w-3 h-3 animate-spin mr-1"/> 加载中</> : '下一段材料 ➔'}
               </button>
             )}
           </div>
@@ -1027,7 +1027,7 @@ export default function ListenTab() {
 
               <div className="bg-blue-50/50 rounded-2xl p-6 border border-blue-100 space-y-5">
                 <h5 className="text-[11px] font-black uppercase tracking-widest text-blue-900 mb-4 border-b border-blue-200/50 pb-3 flex items-center">
-                  <Zap className="w-4 h-4 mr-2 text-blue-600" /> Intelligence Profile (情报侧写)
+                  <Zap className="w-4 h-4 mr-2 text-blue-600" /> 听写分析侧写
                 </h5>
                 <div>
                   <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">1. Surface Meaning (伪装层)</h5>
@@ -1043,7 +1043,7 @@ export default function ListenTab() {
                 </div>
                 {listenResult.subtext_analysis.key_jargons.length > 0 && (
                   <div>
-                    <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">4. Extracted Jargons (截获黑话)</h5>
+                    <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">4. 划出的关键词</h5>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {listenResult.subtext_analysis.key_jargons.map((item, idx) => (
                         <div key={idx} className="bg-[#1a1a1a] rounded-lg p-3 text-white shadow-md">
@@ -1095,7 +1095,7 @@ export default function ListenTab() {
           <div className="bg-[#1a1b1e] w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col border border-white/10">
             <div className="flex justify-between items-center p-6 border-b border-white/10">
               <h3 className="text-[#FF5722] font-black uppercase tracking-widest text-sm flex items-center gap-2">
-                <Target aria-hidden="true" className="w-4 h-4" /> Target Transcript // 完整情报原文
+                <Target aria-hidden="true" className="w-4 h-4" /> 完整原文
               </h3>
               <button
                 type="button"
