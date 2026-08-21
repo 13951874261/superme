@@ -7044,64 +7044,9 @@ const handleGetDailyExtractArticle = (req, res) => {
 
     const userIds = [rawUserId];
 
-    // ????????????????????????????
-    let hostUserId = rawUserId;
-
-    // L1: ??????? history/flaws/profile?????? theme?
-    let historyExclude = String(req.query.historyExclude || '').trim();
-    let userFlaws = String(req.query.userFlaws || '').trim();
-    const userCurrentProfile = String(
-      req.query.userCurrentProfile
-      || dailyPackService.getUserCurrentProfile(db, hostUserId)
-      || '',
-    ).trim();
-
-    if (topic && !historyExclude) {
-      try {
-        const cutoff = Date.now() - 3 * 24 * 60 * 60 * 1000;
-        const historyRows = db.prepare(`
-          SELECT keywords FROM generation_history
-          WHERE user_id = ? AND theme = ? AND generated_at > ?
-          ORDER BY generated_at DESC
-        `).all(hostUserId, topic, cutoff);
-        const allKeywords = [];
-        for (const row of historyRows) {
-          try {
-            const kw = JSON.parse(row.keywords || '[]');
-            if (Array.isArray(kw)) allKeywords.push(...kw);
-          } catch {}
-        }
-        historyExclude = [...new Set(allKeywords)].slice(0, 30).join(', ');
-      } catch (_) {}
-    }
-    if (topic && !userFlaws) {
-      try {
-        const session = db.prepare(`
-          SELECT extra_json FROM training_sessions
-          WHERE user_id = ? ORDER BY training_date DESC LIMIT 1
-        `).get(hostUserId);
-        if (session?.extra_json) {
-          const extra = JSON.parse(session.extra_json);
-          const ef = extra.englishFoundation || {};
-          const flaws = [];
-          if (ef.pronunciationNotes) flaws.push(`????: ${ef.pronunciationNotes}`);
-          if (ef.grammarNotes) flaws.push(`????: ${ef.grammarNotes}`);
-          userFlaws = flaws.join('; ');
-        }
-      } catch (_) {}
-    }
-
-    const inputSignature = dailyPackService.computeListenArticleInputSignature({
-      theme: topic,
-      genre,
-      cefrLevel,
-      duration,
-      historyExclude,
-      userFlaws,
-      userCurrentProfile,
-    });
-
+    // 查询只认：登录账号 + 主题 + 题材 + 难度 + 时长 + 年月日。画像只用于生成，不参与查库。
     let row = null;
+    let cacheSource = 'daily_extracted_articles';
     if (topic) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
@@ -7111,113 +7056,59 @@ const handleGetDailyExtractArticle = (req, res) => {
           AND genre = ?
           AND cefr_level = ?
           AND (duration = ? OR duration = ?)
-          AND COALESCE(input_signature, '') = ?
         ORDER BY created_at DESC LIMIT 1
-      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration), inputSignature);
-
-      if (!row) {
-        row = db.prepare(`
-          SELECT * FROM daily_extracted_articles
-          WHERE user_id IN (${userIds.map(() => '?').join(',')})
-            AND quota_date = ?
-            AND theme = ?
-            AND genre = ?
-            AND cefr_level = ?
-            AND (duration = ? OR duration = ?)
-          ORDER BY created_at DESC LIMIT 1
-        `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
-        if (row) {
-          console.log(`[DailyExtract Row Fallback] Matched today's daily_extracted_article via fallback instead of exact signature.`);
-        }
-      }
+      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
     }
-
-    let cacheSource = 'daily_extracted_articles';
 
     if (!row && topic) {
-      const listenHistory = dailyPackService.getHistoryExclude(db);
-      const listenSig = dailyPackService.computeListenArticleInputSignature({
-        theme: topic,
-        genre,
-        cefrLevel,
-        duration,
-        historyExclude: listenHistory,
-        userFlaws: '',
-        userCurrentProfile,
-      });
-      const sigCandidates = [...new Set([inputSignature, listenSig])];
-      for (const sig of sigCandidates) {
-        const listen = db.prepare(`
-          SELECT * FROM daily_listen_articles
-          WHERE user_id IN (${userIds.map(() => '?').join(',')})
-            AND pack_date = ?
-            AND theme = ?
-            AND genre = ?
-            AND cefr_level = ?
-            AND (duration = ? OR duration = ?)
-            AND COALESCE(input_signature, '') = ?
-          ORDER BY created_at DESC LIMIT 1
-        `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration), sig);
-        if (listen?.status === 'ready' && listen.body_text) {
-          row = {
-            id: listen.id,
-            user_id: listen.user_id,
-            quota_date: listen.pack_date,
-            theme: listen.theme,
-            genre: listen.genre,
-            cefr_level: listen.cefr_level,
-            article: listen.body_text,
-            words_json: listen.vocab_json,
-            phrases_json: listen.phrases_json,
-            sentences_json: '[]',
-            duration: listen.duration,
-            input_signature: listen.input_signature,
-            updated_at: listen.updated_at,
-          };
-          cacheSource = 'daily_listen_articles';
-          break;
-        }
-      }
-
-      if (!row) {
-        const listenFallback = db.prepare(`
-          SELECT * FROM daily_listen_articles
-          WHERE user_id IN (${userIds.map(() => '?').join(',')})
-            AND pack_date = ?
-            AND theme = ?
-            AND genre = ?
-            AND cefr_level = ?
-            AND (duration = ? OR duration = ?)
-            AND status = 'ready'
-          ORDER BY created_at DESC LIMIT 1
-        `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
-        if (listenFallback?.body_text) {
-          row = {
-            id: listenFallback.id,
-            user_id: listenFallback.user_id,
-            quota_date: listenFallback.pack_date,
-            theme: listenFallback.theme,
-            genre: listenFallback.genre,
-            cefr_level: listenFallback.cefr_level,
-            article: listenFallback.body_text,
-            words_json: listenFallback.vocab_json,
-            phrases_json: listenFallback.phrases_json,
-            sentences_json: '[]',
-            duration: listenFallback.duration,
-            input_signature: listenFallback.input_signature,
-            updated_at: listenFallback.updated_at,
-          };
-          cacheSource = 'daily_listen_articles (fallback)';
-          console.log(`[DailyExtract Row Fallback] Matched today's daily_listen_article via fallback instead of exact signature.`);
-        }
+      const listenRow = db.prepare(`
+        SELECT * FROM daily_listen_articles
+        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+          AND pack_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+          AND status = 'ready'
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
+      if (listenRow?.body_text) {
+        row = {
+          id: listenRow.id,
+          user_id: listenRow.user_id,
+          quota_date: listenRow.pack_date,
+          theme: listenRow.theme,
+          genre: listenRow.genre,
+          cefr_level: listenRow.cefr_level,
+          article: listenRow.body_text,
+          words_json: listenRow.vocab_json,
+          phrases_json: listenRow.phrases_json,
+          sentences_json: '[]',
+          duration: listenRow.duration,
+          input_signature: listenRow.input_signature,
+          updated_at: listenRow.updated_at,
+        };
+        cacheSource = 'daily_listen_articles';
       }
     }
-
-    // 有 topic/theme 时不做「无主题维度兜底」，避免返回错误主题的长文
 
     if (!row) {
       return res.json({ success: true, found: false });
     }
+
+    const audioRow = topic
+      ? db.prepare(`
+        SELECT * FROM daily_listen_audios
+        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+          AND pack_date = ?
+          AND theme = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+          AND status = 'ready'
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration))
+      : null;
 
     const dataPayload = {
       id: row.id,
@@ -7234,6 +7125,8 @@ const handleGetDailyExtractArticle = (req, res) => {
       inputSignature: row.input_signature,
       updatedAt: row.updated_at,
       cacheSource,
+      audioUrl: audioRow?.audio_url || null,
+      audioPath: audioRow?.audio_path || null,
     };
 
     return res.json({
@@ -7430,7 +7323,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             duration: String(duration),
             history_exclude: historyExclude,
             user_flaws: userFlaws,
-            user_current_profile: user_current_profile || '',
+            user_current_profile: String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || ''),
             _system_time,
             _system_timestamp_ms,
           }),

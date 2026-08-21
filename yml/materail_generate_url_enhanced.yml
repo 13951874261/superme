@@ -228,7 +228,16 @@ workflow:
           required: true
           type: select
           variable: duration
-      height: 198
+        - default: ''
+          hint: 仅用于生成长文，不参与落库/查询条件
+          label: 用户画像
+          max_length: 65535
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+      height: 220
       id: '1780382595776'
       position:
         x: 0
@@ -383,6 +392,15 @@ workflow:
             Combined target 4550-5600 words (~35 minutes).
 
 
+            【CRITICAL RULE 3: LEARNER PROFILE】
+
+            User profile (may be empty): {{#1780382595776.user_current_profile#}}
+
+            If the profile is non-empty, ground the scenario in this learner''s industry,
+            role, country, and pain points. Do NOT paste the profile text into the
+            outline. Keep the theme title unchanged.
+
+
             【OUTPUT FORMAT】
 
             - Output ONLY a pure JSON array (Array[String]).
@@ -407,6 +425,8 @@ workflow:
             CEFR Level: {{#1780382595776.cefr_level#}}
 
             Target Duration (minutes): {{#1780382595776.duration#}}
+
+            Learner Profile: {{#1780382595776.user_current_profile#}}
 
 
             请直接输出大纲 JSON 数组。'
@@ -513,6 +533,12 @@ workflow:
             - Genre: {{#1780382595776.genre#}}
 
             - Target Duration (minutes): {{#1780382595776.duration#}}
+
+            - Learner Profile: {{#1780382595776.user_current_profile#}}
+
+            If the profile is non-empty, write this segment as if it happened in this
+            learner''s real work context. Do NOT paste the profile text. Do NOT change
+            the assigned theme.
 
 
             【WRITING SPECIFICATIONS (STRICTLY IN ENGLISH)】

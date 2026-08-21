@@ -394,18 +394,7 @@ function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration, hi
 }
 
 function getArticleRow(db, parts) {
-  // L1: exact theme + combo + input_signature
-  const exact = db.prepare(`
-    SELECT * FROM daily_listen_articles
-    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
-      AND COALESCE(input_signature, '')=?
-  `).get(
-    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
-    parts.inputSignature || '',
-  );
-  if (exact) return exact;
-
-  // L2 fallback: ignore signature, match combo on user_id + pack_date + theme + genre + cefr_level + duration
+  // 查询不带画像签名：账号 + 日期 + 主题 + 题材 + 难度 + 时长
   return db.prepare(`
     SELECT * FROM daily_listen_articles
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
@@ -417,16 +406,6 @@ function getArticleRow(db, parts) {
 }
 
 function getAudioRow(db, parts) {
-  const exact = db.prepare(`
-    SELECT * FROM daily_listen_audios
-    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
-      AND COALESCE(input_signature, '')=?
-  `).get(
-    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
-    parts.inputSignature || '',
-  );
-  if (exact) return exact;
-
   return db.prepare(`
     SELECT * FROM daily_listen_audios
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?

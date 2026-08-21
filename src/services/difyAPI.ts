@@ -766,6 +766,8 @@ export async function fetchExactArticleIfExists(params: {
     duration: string;
     inputSignature?: string;
     updatedAt?: number;
+    audioUrl?: string | null;
+    audioPath?: string | null;
   };
 }> {
   const uid = params.userId || getAppUserId();
