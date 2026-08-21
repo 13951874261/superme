@@ -129,7 +129,8 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       playGentleWarning();
       try {
         const { showToast } = await import('../../Toast');
-        showToast({ message: err instanceof Error ? err.message : '导出失败', type: 'error' });
+        console.error('导出失败:', err);
+        showToast({ message: '导出失败，请稍后重试', type: 'error' });
       } catch {}
     } finally {
       setExporting(false);

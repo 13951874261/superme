@@ -85,16 +85,17 @@ export default function VocabExportControl({
 
       notifyBackgroundHandoff({
         anchor: anchor || null,
-        message: '导出任务已在后台执行，请前往【任务中心】查看进度并下载文件',
+        message: '导出已在后台进行，请到【任务中心】查看进度并下载',
         tone: 'success',
       });
 
       onExported?.(0, scope);
     } catch (e: any) {
-      onError?.(e?.message || '导出失败');
+      console.error('发起导出失败:', e);
+      onError?.('导出失败，请稍后重试');
       try {
         const { showToast } = await import('./Toast');
-        showToast({ message: e?.message || '发起导出失败', type: 'error' });
+        showToast({ message: '发起导出失败，请稍后重试', type: 'error' });
       } catch (err) {}
     } finally {
       setBusy(false);

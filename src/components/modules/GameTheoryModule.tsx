@@ -640,7 +640,6 @@ export default function GameTheoryModule() {
       }
       if (!isAuto) {
         playGentleWarning();
-        const msg = e instanceof Error ? e.message : String(e);
         alert('获取案例失败，请再点「换一条」');
       }
     } finally {

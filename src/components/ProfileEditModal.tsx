@@ -59,7 +59,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
       const result = await compressUserProfile(text, true);
       setDraft(result.mergedProfile);
       setCompressHint(
-        `已压缩并存入（${result.source === 'dify' ? 'Dify' : '本地'}）：${result.beforeLength} → ${result.afterLength} 字，合并 ${result.dedupeCount} 处重复。`,
+        `已精简并存入：${result.beforeLength} → ${result.afterLength} 字，合并 ${result.dedupeCount} 处重复。`,
       );
       playWaterDrop();
       onSaved();
