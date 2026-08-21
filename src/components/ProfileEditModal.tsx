@@ -39,7 +39,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
   };
 
   const handleClear = () => {
-    if (!window.confirm('确定清空全局短板画像？此操作不可自动恢复。')) return;
+    if (!window.confirm('确定清空能力短板画像吗？清空后无法自动恢复')) return;
     playClick();
     saveUserCurrentProfile('');
     onSaved();
@@ -49,7 +49,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
   const handleCompress = async () => {
     const text = draft.trim();
     if (!text) {
-      alert('画像内容为空，无法压缩。');
+      alert('画像内容为空，无法精简');
       return;
     }
     setCompressing(true);
@@ -64,8 +64,8 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
       playWaterDrop();
       onSaved();
     } catch (e) {
-      console.error('画像压缩失败:', e);
-      alert(e instanceof Error ? e.message : '画像压缩失败，请稍后重试。');
+      console.error('画像精简失败:', e);
+      alert('画像精简失败，请稍后重试');
     } finally {
       setCompressing(false);
     }

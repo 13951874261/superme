@@ -184,7 +184,8 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
     }
     if (!silent && !isAbort) {
       playError();
-      showToast({ message: err.message || '词库请求失败', type: 'error' });
+      console.error('生词本请求失败:', err);
+      showToast({ message: '生词本请求失败，请稍后重试', type: 'error' });
     }
     throw err;
   } finally {

@@ -111,7 +111,7 @@ export default function WeeklyChatModule() {
   };
 
   const clearHistory = () => {
-    if (confirm('确认清空所有历史树洞沉淀吗？此操作不可逆。')) {
+    if (confirm('确定清空全部树洞记录吗？清空后无法恢复')) {
       playClick();
       setHistoryList([]);
       localStorage.removeItem('superme_weekly_history_enhanced');

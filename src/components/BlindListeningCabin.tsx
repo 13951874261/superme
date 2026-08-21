@@ -85,7 +85,7 @@ export const BlindListeningCabin: React.FC<Props> = ({ currentSentence = '', onS
       if (ttsResp.audioUrl) {
         audioUrl = ttsResp.audioUrl;
       } else if (ttsResp.taskId) {
-        showToast('长音频/压力音频合成中，请稍候...', 'info');
+        showToast('正在准备练习音频，请稍候…', 'info');
         audioUrl = await pollTtsTask(ttsResp.taskId);
       } else {
         throw new Error(ttsResp.error || '音频生成失败');
@@ -106,7 +106,7 @@ export const BlindListeningCabin: React.FC<Props> = ({ currentSentence = '', onS
       showToast('音频播放中，请盲听并输入内容', 'info');
     } catch (err: any) {
       console.error('[BlindListening] TTS error:', err);
-      showToast(err.message || '音频生成失败，请稍后重试');
+      showToast('音频生成失败，请稍后重试');
     } finally {
       setIsSynthesizing(false);
     }
@@ -121,12 +121,13 @@ export const BlindListeningCabin: React.FC<Props> = ({ currentSentence = '', onS
       if (result.success && result.transcript) {
         setUploadedTranscript(result.transcript);
         if (onTranscriptLoaded) onTranscriptLoaded(result.transcript);
-        showToast('原声上传成功并已转录，提交比对时将以此为准', 'info');
+        showToast('原声上传成功，将按录音文字比对', 'info');
       } else {
-        showToast('音频上传成功但未转录，将使用当前题目原文比对', 'info');
+        showToast('音频已上传，将按题目原文比对', 'info');
       }
     } catch (err: any) {
-      showToast(err.message || '上传失败');
+      console.error('上传失败:', err);
+      showToast('上传失败，请稍后重试');
     } finally {
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -173,7 +174,7 @@ export const BlindListeningCabin: React.FC<Props> = ({ currentSentence = '', onS
       }
       recorder.start();
       setIsRecording(true);
-    } catch (err) { showToast('无法调用麦克风'); }
+    } catch (err) { showToast('无法使用麦克风，请检查权限'); }
   };
 
   const handleStopRecord = () => {

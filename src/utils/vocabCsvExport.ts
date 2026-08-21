@@ -396,9 +396,9 @@ export async function exportVocabCsv(options: {
     try {
       const { showToast } = await import('../components/Toast');
       if (wordsToEnrich.length > limit) {
-        showToast({ message: `检测到 ${wordsToEnrich.length} 个词条有空白列，将自动在线补全前 ${limit} 个...`, type: 'info' });
+        showToast({ message: `发现 ${wordsToEnrich.length} 个词信息不完整，正在自动补全前 ${limit} 个…`, type: 'info' });
       } else {
-        showToast({ message: `正在自动在线补全 ${wordsToEnrich.length} 个词条的空白列（如中文释义）...`, type: 'info' });
+        showToast({ message: `发现 ${wordsToEnrich.length} 个词信息不完整，正在自动补全…`, type: 'info' });
       }
     } catch (e) {}
 
@@ -479,7 +479,7 @@ export async function exportVocabCsv(options: {
     
     try {
       const { showToast } = await import('../components/Toast');
-      showToast({ message: '生词本空白列已全部补齐，正在下载。', type: 'success' });
+      showToast({ message: '生词本信息已补齐，正在下载', type: 'success' });
     } catch (e) {}
   }
 

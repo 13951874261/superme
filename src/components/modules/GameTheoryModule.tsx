@@ -626,7 +626,7 @@ export default function GameTheoryModule() {
         }
         if (!isAuto) {
           playGentleWarning();
-          alert(`推送案例未达尖锐标准（${q.quality_note || '未达门槛'}），已保留当前合格稿，请再次点击「换一条」`);
+          alert('新案例质量未达标，已保留当前可用案例，请再点「换一条」');
         }
       }
     } catch (e) {
@@ -641,7 +641,7 @@ export default function GameTheoryModule() {
       if (!isAuto) {
         playGentleWarning();
         const msg = e instanceof Error ? e.message : String(e);
-        alert(`获取案例失败: ${msg}，请再次点击「换一条」`);
+        alert('获取案例失败，请再点「换一条」');
       }
     } finally {
       casePushLoadingRef.current = false;
@@ -678,7 +678,8 @@ export default function GameTheoryModule() {
     } catch (err) {
       console.error('录入人性档案失败:', err);
       playGentleWarning();
-      alert(err instanceof Error ? err.message : '录入失败，请稍后重试');
+      console.error('录入失败:', err);
+      alert('录入失败，请稍后重试');
     }
   };
 
@@ -708,7 +709,7 @@ export default function GameTheoryModule() {
     if (!caseText.trim() || casePushQuality?.quality !== 'ok' || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim()) {
       if (casePushQuality?.quality !== 'ok') {
         playGentleWarning();
-        alert('当前案例未达详实尖锐标准（GT-CASE-02），请先点击「换一条」获取合格案例后再提交研判');
+        alert('当前案例质量未达标，请先点「换一条」后再提交');
       }
       return;
     }

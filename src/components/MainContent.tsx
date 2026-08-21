@@ -67,7 +67,7 @@ function MainContentComponent({
     const endTimer = startL0Timer(`TopTab Switch -> ${tabId}`);
     if (isModulePaused(tabId)) {
       playClick();
-      alert('根据复盘战术调度，该模块已暂时挂起。请先完成当前主攻方向的训练。');
+      alert('该模块暂时不可用。请先完成当前主攻方向的训练');
       endTimer();
       return;
     }

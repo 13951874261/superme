@@ -69,8 +69,13 @@ async function transcribeAudioFile(fileObj, userId = 'default-user') {
     console.log('[发音规整] 正在对识别文本进行口语表达优化与标点还原: "' + rawText + '"');
     try {
       const polishedText = await callPolishLLM(rawText);
-      console.log('[发音规整] 口语表达优化完成: "' + polishedText + '"');
-      return polishedText;
+      const finalText = (polishedText && String(polishedText).trim()) || rawText;
+      if (!polishedText || !String(polishedText).trim()) {
+        console.warn('[发音规整] 润色结果为空，回退原始文本');
+      } else {
+        console.log('[发音规整] 口语表达优化完成: "' + finalText + '"');
+      }
+      return finalText;
     } catch (polishErr) {
       console.warn('[发音规整] 表达优化服务未响应，直接采用原始识别文本: ' + polishErr.message);
       return rawText;
@@ -86,7 +91,7 @@ async function callPolishLLM(rawText) {
   const apiKey = process.env.DIFY_LISTEN_LLM_API_KEY || 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
   const url = process.env.LLM_URL || 'https://23.95.214.232/v1/chat/completions';
 
-  const systemPrompt = "你是一位专业的语音识别（ASR）后处理专家。你的任务是对原始识别文本进行纠错、标点恢复和格式化，使其成为一篇通顺、可读的标准文本。直接输出处理后的文本，不要任何解释、标记或格式化（如不要 markdown 代码块）";
+  const systemPrompt = "你是一位专业的语音识别（ASR）后处理专家。你的任务是对原始识别文本进行纠错、标点恢复和格式化，使其成为一篇通顺、可读的标准文本。直接输出处理后的文本，不要任何解释、标记或格式化（如不要 markdown 代码块）。若输入已通顺、仅为单词/短词、你不确定如何纠正，或无法有效润色，必须原样输出输入文本，禁止输出空字符串。仅当输入本身为空或仅为杂音标签时才输出空字符串。";
   const userPrompt = "请处理以下语音识别原始文本：\n\n" + rawText;
 
   return new Promise((resolve, reject) => {
@@ -117,8 +122,9 @@ async function callPolishLLM(rawText) {
         }
         try {
           const data = JSON.parse(raw);
-          const content = data?.choices?.[0]?.message?.content || '';
-          resolve(content.trim());
+          const content = String(data?.choices?.[0]?.message?.content || '').trim();
+          // 无法润色/模型返回空时回退原始转写
+          resolve(content || String(rawText || '').trim());
         } catch (error) {
           reject(new Error('LLM parse failed: ' + error.message));
         }

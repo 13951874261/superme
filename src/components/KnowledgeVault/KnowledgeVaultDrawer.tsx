@@ -108,7 +108,7 @@ function KnowledgeSyncPanel({
   };
 
   const confirmSync = async () => {
-    if (!window.confirm("该知识将用于听力场景生成、口语训练或博弈分析。确定同步？")) return;
+    if (!window.confirm("同步后可用于听力、口语或博弈练习。确定同步吗？")) return;
     setBusy(true);
     try {
       await onSync(item.id, targets);
@@ -494,13 +494,14 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
       });
       try {
         const { showToast } = await import('../Toast');
-        showToast({ message: '导出任务已在后台执行，请前往【后台任务】下载', type: 'success' });
+        showToast({ message: '导出已在后台进行，请到【任务中心】下载', type: 'success' });
       } catch {}
     } catch (err) {
       playGentleWarning();
       try {
         const { showToast } = await import('../Toast');
-        showToast({ message: err instanceof Error ? err.message : '发起导出失败', type: 'error' });
+        console.error('发起导出失败:', err);
+        showToast({ message: '发起导出失败，请稍后重试', type: 'error' });
       } catch {}
     } finally {
       setExportBusy(false);

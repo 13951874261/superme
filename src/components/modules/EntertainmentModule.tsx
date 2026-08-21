@@ -492,7 +492,7 @@ export default function EntertainmentModule() {
 
       triggerWarning();
 
-      alert("研判系统异常：连接 Dify 服务失败，请检查网络连接或 API 配置。");
+      alert("研判失败，请检查网络后重试；若仍失败，请联系管理员");
 
     } finally {
 

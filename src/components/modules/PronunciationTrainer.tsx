@@ -233,7 +233,7 @@ export default function PronunciationTrainer({ initialNotes, onNotesChange, user
 
     } catch (err: any) {
       console.error('发音评估请求失败:', err);
-      showToast(err.message || '诊断失败，请重试');
+      showToast('分析失败，请稍后重试');
     } finally {
       setIsAssessing(false);
     }

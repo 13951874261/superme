@@ -170,7 +170,8 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     } catch (error) {
       console.error('强制应用考核失败:', error);
       const message = error instanceof Error ? error.message : '请按 F12 查看控制台详情';
-      alert(`长官，考核引擎异常:\n${message}`);
+      console.error('评分失败:', message);
+      alert('评分失败，请稍后重试');
     } finally {
       setIsEvalLoading(false);
     }
