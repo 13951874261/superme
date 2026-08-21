@@ -79,7 +79,7 @@ export default function MaterialUploader({
 
     setStatus('running');
     setShowLogs(true);
-    setCurrentStep('后端正在执行：清库 → 上传 → 向量化 → 提纯 → 入库');
+    setCurrentStep('正在整理：清空旧材料 → 上传 → 抽取词汇 → 写入生词本');
     setLogs([`${nowLabel()} 启动卡片向导式一键提纯流程`]);
 
     try {
@@ -125,7 +125,7 @@ export default function MaterialUploader({
     setCurrentStep(`已加载网页提取材料：${virtualFile.name}`);
     setLogs([
       `${nowLabel()} 网页数据抓取并过滤成功`,
-      `${nowLabel()} 自动触发 Dify 提纯入库...`,
+      `${nowLabel()} 正在自动整理并加入生词本…`,
     ]);
     // 自动触发提纯（与视频转写"导入并提纯"路径对齐）
     runExtractionForFiles([file]);
@@ -146,7 +146,7 @@ export default function MaterialUploader({
     setLogs([
       `${nowLabel()} 后台转写任务建立成功，TaskId: ${taskId}`,
       `${nowLabel()} 进程将在服务器异步执行，无需在本页面等待。`,
-      `${nowLabel()} 视频处理完毕后，将自动导入并触发 Dify 提纯。`,
+      `${nowLabel()} 视频处理完毕后，将自动导入并整理生词。`,
     ]);
   };
 
@@ -231,7 +231,7 @@ export default function MaterialUploader({
         <p className={compact ? 'text-[9px] text-zinc-400 font-medium' : 'text-xs text-gray-400 font-medium leading-relaxed mt-2'}>
           {compact
             ? '上传后进入任务中心；完成后写入理论草稿与导图，请勾选模块同步到听/说/博弈。'
-            : '将本地文档、网页内容或音视频转写文字投喂给 Dify 知识库，并自动写入艾宾浩斯生词本。'}
+            : '上传本地文档、网页内容或音视频转写文字后，系统会自动整理并写入生词本。'}
         </p>
       </div>
 
@@ -417,7 +417,7 @@ export default function MaterialUploader({
                 // 默认提示
                 <div className="flex-grow flex flex-col items-center justify-center text-center p-2">
                   <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
-                    系统将自动执行：清空知识库 → 载入材料 → 向量化切片 → Dify 智能抽提词汇 → 写入艾宾浩斯生词本。
+                    系统将自动执行：清空旧材料 → 载入材料 → 整理材料 → 自动抽取词汇 → 写入生词本。
                   </p>
                 </div>
               )}

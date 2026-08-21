@@ -1006,7 +1006,7 @@ export default function EntertainmentModule() {
 
                       <p className="mt-1 text-[10px] text-zinc-500">
 
-                        {dailyPushSource === 'fallback' ? 'Dify 暂不可用，当前为兜底内容' : '本次为 AI 生成场景'}
+                        {dailyPushSource === 'fallback' ? '智能生成暂不可用，当前为备用内容' : '本次为 AI 生成场景'}
 
                       </p>
 
@@ -1124,7 +1124,7 @@ export default function EntertainmentModule() {
                             </ol>
                           )}
                           <p className="mt-1 text-[9px] text-zinc-400">
-                            {dailyPushSource === 'fallback' ? '兜底内容' : 'AI生成'} · {dailyPush.push_date || ''}
+                            {dailyPushSource === 'fallback' ? '备用内容' : 'AI生成'} · {dailyPush.push_date || ''}
                           </p>
 
                         </div>

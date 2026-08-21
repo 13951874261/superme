@@ -22,11 +22,13 @@ describe('GT-TAC contract', () => {
     assert.match(serverSrc, /\/api\/tactics_media\/:id\/file/);
   });
 
-  it('videoTranscriber 支持 keepVideo / skipVocab / deferComplete', () => {
+  it('videoTranscriber 支持 keepVideo / skipVocab / deferComplete，且 STT 走本机 Whisper 切片', () => {
     assert.match(vtSrc, /keepVideo/);
     assert.match(vtSrc, /skipVocab/);
     assert.match(vtSrc, /deferComplete/);
     assert.match(vtSrc, /extractTranscriptFromLocalVideo/);
+    assert.match(vtSrc, /transcribeAudioFileSliced/);
+    assert.doesNotMatch(vtSrc, /DIFY_SPEECH_API_KEY/);
   });
 
   it('TacticsPanel 走异步 ingest 且 accept 含视频', () => {

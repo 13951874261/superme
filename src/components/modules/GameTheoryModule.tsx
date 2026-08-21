@@ -958,7 +958,7 @@ export default function GameTheoryModule() {
                       <div className="bg-slate-50 border border-slate-150 p-4 rounded-xl mb-5">
                         {casePushQuality?.quality === 'below_standard' && (
                           <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-900 leading-relaxed">
-                            {casePushQuality.quality_note || '案例背景未达详实门槛（GT-CASE-02），请点击「换一条」'}
+                            {casePushQuality.quality_note || '案例质量未达标，请点击「换一条」'}
                           </div>
                         )}
                         <textarea 
@@ -1736,7 +1736,7 @@ export default function GameTheoryModule() {
                             </div>
                             {expandedDetail.full_result.quality === 'below_standard' && (
                               <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-800 leading-relaxed">
-                                {expandedDetail.full_result.quality_note || '研判未达四节/字数门槛（GT-CASE-02）'}
+                                {expandedDetail.full_result.quality_note || '研判内容未达要求，请完善后再试'}
                               </div>
                             )}
                             {item.source_type === 'simulation' ? (

@@ -16,7 +16,7 @@ import { getAppUserId } from '../../utils/profileHelper';
 
 const SUB_TABS = [
   { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
-  { id: 'vocab',     label: '词汇矩阵',   icon: <BookOpen className="w-4 h-4" /> },
+  { id: 'vocab',     label: '生词复习',   icon: <BookOpen className="w-4 h-4" /> },
   { id: 'listen',    label: '精听盲听',   icon: <Volume2 className="w-4 h-4" /> },
   { id: 'oral',      label: '多角色沙盘', icon: <Mic className="w-4 h-4" /> },
   { id: 'write',     label: '纵深书面',   icon: <PenTool className="w-4 h-4" /> },

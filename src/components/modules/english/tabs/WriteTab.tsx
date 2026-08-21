@@ -59,7 +59,7 @@ const ReviewCard = ({ title, content, isLoading, color = 'text-zinc-500', isDark
       {title}
     </h5>
     {isLoading ? (
-      <p className="text-xs text-zinc-400 italic animate-pulse">Dify 正在审阅中…</p>
+      <p className="text-xs text-zinc-400 italic animate-pulse">正在审阅中…</p>
     ) : content ? (
       <p className={`text-xs leading-relaxed ${isDark ? 'text-zinc-300' : 'text-zinc-650'}`}>{content}</p>
     ) : (
@@ -169,8 +169,8 @@ export default function WriteTab() {
     setOralWriteContext({ sceneTitle: ctx.sceneTitle, conflicts: ctx.conflicts || [] });
     const conflictLine = (ctx.conflicts || []).join(' / ');
     setWriteIntent(
-      `【沙盘书面闭环 · ${ctx.sceneTitle}】\n`
-      + `核心冲突：${conflictLine || '见上文沙盘推演'}\n`
+      `【书面练习 · ${ctx.sceneTitle}】\n`
+      + `核心冲突：${conflictLine || '见上文练习推演'}\n`
       + `跨文化背景：${ctx.culturalContext || ''}\n\n`
       + '请撰写一封高阶商务信函/邮件，回应上述多角色博弈情境。要求：语法严谨、逻辑闭环、分寸得体，无破绽。',
     );
@@ -456,7 +456,7 @@ ${benchmarkText
         <div className="bg-[var(--color-canvas)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-start gap-3 shadow-[var(--shadow-sm)]">
           <BookOpen className="w-4 h-4 text-[var(--color-accent)] shrink-0 mt-0.5" />
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">沙盘书面闭环</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">书面练习</p>
             <p className="text-xs font-bold text-[var(--color-ink-primary)] mt-0.5">{oralWriteContext.sceneTitle}</p>
             {oralWriteContext.conflicts.length > 0 && (
               <p className="text-[10px] text-[var(--color-ink-secondary)] mt-1">

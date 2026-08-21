@@ -13,6 +13,7 @@ assert.ok(typeof service.transcribeAudioFile === 'function', 'transcribeAudioFil
 // 测试接口定义 - 读取源码验证签名
 const source = fs.readFileSync(servicePath, 'utf8');
 assert.match(source, /async function transcribeAudioFile/);
+assert.match(source, /transcribeAudioFileSliced/);
 assert.match(source, /127\.0\.0\.1:8080\/inference/);
 assert.match(source, /不再降级/);
 assert.match(source, /callPolishLLM/);

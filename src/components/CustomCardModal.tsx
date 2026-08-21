@@ -573,7 +573,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                   <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex gap-3 text-xs text-blue-800 font-medium">
                     <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-black">智能分词机制</span>：输入一段英文文本，AI 词汇提纯引擎将调用 Dify 工作流自动扫描其中核心专业词汇及商务黑话，省去逐个查词的繁琐过程。
+                      <span className="font-black">智能分词机制</span>：输入一段英文文本，系统会自动扫描其中的专业词和商务表达，省去逐个查词的繁琐过程。
                     </div>
                   </div>
                   <div>

@@ -138,80 +138,46 @@ async function startTranscribeTask(taskId, {
       });
     });
 
-    taskQueue.updateTask(taskId, { progress: 65, logs: ['音轨提取成功 (16kHz 单声道 MP3)，开始上传至转写引擎…'] });
+    taskQueue.updateTask(taskId, { progress: 65, logs: ['音轨提取成功 (16kHz 单声道 MP3)，开始本机 Whisper 切片转写…'] });
 
-    // 3. 上传 MP3 到 Dify 平台获取 file_id
-    const difyApiKey = process.env.DIFY_SPEECH_API_KEY;
-    const endpointBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-
-    const uploadFormData = new FormData();
-    const audioBuffer = fs.readFileSync(audioPath);
-    uploadFormData.append('file', new Blob([audioBuffer], { type: 'audio/mpeg' }), 'extracted_audio.mp3');
-    uploadFormData.append('user', 'default-user');
-
-    const uploadResponse = await fetch(`${endpointBase}/files/upload`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${difyApiKey}`
+    // 3. 本机 Whisper：固定 5 分钟切片、串行识别、失败片标注缺口、整段润色
+    const { transcribeAudioFileSliced } = require('./audioTranscriptionService');
+    const sttResult = await transcribeAudioFileSliced(audioPath, {
+      language,
+      onProgress: ({ message, index, chunkCount }) => {
+        const base = 65;
+        const span = 25;
+        let progress = base;
+        if (typeof index === 'number' && chunkCount > 0) {
+          progress = Math.min(90, base + Math.floor(((index + 1) / chunkCount) * span));
+        }
+        taskQueue.updateTask(taskId, {
+          progress,
+          logs: [message || '本机 Whisper 转写中…'],
+        });
       },
-      body: uploadFormData
     });
 
-    if (!uploadResponse.ok) {
-      const errText = await uploadResponse.text();
-      throw new Error(`音频上传到识别平台失败: ${uploadResponse.status} - ${errText}`);
-    }
-
-    const uploadResult = await uploadResponse.json();
-    const fileId = uploadResult.id;
-    if (!fileId) {
-      throw new Error('音频上传成功，但未返回文件ID');
-    }
-
-    taskQueue.updateTask(taskId, { progress: 75, logs: [`上传成功 (ID: ${fileId})，正在提交 Dify 语音转写工作流…`] });
-
-    // 4. 调用 Dify 语音转写 Workflow
-    const workflowResponse = await fetch(`${endpointBase}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${difyApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: {
-          audio_file: {
-            transfer_method: 'local_file',
-            upload_file_id: fileId,
-            type: 'audio'
-          },
-          language: language,
-          subtitle: subtitle || ''
-        },
-        response_mode: 'blocking',
-        user: 'default-user'
-      })
-    });
-
-    if (!workflowResponse.ok) {
-      const errText = await workflowResponse.text();
-      throw new Error(`转写服务返回异常: ${workflowResponse.status} - ${errText}`);
-    }
-
-    const workflowResult = await workflowResponse.json();
-    const outputs = workflowResult?.data?.outputs || {};
-    
-    // 获取转写产物（优先读取新工作流的 transcript_text 属性）
-    const transcript = outputs.transcript_text || outputs.transcript || outputs.text || outputs.result || '';
+    const transcript = String(sttResult?.text || '').trim();
     if (!transcript) {
       throw new Error('语音识别成功，但返回的文本为空。请确认视频内包含人声并选择了正确的语言');
     }
 
-    taskQueue.updateTask(taskId, { progress: 95, logs: ['转写成果提取成功，正在封装虚拟材料…'] });
+    const gapCount = Array.isArray(sttResult.gaps) ? sttResult.gaps.length : 0;
+    const chunkCount = sttResult.chunkCount || 0;
+    taskQueue.updateTask(taskId, {
+      progress: 95,
+      logs: [
+        gapCount > 0
+          ? `转写完成：共 ${chunkCount} 片，其中 ${gapCount} 片失败已标注缺口，正在封装虚拟材料…`
+          : `转写完成：共 ${chunkCount} 片，正在封装虚拟材料…`,
+      ],
+    });
 
-    // 5. 组装虚拟材料 VirtualMaterial
+    // 4. 组装虚拟材料 VirtualMaterial
     const virtualMaterial = {
       name: fileName ? `${path.parse(fileName).name}_transcript.md` : `video_transcript_${taskId}.md`,
-      content: `# 视频转写材料\n\n> 来源: ${url ? url : '本地上传视频'}\n> 识别语言: ${language}\n\n${transcript}`,
+      content: `# 视频转写材料\n\n> 来源: ${url ? url : '本地上传视频'}\n> 识别语言: ${language}\n> 引擎: 本机 Whisper（5分钟切片）\n${gapCount > 0 ? `> 缺口片数: ${gapCount}\n` : ''}\n${transcript}`,
       mimeType: 'text/markdown',
       sourceType: 'video',
       sourceUrl: url || undefined,

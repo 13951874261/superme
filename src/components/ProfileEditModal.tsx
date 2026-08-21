@@ -86,7 +86,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
             <h3 className="text-sm font-black text-zinc-900 tracking-wide">全局短板画像</h3>
-            <p className="text-[10px] text-zinc-400 mt-0.5">查看、编辑、Dify 压缩或清空当前画像全文</p>
+            <p className="text-[10px] text-zinc-400 mt-0.5">查看、编辑、精简或清空当前画像全文</p>
           </div>
           <button
             type="button"
@@ -112,7 +112,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
             </p>
           ) : (
             <p className="text-[10px] text-zinc-400 mt-2">
-              写入时系统会自动做语义去重；可点击「Dify 压缩并保存」手动精炼重复段落。
+              写入时系统会自动做语义去重；可点击「精简并保存」手动整理重复段落。
             </p>
           )}
         </div>
@@ -139,7 +139,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
               ) : (
                 <Sparkles className="w-3.5 h-3.5" />
               )}
-              {compressing ? '压缩中…' : 'Dify 压缩并保存'}
+              {compressing ? '精简中…' : '精简并保存'}
             </button>
           </div>
           <div className="flex items-center gap-2">

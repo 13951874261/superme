@@ -247,16 +247,16 @@ export function IntelBriefing({
                   </div>
                   <div>
                     <h5 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                      AI 智能提纯引擎
+                      智能整理
                     </h5>
                     <span className="text-[9px] bg-indigo-100 text-[var(--color-brand)] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-0.5 inline-block">
-                      Active Intel Engine
+                      智能整理中
                     </span>
                   </div>
                 </div>
                 
                 <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
-                  本模块是您的高能英文训练场。通过在右侧输入框粘贴英文商业段落、会议纪要或财经新闻，AI 引擎将自动提供以下强力补给：
+                  本模块是您的高能英文训练场。通过在右侧输入框粘贴英文商业段落、会议纪要或财经新闻，系统将自动提供以下强力补给：
                 </p>
                 
                 <ul className="space-y-2.5 pt-1.5">

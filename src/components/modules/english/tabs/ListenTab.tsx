@@ -563,7 +563,7 @@ export default function ListenTab() {
         </div>
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与智能整理功能。</p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform hover:-translate-y-0.5">
@@ -766,7 +766,7 @@ export default function ListenTab() {
             <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl mb-6 border border-white/10 relative z-10 w-full overflow-hidden">              {isListenMaterialLoading ? (
                 <div className="flex items-center gap-2 text-gray-400">
                   <Loader2 className="w-6 h-6 animate-spin" />
-                  <span className="text-xs font-black uppercase tracking-widest">拦截解码中…</span>
+                  <span className="text-xs font-black uppercase tracking-widest">正在分析中…</span>
                 </div>
               ) : isAudioGenerating ? (
                 <div className="flex flex-col gap-3 w-full p-2">

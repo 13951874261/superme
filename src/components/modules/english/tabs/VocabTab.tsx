@@ -322,7 +322,7 @@ export default function VocabTab() {
         </div>
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与智能整理功能。</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 hover:-translate-y-0.5">
@@ -382,7 +382,7 @@ export default function VocabTab() {
           {vocabZone === 'business' ? (
             <span>
               <span className="font-black text-gray-600 mr-1">💼 政商务区：</span>
-              收录由「进度总控 → 一键提纯」从商务英语长文中提取的高频词汇与短语（谈判/汇报/危机公关场景专用）。数据来源：Dify 长文提纯 Workflow → 生词本 API（/api/vocab）。
+              收录由「进度总控」从商务英语长文中整理出的高频词汇与短语（谈判/汇报/危机公关场景专用）。
             </span>
           ) : (
             <span>
@@ -624,7 +624,7 @@ export default function VocabTab() {
 
               <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
                 <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-                  Anki 快捷评分 (免造句直接推入复习曲线)
+                  快捷评分（免造句，直接记入复习进度）
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   <button
@@ -709,7 +709,7 @@ export default function VocabTab() {
                     disabled={isEvaluating || !sentenceInput.trim()}
                     className="w-full bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#FF5722] transition-[background-color,box-shadow,transform] disabled:opacity-50 flex justify-center items-center cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200"
                   >
-                    {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> AI 军控识别中…</> : '提交评估并推入记忆曲线 ➔'}
+                    {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> 正在评估中…</> : '提交评估并记入复习进度 ➔'}
                   </button>
                 ) : evalResult.quality >= 3 ? (
                   <button

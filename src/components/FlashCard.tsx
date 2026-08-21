@@ -288,7 +288,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                       className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95 shadow-lg shadow-[#202124]/20"
                     >
                       <BookOpen className="w-4 h-4" />
-                      {shouldAutoEnrichVocab(current.word, localPayload || current.payload) ? '点击连接 Dify 解密释义' : '翻转查看释义'}
+                      {shouldAutoEnrichVocab(current.word, localPayload || current.payload) ? '点击加载释义' : '翻转查看释义'}
                     </button>
                   )
                 )}

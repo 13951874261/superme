@@ -267,7 +267,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                     resetDifyChatbotSession();
                   }}
                   className="h-8 px-2.5 rounded-full border border-gray-150 bg-white/70 text-[9px] font-black uppercase tracking-wider text-gray-500 hover:text-[#1C64F2] hover:border-[#1C64F2]/30 transition cursor-pointer"
-                  title="清除 Dify 本地过期会话并重新开始"
+                  title="清除本地过期会话并重新开始"
                 >
                   新对话
                 </button>
@@ -311,7 +311,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                           情报解密就绪
                         </div>
                         <p className="text-[11px] leading-relaxed max-w-[240px]">
-                          在左侧主工作区选中任意英文商务词汇，系统将自动连接 Dify 调取深层商业洞察并在此呈现。
+                          在左侧主工作区选中任意英文商务词汇，系统将自动调取深层商业洞察并在此呈现。
                         </p>
                       </div>
                     ) : (
