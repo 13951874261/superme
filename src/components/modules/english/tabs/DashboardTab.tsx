@@ -706,7 +706,8 @@ export default function DashboardTab() {
           message: handoffMsg,
           tone: 'info',
         });
-        showNotice('dashboard', handoffMsg, 'info');
+        // 有锚点时就近浮层已提示，避免再弹同文案角标
+        if (!handoffAnchor) showNotice('dashboard', handoffMsg, 'info');
         setIsBackgroundGenerating(true);
         setIsAutoGenerating(false);
         // 超时后继续等待：完成后自动回填 Dashboard，避免结果被丢弃

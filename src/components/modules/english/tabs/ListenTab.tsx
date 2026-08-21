@@ -182,7 +182,7 @@ export default function ListenTab() {
         message: handoffMsg,
         tone: 'info',
       });
-      showNotice('listen', handoffMsg, 'info');
+      if (!anchor) showNotice('listen', handoffMsg, 'info');
     } catch (e) {
       const msg = e instanceof Error ? e.message : '提交后台生成失败';
       showNotice('listen', msg, 'error');

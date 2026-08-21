@@ -14,9 +14,9 @@ const dashboard = read('src/components/modules/english/tabs/DashboardTab.tsx');
 const arsenal = read('src/components/modules/english/tabs/dashboard/ArsenalPanel.tsx');
 
 assert.match(handoff, /notifyBackgroundHandoff/, '共享 handoff API');
-assert.match(handoff, /TASK_CENTER_PULSE_EVENT/, '任务中心脉冲事件');
-assert.match(handoff, /VOCAB_COLLECT_LABEL/, '收录按钮文案常量');
-assert.match(handoff, /queued:\s*'后台处理中'/, '后台处理中文案');
+assert.match(handoff, /有锚点时默认不弹同文案 Toast|wantToast.*!hasAnchor|!hasAnchor/, '有锚点默认不 Toast');
+assert.match(hook, /if \(!anchor\) notify/, '有锚点时不再二次 notify 同文案');
+assert.match(dashboard, /if \(!handoffAnchor\) showNotice/, '长文有锚点时不二次 showNotice');
 
 assert.match(near, /showNearHandoff/, '就近浮层 API');
 assert.match(near, /NearHandoffHost/, '就近 Host');

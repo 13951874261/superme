@@ -97,7 +97,8 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
         setQueued((prev) => ({ ...prev, [key]: true }));
         const msg = `“${label}” 收录与词汇矩阵补齐已转入后台处理，稍后可在【任务中心】查看`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
-        notify?.(msg, 'info');
+        // 有锚点时就近浮层已提示，避免 notify→Toast/showNotice 再弹同文案
+        if (!anchor) notify?.(msg, 'info');
         return 'queued';
       }
 
@@ -114,13 +115,14 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       if (result?.matrixReady === false) {
         const msg = `“${label}” 已加入生词本；词汇矩阵稍后续补，可在【任务中心】查看进度`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info', pulse: true });
-        notify?.(msg, 'info');
+        if (!anchor) notify?.(msg, 'info');
       } else {
         const msg = `“${label}” 已加入生词本，词汇矩阵已补齐`;
         if (anchor) {
           notifyBackgroundHandoff({ anchor, message: msg, tone: 'success', pulse: false });
+        } else {
+          notify?.(msg, 'success');
         }
-        notify?.(msg, 'success');
       }
       return 'collected';
     } catch (error: any) {
@@ -143,7 +145,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
         setQueued((prev) => ({ ...prev, [key]: true }));
         const msg = `“${label}” 收录已转入【任务中心】后台处理（同步矩阵暂未完成）`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
-        notify?.(msg, 'info');
+        if (!anchor) notify?.(msg, 'info');
         return 'queued';
       } catch {
         playError();

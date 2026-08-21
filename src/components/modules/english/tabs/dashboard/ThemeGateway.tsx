@@ -105,7 +105,7 @@ export function ThemeGateway({
         startPolling(queued.taskId);
         const handoffMsg = '场景清理已转入后台，稍后可在【任务中心】查看进度';
         notifyBackgroundHandoff({ anchor: handoffAnchor, message: handoffMsg, tone: 'info' });
-        showNotice('dashboard', handoffMsg, 'info');
+        if (!handoffAnchor) showNotice('dashboard', handoffMsg, 'info');
         return;
       }
 

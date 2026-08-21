@@ -32,7 +32,8 @@ export function emitTaskCenterPulse(): void {
 }
 
 /**
- * 统一后台 handoff 反馈：就近浮层（有锚点时）+ 全局 Toast + 任务中心脉冲。
+ * 统一后台 handoff 反馈：就近浮层（有锚点时）+ 可选 Toast + 任务中心脉冲。
+ * 有锚点时默认不弹同文案 Toast（避免双条重复）；无锚点时才 Toast。
  * 连续触发时 Toast 合并节流，就近提示每次仍可出现。
  */
 export function notifyBackgroundHandoff(options: BackgroundHandoffOptions): void {
@@ -40,16 +41,19 @@ export function notifyBackgroundHandoff(options: BackgroundHandoffOptions): void
   const message = (options.message || '').trim();
   if (!message) return;
 
-  if (options.anchor) {
+  const hasAnchor = !!options.anchor;
+  if (hasAnchor) {
     showNearHandoff({
-      anchor: options.anchor,
+      anchor: options.anchor as HTMLElement,
       message,
       tone,
       duration: options.nearDuration ?? 3200,
     });
   }
 
-  if (options.toast !== false) {
+  // 有点击锚点：默认仅就近浮层；无锚点：默认 Toast（均可被 options.toast 覆盖）
+  const wantToast = options.toast !== undefined ? options.toast !== false : !hasAnchor;
+  if (wantToast) {
     const now = Date.now();
     if (now < toastThrottleUntil && toastBurstMessage) {
       toastBurstCount += 1;
