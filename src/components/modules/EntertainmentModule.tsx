@@ -842,7 +842,7 @@ export default function EntertainmentModule() {
 
       icon={<Wine className="w-8 h-8 text-zinc-700" strokeWidth={2.5} />}
 
-      description="顶级商务礼仪、跨文化审美认知升维与高端圈层智力博弈对抗系统。旨在打造严肃、克制、极具秩序感的阶层跃迁训练场。"
+      description="顶级商务礼仪、跨文化审美认知提升与高端圈层智力博弈对抗练习。旨在打造严肃、克制、极具秩序感的阶层跃迁训练场。"
 
     >
 
@@ -984,11 +984,11 @@ export default function EntertainmentModule() {
 
                 <h3 className="text-sm font-bold text-zinc-800 tracking-wide">
 
-                  {activeTab === 'manners' ? "每日推送：商务政务高频社交场景" : "阶层辨识度：高级审美认知升维"}
+                  {activeTab === 'manners' ? "每日推送：商务政务高频社交场景" : "阶层辨识度：高级审美认知提升"}
 
                 </h3>
 
-                <p className="text-[11px] text-zinc-500 mt-0.5">请选中下方场景进入模拟研判或升维解析</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">请选中下方场景进入模拟研判或深度解析</p>
 
               </div>
 

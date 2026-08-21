@@ -131,7 +131,7 @@ function HeaderComponent() {
         {/* 1. 左侧：品牌与叙事区 */}
         <div className="col-span-12 xl:col-span-3 flex flex-col justify-center min-w-0">
           <h1 className="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-1.5 leading-tight">
-            B·AI <span className="font-normal text-slate-700 text-lg md:text-xl">高管数字沙盘</span>
+            B·AI <span className="font-normal text-slate-700 text-lg md:text-xl">高管数字练习场</span>
           </h1>
           <p className="text-[10px] text-slate-400 leading-snug mt-0.5 max-w-[40ch] truncate xl:whitespace-normal">
             AI 做专业，你做领导；AI 做事务，你做人心；AI 做逻辑，你做格局。

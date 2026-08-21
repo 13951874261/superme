@@ -231,7 +231,7 @@ function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
 
           {hasPushPlan && (
             <p className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-3 py-2 mb-3 font-medium">
-              下周训练重组计划已生效，口语沙盘 / 驭心博弈 / 破局说将自动读取。
+              下周训练重组计划已生效，口语练习 / 博弈训练 / 表达训练将自动读取。
             </p>
           )}
 

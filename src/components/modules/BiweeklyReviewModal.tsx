@@ -215,14 +215,14 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
 
         {!completed && (
           <div className="bg-zinc-50 p-6 border-t border-zinc-100 flex justify-between items-center">
-            <span className="text-[10px] text-zinc-400 font-medium">数据存储：本地沙箱绝对隐私</span>
+            <span className="text-[10px] text-zinc-400 font-medium">数据仅保存在本机，更注重隐私</span>
             <button
               type="button"
               onClick={handleSubmit}
               disabled={loading}
               className="bg-zinc-950 hover:bg-zinc-900 text-white font-bold text-xs px-6 py-3 rounded-full flex items-center gap-2 cursor-pointer transition-all disabled:opacity-50"
             >
-              {loading ? '神经突触动态纠偏中...' : '提交并修正系统画像'}
+              {loading ? '正在根据复盘调整画像…' : '提交并更新学习画像'}
             </button>
           </div>
         )}

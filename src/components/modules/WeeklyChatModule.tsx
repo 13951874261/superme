@@ -129,7 +129,7 @@ export default function WeeklyChatModule() {
       <div className="space-y-6 max-w-4xl mx-auto py-4">
         {hasPushPlan && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-[11px] text-emerald-700 font-medium">
-            下周个性化训练重组计划已生效，口语沙盘 / 驭心博弈 / 破局说将自动读取注入。
+            下周个性化训练重组计划已生效，口语练习 / 博弈训练 / 表达训练将自动读取注入。
           </div>
         )}
 
