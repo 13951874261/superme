@@ -11303,11 +11303,11 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
       const fileBuffer = fs.readFileSync(fileObj.path);
       const mimeType = fileObj.mimetype || 'audio/mp3';
       const originalName = fileObj.originalname || 'audio.mp3';
-      const userId = (req.body && (req.body.user || req.body.userId)) || 'default-user';
 
-// 2.1 优先通过本地 whisper-server 获取原始转译文本
+// 2.1 仅通过本地 whisper-server 获取原始转译文本（不再降级 Dify STT）
       let rawText = '';
       let rawSuccess = false;
+      let whisperFailReason = '';
 
       console.log(`[STT Local] 正在发送音频至本地 whisper-server 进行初步识别: ${originalName}`);
       try {
@@ -11336,55 +11336,22 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
           rawSuccess = true;
           console.log('[STT Local] 本地 whisper-server 原始识别并洗噪成功:', rawText);
         } else {
-          console.warn(`[STT Local] 本地 whisper-server 返回状态码: ${localResponse.status}`);
+          whisperFailReason = `本地 whisper-server 返回状态码: ${localResponse.status}`;
+          console.warn(`[STT Local] ${whisperFailReason}`);
         }
       } catch (localErr) {
-        console.warn('[STT Local] 本地 whisper-server 调用失败，将降级使用 Dify STT:', localErr.message);
+        whisperFailReason = localErr.message || '本地 whisper-server 调用失败';
+        console.warn('[STT Local] 本地 whisper-server 调用失败:', whisperFailReason);
       }
 
-      // 2.2 降级方案: 使用原本 Dify 接口的 audio-to-text 获取原始识别文本
       if (!rawSuccess) {
-        const difyBase = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-        console.log(`[STT Dify] 正在降级发送音频至 Dify 接口: ${originalName}`);
-        try {
-          const formData = new globalThis.FormData();
-          const blob = new globalThis.Blob([fileBuffer], { type: mimeType });
-          formData.append('file', blob, originalName);
-          formData.append('user', String(userId));
-
-          const response = await fetch(`${difyBase}/audio-to-text`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${sttApiKey}`,
-            },
-            body: formData,
-          });
-
-          if (response.ok) {
-            const data = await response.json().catch(() => ({}));
-            rawText = typeof data.text === 'string' ? data.text.trim() : '';
-
-            // 对降级 Dify 的原始文本同样进行降噪洗噪
-            rawText = rawText
-              .replace(/\[[^\]]*\]/g, '')
-              .replace(/\([^)]*\)/g, '')
-              .replace(/\s+/g, ' ')
-              .trim();
-
-            rawSuccess = true;
-            console.log('[STT Dify] Dify STT 原始识别并洗噪成功:', rawText);
-          } else {
-            const errData = await response.json().catch(() => ({}));
-            const errStr = errData?.error?.message || errData?.error || JSON.stringify(errData);
-            console.error(`[STT Dify] Dify STT 接口调用失败，状态码: ${response.status}, 详情: ${errStr}`);
-          }
-        } catch (difyErr) {
-          console.error('[STT Dify] 降级 Dify 接口也发生异常:', difyErr.message);
-        }
+        return res.status(502).json({
+          error: `本地 Whisper 转写失败，请确认 whisper-server 是否可用: ${whisperFailReason || 'unknown'}`,
+        });
       }
 
-      // 2.3 调用 IP 级 OpenAI 接口进行大语言模型智能润色与纠错
-      if (rawSuccess && rawText) {
+      // 2.2 调用 IP 级 OpenAI 接口进行大语言模型智能润色与纠错
+      if (rawText) {
         console.log(`[STT Polish] 正在将原始文本发送至大模型进行润色: "${rawText}"`);
         try {
           const polishedText = await callPolishLLM(rawText);
@@ -11396,13 +11363,13 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
         }
       } else {
         console.log('[STT Result] 识别出的原始文本为空，直接返回');
-        return res.json({ text: rawText || '' });
+        return res.json({ text: '' });
       }
     } else {
       throw new Error('服务器 Node.js 版本较低，不支持原生的 FormData，请升级 Node.js 至 18.0 或更高版本。');
     }
   } catch (error) {
-    console.error('Dify STT 中转失败:', error);
+    console.error('本地 Whisper 转写中转失败:', error);
     return res.status(500).json({ error: error.message });
   } finally {
     if (tempFilePath && fs.existsSync(tempFilePath)) {

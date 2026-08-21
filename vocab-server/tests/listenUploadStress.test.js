@@ -13,9 +13,8 @@ assert.ok(typeof service.transcribeAudioFile === 'function', 'transcribeAudioFil
 // 测试接口定义 - 读取源码验证签名
 const source = fs.readFileSync(servicePath, 'utf8');
 assert.match(source, /async function transcribeAudioFile/);
-assert.match(source, /DIFY_STT_API_KEY/);
-assert.match(source, /whisper-server/);  // 匹配中文或英文
-assert.match(source, /Dify STT/);
+assert.match(source, /127\.0\.0\.1:8080\/inference/);
+assert.match(source, /不再降级/);
 assert.match(source, /callPolishLLM/);
 
 // 测试 server.js 中的路由是否引用了该服务
