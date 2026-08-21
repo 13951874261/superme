@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const dailyPackService = require('./dailyPackService');
 const listenPrefsService = require('./listenPrefsService');
+const { prepareLongArticleBody, isUsableLongArticle, stripThinkTags } = require('./difyStreamMerge');
 
 const GENRES = ['meeting', 'news', 'podcast', 'reading'];
 const CEFR_LEVELS = ['A2', 'B1', 'B2', 'C1'];
@@ -795,9 +796,12 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
         user_current_profile: parts.userCurrentProfile,
         userId: parts.userId,
       });
-      let { vocab, phrases, sentences } = parseVocabFromRaw(rawScript);
       script = typeof rawScript === 'string' ? rawScript : String(rawScript || '');
-      const body = script.split(/---VOCAB_JSON_START---/i)[0].trim();
+      if (!isUsableLongArticle(script)) {
+        throw new Error('think_only_article');
+      }
+      let { vocab, phrases, sentences } = parseVocabFromRaw(stripThinkTags(script));
+      const body = prepareLongArticleBody(script);
 
       // D-A: 正文优先落库 ready，抽词后置（带超时），避免 extract 卡死导致 generating 空 body
       const filePath = path.join(userDirA, `${baseName}.txt`);

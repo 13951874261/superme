@@ -2285,6 +2285,9 @@ const {
   estimateEnglishWordCount,
   softWordLimitForDuration,
   isOverSoftWordLimit,
+  stripThinkTags,
+  prepareLongArticleBody,
+  isUsableLongArticle,
 } = require('./services/difyStreamMerge');
 
 /** 将 Dify / 下游模型错误转为可操作的提示（daily-extract、completion 等共用） */
@@ -7535,21 +7538,16 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       return;
     }
 
-    // 正文与词表分离：词表解析复用预生成链路的 parseVocabFromRaw
-    // （会剥离 ---VOCAB_JSON_END---、markdown fence，并做全文 JSON 兜底）
-    let articleText = "";
-    if (/---VOCAB_JSON_START---/i.test(answer || '')) {
-      articleText = String(answer).split(/---VOCAB_JSON_START---/i)[0].trim();
-    } else {
-      articleText = String(answer || '').trim();
-    }
+    // 正文与词表分离：先剥 <think>，思考链不得进入长文缓存
+    const cleanedAnswer = stripThinkTags(answer || '');
+    const articleText = prepareLongArticleBody(answer || '');
 
-    if (!articleText.trim()) {
-      syncFail(formatDifyModelError(answer || 'Dify 流式响应为空，未生成长文正文'));
+    if (!articleText.trim() || !isUsableLongArticle(answer || '')) {
+      syncFail('长文仅含思考链或无合格正文，未写入缓存');
       return;
     }
 
-    const parsedFromRaw = dailyListenPreGenerateService.parseVocabFromRaw(answer || '');
+    const parsedFromRaw = dailyListenPreGenerateService.parseVocabFromRaw(cleanedAnswer);
     let parsedVocab = Array.isArray(parsedFromRaw.vocab) ? [...parsedFromRaw.vocab] : [];
     let parsedPhrases = Array.isArray(parsedFromRaw.phrases) ? parsedFromRaw.phrases : [];
     if (Array.isArray(parsedFromRaw.sentences) && parsedFromRaw.sentences.length > 0) {

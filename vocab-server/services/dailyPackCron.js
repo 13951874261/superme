@@ -2,6 +2,38 @@ const dailyPackService = require('./dailyPackService');
 const dailyListenPreGenerateService = require('./dailyListenPreGenerateService');
 const dailyCronRunService = require('./dailyCronRunService');
 
+const LONG_ARTICLE_CONCURRENCY_DEFAULT = 3;
+const LONG_ARTICLE_CONCURRENCY_CAP = 4;
+
+function resolveLongArticleConcurrency() {
+  const raw = process.env.DAILY_LONG_ARTICLE_CONCURRENCY;
+  if (raw === undefined || raw === '') return LONG_ARTICLE_CONCURRENCY_DEFAULT;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return LONG_ARTICLE_CONCURRENCY_DEFAULT;
+  return Math.min(n, LONG_ARTICLE_CONCURRENCY_CAP);
+}
+
+async function mapPool(items, concurrency, worker) {
+  const list = [...items];
+  const results = [];
+  if (list.length === 0) return results;
+  let idx = 0;
+  const runners = Array.from({ length: Math.min(concurrency, list.length) }, async () => {
+    while (idx < list.length) {
+      const cur = idx;
+      idx += 1;
+      const item = list[cur];
+      try {
+        results[cur] = { ok: true, item, value: await worker(item, cur) };
+      } catch (err) {
+        results[cur] = { ok: false, item, error: err };
+      }
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 let lastCronPackDate = null;
 
 function buildWakeupFlawInputSources({ theme, historyExclude, userCurrentProfile, userId }) {
@@ -237,76 +269,87 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
       }
     }
 
-    // Step 3: 长文预生成（G003 将改为 await extract 终态；此处先写步骤并调用现有路径）
-    let GENRES = dailyCronRunService.LONG_GENRES;
-    let CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
-    let DURATIONS = dailyCronRunService.LONG_DURATIONS;
-
-    // 取消 MVP_MODE 限制，支持 4体裁 x 4等级 x 4时长 共 64 种组合长文生成与落库
-
+    // Step 3: 长文预生成（4体裁 x 4等级 x 4时长 = 64）。默认 3 路并行，上限 4。
+    const GENRES = dailyCronRunService.LONG_GENRES;
+    const CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
+    const DURATIONS = dailyCronRunService.LONG_DURATIONS;
+    const combos = [];
     for (const genre of GENRES) {
       if (filterOptions?.genre && genre !== filterOptions.genre) continue;
       for (const cefrLevel of CEFR_LEVELS) {
         if (filterOptions?.cefrLevel && cefrLevel !== filterOptions.cefrLevel) continue;
         for (const duration of DURATIONS) {
           if (filterOptions?.duration && String(duration) !== String(filterOptions.duration)) continue;
-          const comboKey = `${genre}|${cefrLevel}|${duration}`;
-          const step = dailyCronRunService.upsertStep(db, {
-            runId: run.id,
-            userId: row.user_id,
-            module: 'long_article',
-            comboKey,
-            status: 'running',
-            inputs: {
-              theme: row.theme,
-              genre,
-              cefr_level: cefrLevel,
-              duration: String(duration),
-            },
-          });
-          try {
-            const result = await dailyPackService.generateLongArticleForUser(
-              db,
-              row.user_id,
-              row.theme,
-              'cron',
-              genre,
-              cefrLevel,
-              String(duration),
-            );
-            const skipped = result?.status === 'skipped';
-            dailyCronRunService.upsertStep(db, {
-              id: step.id,
-              runId: run.id,
-              userId: row.user_id,
-              module: 'long_article',
-              comboKey,
-              status: skipped ? 'skipped' : 'completed',
-              progress: 100,
-              finishedAt: Date.now(),
-              resultSummary: result || { ok: true },
-              errorMessage: skipped ? (result?.reason || 'already_generated') : null,
-            });
-          } catch (artErr) {
-            const msg = artErr.message || String(artErr);
-            dailyCronRunService.upsertStep(db, {
-              id: step.id,
-              runId: run.id,
-              userId: row.user_id,
-              module: 'long_article',
-              comboKey,
-              status: 'failed',
-              progress: 100,
-              finishedAt: Date.now(),
-              errorMessage: msg === 'timeout' || msg === 'task_lost' ? msg : msg,
-              resultSummary: { reason: msg === 'timeout' || msg === 'task_lost' ? msg : 'extract_failed' },
-            });
-            console.warn(`[DailyPack Cron] Long article generate warn user=${row.user_id} (${genre}/${cefrLevel}/${duration}m):`, artErr.message);
-          }
-          await new Promise(r => setTimeout(r, 1500));
+          combos.push({ genre, cefrLevel, duration });
         }
       }
     }
+
+    const concurrency = resolveLongArticleConcurrency();
+    console.log(
+      `[DailyPack Cron] long_article pool user=%s combos=%s concurrency=%s`,
+      row.user_id,
+      combos.length,
+      concurrency,
+    );
+
+    await mapPool(combos, concurrency, async ({ genre, cefrLevel, duration }) => {
+      const comboKey = `${genre}|${cefrLevel}|${duration}`;
+      const step = dailyCronRunService.upsertStep(db, {
+        runId: run.id,
+        userId: row.user_id,
+        module: 'long_article',
+        comboKey,
+        status: 'running',
+        inputs: {
+          theme: row.theme,
+          genre,
+          cefr_level: cefrLevel,
+          duration: String(duration),
+        },
+      });
+      try {
+        const result = await dailyPackService.generateLongArticleForUser(
+          db,
+          row.user_id,
+          row.theme,
+          'cron',
+          genre,
+          cefrLevel,
+          String(duration),
+        );
+        const skipped = result?.status === 'skipped';
+        dailyCronRunService.upsertStep(db, {
+          id: step.id,
+          runId: run.id,
+          userId: row.user_id,
+          module: 'long_article',
+          comboKey,
+          status: skipped ? 'skipped' : 'completed',
+          progress: 100,
+          finishedAt: Date.now(),
+          resultSummary: result || { ok: true },
+          errorMessage: skipped ? (result?.reason || 'already_generated') : null,
+        });
+        return result;
+      } catch (artErr) {
+        const msg = artErr.message || String(artErr);
+        dailyCronRunService.upsertStep(db, {
+          id: step.id,
+          runId: run.id,
+          userId: row.user_id,
+          module: 'long_article',
+          comboKey,
+          status: 'failed',
+          progress: 100,
+          finishedAt: Date.now(),
+          errorMessage: msg,
+          resultSummary: { reason: msg === 'timeout' || msg === 'task_lost' ? msg : 'extract_failed' },
+        });
+        console.warn(`[DailyPack Cron] Long article generate warn user=${row.user_id} (${genre}/${cefrLevel}/${duration}m):`, artErr.message);
+        return { success: false, error: msg };
+      }
+    });
 
     dailyCronRunService.refreshRunAggregation(db, run.id);
   }
@@ -390,4 +433,11 @@ function scheduleDailyPackCron(db) {
   );
 }
 
-module.exports = { runDailyPackCronJob, scheduleDailyPackCron };
+module.exports = {
+  runDailyPackCronJob,
+  scheduleDailyPackCron,
+  resolveLongArticleConcurrency,
+  mapPool,
+  LONG_ARTICLE_CONCURRENCY_DEFAULT,
+  LONG_ARTICLE_CONCURRENCY_CAP,
+};

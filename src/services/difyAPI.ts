@@ -814,7 +814,7 @@ export async function startEnglishMasteryExtraction(
   userId = getAppUserId(),
   cefrLevel: 'A2' | 'B1' | 'B2' | 'C1' = 'B1',
   genre: 'news' | 'meeting' | 'podcast' | 'reading' | 'email' | 'report' | 'negotiation' | 'presentation' = 'meeting',
-  duration: '15' | '25' | '35' = '25'
+  duration: '1' | '15' | '25' | '35' = '25'
 ): Promise<{ taskId: string } & Partial<DailyExtractResult>> {
   const response = await fetch('/api/english/daily-extract', {
     method: 'POST',

@@ -110,6 +110,35 @@ function mergeStreamAnswer(current, incoming) {
   return current + incoming;
 }
 
+/** Dify 默认 tagged 推理会把 <think> 留在 answer；长文必须剥离（含未闭合标签）。 */
+function stripThinkTags(raw) {
+  let s = String(raw || '');
+  s = s.replace(/<think\b[^>]*>[\s\S]*?<\/think>/gi, '');
+  s = s.replace(/<thinking\b[^>]*>[\s\S]*?<\/thinking>/gi, '');
+  s = s.replace(/<think\b[^>]*>[\s\S]*/gi, '');
+  s = s.replace(/<thinking\b[^>]*>[\s\S]*/gi, '');
+  return s.trim();
+}
+
+function prepareLongArticleBody(raw) {
+  let body = stripThinkTags(raw);
+  if (/---VOCAB_JSON_START---/i.test(body)) {
+    body = body.split(/---VOCAB_JSON_START---/i)[0];
+  }
+  body = body.replace(/^[^\n]*(生成完毕|沉浸式听力|阅读长篇材料)[^\n]*\n+/m, '');
+  return body.trim();
+}
+
+const META_ARTICLE_RE = /the user wants me to write|key parameters\s*:|write segment\s+\d/i;
+
+function isUsableLongArticle(raw) {
+  const body = prepareLongArticleBody(raw);
+  if (!body) return false;
+  if (/<think/i.test(body)) return false;
+  if (META_ARTICLE_RE.test(body)) return false;
+  return estimateEnglishWordCount(body) >= 40;
+}
+
 module.exports = {
   mergeStreamAnswer,
   estimateEnglishWordCount,
@@ -117,4 +146,7 @@ module.exports = {
   isOverSoftWordLimit,
   preferNonDuplicatingMerge,
   normalizeForCompare,
+  stripThinkTags,
+  prepareLongArticleBody,
+  isUsableLongArticle,
 };

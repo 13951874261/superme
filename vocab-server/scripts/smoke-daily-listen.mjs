@@ -190,7 +190,10 @@ async function main() {
 
   svc.setGenerators({
     generateLongScript: async () =>
-      'Smoke script body.\n---VOCAB_JSON_START---\n{"vocab":[{"word":"deal"}],"phrases":[]}\n',
+      'Good morning colleagues. Thank you for joining this board review of our concession package and supply chain risk. '
+      + 'We will confirm the budget ceiling, flag compliance gaps, and leave with a signed action list for legal and finance. '
+      + 'If we cannot close the unit price gap today, we schedule a follow-up before the counterparty meeting.\n'
+      + '---VOCAB_JSON_START---\n{"vocab":[{"word":"deal"}],"phrases":[]}\n',
     synthesizeAudioFile: async (_t, p) => {
       fs.mkdirSync(path.dirname(p), { recursive: true });
       fs.writeFileSync(p, Buffer.from('ID3SMOKE'));

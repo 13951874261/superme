@@ -8,9 +8,10 @@ const fn = src.slice(src.indexOf('async function generateLongArticleForUser'), s
 assert.match(fn, /theme/, 'skip 查询必须包含 theme');
 assert.match(
   fn,
-  /SELECT id FROM daily_extracted_articles WHERE user_id = \? AND quota_date = \? AND theme = \? AND genre = \? AND cefr_level = \? AND duration = \?/,
-  'skip 维度必须是 user+date+theme+genre+cefr+duration'
+  /SELECT id, article FROM daily_extracted_articles WHERE user_id = \? AND quota_date = \? AND theme = \? AND genre = \? AND cefr_level = \? AND duration = \?/,
+  'skip 维度必须是 user+date+theme+genre+cefr+duration，且读取 article 判断是否可用'
 );
+assert.match(fn, /isUsableLongArticle/, '思考链缓存不得 skip，必须重生成');
 
 // Old genre/cefr-only (or genre/cefr/duration without theme) must not remain as skip basis
 assert.doesNotMatch(

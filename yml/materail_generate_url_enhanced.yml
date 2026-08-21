@@ -1,12 +1,15 @@
 # ─────────────────────────────────────────────────────────────
 # Dify Workflow DSL
-# 对应 API Key: app-OShKY1EcVuLFkuxrpO28ZB0A
+# 对应 API Key: app-vBQMyqeHD16U0XxzUt9DdJYI
 # 用途: Enhanced Daily Extract (增强版每日生成)
 # 基于: materail_generate_url (4) copy.yml
 # 改造: +history_exclude, +user_flaws 输入；Prompt 避重+强化
+# 2026-08-21: 三个 LLM 节点 reasoning_format=separated，思考链不进入 text/长文
+# 2026-08-21: 开始节点增加 duration；大纲/扩写按 1/15/25/35 分钟、约 140 wpm 规划段落
 # ─────────────────────────────────────────────────────────────
 app:
-  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)
+  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)；按 duration
+    1/15/25/35 分钟约 140wpm 规划篇幅
   icon: 🤖
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -213,7 +216,19 @@ workflow:
           required: true
           type: select
           variable: genre
-      height: 161
+        - default: '15'
+          hint: 前台查询/生成与后台 cron 均传入；单位分钟，取值 1 / 15 / 25 / 35
+          label: 时长（分钟）
+          options:
+          - '1'
+          - '15'
+          - '25'
+          - '35'
+          placeholder: ''
+          required: true
+          type: select
+          variable: duration
+      height: 198
       id: '1780382595776'
       position:
         x: 0
@@ -348,13 +363,24 @@ workflow:
             </generated_history>
 
 
-            【CRITICAL RULE 2: CAPACITY CONSTRAINTS】
+            【CRITICAL RULE 2: CAPACITY CONSTRAINTS BASED ON DURATION】
 
-            - If genre is ''news'' / ''podcast'' / ''meeting'': Plan 6-8 independent
-            segments to support 30+ minutes (4000-4500 words) of content.
+            Target Duration (minutes): {{#1780382595776.duration#}}
 
-            - If genre is ''reading'': Plan 5-7 deep chapters to naturally integrate
-            50 advanced business vocabulary words and 30 business phrases.
+            Plan segment COUNT by duration ONLY (do not use genre to decide how many
+            segments). Assume ~140 English words per spoken minute.
+
+            - If duration is ''1'' or ''1m'': Output EXACTLY 1 segment outline for a
+            100-150 word brief (~1 minute).
+
+            - If duration is ''15'': Output EXACTLY 3 segment outlines. Combined target
+            1950-2400 words (~15 minutes).
+
+            - If duration is ''25'': Output EXACTLY 5 chapter outlines. Combined target
+            3250-4000 words (~25 minutes).
+
+            - If duration is ''35'': Output EXACTLY 7 independent segment outlines.
+            Combined target 4550-5600 words (~35 minutes).
 
 
             【OUTPUT FORMAT】
@@ -380,8 +406,11 @@ workflow:
 
             CEFR Level: {{#1780382595776.cefr_level#}}
 
+            Target Duration (minutes): {{#1780382595776.duration#}}
+
 
             请直接输出大纲 JSON 数组。'
+        reasoning_format: separated
         selected: false
         structured_output_enabled: false
         title: LLM 1 (大纲设计器)
@@ -483,6 +512,8 @@ workflow:
 
             - Genre: {{#1780382595776.genre#}}
 
+            - Target Duration (minutes): {{#1780382595776.duration#}}
+
 
             【WRITING SPECIFICATIONS (STRICTLY IN ENGLISH)】
 
@@ -500,8 +531,21 @@ workflow:
 
             【CRITICAL RULES】
 
-            1. LENGTH: Minimum 600 words for audio genres; minimum 500 words for reading
-            genres. Write the full text! No summaries.
+            1. LENGTH (~140 wpm): You are writing ONE segment. Match Target Duration.
+
+            - If duration is ''1'' or ''1m'': this is the ENTIRE brief. Write 100-150
+            words. Do not exceed 150 words.
+
+            - If duration is ''15'': write 650-800 words (3 segments total → 1950-2400
+            words, ~15 minutes).
+
+            - If duration is ''25'': write 650-800 words (5 segments total → 3250-4000
+            words, ~25 minutes).
+
+            - If duration is ''35'': write 650-800 words (7 segments total → 4550-5600
+            words, ~35 minutes).
+
+            Write the full text! No summaries.
 
             2. VOCABULARY DENSITY: Naturally integrate at least 10 advanced business
             vocabulary words and 5 authentic business idioms (matching CEFR Level)
@@ -521,6 +565,7 @@ workflow:
 
 
             请开始扩写：'
+        reasoning_format: separated
         selected: false
         title: LLM 2 - 逐章扩写器
         type: llm
@@ -614,6 +659,7 @@ workflow:
         - id: 8be2b51c-02f3-48b1-ad63-a21667e411df
           role: user
           text: 请开始执行。务必确保词汇和短语是从原文中提取，并提供原文原句。不要包含“好的，这是您的内容”等废话。
+        reasoning_format: separated
         selected: false
         title: ' LLM 3 (词汇提纯与最终排版)'
         type: llm

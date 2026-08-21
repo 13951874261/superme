@@ -4,6 +4,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const dailyListen = require('../services/dailyListenPreGenerateService');
+const USABLE_ARTICLE = [
+  'Good morning everyone and thank you for joining this pricing review.',
+  'We will walk through the concession package, the supply chain risk memo, and the budget ceiling.',
+  'Please flag any compliance gaps before we meet the counterparty this afternoon.',
+  'If we cannot close the unit price gap today, legal and finance will schedule a follow-up session.',
+  'Keep the discussion focused on decisions so we can leave with a signed action list.',
+].join(' ');
 
 function testParseFenceJson() {
   const raw = [
@@ -133,7 +140,7 @@ async function testGenerateBackfillsVocabWhenMissing() {
 
   const prev = { ...require('../services/dailyListenPreGenerateService') };
   dailyListen.setGenerators({
-    generateLongScript: async () => 'Short meeting script about pricing only. No vocab block.',
+    generateLongScript: async () => `${USABLE_ARTICLE} No vocab block.`,
     synthesizeAudioFile: async (_t, p) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, Buffer.from('ID3')); },
     extractVocabFromArticle: async () => {
       extractCalled += 1;
@@ -229,7 +236,7 @@ async function testReadyWhenExtractHangs() {
   process.env.EXTRACT_VOCAB_TIMEOUT_MS = '150';
   const userId = `hang-test-${Date.now()}`;
   dailyListen.setGenerators({
-    generateLongScript: async () => 'Hang test body about negotiation tactics.',
+    generateLongScript: async () => `${USABLE_ARTICLE} Hang test body about negotiation tactics.`,
     synthesizeAudioFile: async () => {},
     extractVocabFromArticle: () => new Promise(() => {}), // never resolves
   });
@@ -272,7 +279,7 @@ async function testReadyBeforeExtractFinishes() {
   const userId = `order-test-${Date.now()}`;
   let sawReadyDuringExtract = false;
   dailyListen.setGenerators({
-    generateLongScript: async () => 'Order test body without vocab markers.',
+    generateLongScript: async () => `${USABLE_ARTICLE} Order test body without vocab markers.`,
     synthesizeAudioFile: async () => {},
     extractVocabFromArticle: async () => {
       for (let i = 0; i < 40; i += 1) {

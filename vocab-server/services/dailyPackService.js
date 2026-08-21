@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { isUsableLongArticle } = require('./difyStreamMerge');
 
 const PACK_TZ = process.env.DAILY_PACK_CRON_TZ || 'Asia/Shanghai';
 const FLAW_SUB_THEMES = [
@@ -857,12 +858,15 @@ async function generateLongArticleForUser(db, userId, theme, source = 'cron', ge
   try { db.prepare("ALTER TABLE daily_extracted_articles ADD COLUMN input_signature TEXT DEFAULT ''").run(); } catch (e) {}
 
   const existing = db.prepare(
-    'SELECT id FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND theme = ? AND genre = ? AND cefr_level = ? AND duration = ?'
+    'SELECT id, article FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ? AND theme = ? AND genre = ? AND cefr_level = ? AND duration = ?'
   ).get(uid, packDate, theme, genre, cefrLevel, String(duration));
 
-  if (existing) {
+  if (existing && isUsableLongArticle(existing.article)) {
     console.log(`[LongArticle Service] Skipped user=${uid} - already generated for ${packDate} (${theme}/${genre}/${cefrLevel}/${duration})`);
     return { success: true, status: 'skipped', reason: 'already_generated' };
+  }
+  if (existing && !isUsableLongArticle(existing.article)) {
+    console.warn(`[LongArticle Service] Existing cache unusable (think/empty) user=${uid} ${genre}/${cefrLevel}/${duration} — regenerating`);
   }
 
   let attempts = 0;

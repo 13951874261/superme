@@ -29,7 +29,8 @@ assert.ok(
   '生成入口不得因入库配额耗尽直接拒绝长文生成'
 );
 
-assert.match(runAsync, /wordsAddedCount\s*=\s*0/, '自动路径 wordsAddedCount 应为 0');
+assert.match(runAsync, /isUsableLongArticle/, '思考链正文不得落库');
+assert.match(runAsync, /未写入缓存/, '不合格长文必须 syncFail 且不写缓存');
 assert.match(runAsync, /phrasesAddedCount\s*=\s*0/, '自动路径 phrasesAddedCount 应为 0');
 assert.match(runAsync, /sentencesAddedCount\s*=\s*0/, '自动路径 sentencesAddedCount 应为 0');
 
