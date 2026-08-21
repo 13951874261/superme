@@ -126,7 +126,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
   const [theoryViewMode, setTheoryViewMode] = useState<'cards' | 'mindmap'>('cards');
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({
     '逻辑学与系统谬误': true,
-    '人性解码与心理侧写': false,
+    '人性分析与心理侧写': false,
   });
   const [expandedThemes, setExpandedThemes] = useState<Record<string, boolean>>({
     '非形式逻辑谬误': true,
@@ -158,7 +158,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
   const handleToggleExpandAllTheory = useCallback(() => {
     playClick();
     if (isAllTheoryExpanded) {
-      setExpandedCategories({ '逻辑学与系统谬误': false, '人性解码与心理侧写': false });
+      setExpandedCategories({ '逻辑学与系统谬误': false, '人性分析与心理侧写': false });
       setExpandedThemes({});
       setExpandedPoints({});
     } else {
@@ -863,7 +863,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
 
               {/* 导读提示 */}
               <div className="p-2.5 bg-gradient-to-r from-indigo-50/70 to-slate-50 border border-indigo-100/80 rounded-xl">
-                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-600 block mb-0.5">三维理论解码路径</span>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold text-indigo-600 block mb-0.5">三维理论分析路径</span>
                 <p className="text-[11px] text-slate-700 leading-relaxed">
                   遵循“<strong className="text-slate-900">概念解读 → 框架标签 → 场景举例</strong>”层层对照，答题时可展开相应要点比对。
                 </p>
@@ -1174,7 +1174,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
           <div className="flex justify-between items-center mb-3">
             <span className="font-extrabold text-[10px] text-[var(--color-accent)] uppercase tracking-widest flex items-center">
               <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2 animate-pulse"></span>
-              已拦截的对话数据流 (含非语言信号描述)
+              已捕获的对话内容（含非语言信号描述）
             </span>
             <span className="text-[10px] bg-slate-800 text-slate-400 font-mono px-2 py-0.5 rounded">
               今日第 {dailyStats.completedCount + 1} 场
@@ -1208,7 +1208,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
               <span className="w-5 h-5 rounded-full bg-slate-100 text-[var(--color-brand)] flex items-center justify-center text-xs font-bold">
                 {formStep}
               </span>
-              <h3 className="text-sm font-black text-slate-800">人性解码与破绽捕捉表单</h3>
+              <h3 className="text-sm font-black text-slate-800">心理侧写与漏洞捕捉表单</h3>
             </div>
             
             <div className="flex gap-2">
@@ -1223,7 +1223,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
 
           {/* 表单步骤标签 */}
           <div className="flex gap-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-100 text-center">
-            {['1. 心理侧写', '2. 信号与情绪', '3. 破绽捕捉', '4. 评估确认'].map((label, index) => (
+            {['1. 心理侧写', '2. 信号与情绪', '3. 漏洞捕捉', '4. 评估确认'].map((label, index) => (
               <button
                 key={label}
                 onClick={() => { playClick(); setFormStep(index + 1); }}
@@ -1349,7 +1349,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-slate-500 flex justify-between items-center">
-                  逻辑破绽
+                  逻辑漏洞
                   <button onClick={() => toggleSpeechInput('logicFlaw')} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5">
                     {isRecording['logicFlaw'] ? <MicOff className="w-3.5 h-3.5 text-red-500 animate-pulse" /> : <Mic className="w-3.5 h-3.5" />}
                   </button>
@@ -1364,7 +1364,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-slate-500 flex justify-between items-center">
-                  事实破绽
+                  事实漏洞
                   <button onClick={() => toggleSpeechInput('factFlaw')} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5">
                     {isRecording['factFlaw'] ? <MicOff className="w-3.5 h-3.5 text-red-500 animate-pulse" /> : <Mic className="w-3.5 h-3.5" />}
                   </button>
@@ -1379,7 +1379,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-[11px] font-bold text-slate-500 flex justify-between items-center">
-                  意图破绽
+                  意图漏洞
                   <button onClick={() => toggleSpeechInput('intentFlaw')} className="text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5">
                     {isRecording['intentFlaw'] ? <MicOff className="w-3.5 h-3.5 text-red-500 animate-pulse" /> : <Mic className="w-3.5 h-3.5" />}
                   </button>
@@ -1604,7 +1604,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
           </div>
 
           <div className="border-t border-slate-800 mt-4 pt-3 flex justify-between items-center text-[10px] text-slate-400">
-            <span>人性解码与破绽识别沙盘 v2.0 • 当前状态: 接入稳定</span>
+            <span>心理侧写与漏洞识别 · 服务正常</span>
             <span className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
               知识库同步正常

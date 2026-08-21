@@ -204,10 +204,10 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
               <QuestionField
                 icon={<Send className="w-4 h-4 text-zinc-500" />}
                 label="4. 训练重点调整"
-                hint="下两周是否需要挂起不紧急板块，集中火力击穿最痛短板？"
+                hint="下两周是否需要挂起不紧急板块，集中精力攻克最痛短板？"
                 value={answers.tacticalDispatch}
                 onChange={(v) => setAnswers({ ...answers, tacticalDispatch: v })}
-                placeholder="例如：建议挂起高阶审美板块，将所有练习额度调整给口语沙盘..."
+                placeholder="例如：建议挂起高阶审美板块，将所有练习额度调整给口语练习..."
               />
             </div>
           )}

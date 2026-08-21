@@ -41,7 +41,7 @@ export default function OralWarRoomControlCard({
             )}
           </div>
           <p className="text-xs text-red-800/90 leading-relaxed mb-2">
-            您未针对上一轮逻辑破绽发起英语反击。进度已暂时锁定，请选用下方句式完成针对性提问后解锁。
+            您还未针对上一轮逻辑漏洞用英语提问。进度已暂时锁定，请选用下方句式完成针对性提问后解锁。
           </p>
           {flawClaim && (
             <p className="text-[10px] text-red-700/80 italic mb-2 border-l-2 border-red-300 pl-2">

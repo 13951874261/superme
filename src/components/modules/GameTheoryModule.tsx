@@ -831,7 +831,7 @@ export default function GameTheoryModule() {
           { id: 'simulation', name: '人机对战练习' },
           { id: 'session', name: '多人群体博弈会话' },
           { id: 'history', name: '对局历史' },
-          { id: 'ascension', name: '顶层认知升维' }
+          { id: 'ascension', name: '顶层认知提升' }
         ] as const).map(tab => (
           <button
             key={tab.id}
@@ -1855,13 +1855,13 @@ export default function GameTheoryModule() {
                 </div>
 
                 <div className="space-y-3">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block pl-2">2. 强制 5 层因果链推演 (Why-Why-Why Deduction)</span>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block pl-2">2. 5 层因果链推演</span>
                   {ascLayers.map((val, i) => (
                     <div key={i}
                       className="bg-white border border-zinc-200/80 rounded-2xl p-4 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all hover:shadow-md"
                       style={{ marginLeft: `${i * 12}px` }}  /* 纵深层叠错位 */
                     >
-                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Why · 第 {i + 1} 层穿透</span>
+                      <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Why · 第 {i + 1} 层</span>
                       <input
                         value={val}
                         onChange={e => {
@@ -1891,12 +1891,12 @@ export default function GameTheoryModule() {
                   {ascLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                      <span>纵深升维研判中…</span>
+                      <span>深度研判中…</span>
                     </>
                   ) : (
                     <>
                       <Compass className="w-4 h-4 text-zinc-400" />
-                      <span>提交五层因果链并启动升维研判</span>
+                      <span>提交五层因果链并开始研判</span>
                     </>
                   )}
                 </button>
@@ -1906,13 +1906,13 @@ export default function GameTheoryModule() {
               <div className="lg:col-span-3 space-y-6">
                 {/* 维度选择 */}
                 <div className="bg-white rounded-[2rem] p-6 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-4">选择自省与穿透维度 (Analysis Dimension)</span>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-4">选择自省与分析维度</span>
                   
                   <div className="flex flex-col gap-2">
                     {([
-                      { id: 'structure', name: '穿透结构 (Structural)', desc: '剖析制度缺陷与流程孤岛' },
-                      { id: 'history', name: '穿透历史 (Historical)', desc: '剖析路径依赖与演进周期' },
-                      { id: 'self', name: '穿透自我 (Self-reflective)', desc: '剖析个人认知盲区与心智障壁' }
+                      { id: 'structure', name: '分析结构', desc: '剖析制度缺陷与流程孤岛' },
+                      { id: 'history', name: '分析历史', desc: '剖析路径依赖与演进周期' },
+                      { id: 'self', name: '分析自我', desc: '剖析个人认知盲区与心智障壁' }
                     ] as const).map(dim => (
                       <button
                         key={dim.id}
@@ -1945,7 +1945,7 @@ export default function GameTheoryModule() {
                           ? 'bg-zinc-900 text-white'
                           : 'bg-zinc-100 text-zinc-500 border border-zinc-200'
                       }`}>
-                        {ascResult.is_passed ? '✓ 认知升维解锁' : '✗ 纵深不足·未能解锁'}
+                        {ascResult.is_passed ? '✓ 认知提升已解锁' : '✗ 深度不足，暂未解锁'}
                       </span>
                     </div>
 
@@ -1986,7 +1986,7 @@ export default function GameTheoryModule() {
                     {/* 导师建议 */}
                     {ascResult.suggestion && (
                       <div className="bg-zinc-100 border border-zinc-200/80 rounded-[2rem] p-5">
-                        <span className="text-[10px] text-zinc-800 font-bold uppercase tracking-wider block mb-2">升维自省建议 (Strategic Advice)</span>
+                        <span className="text-[10px] text-zinc-800 font-bold uppercase tracking-wider block mb-2">提升自省建议</span>
                         <p className="text-xs text-zinc-700 leading-relaxed font-semibold">
                           {ascResult.suggestion}
                         </p>

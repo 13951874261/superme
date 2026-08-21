@@ -77,7 +77,7 @@ export const DEFAULT_THEORY_DATA: Record<string, TheoryItemNode[]> = {
       ]
     }
   ],
-  '人性解码与心理侧写': [
+  '人性分析与心理侧写': [
     {
       title: '弦外之音解码机制',
       concept: '理解人际沟通中隐藏在表层话术之下的真实利益诉求、层级防卫或情绪宣泄。',

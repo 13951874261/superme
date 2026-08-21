@@ -12,7 +12,7 @@ console.log('Testing theoryMindMapBuilder...');
 const staticTree = buildStaticTheoryTree(DEFAULT_THEORY_DATA);
 assert.equal(staticTree.name, '洞察理论框架');
 assert.ok(Array.isArray(staticTree.children));
-assert.equal(staticTree.children.length, 2); // 逻辑学与系统谬误, 人性解码与心理侧写
+assert.equal(staticTree.children.length, 2); // 逻辑学与系统谬误, 人性分析与心理侧写
 
 const logicCategory = staticTree.children.find((c) => c.name === '逻辑学与系统谬误');
 assert.ok(logicCategory, '必须包含逻辑学与系统谬误分类');

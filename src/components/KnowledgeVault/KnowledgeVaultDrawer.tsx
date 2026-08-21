@@ -58,7 +58,7 @@ const SOURCE_TYPE_LABEL: Record<string, string> = {
   upload_video: "视频上传",
   ai_extract: "AI 提炼",
   from_vocab: "生词本导入",
-  from_game_tactics: "战术库导入",
+  from_game_tactics: "策略库导入",
   from_profile: "画像导入",
 };
 
@@ -452,7 +452,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
     setMapNotice(null);
     try {
       const result = await importMapped(source);
-      const label = source === "tactics" ? "战术库" : "人性档案";
+      const label = source === "tactics" ? "策略库" : "人性档案";
       setMapNotice(`${label}已导入 ${result.createdCount} 条草稿，跳过 ${result.skippedCount} 条已映射。请勾选模块后确认同步。`);
       setTimeout(() => setMapNotice(null), 4000);
     } catch {
@@ -592,13 +592,13 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
             <div className="bg-zinc-900 border border-zinc-800 p-3 rounded-xl space-y-2">
               <div>
                 <span className="text-xs font-bold">从博弈模块映射导入</span>
-                <p className="text-[9px] text-zinc-400 mt-0.5">写入理论框架草稿，不删除原战术库/档案；确认同步后才注入训练</p>
+                <p className="text-[9px] text-zinc-400 mt-0.5">写入理论框架草稿，不删除原策略库/档案；确认同步后才注入训练</p>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => handleImportMapped("tactics")} disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF5722]/10 hover:bg-[#FF5722]/20 border border-[#FF5722]/30 text-[#FF5722] text-xs font-black rounded-lg transition-all disabled:opacity-50 cursor-pointer">
                   {loading ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-                  导入战术库
+                  导入策略库
                 </button>
                 <button type="button" onClick={() => handleImportMapped("prototypes")} disabled={loading}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF5722]/10 hover:bg-[#FF5722]/20 border border-[#FF5722]/30 text-[#FF5722] text-xs font-black rounded-lg transition-all disabled:opacity-50 cursor-pointer">

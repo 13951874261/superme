@@ -176,7 +176,7 @@ export default function ScriptWorkshopDrawer({
               <ShieldCheck className="w-4 h-4 text-slate-500" />
               <span className="text-slate-600 font-medium">AI 审稿总评：</span>
               <span className={`font-bold px-2 py-0.5 rounded text-[11px] ${report.passed ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
-                {report.score} 分 / {report.passed ? 'PASS 标杆' : 'FAIL 拦截'}
+                {report.score} 分 / {report.passed ? '达标通过' : '未达标需修复'}
               </span>
             </div>
           </div>
@@ -405,7 +405,7 @@ export default function ScriptWorkshopDrawer({
                     <span className={`ml-2 px-2.5 py-0.5 rounded-full text-xs font-bold ${
                       report.passed ? 'bg-emerald-200 text-emerald-900' : 'bg-red-200 text-red-900'
                     }`}>
-                      {report.passed ? 'PASS 标杆通过' : 'FAIL 拦截需要修复'}
+                      {report.passed ? '达标通过' : '未达标需修复'}
                     </span>
                   </div>
                   <p className="text-xs text-slate-600 mt-1.5">

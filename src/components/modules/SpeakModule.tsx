@@ -1011,7 +1011,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
             {[
               { id: 'structural', label: '结构化逻辑表达', icon: <Sliders className="w-4 h-4" /> },
               { id: 'impromptu', label: '即兴发言响应', icon: <Flame className="w-4 h-4" /> },
-              { id: 'counter', label: '破绽提问与反击', icon: <User className="w-4 h-4" /> },
+              { id: 'counter', label: '漏洞提问与反击', icon: <User className="w-4 h-4" /> },
               { id: 'promotion', label: '晋升/跳槽价值表达', icon: <Award className="w-4 h-4" /> }
             ].map(tab => (
               <button
@@ -1440,7 +1440,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
                 <div>
                   <h4 className="text-xs font-black text-rose-600 mb-2 flex items-center gap-1.5">
                     <span className="w-1.5 h-3.5 bg-rose-500 rounded-full inline-block"></span>
-                    破绽与失分点 (Critique)
+                    问题与失分点
                   </h4>
                   <p className="text-xs text-slate-700 leading-relaxed bg-rose-50/30 p-4 rounded-2xl border border-rose-100 mb-3">
                     {evalResult.critique}

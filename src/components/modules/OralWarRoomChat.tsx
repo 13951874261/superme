@@ -718,7 +718,7 @@ function OralWarRoomChatComponent({
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-black text-amber-900">侦测到逻辑破绽</span>
+                  <span className="text-sm font-black text-amber-900">发现逻辑漏洞</span>
                   {currentFlawType && (
                     <span className="px-2 py-0.5 rounded-full bg-amber-200 text-amber-800 text-[10px] font-bold">
                       {currentFlawType}

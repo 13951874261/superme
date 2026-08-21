@@ -76,7 +76,7 @@ export function extractFlawType(flawText: string): string {
   if (/以偏概全|overgeneral/i.test(flawText)) return '以偏概全';
   if (/等同|equivalence/i.test(flawText)) return '虚假等同';
   if (/避重|evad/i.test(flawText)) return '避重就轻';
-  return '逻辑破绽';
+  return '逻辑漏洞';
 }
 
 export function renderStars(level: number) {

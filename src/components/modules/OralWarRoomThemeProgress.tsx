@@ -53,7 +53,7 @@ export default function OralWarRoomThemeProgress({
     },
     {
       id: 'sandbox',
-      label: '沙盘 10 轮 · 双 8 分',
+      label: '练习 10 轮 · 双 8 分',
       icon: MessageSquare,
       passed: sandboxPassed,
       detail: sandboxPassed

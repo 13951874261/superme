@@ -299,7 +299,7 @@ function DailyCronCard({
         <div className="space-y-3 border-t border-indigo-50 pt-3">
           {(['wakeup', 'flaw', 'long_article', 'listen'] as const).map((mod) => {
             const steps = detail.steps.filter((s) => s.module === mod);
-            const title = ({ wakeup: '每日唤醒', flaw: '每日破绽词汇', long_article: '每日长文', listen: '每日精听' } as const)[mod];
+            const title = ({ wakeup: '每日唤醒', flaw: '每日易错词汇', long_article: '每日长文', listen: '每日精听' } as const)[mod];
             return (
               <div key={mod} className="rounded-xl border border-gray-100 p-2.5 bg-white/80">
                 <h5 className="text-[10px] font-black text-gray-800 mb-1.5">{title}</h5>

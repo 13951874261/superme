@@ -6,7 +6,7 @@ const SOURCE_TYPE_LABEL: Record<string, string> = {
   upload_video: '视频上传',
   ai_extract: 'AI 提炼',
   from_vocab: '生词本导入',
-  from_game_tactics: '战术库导入',
+  from_game_tactics: '策略库导入',
   from_profile: '画像导入',
 };
 

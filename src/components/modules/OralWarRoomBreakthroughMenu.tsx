@@ -14,7 +14,7 @@ interface Props {
 const BREAKTHROUGH_TYPES = [
   {
     type: 'logic' as const,
-    label: '逻辑破绽',
+    label: '逻辑漏洞',
     icon: AlertTriangle,
     color: 'text-amber-600',
     bg: 'bg-amber-50',
@@ -58,7 +58,7 @@ export default function OralWarRoomBreakthroughMenu({ position, selectedText, on
       >
         <div className="bg-white/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-[var(--shadow-modal)] overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-canvas)]/50 flex items-center justify-between">
-            <span className="text-[9px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">破绽识别</span>
+            <span className="text-[9px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">漏洞识别</span>
             <button
               type="button"
               onMouseDown={(e) => { e.preventDefault(); onClose(); }}

@@ -15,12 +15,12 @@ interface Props {
 
 const TAB_CONFIG = {
   relations: { label: '角色关系', icon: Target, color: 'text-[var(--color-accent)]' },
-  breakthroughs: { label: '破绽审计', icon: ClipboardList, color: 'text-amber-500' },
+  breakthroughs: { label: '漏洞审计', icon: ClipboardList, color: 'text-amber-500' },
   notes: { label: '会话笔记', icon: BookOpen, color: 'text-[var(--color-accent)]' },
 };
 
 const TYPE_CONFIG = {
-  logic: { label: '逻辑破绽', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+  logic: { label: '逻辑漏洞', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
   fact: { label: '事实矛盾', color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
   intent: { label: '意图避重', color: 'text-[var(--color-accent)]', bg: 'bg-[var(--color-accent)]/10', border: 'border-[var(--color-accent)]/25' },
 };
@@ -198,8 +198,8 @@ export default function OralWarRoomContextPanel({
               {breakthroughRecords.length === 0 ? (
                 <div className="text-center py-8">
                   <ClipboardList className="w-8 h-8 text-[var(--color-ink-muted)] mx-auto mb-2" />
-                  <p className="text-[10px] text-[var(--color-ink-muted)]">暂无破绽记录</p>
-                  <p className="text-[9px] text-[var(--color-ink-muted)]/60 mt-1">在 AI 回复中划词并标记破绽类型</p>
+                  <p className="text-[10px] text-[var(--color-ink-muted)]">暂无漏洞记录</p>
+                  <p className="text-[9px] text-[var(--color-ink-muted)]/60 mt-1">在 AI 回复中划词并标记漏洞类型</p>
                 </div>
               ) : (
                 breakthroughRecords.map((record, idx) => {

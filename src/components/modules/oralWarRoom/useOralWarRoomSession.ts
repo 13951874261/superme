@@ -470,7 +470,7 @@ export function useOralWarRoomSession({
     if (result.correct) {
       setCombatPoints(prev => prev + 30);
       playSuccess();
-      setLastNotice('破绽标记正确！+30 XP。请用英语发起针对性提问。');
+      setLastNotice('漏洞标记正确！+30 XP。请用英语发起针对性提问。');
       setIsLoopholePlanted(true);
       setShowControlCard(false);
       setIsInputLocked(false);
@@ -481,7 +481,7 @@ export function useOralWarRoomSession({
       }
     } else {
       playError();
-      setLastNotice(result.feedback || '破绽类型不匹配，请重新划词标记。');
+      setLastNotice(result.feedback || '漏洞类型不匹配，请重新划词标记。');
     }
   }, [messages, conversationId, activeScene.shortTitle, isContextPanelOpen]);
 
