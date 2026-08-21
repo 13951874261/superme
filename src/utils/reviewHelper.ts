@@ -296,7 +296,7 @@ const KEYWORD_THEME_MAP: Record<string, Partial<TrainingRebalancePlan>> = {
     },
   },
   高管: {
-    yuxinGameTheory: ['高管斗争案例', '派系平衡', '信息垄断'],
+    yuxinGameTheory: ['高管冲突案例', '派系平衡', '信息垄断'],
     oralSandbox: {
       scenario: '高管层利益纠葛——跨派系资源争夺会议',
       roles: '你(中层负责人), VP A, VP B, CEO',
@@ -314,7 +314,7 @@ export const WEEKLY_CHAT_HISTORY_KEY = 'superme_weekly_history_enhanced';
 export const GLOBAL_DIRECTION_OPTIONS = [
   { label: '人性博弈', value: 'humanGameCase' },
   { label: '英语主题', value: 'englishTopic' },
-  { label: '高管斗争', value: 'executiveConflict' },
+  { label: '高管冲突', value: 'executiveConflict' },
   { label: '博弈策略', value: 'manipulationStrategy' },
   { label: '顶层认知提升', value: 'cognitiveUpgrade' },
   { label: '晋升跳槽', value: 'careerAdvice' },

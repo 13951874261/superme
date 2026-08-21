@@ -2397,7 +2397,7 @@ export function exportTacticsToCsv(tactics: TacticItem[]): void {
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
   const link = document.createElement('a');
   link.href = url;
-  link.download = `驭人术手段库_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `博弈策略手段库_${new Date().toISOString().slice(0, 10)}.csv`;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -3075,7 +3075,7 @@ export interface WeeklyChatAnalysisResult {
 const WEEKLY_DIRECTION_LABELS: Record<string, string> = {
   humanGameCase: '人性博弈案例',
   englishTopic: '英语学习主题',
-  executiveConflict: '高管斗争案例',
+  executiveConflict: '高管冲突案例',
   manipulationStrategy: '博弈策略',
   cognitiveUpgrade: '顶层认知提升',
   careerAdvice: '晋升/跳槽建议',

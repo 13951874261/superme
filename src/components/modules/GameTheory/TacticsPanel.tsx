@@ -77,7 +77,7 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       addTask({
         id: taskId,
         type: 'tactics_ingest',
-        name: `驭人术资料提炼 · ${uploadFile.name.slice(0, 32)}`,
+        name: `博弈策略资料提炼 · ${uploadFile.name.slice(0, 32)}`,
         status: 'pending',
         progress: 0,
         logs: ['任务已创建'],
@@ -85,7 +85,7 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       startPolling(taskId);
       playPageTurn();
       notifyBackgroundHandoff({
-        message: '已加入任务中心：驭人术资料提炼',
+        message: '已加入任务中心：博弈策略资料提炼',
         tone: 'success',
       });
       setTimeout(() => {
@@ -115,7 +115,7 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       addTask({
         id: taskId,
         type: 'tactics_export',
-        name: `导出驭人术手段库 (${tactics.length} 条)`,
+        name: `导出博弈策略手段库 (${tactics.length} 条)`,
         status: 'pending',
         progress: 0,
         logs: ['导出任务已创建'],
@@ -213,7 +213,7 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-bold text-zinc-900 flex items-center gap-2">
-          <BookOpen className="w-4 h-4 text-zinc-600" /> 驭人术手段库
+          <BookOpen className="w-4 h-4 text-zinc-600" /> 博弈策略手段库
           {loading && <Loader2 className="w-3 h-3 animate-spin text-zinc-400" />}
         </h3>
         <div className="flex items-center gap-2">
@@ -255,7 +255,7 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-bold text-zinc-900">上传驭人术资料</h3>
+              <h3 className="text-sm font-bold text-zinc-900">上传博弈策略资料</h3>
               <button onClick={() => { setShowUploadModal(false); setUploadFile(null); setUploadStatus(''); }} className="text-zinc-400 hover:text-zinc-600">
                 <X className="w-4 h-4" />
               </button>

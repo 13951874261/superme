@@ -124,7 +124,7 @@ const SIM_OPPONENTS: SimPresetOpponent[] = [
     type: '多疑多虑型',
     env: 'upward_takeover',
     model: 'info_asymmetry',
-    dilemma: '直属总监极度缺乏安全感，对你的工作细节事事过问，在汇报中把你的研究成果包装成其本人的战略思考，同时在跨部门会议中故意屏蔽关键背景信息，让你在毫不知情的情况下承担未知的跨部门协调风险。你该如何破局？'
+    dilemma: '直属总监极度缺乏安全感，对你的工作细节事事过问，在汇报中把你的研究成果包装成其本人的战略思考，同时在跨部门会议中故意屏蔽关键背景信息，让你在毫不知情的情况下承担未知的跨部门协调风险。你该如何应对？'
   }
 ];
 
@@ -826,8 +826,8 @@ export default function GameTheoryModule() {
       {/* Tab 导航区域 */}
       <div className="flex border border-slate-100 mb-6 bg-white p-1 rounded-xl shadow-[0_4px_15px_rgba(0,0,0,0.02)] overflow-x-auto">
         {([
-          { id: 'cases', name: '高管斗争案例研判' },
-          { id: 'tactics', name: '驭人术与人性档案' },
+          { id: 'cases', name: '高管冲突案例分析' },
+          { id: 'tactics', name: '博弈策略与人性档案' },
           { id: 'simulation', name: '人机对战练习' },
           { id: 'session', name: '多人群体博弈会话' },
           { id: 'history', name: '对局历史' },
@@ -892,7 +892,7 @@ export default function GameTheoryModule() {
                       </div>
 
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">斗争案例选择 (Preset Cases)</span>
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">冲突案例选择</span>
                         <button
                           type="button"
                           onClick={() => { void refreshPushedCase(); }}
@@ -970,10 +970,10 @@ export default function GameTheoryModule() {
                           className="w-full bg-transparent border-none text-xs text-zinc-600 leading-relaxed font-medium placeholder-zinc-400 outline-none resize-none"
                           placeholder={
                             casePushLoading
-                              ? '正在为您推送详实尖锐的高管斗争案例，请稍候...'
+                              ? '正在为您推送详实尖锐的高管冲突案例，请稍候...'
                               : !caseText && casePushQuality?.quality === 'below_standard'
                               ? '未获取到合格的尖锐案例。请点击左上方「换一条」重新获取，或在此手动输入详实案例...'
-                              : '请从左侧点击「换一条」获取详实尖锐的高管权力斗争案例，或在此处直接编辑、手动输入你要演练的案例详情...'
+                              : '请从左侧点击「换一条」获取详实尖锐的高管权力冲突案例，或在此处直接编辑、手动输入你要演练的案例详情...'
                           }
                           disabled={isLoading}
                         />
@@ -983,12 +983,12 @@ export default function GameTheoryModule() {
                       <div className="mb-6 bg-zinc-50/50 rounded-xl p-4 border border-zinc-100">
                         <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2.5 flex items-center gap-1.5">
                           <UserCheck className="w-3.5 h-3.5 text-zinc-500" />
-                          关系人装配箱 (Participants Context):
+                          参与人选择
                         </span>
                         
                         {prototypes.length === 0 ? (
                           <p className="text-[10px] text-zinc-400 font-semibold leading-relaxed">
-                            暂无已收录的人性档案。您可在“驭人术与人性档案”选项卡中手动录入，随后在此将他们“装配”入会议对峙现场。
+                            暂无已收录的人性档案。您可在“博弈策略与人性档案”选项卡中手动录入，随后在此将他们加入会议对峙场景。
                           </p>
                         ) : (
                           <div className="flex flex-wrap gap-2">
@@ -1364,7 +1364,7 @@ export default function GameTheoryModule() {
                       <div className="space-y-4 pt-4 border-t border-zinc-100">
                         {prototypes.length > 0 && (
                           <div>
-                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">从人性档案库装配</label>
+                            <label className="text-[9px] text-zinc-400 font-bold uppercase tracking-wider block mb-1">从人性档案库选择</label>
                             <select
                               onChange={(e) => {
                                 const proto = prototypes.find(p => p.id === e.target.value);
