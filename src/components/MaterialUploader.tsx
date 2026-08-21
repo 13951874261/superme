@@ -80,7 +80,7 @@ export default function MaterialUploader({
     setStatus('running');
     setShowLogs(true);
     setCurrentStep('正在整理：清空旧材料 → 上传 → 抽取词汇 → 写入生词本');
-    setLogs([`${nowLabel()} 启动卡片向导式一键提纯流程`]);
+    setLogs([`${nowLabel()} 启动一键整理流程`]);
 
     try {
       const result = await processMaterialsAndExtract(files, topicHint, getAppUserId());
@@ -89,18 +89,18 @@ export default function MaterialUploader({
       addTask({
         id: result.taskId,
         type: 'material',
-        name: `材料提纯: ${files[files.length - 1]?.name || '多个文档'}`,
+        name: `材料整理: ${files[files.length - 1]?.name || '多个文档'}`,
         status: 'pending',
         progress: 5,
-        logs: [`[${nowLabel()}] 提纯任务已在后台建立，正在排队清库…`]
+        logs: [`[${nowLabel()}] 整理任务已在后台建立，正在排队清理旧材料…`]
       });
 
       // UI 界面提示用户关注任务中心
       setStatus('idle');
-      setCurrentStep('已成功将提纯任务提交到后台，请在顶栏「提纯任务中心」追踪具体进度');
+      setCurrentStep('整理任务已提交到后台，请在顶栏「任务中心」查看进度');
       setLogs([
-        `${nowLabel()} 异步提纯任务建立成功，TaskId: ${result.taskId}`,
-        `${nowLabel()} 正在清空旧向量并上传新文件，请前往任务中心查阅流式日志`
+        `${nowLabel()} 整理任务已建立，可在任务中心查看进度`,
+        `${nowLabel()} 正在清理旧材料并上传新文件，请前往任务中心查看进度`
       ]);
 
       resetInput();
@@ -142,10 +142,10 @@ export default function MaterialUploader({
       logs: [`[${new Date().toISOString()}] 任务已在后台建立，正在排队排期…`],
     });
 
-    setCurrentStep('已异步发起视频转写。完成后将自动导入并提纯，可在顶栏「提纯任务中心」追踪进度。');
+    setCurrentStep('已发起视频转写。完成后将自动导入并整理，可在顶栏「任务中心」查看进度。');
     setLogs([
-      `${nowLabel()} 后台转写任务建立成功，TaskId: ${taskId}`,
-      `${nowLabel()} 进程将在服务器异步执行，无需在本页面等待。`,
+      `${nowLabel()} 后台转写任务已建立，可在任务中心查看进度`,
+      `${nowLabel()} 将在服务器后台执行，无需在本页面等待。`,
       `${nowLabel()} 视频处理完毕后，将自动导入并整理生词。`,
     ]);
   };
@@ -205,8 +205,8 @@ export default function MaterialUploader({
         const file = new File([content], name, { type: mimeType });
         setSelectedFiles([file]);
         setCurrentFileName(name);
-        setCurrentStep(`已从任务中心导入并自动触发提纯：${name}`);
-        // 自动执行 Dify 提纯提取流程
+        setCurrentStep(`已从任务中心导入并开始整理：${name}`);
+        // 自动执行整理提取流程
         runExtractionForFiles([file]);
       }
     };
@@ -226,7 +226,7 @@ export default function MaterialUploader({
           ? 'text-xs font-black uppercase tracking-widest text-[#FF5722] mb-2 flex items-center leading-none'
           : 'text-sm font-black uppercase tracking-widest text-[var(--color-surface-dark)] mb-2 flex items-center leading-none'}>
           <UploadCloud className={compact ? 'w-4 h-4 mr-1.5 text-[#FF5722]' : 'w-5 h-5 mr-2 text-[var(--color-primary)]'} />
-          {compact ? '上传书籍 / 材料' : '一键材料提纯'}
+          {compact ? '上传书籍 / 材料' : '一键整理材料'}
         </h4>
         <p className={compact ? 'text-[9px] text-zinc-400 font-medium' : 'text-xs text-gray-400 font-medium leading-relaxed mt-2'}>
           {compact
@@ -347,7 +347,7 @@ export default function MaterialUploader({
             {/* 选中材料回显 (针对本地文档 & 网页提取) */}
             {activeTab !== 'video' && selectedFiles.length > 0 && (
               <div className="mt-4 space-y-2">
-                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">当前载入的提纯材料</div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">当前载入的学习材料</div>
                 {selectedFiles.map(file => (
                   <div key={file.name} className="flex items-center gap-3 bg-white rounded-xl px-4 py-3 border border-[var(--color-border)] shadow-sm hover:shadow-[var(--shadow-hover)] transition-shadow">
                     <FileText className="w-4 h-4 text-[var(--color-primary)] shrink-0" />
@@ -406,8 +406,8 @@ export default function MaterialUploader({
                       previewContent
                     ) : (
                       <span className="text-zinc-500 italic block py-2">
-                        [ 无法直接预览二进制文档 ]
-                        {"\n\n"}PDF / Word / DOCX 等二进制数据，将在点击下方“开始上传并提纯”后，由后台智能服务进行结构化解析与知识向量切片。
+                        [ 无法直接预览该文档 ]
+                        {"\n\n"}PDF / Word / DOCX 等文件，将在点击下方「开始解析」后，由系统自动整理并抽取词汇。
                       </span>
                     )}
                   </div>
@@ -497,7 +497,7 @@ export default function MaterialUploader({
           className="mt-4 flex items-center text-[11px] font-black uppercase tracking-widest text-gray-450 hover:text-[var(--color-surface-dark)] transition-colors cursor-pointer"
         >
           {showLogs ? <ChevronUp className="w-4 h-4 mr-1" /> : <ChevronDown className="w-4 h-4 mr-1" />}
-          查看提纯流水线详细日志
+          查看整理过程详细日志
         </button>
 
         {showLogs && (

@@ -39,7 +39,7 @@ const WRITE_MODULES = [
   },
   { 
     id: 'essay_reflection', 
-    label: '随笔与思辨闭环', 
+    label: '随笔与思辨练习', 
     desc: '职场随笔或认知感悟的深度逻辑与思维方向诊断', 
     placeholder: '在此撰写您的职场随笔或认知感悟...' 
   }
@@ -776,7 +776,7 @@ ${benchmarkText
               {/* 闭环复盘 (Daily Feedback Loop) */}
               <div className="bg-white border border-zinc-200 shadow-sm rounded-2xl p-5 flex flex-col gap-3">
                 <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1">
-                  <span>🔄</span> 闭环复盘与跟踪
+                  <span>🔄</span> 练习复盘与跟踪
                 </h5>
                 {isReviewing ? (
                   <p className="text-[10px] text-zinc-400 italic">正在生成复盘要点…</p>

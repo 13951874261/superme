@@ -919,7 +919,7 @@ export default function ListenTab() {
                     className="flex items-center gap-1 px-3 py-1 bg-[#FF5722] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#e64a19] transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {isAddingHighlight ? <Loader2 className="w-3 h-3 animate-spin" /> : <BookPlus className="w-3 h-3" />}
-                    {isAddingHighlight ? '入库中…' : '划线入库'}
+                    {isAddingHighlight ? '加入中…' : '加入生词本'}
                   </button>
                   <button
                     type="button"
@@ -1052,8 +1052,8 @@ export default function ListenTab() {
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
-                                title="划线入库"
-                                aria-label={`划线入库：${item.word}`}
+                                title="加入生词本"
+                                aria-label={`加入生词本：${item.word}`}
                                 onClick={async () => {
                                   try {
                                     await addWord({

@@ -181,7 +181,7 @@ function VocabularyBookComponent() {
       setStats(s);
       setError(null);
     } catch {
-      setError('API 连接失败');
+      setError('连接失败，请稍后重试');
     }
   }, []);
 

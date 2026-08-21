@@ -572,11 +572,11 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
     setIsUploading(true);
     
     setTimeout(() => {
-      const name = uploadUrl.replace('https://', '').replace('http://', '').split('/')[0] + ' 提纯素材';
+      const name = uploadUrl.replace('https://', '').replace('http://', '').split('/')[0] + ' 学习素材';
       const newMaterial: MaterialItem = {
         id: 'm_' + Date.now(),
         name: name,
-        content: `从网址 ${uploadUrl} 中成功提纯的关于组织协调和危机公关的核心理论...`,
+        content: `从网址 ${uploadUrl} 中整理出的关于组织协调和危机公关的核心理论...`,
         extractedTopic: `在跨部门资源争夺中，如何化解来自同级部门的推诿？`,
         createdAt: new Date().toISOString().split('T')[0]
       };
@@ -885,7 +885,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] p-6 flex-1 flex flex-col">
           <div className="flex items-center gap-2 mb-4">
             <Upload className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-base font-black text-slate-900 tracking-tight">表达素材提纯底座</h3>
+            <h3 className="text-base font-black text-slate-900 tracking-tight">表达素材整理</h3>
           </div>
           <p className="text-xs text-slate-400 mb-4">
             上传PDF书籍或网址，由AI提取核心事实或痛点，自动定制为高难度说服表达背景。
@@ -926,18 +926,18 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
                   disabled={!uploadUrl || isUploading}
                   className="w-full bg-slate-900 hover:bg-[var(--color-brand)] text-white text-[10px] font-black tracking-wider uppercase py-1.5 rounded-lg transition-all"
                 >
-                  提取提纯
+                  整理素材
                 </button>
               </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-3 pr-1 max-h-[260px] min-h-[180px]">
-            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">已提纯素材 ({materials.length})</div>
+            <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">已整理素材 ({materials.length})</div>
             {isUploading ? (
               <div className="flex flex-col items-center justify-center py-8 text-slate-400">
                 <Loader2 className="w-6 h-6 animate-spin text-indigo-600 mb-2" />
-                <span className="text-xs">AI 正在提纯素材，结构化分析中...</span>
+                <span className="text-xs">正在整理素材…</span>
               </div>
             ) : materials.length === 0 ? (
               <div className="text-center py-8 text-xs text-slate-400">暂无上传素材，请在上方添加</div>

@@ -168,7 +168,8 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
       onSuccess();
     } catch (err: any) {
       playError();
-      setErrorMsg(err.message || '入库失败，请重试');
+      console.error('加入生词本失败:', err);
+      setErrorMsg('加入生词本失败，请重试');
     } finally {
       setIsSubmittingManual(false);
     }
@@ -695,7 +696,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                       onClick={handleBatchImport}
                       className="px-8 py-2.5 bg-[#FF5722] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#e64a19] transition flex items-center gap-2 shadow-md hover:shadow-lg"
                     >
-                      一键批量补全并入库 (Auto-Enrich & Import) ➔
+                      一键补全释义并加入生词本 ➔
                     </button>
                   </div>
                 </div>

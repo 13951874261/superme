@@ -10812,7 +10812,7 @@ app.post('/api/materials/fetch-url', async (req, res) => {
 app.post('/api/materials/upload-chunk', upload.single('chunk'), async (req, res) => {
   try {
     const { uploadId, chunkIndex } = req.body;
-    const file = req.files?.[0];
+    const file = req.file || req.files?.[0];
 
     if (!uploadId || chunkIndex === undefined || !file) {
       return res.status(400).json({ success: false, error: '缺少必要参数: uploadId, chunkIndex 或 chunk' });
@@ -10825,7 +10825,14 @@ app.post('/api/materials/upload-chunk', upload.single('chunk'), async (req, res)
 
     // ?????????????????????????????????????????????????????
     const targetPath = path.join(sessionDir, String(chunkIndex));
-    fs.renameSync(file.path, targetPath);
+    try {
+      fs.renameSync(file.path, targetPath);
+    } catch (renameErr) {
+      // 临时目录与分片目录可能不在同一挂载点，rename 会抛 EXDEV
+      if (renameErr.code !== 'EXDEV') throw renameErr;
+      fs.copyFileSync(file.path, targetPath);
+      try { fs.unlinkSync(file.path); } catch (_) {}
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -10901,7 +10908,7 @@ app.post('/api/materials/merge-chunks', async (req, res) => {
 // ?????????????????????????????
 app.post('/api/materials/upload-direct', upload.single('video'), (req, res) => {
   try {
-    const file = req.files?.[0];
+    const file = req.file || req.files?.[0];
     if (!file) {
     return res.status(400).json({ success: false, error: '未接收到有效文件数据' });
     }
@@ -10932,7 +10939,7 @@ app.post('/api/materials/upload-direct', upload.single('video'), (req, res) => {
 app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) => {
   try {
     const { url, language = 'auto', subtitle = '' } = req.body;
-    const file = req.files?.[0];
+    const file = req.file || req.files?.[0];
 
     if (!url && !file) {
       return res.status(400).json({ success: false, error: '缺少必要参数: 必须提供 url 或上传 video 文件' });

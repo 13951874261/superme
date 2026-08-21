@@ -380,7 +380,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                               </div>
                               <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-gray-800 leading-relaxed font-semibold">
                                 {(!wordData.meaning || wordData.meaning === '待复习补充')
-                                  ? '词典情报暂未返回，请稍后重试或从弹药库再次打开该词。'
+                                  ? '词典结果暂未返回，请稍后重试或从生词本再次打开该词。'
                                   : wordData.meaning}
                               </div>
                             </div>
@@ -459,7 +459,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                         {/* 安全状态提醒 */}
                         <div className="pt-4 border-t border-gray-100 flex items-center gap-2 text-[10px] text-gray-400">
                           <ShieldCheck className="w-4 h-4 text-emerald-500" />
-                          已加密并存入全场景弹药库
+                          已保存并加入生词本
                         </div>
                       </div>
                     )}

@@ -278,7 +278,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words || []));
                 localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases || []));
                 localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences || []));
-                localStorage.setItem('super_agent_intel_source', `材料提纯: ${taskName}`);
+                localStorage.setItem('super_agent_intel_source', `材料整理: ${taskName}`);
 
                 window.dispatchEvent(new CustomEvent('intel-data-refreshed'));
                 window.dispatchEvent(new CustomEvent('extraction-success', {

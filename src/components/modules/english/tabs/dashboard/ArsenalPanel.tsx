@@ -56,7 +56,7 @@ export function ArsenalPanel({
         <div className={`flex items-center gap-2 shrink-0 ${compact ? '' : 'xl:mr-1'}`}>
           <Target aria-hidden="true" className="w-3.5 h-3.5 text-[var(--color-brand)]" />
           <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800">
-            弹药补给库
+            学习材料库
           </h4>
         </div>
 

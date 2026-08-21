@@ -137,7 +137,7 @@ export default function UrlFetchPanel({ onFetchSuccess, isLoading, setIsLoading 
               className="flex items-center gap-1.5 px-4 py-2 bg-[var(--color-primary)] text-white rounded-lg text-xs font-bold tracking-wider hover:bg-[var(--color-primary-hover)] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer"
             >
               <CheckCircle className="w-3.5 h-3.5" />
-              确认作为提纯材料
+              确认为学习材料
             </button>
           </div>
         </div>
@@ -177,7 +177,7 @@ export default function UrlFetchPanel({ onFetchSuccess, isLoading, setIsLoading 
               onClick={handleConfirm}
               className="flex-1 py-3 text-center bg-[var(--color-primary)] text-white rounded-[var(--radius-md)] text-xs font-bold hover:bg-[var(--color-primary-hover)] active:scale-[0.98] shadow-sm hover:shadow-md transition-all cursor-pointer"
             >
-              作为提纯材料
+              作为学习材料
             </button>
           </div>
         </div>

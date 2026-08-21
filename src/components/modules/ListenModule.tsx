@@ -1107,7 +1107,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
               {isUploading ? (
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs font-bold text-indigo-600">
-                    <span>正在提纯情报素材...</span>
+                    <span>正在整理学习材料…</span>
                     <span>{uploadProgress}%</span>
                   </div>
                   <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">

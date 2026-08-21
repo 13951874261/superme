@@ -584,7 +584,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
             <>
             <MaterialUploader
               compact
-              topicHint="书籍 / 材料提纯"
+              topicHint="书籍 / 材料整理"
               onUploadSuccess={() => {
                 void refresh();
               }}

@@ -189,7 +189,7 @@ export default function TextHighlighter() {
             ) : (
               <>
                 <BookmarkPlus className={`w-4 h-4 mr-2 ${isSaving ? 'text-gray-400 animate-spin' : 'text-[#FF5722]'}`} />
-                <span>{isSaving ? '情报补全中...' : '截获至弹药库'}</span>
+                <span>{isSaving ? '信息补全中…' : '加入生词本'}</span>
               </>
             )}
           </>

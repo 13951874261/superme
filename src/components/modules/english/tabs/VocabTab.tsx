@@ -327,7 +327,7 @@ export default function VocabTab() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 hover:-translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>阅读左侧抽取的弹药（含发音/例句），在右侧输入框结合当前【战略阶段/主题】强制造句，并提交评估。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>阅读左侧整理出的词汇（含发音/例句），在右侧输入框结合当前【战略阶段/主题】强制造句，并提交评估。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
@@ -335,7 +335,7 @@ export default function VocabTab() {
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【弹药提纯】上承 Dashboard 的全自动长文提取，下启 Oral/Write，为您在高压沙盘与实战邮件中提供职场黑话储备。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>这里汇总进度总控整理出的词，供口语和写作练习使用。</p>
             </div>
           </div>
         </div>
@@ -423,7 +423,7 @@ export default function VocabTab() {
         <div className="w-full max-w-2xl text-center py-24">
           <CheckCircle2 className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
           <h3 className="text-xl font-black text-[#202124]">今日词汇已清空</h3>
-          <p className="text-sm text-gray-500 mt-2">请到“进度总控”执行提纯，或休息一下。</p>
+          <p className="text-sm text-gray-500 mt-2">请到「进度总控」生成并整理长文，或休息一下。</p>
         </div>
       ) : (
         <div className="w-full max-w-[96rem] mx-auto space-y-6">

@@ -281,7 +281,7 @@ export function VocabularyGrid({
                           <div className="flex items-center gap-1.5 mt-2">
                             <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
                             <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">
-                              提纯金句 · 支持点读
+                              精选句型 · 支持点读
                             </span>
                           </div>
                         </div>

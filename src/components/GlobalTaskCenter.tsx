@@ -774,7 +774,7 @@ export default function GlobalTaskCenter() {
                         className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-lg text-[10px] font-bold tracking-wider uppercase transition-colors cursor-pointer"
                       >
                         <Import className="w-3 h-3" />
-                        导入并提纯
+                        导入并整理
                       </button>
                       <button
                         onClick={() => handleDownload(task)}

@@ -1870,7 +1870,7 @@ export default function EntertainmentModule() {
 
               <h3 className="text-xs font-bold text-zinc-800 tracking-[0.2em] uppercase">AESTHETICS ENGINE</h3>
 
-              <p className="text-[11px] text-zinc-400 font-mono mt-1">&gt; {["初始化审美引擎...", "检索跨文化礼仪库...", "评估决策分寸...", "生成研判结果..."][scanStep]}</p>
+              <p className="text-[11px] text-zinc-400 font-mono mt-1">&gt; {["正在准备研判…", "检索跨文化礼仪库...", "评估决策分寸...", "生成研判结果..."][scanStep]}</p>
 
             </div>
 
