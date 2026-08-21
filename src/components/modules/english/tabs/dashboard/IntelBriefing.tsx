@@ -10,7 +10,7 @@ export interface IntelBriefingProps {
   intelSource: string;
   setIntelSource: (v: string) => void;
   isAutoGenerating: boolean;
-  handleAutoGenerate: () => Promise<void>;
+  handleAutoGenerate: (e?: React.MouseEvent<HTMLButtonElement>) => void | Promise<void>;
   theme: string;
   currentVoiceName: string;
   showResetConfirm: boolean;
@@ -29,8 +29,16 @@ export interface IntelBriefingProps {
   extractedSentences: string[];
   vocabDetailsMap: Record<string, any>;
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
-  handleAddWordToVocab: (text: string, isPhrase?: boolean, isSentence?: boolean) => Promise<void>;
+  handleAddWordToVocab: (
+    text: string,
+    isPhrase?: boolean,
+    isSentence?: boolean,
+    anchor?: HTMLElement | null
+  ) => Promise<void>;
   fetchBilingualTranslation: (text: string) => Promise<void>;
+  isVocabCollecting?: (text: string) => boolean;
+  isVocabQueued?: (text: string) => boolean;
+  isVocabCollectedLocal?: (text: string) => boolean;
 }
 
 export function IntelBriefing({
@@ -59,7 +67,10 @@ export function IntelBriefing({
   vocabDetailsMap,
   asyncMeanings,
   handleAddWordToVocab,
-  fetchBilingualTranslation
+  fetchBilingualTranslation,
+  isVocabCollecting,
+  isVocabQueued,
+  isVocabCollectedLocal,
 }: IntelBriefingProps) {
   
   return (
@@ -204,6 +215,9 @@ export function IntelBriefing({
             asyncMeanings={asyncMeanings}
             handleAddWordToVocab={handleAddWordToVocab}
             fetchBilingualTranslation={fetchBilingualTranslation}
+            isCollecting={isVocabCollecting}
+            isQueued={isVocabQueued}
+            isCollectedLocal={isVocabCollectedLocal}
           />
         </>
       ) : (

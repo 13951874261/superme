@@ -18,6 +18,7 @@ import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingA
 import { getAppUserId } from '../../../../utils/profileHelper';
 import { lookupVocabWords, getVocabItem, queryDictionaryWithCache, createConcurrencyLimiter } from '../../../../services/vocabAPI';
 import { useVocabCollect } from '../../../../hooks/useVocabCollect';
+import { notifyBackgroundHandoff } from '../../../../utils/backgroundHandoff';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { useTask } from '../../../TaskContext';
 
@@ -54,7 +55,12 @@ export default function DashboardTab() {
     masteredThemes,
     stayStats,
   } = useEnglishContext();
-  const { collect: collectVocab } = useVocabCollect({
+  const {
+    collect: collectVocab,
+    isCollecting: isVocabCollecting,
+    isQueued: isVocabQueued,
+    isCollected: isVocabCollectedLocal,
+  } = useVocabCollect({
     notify: (message, type) => showNotice('dashboard', message, type),
   });
   const { addTask, startPolling } = useTask();
@@ -97,6 +103,7 @@ export default function DashboardTab() {
   };
 
   const [isAutoGenerating, setIsAutoGenerating] = useState(false);
+  const [isBackgroundGenerating, setIsBackgroundGenerating] = useState(false);
   const [isClearingAndReGenerating, setIsClearingAndReGenerating] = useState(false);
   const [isDeletingTheme, setIsDeletingTheme] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -477,7 +484,12 @@ export default function DashboardTab() {
   }, [extractedWords, extractedPhrases, extractedSentences]);
 
   // 逐条收录生词/短语/句式，收录即补齐词汇矩阵（带 3 秒竞速超时，超时解耦转后台任务中心）
-  const handleAddWordToVocab = async (text: string, isPhrase: boolean = false, isSentence: boolean = false) => {
+  const handleAddWordToVocab = async (
+    text: string,
+    isPhrase: boolean = false,
+    isSentence: boolean = false,
+    anchor: HTMLElement | null = null
+  ) => {
     const cleanText = text.trim();
     if (!cleanText) return;
     const cleanKey = cleanText.toLowerCase().trim();
@@ -498,6 +510,7 @@ export default function DashboardTab() {
         meaning: asyncMeanings[cleanKey]?.meaning || '',
         phonetic: asyncMeanings[cleanKey]?.phonetic || '',
       },
+      anchor,
     });
 
     if (result === 'collected') loadVocabDetails();
@@ -569,8 +582,10 @@ export default function DashboardTab() {
   }, [genre, cefrLevel, duration, theme, intelSource]);
 
 
-  const handleAutoGenerate = async () => {
+  const handleAutoGenerate = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+    const handoffAnchor = (e?.currentTarget as HTMLElement) || null;
     setIsAutoGenerating(true);
+    setIsBackgroundGenerating(false);
     playScan();
     showNotice('dashboard', '正在查询缓存 / 准备生成...', 'info');
     try {
@@ -685,14 +700,24 @@ export default function DashboardTab() {
           logs: ['超过 3 秒未完成，已转入后台继续生成；完成后可再次查询命中缓存'],
         });
         startPolling?.(started.taskId);
-        showNotice('dashboard', '生成较久，已转入后台，稍后可在【任务中心】查看', 'info');
+        const handoffMsg = '生成较久，已转入后台，稍后可在【任务中心】查看';
+        notifyBackgroundHandoff({
+          anchor: handoffAnchor,
+          message: handoffMsg,
+          tone: 'info',
+        });
+        showNotice('dashboard', handoffMsg, 'info');
+        setIsBackgroundGenerating(true);
         setIsAutoGenerating(false);
         // 超时后继续等待：完成后自动回填 Dashboard，避免结果被丢弃
         waitPromise
           .then((result) => {
             applyDisplayResult(result);
+            setIsBackgroundGenerating(false);
           })
-          .catch(() => {});
+          .catch(() => {
+            setIsBackgroundGenerating(false);
+          });
         return;
       }
 
@@ -842,6 +867,7 @@ export default function DashboardTab() {
           duration={duration}
           setDuration={setDuration}
           isAutoGenerating={isAutoGenerating}
+          isBackgroundGenerating={isBackgroundGenerating}
           handleAutoGenerate={handleAutoGenerate}
           isClearingAndReGenerating={isClearingAndReGenerating}
           handleClearTodayAndReGenerate={handleClearTodayAndReGenerate}
@@ -885,6 +911,9 @@ export default function DashboardTab() {
           asyncMeanings={asyncMeanings}
           handleAddWordToVocab={handleAddWordToVocab}
           fetchBilingualTranslation={fetchBilingualTranslation}
+          isVocabCollecting={isVocabCollecting}
+          isVocabQueued={isVocabQueued}
+          isVocabCollectedLocal={isVocabCollectedLocal}
         />
 
         <MaterialUploader 

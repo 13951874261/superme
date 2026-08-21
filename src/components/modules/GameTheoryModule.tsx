@@ -28,6 +28,7 @@ import ToneCorrectionTable from './GameTheory/ToneCorrectionTable';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
 import { getAppUserId } from '../../utils/profileHelper';
 import { useTask } from '../TaskContext';
+import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import { consumeGameTheorySessionFocus, GT_NAV_SESSION_EVENT } from '../../utils/gtFocusTab';
 import { evaluateCasePushQuality } from '../../utils/gtCaseQuality';
 
@@ -396,11 +397,11 @@ export default function GameTheoryModule() {
         logs: knowledgeTaskLogs(knowledgeReminder),
       });
       setPendingSimTaskId(taskId);
-      setSimSubmitNotice(
-        knowledgeReminder
-          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度；完成后将自动进入「对局历史」。`
-          : '已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。'
-      );
+      const simHandoff = knowledgeReminder
+        ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度；完成后将自动进入「对局历史」。`
+        : '已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。';
+      setSimSubmitNotice(simHandoff);
+      notifyBackgroundHandoff({ message: simHandoff, tone: 'info' });
       setSimFormExpanded(true);
       setSimAnimateBorder(false);
       playPageTurn();
@@ -760,11 +761,11 @@ export default function GameTheoryModule() {
         logs: knowledgeTaskLogs(knowledgeReminder),
       });
       setPendingCaseTaskId(taskId);
-      setSubmitNotice(
-        knowledgeReminder
-          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度；完成后将自动进入「对局历史」。`
-          : '已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。'
-      );
+      const caseHandoff = knowledgeReminder
+        ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度；完成后将自动进入「对局历史」。`
+        : '已提交后台。请到任务中心查看进度；完成后将自动进入「对局历史」。';
+      setSubmitNotice(caseHandoff);
+      notifyBackgroundHandoff({ message: caseHandoff, tone: 'info' });
       setAnimateBorder(false);
       playPageTurn();
     } catch (err: any) {

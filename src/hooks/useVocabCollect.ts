@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { addWordEnriched, addVocabWithTimeout, batchAddWordsAsync } from '../services/vocabAPI';
 import { useTask } from '../components/TaskContext';
 import { playSuccess, playError } from '../utils/soundEffects';
+import { notifyBackgroundHandoff } from '../utils/backgroundHandoff';
 
 /** 收录竞速阈值：3 秒内未完成即转入后台【任务中心】异步处理，防止前端卡死 */
 export const VOCAB_COLLECT_RACE_MS = 3000;
@@ -15,6 +16,8 @@ export interface VocabCollectRequest {
   source?: string;
   /** 已知的音标/释义等提示信息，服务端补齐矩阵时作为起点 */
   payload?: Record<string, any>;
+  /** 触发按钮 DOM，用于就近 handoff 提示 */
+  anchor?: HTMLElement | null;
 }
 
 export type VocabCollectResult = 'collected' | 'queued' | 'failed';
@@ -33,6 +36,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
   const { addTask, startPolling } = useTask();
   const { notify } = options;
   const [collecting, setCollecting] = useState<Record<string, boolean>>({});
+  const [queued, setQueued] = useState<Record<string, boolean>>({});
   const [collected, setCollected] = useState<Record<string, boolean>>({});
 
   const collect = useCallback(async (request: VocabCollectRequest): Promise<VocabCollectResult> => {
@@ -45,8 +49,20 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
     const isSentence = !!request.isSentence;
     const dictType = request.dictType
       || (isSentence ? 'ai_sentence' : (isPhrase ? 'ai_phrase' : 'ai_extracted'));
+    const anchor = request.anchor ?? null;
 
     setCollecting((prev) => ({ ...prev, [key]: true }));
+    setQueued((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+
+    if (anchor) {
+      showNearCollectingTip(anchor, label);
+    }
+
     try {
       const action = addWordEnriched({
         word: text,
@@ -64,58 +80,70 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       const race = await addVocabWithTimeout(action, VOCAB_COLLECT_RACE_MS);
 
       if (race.isTimeout) {
-        const queued = await batchAddWordsAsync(
+        const queuedRes = await batchAddWordsAsync(
           [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType }],
           request.topic || '逐条收录',
           request.source || 'Manual Select'
         );
         addTask({
-          id: queued.taskId,
+          id: queuedRes.taskId,
           type: 'vocab_add',
           name: `生词本收录: ${label}`,
           status: 'running',
           progress: 20,
           logs: ['[生词收录] 3秒未完成，已托管至后台任务中心写入并补齐词汇矩阵...'],
         });
-        startPolling?.(queued.taskId);
-        notify?.(`“${label}” 收录与词汇矩阵补齐已转入后台处理，稍后可在【任务中心】查看`, 'info');
+        startPolling?.(queuedRes.taskId);
+        setQueued((prev) => ({ ...prev, [key]: true }));
+        const msg = `“${label}” 收录与词汇矩阵补齐已转入后台处理，稍后可在【任务中心】查看`;
+        notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
+        notify?.(msg, 'info');
         return 'queued';
       }
 
       const result = race.result as { matrixReady?: boolean };
       setCollected((prev) => ({ ...prev, [key]: true }));
+      setQueued((prev) => {
+        if (!prev[key]) return prev;
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
       playSuccess();
       window.dispatchEvent(new Event('vocab-updated'));
       if (result?.matrixReady === false) {
-        notify?.(
-          `“${label}” 已加入生词本；词汇矩阵稍后续补，可在【任务中心】查看进度`,
-          'info'
-        );
+        const msg = `“${label}” 已加入生词本；词汇矩阵稍后续补，可在【任务中心】查看进度`;
+        notifyBackgroundHandoff({ anchor, message: msg, tone: 'info', pulse: true });
+        notify?.(msg, 'info');
       } else {
-        notify?.(`“${label}” 已加入生词本，词汇矩阵已补齐`, 'success');
+        const msg = `“${label}” 已加入生词本，词汇矩阵已补齐`;
+        if (anchor) {
+          notifyBackgroundHandoff({ anchor, message: msg, tone: 'success', pulse: false });
+        }
+        notify?.(msg, 'success');
       }
       return 'collected';
     } catch (error: any) {
       // 同步路径真失败时仍尝试托管后台，避免用户只能看到红条
       try {
-        const queued = await batchAddWordsAsync(
+        const queuedRes = await batchAddWordsAsync(
           [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType }],
           request.topic || '逐条收录',
           request.source || 'Manual Select'
         );
         addTask({
-          id: queued.taskId,
+          id: queuedRes.taskId,
           type: 'vocab_add',
           name: `生词本收录: ${label}`,
           status: 'running',
           progress: 20,
           logs: ['[生词收录] 同步失败，已改由后台任务中心继续补齐词汇矩阵...'],
         });
-        startPolling?.(queued.taskId);
-        notify?.(
-          `“${label}” 收录已转入【任务中心】后台处理（同步矩阵暂未完成）`,
-          'info'
-        );
+        startPolling?.(queuedRes.taskId);
+        setQueued((prev) => ({ ...prev, [key]: true }));
+        const msg = `“${label}” 收录已转入【任务中心】后台处理（同步矩阵暂未完成）`;
+        notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
+        notify?.(msg, 'info');
         return 'queued';
       } catch {
         playError();
@@ -130,6 +158,18 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
   return {
     collect,
     isCollecting: (text: string) => !!collecting[normalizeKey(text)],
+    isQueued: (text: string) => !!queued[normalizeKey(text)],
     isCollected: (text: string) => !!collected[normalizeKey(text)],
   };
+}
+
+function showNearCollectingTip(anchor: HTMLElement, label: string) {
+  notifyBackgroundHandoff({
+    anchor,
+    message: `“${label}” 收录中，超时将转入后台补齐矩阵`,
+    tone: 'info',
+    toast: false,
+    pulse: false,
+    nearDuration: 2200,
+  });
 }

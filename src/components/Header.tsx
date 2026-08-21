@@ -1,9 +1,14 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
 import { useTask } from './TaskContext';
+import { TASK_CENTER_PULSE_EVENT } from '../utils/backgroundHandoff';
+
+gsap.registerPlugin(useGSAP);
 
 const PREVIEW_TEXT_PREFIX = 'Hi! I am ';
 
@@ -17,6 +22,33 @@ function HeaderComponent() {
   const [previewingVoiceId, setPreviewingVoiceId] = useState<string | null>(null);
   const [previewErrorVoiceId, setPreviewErrorVoiceId] = useState<string | null>(null);
   const { pendingCount, setIsOpen } = useTask();
+  const taskCenterBtnRef = useRef<HTMLButtonElement>(null);
+
+  useGSAP(
+    (_ctx, contextSafe) => {
+      const btn = taskCenterBtnRef.current;
+      if (!btn) return;
+
+      const onPulse = contextSafe(() => {
+        gsap.fromTo(
+          btn,
+          { scale: 1 },
+          {
+            scale: 1.08,
+            duration: 0.12,
+            yoyo: true,
+            repeat: 3,
+            ease: 'power1.inOut',
+            clearProps: 'scale',
+          }
+        );
+      });
+
+      window.addEventListener(TASK_CENTER_PULSE_EVENT, onPulse);
+      return () => window.removeEventListener(TASK_CENTER_PULSE_EVENT, onPulse);
+    },
+    { dependencies: [] }
+  );
 
   useEffect(() => {
     const handleStorageChange = () => {
@@ -241,10 +273,12 @@ function HeaderComponent() {
           {/* 后台任务中心 */}
           <div className="relative inline-block text-left flex-shrink-0">
             <button
+              ref={taskCenterBtnRef}
               type="button"
               onClick={() => setIsOpen(true)}
               className="h-8 px-3 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:border-amber-200 cursor-pointer relative whitespace-nowrap"
               title="查看后台任务中心"
+              data-task-center-trigger
             >
               <Loader2 className={`w-3.5 h-3.5 text-amber-500 ${pendingCount > 0 ? 'animate-spin' : ''}`} />
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">后台任务:</span>
@@ -309,4 +343,4 @@ function HeaderComponent() {
 }
 
 const Header = memo(HeaderComponent);
-export default Header;
+export default Header;

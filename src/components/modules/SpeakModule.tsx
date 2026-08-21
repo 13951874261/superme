@@ -45,6 +45,7 @@ import SpeakButton from '../SpeakButton';
 import { getUserCurrentProfile } from '../../utils/profileHelper';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTask } from '../TaskContext';
+import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import type { SpeakInfluenceResult, SpeakFlaw } from '../../services/difyAPI';
 import type { ModuleType } from '../../App';
 import { requestGameTheorySessionFocus } from '../../utils/gtFocusTab';
@@ -710,11 +711,11 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
         logs: knowledgeTaskLogs(knowledgeReminder),
       });
       setPendingSpeakTaskId(taskId);
-      setSpeakSubmitNotice(
-        knowledgeReminder
-          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度。`
-          : '已提交后台。请到任务中心查看进度。'
-      );
+      const speakHandoff = knowledgeReminder
+        ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度。`
+        : '已提交后台。请到任务中心查看进度。';
+      setSpeakSubmitNotice(speakHandoff);
+      notifyBackgroundHandoff({ message: speakHandoff, tone: 'info' });
     } catch (error) {
       console.error(error);
       playErrorCyber();

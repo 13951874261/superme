@@ -1,6 +1,7 @@
 import React from 'react';
 import SpeakButton from '../../../../SpeakButton';
-import { Eye, CheckCircle2 } from 'lucide-react';
+import { Eye, CheckCircle2, Loader2 } from 'lucide-react';
+import { VOCAB_COLLECT_LABEL } from '../../../../../utils/backgroundHandoff';
 
 export interface VocabularyGridProps {
   extractedWords: string[];
@@ -8,8 +9,16 @@ export interface VocabularyGridProps {
   extractedSentences: string[];
   vocabDetailsMap: Record<string, any>;
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
-  handleAddWordToVocab: (text: string, isPhrase?: boolean, isSentence?: boolean) => Promise<void>;
+  handleAddWordToVocab: (
+    text: string,
+    isPhrase?: boolean,
+    isSentence?: boolean,
+    anchor?: HTMLElement | null
+  ) => Promise<void>;
   fetchBilingualTranslation: (text: string) => Promise<void>;
+  isCollecting?: (text: string) => boolean;
+  isQueued?: (text: string) => boolean;
+  isCollectedLocal?: (text: string) => boolean;
 }
 
 export function VocabularyGrid({
@@ -19,7 +28,10 @@ export function VocabularyGrid({
   vocabDetailsMap,
   asyncMeanings,
   handleAddWordToVocab,
-  fetchBilingualTranslation
+  fetchBilingualTranslation,
+  isCollecting,
+  isQueued,
+  isCollectedLocal,
 }: VocabularyGridProps) {
   
   if (extractedWords.length === 0 && extractedPhrases.length === 0 && extractedSentences.length === 0) {
@@ -27,6 +39,42 @@ export function VocabularyGrid({
   }
 
   const safeStr = (v: any) => (typeof v === 'string' ? v : (v?.word || v?.phrase || v?.text || String(v || ''))).trim();
+
+  const renderCollectButton = (text: string, isPhrase: boolean, isSentence: boolean, matrixReady: boolean) => {
+    const collecting = !!isCollecting?.(text);
+    const queued = !!isQueued?.(text);
+    const localDone = !!isCollectedLocal?.(text) || matrixReady;
+
+    if (localDone && !collecting) {
+      return (
+        <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shrink-0">
+          <CheckCircle2 className="w-2.5 h-2.5" /> {VOCAB_COLLECT_LABEL.done}
+        </span>
+      );
+    }
+
+    const label = collecting
+      ? VOCAB_COLLECT_LABEL.collecting
+      : queued
+        ? VOCAB_COLLECT_LABEL.queued
+        : VOCAB_COLLECT_LABEL.idle;
+
+    return (
+      <button
+        type="button"
+        disabled={collecting || queued}
+        onClick={(e) => {
+          e.stopPropagation();
+          handleAddWordToVocab(text, isPhrase, isSentence, e.currentTarget);
+        }}
+        className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-all cursor-pointer shrink-0 btn-press disabled:opacity-70 disabled:cursor-wait flex items-center gap-0.5"
+        title="收录入生词本并补齐词汇矩阵"
+      >
+        {(collecting || queued) && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+        {label}
+      </button>
+    );
+  };
 
   const getDisplayMeaning = (text?: string) => {
     const val = (text || '').trim();
@@ -89,22 +137,7 @@ export function VocabularyGrid({
                           )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isStored ? (
-                            <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shrink-0">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> 已收录
-                            </span>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddWordToVocab(word, false, false);
-                              }}
-                              className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-all cursor-pointer shrink-0 btn-press"
-                              title="收录入生词本并补齐词汇矩阵"
-                            >
-                              + 收录
-                            </button>
-                          )}
+                          {renderCollectButton(word, false, false, isStored)}
                           <SpeakButton
                             text={word}
                             iconClassName="w-3.5 h-3.5"
@@ -180,22 +213,7 @@ export function VocabularyGrid({
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isPhraseStored ? (
-                            <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shrink-0">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> 已收录
-                            </span>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddWordToVocab(phrase, true, false);
-                              }}
-                              className="text-[9px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-600 hover:text-white px-2 py-0.5 rounded-lg border border-amber-100 transition-all cursor-pointer shrink-0 btn-press"
-                              title="收录短语入生词本并补齐词汇矩阵"
-                            >
-                              + 收录
-                            </button>
-                          )}
+                          {renderCollectButton(phrase, true, false, isPhraseStored)}
                           <SpeakButton
                             text={phrase}
                             iconClassName="w-3.5 h-3.5"
@@ -268,22 +286,7 @@ export function VocabularyGrid({
                         </div>
 
                         <div className="flex items-center gap-1.5 shrink-0">
-                          {isSentenceStored ? (
-                            <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shrink-0">
-                              <CheckCircle2 className="w-2.5 h-2.5" /> 已收录
-                            </span>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleAddWordToVocab(phrase, false, true);
-                              }}
-                              className="text-[9px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-600 hover:text-white px-2 py-0.5 rounded-lg border border-emerald-100 transition-all cursor-pointer shrink-0 btn-press"
-                              title="收录句型入生词本并补齐词汇矩阵"
-                            >
-                              + 收录
-                            </button>
-                          )}
+                          {renderCollectButton(phrase, false, true, isSentenceStored)}
                           <SpeakButton
                             text={phrase}
                             iconClassName="w-3.5 h-3.5"

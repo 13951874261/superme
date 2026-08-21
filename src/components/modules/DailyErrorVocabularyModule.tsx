@@ -19,7 +19,7 @@ export default function DailyErrorVocabularyModule() {
   const [words, setWords] = useState<FlawVocabWord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { collect, isCollecting, isCollected } = useVocabCollect({
+  const { collect, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
 
@@ -61,7 +61,7 @@ export default function DailyErrorVocabularyModule() {
   }, []);
 
   // 逐条收录：收录即补齐词汇矩阵，3 秒未完成转入任务中心
-  const handleAddWord = async (word: FlawVocabWord) => {
+  const handleAddWord = async (word: FlawVocabWord, anchor?: HTMLElement | null) => {
     await collect({
       text: word.word,
       topic: theme,
@@ -72,6 +72,7 @@ export default function DailyErrorVocabularyModule() {
         business_note: word.pronunciation_note,
         examples: [word.example],
       },
+      anchor,
     });
   };
 
@@ -147,21 +148,29 @@ export default function DailyErrorVocabularyModule() {
               </div>
 
               <button
-                onClick={() => handleAddWord(item)}
-                disabled={isCollecting(item.word) || isCollected(item.word)}
+                onClick={(e) => handleAddWord(item, e.currentTarget)}
+                disabled={isCollecting(item.word) || isQueued(item.word) || isCollected(item.word)}
                 title="收录入生词本并补齐词汇矩阵"
                 className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   isCollected(item.word)
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white shadow-md hover:shadow-[var(--color-brand)]/20'
+                    : isQueued(item.word)
+                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                      : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white shadow-md hover:shadow-[var(--color-brand)]/20'
                 }`}
               >
-                {isCollecting(item.word) ? (
+                {isCollecting(item.word) || isQueued(item.word) ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                 ) : isCollected(item.word) ? (
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 ) : null}
-                {isCollecting(item.word) ? '收录并补齐矩阵中...' : isCollected(item.word) ? '已收录' : '收录生词本'}
+                {isCollecting(item.word)
+                  ? '收录中'
+                  : isQueued(item.word)
+                    ? '后台处理中'
+                    : isCollected(item.word)
+                      ? '已收录'
+                      : '收录生词本'}
               </button>
             </div>
           ))}

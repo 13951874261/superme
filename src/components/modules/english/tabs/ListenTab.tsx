@@ -14,6 +14,7 @@ import { submitReview, addWord } from '../../../../services/vocabAPI';
 import { useTask } from '../../../../components/TaskContext';
 import { ListenVoicePicker } from './ListenVoicePicker';
 import { fetchListenPrefs, saveListenPrefs } from '../../../../services/listenPrefsAPI';
+import { notifyBackgroundHandoff } from '../../../../utils/backgroundHandoff';
 
 const CACHEABLE_DURATIONS = [1, 15, 25, 35];
 
@@ -152,7 +153,10 @@ export default function ListenTab() {
     }
   }, [theme, listenGenre, listenCefr, listenDuration]);
 
-  const submitBackfill = async (only: 'both' | 'audio' = 'both') => {
+  const submitBackfill = async (
+    only: 'both' | 'audio' = 'both',
+    anchor?: HTMLElement | null
+  ) => {
     if (!theme || isBackfillSubmitting) return;
     setIsBackfillSubmitting(true);
     try {
@@ -171,14 +175,14 @@ export default function ListenTab() {
         progress: 0,
         logs: ['[听力生成] 已提交后台生成队列...'],
       });
-      showNotice('listen', '听力训练材料正在后台加速生成中，您可以继续进行其他练习，稍后前往【任务中心】查看。', 'info');
-      try {
-        const { showToast } = await import('../../../Toast');
-        showToast({
-          message: '听力训练材料正在后台加速生成中，您可以继续进行其他练习，稍后前往【任务中心】查看',
-          type: 'success',
-        });
-      } catch (err) {}
+      const handoffMsg =
+        '听力训练材料正在后台加速生成中，您可以继续进行其他练习，稍后前往【任务中心】查看';
+      notifyBackgroundHandoff({
+        anchor: anchor || null,
+        message: handoffMsg,
+        tone: 'info',
+      });
+      showNotice('listen', handoffMsg, 'info');
     } catch (e) {
       const msg = e instanceof Error ? e.message : '提交后台生成失败';
       showNotice('listen', msg, 'error');
@@ -717,7 +721,7 @@ export default function ListenTab() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => void submitBackfill('both')}
+                    onClick={(e) => void submitBackfill('both', e.currentTarget)}
                     disabled={isBackfillSubmitting}
                     className="shrink-0 bg-[#FF5722] hover:bg-[#E64A19] text-white text-[10px] font-black px-4 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
                   >
@@ -732,7 +736,7 @@ export default function ListenTab() {
                   </p>
                   <button
                     type="button"
-                    onClick={() => void submitBackfill('audio')}
+                    onClick={(e) => void submitBackfill('audio', e.currentTarget)}
                     disabled={isBackfillSubmitting}
                     className="shrink-0 bg-[#FF5722] hover:bg-[#E64A19] text-white text-[10px] font-black px-4 py-2 rounded-xl disabled:opacity-50 cursor-pointer"
                   >

@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertTriangle, Loader2, Trash2, Plus } from 'lucide-react';
 import { GhostButton } from '../ui/Button/GhostButton';
 import { useTask } from '../../../../TaskContext';
+import { notifyBackgroundHandoff } from '../../../../../utils/backgroundHandoff';
 import {
   deleteCustomTheme,
   deleteCustomThemeAsync,
@@ -65,9 +66,10 @@ export function ThemeGateway({
 }: ThemeGatewayProps) {
   const { addTask, startPolling } = useTask();
 
-  const handleDeleteCustomTheme = async () => {
+  const handleDeleteCustomTheme = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     if (!currentCustomTheme) return;
     if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步清理该场景下的学习资料与练习记录。`)) return;
+    const handoffAnchor = (e?.currentTarget as HTMLElement) || null;
 
     const snapshot = currentCustomTheme;
     const options = getThemeOptions(stage as 'business' | 'all');
@@ -101,11 +103,9 @@ export function ThemeGateway({
           logs: ['清理时间较长，已转入后台继续处理该场景的相关学习资料…'],
         });
         startPolling(queued.taskId);
-        showNotice(
-          'dashboard',
-          '场景清理已转入后台，稍后可在【任务中心】查看进度',
-          'info'
-        );
+        const handoffMsg = '场景清理已转入后台，稍后可在【任务中心】查看进度';
+        notifyBackgroundHandoff({ anchor: handoffAnchor, message: handoffMsg, tone: 'info' });
+        showNotice('dashboard', handoffMsg, 'info');
         return;
       }
 
@@ -200,7 +200,7 @@ export function ThemeGateway({
         {currentCustomTheme && (
           <button
             disabled={isDeletingTheme}
-            onClick={handleDeleteCustomTheme}
+            onClick={(e) => void handleDeleteCustomTheme(e)}
             className="text-red-500 hover:text-red-700 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             title="删除当前自定义场景"
           >

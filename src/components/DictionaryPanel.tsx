@@ -5,7 +5,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 
 gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
-import { addWord, queryDictionary } from '../services/vocabAPI';
+import { queryDictionary } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
@@ -13,6 +13,9 @@ import {
   UtilityEnEnBusinessView,
   UtilityEnZhBidirectionalView,
 } from './DictionaryUtilityViews';
+import { useVocabCollect } from '../hooks/useVocabCollect';
+import { VOCAB_COLLECT_LABEL } from '../utils/backgroundHandoff';
+import { showToast } from './Toast';
 
 type DictType = 'zh_modern' | 'en_en_business' | 'en_zh_bidirectional';
 
@@ -795,7 +798,16 @@ export default function DictionaryPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<DictResult | null>(null);
   const [activeTab, setActiveTab] = useState('');
-  const [saveStatus, setSaveStatus] = useState<'idle'|'saving'|'saved'|'exists'|'error'>('idle');
+  const [saveError, setSaveError] = useState(false);
+  const [markedSaved, setMarkedSaved] = useState(false);
+  const { collect, isCollecting, isQueued, isCollected } = useVocabCollect({
+    notify: (message, type) => showToast({ message, type }),
+  });
+
+  const wordKey = query.trim();
+  const collecting = wordKey ? isCollecting(wordKey) : false;
+  const queued = wordKey ? isQueued(wordKey) : false;
+  const collected = markedSaved || (wordKey ? isCollected(wordKey) : false);
 
   useEffect(() => {
     const handleView = (e: any) => {
@@ -807,7 +819,8 @@ export default function DictionaryPanel() {
         const keys = Object.keys(entry.payload);
         if (keys.length > 0) setActiveTab(keys[0]);
       }
-      setSaveStatus('saved');
+      setSaveError(false);
+      setMarkedSaved(true);
     };
     window.addEventListener('vocab-view', handleView);
     return () => window.removeEventListener('vocab-view', handleView);
@@ -820,11 +833,13 @@ export default function DictionaryPanel() {
     } else {
       setOpenDict(type); setResult(null); setQuery(''); setActiveTab('');
     }
+    setSaveError(false);
+    setMarkedSaved(false);
   };
 
   const handleSearch = async (type: DictType) => {
     if (!query.trim()) return;
-    setIsLoading(true); setResult(null); setActiveTab('');
+    setIsLoading(true); setResult(null); setActiveTab(''); setSaveError(false); setMarkedSaved(false);
     try {
       const parsed = await queryDictionary({ word: query.trim(), dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '', userId: 'frontend-panel' });
       setResult(parsed);
@@ -837,15 +852,21 @@ export default function DictionaryPanel() {
     }
   };
 
-  const handleSave = async (type: DictType) => {
+  const handleSave = async (type: DictType, anchor?: HTMLElement | null) => {
     if (!result?.payload || !query.trim()) return;
-    setSaveStatus('saving');
-    try {
-      const res = await addWord({ word: query.trim(), dictType: type, payload: result.payload });
-      setSaveStatus(res.success ? 'saved' : 'exists');
-      if (res.success) window.dispatchEvent(new CustomEvent('vocab-updated'));
-    } catch { setSaveStatus('error'); }
-    setTimeout(() => setSaveStatus('idle'), 3000);
+    setSaveError(false);
+    const text = query.trim();
+    const outcome = await collect({
+      text,
+      dictType: type,
+      isPhrase: /\s/.test(text),
+      source: 'Dictionary Panel',
+      topic: '词典收录',
+      payload: result.payload as Record<string, any>,
+      anchor,
+    });
+    if (outcome === 'failed') setSaveError(true);
+    if (outcome === 'collected') setMarkedSaved(true);
   };
 
   return (
@@ -922,24 +943,45 @@ export default function DictionaryPanel() {
                        </div>
                       }
 
-                      {/* 收录操作 */}
+                      {/* 收录操作：与全站收录同 FSM（收录中 → 后台处理中 → 已收录） */}
                       <div className="flex justify-end pt-3 border-t border-stone-100">
                         <button
-                          title={saveStatus === 'saved' ? '已收录' : saveStatus === 'exists' ? '已存在' : '收录'}
-                          disabled={saveStatus === 'saving'}
-                          onClick={(e) => { e.stopPropagation(); handleSave(type); }}
-                          className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold ${
-                            saveStatus === 'saved' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
-                            saveStatus === 'exists' ? 'bg-amber-50 text-amber-600 border border-amber-100' : 
-                            saveStatus === 'error' ? 'bg-red-50 text-red-500 border border-red-100' : 
-                            'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white border border-[#FF5722]/25 hover:border-[#FF5722]'
+                          type="button"
+                          title={
+                            collected
+                              ? VOCAB_COLLECT_LABEL.done
+                              : queued
+                                ? VOCAB_COLLECT_LABEL.queued
+                                : collecting
+                                  ? VOCAB_COLLECT_LABEL.collecting
+                                  : '收录入生词本并补齐词汇矩阵'
+                          }
+                          disabled={collecting || queued || collected}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleSave(type, e.currentTarget);
+                          }}
+                          className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold disabled:cursor-default ${
+                            collected
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                              : saveError
+                                ? 'bg-red-50 text-red-500 border border-red-100'
+                                : queued
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                  : collecting
+                                    ? 'bg-orange-50 text-[#FF5722] border border-orange-100'
+                                    : 'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white border border-[#FF5722]/25 hover:border-[#FF5722]'
                           }`}
                         >
-                          {saveStatus === 'saved' ? <><CheckCircle2 className="w-3.5 h-3.5" />已收录</> :
-                           saveStatus === 'exists' ? <><CheckCircle2 className="w-3.5 h-3.5" />已存在</> :
-                           saveStatus === 'saving' ? <>保存中...</> :
-                           saveStatus === 'error' ? <>失败</> :
-                           <><BookmarkPlus className="w-3.5 h-3.5" />收录至生词本</>}
+                          {collected ? (
+                            <><CheckCircle2 className="w-3.5 h-3.5" />{VOCAB_COLLECT_LABEL.done}</>
+                          ) : saveError ? (
+                            <>失败</>
+                          ) : collecting || queued ? (
+                            <><Loader2 className="w-3.5 h-3.5 animate-spin" />{collecting ? VOCAB_COLLECT_LABEL.collecting : VOCAB_COLLECT_LABEL.queued}</>
+                          ) : (
+                            <><BookmarkPlus className="w-3.5 h-3.5" />收录至生词本</>
+                          )}
                         </button>
                       </div>
                     </div>

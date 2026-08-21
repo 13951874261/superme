@@ -11,6 +11,7 @@ import {
 } from '../../../services/difyAPI';
 import { getAppUserId } from '../../../utils/profileHelper';
 import { useTask } from '../../TaskContext';
+import { notifyBackgroundHandoff } from '../../../utils/backgroundHandoff';
 
 interface TacticsPanelProps {
   selectedTactics: string[];
@@ -83,10 +84,10 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       });
       startPolling(taskId);
       playPageTurn();
-      try {
-        const { showToast } = await import('../../Toast');
-        showToast({ message: '已加入任务中心：驭人术资料提炼', type: 'success' });
-      } catch {}
+      notifyBackgroundHandoff({
+        message: '已加入任务中心：驭人术资料提炼',
+        tone: 'success',
+      });
       setTimeout(() => {
         setShowUploadModal(false);
         setUploadFile(null);
@@ -120,10 +121,10 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
         logs: ['导出任务已创建'],
       });
       startPolling(taskId);
-      try {
-        const { showToast } = await import('../../Toast');
-        showToast({ message: '导出已加入任务中心', type: 'success' });
-      } catch {}
+      notifyBackgroundHandoff({
+        message: '导出已加入任务中心',
+        tone: 'success',
+      });
     } catch (err) {
       playGentleWarning();
       try {

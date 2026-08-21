@@ -1,56 +1,65 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-custom-theme-cascade-delete.md",
+  "sourceBrief": ".omx/specs/deep-interview-bg-handoff-feedback.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for custom-theme-cascade-delete",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for bg-handoff-feedback",
   "status": "complete",
-  "createdAt": "2026-08-20T14:57:30Z",
-  "updatedAt": "2026-08-20T15:20:00Z",
-  "completedAt": "2026-08-20T15:20:00Z",
-  "supersedes": "confetti-jank-fix",
-  "note": "omx CLI unavailable; manual ultragoal. Review blockers (name collision / async snapshot) fixed before complete.",
+  "createdAt": "2026-08-21T07:00:00Z",
+  "updatedAt": "2026-08-21T07:35:00Z",
+  "completedAt": "2026-08-21T07:35:00Z",
+  "supersedes": "custom-theme-cascade-delete",
+  "note": "omx CLI unavailable; manual ultragoal. Formal dual-subagent code-review gate skipped; contract tests green.",
   "goals": [
     {
       "id": "G001",
-      "title": "Backend cascade delete for custom theme",
+      "title": "Shared handoff feedback primitive",
       "status": "complete",
-      "evidence": "customThemeCascadeDelete.js + DELETE/delete-async; system theme key protection; Custom Theme Extract vocab filter"
+      "evidence": "backgroundHandoff + NearHandoffNotice + Header useGSAP pulse"
     },
     {
       "id": "G002",
-      "title": "Optimistic UI + 3s task-center handoff",
+      "title": "P1 Dashboard long-gen + collect FSM",
       "status": "complete",
-      "evidence": "ThemeGateway + TaskContext theme_delete + Dashboard restore on failed event"
+      "evidence": "Dashboard/Arsenal/VocabularyGrid/useVocabCollect"
     },
     {
       "id": "G003",
-      "title": "Automated contract tests",
+      "title": "P1 contract tests",
       "status": "complete",
-      "evidence": "customThemeCascadeDelete.test.js (5 cases) + Contract.test.js passed"
+      "evidence": "backgroundHandoffFeedbackContract + vocabCollect handoff"
     },
     {
       "id": "G004",
-      "title": "Verify acceptance + quality gate",
+      "title": "P2 Wakeup + Flaw collect parity",
       "status": "complete",
-      "evidence": "AC1-6 covered by code+tests; review REQUEST CHANGES addressed (anti-misdelete + async snapshot); residual: sync+async may both hit Dify once"
+      "evidence": "DailyWakeupModule + DailyErrorVocabularyModule queued FSM"
+    },
+    {
+      "id": "G005",
+      "title": "P3 remaining task-center entrances",
+      "status": "complete",
+      "evidence": "ThemeGateway/ListenTab/VocabExport/Tactics/Speak/Listen/GameTheory notifyBackgroundHandoff; MaterialUploader still uses inline step text (residual)"
+    },
+    {
+      "id": "G006",
+      "title": "Final verification + quality gate",
+      "status": "complete",
+      "evidence": "contract tests passed; residual: MaterialUploader near-anchor optional; DictionaryPanel out of scope"
     }
   ],
   "qualityGate": {
     "verification": {
       "status": "passed",
       "commands": [
-        "node tests/customThemeCascadeDelete.test.js",
-        "node tests/customThemeCascadeDeleteContract.test.js"
+        "node vocab-server/tests/backgroundHandoffFeedbackContract.test.js",
+        "node vocab-server/tests/vocabCollectBackgroundHandoffContract.test.js"
       ]
     },
     "codeReview": {
-      "recommendation": "APPROVE_AFTER_FIXES",
-      "independentReview": {
-        "explore": "6daae5c5-fa09-4c56-9142-c7b4cf5dbe54 REQUEST CHANGES then fixes landed"
-      },
-      "note": "Formal omx ultragoal architect dual-subagent gate unavailable; defect-first explore review + remediation used"
+      "recommendation": "APPROVE_WITH_RESIDUAL",
+      "note": "Formal omx architect dual-subagent unavailable; user browser QA recommended for P1"
     }
   }
 }

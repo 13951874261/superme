@@ -16,6 +16,7 @@ import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
 import GlobalSettingsPanel from './components/GlobalSettingsPanel';
 import { ToastProvider } from './components/Toast';
+import { NearHandoffHost } from './components/NearHandoffNotice';
 import BiweeklyReviewModal from './components/modules/BiweeklyReviewModal';
 import { useBiweeklyReviewTrigger } from './hooks/useBiweeklyReviewTrigger';
 import {
@@ -271,6 +272,7 @@ function AppContent() {
   return (
     <div className={`text-gray-900 h-screen overflow-hidden flex font-sans selection:bg-[#FF5722]/20 selection:text-[#FF5722] relative w-full transition-colors duration-300 ${bgEnabled ? 'bg-transparent' : 'bg-[#F8F9FA]'}`}>
       <ToastProvider />
+      <NearHandoffHost />
       
       {/* 词汇债务横幅 */}
       <AnimatePresence>

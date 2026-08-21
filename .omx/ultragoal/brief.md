@@ -1,33 +1,39 @@
-# Ultragoal Brief — custom-theme-cascade-delete
+# Ultragoal Brief — bg-handoff-feedback
 
 ## Source
 
-- Spec: `.omx/specs/deep-interview-custom-theme-cascade-delete.md`
-- Transcript: `.omx/interviews/custom-theme-cascade-delete-20260820T145600Z.md`
-- Context: `.omx/context/custom-theme-cascade-delete-20260820T144300Z.md`
+- Spec: `.omx/specs/deep-interview-bg-handoff-feedback.md`
+- Transcript: `.omx/interviews/bg-handoff-feedback-20260821T065803Z.md`
+- Context: `.omx/context/bg-handoff-feedback-20260821T063808Z.md`
 
 ## Objective
 
-完善自定义场景主题删除：确认后乐观移除下拉项；级联清理词库词/短语、长文 generation、练习尝试、Dify 文档；超过 3 秒转入【任务中心】；业务语言进度/失败提示；失败可恢复主题选项。附带 API 级联与 3 秒超时进任务中心的自动化契约测试。
+统一「提交任务中心 / 约 3 秒转后台」的前端反馈：就近提示 + 全局 Toast + 任务中心脉冲三者硬性；收录按钮态 `收录` → `收录中` →（≥3s）`后台处理中` →（矩阵齐备）`已收录`。终态覆盖凡进任务中心的异步入口；交付分三批（长文页 → 唤醒/破绽 → 其余）。用已有 GSAP 克制强化可见性；不改后端契约。
 
 ## Constraints / Non-goals
 
-- 不删除系统预置主题
-- 不大改 UI（保留下拉 + 垃圾桶 + 现有任务中心）
-- 不做永久回收站（失败恢复除外）
-- 不误删其他主题绑定数据
-- 文案用业务语言，避免暴露表名/API/Dify 技术细节
-- 匹配策略、任务文案、复用 3s→任务中心骨架、Dify 失败仍清本地 — 执行方可自定（Decision Boundaries）
+- 不改后端 3s 阈值 / 任务队列契约
+- 不改 GlobalTaskCenter IA / 删除
+- 不迁 DictionaryPanel → useVocabCollect
+- 不新增大动画库；仅用已有 gsap；150–250ms、无 glow
+- 本轮不刷新根 DESIGN.md
+
+## Decision Boundaries（执行方可自定）
+
+- Toast 文案/时长/连续点击节流
+- GSAP 缓动细节
+- 共享组件命名与落点
+- P1 测试用例写法（事后核对）
+- 完成后翻「已收录」复用 vocab-updated / 任务轮询
 
 ## Success shape
 
-1. 删除确认后自定义主题立刻从下拉消失并切回系统主题
-2. 任务成功后按该场景查不到级联目标数据；Dify 尽力删除
-3. 超过 3 秒出现任务中心任务 + 业务语言提示，页面不长时间阻塞
-4. 失败：业务提示 + 可恢复主题选项
-5. 系统预置不可删；跨主题数据不被误伤
-6. API 级联契约测试 + 前端 3 秒超时进任务中心契约测试通过
+1. P1：长文生成 ≥3s → 就近 + Toast + 任务中心脉冲；按钮有进行中/后台态
+2. P1：词表收录立即「收录中」；≥3s「后台处理中」+ 双通道；矩阵齐备「已收录」
+3. P2：唤醒/破绽同模式
+4. P3：其余任务中心入口同展示逻辑（文案按动作适配）
+5. 合约/回归测试覆盖 P1 关键路径；词典收录路径不变
 
 ## Stories
 
-G001–G004 见 `.omx/ultragoal/goals.json`。
+见 `.omx/ultragoal/goals.json`（G001–G006）。

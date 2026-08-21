@@ -50,6 +50,7 @@ import {
 } from '../../utils/mindMapExport';
 import { downloadInsightDocx } from '../../utils/insightWordExport';
 import { useTask } from '../TaskContext';
+import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import type { ScriptWorkshopDraft } from './GameTheory/ScriptWorkshopTypes';
 import { PRESET_BENCHMARK_SCRIPTS } from './GameTheory/scriptEvaluator';
 import {
@@ -649,11 +650,11 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
         logs: knowledgeTaskLogs(knowledgeReminder),
       });
       setPendingInsightTaskId(taskId);
-      setSubmitNotice(
-        knowledgeReminder
-          ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度。`
-          : '已提交后台。请到任务中心查看进度。'
-      );
+      const listenHandoff = knowledgeReminder
+        ? `已提交后台。${knowledgeReminder}。请到任务中心查看进度。`
+        : '已提交后台。请到任务中心查看进度。';
+      setSubmitNotice(listenHandoff);
+      notifyBackgroundHandoff({ message: listenHandoff, tone: 'info' });
     } catch (error) {
       console.error(error);
       setFeedback(`### 解析失败\n与导师系统连接中断，请检查网络。\n\n**详情**: ${error instanceof Error ? error.message : '未知错误'}`);

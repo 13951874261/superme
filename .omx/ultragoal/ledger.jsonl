@@ -12,3 +12,13 @@
 {"ts":"2026-08-20T15:10:00Z","event":"checkpoint","goalId":"G004","status":"in_progress","evidence":"AC verification in progress"}
 {"ts":"2026-08-20T15:20:00Z","event":"checkpoint","goalId":"G004","status":"complete","evidence":"anti-misdelete+async snapshot fixes; both test suites green; aggregate complete"}
 {"ts":"2026-08-20T15:20:00Z","event":"aggregate_complete","slug":"custom-theme-cascade-delete","status":"complete"}
+{"ts":"2026-08-21T07:00:00Z","event":"create_goals","slug":"bg-handoff-feedback","source":".omx/specs/deep-interview-bg-handoff-feedback.md","goals":["G001","G002","G003","G004","G005","G006"],"supersedes":"custom-theme-cascade-delete","note":"manual create-goals; omx CLI unavailable; user selected ultragoal option 1"}
+{"ts":"2026-08-21T07:20:00Z","event":"checkpoint","goalId":"G001","status":"complete","evidence":"shared handoff primitive + Header GSAP pulse"}
+{"ts":"2026-08-21T07:20:00Z","event":"checkpoint","goalId":"G002","status":"complete","evidence":"P1 dashboard long-gen + collect FSM"}
+{"ts":"2026-08-21T07:20:00Z","event":"checkpoint","goalId":"G003","status":"complete","evidence":"contract tests green"}
+{"ts":"2026-08-21T07:35:00Z","event":"checkpoint","goalId":"G004","status":"complete","evidence":"wakeup+flaw collect FSM"}
+{"ts":"2026-08-21T07:35:00Z","event":"checkpoint","goalId":"G005","status":"complete","evidence":"P3 task-center entrances notifyBackgroundHandoff"}
+{"ts":"2026-08-21T07:35:00Z","event":"checkpoint","goalId":"G006","status":"complete","evidence":"contract tests green; aggregate complete"}
+{"ts":"2026-08-21T07:35:00Z","event":"aggregate_complete","slug":"bg-handoff-feedback","status":"complete"}
+{"ts":"2026-08-21T07:45:00Z","event":"steer","kind":"scope_expand","title":"DictionaryPanel collect parity","evidence":"user override Non-goal C; useVocabCollect + FSM + handoff","status":"complete"}
+{"ts":"2026-08-21T07:50:00Z","event":"user_accept","scope":"dictionary-panel-collect-parity","status":"confirmed","note":"user confirmed DictionaryPanel handoff FSM"}

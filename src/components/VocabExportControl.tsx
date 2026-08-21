@@ -6,6 +6,7 @@ import {
   type VocabTabCategory,
 } from '../utils/vocabCsvExport';
 import { useTask } from './TaskContext';
+import { notifyBackgroundHandoff } from '../utils/backgroundHandoff';
 
 interface VocabExportControlProps {
   currentTab: VocabTabCategory;
@@ -54,7 +55,7 @@ export default function VocabExportControl({
     return () => document.removeEventListener('mousedown', onDoc);
   }, [open]);
 
-  const runExport = async (scope: VocabExportScope) => {
+  const runExport = async (scope: VocabExportScope, anchor?: HTMLElement | null) => {
     if (busy) return;
     setBusy(true);
     setOpen(false);
@@ -82,11 +83,11 @@ export default function VocabExportControl({
         logs: ['[系统] 后台导出任务已提交...'],
       });
 
-      // 提示
-      try {
-        const { showToast } = await import('./Toast');
-        showToast({ message: '导出任务已在后台执行，请前往【后台任务】查看进度并下载文件', type: 'success' });
-      } catch (e) {}
+      notifyBackgroundHandoff({
+        anchor: anchor || null,
+        message: '导出任务已在后台执行，请前往【任务中心】查看进度并下载文件',
+        tone: 'success',
+      });
 
       onExported?.(0, scope);
     } catch (e: any) {
@@ -107,7 +108,7 @@ export default function VocabExportControl({
         disabled={busy}
         onClick={(e) => {
           e.stopPropagation();
-          void runExport('all');
+          void runExport('all', e.currentTarget);
         }}
         title="导出全部词条为 CSV（Excel）"
         className={

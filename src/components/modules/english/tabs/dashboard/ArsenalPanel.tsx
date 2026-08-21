@@ -11,7 +11,9 @@ export interface ArsenalPanelProps {
   duration?: '1' | '15' | '25' | '35';
   setDuration?: (val: '1' | '15' | '25' | '35') => void;
   isAutoGenerating: boolean;
-  handleAutoGenerate: () => void;
+  /** 已转入任务中心后台生成 */
+  isBackgroundGenerating?: boolean;
+  handleAutoGenerate: (e?: React.MouseEvent<HTMLButtonElement>) => void;
   isClearingAndReGenerating: boolean;
   handleClearTodayAndReGenerate: () => void;
   showClearConfirm: boolean;
@@ -35,6 +37,7 @@ export function ArsenalPanel({
   duration = '15',
   setDuration,
   isAutoGenerating,
+  isBackgroundGenerating = false,
   handleAutoGenerate,
   isClearingAndReGenerating,
   handleClearTodayAndReGenerate,
@@ -98,11 +101,13 @@ export function ArsenalPanel({
           </select>
 
           <button
-            onClick={handleAutoGenerate}
-            disabled={isAutoGenerating || isClearingAndReGenerating}
+            onClick={(e) => handleAutoGenerate(e)}
+            disabled={(isAutoGenerating || isBackgroundGenerating) || isClearingAndReGenerating}
             className="flex items-center justify-center bg-[var(--color-brand)] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-brand-dark)] transition-colors disabled:opacity-50 cursor-pointer shadow-sm btn-press px-3 py-1.5"
           >
-            {isAutoGenerating ? (
+            {isBackgroundGenerating ? (
+              <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 后台处理中</>
+            ) : isAutoGenerating ? (
               <><Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 正在查询/生成今日内容...</>
             ) : (
               <><Zap className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> 查询/生成今日长文</>
@@ -112,7 +117,7 @@ export function ArsenalPanel({
           <div className="relative inline-block">
             <button
               onClick={() => setShowClearConfirm(!showClearConfirm)}
-              disabled={isAutoGenerating || isClearingAndReGenerating}
+              disabled={(isAutoGenerating || isBackgroundGenerating) || isClearingAndReGenerating}
               className="flex items-center bg-slate-100 text-slate-700 hover:bg-red-50 hover:text-red-600 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors border border-slate-200 disabled:opacity-50 cursor-pointer btn-press px-2.5 py-1.5"
               title="清空今日配额与生词，并删除当前题材/难度/时长下的长文与音频后重新生成"
             >
