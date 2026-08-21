@@ -408,7 +408,8 @@ export default function GameTheoryModule() {
     } catch (err: any) {
       setSimAnimateBorder(false);
       playGentleWarning();
-      setSimSubmitError(err.message || '对决推演失败，请稍后再试');
+      console.error('对决失败:', err);
+      setSimSubmitError('对决失败，请稍后再试');
     } finally {
       setSimLoading(false);
     }
@@ -771,7 +772,8 @@ export default function GameTheoryModule() {
     } catch (err: any) {
       setAnimateBorder(false);
       playGentleWarning();
-      setSubmitError(err.message || '推演引擎出现异常，请稍后再试');
+      console.error('推演失败:', err);
+      setSubmitError('推演失败，请稍后再试');
     } finally {
       setIsLoading(false);
     }

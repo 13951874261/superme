@@ -112,7 +112,7 @@ export default function EbbinghausChart({ data }: EbbinghausChartProps) {
       <div className="flex items-center justify-between mb-3">
         <div className="text-xs font-black text-slate-700 tracking-wider flex items-center gap-1.5 uppercase">
           <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-          Ebbinghaus 艾宾浩斯记忆追踪
+          记忆留存追踪
         </div>
         <div className="flex items-center gap-3 text-[10px] font-bold">
           <div className="flex items-center gap-1">

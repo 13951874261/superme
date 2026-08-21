@@ -188,7 +188,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-[#FF5722]" />
             <span className="font-black text-[#202124] text-sm">
-              艾宾浩斯复习
+              记忆复习
             </span>
             {!isFinished && !isLoading && (
               <span className="text-[11px] text-gray-400 ml-2">

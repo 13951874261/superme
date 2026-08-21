@@ -21,7 +21,7 @@ const GameTheoryModule = React.lazy(() => import('./modules/GameTheoryModule'));
 
 // 静态常量抽离至组件外部，杜绝每次 render 重新分配内存
 const TABS = [
-  { id: 'english', label: '英语引擎', icon: <Globe className="w-4 h-4" /> },
+  { id: 'english', label: '英语学习', icon: <Globe className="w-4 h-4" /> },
   { id: 'listen', label: '洞察(听)', icon: <Headphones className="w-4 h-4" /> },
   { id: 'speak', label: '破局(说)', icon: <Mic className="w-4 h-4" /> },
   { id: 'read', label: '穿透(读)', icon: <BookOpen className="w-4 h-4" /> },

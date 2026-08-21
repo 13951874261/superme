@@ -63,7 +63,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
       src={iframeSrc}
       className="w-full h-full border-none"
       allow="microphone; fullscreen"
-      title="Dify 全局 AI 助手"
+      title="全局 AI 助手"
     />
   );
 }

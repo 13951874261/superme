@@ -139,7 +139,7 @@ export function ThemeGateway({
   return (
     <div className="flex flex-col gap-1.5">
       <label htmlFor="theme-gateway-select" className="text-[10px] uppercase tracking-widest font-black text-gray-400">
-        当前闭环主题
+        当前练习主题
       </label>
 
       {themeSwitchError && (

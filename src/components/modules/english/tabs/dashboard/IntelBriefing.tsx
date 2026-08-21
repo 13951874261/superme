@@ -111,7 +111,7 @@ export function IntelBriefing({
         <div>
           <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-brand)] mb-1 flex items-center">
             <FileText aria-hidden="true" className="w-5 h-5 mr-2" />
-            今日情报截获 // Immersive Intel Briefing
+            今日学习材料
           </h4>
           <p className="text-xs text-gray-400 font-medium">
             基于主阵地主题【{theme}】生成的高阶商业实战材料，支持 {currentVoiceName} 语音收听与沉浸式阅读。
@@ -270,7 +270,7 @@ export function IntelBriefing({
                   </li>
                   <li className="flex items-start gap-2 text-[11px] text-slate-700">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--color-brand)] mt-1.5 shrink-0"></span>
-                    <span><strong>艾宾浩斯智能复习</strong>：成功提取的生词将一键加入您的长期记忆复习曲线。</span>
+                    <span><strong>智能复习</strong>：整理出的生词可一键加入长期复习计划。</span>
                   </li>
                 </ul>
               </div>

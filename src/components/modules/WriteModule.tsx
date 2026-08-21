@@ -8,7 +8,7 @@ export default function WriteModule() {
     <ModuleWrapper 
       title="立言 ｜ 决策文治与价值提炼" 
       icon={<PenTool className="w-8 h-8" strokeWidth={2.5} />}
-      description="打破行政局限，实现三级纵深批改与商业价值转化引擎。"
+      description="打破行政局限，实现三级批改与商业表达提升。"
     >
       <WriteTab />
     </ModuleWrapper>

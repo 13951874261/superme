@@ -354,7 +354,7 @@ function VocabularyBookComponent() {
             </div>
             <div>
               <div className="font-bold text-[#202124] text-sm flex items-center gap-2">
-                艾宾浩斯生词本
+                生词本
                 {error && (
                   <span title={error}><AlertCircle className="w-3.5 h-3.5 text-red-400" /></span>
                 )}

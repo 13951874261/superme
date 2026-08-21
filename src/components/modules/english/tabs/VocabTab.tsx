@@ -387,7 +387,7 @@ export default function VocabTab() {
           ) : (
             <span>
               <span className="font-black text-gray-600 mr-1">🌐 全场景区：</span>
-              收录由「精听盲听 → 划线入库」、口语沙盘截获黑话等日常场景中手动标记的词汇（社交/应急/文化破冰通用）。数据来源：精听划线 + 口语截获 → 生词本 API（/api/vocab）。
+              收录精听划线、口语练习中手动标记的词汇（社交/应急/文化破冰通用）。
             </span>
           )}
           <span className="ml-2 text-gray-500">｜ 存量提取词已统一归入政商务区。</span>
@@ -552,7 +552,7 @@ export default function VocabTab() {
                         {/* 记忆留存率进度条 */}
                         <div>
                           <div className="flex justify-between text-[11px] font-bold mb-1.5 text-slate-300">
-                            <span>艾宾浩斯记忆留存率</span>
+                            <span>记忆留存率</span>
                             <span className="text-emerald-400 font-mono">
                               {Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%
                             </span>
