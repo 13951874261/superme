@@ -6,10 +6,11 @@
 # 改造: +history_exclude, +user_flaws 输入；Prompt 避重+强化
 # 2026-08-21: 三个 LLM 节点 reasoning_format=separated，思考链不进入 text/长文
 # 2026-08-21: 开始节点增加 duration；大纲/扩写按 1/15/25/35 分钟、约 140 wpm 规划段落
+# 2026-08-21: 成稿约束=必须达标时长；有画像则必须贴画像；画像允许为空（不卡字段非空）
 # ─────────────────────────────────────────────────────────────
 app:
-  description: 增强版每日生成长文与提纯 (含 history_exclude + user_flaws)；按 duration
-    1/15/25/35 分钟约 140wpm 规划篇幅
+  description: 增强版每日生成长文与提纯；按 duration 强制达标时长，有画像则贴合画像，
+    画像允许为空
   icon: 🤖
   icon_background: '#FFEAD5'
   icon_type: emoji
@@ -229,7 +230,7 @@ workflow:
           type: select
           variable: duration
         - default: ''
-          hint: 仅用于生成长文，不参与落库/查询条件
+          hint: 生成时若有则必须贴合；允许为空；不参与落库/查询条件
           label: 用户画像
           max_length: 65535
           options: []
@@ -372,33 +373,39 @@ workflow:
             </generated_history>
 
 
-            【CRITICAL RULE 2: CAPACITY CONSTRAINTS BASED ON DURATION】
+            【CRITICAL RULE 2: OUTPUT MUST MEET DURATION (HARD)】
 
             Target Duration (minutes): {{#1780382595776.duration#}}
 
+            The FINAL article (all segments combined) MUST be long enough for this
+            spoken duration at ~140 English words/minute. Short output is a FAILURE.
+
             Plan segment COUNT by duration ONLY (do not use genre to decide how many
-            segments). Assume ~140 English words per spoken minute.
+            segments).
 
             - If duration is ''1'' or ''1m'': Output EXACTLY 1 segment outline for a
-            100-150 word brief (~1 minute).
+            100-150 word brief (~1 minute). Combined target 100-150 words.
 
             - If duration is ''15'': Output EXACTLY 3 segment outlines. Combined target
-            1950-2400 words (~15 minutes).
+            1950-2400 words (~15 minutes). Do NOT under-plan.
 
             - If duration is ''25'': Output EXACTLY 5 chapter outlines. Combined target
-            3250-4000 words (~25 minutes).
+            3250-4000 words (~25 minutes). Do NOT under-plan.
 
             - If duration is ''35'': Output EXACTLY 7 independent segment outlines.
-            Combined target 4550-5600 words (~35 minutes).
+            Combined target 4550-5600 words (~35 minutes). Do NOT under-plan.
 
 
-            【CRITICAL RULE 3: LEARNER PROFILE】
+            【CRITICAL RULE 3: PROFILE RELEVANCE (WHEN PRESENT)】
 
-            User profile (may be empty): {{#1780382595776.user_current_profile#}}
+            User profile (MAY be empty): {{#1780382595776.user_current_profile#}}
 
-            If the profile is non-empty, ground the scenario in this learner''s industry,
-            role, country, and pain points. Do NOT paste the profile text into the
-            outline. Keep the theme title unchanged.
+            - If the profile is NON-EMPTY: the outline MUST clearly reflect this
+            learner''s industry, role, country/region, and pain points. Generic
+            scenarios unrelated to the profile are a FAILURE. Do NOT paste the
+            profile text verbatim. Keep the theme title unchanged.
+            - If the profile is EMPTY: write a high-quality generic scenario for the
+            theme/genre only. Do NOT invent a fake personal profile.
 
 
             【OUTPUT FORMAT】
@@ -534,11 +541,14 @@ workflow:
 
             - Target Duration (minutes): {{#1780382595776.duration#}}
 
-            - Learner Profile: {{#1780382595776.user_current_profile#}}
+            - Learner Profile (MAY be empty): {{#1780382595776.user_current_profile#}}
 
-            If the profile is non-empty, write this segment as if it happened in this
-            learner''s real work context. Do NOT paste the profile text. Do NOT change
-            the assigned theme.
+            PROFILE RULE (HARD when present):
+            - If profile is NON-EMPTY: this segment MUST be grounded in that learner''s
+            real work context (industry/role/region/pain points). Unrelated generic
+            filler is a FAILURE. Do NOT paste the profile text. Do NOT change the theme.
+            - If profile is EMPTY: write high-quality generic content for the theme/genre.
+            Do NOT invent a personal backstory.
 
 
             【WRITING SPECIFICATIONS (STRICTLY IN ENGLISH)】
@@ -557,21 +567,22 @@ workflow:
 
             【CRITICAL RULES】
 
-            1. LENGTH (~140 wpm): You are writing ONE segment. Match Target Duration.
+            1. LENGTH HARD CONSTRAINT (~140 wpm): You are writing ONE segment. The
+            combined article MUST meet Target Duration. Under-length is a FAILURE.
 
             - If duration is ''1'' or ''1m'': this is the ENTIRE brief. Write 100-150
             words. Do not exceed 150 words.
 
             - If duration is ''15'': write 650-800 words (3 segments total → 1950-2400
-            words, ~15 minutes).
+            words, ~15 minutes). Hit the per-segment floor of 650 words.
 
             - If duration is ''25'': write 650-800 words (5 segments total → 3250-4000
-            words, ~25 minutes).
+            words, ~25 minutes). Hit the per-segment floor of 650 words.
 
             - If duration is ''35'': write 650-800 words (7 segments total → 4550-5600
-            words, ~35 minutes).
+            words, ~35 minutes). Hit the per-segment floor of 650 words.
 
-            Write the full text! No summaries.
+            Write the full text! No summaries. No outlines. No placeholders.
 
             2. VOCABULARY DENSITY: Naturally integrate at least 10 advanced business
             vocabulary words and 5 authentic business idioms (matching CEFR Level)
