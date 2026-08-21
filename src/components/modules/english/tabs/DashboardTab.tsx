@@ -197,9 +197,10 @@ export default function DashboardTab() {
             }, ...prev];
           });
         }
+        if (detail.error) console.error('场景后台删除失败:', detail.error);
         showNotice(
           'dashboard',
-          `场景清理失败，已恢复该场景选项${detail.error ? `：${detail.error}` : ''}`,
+          '删除失败，已把该场景加回列表，请稍后重试',
           'error'
         );
         return;
@@ -496,7 +497,7 @@ export default function DashboardTab() {
 
     // 已收录且矩阵齐备则跳过；仅有自动翻译缓存的词条仍需补齐矩阵
     if (vocabDetailsMap[cleanKey]?.matrixReady) {
-      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '...' : ''}” 已在生词本中且词汇矩阵完整`, 'info');
+      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '…' : ''}” 已在生词本中，信息已齐全`, 'info');
       return;
     }
 
@@ -565,11 +566,11 @@ export default function DashboardTab() {
           setExtractedPhrases([]);
           setExtractedSentences([]);
           setIntelSource('每日系统生成');
-          showNotice('dashboard', '暂无该条件长文缓存，请点击「查询/生成今日长文」手动生成', 'info');
+          showNotice('dashboard', '暂无今日长文，请点击「查询/生成今日长文」生成', 'info');
         }
       } catch (e) {
         if (active) {
-          showNotice('dashboard', '读取长文缓存失败，请稍后重试或手动生成', 'error');
+          showNotice('dashboard', '读取今日长文失败，请稍后重试或重新生成', 'error');
         }
       }
     };
@@ -587,7 +588,7 @@ export default function DashboardTab() {
     setIsAutoGenerating(true);
     setIsBackgroundGenerating(false);
     playScan();
-    showNotice('dashboard', '正在查询缓存 / 准备生成...', 'info');
+    showNotice('dashboard', '正在查找现成材料，或准备生成…', 'info');
     try {
       const {
         fetchExactArticleIfExists,
@@ -607,7 +608,7 @@ export default function DashboardTab() {
       });
 
       if (exactRes.found && exactRes.data) {
-        showNotice('dashboard', '已成功命中库中精准生成的长文与提纯词汇（零消耗重用）', 'success');
+        showNotice('dashboard', '已找到长文和词汇，直接加载，也可以重新生成', 'success');
         setGeneratedArticle(exactRes.data.article);
         setIsArticleExpanded(false);
         setExtractedWords(exactRes.data.words || []);
@@ -623,14 +624,14 @@ export default function DashboardTab() {
       }
 
       // 未命中：用户主动点击后才生成（3 秒竞速，超时转入任务中心）
-      showNotice('dashboard', '缓存未命中，开始手动生成...', 'info');
+      showNotice('dashboard', '没有现成材料，开始生成…', 'info');
 
       const started = await startEnglishMasteryExtraction(theme, '', getAppUserId(), cefrLevel, genre, duration);
 
       if ((started as any).quotaExceeded) {
         showNotice(
           'dashboard',
-          (started as any).message || '今日词/短语入库配额已用尽，并非提取失败。请清空今日配额后重试。',
+          (started as any).message || '今天可收录的生词数量已满（不是生成失败）。请先点「重置今日」清空后再试',
           'error'
         );
         playError();
@@ -670,11 +671,11 @@ export default function DashboardTab() {
         setShowConfetti(true);
 
         if (vocabSource === 'empty' || !hasDisplayVocab) {
-          showNotice('dashboard', '长文已生成，但词表仍为空（主流程与兜底均未提纯到生词/短语/句型）', 'error');
+          showNotice('dashboard', '长文已生成，但未能从中整理出生词、短语或句型，请重试或换一批材料', 'error');
         } else {
           showNotice(
             'dashboard',
-            `长文与词表已缓存展示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），请逐条「+ 收录」写入生词本`,
+            `长文和生词已显示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），请逐条点「+ 收录」加入生词本`,
             'success'
           );
         }
@@ -725,7 +726,8 @@ export default function DashboardTab() {
       applyDisplayResult(race.result);
     } catch (e: any) {
       playError();
-      showNotice('dashboard', `提取失败: ${e.message}`, 'error');
+      console.error('生成今日长文失败:', e);
+      showNotice('dashboard', '生成失败，请稍后重试', 'error');
     } finally {
       setIsAutoGenerating(false);
     }
@@ -734,7 +736,7 @@ export default function DashboardTab() {
   const handleClearTodayAndReGenerate = async () => {
     setIsClearingAndReGenerating(true);
     playScan();
-    showNotice('dashboard', '正在清理今日配额，并删除当前条件下的长文与音频...', 'info');
+    showNotice('dashboard', '正在清空今日收录额度，并删除当前长文与音频…', 'info');
 
     try {
       const { clearTodayQuotaAndData } = await import('../../../../services/difyAPI');
@@ -762,7 +764,7 @@ export default function DashboardTab() {
       // 重新拉取最新的配额状态
       await loadQuotaStatus();
       
-      showNotice('dashboard', '当前条件缓存已清空，正在重新呼叫 AI 生成...', 'info');
+      showNotice('dashboard', '已清空，正在重新生成…', 'info');
       
       // 触发重新生成 (由于 handleAutoGenerate 内部调用了 setIsAutoGenerating，这里我们可以直接执行)
       // 为了确保 setIsClearingAndReGenerating 已经为 false, 我们在 handleAutoGenerate 之前或之后设为 false
@@ -772,7 +774,8 @@ export default function DashboardTab() {
       await handleAutoGenerate();
     } catch (e: any) {
       playError();
-      showNotice('dashboard', `重置并生成失败: ${e.message}`, 'error');
+      console.error('清空后重新生成失败:', e);
+      showNotice('dashboard', '清空后重新生成失败，请稍后重试', 'error');
       setIsClearingAndReGenerating(false);
     }
   };
@@ -783,22 +786,27 @@ export default function DashboardTab() {
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
       
       {/* 战术使用指南 SOP — 默认收起的细条 */}
-      <div className="card-sop px-3 py-2 flex flex-col gap-2 shrink-0 shadow-sm transition-all duration-300">
-        <div className="flex items-center justify-between cursor-pointer select-none" onClick={() => setIsSopExpanded(!isSopExpanded)}>
+      <div className="card-sop px-3 py-2 flex flex-col gap-2 shrink-0 shadow-sm">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between select-none text-left"
+          onClick={() => setIsSopExpanded(!isSopExpanded)}
+          aria-expanded={isSopExpanded}
+        >
           <div className="flex items-center gap-2">
             <div className="bg-[var(--color-brand)] text-white p-1 rounded-md shadow-sm">
-               <Target className="w-3.5 h-3.5" />
+               <Target aria-hidden="true" className="w-3.5 h-3.5" />
             </div>
             <div className="text-left">
               <h5 className="eyebrow text-[var(--color-brand)]/80">战术使用指南 // Tactical SOP</h5>
               <p className="text-[10px] text-[var(--color-ink-secondary)] font-medium">点击展开/收起模块使用说明</p>
             </div>
           </div>
-          <button className="flex items-center gap-1 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 px-2 py-0.5 rounded-md transition-colors text-xs font-bold">
+          <span className="flex items-center gap-1 text-[var(--color-accent)] hover:bg-[var(--color-accent)]/10 px-2 py-0.5 rounded-md transition-colors text-xs font-bold" aria-hidden="true">
             {isSopExpanded ? '收起指南' : '展开指南'}
             {isSopExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-          </button>
-        </div>
+          </span>
+        </button>
 
         <SOPGuide isSopExpanded={isSopExpanded} />
       </div>
@@ -880,7 +888,11 @@ export default function DashboardTab() {
       </div>
 
         {inlineNotice && noticeAnchor === 'dashboard' && (
-          <div className={`absolute right-0 top-12 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}>
+          <div
+            role="status"
+            aria-live="polite"
+            className={`absolute right-0 top-12 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-blue-500 text-white border-blue-400'}`}
+          >
             {inlineNotice.text}
           </div>
         )}
@@ -934,11 +946,12 @@ export default function DashboardTab() {
               setExtractedSentences(sentences);
               localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(sentences));
 
-              showNotice('dashboard', '提纯成功！材料与提纯词汇已下发至上方情报截获板块，可点击查看。', 'success');
+              showNotice('dashboard', '整理完成！长文和生词已出现在上方，可点击查看', 'success');
               playSuccess();
               
-              // 滚动到该板块区域以引起用户注意
-              window.scrollTo({ top: 300, behavior: 'smooth' });
+              // 滚动到该板块区域以引起用户注意（尊重系统「减少动态效果」）
+              const preferReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+              window.scrollTo({ top: 300, behavior: preferReducedMotion ? 'auto' : 'smooth' });
             } else {
               setActiveTab('vocab');
             }
@@ -978,7 +991,12 @@ export default function DashboardTab() {
       />
 
       {isAutoGenerating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-busy="true"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm overscroll-contain animate-[fadeIn_0.2s_ease-out]"
+        >
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-100 text-center space-y-4">
             <div className="w-14 h-14 rounded-full bg-[var(--color-brand)]/10 text-[var(--color-brand)] flex items-center justify-center mx-auto">
               <Loader2 className="w-7 h-7 animate-spin" />

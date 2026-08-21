@@ -44,7 +44,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
     if (!text) return 'failed';
 
     const key = normalizeKey(text);
-    const label = text.length > 20 ? `${text.slice(0, 20)}...` : text;
+    const label = text.length > 20 ? `${text.slice(0, 20)}…` : text;
     const isPhrase = !!request.isPhrase;
     const isSentence = !!request.isSentence;
     const dictType = request.dictType
@@ -91,11 +91,11 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
           name: `生词本收录: ${label}`,
           status: 'running',
           progress: 20,
-          logs: ['[生词收录] 3秒未完成，已托管至后台任务中心写入并补齐词汇矩阵...'],
+          logs: ['[生词收录] 稍久未完成，已转入任务中心继续写入并补齐释义等信息…'],
         });
         startPolling?.(queuedRes.taskId);
         setQueued((prev) => ({ ...prev, [key]: true }));
-        const msg = `“${label}” 收录与词汇矩阵补齐已转入后台处理，稍后可在【任务中心】查看`;
+        const msg = `“${label}” 已加入生词本，详细信息正在后台补齐，可在【任务中心】查看`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
         // 有锚点时就近浮层已提示，避免 notify→Toast/showNotice 再弹同文案
         if (!anchor) notify?.(msg, 'info');
@@ -113,11 +113,11 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       playSuccess();
       window.dispatchEvent(new Event('vocab-updated'));
       if (result?.matrixReady === false) {
-        const msg = `“${label}” 已加入生词本；词汇矩阵稍后续补，可在【任务中心】查看进度`;
+        const msg = `“${label}” 已加入生词本；详细信息稍后续补，可在【任务中心】查看进度`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info', pulse: true });
         if (!anchor) notify?.(msg, 'info');
       } else {
-        const msg = `“${label}” 已加入生词本，词汇矩阵已补齐`;
+        const msg = `“${label}” 已加入生词本，释义等信息已补齐`;
         if (anchor) {
           notifyBackgroundHandoff({ anchor, message: msg, tone: 'success', pulse: false });
         } else {
@@ -139,11 +139,11 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
           name: `生词本收录: ${label}`,
           status: 'running',
           progress: 20,
-          logs: ['[生词收录] 同步失败，已改由后台任务中心继续补齐词汇矩阵...'],
+          logs: ['[生词收录] 未能立刻完成，已改由任务中心继续补齐释义等信息…'],
         });
         startPolling?.(queuedRes.taskId);
         setQueued((prev) => ({ ...prev, [key]: true }));
-        const msg = `“${label}” 收录已转入【任务中心】后台处理（同步矩阵暂未完成）`;
+        const msg = `“${label}” 已加入生词本，详细信息正在后台补齐，可在【任务中心】查看`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
         if (!anchor) notify?.(msg, 'info');
         return 'queued';
@@ -168,7 +168,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
 function showNearCollectingTip(anchor: HTMLElement, label: string) {
   notifyBackgroundHandoff({
     anchor,
-    message: `“${label}” 收录中，超时将转入后台补齐矩阵`,
+    message: `“${label}” 收录中，较慢时会转入后台补齐释义等信息`,
     tone: 'info',
     toast: false,
     pulse: false,

@@ -490,7 +490,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
         name: format === 'csv' ? '导出资料抽屉 CSV' : '导出资料抽屉 Word',
         status: (status as 'pending' | 'running') || 'pending',
         progress: 0,
-        logs: ['[系统] 后台导出任务已提交...'],
+        logs: ['[系统] 后台导出任务已提交…'],
       });
       try {
         const { showToast } = await import('../Toast');

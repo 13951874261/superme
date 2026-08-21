@@ -54,16 +54,16 @@ function isL1Perfect(l1Text: string): boolean {
 }
 
 const ReviewCard = ({ title, content, isLoading, color = 'text-zinc-500', isDark = false, optimized = '', onAdopt, onCopy }: any) => (
-  <div className={`rounded-2xl p-5 border transition-all duration-300 shadow-sm ${isDark ? 'bg-zinc-900 text-zinc-100 border-zinc-800 shadow-zinc-950/20' : 'bg-white border-zinc-100 hover:shadow-md'}`}>
+  <div className={`rounded-2xl p-5 border transition-[background-color,border-color,box-shadow] duration-300 shadow-sm ${isDark ? 'bg-zinc-900 text-zinc-100 border-zinc-800 shadow-zinc-950/20' : 'bg-white border-zinc-100 hover:shadow-md'}`}>
     <h5 className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-amber-500' : color}`}>
       {title}
     </h5>
     {isLoading ? (
-      <p className="text-xs text-zinc-400 italic animate-pulse">Dify 正在审阅中...</p>
+      <p className="text-xs text-zinc-400 italic animate-pulse">Dify 正在审阅中…</p>
     ) : content ? (
       <p className={`text-xs leading-relaxed ${isDark ? 'text-zinc-300' : 'text-zinc-650'}`}>{content}</p>
     ) : (
-      <p className="text-xs text-zinc-400 italic">等待提交分析...</p>
+      <p className="text-xs text-zinc-400 italic">等待提交分析…</p>
     )}
     {isDark && optimized && (
       <div className="mt-4 pt-4 border-t border-zinc-800">
@@ -77,14 +77,14 @@ const ReviewCard = ({ title, content, isLoading, color = 'text-zinc-500', isDark
         <div className="flex items-center gap-2">
           <button
             onClick={() => { playClick(); onCopy(); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750 hover:text-white transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750 hover:text-white transition-colors cursor-pointer shadow-sm"
           >
             <Copy className="w-3 h-3" />
             复制范文
           </button>
           <button
             onClick={() => { playClick(); onAdopt(); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-amber-650 hover:bg-amber-600 text-white transition-all cursor-pointer shadow-sm"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-amber-650 hover:bg-amber-600 text-white transition-colors cursor-pointer shadow-sm"
           >
             <Check className="w-3 h-3" />
             一键采纳
@@ -486,7 +486,7 @@ ${benchmarkText
               initial={{ opacity: 0, y: -20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
-              className={`absolute left-1/2 -translate-x-1/2 -top-3 z-30 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-md border transition-all duration-350 ${inlineNotice.tone === 'success' ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : inlineNotice.tone === 'error' ? 'bg-red-950 text-red-200 border-red-900' : 'bg-zinc-800 text-white border-zinc-700'}`}
+              role="status" aria-live="polite" className={`absolute left-1/2 -translate-x-1/2 -top-3 z-30 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-md border transition-[opacity,transform] duration-300 ${inlineNotice.tone === 'success' ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : inlineNotice.tone === 'error' ? 'bg-red-950 text-red-200 border-red-900' : 'bg-zinc-800 text-white border-zinc-700'}`}
             >
               {inlineNotice.text}
             </motion.div>
@@ -494,7 +494,7 @@ ${benchmarkText
         </AnimatePresence>
 
         {/* 左侧工作区：当右侧面板打开时占 70% 宽度，否则占 100% 宽度 */}
-        <div className={`transition-all duration-500 ease-in-out flex gap-6 h-auto ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
+        <div className={`transition-[width] duration-500 ease-in-out flex gap-6 h-auto ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
           {/* 1. 左栏：规范与对标区 */}
           <div className="w-[30%] min-w-[260px] flex flex-col gap-4 h-auto pr-1 shrink-0">
             {/* 对标文本上传/输入区 */}
@@ -507,23 +507,27 @@ ${benchmarkText
               </p>
               <div className="relative">
                 <textarea
+                  id="write-benchmark-input"
                   value={benchmarkText}
                   onChange={(e) => handleBenchmarkChange(e.target.value)}
-                  placeholder="选填：粘贴对标样本段落..."
-                  className="w-full h-32 bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-700 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner resize-none leading-relaxed"
+                  aria-label="对标文本"
+                  placeholder="选填：粘贴对标样本段落…"
+                  className="w-full h-32 bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-700 outline-none focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300 placeholder-zinc-350 transition-[border-color,box-shadow] shadow-inner resize-none leading-relaxed"
                 />
                 {benchmarkText && (
                   <button
+                    type="button"
                     onClick={clearBenchmark}
-                    className="absolute bottom-2.5 right-2.5 p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-500 rounded-lg hover:text-red-650 transition-all cursor-pointer border border-zinc-200"
+                    aria-label="清空对标文本"
+                    className="absolute bottom-2.5 right-2.5 p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-500 rounded-lg hover:text-red-650 transition-colors cursor-pointer border border-zinc-200"
                     title="清空对标文本"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 aria-hidden="true" className="w-3.5 h-3.5" />
                   </button>
                 )}
               </div>
               
-              <label className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-dashed border border-zinc-300 hover:border-zinc-500 text-[10px] font-bold text-zinc-650 hover:bg-white transition-all cursor-pointer shadow-sm">
+              <label className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-dashed border border-zinc-300 hover:border-zinc-500 text-[10px] font-bold text-zinc-650 hover:bg-white transition-colors cursor-pointer shadow-sm">
                 <Upload className="w-3.5 h-3.5" />
                 <span>导入对标文档（可选，.txt）</span>
                 <input type="file" accept=".txt" onChange={handleFileUpload} className="hidden" />
@@ -562,6 +566,8 @@ ${benchmarkText
                 return (
                   <button
                     key={mod.id}
+                    type="button"
+                    aria-pressed={isActive}
                     disabled={isLocked}
                     onClick={() => {
                       if (isLocked) {
@@ -571,7 +577,7 @@ ${benchmarkText
                       playClick();
                       setActiveModule(mod.id);
                     }}
-                    className={`py-2 px-1 text-[10px] font-black tracking-wider text-center rounded-xl transition-all ${
+                    className={`py-2 px-1 text-[10px] font-black tracking-wider text-center rounded-xl transition-colors ${
                       isLocked
                         ? 'text-zinc-400 opacity-60 cursor-not-allowed'
                         : isActive
@@ -594,9 +600,9 @@ ${benchmarkText
               <button
                 onClick={() => { playClick(); generateChallenge(); }}
                 disabled={isGeneratingChallenge}
-                className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-zinc-900 hover:bg-zinc-800 text-white transition-all shadow-sm cursor-pointer disabled:opacity-50"
+                className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-zinc-900 hover:bg-zinc-800 text-white transition-colors shadow-sm cursor-pointer disabled:opacity-50"
               >
-                {isGeneratingChallenge ? '正在生成...' : '获取AI挑战任务'}
+                {isGeneratingChallenge ? '正在生成…' : '获取AI挑战任务'}
               </button>
             </div>
 
@@ -634,7 +640,9 @@ ${benchmarkText
                     <button
                       key={type.id}
                       onClick={() => { playClick(); setLimitChallengeType(type.id); }}
-                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-all border cursor-pointer ${limitChallengeType === type.id ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'}`}
+                      type="button"
+                      aria-pressed={limitChallengeType === type.id}
+                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-colors border cursor-pointer ${limitChallengeType === type.id ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'}`}
                     >
                       {type.label}
                     </button>
@@ -645,13 +653,14 @@ ${benchmarkText
 
             {/* 意图输入 */}
             <div className="mb-3 shrink-0">
-              <label className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">写作意图与指示 / Core Intent</label>
+              <label htmlFor="write-intent-input" className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">写作意图与指示 / Core Intent</label>
               <input
+                id="write-intent-input"
                 type="text"
                 value={writeIntent}
                 onChange={(e) => setWriteIntent(e.target.value)}
                 placeholder="明确您的写作意图（如：委婉拒绝、极限向上请示、对齐上级某政策等）"
-                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs text-zinc-800 outline-none focus:border-zinc-400 placeholder-zinc-350 transition-colors shadow-inner"
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs text-zinc-800 outline-none focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300 placeholder-zinc-350 transition-[border-color,box-shadow] shadow-inner"
               />
             </div>
 
@@ -661,13 +670,15 @@ ${benchmarkText
 
             {/* 文本草稿起草区 */}
             <textarea
+              id="write-draft-input"
               ref={textareaRef}
               value={writingText}
               onChange={(e) => setWritingText(e.target.value)}
-              className={`w-full bg-zinc-50 border rounded-2xl px-5 py-4 text-xs text-zinc-800 outline-none resize-none leading-relaxed flex-1 shadow-inner placeholder-zinc-300 min-h-0 transition-all duration-300 ${
+              aria-label="决策起草区"
+              className={`w-full bg-zinc-50 border rounded-2xl px-5 py-4 text-xs text-zinc-800 outline-none resize-none leading-relaxed flex-1 shadow-inner placeholder-zinc-300 min-h-0 transition-[border-color,box-shadow] duration-300 ${
                 isCyberLocked
-                  ? 'border-red-500 focus:border-red-650 shadow-[0_0_10px_rgba(239,68,68,0.15)] ring-1 ring-red-500/20'
-                  : 'border-zinc-200 focus:border-zinc-400'
+                  ? 'border-red-500 focus-visible:border-red-650 shadow-[0_0_10px_rgba(239,68,68,0.15)] ring-1 ring-red-500/20'
+                  : 'border-zinc-200 focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300'
               }`}
               placeholder={WRITE_MODULES.find(m => m.id === activeModule)?.placeholder}
               style={{ minHeight: '300px' }}
@@ -692,7 +703,7 @@ ${benchmarkText
                 {isReviewing ? (
                   <>
                     <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
-                    <span>AI 正在审阅中...</span>
+                    <span>AI 正在审阅中…</span>
                   </>
                 ) : (
                   '提交三维战略审阅 (Submit Strategy Review)'
@@ -738,7 +749,7 @@ ${benchmarkText
                 onAdopt={() => {
                   if (reviewResult?.optimized_version) {
                     setWritingText(reviewResult.optimized_version);
-                    showNotice('review', '已采纳，正在重新评分...', 'info');
+                    showNotice('review', '已采纳，正在重新评分…', 'info');
                     playSuccess();
                     // 采纳后自动重新触发 L3 评分
                     setTimeout(() => {
@@ -767,7 +778,7 @@ ${benchmarkText
                   <span>🔄</span> 闭环复盘与跟踪
                 </h5>
                 {isReviewing ? (
-                  <p className="text-[10px] text-zinc-400 italic">正在生成复盘要点...</p>
+                  <p className="text-[10px] text-zinc-400 italic">正在生成复盘要点…</p>
                 ) : dailyFeedback.coreIssues.length > 0 ? (
                   <div className="space-y-3">
                     <div>

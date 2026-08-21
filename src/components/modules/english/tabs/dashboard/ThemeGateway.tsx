@@ -68,7 +68,7 @@ export function ThemeGateway({
 
   const handleDeleteCustomTheme = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     if (!currentCustomTheme) return;
-    if (!confirm(`确认删除自定义主题【${theme}】吗？这将同步清理该场景下的学习资料与练习记录。`)) return;
+    if (!confirm(`确定删除练习场景「${theme}」吗？删除后，这个场景里的学习材料和练习记录也会一起清掉，且无法恢复。`)) return;
     const handoffAnchor = (e?.currentTarget as HTMLElement) || null;
 
     const snapshot = currentCustomTheme;
@@ -114,11 +114,12 @@ export function ThemeGateway({
       }
 
       const msg = race.result.dify?.cloudCleanupIncomplete
-        ? '场景本地资料已清理；云端资料清理未完成'
+        ? '这个场景的学习资料已大部分清理；还有少量线上资料未清理完，可稍后在【任务中心】查看'
         : (race.result.message || '场景及相关学习资料已清理');
       showNotice('dashboard', msg, race.result.dify?.cloudCleanupIncomplete ? 'info' : 'success');
       await refreshCustomThemes();
     } catch (e: any) {
+      console.error('场景清理失败:', e);
       // 失败恢复：把主题选项加回列表并可选切回
       setCustomThemes((prev) => {
         if (prev.some((t) => t.id === snapshot.id)) return prev;
@@ -127,7 +128,7 @@ export function ThemeGateway({
       setTheme(snapshot.displayName || snapshot.themeName);
       showNotice(
         'dashboard',
-        `场景清理失败，已恢复该场景选项：${e?.message || '请稍后重试'}`,
+        '删除失败，已把该场景加回列表，请稍后重试',
         'error'
       );
     } finally {
@@ -137,18 +138,20 @@ export function ThemeGateway({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-[10px] uppercase tracking-widest font-black text-gray-400">
+      <label htmlFor="theme-gateway-select" className="text-[10px] uppercase tracking-widest font-black text-gray-400">
         当前闭环主题
-      </span>
+      </label>
 
       {themeSwitchError && (
         <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg bg-red-50 border border-red-200 text-red-700 animate-[fadeIn_0.2s_ease-out]">
-          <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
+          <AlertTriangle aria-hidden="true" className="w-4 h-4 mt-0.5 shrink-0 text-red-500" />
           <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-0.5">拦截指令</p>
+            <p className="text-[10px] font-black uppercase tracking-widest text-red-600 mb-0.5">暂时无法切换</p>
             <div className="text-xs font-medium leading-snug">{themeSwitchError}</div>
           </div>
           <button
+            type="button"
+            aria-label="关闭提示"
             onClick={(e) => { e.stopPropagation(); setThemeSwitchError(null); }}
             className="text-red-400 hover:text-red-600 text-lg leading-none font-bold shrink-0 cursor-pointer"
           >×</button>
@@ -157,6 +160,7 @@ export function ThemeGateway({
 
       <div className="flex items-center gap-1.5 flex-wrap">
         <select
+          id="theme-gateway-select"
           value={theme}
           onChange={async (e) => {
             const target = e.target;
@@ -177,7 +181,7 @@ export function ThemeGateway({
             e.stopPropagation();
             setThemeSwitchError(null);
           }}
-          className="flex-1 min-w-[8rem] bg-[var(--color-surface-mid)] border border-[var(--color-border)] text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus:border-[var(--color-brand)] focus:shadow-[0_0_0_3px_var(--color-brand-light)] transition-all cursor-pointer"
+          className="flex-1 min-w-[8rem] bg-[var(--color-surface-mid)] border border-[var(--color-border)] text-slate-800 text-xs font-bold rounded-lg px-2.5 py-1.5 outline-none focus-visible:border-[var(--color-brand)] focus-visible:shadow-[0_0_0_3px_var(--color-brand-light)] transition-[border-color,box-shadow] cursor-pointer"
         >
           <optgroup label="系统预置主题">
             {getThemeOptions(stage as 'business' | 'all').map((o) => (
@@ -199,8 +203,10 @@ export function ThemeGateway({
 
         {currentCustomTheme && (
           <button
+            type="button"
             disabled={isDeletingTheme}
             onClick={(e) => void handleDeleteCustomTheme(e)}
+            aria-label="删除当前自定义场景"
             className="text-red-500 hover:text-red-700 p-1.5 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
             title="删除当前自定义场景"
           >

@@ -21,21 +21,21 @@ export function DailyBriefingCard({
 
   const stats = [
     {
-      icon: <AlignLeft className="w-3 h-3 text-emerald-400 shrink-0" />,
+      icon: <AlignLeft aria-hidden="true" className="w-3 h-3 text-emerald-400 shrink-0" />,
       label: '研读长文',
       value: generatedArticle ? '1' : '0',
       limit: '1',
       done: !!generatedArticle,
     },
     {
-      icon: <Hash className="w-3 h-3 text-orange-400 shrink-0" />,
+      icon: <Hash aria-hidden="true" className="w-3 h-3 text-orange-400 shrink-0" />,
       label: '战术词',
       value: String(wordsUsed),
       limit: String(wordsLimit),
       done: wordsUsed >= wordsLimit,
     },
     {
-      icon: <Zap className="w-3 h-3 text-[#FF5722] shrink-0" />,
+      icon: <Zap aria-hidden="true" className="w-3 h-3 text-[#FF5722] shrink-0" />,
       label: '短语',
       value: String(phrasesUsed),
       limit: String(phrasesLimit),
@@ -45,10 +45,10 @@ export function DailyBriefingCard({
 
   return (
     <div className="bg-[#202124] rounded-xl p-2.5 shadow-[0_4px_14px_rgba(0,0,0,0.12)] relative overflow-hidden h-full flex flex-col min-h-0">
-      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[50px] rounded-full pointer-events-none" />
+      <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 blur-[50px] rounded-full pointer-events-none" aria-hidden="true" />
       
       <div className="flex items-center gap-2 mb-2 border-b border-white/10 pb-1.5 shrink-0 relative z-10">
-        <Target className="w-3.5 h-3.5 text-emerald-400" />
+        <Target aria-hidden="true" className="w-3.5 h-3.5 text-emerald-400" />
         <h3 className="text-[10px] font-black text-white uppercase tracking-widest">今日战区简报</h3>
       </div>
 

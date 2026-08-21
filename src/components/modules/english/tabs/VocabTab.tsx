@@ -316,22 +316,22 @@ export default function VocabTab() {
       {/* 战术使用指南 Banner */}
       <div className="bg-slate-50 border border-[var(--color-border)] rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm animate-[fadeIn_0.3s_ease-out]">
         <div className="bg-[var(--color-brand)] text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
-           <BookOpen className="w-5 h-5" />
+           <BookOpen aria-hidden="true" className="w-5 h-5" />
         </div>
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
           <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 hover:-translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>阅读左侧抽取的弹药（含发音/例句），在右侧输入框结合当前【战略阶段/主题】强制造句，并提交评估。</p>
             </div>
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 军控级双重校验（语法精确度 + 商务权力分寸），达到 3 分及格线方可打入 SM-2 记忆算法底座。满分将触发烟花特效。</p>
             </div>
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【弹药提纯】上承 Dashboard 的全自动长文提取，下启 Oral/Write，为您在高压沙盘与实战邮件中提供职场黑话储备。</p>
             </div>
@@ -344,27 +344,32 @@ export default function VocabTab() {
         <div className="flex justify-between items-center w-full gap-3 flex-wrap">
           <div className="flex bg-gray-100 p-1 rounded-xl w-fit">
             <button
+              type="button"
+              aria-pressed={vocabZone === 'business'}
               onClick={() => { setVocabZone('business'); setCurrentWordIdx(0); }}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
                 vocabZone === 'business' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
               }`}
             >
-              <Briefcase className="w-3.5 h-3.5" /> 政商务区
+              <Briefcase aria-hidden="true" className="w-3.5 h-3.5" /> 政商务区
             </button>
             <button
+              type="button"
+              aria-pressed={vocabZone === 'general'}
               onClick={() => { setVocabZone('general'); setCurrentWordIdx(0); }}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${
+              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors ${
                 vocabZone === 'general' ? 'bg-[#202124] text-white shadow-sm' : 'text-gray-500 hover:text-[#202124]'
               }`}
             >
-              <Globe className="w-3.5 h-3.5" /> 全场景区
+              <Globe aria-hidden="true" className="w-3.5 h-3.5" /> 全场景区
             </button>
           </div>
           <div className="flex items-center gap-2 ml-auto">
             <VocabExportControl currentTab={vocabZone} />
             <button
+              type="button"
               onClick={() => setShowCustomCardModal(true)}
-              className="flex items-center gap-1.5 border border-[#FF5722]/30 text-[#FF5722] hover:bg-[#FF5722]/5 text-xs font-bold px-4 py-2 rounded-xl transition"
+              className="flex items-center gap-1.5 border border-[#FF5722]/30 text-[#FF5722] hover:bg-[#FF5722]/5 text-xs font-bold px-4 py-2 rounded-xl transition-colors"
             >
               + 制卡
             </button>
@@ -403,15 +408,15 @@ export default function VocabTab() {
         </div>
       )}
       {syncNotice && (
-        <div className="self-stretch mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+        <div role="status" aria-live="polite" className="self-stretch mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
           {syncNotice}
           {syncNotice.startsWith('连接失败') && (
-            <button onClick={reloadVocab} className="ml-3 font-bold underline">重新加载</button>
+            <button type="button" onClick={reloadVocab} className="ml-3 font-bold underline">重新加载</button>
           )}
         </div>
       )}
       {loadingDueWords ? (
-        <div className="text-gray-400 text-sm font-bold flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> 正在检查今日待复习词条...</div>
+        <div className="text-gray-400 text-sm font-bold flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> 正在检查今日待复习词条…</div>
       ) : !currentWord ? (
         <div className="w-full max-w-2xl text-center py-24">
           <CheckCircle2 className="w-16 h-16 text-emerald-400 mx-auto mb-4" />
@@ -455,14 +460,16 @@ export default function VocabTab() {
                   </div>
                   <div className="w-full max-w-sm relative">
                     <input 
+                      id="vocab-spell-input"
                       type="text" 
                       value={spellInput}
                       onChange={(e) => setSpellInput(e.target.value)}
                       onKeyDown={handleSpellCheck}
                       disabled={Boolean(currentWord._light)}
-                      placeholder={currentWord._light ? '正在加载词条释义…' : 'Type the word and press Enter...'}
-                      className={`w-full bg-white border-2 rounded-xl px-5 py-4 text-center text-lg font-bold tracking-widest outline-none transition-all shadow-inner ${
-                        isSpellError ? 'border-red-400 bg-red-50 text-red-600 animate-[shake_0.4s_ease-in-out]' : 'border-slate-200 focus:border-[#FF5722] text-[#202124]'
+                      aria-label="拼写目标单词"
+                      placeholder={currentWord._light ? '正在加载词条释义…' : 'Type the word and press Enter…'}
+                      className={`w-full bg-white border-2 rounded-xl px-5 py-4 text-center text-lg font-bold tracking-widest outline-none transition-[border-color,background-color,box-shadow] shadow-inner ${
+                        isSpellError ? 'border-red-400 bg-red-50 text-red-600 animate-[shake_0.4s_ease-in-out]' : 'border-slate-200 focus-visible:border-[#FF5722] focus-visible:ring-2 focus-visible:ring-[#FF5722]/20 text-[#202124]'
                       }`}
                       autoFocus
                     />
@@ -550,7 +557,7 @@ export default function VocabTab() {
                           </div>
                           <div className="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                             <div
-                              className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-300 rounded-full transition-all duration-500"
+                              className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-300 rounded-full transition-[width] duration-500"
                               style={{ width: `${Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%` }}
                             />
                           </div>
@@ -611,7 +618,7 @@ export default function VocabTab() {
 
           {/* ================= 下方区域：强制闭环造句与评估 ================= */}
           <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
-            <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-all ${!isFlipped ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''} ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
+            <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-[opacity,filter,border-color,background-color] ${!isFlipped ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''} ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
 
               <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
                 <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
@@ -619,33 +626,37 @@ export default function VocabTab() {
                 </div>
                 <div className="grid grid-cols-4 gap-2">
                   <button
+                    type="button"
                     onClick={() => handleQuality(0)}
                     disabled={submittingQuality}
-                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-red-200/40"
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold text-[10px] transition-colors disabled:opacity-40 cursor-pointer border border-red-200/40"
                   >
                     <XCircle className="w-4 h-4" />
                     <span>完全忘记</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleQuality(2)}
                     disabled={submittingQuality}
-                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-orange-200/40"
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-orange-50 text-orange-600 hover:bg-orange-100 rounded-xl font-bold text-[10px] transition-colors disabled:opacity-40 cursor-pointer border border-orange-200/40"
                   >
                     <AlertTriangle className="w-4 h-4" />
                     <span>模糊记得</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleQuality(4)}
                     disabled={submittingQuality}
-                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-blue-200/40"
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-xl font-bold text-[10px] transition-colors disabled:opacity-40 cursor-pointer border border-blue-200/40"
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>记住原词</span>
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleQuality(5)}
                     disabled={submittingQuality}
-                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl font-bold text-[10px] transition-all disabled:opacity-40 cursor-pointer border border-emerald-200/40"
+                    className="flex flex-col items-center justify-center gap-1 px-2 py-3 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-xl font-bold text-[10px] transition-colors disabled:opacity-40 cursor-pointer border border-emerald-200/40"
                   >
                     <Zap className="w-4 h-4" />
                     <span>熟练掌握</span>
@@ -657,19 +668,20 @@ export default function VocabTab() {
               </div>
 
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <label className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-2">
-                  <Zap className="w-5 h-5 text-[#FF5722]" />
+                <label htmlFor="vocab-sentence-input" className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center gap-2">
+                  <Zap aria-hidden="true" className="w-5 h-5 text-[#FF5722]" />
                   Forced Application (强制闭环造句)
                 </label>
               </div>
 
               <textarea
+                id="vocab-sentence-input"
                 rows={4}
                 value={sentenceInput}
                 onChange={(e) => setSentenceInput(e.target.value)}
                 disabled={isEvaluating || (!!evalResult && evalResult.quality >= 3)}
-                className="w-full flex-1 min-h-[120px] bg-slate-50 border-2 border-transparent focus:border-[#FF5722] rounded-2xl p-5 text-sm text-[#202124] outline-none resize-none shadow-inner transition-colors disabled:bg-white/50"
-                placeholder={`使用 [ ${currentWord.word} ] \n结合当前阵地【${theme}】造句。\n\nAI 教官将实时从「语法精确度」与「商务权力分寸」两方面进行判卷...`}
+                className="w-full flex-1 min-h-[120px] bg-slate-50 border-2 border-transparent focus-visible:border-[#FF5722] focus-visible:ring-2 focus-visible:ring-[#FF5722]/20 rounded-2xl p-5 text-sm text-[#202124] outline-none resize-none shadow-inner transition-[border-color,box-shadow] disabled:bg-white/50"
+                placeholder={`使用 [ ${currentWord.word} ] \n结合当前阵地【${theme}】造句。\n\nAI 教官将实时从「语法精确度」与「商务权力分寸」两方面进行判卷…`}
               />
 
               {/* 评估结果回显 */}
@@ -693,9 +705,9 @@ export default function VocabTab() {
                   <button
                     onClick={handleEvaluate}
                     disabled={isEvaluating || !sentenceInput.trim()}
-                    className="w-full bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#FF5722] transition-all disabled:opacity-50 flex justify-center items-center cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200"
+                    className="w-full bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#FF5722] transition-[background-color,box-shadow,transform] disabled:opacity-50 flex justify-center items-center cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200"
                   >
-                    {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> AI 军控识别中...</> : '提交评估并推入记忆曲线 ➔'}
+                    {isEvaluating ? <><Loader2 className="w-5 h-5 animate-spin mr-2" /> AI 军控识别中…</> : '提交评估并推入记忆曲线 ➔'}
                   </button>
                 ) : evalResult.quality >= 3 ? (
                   <button
@@ -706,7 +718,7 @@ export default function VocabTab() {
                       setIsFlipped(false);
                       setSpellInput('');
                     }}
-                    className="w-full bg-[#FF5722] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-all cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200 flex justify-center items-center"
+                    className="w-full bg-[#FF5722] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#e64a19] transition-[background-color,box-shadow,transform] cursor-pointer shadow-lg hover:shadow-xl hover:-translate-y-0.5 active:scale-[0.98] duration-200 flex justify-center items-center"
                   >
                     下一个战术目标 (Next Target) ➔
                   </button>
@@ -715,7 +727,7 @@ export default function VocabTab() {
                     <button
                       onClick={handleEvaluate}
                       disabled={isEvaluating || !sentenceInput.trim()}
-                      className="flex-1 bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#303134] transition-all cursor-pointer shadow-lg hover:shadow-xl active:scale-[0.98] flex justify-center items-center"
+                      className="flex-1 bg-[#202124] text-white py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-[#303134] transition-colors cursor-pointer shadow-lg hover:shadow-xl active:scale-[0.98] flex justify-center items-center"
                     >
                       {isEvaluating ? <Loader2 className="w-5 h-5 animate-spin" /> : '修改并重新提交 ↻'}
                     </button>
@@ -728,7 +740,7 @@ export default function VocabTab() {
                         setIsFlipped(false);
                         setSpellInput('');
                       }}
-                      className="px-6 bg-red-50 text-red-500 py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-red-100 transition-all cursor-pointer border border-red-200 active:scale-[0.98]"
+                      className="px-6 bg-red-50 text-red-500 py-4 rounded-xl text-xs font-black tracking-widest uppercase hover:bg-red-100 transition-colors cursor-pointer border border-red-200 active:scale-[0.98]"
                     >
                       强行跳过
                     </button>
@@ -738,7 +750,7 @@ export default function VocabTab() {
 
               {/* 内联提示（保留原有逻辑） */}
               {inlineNotice && noticeAnchor === 'eval' && (
-                <div className={`mt-2 inline-flex rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
+                <div role="status" aria-live="polite" className={`mt-2 inline-flex rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border whitespace-nowrap ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
                   {inlineNotice.text}
                 </div>
               )}

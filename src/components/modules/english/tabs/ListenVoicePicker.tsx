@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { VOICE_OPTIONS, type VoiceOption } from '../../../../config/voices';
@@ -21,14 +21,17 @@ export function ListenVoicePicker({ value, onChange }: ListenVoicePickerProps) {
   useGSAP(
     () => {
       if (!panelRef.current) return;
+      const preferReduced =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       if (open) {
         gsap.fromTo(
           panelRef.current,
-          { autoAlpha: 0, y: -6 },
-          { autoAlpha: 1, y: 0, duration: 0.18, ease: 'power2.out' }
+          { autoAlpha: 0, y: preferReduced ? 0 : -6 },
+          { autoAlpha: 1, y: 0, duration: preferReduced ? 0 : 0.18, ease: 'power2.out' }
         );
       } else {
-        gsap.set(panelRef.current, { autoAlpha: 0, y: -6 });
+        gsap.set(panelRef.current, { autoAlpha: 0, y: preferReduced ? 0 : -6 });
       }
     },
     { scope: rootRef, dependencies: [open], revertOnUpdate: true }
@@ -38,17 +41,32 @@ export function ListenVoicePicker({ value, onChange }: ListenVoicePickerProps) {
     () => {
       const el = rootRef.current?.querySelector('[data-country-label]');
       if (!el) return;
-      gsap.fromTo(el, { autoAlpha: 0.4 }, { autoAlpha: 1, duration: 0.2 });
+      const preferReduced =
+        typeof window !== 'undefined' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      gsap.fromTo(el, { autoAlpha: preferReduced ? 1 : 0.4 }, { autoAlpha: 1, duration: preferReduced ? 0 : 0.2 });
     },
     { scope: rootRef, dependencies: [value], revertOnUpdate: true }
   );
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [open]);
 
   return (
     <div ref={rootRef} className="relative flex flex-wrap items-center gap-2">
       <button
         type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={`选择 Voice，当前 ${selected?.name || value}`}
         onClick={() => setOpen((v) => !v)}
-        className="bg-black/30 text-white/90 text-[10px] px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/20 cursor-pointer"
+        className="bg-black/30 text-white/90 text-[10px] px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/20 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5722]/60"
       >
         Voice: {selected?.name || value}
       </button>
@@ -58,13 +76,17 @@ export function ListenVoicePicker({ value, onChange }: ListenVoicePickerProps) {
       {open && (
         <div
           ref={panelRef}
-          className="absolute left-0 top-full mt-1 z-30 max-h-56 w-72 overflow-y-auto rounded-lg border border-white/10 bg-zinc-900 p-2 shadow-xl"
+          role="listbox"
+          aria-label="Voice 列表"
+          className="absolute left-0 top-full mt-1 z-30 max-h-56 w-72 overflow-y-auto overscroll-contain rounded-lg border border-white/10 bg-zinc-900 p-2 shadow-xl"
         >
           {VOICE_OPTIONS.map((voice: VoiceOption) => (
             <button
               key={voice.id}
               type="button"
-              className={`w-full text-left text-[10px] px-2 py-1.5 rounded cursor-pointer ${
+              role="option"
+              aria-selected={voice.id === value}
+              className={`w-full text-left text-[10px] px-2 py-1.5 rounded cursor-pointer transition-colors ${
                 voice.id === value ? 'bg-[#FF5722]/30 text-white' : 'text-white/80 hover:bg-white/10'
               }`}
               onClick={() => {

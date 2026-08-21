@@ -417,7 +417,7 @@ export default function DailyWakeupModule() {
                       <button
                         onClick={(e) => handleCollectWord(item, e.currentTarget)}
                         disabled={isCollecting(item.word) || isQueued(item.word) || isCollected(item.word)}
-                        title="收录入生词本并补齐词汇矩阵"
+                        title="加入生词本并补齐释义等信息"
                         className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 disabled:cursor-default ${
                           isCollected(item.word)
                             ? 'text-emerald-700 bg-emerald-50 border-emerald-200'

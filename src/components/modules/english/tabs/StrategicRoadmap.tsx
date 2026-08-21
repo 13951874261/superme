@@ -73,7 +73,7 @@ export default function StrategicRoadmap({
         <div className="absolute top-[7px] left-4 right-4 h-[2px] bg-slate-200/70 rounded-full" />
         <div className="absolute top-[7px] left-4 right-4 h-[2px] rounded-full overflow-hidden">
           <div
-            className="h-full bg-[var(--color-brand)] transition-all duration-500 ease-out"
+            className="h-full bg-[var(--color-brand)] transition-[width] duration-500 ease-out"
             style={{ width: `${timelineFillPercent}%` }}
           />
         </div>
@@ -101,11 +101,12 @@ export default function StrategicRoadmap({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 flex-1 min-h-0 items-stretch">
         <button
           type="button"
+          aria-pressed={stage === 'business'}
           onClick={(e) => {
             e.stopPropagation();
             handleTrackChange('business');
           }}
-          className={`group text-left p-2 rounded-lg transition-all duration-200 cursor-pointer outline-none border h-full flex flex-col ${
+          className={`group text-left p-2 rounded-lg transition-[background-color,border-color,box-shadow] duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand)] border h-full flex flex-col ${
             stage === 'business'
               ? 'bg-[var(--color-brand-subtle)] border-[var(--color-brand)] shadow-sm'
               : 'bg-slate-50/80 hover:bg-slate-50 border-slate-100 hover:border-slate-200'
@@ -131,7 +132,7 @@ export default function StrategicRoadmap({
           </div>
           <div className="h-1 rounded-full bg-slate-100 overflow-hidden mb-1">
             <div
-              className="h-full rounded-full bg-[var(--color-brand)] transition-all duration-500"
+              className="h-full rounded-full bg-[var(--color-brand)] transition-[width] duration-500"
               style={{ width: `${Math.max(6, businessProgressRatio * 100)}%` }}
             />
           </div>
@@ -146,11 +147,12 @@ export default function StrategicRoadmap({
 
         <button
           type="button"
+          aria-pressed={stage === 'all'}
           onClick={(e) => {
             e.stopPropagation();
             handleTrackChange('all');
           }}
-          className={`group text-left p-2 rounded-lg transition-all duration-200 cursor-pointer outline-none border h-full flex flex-col ${
+          className={`group text-left p-2 rounded-lg transition-[background-color,border-color,box-shadow] duration-200 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] border h-full flex flex-col ${
             stage === 'all'
               ? 'bg-orange-50 border-[var(--color-accent)] shadow-sm'
               : 'bg-slate-50/80 hover:bg-slate-50 border-slate-100 hover:border-slate-200'
@@ -176,7 +178,7 @@ export default function StrategicRoadmap({
           </div>
           <div className="h-1 rounded-full bg-slate-100 overflow-hidden mb-1">
             <div
-              className="h-full rounded-full bg-[var(--color-accent)] transition-all duration-500"
+              className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-500"
               style={{ width: `${Math.max(6, allProgressRatio * 100)}%` }}
             />
           </div>

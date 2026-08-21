@@ -92,7 +92,7 @@ export default function MaterialUploader({
         name: `材料提纯: ${files[files.length - 1]?.name || '多个文档'}`,
         status: 'pending',
         progress: 5,
-        logs: [`[${nowLabel()}] 提纯任务已在后台建立，正在排队清库...`]
+        logs: [`[${nowLabel()}] 提纯任务已在后台建立，正在排队清库…`]
       });
 
       // UI 界面提示用户关注任务中心
@@ -139,7 +139,7 @@ export default function MaterialUploader({
       name: `转写任务: ${taskId.substring(0, 8)}...`,
       status: 'pending',
       progress: 5,
-      logs: [`[${new Date().toISOString()}] 任务已在后台建立，正在排队排期...`],
+      logs: [`[${new Date().toISOString()}] 任务已在后台建立，正在排队排期…`],
     });
 
     setCurrentStep('已异步发起视频转写。完成后将自动导入并提纯，可在顶栏「提纯任务中心」追踪进度。');

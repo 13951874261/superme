@@ -77,7 +77,7 @@ class InMemoryTaskQueue {
       name,
       status: 'pending', // 'pending' | 'running' | 'completed' | 'failed'
       progress: 0,
-      logs: [`[${new Date().toISOString()}] 任务已创建，等待调度...`],
+      logs: [`[${new Date().toISOString()}] 任务已创建，等待调度…`],
       createdAt: Date.now(),
       updatedAt: Date.now(),
       result: null,

@@ -80,8 +80,11 @@ export function ImmersiveReader({
 
   return createPortal(
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="沉浸式阅读空间"
       style={leaveRoomForPanel ? { right: RIGHT_PANEL_WIDTH_PX } : undefined}
-      className={`fixed top-0 left-0 bottom-0 z-[9999] flex flex-col transition-all duration-300 ${
+      className={`fixed top-0 left-0 bottom-0 z-[9999] flex flex-col overscroll-contain transition-[right] duration-300 ${
       leaveRoomForPanel ? '' : 'right-0'
     } ${
       immersiveTheme === 'dark' ? 'bg-[var(--color-brand-dark)] text-slate-205' :
@@ -92,7 +95,7 @@ export function ImmersiveReader({
         immersiveTheme === 'dark' ? 'border-slate-800 bg-slate-900' : 'border-slate-200/60 bg-gray-50'
       }`}>
         <div className="flex items-center gap-3">
-          <BookOpen className="w-5 h-5 text-[var(--color-brand)]" />
+          <BookOpen aria-hidden="true" className="w-5 h-5 text-[var(--color-brand)]" />
           <div>
             <h3 className="text-sm font-black uppercase tracking-widest text-[var(--color-brand)]">
               沉浸式阅读空间 // Immersive Reading Room
@@ -105,26 +108,32 @@ export function ImmersiveReader({
 
         {/* Typography Controls */}
         <div className="flex items-center gap-4">
-          <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-lg">
+          <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-lg" role="group" aria-label="阅读主题">
             <button
+              type="button"
+              aria-pressed={immersiveTheme === 'paper'}
               onClick={() => setImmersiveTheme('paper')}
-              className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+              className={`px-3 py-1 text-[10px] font-black uppercase rounded transition-colors ${
                 immersiveTheme === 'paper' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
               纸张
             </button>
             <button
+              type="button"
+              aria-pressed={immersiveTheme === 'parchment'}
               onClick={() => setImmersiveTheme('parchment')}
-              className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+              className={`px-3 py-1 text-[10px] font-black uppercase rounded transition-colors ${
                 immersiveTheme === 'parchment' ? 'bg-[#f5e6d3] shadow-sm text-[#5c3e21]' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
               雅致
             </button>
             <button
+              type="button"
+              aria-pressed={immersiveTheme === 'dark'}
               onClick={() => setImmersiveTheme('dark')}
-              className={`px-3 py-1 text-[10px] font-black uppercase rounded ${
+              className={`px-3 py-1 text-[10px] font-black uppercase rounded transition-colors ${
                 immersiveTheme === 'dark' ? 'bg-slate-800 shadow-sm text-slate-200' : 'text-gray-500 hover:text-gray-800'
               }`}
             >
@@ -132,10 +141,13 @@ export function ImmersiveReader({
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-lg">
+          <div className="flex items-center gap-1.5 bg-black/5 p-1 rounded-lg" role="group" aria-label="字号">
             <button
+              type="button"
+              aria-pressed={immersiveFontSize === 'base'}
+              aria-label="较小字号"
               onClick={() => setImmersiveFontSize('base')}
-              className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded ${
+              className={`w-7 h-7 flex items-center justify-center text-xs font-bold rounded transition-colors ${
                 immersiveFontSize === 'base' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
               }`}
               title="较小字号"
@@ -143,8 +155,11 @@ export function ImmersiveReader({
               A-
             </button>
             <button
+              type="button"
+              aria-pressed={immersiveFontSize === 'lg'}
+              aria-label="中等字号"
               onClick={() => setImmersiveFontSize('lg')}
-              className={`w-7 h-7 flex items-center justify-center text-sm font-bold rounded ${
+              className={`w-7 h-7 flex items-center justify-center text-sm font-bold rounded transition-colors ${
                 immersiveFontSize === 'lg' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
               }`}
               title="中等字号"
@@ -152,8 +167,11 @@ export function ImmersiveReader({
               A
             </button>
             <button
+              type="button"
+              aria-pressed={immersiveFontSize === 'xl'}
+              aria-label="较大字号"
               onClick={() => setImmersiveFontSize('xl')}
-              className={`w-7 h-7 flex items-center justify-center text-base font-bold rounded ${
+              className={`w-7 h-7 flex items-center justify-center text-base font-bold rounded transition-colors ${
                 immersiveFontSize === 'xl' ? 'bg-white shadow-sm text-slate-900' : 'text-gray-500 hover:text-gray-800'
               }`}
               title="较大字号"
@@ -162,7 +180,7 @@ export function ImmersiveReader({
             </button>
           </div>
 
-          <div className="h-5 w-px bg-gray-300" />
+          <div className="h-5 w-px bg-gray-300" aria-hidden="true" />
 
           <SpeakButton
             text={generatedArticle}
@@ -171,6 +189,8 @@ export function ImmersiveReader({
           />
 
           <button
+            type="button"
+            aria-label="关闭沉浸式阅读"
             onClick={() => {
               onClose();
               setSelectedWord('');
@@ -178,14 +198,14 @@ export function ImmersiveReader({
             className="w-9 h-9 flex items-center justify-center bg-black/5 hover:bg-black/10 rounded-full transition-colors cursor-pointer text-gray-500 hover:text-red-500 btn-press"
             title="关闭沉浸式阅读 (Esc)"
           >
-            <X className="w-5 h-5" />
+            <X aria-hidden="true" className="w-5 h-5" />
           </button>
         </div>
       </div>
 
       {/* Reading body */}
       <div 
-        className="flex-1 overflow-y-auto px-8 py-12 flex justify-center"
+        className="flex-1 overflow-y-auto overscroll-contain px-8 py-12 flex justify-center"
         style={{ scrollbarWidth: 'thin' }}
       >
         <div 
@@ -202,7 +222,7 @@ export function ImmersiveReader({
         >
           {generatedArticle.split('\n\n').map((paragraph, index) => (
             <div key={index} className="group relative flex items-start gap-4 mb-8">
-              <div className="absolute -left-12 top-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-x-2 group-hover:translate-x-0">
+              <div className="absolute -left-12 top-1.5 opacity-0 group-hover:opacity-100 transition-[opacity,transform] duration-300 transform translate-x-2 group-hover:translate-x-0">
                 <SpeakButton
                   text={paragraph}
                   className="w-8 h-8 bg-orange-50 hover:bg-[var(--color-brand)] text-[var(--color-brand)] hover:text-white rounded-full shadow-sm cursor-pointer"
@@ -225,6 +245,7 @@ export function ImmersiveReader({
         }`}>
           <span className="text-xs font-black text-[var(--color-brand)]">“{selectedWord}”</span>
           <button
+            type="button"
             disabled={isAddingSelected}
             onClick={async () => {
               playPageTurn();
@@ -321,22 +342,24 @@ export function ImmersiveReader({
                   },
                 }));
 
-                showNotice('dashboard', `“${targetWord}” 已成功加入词库并解锁解析`, 'success');
+                showNotice('dashboard', `“${targetWord}” 已加入生词本，可查看释义`, 'success');
                 window.dispatchEvent(new Event('vocab-updated'));
                 playSuccess();
               } catch (e) {
                 playError();
-                showNotice('dashboard', `“${targetWord}” 入库失败，请检查网络`, 'error');
+                showNotice('dashboard', `“${targetWord}” 加入生词本失败，请检查网络后重试`, 'error');
               } finally {
                 setIsAddingSelected(false);
                 setSelectedWord('');
               }
             }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl transition-all cursor-pointer disabled:opacity-50 btn-press"
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl transition-colors cursor-pointer disabled:opacity-50 btn-press"
           >
-            {isAddingSelected ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : '加入词库'}
+            {isAddingSelected ? <Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" /> : '加入词库'}
           </button>
           <button
+            type="button"
+            aria-label="取消选词"
             onClick={() => setSelectedWord('')}
             className="text-gray-400 hover:text-gray-600 text-sm font-bold ml-1"
           >

@@ -48,7 +48,7 @@ export function VocabularyGrid({
     if (localDone && !collecting) {
       return (
         <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shrink-0">
-          <CheckCircle2 className="w-2.5 h-2.5" /> {VOCAB_COLLECT_LABEL.done}
+          <CheckCircle2 aria-hidden="true" className="w-2.5 h-2.5" /> {VOCAB_COLLECT_LABEL.done}
         </span>
       );
     }
@@ -63,14 +63,15 @@ export function VocabularyGrid({
       <button
         type="button"
         disabled={collecting || queued}
+        aria-label={`${label}：${text}`}
         onClick={(e) => {
           e.stopPropagation();
           handleAddWordToVocab(text, isPhrase, isSentence, e.currentTarget);
         }}
-        className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-all cursor-pointer shrink-0 btn-press disabled:opacity-70 disabled:cursor-wait flex items-center gap-0.5"
-        title="收录入生词本并补齐词汇矩阵"
+        className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-colors cursor-pointer shrink-0 btn-press disabled:opacity-70 disabled:cursor-wait flex items-center gap-0.5"
+        title="加入生词本并补齐释义等信息"
       >
-        {(collecting || queued) && <Loader2 className="w-2.5 h-2.5 animate-spin" />}
+        {(collecting || queued) && <Loader2 aria-hidden="true" className="w-2.5 h-2.5 animate-spin" />}
         {label}
       </button>
     );
@@ -112,7 +113,7 @@ export function VocabularyGrid({
                       rawMeaning = asyncMeanings[cleanKey].meaning;
                     } else {
                       fetchBilingualTranslation(word);
-                      rawMeaning = '释义查询中...';
+                      rawMeaning = '释义查询中…';
                     }
                   }
 
@@ -123,7 +124,7 @@ export function VocabularyGrid({
                   return (
                     <div
                       key={word}
-                      className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-[var(--color-border)] rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 min-h-[96px] text-left overflow-hidden"
+                      className="group relative flex flex-col justify-between p-4 bg-slate-50/50 hover:bg-white border border-slate-100 hover:border-[var(--color-border)] rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-[background-color,border-color,box-shadow] duration-300 min-h-[96px] text-left overflow-hidden"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="flex flex-col">
@@ -148,10 +149,10 @@ export function VocabularyGrid({
 
                       <div className="mt-3 pt-2.5 border-t border-dashed border-slate-100/80">
                         <div className="relative h-4 overflow-hidden">
-                          <span className="absolute inset-0 text-[10px] text-slate-400 font-medium tracking-wider transition-all duration-300 group-hover:opacity-0 group-hover:translate-y-[-10px] flex items-center gap-1">
-                            <Eye className="w-3 h-3 opacity-70" /> 悬浮查看释义
+                          <span className="absolute inset-0 text-[10px] text-slate-400 font-medium tracking-wider transition-[opacity,transform] duration-300 group-hover:opacity-0 group-hover:translate-y-[-10px] flex items-center gap-1">
+                            <Eye aria-hidden="true" className="w-3 h-3 opacity-70" /> 悬浮查看释义
                           </span>
-                          <span className="absolute inset-0 text-[11px] text-[var(--color-brand)] font-bold tracking-wide transition-all duration-300 opacity-0 translate-y-[10px] group-hover:opacity-100 group-hover:translate-y-0 truncate">
+                          <span className="absolute inset-0 text-[11px] text-[var(--color-brand)] font-bold tracking-wide transition-[opacity,transform] duration-300 opacity-0 translate-y-[10px] group-hover:opacity-100 group-hover:translate-y-0 truncate">
                             {rawMeaning}
                           </span>
                         </div>
@@ -188,14 +189,14 @@ export function VocabularyGrid({
                       rawMeaning = asyncMeanings[cleanKey].meaning;
                     } else {
                       fetchBilingualTranslation(phrase);
-                      rawMeaning = '释义查询中...';
+                      rawMeaning = '释义查询中…';
                     }
                   }
 
                   return (
                     <div
                       key={idx}
-                      className="group flex flex-col justify-between p-4 bg-white border border-slate-100 hover:border-amber-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5 text-left"
+                      className="group flex flex-col justify-between p-4 bg-white border border-slate-100 hover:border-amber-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-[background-color,border-color,box-shadow] duration-300 relative overflow-hidden pl-5 text-left"
                     >
                       <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-[#FFC107] rounded-r-lg group-hover:bg-[#FFC107]/80 transition-colors"></div>
 
@@ -261,14 +262,14 @@ export function VocabularyGrid({
                       rawMeaning = asyncMeanings[cleanKey].meaning;
                     } else {
                       fetchBilingualTranslation(phrase);
-                      rawMeaning = '翻译查询中...';
+                      rawMeaning = '翻译查询中…';
                     }
                   }
 
                   return (
                     <div
                       key={idx}
-                      className="group flex flex-col justify-between p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-all duration-300 relative overflow-hidden pl-5 text-left"
+                      className="group flex flex-col justify-between p-4 bg-white border border-slate-100 hover:border-emerald-100 rounded-2xl shadow-[0_2px_8px_rgba(0,0,0,0.01)] hover:shadow-md transition-[background-color,border-color,box-shadow] duration-300 relative overflow-hidden pl-5 text-left"
                     >
                       <div className="absolute left-0 top-0 bottom-0 w-[4px] bg-emerald-500 rounded-r-lg group-hover:bg-emerald-500/80 transition-colors"></div>
 

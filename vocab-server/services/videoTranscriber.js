@@ -32,7 +32,7 @@ async function startTranscribeTask(taskId, {
   let audioPath = null;
 
   try {
-    taskQueue.updateTask(taskId, { status: 'running', progress: 5, logs: ['正在初始化转写任务...'] });
+    taskQueue.updateTask(taskId, { status: 'running', progress: 5, logs: ['正在初始化转写任务…'] });
 
     // 1. 获取视频资源
     if (url) {
@@ -47,7 +47,7 @@ async function startTranscribeTask(taskId, {
         const localPath = path.join(TMP_VIDEO_DIR, filename);
         
         if (fs.existsSync(localPath)) {
-          taskQueue.updateTask(taskId, { progress: 40, logs: ['检测到本地直链视频，直接使用本地文件，准备提取音轨...'] });
+          taskQueue.updateTask(taskId, { progress: 40, logs: ['检测到本地直链视频，直接使用本地文件，准备提取音轨…'] });
           videoPath = localPath;
         } else {
           throw new Error('本地直链对应的视频文件不存在');
@@ -59,7 +59,7 @@ async function startTranscribeTask(taskId, {
           throw new Error('视频链接格式非法或为受限的内部地址');
         }
 
-        taskQueue.updateTask(taskId, { progress: 15, logs: ['开始从链接下载视频...'] });
+        taskQueue.updateTask(taskId, { progress: 15, logs: ['开始从链接下载视频…'] });
         videoPath = path.join(TMP_VIDEO_DIR, `video_${taskId}.mp4`);
         
         const response = await fetch(url);
@@ -93,7 +93,7 @@ async function startTranscribeTask(taskId, {
         taskQueue.updateTask(taskId, { progress: 40, logs: ['视频下载完成，准备提取音轨'] });
       }
     } else if (filePath) {
-      taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件...'] });
+      taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件…'] });
       videoPath = filePath;
 
       const stats = fs.statSync(videoPath);
@@ -103,7 +103,7 @@ async function startTranscribeTask(taskId, {
       }
       taskQueue.updateTask(taskId, { progress: 40, logs: ['视频文件就位，准备提取音轨'] });
     } else if (fileBase64) {
-      taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件，正在还原...'] });
+      taskQueue.updateTask(taskId, { progress: 20, logs: ['接收到上传的视频文件，正在还原…'] });
       const name = fileName || `uploaded_${taskId}.mp4`;
       videoPath = path.join(TMP_VIDEO_DIR, `video_${taskId}_${name}`);
 
@@ -123,7 +123,7 @@ async function startTranscribeTask(taskId, {
 
     // 2. FFmpeg 音频提取 (MP3, 16kHz, 单声道)
     audioPath = path.join(TMP_VIDEO_DIR, `audio_${taskId}.mp3`);
-    taskQueue.updateTask(taskId, { progress: 50, logs: ['启动 FFmpeg 音轨提取组件...'] });
+    taskQueue.updateTask(taskId, { progress: 50, logs: ['启动 FFmpeg 音轨提取组件…'] });
 
     await new Promise((resolve, reject) => {
       // 提取音轨命令
@@ -138,7 +138,7 @@ async function startTranscribeTask(taskId, {
       });
     });
 
-    taskQueue.updateTask(taskId, { progress: 65, logs: ['音轨提取成功 (16kHz 单声道 MP3)，开始上传至转写引擎...'] });
+    taskQueue.updateTask(taskId, { progress: 65, logs: ['音轨提取成功 (16kHz 单声道 MP3)，开始上传至转写引擎…'] });
 
     // 3. 上传 MP3 到 Dify 平台获取 file_id
     const difyApiKey = process.env.DIFY_SPEECH_API_KEY;
@@ -168,7 +168,7 @@ async function startTranscribeTask(taskId, {
       throw new Error('音频上传成功，但未返回文件ID');
     }
 
-    taskQueue.updateTask(taskId, { progress: 75, logs: [`上传成功 (ID: ${fileId})，正在提交 Dify 语音转写工作流...`] });
+    taskQueue.updateTask(taskId, { progress: 75, logs: [`上传成功 (ID: ${fileId})，正在提交 Dify 语音转写工作流…`] });
 
     // 4. 调用 Dify 语音转写 Workflow
     const workflowResponse = await fetch(`${endpointBase}/workflows/run`, {
@@ -206,7 +206,7 @@ async function startTranscribeTask(taskId, {
       throw new Error('语音识别成功，但返回的文本为空。请确认视频内包含人声并选择了正确的语言');
     }
 
-    taskQueue.updateTask(taskId, { progress: 95, logs: ['转写成果提取成功，正在封装虚拟材料...'] });
+    taskQueue.updateTask(taskId, { progress: 95, logs: ['转写成果提取成功，正在封装虚拟材料…'] });
 
     // 5. 组装虚拟材料 VirtualMaterial
     const virtualMaterial = {
@@ -230,14 +230,14 @@ async function startTranscribeTask(taskId, {
       } else {
         taskQueue.updateTask(taskId, {
           progress: 70,
-          logs: ['转写完成，等待后续抽取...'],
+          logs: ['转写完成，等待后续抽取…'],
         });
       }
       return virtualMaterial;
     }
 
     // 自动触发 Dify 知识库导入与提纯分析入库
-    taskQueue.updateTask(taskId, { progress: 96, logs: ['转写成功！正在自动执行 Dify 知识库导入与提纯分析...'] });
+    taskQueue.updateTask(taskId, { progress: 96, logs: ['转写成功！正在自动执行 Dify 知识库导入与提纯分析…'] });
 
     const DATASET_KEY = process.env.DIFY_VIDEO_DATASET_KEY || 'dataset-Jk5ehEEDT72wmXI5P68hcTlI';
     const WORKFLOW_KEY = process.env.DIFY_VIDEO_WORKFLOW_KEY || 'app-cArGQg7bAnePU0ts63FoHrAG';
@@ -248,7 +248,7 @@ async function startTranscribeTask(taskId, {
     const datasetId = KNOWLEAGE_PRO_SCENARIOS_DATASET_ID;
 
     // 2. 清空旧文档
-    taskQueue.updateTask(taskId, { logs: ['正在清空 Knowleage_Pro_Scenarios 知识库旧文档...'] });
+    taskQueue.updateTask(taskId, { logs: ['正在清空 Knowleage_Pro_Scenarios 知识库旧文档…'] });
     const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
       headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
     });
@@ -265,7 +265,7 @@ async function startTranscribeTask(taskId, {
     }
 
     // 3. 上传新文档并进行向量化
-    taskQueue.updateTask(taskId, { logs: ['正在上传转写文件至 Dify 知识库...'] });
+    taskQueue.updateTask(taskId, { logs: ['正在上传转写文件至 Dify 知识库…'] });
     const docBlob = new Blob([Buffer.from(virtualMaterial.content, 'utf-8')], { type: 'text/markdown' });
     const uploadDocFormData = new FormData();
     uploadDocFormData.append('file', docBlob, virtualMaterial.name);
@@ -341,7 +341,7 @@ async function startTranscribeTask(taskId, {
     }
 
     // 5. 触发 Dify 提纯工作流
-    taskQueue.updateTask(taskId, { progress: 98, logs: ['知识库向量化就绪！开始运行 Dify 提纯分析工作流...'] });
+    taskQueue.updateTask(taskId, { progress: 98, logs: ['知识库向量化就绪！开始运行 Dify 提纯分析工作流…'] });
     const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
       method: 'POST',
       headers: {
@@ -369,7 +369,7 @@ async function startTranscribeTask(taskId, {
     }
 
     // 6. 写入 SQLite
-    taskQueue.updateTask(taskId, { logs: [`提纯提取成功，找到 ${extractedWords.length} 个候选词汇。正在查重新增至生词本...`] });
+    taskQueue.updateTask(taskId, { logs: [`提纯提取成功，找到 ${extractedWords.length} 个候选词汇。正在查重新增至生词本…`] });
     const isProd = process.env.NODE_ENV === 'production';
     const dbPath = isProd ? '/var/www/super-agent/vocab.db' : path.join(__dirname, '../vocab.db');
     const db = new Database(dbPath);

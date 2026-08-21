@@ -23,7 +23,7 @@ export default function WordLimitGuard({ limit, value, onChange, children }: Pro
     <div className="relative">
       {children}
       {/* 字数计数器 */}
-      <div className={`absolute bottom-3 right-3 text-[10px] font-black tracking-widest px-3 py-1.5 rounded-xl transition-all duration-300 ${
+      <div className={`absolute bottom-3 right-3 text-[10px] font-black tracking-widest px-3 py-1.5 rounded-xl transition-[background-color,border-color,box-shadow,opacity,transform] duration-300 ${
         isOver
           ? 'bg-red-500 text-white animate-pulse shadow-[0_2px_12px_rgba(239,68,68,0.5)]'
           : isClose
@@ -39,7 +39,7 @@ export default function WordLimitGuard({ limit, value, onChange, children }: Pro
       {isOver && (
         <div className="absolute inset-0 bg-red-500/10 rounded-2xl border-2 border-red-400 pointer-events-none flex items-center justify-center">
           <div className="bg-red-500 text-white px-4 py-2 rounded-xl text-xs font-black flex items-center gap-2 shadow-lg">
-            <AlertTriangle className="w-4 h-4" />
+            <AlertTriangle aria-hidden="true" className="w-4 h-4" />
             超限！请压缩至 {limit} 词以内
           </div>
         </div>

@@ -2619,8 +2619,8 @@ app.post('/api/listen/generate-material-long', async (req, res) => {
     // ========= 以下进入异步后台执行，不会阻塞客户端连接 =========
     (async () => {
       try {
-        taskQueue.updateTask(task.id, { progress: 10, logs: ['正在连接智库并初始化推演模型 (Dify API)...'] });
-        taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数据...'] });
+        taskQueue.updateTask(task.id, { progress: 10, logs: ['正在连接智库并初始化推演模型 (Dify API)…'] });
+        taskQueue.updateTask(task.id, { progress: 30, logs: ['成功连接，模型正在流式下发剧本数据…'] });
 
         const rawAnswer = await generateListenLongScriptSync(inputs, userId);
         const answer = sanitizeListenMaterialScript(rawAnswer);
@@ -2789,7 +2789,7 @@ app.post('/api/listen/pregenerated/backfill', async (req, res) => {
 
     (async () => {
       try {
-        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['[听力生成] 正在组织专业听力对话脚本与语境...'] });
+        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['[听力生成] 正在组织专业听力对话脚本与语境…'] });
         const mode = only === 'audio' || only === 'article' ? only : 'both';
         const result = await dailyListenPreGenerateService.generateOneCombo(
           db,
@@ -3761,7 +3761,7 @@ app.post('/api/vocab/batch-add-async', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'running',
           progress: 10,
-          logs: [`[生词收录] 开始异步写入 ${itemList.length} 个词句并补齐词汇矩阵...`],
+          logs: [`[生词收录] 开始异步写入 ${itemList.length} 个词句并补齐词汇矩阵…`],
         });
 
         let addedCount = 0;
@@ -3919,7 +3919,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'running',
           progress: 5,
-          logs: ['\u5f00\u59cb\u62c9\u53d6\u751f\u8bcd\u672c\u6570\u636e\u5e76\u51c6\u5907\u5bfc\u51fa...']
+          logs: ['\u5f00\u59cb\u62c9\u53d6\u751f\u8bcd\u672c\u6570\u636e\u5e76\u51c6\u5907\u5bfc\u51fa…']
         });
         try {
           const testWord = 'strategy';
@@ -3985,7 +3985,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
 
         taskQueue.updateTask(task.id, {
           progress: 10,
-          logs: [`\u62c9\u53d6\u5b8c\u6210\uff0c\u5171\u8fc4\u6ee4\u5e76\u6e05\u7406\u51fa ${filtered.length} \u6761\u8bcd\u6761\u3002\u5f00\u59cb\u68c0\u6d4b\u5e76\u81ea\u52a8\u8865\u9f50\u7a7a\u767d\u5b57\u6bb5...`]
+          logs: [`\u62c9\u53d6\u5b8c\u6210\uff0c\u5171\u8fc4\u6ee4\u5e76\u6e05\u7406\u51fa ${filtered.length} \u6761\u8bcd\u6761\u3002\u5f00\u59cb\u68c0\u6d4b\u5e76\u81ea\u52a8\u8865\u9f50\u7a7a\u767d\u5b57\u6bb5…`]
         });
         const getWordTranslation = (payload) => {
           if (typeof payload.translation_main === 'string' && payload.translation_main.trim()) return payload.translation_main;
@@ -4043,7 +4043,7 @@ app.post('/api/vocab/export-background', async (req, res) => {
           }
         }
         taskQueue.updateTask(task.id, {
-          logs: [`\u68c0\u6d4b\u5230 ${wordsToEnrich.length} \u4e2a\u8bcd\u6761\u6709\u7a9a\u767d\u6216\u5360\u4f4d\u7b26\u5217\uff0c\u6b63\u5728\u542f\u52a8\u672c\u5730\u7f13\u5b58\u67e5\u8be2\u4e0e\u5728\u7ebf Dify \u8865\u9f50...`]
+          logs: [`\u68c0\u6d4b\u5230 ${wordsToEnrich.length} \u4e2a\u8bcd\u6761\u6709\u7a9a\u767d\u6216\u5360\u4f4d\u7b26\u5217\uff0c\u6b63\u5728\u542f\u52a8\u672c\u5730\u7f13\u5b58\u67e5\u8be2\u4e0e\u5728\u7ebf Dify \u8865\u9f50…`]
         });
         let enrichedCount = 0;
         let cachedMatchCount = 0;
@@ -4140,11 +4140,11 @@ app.post('/api/vocab/export-background', async (req, res) => {
           const progressPercent = Math.min(90, Math.round(((i * concurrencyLimit) / wordsToEnrich.length) * 80) + 10);
           taskQueue.updateTask(task.id, {
             progress: progressPercent,
-            logs: [`\u5df2\u5904\u7406 ${Math.min(wordsToEnrich.length, (i + 1) * concurrencyLimit)}/${wordsToEnrich.length} \u4e2a\u8bcd\u6761 (\u672c\u5730\u7f13\u5b58\u5339\u914d: ${cachedMatchCount}, \u5728\u7ebf\u67e5\u8be2\u6570: ${onlineQueryCount}/${maxOnlineQueries})...`]
+            logs: [`\u5df2\u5904\u7406 ${Math.min(wordsToEnrich.length, (i + 1) * concurrencyLimit)}/${wordsToEnrich.length} \u4e2a\u8bcd\u6761 (\u672c\u5730\u7f13\u5b58\u5339\u914d: ${cachedMatchCount}, \u5728\u7ebf\u67e5\u8be2\u6570: ${onlineQueryCount}/${maxOnlineQueries})…`]
           });
         }
         taskQueue.updateTask(task.id, {
-          logs: [`\u5728\u7ebf\u8865\u9f50\u5904\u7406\u5b8c\u6210\uff0c\u6210\u529f\u8865\u9f50 ${enrichedCount} \u4e2a\u8bcd\u6761\u3002\u6b63\u5728\u5bf9\u6240\u6709\u5269\u4e59\u7a7a\u767d\u5217\u5e94\u7528\u672c\u5730\u515c\u5e95\u5e76\u751f\u6210 CSV...`]
+          logs: [`\u5728\u7ebf\u8865\u9f50\u5904\u7406\u5b8c\u6210\uff0c\u6210\u529f\u8865\u9f50 ${enrichedCount} \u4e2a\u8bcd\u6761\u3002\u6b63\u5728\u5bf9\u6240\u6709\u5269\u4e59\u7a7a\u767d\u5217\u5e94\u7528\u672c\u5730\u515c\u5e95\u5e76\u751f\u6210 CSV…`]
         });
         // ???????????????????? Dify ?????????????????? CSV
         const incompleteWords = normalizedList.filter(w => {
@@ -5022,7 +5022,7 @@ app.post('/api/theme/custom/:id/delete-async', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'running',
           progress: 15,
-          logs: ['正在清理该场景下的学习资料与练习记录...'],
+          logs: ['正在清理该场景下的学习资料与练习记录…'],
         });
         const result = await runCustomThemeCascadeDelete(id);
         if (!result.success) {
@@ -6204,7 +6204,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       taskQueue.updateTask(task.id, {
         status: 'running',
         progress: 5,
-        logs: ['[进度] 正在初始化提取任务...']
+        logs: ['[进度] 正在初始化提取任务…']
       });
 
       // ---------------------------------------------------------
@@ -6217,7 +6217,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 20,
-        logs: ['[进度] 正在清空 Knowleage_Pro_Scenarios 知识库...']
+        logs: ['[进度] 正在清空 Knowleage_Pro_Scenarios 知识库…']
       });
       const docsResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/documents?page=1&limit=100`, {
         headers: { 'Authorization': `Bearer ${DATASET_KEY}` }
@@ -6230,7 +6230,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       if (docIds.length > 0) {
         taskQueue.updateTask(task.id, {
           progress: 30,
-          logs: [`[进度] 发现已存在 ${docIds.length} 个旧文档，正在清空...`]
+          logs: [`[进度] 发现已存在 ${docIds.length} 个旧文档，正在清空…`]
         });
         await Promise.all(docIds.map(async docId => {
           const delRes = await fetch(`${BASE_URL}/datasets/${datasetId}/documents/${docId}`, {
@@ -6255,7 +6255,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 45,
-        logs: ['[进度] 正在解析 Base64 格式的上传材料...']
+        logs: ['[进度] 正在解析 Base64 格式的上传材料…']
       });
       const fileObj = files[0];
       const base64Data = fileObj.content || fileObj.base64 || '';
@@ -6299,7 +6299,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 50,
-        logs: ['[进度] 正在上传解析后的材料到 Dify 知识库...']
+        logs: ['[进度] 正在上传解析后的材料到 Dify 知识库…']
       });
       const uploadResponse = await fetch(`${BASE_URL}/datasets/${datasetId}/document/create_by_file`, {
         method: 'POST',
@@ -6322,7 +6322,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 55,
-        logs: [`[进度] 导入文档成功 (ID: ${documentId}, Batch: ${batchId})，正在开始索引...`]
+        logs: [`[进度] 导入文档成功 (ID: ${documentId}, Batch: ${batchId})，正在开始索引…`]
       });
 
       // ---------------------------------------------------------
@@ -6364,7 +6364,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 70,
-        logs: ['[进度] 知识库文档向量化就绪，准备提纯...']
+        logs: ['[进度] 知识库文档向量化就绪，准备提纯…']
       });
 
       // --- 展示用正文：优先本地抽取原文；Dify 分段仅作回退（分段拼接会改段落结构）---
@@ -6421,7 +6421,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // ---------------------------------------------------------
       taskQueue.updateTask(task.id, {
         progress: 75,
-        logs: ['[进度] 正在运行 Dify 提纯工作流提取核心词句...']
+        logs: ['[进度] 正在运行 Dify 提纯工作流提取核心词句…']
       });
       const wfResponse = await fetch(`${BASE_URL}/workflows/run`, {
         method: 'POST',
@@ -6518,7 +6518,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 85,
-        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词本...`]
+        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词本…`]
       });
 
       /**
@@ -6638,7 +6638,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
       // 组装思维导图与核心知识点框架
       taskQueue.updateTask(task.id, {
         progress: 90,
-        logs: ['[进度] 正在生成材料思维导图与核心知识点框架...']
+        logs: ['[进度] 正在生成材料思维导图与核心知识点框架…']
       });
 
       let mindmapAndTheory = null;
@@ -8560,7 +8560,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       const difyApiKey = process.env.DIFY_GAME_THEORY_API_KEY || process.env.VITE_DIFY_GAME_THEORY_KEY;
       const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接博弈模型 (Dify)...'] });
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接博弈模型 (Dify)…'] });
 
       const isSimulation = normalizedSource === 'simulation';
       const promptInstruction = isSimulation
@@ -8598,7 +8598,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
       }
 
       const data = await response.json();
-      taskQueue.updateTask(task.id, { progress: 80, logs: ['正在解析研判结果...'] });
+      taskQueue.updateTask(task.id, { progress: 80, logs: ['正在解析研判结果…'] });
 
       const rawResult = data?.data?.outputs?.analysis_result ?? data?.data?.outputs?.result ?? data?.answer ?? data?.message ?? '';
       const cleanJson = String(rawResult).replace(/```json/g, '').replace(/```/g, '').trim();
@@ -9817,7 +9817,7 @@ app.post('/api/game-theory/tactics/ingest-background', upload.single('file'), as
 
     setImmediate(async () => {
       try {
-        taskQueue.updateTask(task.id, { status: 'running', progress: 8, logs: ['已接收文件，开始处理...'] });
+        taskQueue.updateTask(task.id, { status: 'running', progress: 8, logs: ['已接收文件，开始处理…'] });
         let textContent = '';
         let transcript = '';
         let durationSec = null;
@@ -9830,7 +9830,7 @@ app.post('/api/game-theory/tactics/ingest-background', upload.single('file'), as
           if (!limit.ok) {
             throw new Error(limit.error);
           }
-          taskQueue.updateTask(task.id, { progress: 25, logs: [`时长约 ${Math.round(durationSec)} 秒，开始转写...`] });
+          taskQueue.updateTask(task.id, { progress: 25, logs: [`时长约 ${Math.round(durationSec)} 秒，开始转写…`] });
           const { extractTranscriptFromLocalVideo } = require('./services/videoTranscriber');
           const tr = await extractTranscriptFromLocalVideo({
             taskId: task.id,
@@ -9869,7 +9869,7 @@ app.post('/api/game-theory/tactics/ingest-background', upload.single('file'), as
           }
         }
 
-        taskQueue.updateTask(task.id, { progress: 78, logs: ['正在抽取驭人手段...'] });
+        taskQueue.updateTask(task.id, { progress: 78, logs: ['正在抽取驭人手段…'] });
         const excerpt = textContent.length > 6000 ? textContent.substring(0, 6000) + '...' : textContent;
         const tactics = await callTacticsExtractLlm(excerpt, userId);
         if (!tactics.length) {
@@ -10246,7 +10246,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
           } catch (edgeErr) {
             console.warn('[TTS] edge-tts primary failed, trying upstream:', edgeErr.message);
             if (taskQueue && taskId) {
-              taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 本地 edge-tts 失败，尝试上游网关...`] });
+              taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 本地 edge-tts 失败，尝试上游网关…`] });
             }
           }
         }
@@ -10291,7 +10291,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         if (r.status === 502 || r.status === 504) {
           console.warn(`[TTS] Gateway error ${r.status}, trying fallback...`);
           if (taskQueue && taskId) {
-            taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 网关错误 ${r.status}，尝试备用合成...`] });
+            taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 网关错误 ${r.status}，尝试备用合成…`] });
           }
           try {
             const fallbackResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
@@ -10322,7 +10322,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
         const delay = Math.pow(2, attempt) * 1000 + Math.floor(Math.random() * 1000);
         if (taskQueue && taskId) {
           taskQueue.updateTask(taskId, {
-            logs: [`分块 ${idx + 1}/${total} 第${attempt}次失败，${Math.round(delay/1000)}秒后重试...`]
+            logs: [`分块 ${idx + 1}/${total} 第${attempt}次失败，${Math.round(delay/1000)}秒后重试…`]
           });
         }
         await new Promise(r => setTimeout(r, delay));
@@ -12315,7 +12315,7 @@ app.post('/api/insight/listen/feedback', async (req, res) => {
     try {
       const apiKey = process.env.DIFY_INSIGHT_LISTEN_KEY || process.env.VITE_DIFY_INSIGHT_LISTEN_KEY;
       const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接听点评模型 (Dify)...'] });
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接听点评模型 (Dify)…'] });
       const data = await runDifyWorkflow({
         apiKey,
         baseUrl,
@@ -12406,7 +12406,7 @@ app.post('/api/speak/influence', async (req, res) => {
     try {
       const apiKey = process.env.DIFY_SPEAK_INFLUENCE_KEY || process.env.VITE_DIFY_SPEAK_INFLUENCE_KEY;
       const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接说评估模型 (Dify)...'] });
+      taskQueue.updateTask(task.id, { progress: 40, logs: ['正在连接说评估模型 (Dify)…'] });
       const data = await runDifyWorkflow({
         apiKey,
         baseUrl,
@@ -12649,7 +12649,7 @@ app.post('/api/game-theory/tactics/export-background', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'running',
           progress: 20,
-          logs: ['正在生成手段库 CSV...'],
+          logs: ['正在生成手段库 CSV…'],
         });
         const escape = (value) => '"' + String(value ?? '').replace(/"/g, '""') + '"';
         const rows = [
@@ -12700,7 +12700,7 @@ app.post('/api/knowledge-vault/export-background', async (req, res) => {
         taskQueue.updateTask(task.id, {
           status: 'running',
           progress: 15,
-          logs: [`正在生成 ${format.toUpperCase()}...`],
+          logs: [`正在生成 ${format.toUpperCase()}…`],
         });
         if (format === 'csv') {
           const csvContent = String(req.body?.csvContent || '');

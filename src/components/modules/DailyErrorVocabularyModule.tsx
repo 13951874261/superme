@@ -150,7 +150,7 @@ export default function DailyErrorVocabularyModule() {
               <button
                 onClick={(e) => handleAddWord(item, e.currentTarget)}
                 disabled={isCollecting(item.word) || isQueued(item.word) || isCollected(item.word)}
-                title="收录入生词本并补齐词汇矩阵"
+                title="加入生词本并补齐释义等信息"
                 className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   isCollected(item.word)
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'

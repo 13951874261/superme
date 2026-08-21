@@ -954,7 +954,7 @@ export default function DictionaryPanel() {
                                 ? VOCAB_COLLECT_LABEL.queued
                                 : collecting
                                   ? VOCAB_COLLECT_LABEL.collecting
-                                  : '收录入生词本并补齐词汇矩阵'
+                                  : '加入生词本并补齐释义等信息'
                           }
                           disabled={collecting || queued || collected}
                           onClick={(e) => {

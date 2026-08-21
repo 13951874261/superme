@@ -9,8 +9,8 @@ export interface StayAnalysisPanelProps {
 
 const StatusIcon = ({ ok }: { ok: boolean }) =>
   ok
-    ? <CheckCircle className="w-4 h-4 text-emerald-500 inline" weight="fill" />
-    : <WarningCircle className="w-4 h-4 text-amber-500 inline" weight="fill" />;
+    ? <CheckCircle aria-hidden="true" className="w-4 h-4 text-emerald-500 inline" weight="fill" />
+    : <WarningCircle aria-hidden="true" className="w-4 h-4 text-amber-500 inline" weight="fill" />;
 
 const ProgressRing = ({ percentage }: { percentage: number }) => {
   const radius = 32;
@@ -23,7 +23,7 @@ const ProgressRing = ({ percentage }: { percentage: number }) => {
         <circle cx="36" cy="36" r={radius} className="stroke-slate-100" strokeWidth="7" fill="none" />
         <circle
           cx="36" cy="36" r={radius}
-          className="stroke-[var(--color-brand)] transition-all duration-1000 ease-out"
+          className="stroke-[var(--color-brand)] transition-[stroke-dashoffset] duration-1000 ease-out"
           strokeWidth="7" fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -101,7 +101,7 @@ export function StayAnalysisPanel({ masteryData, impromptuPassed, stayStats }: S
           </div>
 
           <div className="mt-1.5 bg-amber-50/60 border border-amber-100/60 rounded-md p-1.5 flex items-start gap-1.5 flex-1 min-h-0">
-            <WarningCircle className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" weight="fill" />
+            <WarningCircle aria-hidden="true" className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" weight="fill" />
             <div className="text-[10px] leading-snug text-amber-800 font-medium min-w-0">
               <span className="font-bold">今日建议：</span>
               <span className="opacity-90 line-clamp-3">{stayStats.todaySuggestion}</span>

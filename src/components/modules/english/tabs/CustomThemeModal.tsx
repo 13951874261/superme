@@ -63,10 +63,10 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
 
     setIsProcessing(true);
     setError(null);
-    setProcessStatus('正在解析上传文件...');
+    setProcessStatus('正在解析上传文件…');
 
     try {
-      setProcessStatus('正在将材料同步到 Dify 知识库...');
+      setProcessStatus('正在上传并整理场景材料…');
       
       let payloadFile = file;
       if (!payloadFile && manualInput.trim()) {
@@ -100,7 +100,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
       playError();
       const errorMsg = err.message || '自定义场景创建中发生异常';
       console.error('[CustomThemeModal] 创建失败:', err);
-      setError(errorMsg + '。请确认后端服务 (vocab-server) 已启动，且 Dify API 配置正确。');
+      setError((errorMsg ? `${errorMsg}。` : '') + '请稍后重试；若仍失败，请联系管理员检查服务是否正常。');
     } finally {
       setIsProcessing(false);
     }
@@ -127,7 +127,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
 
   return createPortal(
     (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm animate-[fadeIn_0.2s_ease-out]">
+    <div role="dialog" aria-modal="true" aria-label="自定义场景" className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm overscroll-contain animate-[fadeIn_0.2s_ease-out]">
       <div className="bg-slate-900 border border-slate-800 rounded-[2.5rem] p-8 w-full max-w-xl text-white shadow-2xl relative overflow-hidden">
         {/* 背景光效 */}
         <div className="absolute -right-24 -top-24 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -141,17 +141,15 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
               创建自定义练习场景 <span className="text-indigo-400">// Custom Theme</span>
             </h4>
           </div>
-          <button 
-            onClick={handleClose} 
-            className="text-slate-400 hover:text-white transition-colors p-1.5 hover:bg-slate-800 rounded-lg"
+          <button type="button" aria-label="关闭自定义场景" onClick={handleClose} className="text-slate-400 hover:text-white transition-colors p-1.5 hover:bg-slate-800 rounded-lg"
           >
-            <X className="w-5 h-5" />
+            <X aria-hidden="true" className="w-5 h-5" />
           </button>
         </div>
 
         {error && (
-          <div className="flex items-start gap-2.5 mt-4 p-3.5 bg-red-950/40 border border-red-800/60 text-red-300 rounded-2xl text-xs font-medium animate-[fadeIn_0.15s_ease-out]">
-            <AlertTriangle className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
+          <div className="flex items-start gap-2.5 mt-4 p-3.5 bg-red-950/40 border border-red-800/60 text-red-300 rounded-2xl text-xs font-medium animate-[fadeIn_0.15s_ease-out]" role="alert">
+            <AlertTriangle aria-hidden="true" className="w-4 h-4 shrink-0 text-red-400 mt-0.5" />
             <span>{error}</span>
           </div>
         )}
@@ -161,8 +159,9 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
           {step === 1 && (
             <div className="space-y-4 animate-[fadeIn_0.15s_ease-out]">
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Step 1: 命名您的练习主题</label>
+                <label htmlFor="custom-theme-name" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Step 1: 命名您的练习主题</label>
                 <input
+                  id="custom-theme-name"
                   type="text"
                   placeholder="例如：Tesla Q3 Earnings Call"
                   value={themeName}
@@ -170,30 +169,33 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
                     setThemeName(e.target.value);
                     if (error) setError(null);
                   }}
-                  className="w-full bg-slate-800/60 border border-slate-800 focus:border-indigo-500 rounded-2xl px-5 py-3.5 text-sm font-bold placeholder-slate-500 outline-none transition-all"
+                  className="w-full bg-slate-800/60 border border-slate-800 focus-visible:border-indigo-500 rounded-2xl px-5 py-3.5 text-sm font-bold placeholder-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50 transition-[border-color,box-shadow,background-color]"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Step 2: 上传您的学习材料</label>
+                <label htmlFor="custom-theme-manual" className="text-[10px] font-black uppercase tracking-widest text-slate-400">Step 2: 上传您的学习材料</label>
                 
                 {!file && (
                 <div className="mb-3">
                   <textarea
+                    id="custom-theme-manual"
                     value={manualInput}
                     onChange={(e) => {
                       setManualInput(e.target.value);
                       if (error) setError(null);
                     }}
+                    aria-label="手动输入学习材料"
                     placeholder="或直接粘贴/输入您的自定义学习路线、场景背景描述或词条知识点（输入后点击下方按钮进入下一步）"
                     rows={4}
-                    className="w-full bg-slate-800/60 border border-slate-800 focus:border-indigo-500 rounded-2xl px-4 py-3 text-xs font-medium placeholder-slate-500 outline-none transition-all resize-none"
+                    className="w-full bg-slate-800/60 border border-slate-800 focus-visible:border-indigo-500 rounded-2xl px-4 py-3 text-xs font-medium placeholder-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/50 transition-[border-color,box-shadow,background-color] resize-none"
                   />
                   {manualInput.trim() && (
                     <div className="flex justify-end mt-2">
                       <button
+                        type="button"
                         onClick={() => setStep(2)}
-                        className="px-4 py-1.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase rounded-lg hover:bg-indigo-500/30 transition-all"
+                        className="px-4 py-1.5 bg-indigo-500/20 text-indigo-300 text-[10px] font-bold uppercase rounded-lg hover:bg-indigo-500/30 transition-colors"
                       >
                         使用此文本材料 →
                       </button>
@@ -202,7 +204,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
                 </div>
                 )}
                 
-                <div className="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-8 text-center bg-slate-800/20 hover:bg-slate-800/40 transition-all relative cursor-pointer">
+                <div className="border-2 border-dashed border-slate-800 hover:border-indigo-500/50 rounded-2xl p-8 text-center bg-slate-800/20 hover:bg-slate-800/40 transition-colors relative cursor-pointer">
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx,.txt,.md"
@@ -223,7 +225,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
                 <FileText className="w-8 h-8 text-indigo-400" />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-black truncate">{file?.fileName || '手动输入文本材料'}</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">文件已读取成功，准备进行 AI 精准萃取</p>
+                  <p className="text-[10px] text-slate-400 mt-0.5">文件已读取，准备整理场景材料</p>
                 </div>
               </div>
 
@@ -235,9 +237,9 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
               ) : (
                 <button
                   onClick={handleStartProcess}
-                  className="w-full bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[var(--color-brand)]/15"
+                  className="w-full bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-colors cursor-pointer shadow-lg shadow-[var(--color-brand)]/15"
                 >
-                  🚀 开始上传并让 AI 萃取场景
+                  开始上传并整理场景
                 </button>
               )}
             </div>
@@ -249,29 +251,29 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
                 <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto" />
                 <h5 className="text-sm font-black text-emerald-300">自定义场景创建成功！</h5>
                 <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-                  大模型已顺利解析您的材料，并自动提纯了关键商业句式和高频词条！
+                  已根据你的材料整理出常用商业词和短句
                 </p>
               </div>
 
               <div className="bg-slate-800/40 border border-slate-800/60 rounded-2xl p-5 space-y-3.5">
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-bold">AI 优化主题名</span>
+                  <span className="text-slate-400 font-bold">优化后的场景名</span>
                   <span className="font-black text-slate-200">{extractedResult.displayName}</span>
                 </div>
                 <div className="w-full h-px bg-slate-800/80" />
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-bold">提纯核心词汇入库</span>
+                  <span className="text-slate-400 font-bold">整理出的核心词汇</span>
                   <span className="font-black text-indigo-400">{extractedResult.addedWordsCount} 个</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-slate-400 font-bold">高管实战短语句式入库</span>
+                  <span className="text-slate-400 font-bold">整理出的实用短句</span>
                   <span className="font-black text-emerald-400">{extractedResult.addedPhrasesCount} 个</span>
                 </div>
               </div>
 
               <button
                 onClick={handleConfirm}
-                className="w-full bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-all cursor-pointer shadow-lg shadow-[var(--color-brand)]/15"
+                className="w-full bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white font-black py-4.5 rounded-2xl text-xs uppercase tracking-widest transition-colors cursor-pointer shadow-lg shadow-[var(--color-brand)]/15"
               >
                 确认并立即进入此场景
               </button>
@@ -284,7 +286,7 @@ export default function CustomThemeModal({ isOpen, onClose, onSuccess }: CustomT
           <div className="flex justify-end pt-4 border-t border-slate-800">
             <button
               onClick={handleClose}
-              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black uppercase tracking-widest rounded-xl transition-all cursor-pointer"
+              className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-black uppercase tracking-widest rounded-xl transition-colors cursor-pointer"
             >
               取消
             </button>

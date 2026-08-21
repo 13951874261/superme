@@ -537,15 +537,15 @@ export default function ImpromptuSpeechTab() {
           <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与AI提纯引擎。</p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform hover:-translate-y-0.5">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 hover:-translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>点击"开始演讲"，用英语围绕当前主题进行不少于 <strong>3 分钟</strong>的即兴脱稿演讲（硬性门槛）。结束后提交 AI 评测。</p>
             </div>
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform translate-y-1 hover:translate-y-0.5">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</p>
             </div>
-            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
+            <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
               <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</p>
             </div>
@@ -606,7 +606,7 @@ export default function ImpromptuSpeechTab() {
           {/* 进度条 */}
           <div className="w-full h-2 bg-white/10 rounded-full mb-6 overflow-hidden">
             <div
-              className="h-2 bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-all"
+              className="h-2 bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-[width]"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -619,7 +619,7 @@ export default function ImpromptuSpeechTab() {
             >
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">实时转录 (Live Transcript)</span>
               <p className={`text-sm leading-relaxed ${!transcript && isRecording && !isEngineReady ? 'text-yellow-500/80 animate-pulse font-bold' : 'text-gray-200'}`}>
-                {transcript || (isRecording ? (isEngineReady ? '🎙️ 正在录音，请开始发言...' : '⏳ 正在打通云端音频流，请稍候...') : '等待您的发言...')}
+                {transcript || (isRecording ? (isEngineReady ? '🎙️ 正在录音，请开始发言…' : '⏳ 正在打通云端音频流，请稍候…') : '等待您的发言…')}
               </p>
             </div>
           )}
@@ -630,17 +630,21 @@ export default function ImpromptuSpeechTab() {
               <div className="flex items-center gap-4">
                 <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">录音回放</span>
                 <button
+                  type="button"
+                  aria-label={isPlaying ? '暂停录音回放' : '播放录音回放'}
                   onClick={togglePlayback}
-                  className="flex items-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer"
+                  className="flex items-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white px-4 py-2 rounded-xl text-xs font-black transition-colors cursor-pointer"
                 >
-                  {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                  {isPlaying ? <Pause aria-hidden="true" className="w-4 h-4" /> : <Play aria-hidden="true" className="w-4 h-4" />}
                   {isPlaying ? '暂停' : '播放'}
                 </button>
                 <button
+                  type="button"
+                  aria-label="清除录音"
                   onClick={resetAudio}
                   className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors px-3 py-2 rounded-xl text-xs font-black cursor-pointer"
                 >
-                  <RotateCcw className="w-4 h-4" />
+                  <RotateCcw aria-hidden="true" className="w-4 h-4" />
                   清除
                 </button>
               </div>
@@ -652,24 +656,27 @@ export default function ImpromptuSpeechTab() {
           <div className="flex gap-4">
             {!isRecording ? (
               <button
+                type="button"
                 onClick={() => startRecording(elapsed > 0)}
                 disabled={isEvaluating}
-                className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 shadow-lg cursor-pointer"
               >
-                <Mic className="w-5 h-5" /> {elapsed > 0 ? '继续录音' : '开始演讲'}
+                <Mic aria-hidden="true" className="w-5 h-5" /> {elapsed > 0 ? '继续录音' : '开始演讲'}
               </button>
             ) : (
               <button
+                type="button"
+                aria-pressed="true"
                 onClick={stopRecording}
-                className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-400 text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all shadow-lg animate-pulse cursor-pointer"
+                className="flex-1 flex items-center justify-center gap-2 bg-red-500 hover:bg-red-400 text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-colors shadow-lg animate-pulse cursor-pointer"
               >
-                <MicOff className="w-5 h-5" /> 结束演讲
+                <MicOff aria-hidden="true" className="w-5 h-5" /> 结束演讲
               </button>
             )}
             <button
               onClick={handleEvaluate}
               disabled={isEvaluating || isRecording || (!transcript.trim() && !audioBlob)}
-              className="flex-1 flex items-center justify-center gap-2 bg-[#FF5722] hover:bg-[#e64a19] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-all disabled:opacity-50 shadow-lg cursor-pointer animate-[all_0.3s_ease]"
+              className="flex-1 flex items-center justify-center gap-2 bg-[#FF5722] hover:bg-[#e64a19] text-white py-4 rounded-2xl text-sm font-black uppercase tracking-widest transition-colors disabled:opacity-50 shadow-lg cursor-pointer "
             >
               {evaluatingStage !== 'idle' ? (
                 <>
@@ -816,7 +823,7 @@ export default function ImpromptuSpeechTab() {
                     {prompterResult.key_arguments && prompterResult.key_arguments.length > 0 ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {prompterResult.key_arguments.map((arg, i) => (
-                          <div key={i} className="bg-white border border-amber-100/60 shadow-sm hover:border-amber-300 hover:shadow-md transition-all duration-300 p-4 rounded-xl flex flex-col justify-between">
+                          <div key={i} className="bg-white border border-amber-100/60 shadow-sm hover:border-amber-300 hover:shadow-md transition-[background-color,border-color,box-shadow,opacity,transform] duration-300 p-4 rounded-xl flex flex-col justify-between">
                             <div>
                               <div className="text-[10px] font-black uppercase tracking-wider text-amber-600 mb-1.5">
                                 核心论点 {i + 1}
@@ -880,7 +887,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.openings.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-emerald-500/5 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-emerald-500/5 hover:bg-white hover:border-emerald-200 hover:shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200">
                         {p}
                       </div>
                     ))}
@@ -895,7 +902,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.transitions.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-blue-500/5 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-blue-500/5 hover:bg-white hover:border-blue-200 hover:shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200">
                         {p}
                       </div>
                     ))}
@@ -910,7 +917,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.emphasizing.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-purple-500/5 hover:bg-white hover:border-purple-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-purple-500/5 hover:bg-white hover:border-purple-200 hover:shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200">
                         {p}
                       </div>
                     ))}
@@ -925,7 +932,7 @@ export default function ImpromptuSpeechTab() {
                   </div>
                   <div className="space-y-2">
                     {prompterResult.useful_phrases.conclusions.map((p, i) => (
-                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-orange-500/5 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-all duration-200">
+                      <div key={i} className="text-xs leading-relaxed font-serif italic font-semibold text-slate-800 bg-white/45 p-2.5 rounded-xl border border-orange-500/5 hover:bg-white hover:border-orange-200 hover:shadow-sm transition-[background-color,border-color,box-shadow,transform] duration-200">
                         {p}
                       </div>
                     ))}
@@ -944,7 +951,7 @@ export default function ImpromptuSpeechTab() {
                 {prompterResult.tips.map((tip, i) => (
                   <span
                     key={i}
-                    className="text-xs text-amber-900 bg-white border border-amber-100/85 rounded-full px-3.5 py-1.5 shadow-[0_1px_2px_rgba(245,158,11,0.02)] font-semibold select-none hover:-translate-y-0.5 hover:shadow-md hover:border-amber-400 hover:text-amber-700 transition-all duration-300 transform cursor-default flex items-center gap-1.5"
+                    className="text-xs text-amber-900 bg-white border border-amber-100/85 rounded-full px-3.5 py-1.5 shadow-[0_1px_2px_rgba(245,158,11,0.02)] font-semibold select-none hover:-translate-y-0.5 hover:shadow-md hover:border-amber-400 hover:text-amber-700 transition-[background-color,border-color,box-shadow,opacity,transform] duration-300 transform cursor-default flex items-center gap-1.5"
                   >
                     <span></span>
                     <span>{tip}</span>
@@ -1084,7 +1091,7 @@ export default function ImpromptuSpeechTab() {
                   <SpeakButton text={exemplarText} title="播放 AI 完美示范示范" />
                   <button
                     onClick={handleCopyExemplar}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white transition-all cursor-pointer shadow-sm animate-[all_0.3s_ease]"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 hover:text-white transition-colors cursor-pointer shadow-sm "
                   >
                     <Copy className="w-3.5 h-3.5" /> 复制范文
                   </button>
@@ -1098,7 +1105,7 @@ export default function ImpromptuSpeechTab() {
                   <span
                     key={idx}
                     data-idx={idx}
-                    className={`transition-all duration-300 mx-0.5 rounded px-0.5 inline ${
+                    className={`transition-[background-color,border-color,box-shadow,opacity,transform] duration-300 mx-0.5 rounded px-0.5 inline ${
                       activeExemplarIdx === idx 
                         ? 'bg-amber-100 ring-2 ring-amber-400 font-bold text-slate-900' 
                         : 'text-slate-800'

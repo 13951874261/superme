@@ -90,7 +90,7 @@ export default function MemoryMatrixStage({
             <div
               key={idx}
               style={{ transform: `translate(${x}px, ${y}px)` }}
-              className="absolute z-10 bg-slate-800/95 hover:bg-indigo-950 border border-indigo-400/50 hover:border-indigo-300 text-slate-100 px-3 py-1.5 rounded-2xl text-[11px] font-bold shadow-lg backdrop-blur-md transition-all duration-300 flex items-center gap-1.5 cursor-default hover:scale-110 max-w-[160px]"
+              className="absolute z-10 bg-slate-800/95 hover:bg-indigo-950 border border-indigo-400/50 hover:border-indigo-300 text-slate-100 px-3 py-1.5 rounded-2xl text-[11px] font-bold shadow-lg backdrop-blur-md transition-[background-color,border-color,box-shadow,opacity,transform] duration-300 flex items-center gap-1.5 cursor-default hover:scale-110 max-w-[160px]"
             >
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${node.type === 'synonym' ? 'bg-emerald-400' : 'bg-cyan-400'}`} />
               <span className="whitespace-normal leading-tight text-center max-h-12 overflow-y-auto custom-scrollbar">{node.text}</span>
@@ -125,7 +125,7 @@ export default function MemoryMatrixStage({
           ) : (
             <button
               onClick={onGenerateImageClick}
-              className="bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-400/50 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-md transition-all active:scale-95 cursor-pointer"
+              className="bg-indigo-600/80 hover:bg-indigo-500 border border-indigo-400/50 text-white text-[10px] font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow-md transition-colors active:scale-95 cursor-pointer"
             >
               <Sparkles className="w-3 h-3 text-amber-300" />
               生成脑图

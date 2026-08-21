@@ -92,6 +92,7 @@ export function IntelBriefing({
         </div>
         {intelSource !== '每日系统生成' && (
           <button 
+            type="button"
             onClick={async () => {
               localStorage.setItem('super_agent_intel_source', '每日系统生成');
               setIntelSource('每日系统生成');
@@ -109,7 +110,7 @@ export function IntelBriefing({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
         <div>
           <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-brand)] mb-1 flex items-center">
-            <FileText className="w-5 h-5 mr-2" />
+            <FileText aria-hidden="true" className="w-5 h-5 mr-2" />
             今日情报截获 // Immersive Intel Briefing
           </h4>
           <p className="text-xs text-gray-400 font-medium">
@@ -120,34 +121,42 @@ export function IntelBriefing({
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative inline-block">
               <button
+                type="button"
                 onClick={() => setShowResetConfirm(!showResetConfirm)}
+                aria-expanded={showResetConfirm}
                 className="flex items-center gap-2 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-750 transition-colors shadow-sm font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer btn-press"
-                title="清空已生成内容，重新配置生成"
+                title="清空当前长文，方便重新生成"
               >
-                <RefreshCw className="w-4 h-4" /> 重新初始化
+                <RefreshCw aria-hidden="true" className="w-4 h-4" /> 重新开始
               </button>
 
               {showResetConfirm && (
-                <div className="absolute right-0 top-full mt-2.5 z-50 w-72 bg-white border border-indigo-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-5 text-left border-t-4 border-t-[var(--color-brand)] animate-[fadeIn_0.15s_ease-out]">
+                <div
+                  role="dialog"
+                  aria-label="确认重新开始"
+                  className="absolute right-0 top-full mt-2.5 z-50 w-72 bg-white border border-indigo-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-5 text-left border-t-4 border-t-[var(--color-brand)] overscroll-contain animate-[fadeIn_0.15s_ease-out]"
+                >
                   <div className="flex items-start gap-3">
                     <div className="bg-indigo-50 p-2 rounded-xl text-[var(--color-brand)] shrink-0">
-                      <RefreshCw className="w-5 h-5 animate-spin-slow" />
+                      <RefreshCw aria-hidden="true" className="w-5 h-5 animate-spin-slow" />
                     </div>
                     <div>
-                      <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">确认重新初始化吗？</h5>
+                      <h5 className="text-xs font-black text-slate-800 uppercase tracking-wider">确定重新开始吗？</h5>
                       <p className="text-[11px] text-gray-400 font-medium leading-relaxed mt-1">
-                        这只会清除当前页面展示的今日长文和本地缓存，以便您可以重新配置生成。它**不会**删除生词库里已入库的单词。
+                        只会清掉当前页面上的今日长文，方便你重新生成。生词本里已经收录的词不会被删除。
                       </p>
                     </div>
                   </div>
                   <div className="flex justify-end gap-2.5 mt-5 pt-3 border-t border-gray-50">
                     <button
+                      type="button"
                       onClick={() => setShowResetConfirm(false)}
                       className="px-3 py-2 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-[10px] font-bold cursor-pointer transition-colors btn-press"
                     >
                       取消
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setShowResetConfirm(false);
                         setGeneratedArticle('');
@@ -159,22 +168,23 @@ export function IntelBriefing({
                         localStorage.removeItem('super_agent_last_generated_words');
                         localStorage.removeItem('super_agent_last_generated_phrases');
                         localStorage.removeItem('super_agent_last_generated_sentences');
-                        showNotice('dashboard', '已成功初始化生成器，可以重新配置生成。', 'success');
+                        showNotice('dashboard', '已清空当前长文，可以重新生成', 'success');
                         playSuccess();
                       }}
-                      className="px-3.5 py-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-white rounded-lg text-[10px] font-bold cursor-pointer transition-all shadow-sm btn-press"
+                      className="px-3.5 py-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors shadow-sm btn-press"
                     >
-                      确认初始化
+                      确定重新开始
                     </button>
                   </div>
                 </div>
               )}
             </div>
             <button
+              type="button"
               onClick={() => setIsImmersiveOpen(true)}
               className="flex items-center gap-2 px-5 py-3 bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-white transition-colors shadow-md font-black rounded-xl text-xs uppercase tracking-widest cursor-pointer btn-press"
             >
-              <BookOpen className="w-4 h-4" /> 沉浸式阅读
+              <BookOpen aria-hidden="true" className="w-4 h-4" /> 沉浸式阅读
             </button>
             <SpeakButton 
               text={generatedArticle} 
@@ -189,7 +199,7 @@ export function IntelBriefing({
         <>
           <div className="relative">
             <div
-              className={`text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa]/60 rounded-2xl border border-gray-100 whitespace-pre-line select-text shadow-sm transition-all duration-300 ${
+              className={`text-sm text-gray-800 leading-relaxed font-serif p-6 bg-[#f8f9fa]/60 rounded-2xl border border-gray-100 whitespace-pre-line select-text shadow-sm transition-[max-height,opacity] duration-300 ${
                 isArticleExpanded ? '' : 'line-clamp-6'
               }`}
             >
@@ -199,6 +209,7 @@ export function IntelBriefing({
             {generatedArticle.length > 300 && (
               <button
                 type="button"
+                aria-expanded={isArticleExpanded}
                 onClick={() => setIsArticleExpanded(prev => !prev)}
                 className="mt-3 inline-flex items-center px-4 py-2 rounded-full bg-orange-50 text-[var(--color-brand)] text-xs font-black hover:bg-orange-100 transition-colors btn-press"
               >
@@ -266,6 +277,7 @@ export function IntelBriefing({
 
               <div className="pt-4 border-t border-dashed border-slate-100 mt-4">
                 <button
+                  type="button"
                   onClick={() => {
                     const samples = [
                       "Apple Inc. plans to adjust its supply chain pricing strategy to mitigate macroeconomic tariffs and currency fluctuations.",
@@ -277,7 +289,7 @@ export function IntelBriefing({
                     showNotice('dashboard', '已成功加载商业研读示例文本', 'success');
                     playSuccess();
                   }}
-                  className="w-full py-2 bg-indigo-50/60 hover:bg-indigo-100/80 text-[var(--color-brand)] font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all border border-indigo-100/40 cursor-pointer btn-press"
+                  className="w-full py-2 bg-indigo-50/60 hover:bg-indigo-100/80 text-[var(--color-brand)] font-bold text-[10px] uppercase tracking-wider rounded-xl transition-colors border border-indigo-100/40 cursor-pointer btn-press"
                 >
                    随机加载商业研读示例
                 </button>
@@ -313,18 +325,19 @@ export function IntelBriefing({
           <div className="lg:col-span-6 bg-white/50 backdrop-blur-[2px] rounded-[1.5rem] border border-slate-100 p-6 flex flex-col justify-between shadow-sm">
             <div className="space-y-3 flex-1 flex flex-col text-left">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <label htmlFor="intel-custom-text-input" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                   研读段落情报输入 (Input Material)
-                </span>
+                </label>
                 {customText.length > 0 && (
-                  <span className="text-[9px] text-gray-405 font-bold">
+                  <span className="text-[9px] text-gray-405 font-bold tabular-nums">
                     已输入 {customText.length} 字符
                   </span>
                 )}
               </div>
               <textarea
-                placeholder="在此处输入或粘贴您要研读的英文段落材料..."
-                className="w-full flex-1 min-h-[280px] p-5 text-sm bg-white border border-gray-150 rounded-2xl outline-none focus:border-[var(--color-brand)] focus:ring-1 focus:ring-indigo-100 font-sans resize-none shadow-[0_2px_12px_rgba(0,0,0,0.01)] transition-all text-slate-800 leading-relaxed placeholder:text-gray-350"
+                id="intel-custom-text-input"
+                placeholder="在此处输入或粘贴您要研读的英文段落材料…"
+                className="w-full flex-1 min-h-[280px] p-5 text-sm bg-white border border-gray-150 rounded-2xl outline-none focus-visible:border-[var(--color-brand)] focus-visible:ring-2 focus-visible:ring-indigo-100 font-sans resize-none shadow-[0_2px_12px_rgba(0,0,0,0.01)] transition-[border-color,box-shadow] text-slate-800 leading-relaxed placeholder:text-gray-350"
                 onChange={(e) => setCustomText(e.target.value)}
                 value={customText}
               />
@@ -343,6 +356,7 @@ export function IntelBriefing({
                     className="px-4.5 py-2.5 bg-[#202124] text-white hover:bg-[var(--color-brand)] shadow-sm font-black rounded-xl text-[10px] uppercase tracking-widest cursor-pointer btn-press" 
                   />
                   <button
+                    type="button"
                     onClick={() => {
                       setGeneratedArticle(customText);
                       localStorage.setItem('super_agent_last_generated_article', customText);
@@ -352,7 +366,7 @@ export function IntelBriefing({
                     }}
                     className="flex items-center gap-2 px-4.5 py-2.5 bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-white transition-colors shadow-sm font-black rounded-xl text-[10px] uppercase tracking-widest cursor-pointer btn-press"
                   >
-                    <BookOpen className="w-3.5 h-3.5" /> 进入沉浸式阅读
+                    <BookOpen aria-hidden="true" className="w-3.5 h-3.5" /> 进入沉浸式阅读
                   </button>
                 </div>
               )}

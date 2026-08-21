@@ -80,7 +80,7 @@ export default function VocabExportControl({
         name: `导出生词本: ${ADVANCED_OPTIONS.find((o) => o.scope === scope)?.label || scope}`,
         status: data.status || 'pending',
         progress: 0,
-        logs: ['[系统] 后台导出任务已提交...'],
+        logs: ['[系统] 后台导出任务已提交…'],
       });
 
       notifyBackgroundHandoff({
