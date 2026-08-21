@@ -183,7 +183,7 @@ export default function OralWarRoom(props: OralWarRoomProps) {
 
   return (
     <ModuleWrapper
-      title="破局 ｜ 多角色口语战争室"
+      title="表达 ｜ 多角色口语练习室"
       icon={<Mic className="w-8 h-8" strokeWidth={2.5} />}
       description="左侧常驻显示局势、角色与冲突点；右侧进行多角色对抗对话，并自动标出对话中的逻辑漏洞。"
     >

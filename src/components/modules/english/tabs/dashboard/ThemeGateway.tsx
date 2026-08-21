@@ -225,7 +225,7 @@ export function ThemeGateway({
         </GhostButton>
 
         <span className="text-[10px] text-slate-400 font-medium">
-          {masteryData?.isMastered ? '已通关' : '未达标'}
+          {masteryData?.isMastered ? '已达标' : '未达标'}
         </span>
       </div>
     </div>

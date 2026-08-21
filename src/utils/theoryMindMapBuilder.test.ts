@@ -72,7 +72,7 @@ const unifiedTree = buildUnifiedTheoryMindMapTree({
   staticData: DEFAULT_THEORY_DATA,
   materialDrafts: [mockMaterialDraft],
 });
-assert.equal(unifiedTree.name, '洞察(听) 理论框架体系');
+assert.equal(unifiedTree.name, '听读 理论框架体系');
 assert.ok(unifiedTree.children && unifiedTree.children.length === 3); // 2个静态大类 + 1个素材衍生
 assert.ok(unifiedTree.children.some((c) => c.name === '素材衍生：博弈谈判实战录'));
 console.log('✓ M1 统合思维导图树校验通过 (包含 2 个静态分类 + 挂载的素材分支)');

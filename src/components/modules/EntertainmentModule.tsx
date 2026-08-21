@@ -842,7 +842,7 @@ export default function EntertainmentModule() {
 
       icon={<Wine className="w-8 h-8 text-zinc-700" strokeWidth={2.5} />}
 
-      description="顶级商务礼仪、跨文化审美认知提升与高端圈层智力博弈对抗练习。旨在打造严肃、克制、极具秩序感的阶层跃迁训练场。"
+      description="顶级商务礼仪、跨文化审美认知提升与高端圈层智力博弈对抗练习。旨在打造严肃、克制、极具秩序感的进阶提升训练场。"
 
     >
 

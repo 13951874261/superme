@@ -315,8 +315,8 @@ export const GLOBAL_DIRECTION_OPTIONS = [
   { label: '人性博弈', value: 'humanGameCase' },
   { label: '英语主题', value: 'englishTopic' },
   { label: '高管斗争', value: 'executiveConflict' },
-  { label: '驭人博弈', value: 'manipulationStrategy' },
-  { label: '认知升维', value: 'cognitiveUpgrade' },
+  { label: '博弈策略', value: 'manipulationStrategy' },
+  { label: '顶层认知提升', value: 'cognitiveUpgrade' },
   { label: '晋升跳槽', value: 'careerAdvice' },
 ] as const;
 

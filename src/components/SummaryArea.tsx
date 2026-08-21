@@ -223,10 +223,10 @@ function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
         <div className="flex flex-col md:pl-4">
           <h3 className="font-black text-[#202124] mb-4 flex items-center text-xl tracking-tight">
             <PenLine className="w-5 h-5 mr-3 text-[#FF5722]" strokeWidth={2.5} />
-            每周夜话与心智投喂
+            每周夜话与学习输入
           </h3>
           <p className="text-[11px] text-gray-400 mb-3 font-bold tracking-[0.1em] uppercase">
-            投喂输入 / 定向勾选 / 启发研判 / 训练库重组
+            学习输入 / 定向勾选 / 启发分析 / 训练调整
           </p>
 
           {hasPushPlan && (
@@ -284,12 +284,12 @@ function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                启发式研判中...
+                正在分析中…
               </>
             ) : (
               <>
                 <Send className="w-4 h-4 mr-2" strokeWidth={2.5} />
-                提交投喂并进化系统
+                提交输入并更新训练计划
               </>
             )}
           </button>

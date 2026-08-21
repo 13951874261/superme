@@ -298,7 +298,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
         onSuccess();
         onClose();
       } else {
-        throw new Error(res.message || '批量入库异常');
+        throw new Error(res.message || '批量加入生词本失败');
       }
     } catch (err: any) {
       playError();

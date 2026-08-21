@@ -330,7 +330,7 @@ export function buildUnifiedTheoryMindMapTree(options?: {
   ];
 
   return {
-    name: '洞察(听) 理论框架体系',
+    name: '听读 理论框架体系',
     detail: `包含 ${staticRoot.children?.length || 0} 个经典理论大类及 ${materialNodes.length} 份素材衍生体系`,
     children: combinedChildren,
   };

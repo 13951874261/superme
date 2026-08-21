@@ -545,11 +545,11 @@ export default function ImpromptuSpeechTab() {
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>需达到 8/10 分才算通关，从逻辑、词汇、流利度、主题相关性四维综合评判。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>需达到 8/10 分才算达标，从逻辑、词汇、流利度、主题相关性四维综合评判。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>【终极评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是通关三大硬性标准之一。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">模块作用：</span>【综合评测】弥补短对话无法检验"脱稿长篇演讲"能力的缺口，是达标三项硬性标准之一。</p>
             </div>
           </div>
         </div>
@@ -573,8 +573,8 @@ export default function ImpromptuSpeechTab() {
         <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-6 py-4">
           <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
           <div>
-            <p className="text-sm font-black text-emerald-900">即兴演讲通关达成</p>
-            <p className="text-xs text-emerald-600">当前主题的即兴演讲标准已达成，本项通关要求已完成。</p>
+            <p className="text-sm font-black text-emerald-900">即兴演讲已达标</p>
+            <p className="text-xs text-emerald-600">当前主题的即兴演讲标准已达成，本项达标要求已完成。</p>
           </div>
           <Star className="w-5 h-5 text-amber-400 ml-auto" />
         </div>
@@ -589,7 +589,7 @@ export default function ImpromptuSpeechTab() {
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-1">当前主题</span>
               <h3 className="text-lg font-black text-white">{effectiveTheme}</h3>
               {rebalanceTopic && (
-                <span className="text-[10px] text-amber-300 font-bold mt-1 block">心智投喂重组主题</span>
+                <span className="text-[10px] text-amber-300 font-bold mt-1 block">学习输入重组主题</span>
               )}
             </div>
             <div className="text-right">

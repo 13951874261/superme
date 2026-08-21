@@ -74,7 +74,7 @@ const unifiedTree = buildUnifiedTheoryMindMapTree({
   staticData: DEFAULT_THEORY_DATA,
   materialDrafts: [sampleDraft, fallbackDraft]
 });
-assert(unifiedTree.name === '洞察(听) 理论框架体系', '合集根节点命名正确');
+assert(unifiedTree.name === '听读 理论框架体系', '合集根节点命名正确');
 assert(Array.isArray(unifiedTree.children) && unifiedTree.children.length === 4, '合集应包含 2 个静态分类 + 2 个素材分支');
 console.log('✓ M1 静态+素材合集树构建校验通过');
 

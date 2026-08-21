@@ -35,7 +35,7 @@ test('Word 导出支持纯理论树导出（无导师点评）', async () => {
   });
 
   const blob = await createInsightDocxBlob({
-    title: '洞察(听) 理论框架与素材合集',
+    title: '听读 理论框架与素材合集',
     tree: unifiedTree,
   });
 

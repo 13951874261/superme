@@ -3040,16 +3040,16 @@ export async function runBiweeklyReviewAnalysis(
   const combined = `${answers.weaknessScan} ${answers.tacticalDispatch}`.toLowerCase();
   let shortDebilitatingFactors = '长期战略模糊,大局观弱';
   let analysis =
-    '【综合复盘研判】您已主动完成两周期结构化自省。建议将下两周训练火力集中对准当前最痛瓶颈，挂起低 ROI 板块，优先击穿口语抗压与博弈敏感度。';
+    '【综合复盘分析】您已主动完成两周期结构化自省。建议将下两周训练重点集中对准当前最痛瓶颈，挂起投入产出偏低的板块，优先加强口语抗压与博弈敏感度。';
 
   if (combined.includes('口语') || combined.includes('即兴') || combined.includes('表达')) {
     shortDebilitatingFactors = '即兴逻辑散乱,上级质询承压弱';
     analysis =
-      '【口语瓶颈研判】复盘显示即兴表达与高压质询是当前晋升卡点。建议下周口语沙盘与破局说权重上调，高阶审美可暂时挂起。';
+      '【口语瓶颈分析】复盘显示即兴表达与高压质询是当前晋升卡点。建议下周口语练习与表达训练权重上调，高阶审美可暂时挂起。';
   } else if (combined.includes('博弈') || combined.includes('斗争') || combined.includes('高管')) {
     shortDebilitatingFactors = '信息垄断弱,博弈敏感度低';
     analysis =
-      '【博弈瓶颈研判】您正处于复杂利益拉扯期。建议强化驭心博弈与口语沙盘联动，以场景化推演补齐筹码识别短板。';
+      '【博弈瓶颈分析】您正处于复杂利益拉扯期。建议强化博弈训练与口语练习联动，以场景化推演补齐筹码识别短板。';
   }
 
   return {
@@ -3076,8 +3076,8 @@ const WEEKLY_DIRECTION_LABELS: Record<string, string> = {
   humanGameCase: '人性博弈案例',
   englishTopic: '英语学习主题',
   executiveConflict: '高管斗争案例',
-  manipulationStrategy: '驭人/博弈策略',
-  cognitiveUpgrade: '顶层认知升维',
+  manipulationStrategy: '博弈策略',
+  cognitiveUpgrade: '顶层认知提升',
   careerAdvice: '晋升/跳槽建议',
 };
 
@@ -3086,13 +3086,13 @@ function buildFallbackWeeklyPush(
   directions: string[],
 ): Record<string, unknown> {
   const labels = directions.map((d) => WEEKLY_DIRECTION_LABELS[d] || d);
-  const focusHint = labels.join('、') || '综合心智升级';
+  const focusHint = labels.join('、') || '综合能力提升';
   return {
     yuxinGameTheory: directions.includes('humanGameCase') || directions.includes('executiveConflict')
       ? [`${focusHint}：${content.slice(0, 40)}...`]
       : undefined,
     oralSandbox: {
-      scenario: `心智投喂定向：${focusHint}`,
+      scenario: `学习输入定向：${focusHint}`,
       roles: '我 + 业务助攻 + 施压方 + 关键决策人',
       focus: content.slice(0, 80) || focusHint,
     },
@@ -3151,8 +3151,8 @@ export async function runWeeklyChatAnalysis(
   const fallbackPush = buildFallbackWeeklyPush(content, directions);
   const directionLabels = directions.map((d) => WEEKLY_DIRECTION_LABELS[d] || d).join('、');
   return {
-    analysis: `【心智投喂研判】您本周沉淀的核心议题已纳入系统进化队列。针对「${directionLabels || '综合'}」方向，建议下周优先在口语沙盘与驭心博弈中做场景化演练，将认知转化为可执行的战术肌肉记忆。`,
-    nextWeekPreview: `下周将重点重组：${directionLabels || '口语沙盘 + 驭心博弈'}，并根据您的投喂内容自动注入定制场景。`,
+    analysis: `【学习输入分析】您本周沉淀的核心议题已纳入系统进化队列。针对「${directionLabels || '综合'}」方向，建议下周优先在口语练习与博弈训练中做场景化演练，将认知转化为可落地练习。`,
+    nextWeekPreview: `下周将重点重组：${directionLabels || '口语练习 + 博弈训练'}，并根据您的输入内容自动注入定制场景。`,
     nextWeekPush: fallbackPush,
   };
 }

@@ -193,7 +193,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
         materialDrafts: mountedMaterials,
       });
       await downloadInsightDocx({
-        title: '洞察(听) 理论框架与素材合集',
+        title: '听读 理论框架与素材合集',
         tree: unifiedTree,
       });
       playSuccess();

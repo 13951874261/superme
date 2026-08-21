@@ -29,7 +29,7 @@ export default function OralWarRoomTacticalSop() {
           </div>
           <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-all duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
             <p className="text-xs text-amber-900/80 leading-relaxed font-medium">
-              <span className="font-black text-amber-700 mr-1">生态定位：</span>
+              <span className="font-black text-amber-700 mr-1">模块作用：</span>
               多练几轮，把前面学过的词练成脱口而出的表达。
             </p>
           </div>

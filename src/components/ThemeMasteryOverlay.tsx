@@ -22,12 +22,12 @@ export default function ThemeMasteryOverlay({ theme, onDismiss }: { theme: strin
         <div className="w-28 h-28 bg-emerald-500/20 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-8 shadow-[0_0_50px_rgba(16,185,129,0.4)] border-4 border-emerald-500/30">
           <ShieldCheck className="w-14 h-14" />
         </div>
-        <h2 className="text-3xl font-black text-white mb-3 uppercase tracking-widest">本主题已通关</h2>
+        <h2 className="text-3xl font-black text-white mb-3 uppercase tracking-widest">本主题已达标</h2>
         <h3 className="text-emerald-400 text-lg font-bold mb-6">{theme}</h3>
         <p className="text-gray-400 text-sm leading-relaxed mb-8">
           本主题已完成<strong className="text-white mx-1">10</strong>轮口语练习，并取得了写作满分。<br/><br/>
           恭喜完成本主题：<br/>
-          <strong className="text-[#FF5722] text-lg block mt-3 uppercase tracking-widest">「战略破局者」</strong>
+          <strong className="text-[#FF5722] text-lg block mt-3 uppercase tracking-widest">「主题达标者」</strong>
         </p>
         <button 
           onClick={() => { setShow(false); onDismiss(); }}

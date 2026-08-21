@@ -121,10 +121,10 @@ export default function WeeklyChatModule() {
 
   return (
     <ModuleWrapper
-      title="每周夜话与心智投喂"
+      title="每周夜话与学习输入"
       icon={<Lock className="w-8 h-8 text-zinc-700" strokeWidth={2.5} />}
       isOpen={true}
-      description="四段式交互：投喂 → 定向勾选 → 启发研判 → 训练库进化预告"
+      description="四步流程：输入 → 定向勾选 → 启发分析 → 训练调整预告"
     >
       <div className="space-y-6 max-w-4xl mx-auto py-4">
         {hasPushPlan && (
@@ -147,7 +147,7 @@ export default function WeeklyChatModule() {
 
         <div className="bg-white p-6 rounded-2xl border border-zinc-200 space-y-4">
           <h3 className="text-sm font-bold text-zinc-950 flex items-center gap-2">
-            <span>📥</span> 1. 心智投喂输入区
+            <span>📥</span> 1. 学习输入区
           </h3>
           <textarea
             value={content}
@@ -194,10 +194,10 @@ export default function WeeklyChatModule() {
             {isLoading ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                启发式研判中...
+                正在分析中…
               </>
             ) : (
-              '提交投喂并进化系统'
+              '提交输入并更新训练计划'
             )}
           </button>
         </div>

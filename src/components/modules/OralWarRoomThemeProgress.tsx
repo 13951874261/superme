@@ -74,7 +74,7 @@ export default function OralWarRoomThemeProgress({
     <div className="shrink-0 px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-canvas)]/60">
       <div className="flex items-center justify-between mb-2">
         <span className="text-[9px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">
-          主题通关 · 三项要求
+          主题达标 · 三项要求
         </span>
         {allPassed && (
           <motion.span

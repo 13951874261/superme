@@ -817,7 +817,7 @@ export default function GameTheoryModule() {
 
   return (
     <ModuleWrapper 
-      title="驭心 ｜ 高管层博弈系统" 
+      title="博弈训练 ｜ 高管层博弈练习" 
       icon={<Brain className="w-8 h-8 text-zinc-700" strokeWidth={2} />}
       description="核心定位：不仅是读文字，而是读结构、读政策背后的风向、读外企运作实质与漏洞。破阶到 0.01% 的战略决策底层操作系统。"
     >
@@ -1710,7 +1710,7 @@ export default function GameTheoryModule() {
                               <h4 className="text-xs font-bold text-zinc-900 truncate">{item.title}</h4>
                               <div className="flex items-center gap-3 text-[10px] text-zinc-500 font-semibold">
                                 <span>分数 {item.score}</span>
-                                <span>{item.is_success ? '破局' : '未破局'}</span>
+                                <span>{item.is_success ? '奏效' : '未奏效'}</span>
                               </div>
                               {suggestionPreview && (
                                 <p className="text-[11px] text-zinc-600 leading-relaxed">{suggestionPreview}{(item.suggestion || '').length > 40 ? '…' : ''}</p>
@@ -1732,7 +1732,7 @@ export default function GameTheoryModule() {
                           <div className="mt-4 pt-4 border-t border-zinc-100 space-y-3">
                             <div className="rounded-xl p-4 bg-zinc-50 border border-zinc-100 text-center">
                               <p className="text-sm font-bold text-zinc-900 mb-1">
-                                {expandedDetail.full_result.is_success ? '战略破局 ｜ 推演成功' : '遭受反噬 ｜ 推演预警'}
+                                {expandedDetail.full_result.is_success ? '策略奏效 ｜ 推演成功' : '策略受挫 ｜ 推演预警'}
                               </p>
                               <p className="text-2xl font-black font-mono text-zinc-800">{expandedDetail.full_result.score}</p>
                             </div>

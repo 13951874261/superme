@@ -335,7 +335,7 @@ export default function VocabTab() {
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>这里汇总进度总控整理出的词，供口语和写作练习使用。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">模块作用：</span>这里汇总进度总控整理出的词，供口语和写作练习使用。</p>
             </div>
           </div>
         </div>

@@ -192,7 +192,7 @@ export default function ReadModule() {
       }
     } catch (err: any) {
       console.error(err);
-      setErrorMsg('动态素材投喂失败，请手动录入');
+      setErrorMsg('动态素材加载失败，请手动录入');
       setPushQuality(null);
       setPushQualityResult(null);
       setTimeout(() => setErrorMsg(''), 4000);
@@ -240,7 +240,7 @@ export default function ReadModule() {
           ? '提升对出海企业现金流虚假扩张的预警能力' 
           : activeTab === 'email' 
             ? '精准识别跨文化博弈下的客套话与隐性推诿' 
-            : '持续磨炼课外书籍的战略落地提纯能力';
+            : '持续提升课外书籍的战略落地提炼能力';
       
       saveSummary({
         absorbedCount: newAbsorbedCount,
@@ -585,7 +585,7 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
-                <Shield className="w-3.5 h-3.5 text-amber-500" /> ③ 话术破局点 (因果关联与反向应对策)
+                <Shield className="w-3.5 h-3.5 text-amber-500" /> ③ 话术应对点（因果关联与反向应对策）
               </span>
             </div>
             <div className="w-full bg-neutral-900/80 rounded-2xl p-4 text-xs md:text-sm text-gray-200 font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-neutral-800 shadow-inner">{result?.counter_questions}</div>
@@ -994,7 +994,7 @@ export default function ReadModule() {
               <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50 animate-pulse">
                 <MessageSquare className="w-6 h-6 text-gray-300 mb-2" />
                 <p className="text-[11px] text-gray-400 font-bold text-center leading-relaxed">
-                  AI 策略教练已就位 ｜ 请在上方录入或推送原始素材并启动解析，以激活追问舱。
+                  AI 策略教练已就位 ｜ 请在上方录入或推送原始素材并启动解析，以激活追问区。
                 </p>
               </div>
             )}

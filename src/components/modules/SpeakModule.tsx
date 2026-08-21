@@ -397,7 +397,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = '破局表达高阶理论指南.txt';
+    link.download = '表达高阶理论指南.txt';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -15,11 +15,11 @@ export function SOPGuide({ isSopExpanded }: SOPGuideProps) {
       </div>
       <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50 transition-colors">
         <span className="text-amber-500 mt-0.5"></span>
-        <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>通关要求：口语练满 10 轮、邮件达到 8 分后，才能切换下一主题。</p>
+        <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>达标要求：口语练满 10 轮、邮件达到 8 分后，才能切换下一主题。</p>
       </div>
       <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50 transition-colors">
         <span className="text-amber-500 mt-0.5"></span>
-        <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">生态定位：</span>这里设定的主题会贯穿全局练习；整理出的词汇会进入「生词复习」。</p>
+        <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">模块作用：</span>这里设定的主题会贯穿全局练习；整理出的词汇会进入「生词复习」。</p>
       </div>
     </div>
   );

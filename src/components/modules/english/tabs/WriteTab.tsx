@@ -378,7 +378,7 @@ ${benchmarkText
             userId: getAppUserId(),
             decomposition: { L1: normalized.L1, L2: normalized.L2 },
             logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
-            strengths: `文治板块【${moduleLabel}】已提交评估`,
+            strengths: `写作板块【${moduleLabel}】已提交评估`,
             weaknesses: feedbackData.coreIssues.join('；'),
             nextFocus: feedbackData.nextFocus.join('；'),
             score: l3Score,
