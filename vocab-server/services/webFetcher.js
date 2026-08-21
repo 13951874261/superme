@@ -57,7 +57,7 @@ async function fetchUrlContent(urlString) {
     throw new Error('Web fetch failed: invalid URL or restricted network address');
   }
 
-  const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+  const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
   const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://23.95.214.232/v1').replace(/\/$/, '');
   const fetchUrl = `${endpointBase}/web/fetch`;
   const hostname = new URL(fetchUrl).hostname;
@@ -68,9 +68,10 @@ async function fetchUrlContent(urlString) {
     || isIpHostname(hostname);
 
   const body = JSON.stringify({
-    model: 'fetch-combo',
+    model: 'firecrawl',
     url: urlString,
     format: 'markdown',
+    max_characters: 0,
   });
 
   const { status, text } = await postJson(
