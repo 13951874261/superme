@@ -989,7 +989,7 @@ export default function ListenTab() {
           {!listenResult ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50 space-y-4 pt-10">
               <Headphones className="w-16 h-16" />
-              <p className="text-xs font-bold tracking-widest uppercase">等待执行声纹解码与差异比对</p>
+              <p className="text-xs font-bold tracking-widest uppercase">等待执行语音解析与差异比对</p>
             </div>
           ) : (
             <div className="space-y-8 animate-[fadeIn_0.3s_ease-out]">

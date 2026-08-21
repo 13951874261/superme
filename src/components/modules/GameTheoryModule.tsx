@@ -1848,7 +1848,7 @@ export default function GameTheoryModule() {
                   <textarea
                     value={ascEvent}
                     onChange={e => setAscEvent(e.target.value)}
-                    placeholder="录入一个待穿透的管理事件 / 高管博弈现象（例如：新任外企VP在会议上将供应链延迟的责任隐性甩锅给我的团队…）"
+                    placeholder="录入一个待分析的管理事件 / 高管博弈现象（例如：新任外企VP在会议上将供应链延迟的责任隐性甩锅给我的团队…）"
                     className="w-full h-24 bg-zinc-50/50 border border-zinc-200 rounded-2xl p-4 text-xs text-zinc-800 shadow-inner focus:border-zinc-400 outline-none resize-none leading-relaxed"
                     disabled={ascLoading}
                   />
@@ -1956,7 +1956,7 @@ export default function GameTheoryModule() {
                         {ascResult.layer_feedback && ascResult.layer_feedback.map((item, idx) => (
                           <div key={idx} className="border-b border-zinc-100 pb-2.5 last:border-0 last:pb-0">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-[9px] font-black uppercase text-zinc-400 tracking-wider">L{item.level} 穿透</span>
+                              <span className="text-[9px] font-black uppercase text-zinc-400 tracking-wider">L{item.level} 分析</span>
                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
                                 item.verdict === '合格' || item.verdict === '优秀'
                                   ? 'bg-zinc-50 border border-zinc-200 text-zinc-700'

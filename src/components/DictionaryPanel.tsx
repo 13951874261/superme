@@ -728,9 +728,9 @@ export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewP
 }
 
 const DICT_CONFIG = {
-  zh_modern:           { title: '现代汉语词典', subtitle: '词汇溯源与写作文风升维支撑', icon: <Type className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
+  zh_modern:           { title: '现代汉语词典', subtitle: '词汇溯源与写作文风提升', icon: <Type className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
   en_en_business:      { title: '英英词典',     subtitle: '沉浸获取原生商务英英解释',   icon: <BookA className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
-  en_zh_bidirectional: { title: '英汉双向译制', subtitle: '带音标及职场黑话穿透',       icon: <Languages className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
+  en_zh_bidirectional: { title: '英汉双向译制', subtitle: '带音标及职场用语解析',       icon: <Languages className="w-5 h-5" />, color: 'text-[#FF5722] bg-[#FF5722]/10' },
 } as const;
 
 const DICT_ORDER: DictType[] = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'];
@@ -744,7 +744,7 @@ function DictLoadingIndicator({ word }: { word: string }) {
     const phases = [
       { text: '正在连接词典引擎…', chars: 'ABCDEFabcdef0123456789' },
       { text: '深度解析语义语境…', chars: 'ABCDEFabcdef0123456789' },
-      { text: '提取职场黑话穿透…', chars: 'ABCDEFabcdef0123456789' },
+      { text: '提取职场用语解析…', chars: 'ABCDEFabcdef0123456789' },
       { text: '整合近义辨析与例句…', chars: 'ABCDEFabcdef0123456789' },
     ];
     const tl = gsap.timeline({ repeat: -1 });

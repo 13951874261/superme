@@ -26,7 +26,7 @@ const TABS = [
   { id: 'speak', label: '破局(说)', icon: <Mic className="w-4 h-4" /> },
   { id: 'read', label: '精读', icon: <BookOpen className="w-4 h-4" /> },
   { id: 'write', label: '文治(写)', icon: <PenTool className="w-4 h-4" /> },
-  { id: 'gametheory', label: '驭心博弈', icon: <Brain className="w-4 h-4" /> },
+  { id: 'gametheory', label: '博弈训练', icon: <Brain className="w-4 h-4" /> },
   { id: 'entertainment', label: '高阶审美', icon: <Wine className="w-4 h-4" /> },
 ] as const;
 

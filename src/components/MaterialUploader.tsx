@@ -153,7 +153,7 @@ export default function MaterialUploader({
       tone: 'info',
     });
 
-    setCurrentStep('已发起视频转写。完成后将自动提纯（不入库），请到「上传材料」查看。');
+    setCurrentStep('已发起视频转写。完成后将自动提炼（不写入生词本），请到「上传材料」查看。');
     setLogs([
       `${nowLabel()} 后台转写任务已建立，可在任务中心查看进度`,
       `${nowLabel()} 将在服务器后台执行，无需在本页面等待。`,

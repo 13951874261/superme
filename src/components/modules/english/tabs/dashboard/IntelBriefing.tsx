@@ -168,7 +168,7 @@ export function IntelBriefing({
           </h4>
           <p className="text-xs text-gray-400 font-medium">
             {isMaterialTab
-              ? `上传/转写提纯结果【${materialSource}】，与今日长文分开展示。请逐条点「+ 收录」。`
+              ? `上传/转写提炼结果【${materialSource}】，与今日长文分开展示。请逐条点「+ 收录」。`
               : `基于当前主题【${theme}】生成的高阶商业实战材料，支持 ${currentVoiceName} 语音收听与沉浸式阅读。`}
           </p>
         </div>

@@ -610,7 +610,7 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-slate-100 text-slate-500 uppercase">
-                <Eye className="w-3.5 h-3.5 text-gray-400" /> ① 认知提纯 (核心论点与思想精髓)
+                <Eye className="w-3.5 h-3.5 text-gray-400" /> ① 核心提炼（核心论点与思想精髓）
               </span>
             </div>
             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.thought_highlights}</div>
@@ -871,7 +871,7 @@ export default function ReadModule() {
               className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
               placeholder={
                 activeTab === 'book'
-                  ? "在这里输入您对课外书的阅读感悟、精彩章节提纯或思维碎碎念，让 AI 深入为您挑刺漏洞、构建认知闭环..."
+                  ? "在这里输入您对课外书的阅读感悟、精彩章节提炼或思维碎碎念，让 AI 深入为您挑刺漏洞、构建认知闭环..."
                   : "粘贴冗杂的原文，或点击右上方“每日 AI 素材推送”由 AI 推送符合该场景下的训练素材..."
               }
             />
@@ -883,7 +883,7 @@ export default function ReadModule() {
                     未达详尽标准（当前约 {pushCharCount} 字 / 缺：{pushQualityResult?.missingReasons?.join('、') || '条款/利益方等要素'}）。
                   </div>
                   <div className="text-[10px] text-amber-700/80 mt-0.5">
-                    已自动重试 2 次。可再点推送，或确认后仍可解码。
+                    已自动重试 2 次。可再点推送，或确认后仍可解析。
                   </div>
                 </div>
               </div>
@@ -994,7 +994,7 @@ export default function ReadModule() {
               <div className="flex flex-col items-center justify-center py-6 px-4 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50 animate-pulse">
                 <MessageSquare className="w-6 h-6 text-gray-300 mb-2" />
                 <p className="text-[11px] text-gray-400 font-bold text-center leading-relaxed">
-                  AI 策略教练已就位 ｜ 请在上方录入或推送原始素材并启动解码，以激活追问舱。
+                  AI 策略教练已就位 ｜ 请在上方录入或推送原始素材并启动解析，以激活追问舱。
                 </p>
               </div>
             )}
@@ -1161,10 +1161,10 @@ export default function ReadModule() {
                 <div className="flex flex-col gap-4 animate-[fadeIn_0.4s_ease-out] justify-start">
                   <div className="bg-white rounded-3xl p-5 border border-slate-100/80 shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col gap-4">
                     <h5 className="text-xs font-black text-[#FF5722] uppercase tracking-widest flex items-center gap-1.5 border-b border-slate-100 pb-2">
-                      <Target className="w-4 h-4 text-[#FF5722]" /> 高管认知穿透导引
+                      <Target className="w-4 h-4 text-[#FF5722]" /> 高管认知精读导引
                     </h5>
                     <p className="text-xs text-gray-500 leading-relaxed font-semibold">
-                      本系统旨在将输入的信息直接转化为高阶判断力和商业决策力。请在左侧主控区输入原始素材并启动解码。
+                      本系统旨在将输入的信息直接转化为高阶判断力和商业决策力。请在左侧主控区输入原始素材并启动解析。
                     </p>
                     
                     <div className="flex flex-col gap-2.5 mt-1">
@@ -1186,7 +1186,7 @@ export default function ReadModule() {
                         <span className="text-[10px] bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-black px-1.5 py-0.5 rounded">3</span>
                         <div className="text-[11px] text-[var(--color-brand)]/90 font-medium">
                           <span className="block text-[var(--color-brand)] font-black mb-0.5">外企跨文化博弈</span>
-                          穿透外企客套话与逻辑阻碍，剥离各方真实利益立场。
+                          看穿外企客套话与逻辑阻碍，剥离各方真实利益立场。
                         </div>
                       </div>
                       <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-100/80 flex gap-2 items-start transition-all hover:bg-emerald-50 hover:shadow-sm">
@@ -1253,7 +1253,7 @@ export default function ReadModule() {
                 <ShieldAlert className="w-6 h-6" />
               </div>
               <h3 className="text-base font-black text-gray-900 mb-2">
-                素材未达详尽标准，仍要解码？
+                素材不够详细，仍要解析？
               </h3>
               <p className="text-xs text-gray-600 mb-6 leading-relaxed">
                 当前约 <span className="font-bold text-gray-900">{pushCharCount}</span> 字，缺：
@@ -1279,7 +1279,7 @@ export default function ReadModule() {
                   }}
                   className="flex-1 py-3 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-black shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer"
                 >
-                  仍要解码
+                  仍要解析
                 </button>
               </div>
             </motion.div>

@@ -183,7 +183,7 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
                 hint="过去两周哪个板块帮助最大？哪个几乎没用？"
                 value={answers.practicalTest}
                 onChange={(v) => setAnswers({ ...answers, practicalTest: v })}
-                placeholder="例如：驭心博弈模块在本周跨部门会议中提供的话术特别管用..."
+                placeholder="例如：博弈训练模块在本周跨部门会议中提供的话术特别管用..."
               />
               <QuestionField
                 icon={<Target className="w-4 h-4 text-zinc-500" />}

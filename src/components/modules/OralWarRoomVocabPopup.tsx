@@ -70,7 +70,7 @@ export default function OralWarRoomVocabPopup({
               className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[var(--color-brand)] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-accent)] transition-colors cursor-pointer disabled:opacity-50"
             >
               <BookPlus className="w-3.5 h-3.5" />
-              {isAdding ? '入库中…' : '加入生词库'}
+              {isAdding ? '加入中…' : '加入生词库'}
             </button>
             <button
               type="button"

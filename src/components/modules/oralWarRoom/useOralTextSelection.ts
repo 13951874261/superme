@@ -108,10 +108,10 @@ export function useOralTextSelection(
         },
       });
       window.dispatchEvent(new Event('vocab-updated'));
-      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已入库[${zone === 'business' ? '政商务区' : '全场景区'}]` });
+      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已加入生词本[${zone === 'business' ? '政商务区' : '全场景区'}]` });
       setTimeout(() => { setHighlightedWord(''); setHighlightPos(null); setAddWordResult(null); }, 2500);
     } catch {
-      setAddWordResult({ ok: false, msg: '入库失败，请重试' });
+      setAddWordResult({ ok: false, msg: '加入失败，请重试' });
       setTimeout(() => { setAddWordResult(null); }, 2000);
     } finally {
       setIsAddingWord(false);

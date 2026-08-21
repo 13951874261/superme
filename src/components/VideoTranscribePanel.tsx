@@ -416,7 +416,7 @@ export default function VideoTranscribePanel({
         className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-[var(--radius-md)] text-xs font-black tracking-widest uppercase transition-all shadow-md active:scale-[0.98] active:translate-y-[1px] disabled:opacity-40 disabled:hover:bg-[var(--color-primary)] cursor-pointer"
       >
         <Play className="w-4 h-4 fill-current" />
-        开始转写并提纯
+        开始转写并提炼
       </button>
     </div>
   );
