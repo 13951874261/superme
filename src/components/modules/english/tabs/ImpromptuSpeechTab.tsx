@@ -228,7 +228,8 @@ export default function ImpromptuSpeechTab() {
       setPrompterResult(result);
       setShowPrompter(true);
     } catch (err: any) {
-      showNotice('oral', `提示词加载失败: ${err.message}`, 'error');
+      console.error('演讲提示加载失败:', err);
+      showNotice('oral', '演讲提示加载失败，请稍后重试', 'error');
     } finally {
       setIsLoadingPrompter(false);
     }
@@ -256,8 +257,8 @@ export default function ImpromptuSpeechTab() {
 
       mediaRecorder.start();
     } catch (err: any) {
-      console.warn('录音引擎初始化失败:', err);
-      showNotice('oral', `录音引擎初始化失败: ${err.message || err}`, 'error');
+      console.warn('录音准备失败:', err);
+      showNotice('oral', '录音准备失败，请刷新页面后重试', 'error');
     }
   };
 
@@ -311,7 +312,7 @@ export default function ImpromptuSpeechTab() {
         } else if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errMsg.includes('denied') || errMsg.includes('Permission denied')) {
           showNotice('oral', '麦克风权限被拒。请在浏览器地址栏允许网页访问麦克风，并检查系统麦克风授权。', 'error');
         } else {
-          showNotice('oral', `麦克风初始化失败: ${errMsg || err}`, 'error');
+          showNotice('oral', '无法使用麦克风，请检查权限后重试', 'error');
         }
         return;
       }
@@ -426,7 +427,7 @@ export default function ImpromptuSpeechTab() {
       }
 
       if (!finalTranscript.trim()) {
-        showNotice('oral', '请先完成录音或提供转录文本', 'error');
+        showNotice('oral', '请先完成录音', 'error');
         return;
       }
 
@@ -464,7 +465,7 @@ export default function ImpromptuSpeechTab() {
         playSuccess();
         setImpromptuPassed(true);
         setShowConfetti(true);
-        showNotice('oral', '🎖 即兴演讲达标！通关门槛已解锁', 'success');
+        showNotice('oral', '即兴演讲达标！本关已通过', 'success');
 
         // 【I-3 新增】联动 XP 积分
         const currentXp = parseInt(localStorage.getItem('oral_sandbox_xp') || '0', 10);
@@ -478,7 +479,8 @@ export default function ImpromptuSpeechTab() {
       }
     } catch (err: any) {
       playError();
-      showNotice('oral', `评估失败: ${err.message}`, 'error');
+      console.error('评分失败:', err);
+      showNotice('oral', '评分失败，请稍后重试', 'error');
     } finally {
       setEvaluatingStage('idle');
     }
@@ -619,7 +621,7 @@ export default function ImpromptuSpeechTab() {
             >
               <span className="text-[10px] font-black uppercase tracking-widest text-gray-400 block mb-2">实时转录 (Live Transcript)</span>
               <p className={`text-sm leading-relaxed ${!transcript && isRecording && !isEngineReady ? 'text-yellow-500/80 animate-pulse font-bold' : 'text-gray-200'}`}>
-                {transcript || (isRecording ? (isEngineReady ? '🎙️ 正在录音，请开始发言…' : '⏳ 正在打通云端音频流，请稍候…') : '等待您的发言…')}
+                {transcript || (isRecording ? (isEngineReady ? '🎙️ 正在录音，请开始发言…' : '⏳ 正在准备录音，请稍候…') : '等待您的发言…')}
               </p>
             </div>
           )}
@@ -682,7 +684,7 @@ export default function ImpromptuSpeechTab() {
                 <>
                   <Loader2 className="w-5 h-5 animate-spin shrink-0 text-white" />
                   <span className="text-[11px] tracking-normal font-black text-white/95 animate-pulse">
-                    {evaluatingStage === 'transcribing' && '转译中... (正在通过 Whisper 转译高精度语音文本)'}
+                    {evaluatingStage === 'transcribing' && '正在把语音转成文字…'}
                     {evaluatingStage === 'evaluating' && '评测中... (正在调用 AI 评测接口)'}
                     {evaluatingStage === 'generating' && '生成中... (正在为您生成高阶完美示范范文)'}
                   </span>

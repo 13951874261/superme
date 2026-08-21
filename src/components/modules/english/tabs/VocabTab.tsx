@@ -131,7 +131,7 @@ export default function VocabTab() {
         setSyncNotice('连接失败，请重新加载今日待复习词条。');
       } else {
         setDueWords(cached);
-        setSyncNotice(`网络暂不可用，正在使用上次同步的 ${cached.length} 个复习词。`);
+        setSyncNotice(`网络暂不可用，先用上次保存的 ${cached.length} 个复习词。`);
       }
     } finally {
       setLoadingDueWords(false);
@@ -259,7 +259,7 @@ export default function VocabTab() {
       playSuccess();
       if (quality === 5) setShowConfetti(true);
       window.dispatchEvent(new Event('vocab-updated'));
-      showNotice('eval', `已评分 ${quality}/5，推入下个词`, 'success');
+      showNotice('eval', `已评分 ${quality}/5，进入下一个词`, 'success');
       showSuccess(`复习记录已保存：${currentWord.word}（${quality}/5）`);
       setEvalResult(null);
       setSentenceInput('');
@@ -268,7 +268,8 @@ export default function VocabTab() {
       setSpellInput('');
     } catch (err: any) {
       playError();
-      showNotice('eval', `评分录入失败: ${err.message}`, 'error');
+      console.error('评分保存失败:', err);
+      showNotice('eval', '评分保存失败，请稍后重试', 'error');
     } finally {
       setSubmittingQuality(false);
     }
@@ -290,7 +291,7 @@ export default function VocabTab() {
         if (quality === 5) setShowConfetti(true);
         await submitReview(currentWord.id, quality);
         window.dispatchEvent(new Event('vocab-updated'));
-        showNotice('eval', '评估完成，已写入复习记录', 'success');
+        showNotice('eval', '评估完成，已记入复习进度', 'success');
         showSuccess(`复习记录已保存：${currentWord.word}（${quality}/5）`);
       } else {
         playError();
@@ -303,7 +304,8 @@ export default function VocabTab() {
       }
     } catch (err: any) {
       playError();
-      showNotice('eval', `评估失败: ${err.message}`, 'error');
+      console.error('评估失败:', err);
+      showNotice('eval', '评估失败，请稍后重试', 'error');
     } finally {
       setIsEvaluating(false);
     }

@@ -175,7 +175,7 @@ export default function WriteTab() {
       + '请撰写一封高阶商务信函/邮件，回应上述多角色博弈情境。要求：语法严谨、逻辑闭环、分寸得体，无破绽。',
     );
     playPageTurn();
-    showNotice('review', `已载入沙盘场景「${ctx.sceneTitle}」，请完成书面闭环`, 'success');
+    showNotice('review', `已载入练习场景「${ctx.sceneTitle}」，请完成书面练习`, 'success');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -202,7 +202,7 @@ export default function WriteTab() {
       const text = evt.target?.result as string;
       handleBenchmarkChange(text);
       playPageTurn();
-      showNotice('review', '对标优秀文本读取成功', 'success');
+      showNotice('review', '参考范文已加载', 'success');
     };
     reader.readAsText(file);
   };
@@ -249,7 +249,7 @@ export default function WriteTab() {
       playSuccess();
     } catch (e) {
       playError();
-      showNotice('review', '生成任务失败', 'error');
+      showNotice('review', '生成失败，请稍后重试', 'error');
     } finally {
       setIsGeneratingChallenge(false);
     }
@@ -441,7 +441,8 @@ ${benchmarkText
         .catch(() => {});
     } catch (error) {
       playError();
-      showNotice('review', error instanceof Error ? error.message : '审阅失败，请检查网络', 'error');
+      console.error('审阅失败:', error);
+      showNotice('review', '审阅失败，请检查网络后重试', 'error');
     } finally {
       setIsReviewing(false);
     }
