@@ -141,6 +141,22 @@ export default function DashboardTab() {
     }
   });
 
+  const readStoredArray = (key: string): string[] => {
+    try {
+      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const [briefingTab, setBriefingTab] = useState<'longform' | 'material'>('longform');
+  const [materialArticle, setMaterialArticle] = useState<string>(() => localStorage.getItem('super_agent_material_article') || '');
+  const [materialWords, setMaterialWords] = useState<string[]>(() => readStoredArray('super_agent_material_words'));
+  const [materialPhrases, setMaterialPhrases] = useState<string[]>(() => readStoredArray('super_agent_material_phrases'));
+  const [materialSentences, setMaterialSentences] = useState<string[]>(() => readStoredArray('super_agent_material_sentences'));
+  const [materialSource, setMaterialSource] = useState<string>(() => localStorage.getItem('super_agent_material_source') || '上传材料');
+
   const [intelSource, setIntelSource] = useState<string>(() => {
     return localStorage.getItem('super_agent_intel_source') || '每日系统生成';
   });
@@ -232,6 +248,29 @@ export default function DashboardTab() {
     return () => window.removeEventListener('intel-data-refreshed', handleIntelRefresh);
   }, []);
 
+  useEffect(() => {
+    const applyMaterial = () => {
+      setMaterialArticle(localStorage.getItem('super_agent_material_article') || '');
+      setMaterialWords(readStoredArray('super_agent_material_words'));
+      setMaterialPhrases(readStoredArray('super_agent_material_phrases'));
+      setMaterialSentences(readStoredArray('super_agent_material_sentences'));
+      setMaterialSource(localStorage.getItem('super_agent_material_source') || '上传材料');
+      setBriefingTab('material');
+    };
+    window.addEventListener('material-data-refreshed', applyMaterial);
+    return () => window.removeEventListener('material-data-refreshed', applyMaterial);
+  }, []);
+
+  useEffect(() => {
+    const openMaterial = () => {
+      setBriefingTab('material');
+      const preferReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 280, behavior: preferReducedMotion ? 'auto' : 'smooth' });
+    };
+    window.addEventListener('open-uploaded-material', openMaterial);
+    return () => window.removeEventListener('open-uploaded-material', openMaterial);
+  }, []);
+
   const refreshIntelData = useCallback(() => {
     setGeneratedArticle(localStorage.getItem('super_agent_last_generated_article') || '');
     setExtractedWords(JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]'));
@@ -244,6 +283,14 @@ export default function DashboardTab() {
   useEffect(() => {
     const handleExtractionSuccess = (e: Event) => {
       const detail = (e as CustomEvent).detail;
+      if (detail?.source === 'material') {
+        if (detail?.article) setMaterialArticle(detail.article);
+        if (detail?.words) setMaterialWords(detail.words);
+        if (detail?.phrases) setMaterialPhrases(detail.phrases);
+        if (detail?.sentences) setMaterialSentences(detail.sentences);
+        setBriefingTab('material');
+        return;
+      }
       if (detail?.article) {
         setGeneratedArticle(detail.article);
       }
@@ -256,7 +303,6 @@ export default function DashboardTab() {
       if (detail?.sentences) {
         setExtractedSentences(detail.sentences);
       }
-      // 触发批量翻译和落库
       refreshIntelData();
     };
 
@@ -346,7 +392,10 @@ export default function DashboardTab() {
       const extractedKeyList = Array.from(new Set([
         ...extractedWords.map(w => safeToStr(w).toLowerCase()).filter(Boolean),
         ...extractedPhrases.map(p => safeToStr(p).toLowerCase()).filter(Boolean),
-        ...extractedSentences.map(s => safeToStr(s).toLowerCase()).filter(Boolean)
+        ...extractedSentences.map(s => safeToStr(s).toLowerCase()).filter(Boolean),
+        ...materialWords.map(w => safeToStr(w).toLowerCase()).filter(Boolean),
+        ...materialPhrases.map(p => safeToStr(p).toLowerCase()).filter(Boolean),
+        ...materialSentences.map(s => safeToStr(s).toLowerCase()).filter(Boolean)
       ]));
 
       if (extractedKeyList.length === 0) {
@@ -420,7 +469,10 @@ export default function DashboardTab() {
       const allTextItems = [
         ...extractedWords.map(w => safeToStr(w)),
         ...extractedPhrases.map(p => safeToStr(p)),
-        ...extractedSentences.map(s => safeToStr(s))
+        ...extractedSentences.map(s => safeToStr(s)),
+        ...materialWords.map(w => safeToStr(w)),
+        ...materialPhrases.map(p => safeToStr(p)),
+        ...materialSentences.map(s => safeToStr(s))
       ].filter(Boolean);
 
       const uniqueWords = [...new Set(allTextItems)];
@@ -470,11 +522,11 @@ export default function DashboardTab() {
     return () => {
       active = false;
     };
-  }, [extractedWords, extractedPhrases, extractedSentences, vocabDetailsMap]);
+  }, [extractedWords, extractedPhrases, extractedSentences, materialWords, materialPhrases, materialSentences, vocabDetailsMap]);
 
   // 2. 加载词汇详情与监听 vocab-updated 事件的 useEffect
   useEffect(() => {
-    if (extractedWords.length > 0) {
+    if (extractedWords.length > 0 || materialWords.length > 0) {
       loadVocabDetails();
     }
     const handleUpdate = () => {
@@ -482,7 +534,7 @@ export default function DashboardTab() {
     };
     window.addEventListener('vocab-updated', handleUpdate);
     return () => window.removeEventListener('vocab-updated', handleUpdate);
-  }, [extractedWords, extractedPhrases, extractedSentences]);
+  }, [extractedWords, extractedPhrases, extractedSentences, materialWords, materialPhrases, materialSentences]);
 
   // 逐条收录生词/短语/句式，收录即补齐词汇矩阵（带 3 秒竞速超时，超时解耦转后台任务中心）
   const handleAddWordToVocab = async (
@@ -798,7 +850,7 @@ export default function DashboardTab() {
                <Target aria-hidden="true" className="w-3.5 h-3.5" />
             </div>
             <div className="text-left">
-              <h5 className="eyebrow text-[var(--color-brand)]/80">战术使用指南 // Tactical SOP</h5>
+              <h5 className="eyebrow text-[var(--color-brand)]/80">使用说明</h5>
               <p className="text-[10px] text-[var(--color-ink-secondary)] font-medium">点击展开/收起模块使用说明</p>
             </div>
           </div>
@@ -920,6 +972,17 @@ export default function DashboardTab() {
           extractedWords={extractedWords}
           extractedPhrases={extractedPhrases}
           extractedSentences={extractedSentences}
+          briefingTab={briefingTab}
+          setBriefingTab={setBriefingTab}
+          materialArticle={materialArticle}
+          materialSource={materialSource}
+          materialWords={materialWords}
+          materialPhrases={materialPhrases}
+          materialSentences={materialSentences}
+          setMaterialArticle={setMaterialArticle}
+          setMaterialWords={setMaterialWords}
+          setMaterialPhrases={setMaterialPhrases}
+          setMaterialSentences={setMaterialSentences}
           vocabDetailsMap={vocabDetailsMap}
           asyncMeanings={asyncMeanings}
           handleAddWordToVocab={handleAddWordToVocab}
@@ -933,23 +996,22 @@ export default function DashboardTab() {
           topicHint={theme} 
           onExtractionSuccess={(data) => {
             if (data) {
-              setGeneratedArticle(data.article);
-              localStorage.setItem('super_agent_last_generated_article', data.article);
-
-              setExtractedWords(data.words);
-              localStorage.setItem('super_agent_last_generated_words', JSON.stringify(data.words));
-
-              setExtractedPhrases(data.phrases);
-              localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(data.phrases));
-
               const sentences = (data as any).sentences || [];
-              setExtractedSentences(sentences);
-              localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(sentences));
+              setMaterialArticle(data.article || '');
+              setMaterialWords(data.words || []);
+              setMaterialPhrases(data.phrases || []);
+              setMaterialSentences(sentences);
+              setMaterialSource('上传材料');
+              setBriefingTab('material');
+              localStorage.setItem('super_agent_material_article', data.article || '');
+              localStorage.setItem('super_agent_material_words', JSON.stringify(data.words || []));
+              localStorage.setItem('super_agent_material_phrases', JSON.stringify(data.phrases || []));
+              localStorage.setItem('super_agent_material_sentences', JSON.stringify(sentences));
+              localStorage.setItem('super_agent_material_source', '上传材料');
 
-              showNotice('dashboard', '整理完成！长文和生词已出现在上方，可点击查看', 'success');
+              showNotice('dashboard', '整理完成！请到「上传材料」标签查看生词、短语和句型，再逐条点「+ 收录」', 'success');
               playSuccess();
               
-              // 滚动到该板块区域以引起用户注意（尊重系统「减少动态效果」）
               const preferReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
               window.scrollTo({ top: 300, behavior: preferReducedMotion ? 'auto' : 'smooth' });
             } else {
@@ -963,7 +1025,7 @@ export default function DashboardTab() {
       <ImmersiveReader 
         isOpen={isImmersiveOpen}
         onClose={() => setIsImmersiveOpen(false)}
-        generatedArticle={generatedArticle}
+        generatedArticle={briefingTab === 'material' ? materialArticle : generatedArticle}
         theme={theme}
         cefrLevel={cefrLevel}
         genre={genre}

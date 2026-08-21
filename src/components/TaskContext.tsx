@@ -270,7 +270,29 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 window.dispatchEvent(new CustomEvent('tactics-ingest-updated'));
               }
 
-              if (data.result && (data.result.article || data.result.words)) {
+              const isMaterialLike = data.type === 'material' || data.type === 'video';
+              if (isMaterialLike && data.result && (data.result.article || data.result.words || data.result.phrases || data.result.sentences || data.result.content || data.result.transcript)) {
+                const result = data.result;
+                const taskName = data.name || data.taskName || '未命名材料';
+                const article = result.article || result.transcript || result.content || '';
+
+                localStorage.setItem('super_agent_material_article', article);
+                localStorage.setItem('super_agent_material_words', JSON.stringify(result.words || []));
+                localStorage.setItem('super_agent_material_phrases', JSON.stringify(result.phrases || []));
+                localStorage.setItem('super_agent_material_sentences', JSON.stringify(result.sentences || []));
+                localStorage.setItem('super_agent_material_source', `材料整理: ${taskName}`);
+
+                window.dispatchEvent(new CustomEvent('material-data-refreshed'));
+                window.dispatchEvent(new CustomEvent('extraction-success', {
+                  detail: {
+                    source: 'material',
+                    article,
+                    words: result.words || [],
+                    phrases: result.phrases || [],
+                    sentences: result.sentences || [],
+                  }
+                }));
+              } else if (!isMaterialLike && data.result && (data.result.article || data.result.words)) {
                 const result = data.result;
                 const taskName = data.name || data.taskName || '未命名材料';
 
@@ -287,16 +309,6 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                     words: result.words || [],
                     phrases: result.phrases || [],
                     sentences: result.sentences || [],
-                  }
-                }));
-              }
-
-              if (data.type === 'video' && data.result?.content) {
-                window.dispatchEvent(new CustomEvent('import-virtual-material', {
-                  detail: {
-                    name: data.result.name,
-                    content: data.result.content,
-                    mimeType: data.result.mimeType,
                   }
                 }));
               }

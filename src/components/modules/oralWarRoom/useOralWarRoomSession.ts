@@ -353,7 +353,7 @@ export function useOralWarRoomSession({
         setMessages([]);
         setConversationId(null);
         setIsLoopholePlanted(false);
-        setLastNotice(`已根据全局指令切换战局。进入：${sceneTheme}`);
+        setLastNotice(`已切换练习场景。进入：${sceneTheme}`);
       }
     }
   }, [embedded, sceneTheme, activeSceneId]);
@@ -422,7 +422,7 @@ export function useOralWarRoomSession({
     if (!scene) return;
     if (sandboxMode === 'daily') setSandboxMode('negotiation');
     resetBattleState(sceneId);
-    setLastNotice(`已重置战局。进入：${scene.shortTitle}`);
+    setLastNotice(`已重置练习场景。进入：${scene.shortTitle}`);
     void initiateSceneDialogue(scene, 'negotiation');
   };
 

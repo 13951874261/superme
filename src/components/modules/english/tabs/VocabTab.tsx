@@ -321,17 +321,17 @@ export default function VocabTab() {
            <BookOpen aria-hidden="true" className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与智能整理功能。</p>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">使用说明</h5>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">按下面说明使用，能更好地练商务英语表达</p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 hover:-translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>阅读左侧整理出的词汇（含发音/例句），在右侧输入框结合当前【战略阶段/主题】强制造句，并提交评估。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">操作说明：</span>阅读左侧整理出的词汇（含发音/例句），在右侧输入框结合当前主题强制造句，并提交评估。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 军控级双重校验（语法精确度 + 商务权力分寸），达到 3 分及格线方可打入 SM-2 记忆算法底座。满分将触发烟花特效。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>从语法与商务表达两方面评分，达到 3 分才记入复习进度；满分有烟花特效。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
@@ -404,8 +404,8 @@ export default function VocabTab() {
             : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
         }`}>
           {isFallback
-            ? <><Library className="w-3.5 h-3.5 shrink-0" /> 全量练习模式 — 今日无到期词，已加载全部词库（{filteredWords.length} 词）供随时练习。复习提交后将更新 SM-2 记忆算法。</>
-            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — 第 {currentWordIdx + 1} / {filteredWords.length} 个待复习单词，完成并提交评估将写入 SM-2 周期。{isSyncing ? ' · 同步中…' : ''}</>
+            ? <><Library className="w-3.5 h-3.5 shrink-0" /> 全量练习模式 — 今日无到期词，已加载全部词库（{filteredWords.length} 词）供随时练习。复习提交后将更新复习进度。</>
+            : <><CalendarCheck className="w-3.5 h-3.5 shrink-0" /> 今日复习模式 — 第 {currentWordIdx + 1} / {filteredWords.length} 个待复习单词，完成并提交评估将记入复习计划。{isSyncing ? ' · 同步中…' : ''}</>
           }
         </div>
       )}
@@ -542,7 +542,7 @@ export default function VocabTab() {
                         <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
                           <div className="flex items-center gap-2">
                             <Activity className="w-4 h-4 text-emerald-400" />
-                            <span className="text-xs font-black uppercase tracking-wider text-slate-200">2. SM-2 记忆健康度仪表盘</span>
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-200">2. 记忆健康度</span>
                           </div>
                           <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
                             {currentWord.repetitions >= 3 ? '记忆稳固' : '巩固期'}
@@ -694,7 +694,7 @@ export default function VocabTab() {
                       评分结果 ({evalResult.quality}/5)
                     </h5>
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest text-white shadow-sm ${evalResult.quality >= 3 ? 'bg-emerald-500' : 'bg-red-500'}`}>
-                      {evalResult.quality >= 3 ? 'PASS' : 'REJECT'}
+                      {evalResult.quality >= 3 ? '通过' : '未通过'}
                     </span>
                   </div>
                   <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line font-medium">{evalResult.feedback}</p>

@@ -22,3 +22,9 @@
 {"ts":"2026-08-21T07:35:00Z","event":"aggregate_complete","slug":"bg-handoff-feedback","status":"complete"}
 {"ts":"2026-08-21T07:45:00Z","event":"steer","kind":"scope_expand","title":"DictionaryPanel collect parity","evidence":"user override Non-goal C; useVocabCollect + FSM + handoff","status":"complete"}
 {"ts":"2026-08-21T07:50:00Z","event":"user_accept","scope":"dictionary-panel-collect-parity","status":"confirmed","note":"user confirmed DictionaryPanel handoff FSM"}
+{"ts":"2026-08-21T11:40:00Z","event":"create_goals","slug":"material-purify-manual-collect","source":".omx/specs/deep-interview-material-purify-manual-collect.md","goals":["G001","G002","G003","G004","G005","G006"],"supersedes":"bg-handoff-feedback","note":"manual create-goals; omx CLI unavailable; awaiting user consent before complete-goals"}
+{"ts":"2026-08-21T11:42:00Z","event":"steer","kind":"revise_pending_wording","title":"三类候选与长文一致","evidence":"user: 长文提纯的内容包括生词、短语和高频句型。与长文保持一致。","rationale":"G001/G004 必须显式产出并展示 words+phrases+sentences，禁止只落单词。"}
+{"ts":"2026-08-21T11:50:00Z","event":"steer","kind":"split_subgoal","title":"G001 合并三块 UI 与停入库","evidence":"user: 三类展示必须一眼看到；第一步同时做材料标签三块展示和停自动入库","rationale":"接口带三类不算完成；验收以材料页三块可见为准。目标收敛为 G001–G004。"}
+{"ts":"2026-08-21T12:20:00Z","event":"checkpoint","goalId":"G001","status":"complete","evidence":"stop INSERT in videoTranscriber+process-and-extract; IntelBriefing tabs 今日长文/上传材料 reuse VocabularyGrid; material localStorage keys; no import-virtual-material; materialManualCollectContract passed"}
+{"ts":"2026-08-21T12:35:00Z","event":"checkpoint","goalId":"G002","status":"complete","evidence":"MaterialUploader notifyBackgroundHandoff; GlobalTaskCenter 查看材料 -> open-uploaded-material; contract passed"}
+{"ts":"2026-08-21T12:40:00Z","event":"checkpoint","goalId":"G003","status":"complete","evidence":"materialManualCollectContract + tacticsIngest + videoWhisperSlice + backgroundHandoffFeedback passed"}

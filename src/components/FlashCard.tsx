@@ -472,7 +472,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                         高管侧写评分：{evalResult.score} / 10
                       </span>
                       <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${evalResult.isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                        {evalResult.isPass ? 'APPROVED (允许升阶)' : 'REJECTED (打回重造)'}
+                        {evalResult.isPass ? '通过（可继续）' : '未通过（请重写）'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mb-4 font-medium leading-relaxed">{evalResult.feedback}</p>

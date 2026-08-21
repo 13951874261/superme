@@ -5,6 +5,7 @@ import { getAppUserId } from '../utils/profileHelper';
 import UrlFetchPanel from './UrlFetchPanel';
 import VideoTranscribePanel from './VideoTranscribePanel';
 import { useTask } from './TaskContext';
+import { notifyBackgroundHandoff } from '../utils/backgroundHandoff';
 
 interface MaterialUploaderProps {
   topicHint?: string;
@@ -79,7 +80,7 @@ export default function MaterialUploader({
 
     setStatus('running');
     setShowLogs(true);
-    setCurrentStep('正在整理：清空旧材料 → 上传 → 抽取词汇 → 写入生词本');
+    setCurrentStep('正在整理：清空旧材料 → 上传 → 抽取词汇（不写入生词本）');
     setLogs([`${nowLabel()} 启动一键整理流程`]);
 
     try {
@@ -93,6 +94,11 @@ export default function MaterialUploader({
         status: 'pending',
         progress: 5,
         logs: [`[${nowLabel()}] 整理任务已在后台建立，正在排队清理旧材料…`]
+      });
+
+      notifyBackgroundHandoff({
+        message: '材料整理已进入后台任务中心，可在顶栏查看进度',
+        tone: 'info',
       });
 
       // UI 界面提示用户关注任务中心
@@ -125,7 +131,7 @@ export default function MaterialUploader({
     setCurrentStep(`已加载网页提取材料：${virtualFile.name}`);
     setLogs([
       `${nowLabel()} 网页数据抓取并过滤成功`,
-      `${nowLabel()} 正在自动整理并加入生词本…`,
+      `${nowLabel()} 正在自动整理，完成后请到「上传材料」逐条点「+ 收录」…`,
     ]);
     // 自动触发提纯（与视频转写"导入并提纯"路径对齐）
     runExtractionForFiles([file]);
@@ -142,11 +148,16 @@ export default function MaterialUploader({
       logs: [`[${new Date().toISOString()}] 任务已在后台建立，正在排队排期…`],
     });
 
-    setCurrentStep('已发起视频转写。完成后将自动导入并整理，可在顶栏「任务中心」查看进度。');
+    notifyBackgroundHandoff({
+      message: '视频转写已进入后台任务中心，可在顶栏查看进度',
+      tone: 'info',
+    });
+
+    setCurrentStep('已发起视频转写。完成后将自动提纯（不入库），请到「上传材料」查看。');
     setLogs([
       `${nowLabel()} 后台转写任务已建立，可在任务中心查看进度`,
       `${nowLabel()} 将在服务器后台执行，无需在本页面等待。`,
-      `${nowLabel()} 视频处理完毕后，将自动导入并整理生词。`,
+      `${nowLabel()} 视频处理完毕后，候选词会进入「上传材料」，请手动收录。`,
     ]);
   };
 
@@ -231,7 +242,7 @@ export default function MaterialUploader({
         <p className={compact ? 'text-[9px] text-zinc-400 font-medium' : 'text-xs text-gray-400 font-medium leading-relaxed mt-2'}>
           {compact
             ? '上传后进入任务中心；完成后写入理论草稿与导图，请勾选模块同步到听/说/博弈。'
-            : '上传本地文档、网页内容或音视频转写文字后，系统会自动整理并写入生词本。'}
+            : '上传本地文档、网页内容或音视频转写文字后，系统会自动整理；生词、短语和句型需在「上传材料」中手动点「+ 收录」。'}
         </p>
       </div>
 
@@ -417,7 +428,7 @@ export default function MaterialUploader({
                 // 默认提示
                 <div className="flex-grow flex flex-col items-center justify-center text-center p-2">
                   <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
-                    系统将自动执行：清空旧材料 → 载入材料 → 整理材料 → 自动抽取词汇 → 写入生词本。
+                    系统将自动执行：清空旧材料 → 载入材料 → 整理材料 → 抽取生词/短语/句型。完成后请手动点「+ 收录」。
                   </p>
                 </div>
               )}

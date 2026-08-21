@@ -6518,7 +6518,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 85,
-        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，正在排重写入 SQLite 生词本…`]
+        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，不写入生词本，请逐条点「+ 收录」`]
       });
 
       /**
@@ -6561,79 +6561,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         }
       }
 
-      // 写入 SQLite
-      let addedCount = 0;
-      const now = Date.now();
-      for (const item of vocabToInsert) {
-        const isObject = typeof item === 'object' && item !== null;
-        const wordStr = isObject ? (item.word || item.phrase || item.text || JSON.stringify(item)) : String(item);
-        if (!wordStr) continue;
-
-        // 再次按词数分类，决定 dict_type
-        const dictType = classifyByWordCount(wordStr);
-
-        // 组装 payload
-        let payload = { source: 'Material Upload' };
-        if (isObject && item.payload) {
-          payload = item.payload;
-          if (!payload.source) payload.source = 'Material Upload';
-        }
-        payload = { ...payload, topic: payload.topic || topic || '' };
-
-        const existing = db.prepare('SELECT id, payload FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
-        if (!existing) {
-          const id = crypto.randomUUID();
-          db.prepare(`
-            INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          `).run(id, wordStr, dictType, 'business', JSON.stringify(payload), now, now, '[]');
-          addedCount++;
-        } else {
-          // 已存在则仅在 payload 较空时覆盖更新
-          let oldPayload = {};
-          try { oldPayload = JSON.parse(existing.payload || '{}'); } catch(e) {}
-          if (!oldPayload.meaning || Object.keys(oldPayload).length <= 2) {
-            db.prepare('UPDATE vocabulary SET dict_type = ?, category = ?, payload = ? WHERE id = ?').run(
-              dictType,
-              'business',
-              JSON.stringify(payload),
-              existing.id
-            );
-          }
-        }
-      }
-
-      // ===== 写入句型（dict_type = 'ai_sentence'） =====
-      let addedSentenceCount = 0;
-      for (const item of sentencesToReturn) {
-        const isObject = typeof item === 'object' && item !== null;
-        const sentenceStr = isObject
-          ? (item.word || item.sentence || item.text || '')
-          : String(item);
-        const cleanSent = String(sentenceStr).trim();
-        if (!cleanSent || cleanSent.length > 500) continue;
-
-        // 用前 50 字符做 LIKE 前缀排重，避免重复长句
-        const probe = cleanSent.substring(0, 50).replace(/[%_]/g, '\\$&');
-        const existingSent = db.prepare(
-          "SELECT id FROM vocabulary WHERE dict_type = 'ai_sentence' AND word LIKE ? COLLATE NOCASE"
-        ).get(`${probe}%`);
-        if (existingSent) continue;
-
-        let sentPayload = { source: 'Material Upload', type: 'sentence', topic: topic || '' };
-        if (isObject && item.payload) {
-          sentPayload = { ...sentPayload, ...item.payload };
-          sentPayload.type = 'sentence';
-          if (!sentPayload.source) sentPayload.source = 'Material Upload';
-        }
-
-        const id = crypto.randomUUID();
-        db.prepare(`
-          INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, cleanSent, 'ai_sentence', 'business', JSON.stringify(sentPayload), now, now, '[]');
-        addedSentenceCount++;
-      }
+      // 提纯只产出候选，不写入生词本（与长文一致，由用户逐条点「+ 收录」）
+      const addedCount = 0;
+      const addedSentenceCount = 0;
 
       // 组装思维导图与核心知识点框架
       taskQueue.updateTask(task.id, {
@@ -6693,13 +6623,13 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           results: [
             {
               fileName: fileObj.fileName || "Document",
-              summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${vocabToInsert.length} terms, actual added ${addedCount} words.`,
+              summary: `Closed loop completed: cleared ${docIds.length} old documents, new file imported successfully. Model extracted ${vocabToInsert.length} terms. Vocab not auto-inserted; user must collect manually.`,
               key_points: wordsToReturn.slice(0, 5).map(i => typeof i === 'object' ? (i.word || i.text) : String(i))
             }
           ]
         },
         logs: [
-          `[完成] Dify 提纯分析与生词本写入及思维导图/知识点提纯全部顺利完成！已写入资料抽屉理论草稿 ${vaultImport.createdCount} 条（未同步），跳过 ${vaultImport.skippedCount} 条。`
+          `[完成] Dify 提纯分析完成（不写入生词本，请逐条点「+ 收录」）。已写入资料抽屉理论草稿 ${vaultImport.createdCount} 条（未同步），跳过 ${vaultImport.skippedCount} 条。`
         ]
       });
 

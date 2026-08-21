@@ -1,0 +1,45 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "a7c3e91f-4b2d-4f18-9e6a-material-manual-collect",
+    "profile": "standard",
+    "type": "brownfield",
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "current_ambiguity": 0.1,
+    "pressure_pass_complete": true,
+    "non_goals_resolved": true,
+    "decision_boundaries_resolved": true,
+    "context_snapshot_path": ".omx/context/material-purify-manual-collect-20260821T112200Z.md",
+    "transcript_path": ".omx/interviews/material-purify-manual-collect-20260821T114000Z.md",
+    "spec_path": ".omx/specs/deep-interview-material-purify-manual-collect.md",
+    "scores": {
+      "intent": 0.93,
+      "outcome": 0.93,
+      "scope": 0.9,
+      "constraints": 0.9,
+      "success": 0.7,
+      "context": 0.93
+    },
+    "decision_boundaries": [
+      "tab-copy-nav",
+      "reuse-handoff",
+      "reuse-grid",
+      "separate-storage",
+      "empty-ok",
+      "parse-three-types"
+    ],
+    "non_goals": [
+      "no-dify-prompt",
+      "no-sla",
+      "no-task-center-ia",
+      "no-rollback",
+      "no-batch-collect",
+      "no-other-modules",
+      "no-design-md"
+    ],
+    "quota_policy": "material-collect-skips-daily-quota",
+    "collect_parity": "same-ui-and-matrix-and-3s-handoff"
+  }
+}

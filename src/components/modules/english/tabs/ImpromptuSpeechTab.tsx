@@ -535,8 +535,8 @@ export default function ImpromptuSpeechTab() {
           <Mic className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与智能整理功能。</p>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">使用说明</h5>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">按下面说明使用，能更好地练商务英语表达</p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 hover:-translate-y-0.5">
@@ -574,7 +574,7 @@ export default function ImpromptuSpeechTab() {
           <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0" />
           <div>
             <p className="text-sm font-black text-emerald-900">即兴演讲通关达成</p>
-            <p className="text-xs text-emerald-600">当前主题的即兴演讲标准已达成，此项通关指标已解锁。</p>
+            <p className="text-xs text-emerald-600">当前主题的即兴演讲标准已达成，本项通关要求已完成。</p>
           </div>
           <Star className="w-5 h-5 text-amber-400 ml-auto" />
         </div>

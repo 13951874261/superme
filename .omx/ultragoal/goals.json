@@ -1,65 +1,43 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-bg-handoff-feedback.md",
+  "sourceBrief": ".omx/specs/deep-interview-material-purify-manual-collect.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for bg-handoff-feedback",
-  "status": "complete",
-  "createdAt": "2026-08-21T07:00:00Z",
-  "updatedAt": "2026-08-21T07:35:00Z",
-  "completedAt": "2026-08-21T07:35:00Z",
-  "supersedes": "custom-theme-cascade-delete",
-  "note": "omx CLI unavailable; manual ultragoal. Formal dual-subagent code-review gate skipped; contract tests green.",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for material-purify-manual-collect",
+  "status": "active",
+  "createdAt": "2026-08-21T11:40:00Z",
+  "updatedAt": "2026-08-21T11:50:00Z",
+  "supersedes": "bg-handoff-feedback",
+  "note": "omx CLI unavailable; manual ultragoal. G001 merged per user: 三块 UI + 停入库 together. Awaiting consent before code.",
   "goals": [
     {
       "id": "G001",
-      "title": "Shared handoff feedback primitive",
+      "title": "材料标签一眼三块 + 同时停自动入库",
       "status": "complete",
-      "evidence": "backgroundHandoff + NearHandoffNotice + Header useGSAP pulse"
+      "objective": "今日学习材料用标签页分开「今日长文 / 上传材料」。上传材料标签必须一眼看到与长文相同的三块：生词、短语、高频句型（复用 VocabularyGrid，每条「+ 收录」）。同时：提纯不再 INSERT 生词本；任务结果带 article/words/phrases/sentences；材料与长文分缓存互不覆盖；切断视频完成自动二次导入。材料「+ 收录」走 3 秒转后台和矩阵补齐，但不占今日额度。",
+      "dependsOn": []
     },
     {
       "id": "G002",
-      "title": "P1 Dashboard long-gen + collect FSM",
+      "title": "提交后台明确告知 + 查看材料",
       "status": "complete",
-      "evidence": "Dashboard/Arsenal/VocabularyGrid/useVocabCollect"
+      "objective": "MaterialUploader 三入口接入 notifyBackgroundHandoff；任务中心完成主按钮改为「查看材料」，点击切到上传材料标签并滚动。",
+      "dependsOn": ["G001"]
     },
     {
       "id": "G003",
-      "title": "P1 contract tests",
+      "title": "合约测试覆盖三块展示与入库切断",
       "status": "complete",
-      "evidence": "backgroundHandoffFeedbackContract + vocabCollect handoff"
+      "objective": "补契约测试：不自动 INSERT、视频不二次导入、材料/长文分 key、IntelBriefing 含生词/短语/句型三块、handoff 与查看材料按钮。",
+      "dependsOn": ["G001", "G002"]
     },
     {
       "id": "G004",
-      "title": "P2 Wakeup + Flaw collect parity",
-      "status": "complete",
-      "evidence": "DailyWakeupModule + DailyErrorVocabularyModule queued FSM"
-    },
-    {
-      "id": "G005",
-      "title": "P3 remaining task-center entrances",
-      "status": "complete",
-      "evidence": "ThemeGateway/ListenTab/VocabExport/Tactics/Speak/Listen/GameTheory notifyBackgroundHandoff; MaterialUploader still uses inline step text (residual)"
-    },
-    {
-      "id": "G006",
-      "title": "Final verification + quality gate",
-      "status": "complete",
-      "evidence": "contract tests passed; residual: MaterialUploader near-anchor optional; DictionaryPanel out of scope"
+      "title": "验收用例提交用户核对 + 质量门",
+      "status": "pending",
+      "objective": "按 spec 草案给出菜单路径测试用例请用户核对；跑相关合约测试。正式双人 code-review 若环境不可用则记录 residual。",
+      "dependsOn": ["G003"]
     }
-  ],
-  "qualityGate": {
-    "verification": {
-      "status": "passed",
-      "commands": [
-        "node vocab-server/tests/backgroundHandoffFeedbackContract.test.js",
-        "node vocab-server/tests/vocabCollectBackgroundHandoffContract.test.js"
-      ]
-    },
-    "codeReview": {
-      "recommendation": "APPROVE_WITH_RESIDUAL",
-      "note": "Formal omx architect dual-subagent unavailable; user browser QA recommended for P1"
-    }
-  }
+  ]
 }

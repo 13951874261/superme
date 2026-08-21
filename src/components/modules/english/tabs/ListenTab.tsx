@@ -562,8 +562,8 @@ export default function ListenTab() {
            <Headphones className="w-5 h-5" />
         </div>
         <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">战术使用指南 // Tactical SOP</h5>
-          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">请遵循以下战术指南，以最大化利用本模块的高阶商业实战材料与智能整理功能。</p>
+          <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">使用说明</h5>
+          <p className="text-xs text-[var(--color-ink-secondary)] font-medium">按下面说明使用，能更好地练商务英语表达</p>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-left">
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform hover:-translate-y-0.5">
@@ -572,7 +572,7 @@ export default function ListenTab() {
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform translate-y-1 hover:translate-y-0.5">
               <span className="text-amber-500 mt-0.5"></span>
-              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 双维解析。不仅比对物理听力误差（Accuracy），更深层扒出讲话者背后的“伪装层”与“权力场”。</p>
+              <p className="text-xs text-amber-900/80 leading-relaxed font-medium"><span className="font-black text-amber-700 mr-1">功能亮点：</span>AI 双维解析。不仅比对听力误差，还会分析话外之意和说话意图。</p>
             </div>
             <div className="flex items-start gap-2.5 p-4 rounded-2xl border border-amber-100/50 bg-amber-50/10 hover:bg-amber-50/30 transition-[background-color,transform] duration-300 transform -translate-y-0.5 hover:translate-y-[-4px]">
               <span className="text-amber-500 mt-0.5"></span>
@@ -588,7 +588,7 @@ export default function ListenTab() {
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FF5722]/20 rounded-full blur-3xl"></div>
             <div className="flex flex-col gap-4 mb-6 relative z-10 border-b border-white/10 pb-5">
               <h4 className="text-[13px] font-black uppercase tracking-widest text-[#FF5722] leading-relaxed">
-                Daily Interception <br/> 
+                今日听力 <br/> 
                 <span className="text-[10px] text-white/50">// 听力片段</span>
               </h4>
               <div className="flex flex-wrap items-center gap-2">
@@ -1030,11 +1030,11 @@ export default function ListenTab() {
                   <Zap className="w-4 h-4 mr-2 text-blue-600" /> 听写分析侧写
                 </h5>
                 <div>
-                  <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">1. Surface Meaning (伪装层)</h5>
+                  <h5 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-2">1. 字面意思</h5>
                   <div className="bg-white p-4 rounded-xl text-sm text-gray-700 leading-relaxed border border-gray-100 shadow-sm">{listenResult.subtext_analysis.surface_meaning}</div>
                 </div>
                 <div>
-                  <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-2 flex items-center"><AlertTriangle className="w-4 h-4 mr-1" /> 2. Hidden Subtext (真实意图)</h5>
+                  <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] mb-2 flex items-center"><AlertTriangle className="w-4 h-4 mr-1" /> 2. 真实意图</h5>
                   <div className="bg-[#FF5722]/5 p-5 rounded-xl text-sm text-[#d84315] leading-relaxed border border-[#FF5722]/20 font-medium shadow-sm">{listenResult.subtext_analysis.hidden_subtext}</div>
                 </div>
                 <div>

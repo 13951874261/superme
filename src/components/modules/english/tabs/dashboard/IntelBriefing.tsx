@@ -27,6 +27,17 @@ export interface IntelBriefingProps {
   extractedWords: string[];
   extractedPhrases: string[];
   extractedSentences: string[];
+  briefingTab?: 'longform' | 'material';
+  setBriefingTab?: (tab: 'longform' | 'material') => void;
+  materialArticle?: string;
+  materialSource?: string;
+  materialWords?: string[];
+  materialPhrases?: string[];
+  materialSentences?: string[];
+  setMaterialArticle?: (v: string) => void;
+  setMaterialWords?: (v: string[]) => void;
+  setMaterialPhrases?: (v: string[]) => void;
+  setMaterialSentences?: (v: string[]) => void;
   vocabDetailsMap: Record<string, any>;
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
   handleAddWordToVocab: (
@@ -64,6 +75,17 @@ export function IntelBriefing({
   extractedWords,
   extractedPhrases,
   extractedSentences,
+  briefingTab = 'longform',
+  setBriefingTab,
+  materialArticle = '',
+  materialSource = '上传材料',
+  materialWords = [],
+  materialPhrases = [],
+  materialSentences = [],
+  setMaterialArticle,
+  setMaterialWords,
+  setMaterialPhrases,
+  setMaterialSentences,
   vocabDetailsMap,
   asyncMeanings,
   handleAddWordToVocab,
@@ -72,6 +94,12 @@ export function IntelBriefing({
   isVocabQueued,
   isVocabCollectedLocal,
 }: IntelBriefingProps) {
+  const isMaterialTab = briefingTab === 'material';
+  const activeArticle = isMaterialTab ? materialArticle : generatedArticle;
+  const activeWords = isMaterialTab ? materialWords : extractedWords;
+  const activePhrases = isMaterialTab ? materialPhrases : extractedPhrases;
+  const activeSentences = isMaterialTab ? materialSentences : extractedSentences;
+  const hasVocab = activeWords.length + activePhrases.length + activeSentences.length > 0;
   
   return (
     <div className="bg-white rounded-3xl border border-slate-100 p-5 md:p-6 shadow-[0_6px_20px_rgba(0,0,0,0.015)] mb-6 space-y-5 relative">
@@ -107,6 +135,31 @@ export function IntelBriefing({
         )}
       </div>
 
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={() => setBriefingTab?.('longform')}
+          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer btn-press ${
+            !isMaterialTab
+              ? 'bg-[var(--color-brand)] text-white'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          今日长文
+        </button>
+        <button
+          type="button"
+          onClick={() => setBriefingTab?.('material')}
+          className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest cursor-pointer btn-press ${
+            isMaterialTab
+              ? 'bg-[var(--color-brand)] text-white'
+              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+          }`}
+        >
+          上传材料
+        </button>
+      </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
         <div>
           <h4 className="text-sm font-black uppercase tracking-widest text-[var(--color-brand)] mb-1 flex items-center">
@@ -114,10 +167,12 @@ export function IntelBriefing({
             今日学习材料
           </h4>
           <p className="text-xs text-gray-400 font-medium">
-            基于当前主题【{theme}】生成的高阶商业实战材料，支持 {currentVoiceName} 语音收听与沉浸式阅读。
+            {isMaterialTab
+              ? `上传/转写提纯结果【${materialSource}】，与今日长文分开展示。请逐条点「+ 收录」。`
+              : `基于当前主题【${theme}】生成的高阶商业实战材料，支持 ${currentVoiceName} 语音收听与沉浸式阅读。`}
           </p>
         </div>
-        {generatedArticle && (
+        {activeArticle && (
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative inline-block">
               <button
@@ -159,16 +214,28 @@ export function IntelBriefing({
                       type="button"
                       onClick={() => {
                         setShowResetConfirm(false);
-                        setGeneratedArticle('');
-                        setExtractedWords([]);
-                        setExtractedPhrases([]);
-                        setExtractedSentences([]);
-                        setIsArticleExpanded(false);
-                        localStorage.removeItem('super_agent_last_generated_article');
-                        localStorage.removeItem('super_agent_last_generated_words');
-                        localStorage.removeItem('super_agent_last_generated_phrases');
-                        localStorage.removeItem('super_agent_last_generated_sentences');
-                        showNotice('dashboard', '已清空当前长文，可以重新生成', 'success');
+                        if (isMaterialTab) {
+                          setMaterialArticle?.('');
+                          setMaterialWords?.([]);
+                          setMaterialPhrases?.([]);
+                          setMaterialSentences?.([]);
+                          localStorage.removeItem('super_agent_material_article');
+                          localStorage.removeItem('super_agent_material_words');
+                          localStorage.removeItem('super_agent_material_phrases');
+                          localStorage.removeItem('super_agent_material_sentences');
+                          showNotice('dashboard', '已清空当前上传材料', 'success');
+                        } else {
+                          setGeneratedArticle('');
+                          setExtractedWords([]);
+                          setExtractedPhrases([]);
+                          setExtractedSentences([]);
+                          setIsArticleExpanded(false);
+                          localStorage.removeItem('super_agent_last_generated_article');
+                          localStorage.removeItem('super_agent_last_generated_words');
+                          localStorage.removeItem('super_agent_last_generated_phrases');
+                          localStorage.removeItem('super_agent_last_generated_sentences');
+                          showNotice('dashboard', '已清空当前长文，可以重新生成', 'success');
+                        }
                         playSuccess();
                       }}
                       className="px-3.5 py-2 bg-[var(--color-brand)] hover:bg-[var(--color-brand-dark)] text-white rounded-lg text-[10px] font-bold cursor-pointer transition-colors shadow-sm btn-press"
@@ -187,7 +254,7 @@ export function IntelBriefing({
               <BookOpen aria-hidden="true" className="w-4 h-4" /> 沉浸式阅读
             </button>
             <SpeakButton 
-              text={generatedArticle} 
+              text={activeArticle} 
               label={`收听全文 (${currentVoiceName})`} 
               className="px-5 py-3 bg-[#202124] text-white hover:bg-[var(--color-brand)] shadow-md font-black rounded-xl btn-press" 
             />
@@ -195,7 +262,7 @@ export function IntelBriefing({
         )}
       </div>
 
-      {generatedArticle ? (
+      {activeArticle ? (
         <>
           <div className="relative">
             <div
@@ -203,10 +270,10 @@ export function IntelBriefing({
                 isArticleExpanded ? '' : 'line-clamp-6'
               }`}
             >
-              {generatedArticle}
+              {activeArticle}
             </div>
 
-            {generatedArticle.length > 300 && (
+            {activeArticle.length > 300 && (
               <button
                 type="button"
                 aria-expanded={isArticleExpanded}
@@ -219,9 +286,9 @@ export function IntelBriefing({
           </div>
 
           <VocabularyGrid 
-            extractedWords={extractedWords}
-            extractedPhrases={extractedPhrases}
-            extractedSentences={extractedSentences}
+            extractedWords={activeWords}
+            extractedPhrases={activePhrases}
+            extractedSentences={activeSentences}
             vocabDetailsMap={vocabDetailsMap}
             asyncMeanings={asyncMeanings}
             handleAddWordToVocab={handleAddWordToVocab}
@@ -230,7 +297,12 @@ export function IntelBriefing({
             isQueued={isVocabQueued}
             isCollectedLocal={isVocabCollectedLocal}
           />
+          {!hasVocab && (
+            <p className="text-xs text-slate-400 font-medium">未抽出词句。不写入生词本，可换一份材料后重试。</p>
+          )}
         </>
+      ) : isMaterialTab ? (
+        <p className="text-sm text-slate-500 font-medium py-8">尚未导入上传材料。请在下方提交文件、网页或视频整理任务。</p>
       ) : (
         <div className="w-full grid grid-cols-1 lg:grid-cols-10 gap-8 items-stretch">
           

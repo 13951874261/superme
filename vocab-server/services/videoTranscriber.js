@@ -3,8 +3,6 @@ const path = require('path');
 const { exec } = require('child_process');
 const { validateUrl } = require('./urlValidator');
 const taskQueue = require('./taskQueue');
-const Database = require('better-sqlite3');
-const crypto = require('crypto');
 
 // 临时目录初始化
 const TMP_VIDEO_DIR = process.env.TMP_VIDEO_DIR || path.join(__dirname, '../public/temp_videos');
@@ -326,42 +324,27 @@ async function startTranscribeTask(taskId, {
     
     const wfOutputs = wfData?.data?.outputs || {};
     const rawExtracted = wfOutputs.extracted_words || wfOutputs.result || wfOutputs.text || '';
-    
-    let extractedWords = [];
-    if (Array.isArray(rawExtracted)) {
-      extractedWords = rawExtracted;
-    } else if (typeof rawExtracted === 'string') {
-      extractedWords = rawExtracted.split(/[,，\n]+/).map(s => s.trim()).filter(s => s.length > 0 && s.length < 50);
-    }
+    const classified = classifyExtractedItems(rawExtracted);
 
-    // 6. 写入 SQLite
-    taskQueue.updateTask(taskId, { logs: [`提纯提取成功，找到 ${extractedWords.length} 个候选词汇。正在查重新增至生词本…`] });
-    const isProd = process.env.NODE_ENV === 'production';
-    const dbPath = isProd ? '/var/www/super-agent/vocab.db' : path.join(__dirname, '../vocab.db');
-    const db = new Database(dbPath);
+    virtualMaterial.article = transcript;
+    virtualMaterial.words = classified.words;
+    virtualMaterial.phrases = classified.phrases;
+    virtualMaterial.sentences = classified.sentences;
 
-    let addedCount = 0;
-    const now = Date.now();
-    for (const item of extractedWords) {
-      const wordStr = typeof item === 'object' ? (item.word || JSON.stringify(item)) : item;
-      const existing = db.prepare('SELECT id FROM vocabulary WHERE word = ? COLLATE NOCASE').get(wordStr);
-      if (!existing) {
-        const id = crypto.randomUUID();
-        db.prepare(`
-          INSERT INTO vocabulary (id, word, dict_type, category, payload, added_at, next_review_date, review_history)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, wordStr, 'ai_extracted', subtitle || 'material_extraction', JSON.stringify({ source: 'Video Auto Extraction' }), now, now, '[]');
-        addedCount++;
-      }
-    }
-    db.close();
+    const totalCandidates = classified.words.length + classified.phrases.length + classified.sentences.length;
+    taskQueue.updateTask(taskId, {
+      logs: [
+        totalCandidates > 0
+          ? `提纯提取成功：生词 ${classified.words.length} / 短语 ${classified.phrases.length} / 句型 ${classified.sentences.length}。不写入生词本，请逐条点「+ 收录」。`
+          : '提纯完成，未抽出词句。不写入生词本。',
+      ],
+    });
 
-    // 6. 成功更新任务
     taskQueue.updateTask(taskId, {
       status: 'completed',
       progress: 100,
-      logs: [`转写与自动提纯全部顺利完成！共新增 ${addedCount} 个词汇到生词本。`],
-      result: virtualMaterial
+      logs: ['转写与提纯完成。候选已在「上传材料」中展示，请手动收录。'],
+      result: virtualMaterial,
     });
 
   } catch (err) {
@@ -416,6 +399,70 @@ async function extractTranscriptFromLocalVideo({
     videoPath: filePath,
     virtualMaterial: result,
   };
+}
+
+function itemText(item) {
+  if (item == null) return '';
+  if (typeof item === 'string') return item.trim();
+  return String(item.word || item.phrase || item.sentence || item.text || '').trim();
+}
+
+function countWords(str) {
+  if (!str || typeof str !== 'string') return 0;
+  return str
+    .trim()
+    .replace(/[.!?,;:'"()[\]{}]/g, '')
+    .split(/\s+/)
+    .filter((w) => w.length > 0).length;
+}
+
+function classifyByWordCount(wordStr) {
+  const trimmed = String(wordStr || '').trim();
+  if (!trimmed) return 'ai_extracted';
+  const wc = countWords(trimmed);
+  const endsWithPunctuation = /[.!?]$/.test(trimmed);
+  if (wc >= 5 && endsWithPunctuation) return 'ai_sentence';
+  if (wc >= 2 && !endsWithPunctuation) return 'ai_phrase';
+  return 'ai_extracted';
+}
+
+function classifyExtractedItems(rawExtracted) {
+  let extractedItems = [];
+  if (Array.isArray(rawExtracted)) {
+    extractedItems = rawExtracted;
+  } else if (typeof rawExtracted === 'string') {
+    let cleanJson = rawExtracted.trim();
+    if (cleanJson.startsWith('```json')) cleanJson = cleanJson.substring(7);
+    else if (cleanJson.startsWith('```')) cleanJson = cleanJson.substring(3);
+    if (cleanJson.endsWith('```')) cleanJson = cleanJson.substring(0, cleanJson.length - 3);
+    cleanJson = cleanJson.trim();
+    try {
+      const parsed = JSON.parse(cleanJson);
+      if (parsed.words && Array.isArray(parsed.words)) extractedItems.push(...parsed.words);
+      if (parsed.phrases && Array.isArray(parsed.phrases)) extractedItems.push(...parsed.phrases);
+      if (parsed.sentences && Array.isArray(parsed.sentences)) {
+        extractedItems.push(...parsed.sentences.map((s) => (
+          typeof s === 'string' ? { word: s, is_sentence: true } : s
+        )));
+      }
+      if (extractedItems.length === 0 && Array.isArray(parsed)) extractedItems = parsed;
+    } catch (_) {
+      extractedItems = cleanJson.split(/[,，\n]+/).map((s) => s.trim()).filter((s) => s.length > 0 && s.length < 200);
+    }
+  }
+
+  const words = [];
+  const phrases = [];
+  const sentences = [];
+  for (const item of extractedItems) {
+    const text = itemText(item);
+    if (!text) continue;
+    const dictType = (item && item.is_sentence) ? 'ai_sentence' : classifyByWordCount(text);
+    if (dictType === 'ai_sentence') sentences.push(text);
+    else if (dictType === 'ai_phrase') phrases.push(text);
+    else words.push(text);
+  }
+  return { words, phrases, sentences };
 }
 
 module.exports = { startTranscribeTask, extractTranscriptFromLocalVideo };

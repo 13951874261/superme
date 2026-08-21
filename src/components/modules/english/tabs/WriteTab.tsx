@@ -473,7 +473,7 @@ ${benchmarkText
            <Zap className="w-3.5 h-3.5" />
         </div>
         <div className="flex-1 flex flex-wrap items-center justify-between gap-2">
-          <h5 className="text-xs font-bold text-zinc-800">决策文治与价值提炼系统 // Tactical SOP</h5>
+          <h5 className="text-xs font-bold text-zinc-800">写作审阅使用说明</h5>
           <p className="text-[11px] text-zinc-400 font-medium">
             左侧可导入对标文本与指南（不填也可审阅），中栏起草进行极限演练，右侧获取高管级三维反馈。
           </p>

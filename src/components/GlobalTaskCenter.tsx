@@ -465,15 +465,8 @@ export default function GlobalTaskCenter() {
     }));
   };
 
-  const handleImport = (task: TaskItem) => {
-    if (!task.result) return;
-    window.dispatchEvent(new CustomEvent('import-virtual-material', {
-      detail: {
-        name: task.result.name,
-        content: task.result.content,
-        mimeType: task.result.mimeType
-      }
-    }));
+  const handleViewMaterial = () => {
+    window.dispatchEvent(new CustomEvent('open-uploaded-material'));
     setIsOpen(false);
   };
 
@@ -770,11 +763,11 @@ export default function GlobalTaskCenter() {
                   {task.status === 'completed' && task.result && task.type !== 'game_theory' && task.type !== 'listen_backfill' && task.type !== 'vocab_export' && task.type !== 'tactics_export' && task.type !== 'vault_export' && task.type !== 'insight_listen' && task.type !== 'speak' && task.type !== 'tactics_ingest' && (
                     <div className="flex gap-2 mb-3">
                       <button
-                        onClick={() => handleImport(task)}
+                        onClick={() => handleViewMaterial()}
                         className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-[#FF5722] hover:bg-[#E64A19] text-white rounded-lg text-[10px] font-bold tracking-wider uppercase transition-colors cursor-pointer"
                       >
                         <Import className="w-3 h-3" />
-                        导入并整理
+                        查看材料
                       </button>
                       <button
                         onClick={() => handleDownload(task)}
