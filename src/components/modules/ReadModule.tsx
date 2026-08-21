@@ -269,7 +269,7 @@ export default function ReadModule() {
       }
     } catch (err: any) {
       console.error(err);
-      setErrorMsg(err.message || '穿透解码失败，请检查配置');
+      setErrorMsg(err.message || '深度解析失败，请检查配置');
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
       setTimeout(() => setErrorMsg(''), 4000);
@@ -360,7 +360,7 @@ export default function ReadModule() {
       return (
         <div className="text-center py-16 text-gray-400 font-semibold border-2 border-dashed border-gray-200 rounded-3xl bg-white/50">
           <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-20 text-[#FF5722]" />
-          请在上方输入/推送需要穿透的原始素材，并点击“启动 AI 穿透解码”。
+          请在上方输入/推送需要解析的原始素材，并点击“启动 AI 深度解析”。
         </div>
       );
     }
@@ -838,7 +838,7 @@ export default function ReadModule() {
           <div className="bg-gradient-to-br from-slate-50/40 to-white rounded-3xl shadow-[0_4px_20px_rgba(0,0,0,0.02)] border border-slate-100 p-6 mb-2 transition-all duration-300 hover:border-[#FF5722]/20 hover:shadow-[0_8px_30px_rgba(255,87,34,0.04)] focus-within:border-[#FF5722]/40 focus-within:shadow-[0_8px_30px_rgba(255,87,34,0.08)]">
             <div className="flex justify-between items-center mb-4">
               <span className="text-xs font-bold text-gray-400 tracking-widest uppercase">
-                {activeTab === 'book' ? '日常阅读/感悟与思考自由键入' : '输入需要穿透的原始素材'}
+                {activeTab === 'book' ? '日常阅读/感悟与思考自由键入' : '输入需要解析的原始素材'}
               </span>
               {activeTab !== 'book' && (
                 <button 
@@ -906,7 +906,7 @@ export default function ReadModule() {
                 ${isShaking ? 'bg-red-500 text-white animate-[shake_0.4s_ease-in-out] shadow-[0_0_20px_rgba(239,68,68,0.4)]' : 'btn-primary hover:scale-[1.005]'}`}
             >
               {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {isShaking ? '解码异常' : '启动 AI 穿透解码'}
+              {isShaking ? '解析异常' : '启动 AI 深度解析'}
             </button>
 
             {result && !showContextSheet && (
@@ -1008,7 +1008,7 @@ export default function ReadModule() {
             
             <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-white/10 pb-4 mb-4 gap-4">
               <div>
-                <h5 className="text-xs font-black tracking-widest uppercase text-gray-400 mb-1">【穿透读】 板块总复盘舱</h5>
+                <h5 className="text-xs font-black tracking-widest uppercase text-gray-400 mb-1">【精读】 板块总复盘</h5>
                 <p className="text-[10px] text-gray-500 font-bold">由 AI 高管教练对您每日深度吸收质量进行的量化看板</p>
               </div>
               
@@ -1050,7 +1050,7 @@ export default function ReadModule() {
               {/* 关闭头部栏 */}
               <div className="flex justify-between items-center border-b border-zinc-200/60 pb-3 mb-2">
                 <span className="text-xs font-black text-slate-500 uppercase tracking-widest">
-                  AI 穿透解码报告
+                  AI 深度解析报告
                 </span>
                 <button 
                   onClick={() => { playPageTurn(); setShowContextSheet(false); }} 
@@ -1149,7 +1149,7 @@ export default function ReadModule() {
                       <div className="flex flex-col gap-3">
                         <div>
                           <span className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider block mb-1 flex items-center gap-1">
-                            <Award className="w-3.5 h-3.5" /> 穿透导师评价
+                            <Award className="w-3.5 h-3.5" /> 导师评价
                           </span>
                           <p className="text-[11px] text-gray-600 font-bold leading-relaxed whitespace-pre-wrap">{aiInsightDetails}</p>
                         </div>

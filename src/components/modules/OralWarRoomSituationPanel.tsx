@@ -63,7 +63,7 @@ export default function OralWarRoomSituationPanel({
               className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
             >
               <div className="text-[9px] font-black uppercase tracking-widest text-[#FF5722] flex items-center gap-1.5">
-                <Target className="w-3.5 h-3.5" /> 沙盘结构 CHECKLIST
+                <Target className="w-3.5 h-3.5" /> 练习结构清单
               </div>
               {checklistCollapsed ? <ChevronDown className="w-4 h-4 text-gray-400" /> : <ChevronUp className="w-4 h-4 text-gray-400" />}
             </button>
