@@ -1,0 +1,30 @@
+{
+  "active": true,
+  "current_phase": "deep-interview",
+  "state": {
+    "interview_id": "b3189c67-e4a4-4ef9-802e-bc56446bae4d",
+    "profile": "standard",
+    "type": "brownfield",
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "current_ambiguity": 0.51,
+    "current_stage": "intent-first",
+    "current_focus": "intent",
+    "challenge_modes_used": [],
+    "pressure_pass_complete": false,
+    "non_goals_resolved": false,
+    "decision_boundaries_resolved": false,
+    "context_snapshot_path": ".omx/context/bg-handoff-feedback-20260821T063808Z.md",
+    "initial_idea": "方案A + 全站收录统一模式 + 所有3秒转后台就近提醒 + GSAP + design",
+    "rounds": [],
+    "scores": {
+      "intent": 0.55,
+      "outcome": 0.5,
+      "scope": 0.4,
+      "constraints": 0.5,
+      "success": 0.3,
+      "context": 0.7
+    },
+    "note": "omx CLI unavailable; state persisted as file"
+  }
+}
