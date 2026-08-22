@@ -4615,7 +4615,19 @@ app.get('/api/theme/mastered-list', (req, res) => {
   }
 });
 
-app.post('/api/theme/focus', (req, res) => res.json({ success: true, theme: req.body.theme || 'default' }));
+app.post('/api/theme/focus', (req, res) => {
+  try {
+    const { theme, userId = 'default-user', difficulty = '' } = req.body || {};
+    if (!theme || !String(theme).trim()) {
+      return res.status(400).json({ success: false, error: 'theme is required' });
+    }
+    const row = dailyPackService.upsertUserTheme(db, userId, theme);
+    res.json({ success: true, theme: row.theme, difficulty });
+  } catch (error) {
+    console.error('[Theme Focus]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ???????????????????
 app.post('/api/theme/mark-email-complete', (req, res) => {
@@ -7801,6 +7813,17 @@ app.put('/api/user/theme', (req, res) => {
     res.json({ success: true, ...row });
   } catch (error) {
     console.error('[User Theme Sync]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/user/theme', (req, res) => {
+  try {
+    const userId = req.query.userId || 'default-user';
+    const row = dailyPackService.getOrCreateUserTheme(db, userId);
+    res.json({ success: true, ...row });
+  } catch (error) {
+    console.error('[User Theme Read]', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, getThemeStayStats, CustomTheme, ThemeStayStats } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
-import { syncUserTheme } from '../../../../services/dailyPackAPI';
+import { syncUserTheme, fetchUserTheme } from '../../../../services/dailyPackAPI';
 import { ComparisonResult } from '../../../../types/listening';
 import { LongAudio } from '../../../../services/listeningAPI';
 
@@ -249,6 +249,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;
   });
+  const themeHydratedRef = useRef(false);
   const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, emailCompleted: false, _isInitial: true });
   useEffect(() => {
     (window as any).__setMasteryData = setMasteryData;
@@ -260,6 +261,24 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [englishShellActive, setEnglishShellActive] = useState(true);
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>([]);
   const themeSyncTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchUserTheme()
+      .then((serverTheme) => {
+        if (cancelled || !serverTheme) return;
+        themeHydratedRef.current = true;
+        setTheme(serverTheme);
+        localStorage.setItem('english_theme', serverTheme);
+      })
+      .catch((err) => {
+        console.warn('[EnglishContext] fetchUserTheme failed:', err);
+        themeHydratedRef.current = true;
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const [pendingSentenceDebt, setPendingSentenceDebt] = useState<string | null>(() => {
     return localStorage.getItem('super_agent_pending_debt') || null;
@@ -321,6 +340,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     localStorage.setItem('english_theme', theme);
+    if (!themeHydratedRef.current) return;
     if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
     themeSyncTimerRef.current = window.setTimeout(() => {
       // 静默自动向后台登记当前用户的 user_id 与 theme 绑定关系
@@ -555,6 +575,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   }, [pronunciationNotes, grammarNotes, sessionId]);
 
   useEffect(() => {
+    if (!themeHydratedRef.current) return;
     const timer = setTimeout(() => {
       void setThemeFocus({ theme }).catch(() => {});
     }, 500);

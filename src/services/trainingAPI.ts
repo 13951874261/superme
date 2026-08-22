@@ -127,7 +127,7 @@ export async function setThemeFocus(params: {
 }): Promise<{ success: boolean; theme: string; difficulty: string }> {
   return request('/api/theme/focus', {
     method: 'POST',
-    body: JSON.stringify(params),
+    body: JSON.stringify({ ...params, userId: params.userId ?? getAppUserId() }),
   });
 }
 

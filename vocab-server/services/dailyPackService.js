@@ -159,6 +159,21 @@ function upsertUserTheme(db, userId, theme) {
   return { userId: uid, theme: trimmed, syncedAt: now };
 }
 
+const DEFAULT_USER_THEME = '商务谈判：让步与施压';
+
+function getOrCreateUserTheme(db, userId) {
+  const uid = normalizeUserId(userId);
+  const row = db.prepare(
+    'SELECT theme FROM user_theme_prefs WHERE user_id = ? AND theme IS NOT NULL AND TRIM(theme) != \'\''
+  ).get(uid);
+  const existing = String(row?.theme || '').trim();
+  if (existing) {
+    return { userId: uid, theme: existing, created: false };
+  }
+  const saved = upsertUserTheme(db, uid, DEFAULT_USER_THEME);
+  return { userId: uid, theme: saved.theme, created: true, syncedAt: saved.syncedAt };
+}
+
 function listUsersWithSyncedTheme(db) {
   return db.prepare(`
     SELECT user_id, theme FROM user_theme_prefs
@@ -928,6 +943,8 @@ module.exports = {
   getShanghaiHourMinute,
   initDailyPackTables,
   upsertUserTheme,
+  getOrCreateUserTheme,
+  DEFAULT_USER_THEME,
   listUsersWithSyncedTheme,
   findUserDailyPackByDate,
   getDailyPackRow,

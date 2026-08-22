@@ -97,6 +97,14 @@ export async function buildDailyPackQueryInput(theme: string): Promise<DailyPack
   };
 }
 
+export async function fetchUserTheme(userId = getAppUserId()) {
+  const data = await request<{ success: boolean; userId: string; theme: string }>(
+    `/api/user/theme?userId=${encodeURIComponent(userId)}`,
+    { timeoutMs: 20_000 },
+  );
+  return String(data?.theme || '').trim();
+}
+
 export async function syncUserTheme(theme: string, userId = getAppUserId()) {
   return request<{ success: boolean; userId: string; theme: string }>('/api/user/theme', {
     method: 'PUT',
