@@ -873,8 +873,8 @@ export default function GameTheoryModule() {
                       <div className="flex flex-col gap-1.5 mb-6">
                         {([
                           { id: 'gov_struggle', name: '体制内政治' },
-                          { id: 'corp_clash', name: '外企权斗局' },
-                          { id: 'upward_takeover', name: '以下克上战' }
+                          { id: 'corp_clash', name: '外企权力冲突' },
+                          { id: 'upward_takeover', name: '以下克上' }
                         ] as const).map(env => (
                           <button 
                             key={env.id}

@@ -61,8 +61,8 @@ gsap.registerPlugin(useGSAP);
 
 const SCENE_OPTIONS: Array<{ id: SessionSceneType; name: string }> = [
   { id: 'gov_struggle', name: '体制内政治' },
-  { id: 'corp_clash', name: '外企权斗局' },
-  { id: 'upward_takeover', name: '以下克上战' },
+  { id: 'corp_clash', name: '外企权力冲突' },
+  { id: 'upward_takeover', name: '以下克上' },
 ];
 
 const MODEL_OPTIONS: Array<{ id: SessionGameModel; name: string }> = [

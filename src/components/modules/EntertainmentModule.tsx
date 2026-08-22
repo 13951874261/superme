@@ -1333,7 +1333,7 @@ export default function EntertainmentModule() {
 
                     >
 
-                      提交社交指数量化研判
+                      提交社交指数量化分析
 
                     </button>
 
@@ -1365,7 +1365,7 @@ export default function EntertainmentModule() {
 
                             </h3>
 
-                            <span className="text-[9px] text-zinc-400 font-mono tracking-widest block">社交指数量化研判</span>
+                            <span className="text-[9px] text-zinc-400 font-mono tracking-widest block">社交指数量化分析</span>
 
                           </div>
 
@@ -1870,7 +1870,7 @@ export default function EntertainmentModule() {
 
               <h3 className="text-xs font-bold text-zinc-800 tracking-[0.2em] uppercase">AESTHETICS ENGINE</h3>
 
-              <p className="text-[11px] text-zinc-400 font-mono mt-1">&gt; {["正在准备研判…", "检索跨文化礼仪库...", "评估决策分寸...", "生成研判结果..."][scanStep]}</p>
+              <p className="text-[11px] text-zinc-400 font-mono mt-1">&gt; {["正在准备分析…", "检索跨文化礼仪库...", "评估决策分寸...", "生成分析结果…"][scanStep]}</p>
 
             </div>
 

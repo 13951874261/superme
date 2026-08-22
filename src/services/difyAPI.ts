@@ -1063,7 +1063,7 @@ export async function sendOralChatMessageStream(
 
   if (!res.ok) {
     const errData = await res.json().catch(() => ({}));
-    throw new Error(String(errData.message || errData.error || `沙盘推演请求异常 (HTTP ${res.status})`));
+    throw new Error(String(errData.message || errData.error || `练习推演请求异常（HTTP ${res.status}）`));
   }
 
   let accumulated = '';
@@ -1074,7 +1074,7 @@ export async function sendOralChatMessageStream(
     const decoder = new TextDecoder('utf-8');
     let buffer = '';
 
-    options.onStatus?.('思维推演中，正在实时生成回应...');
+    options.onStatus?.('正在思考中，实时生成回应…');
 
     while (true) {
       const { done, value } = await reader.read();

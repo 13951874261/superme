@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus, FileAudio } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
-import SpeakButton, { speakEnglish } from '../../../SpeakButton';
+import SpeakButton from '../../../SpeakButton';
 import { runListeningEngine, uploadLocalListeningAudio } from '../../../../services/listeningAPI';
 import {
   fetchPregenerated,
@@ -35,6 +35,7 @@ export default function ListenTab() {
   } = useEnglishContext();
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const pendingCanPlayRef = useRef<(() => void) | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -136,6 +137,16 @@ export default function ListenTab() {
     }
   }, [playbackRate, globalRateMultiplier]);
 
+  useEffect(() => {
+    const el = audioRef.current;
+    return () => {
+      if (el && pendingCanPlayRef.current) {
+        el.removeEventListener('canplay', pendingCanPlayRef.current);
+        pendingCanPlayRef.current = null;
+      }
+    };
+  }, [listenAudioUrl]);
+
   // 接入全局任务中心轮询
   const { tasks, addTask } = useTask();
 
@@ -214,6 +225,8 @@ export default function ListenTab() {
     if (data.audio?.audioUrl) {
       setListenAudioUrl(data.audio.audioUrl);
       setHasPlayed(false);
+    } else {
+      setListenAudioUrl(null);
     }
   };
 
@@ -223,6 +236,10 @@ export default function ListenTab() {
     setListenInput('');
     setIsTextVisible(false);
     setHasPlayed(false);
+    setIsPlaying(false);
+    audioRef.current?.pause();
+    setCurrentTime(0);
+    setDuration(0);
 
     if (!CACHEABLE_DURATIONS.includes(listenDuration)) {
       setPregenStatus('uncached_duration');
@@ -763,12 +780,7 @@ export default function ListenTab() {
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl mb-6 border border-white/10 relative z-10 w-full overflow-hidden">              {isListenMaterialLoading ? (
-                <div className="flex items-center gap-2 text-gray-400">
-                  <Loader2 className="w-6 h-6 animate-spin" />
-                  <span className="text-xs font-black uppercase tracking-widest">正在分析中…</span>
-                </div>
-              ) : isAudioGenerating ? (
+            <div className="flex items-center gap-2 sm:gap-4 bg-white/5 p-3 sm:p-4 rounded-2xl mb-6 border border-white/10 relative z-10 w-full overflow-hidden">              {isAudioGenerating ? (
                 <div className="flex flex-col gap-3 w-full p-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -794,41 +806,64 @@ export default function ListenTab() {
                 </div>
               ) : (
                 <>
-                  {listenAudioUrl && (
-                    <audio 
-                      ref={audioRef} 
-                      src={listenAudioUrl} 
-                      onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
-                      onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                      onEnded={() => setIsPlaying(false)}
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      onError={() => {
-                        setListenAudioUrl(null);
-                        setDuration(0);
-                        setCurrentTime(0);
-                        showNotice('listen', '语音文件异常，已改为逐句朗读', 'warning');
-                        void speakEnglish(listenMaterial, playbackRate);
-                      }}
-                    />
-                  )}
-                  <button 
+                  <audio
+                    ref={audioRef}
+                    src={listenAudioUrl || undefined}
+                    preload="auto"
+                    onTimeUpdate={(e) => {
+                      const next = Math.floor(e.currentTarget.currentTime);
+                      setCurrentTime((prev) => (prev === next ? prev : next));
+                    }}
+                    onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
+                    onEnded={() => setIsPlaying(false)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onError={() => {
+                      setListenAudioUrl(null);
+                      setIsPlaying(false);
+                      setDuration(0);
+                      setCurrentTime(0);
+                      showNotice('listen', '语音文件异常，请稍后重试或重新生成', 'warning');
+                    }}
+                  />
+                  <button
                     type="button"
+                    disabled={!listenAudioUrl}
                     aria-label={isPlaying ? '暂停' : '播放听力音频'}
                     onClick={() => {
+                      const el = audioRef.current;
+                      if (!el || !listenAudioUrl) return;
                       setHasPlayed(true);
-                      if (audioRef.current) {
-                        if (isPlaying) {
-                          audioRef.current.pause();
-                        } else {
-                          audioRef.current.play().catch(() => speakEnglish(listenMaterial, playbackRate));
-                        }
-                      } else {
-                        speakEnglish(listenMaterial, playbackRate);
+                      if (!el.paused) {
+                        el.pause();
+                        return;
                       }
-                    }} 
-                    className={`text-white hover:text-[#FF5722] transition-colors cursor-pointer shrink-0 rounded-full duration-300 ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : (listenAudioUrl && !hasPlayed ? 'animate-soft-pulse text-[#FF5722]' : '')}`} 
-                    title={isPlaying ? "暂停" : "播放听力音频"}
+                      setIsPlaying(true);
+                      const tryPlay = () => {
+                        void el.play().catch(() => setIsPlaying(false));
+                      };
+                      if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+                        tryPlay();
+                        return;
+                      }
+                      if (pendingCanPlayRef.current) {
+                        el.removeEventListener('canplay', pendingCanPlayRef.current);
+                      }
+                      const onReady = () => {
+                        pendingCanPlayRef.current = null;
+                        el.removeEventListener('canplay', onReady);
+                        tryPlay();
+                      };
+                      pendingCanPlayRef.current = onReady;
+                      el.addEventListener('canplay', onReady);
+                      el.load();
+                    }}
+                    className={`text-white hover:text-[#FF5722] transition-colors shrink-0 rounded-full ${
+                      !listenAudioUrl
+                        ? 'opacity-40 cursor-wait'
+                        : `cursor-pointer ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : (listenAudioUrl && !hasPlayed ? 'animate-soft-pulse text-[#FF5722]' : '')}`
+                    }`}
+                    title={!listenAudioUrl ? '音频加载中' : (isPlaying ? '暂停' : '播放听力音频')}
                   >
                     {isPlaying ? <PauseCircle className="w-10 h-10" aria-hidden="true" /> : <PlayCircle className="w-10 h-10" aria-hidden="true" />}
                   </button>
