@@ -213,6 +213,82 @@ async function testResumeInterruptedListenJobsCallsCronWithSkipReadyAudio() {
     assert.strictEqual(calls[0].userId, 'lzhmy');
     assert.strictEqual(calls[0].cronTickId, tickId);
     assert.strictEqual(calls[0].skipReadyAudio, true, '续跑不得把已有音频再合成一遍');
+    const bumped = dailyCronRunService.findStep(db, { runId: run.id, module: 'listen' });
+    assert.ok(Number(bumped.attempt) >= 2, '续跑必须累加 attempt，避免每次重启都当第一次');
+  } finally {
+    dailyListen.runDailyListenCronJob = original;
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function testResumeAlsoRetriesCombosFailNotOnlyInterrupted() {
+  const { db, dir } = openDb();
+  const original = dailyListen.runDailyListenCronJob;
+  const calls = [];
+  dailyListen.runDailyListenCronJob = async (_db, options) => {
+    calls.push(options);
+    return { summary: { resumed: true } };
+  };
+  try {
+    const packDate = dailyPackService.getPackDate();
+    const tickId = dailyCronRunService.createCronTickId();
+    const run = dailyCronRunService.createPerUserRun(db, {
+      cronTickId: tickId,
+      userId: 'lzhmy',
+      packDate,
+      triggerSource: 'cron',
+    });
+    dailyCronRunService.upsertStep(db, {
+      runId: run.id,
+      userId: 'lzhmy',
+      module: 'listen',
+      status: 'failed',
+      errorMessage: 'combosFail=1',
+      attempt: 1,
+      finishedAt: Date.now(),
+    });
+    const result = await dailyListen.resumeInterruptedListenJobs(db);
+    assert.strictEqual(result.resumed, 1, '今日失败精听即使不是 interrupted 也要续跑');
+    assert.strictEqual(calls.length, 1);
+    assert.strictEqual(calls[0].skipReadyAudio, true);
+    assert.strictEqual(calls[0].userId, 'lzhmy');
+  } finally {
+    dailyListen.runDailyListenCronJob = original;
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+async function testResumeSkipsWhenAttemptReachedMax() {
+  const { db, dir } = openDb();
+  const original = dailyListen.runDailyListenCronJob;
+  const calls = [];
+  dailyListen.runDailyListenCronJob = async (_db, options) => {
+    calls.push(options);
+    return { summary: { resumed: true } };
+  };
+  try {
+    const packDate = dailyPackService.getPackDate();
+    const tickId = dailyCronRunService.createCronTickId();
+    const run = dailyCronRunService.createPerUserRun(db, {
+      cronTickId: tickId,
+      userId: 'lzhmy',
+      packDate,
+      triggerSource: 'cron',
+    });
+    dailyCronRunService.upsertStep(db, {
+      runId: run.id,
+      userId: 'lzhmy',
+      module: 'listen',
+      status: 'failed',
+      errorMessage: 'combosFail=1',
+      attempt: dailyListen.LISTEN_RESUME_MAX_ATTEMPTS,
+      finishedAt: Date.now(),
+    });
+    const result = await dailyListen.resumeInterruptedListenJobs(db);
+    assert.strictEqual(result.resumed, 0);
+    assert.strictEqual(calls.length, 0, '达到 3 次后不得再因重启空跑');
   } finally {
     dailyListen.runDailyListenCronJob = original;
     db.close();
@@ -253,6 +329,10 @@ async function main() {
   console.log('PASS 打开页面自动配音：先 generating 再 ready');
   await testResumeInterruptedListenJobsCallsCronWithSkipReadyAudio();
   console.log('PASS 重启后续跑 interrupted 精听且跳过已有音频');
+  await testResumeAlsoRetriesCombosFailNotOnlyInterrupted();
+  console.log('PASS 今日 combosFail 精听也会续跑');
+  await testResumeSkipsWhenAttemptReachedMax();
+  console.log('PASS 同一 run 满 3 次不再续跑');
   console.log('\nlistenResumeReuseLongArticle.test.js 全部通过');
 }
 

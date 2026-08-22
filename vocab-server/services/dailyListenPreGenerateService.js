@@ -14,6 +14,8 @@ const CAPACITY_BYTES = 1024 * 1024 * 1024; // 1024MB
 const RETENTION_DAYS = 7;
 const LOGIN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_CRON_THEME = '商务谈判：让步与施压';
+/** 含首次，同一 run 精听失败最多尝试 3 次，避免每次重启空跑 */
+const LISTEN_RESUME_MAX_ATTEMPTS = 3;
 
 function resolveListenDurations(options = {}) {
   if (Array.isArray(options.durations) && options.durations.length > 0) {
@@ -1585,6 +1587,7 @@ async function runDailyListenCronJob(db, options = {}) {
         userId: user.user_id,
         module: 'listen',
         status: 'running',
+        attempt: currentListenAttempt(db, dailyCronRunService, run.id),
       });
     }
 
@@ -1612,6 +1615,7 @@ async function runDailyListenCronJob(db, options = {}) {
           status: listenFailed ? 'failed' : 'completed',
           progress: 100,
           finishedAt: Date.now(),
+          attempt: currentListenAttempt(db, dailyCronRunService, run.id),
           errorMessage: listenFailed
             ? `combosFail=${userSummary.combosFail}`
             : null,
@@ -1632,6 +1636,7 @@ async function runDailyListenCronJob(db, options = {}) {
           status: 'failed',
           progress: 100,
           finishedAt: Date.now(),
+          attempt: currentListenAttempt(db, dailyCronRunService, run.id),
           errorMessage: err.message || String(err),
         });
         dailyCronRunService.refreshRunAggregation(db, run.id);
@@ -1643,27 +1648,36 @@ async function runDailyListenCronJob(db, options = {}) {
   return { summary, cleanup };
 }
 
+function currentListenAttempt(db, dailyCronRunService, runId) {
+  const step = dailyCronRunService.findStep(db, { runId, module: 'listen' });
+  const n = Number(step && step.attempt);
+  return Number.isFinite(n) && n > 0 ? n : 1;
+}
+
 async function resumeInterruptedListenJobs(db) {
   const packDate = dailyPackService.getPackDate();
   let rows = [];
   try {
     rows = db.prepare(`
-      SELECT DISTINCT r.cron_tick_id AS cronTickId, s.user_id AS userId
+      SELECT DISTINCT r.cron_tick_id AS cronTickId, s.user_id AS userId, s.id AS stepId,
+             IFNULL(s.attempt, 1) AS attempt
       FROM daily_cron_steps s
       JOIN daily_cron_runs r ON r.id = s.run_id
       WHERE s.module = 'listen'
         AND s.status = 'failed'
         AND r.pack_date = ?
-        AND (
-          IFNULL(s.error_message, '') LIKE '%interrupted%'
-          OR IFNULL(r.error_message, '') LIKE '%interrupted%'
-        )
-    `).all(packDate);
+        AND IFNULL(s.attempt, 1) < ?
+    `).all(packDate, LISTEN_RESUME_MAX_ATTEMPTS);
   } catch {
     return { resumed: 0 };
   }
   for (const row of rows) {
     try {
+      const nextAttempt = Number(row.attempt || 1) + 1;
+      if (row.stepId) {
+        db.prepare('UPDATE daily_cron_steps SET attempt = ?, updated_at = ? WHERE id = ?')
+          .run(nextAttempt, Date.now(), row.stepId);
+      }
       await module.exports.runDailyListenCronJob(db, {
         cronTickId: row.cronTickId,
         userId: row.userId,
@@ -1874,6 +1888,7 @@ module.exports = {
   scheduleUserDailyCatchup,
   runDailyListenCronJob,
   resumeInterruptedListenJobs,
+  LISTEN_RESUME_MAX_ATTEMPTS,
   syncAudioFromLongArticleRow,
   batchSyncAudiosFromLongArticles,
 };
