@@ -112,6 +112,18 @@ run('generating takes precedence over failed when neither ready', () => {
   assert.strictEqual(r.canBackfill, false);
 });
 
+run('generating takes precedence over partial while audio is still synthesizing', () => {
+  const r = svc.getPregeneratedCombo(
+    mockDb({
+      article: { status: 'ready', body_text: 'only article', vocab_json: null, phrases_json: null, file_path: null },
+      audio: { status: 'generating' },
+    }),
+    baseRaw,
+  );
+  assert.strictEqual(r.status, 'generating');
+  assert.strictEqual(r.canBackfill, false);
+});
+
 run('failed when either failed and not partial/ready', () => {
   const r = svc.getPregeneratedCombo(
     mockDb({

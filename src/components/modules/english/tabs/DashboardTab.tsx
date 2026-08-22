@@ -53,6 +53,7 @@ export default function DashboardTab() {
     inlineNotice, noticeAnchor, setActiveTab, showNotice,
     customThemes, setCustomThemes, refreshCustomThemes,
     masteredThemes,
+    practicedThemes,
     stayStats,
   } = useEnglishContext();
   const {
@@ -871,6 +872,7 @@ export default function DashboardTab() {
               stage={stage}
               handleTrackChange={handleTrackChange}
               masteredThemes={masteredThemes}
+              practicedThemes={practicedThemes}
               customThemesCount={customThemes?.length || 0}
               currentTheme={theme}
             />

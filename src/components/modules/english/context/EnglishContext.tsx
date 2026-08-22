@@ -81,6 +81,8 @@ interface EnglishContextType {
   setShowMasteryOverlay: React.Dispatch<React.SetStateAction<boolean>>;
   masteredThemes: string[];
   setMasteredThemes: React.Dispatch<React.SetStateAction<string[]>>;
+  practicedThemes: string[];
+  setPracticedThemes: React.Dispatch<React.SetStateAction<string[]>>;
   impromptuPassed: boolean;
   setImpromptuPassed: React.Dispatch<React.SetStateAction<boolean>>;
   markEmailComplete: (theme: string) => Promise<void>;
@@ -166,6 +168,8 @@ export interface ThemeCtxType {
   setShowMasteryOverlay: React.Dispatch<React.SetStateAction<boolean>>;
   masteredThemes: string[];
   setMasteredThemes: React.Dispatch<React.SetStateAction<string[]>>;
+  practicedThemes: string[];
+  setPracticedThemes: React.Dispatch<React.SetStateAction<string[]>>;
   impromptuPassed: boolean;
   setImpromptuPassed: React.Dispatch<React.SetStateAction<boolean>>;
   markEmailComplete: (theme: string) => Promise<void>;
@@ -295,8 +299,13 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
       void (async () => {
         try {
           const res = await getMasteredThemes();
-          if (!cancelled && res.success && Array.isArray(res.masteredThemes)) {
-            setMasteredThemes(res.masteredThemes);
+          if (!cancelled && res.success) {
+            if (Array.isArray(res.masteredThemes)) {
+              setMasteredThemes(res.masteredThemes);
+            }
+            if (Array.isArray(res.practicedThemes)) {
+              setPracticedThemes(res.practicedThemes);
+            }
           }
         } catch {
           // ignore — road map still works with local data
@@ -331,6 +340,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
 
   const [showMasteryOverlay, setShowMasteryOverlay] = useState(false);
   const [masteredThemes, setMasteredThemes] = useState<string[]>([]);
+  const [practicedThemes, setPracticedThemes] = useState<string[]>([]);
   const [impromptuPassed, setImpromptuPassed] = useState(false);
   const [vocabZone, setVocabZone] = useState<'business' | 'general'>('business');
 
@@ -570,6 +580,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     themeSwitchError, setThemeSwitchError,
     showMasteryOverlay, setShowMasteryOverlay,
     masteredThemes, setMasteredThemes,
+    practicedThemes, setPracticedThemes,
     impromptuPassed, setImpromptuPassed,
     markEmailComplete: handleMarkEmailComplete,
     customThemes, setCustomThemes,
@@ -577,7 +588,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     pendingSentenceDebt, setPendingSentenceDebt,
   }), [
     stage, theme, masteryData, themeSwitchError, showMasteryOverlay,
-    masteredThemes, impromptuPassed, customThemes, pendingSentenceDebt
+    masteredThemes, practicedThemes, impromptuPassed, customThemes, pendingSentenceDebt
   ]);
 
   const vocabValue = React.useMemo<VocabCtxType>(() => ({

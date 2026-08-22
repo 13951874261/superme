@@ -112,6 +112,7 @@ export interface ThemeMasteredListResponse {
   success: boolean;
   userId?: string;
   masteredThemes: string[];
+  practicedThemes?: string[];
 }
 
 export async function getMasteredThemes(userId = getAppUserId()): Promise<ThemeMasteredListResponse> {

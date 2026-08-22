@@ -2764,7 +2764,7 @@ app.get('/api/listen/pregenerated', (req, res) => {
     const userCurrentProfile = String(
       req.query.userCurrentProfile ?? dailyPackService.getUserCurrentProfile(db, userId) ?? '',
     ).trim();
-    const result = dailyListenPreGenerateService.getPregeneratedCombo(db, {
+    const comboQuery = {
       userId,
       theme,
       genre,
@@ -2774,8 +2774,9 @@ app.get('/api/listen/pregenerated', (req, res) => {
       historyExclude,
       userFlaws,
       userCurrentProfile,
-    });
-    res.json(result);
+    };
+    const kick = dailyListenPreGenerateService.startListenSyncFromLongArticleIfNeeded(db, comboQuery);
+    res.json(kick.combo);
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
   }
@@ -4572,10 +4573,13 @@ app.get('/api/theme/mastered-list', (req, res) => {
     `).all(userId, userId);
 
     const masteredThemes = [];
+    const practicedThemes = [];
 
     // 2. ?????????????????
     for (const row of candidateThemesRows) {
       const themeName = row.theme;
+      if (!themeName) continue;
+      practicedThemes.push(themeName);
 
       const oralCountRow = db.prepare(`
         SELECT COUNT(*) as count FROM training_attempts
@@ -4602,7 +4606,8 @@ app.get('/api/theme/mastered-list', (req, res) => {
     res.json({
       success: true,
       userId,
-      masteredThemes
+      masteredThemes,
+      practicedThemes
     });
   } catch (error) {
     console.error(error);
@@ -7077,27 +7082,42 @@ const handleGetDailyExtractArticle = (req, res) => {
     const today = dailyPackService.getPackDate();
 
     const userIds = [rawUserId];
+    const inUsers = userIds.map(() => '?').join(',');
+    const comboArgs = [...userIds, today, genre, cefrLevel, duration, Number(duration)];
+    const themedComboArgs = [...userIds, today, topic, genre, cefrLevel, duration, Number(duration)];
 
-    // 查询只认：登录账号 + 主题 + 题材 + 难度 + 时长 + 年月日。画像只用于生成，不参与查库。
+    // 查询只认：登录账号 + 题材 + 难度 + 时长 + 年月日。主题先精确，未命中再回退今日同组合。
     let row = null;
     let cacheSource = 'daily_extracted_articles';
     if (topic) {
       row = db.prepare(`
         SELECT * FROM daily_extracted_articles
-        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+        WHERE user_id IN (${inUsers})
           AND quota_date = ?
           AND theme = ?
           AND genre = ?
           AND cefr_level = ?
           AND (duration = ? OR duration = ?)
         ORDER BY created_at DESC LIMIT 1
-      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
+      `).get(...themedComboArgs);
+    }
+
+    if (!row) {
+      row = db.prepare(`
+        SELECT * FROM daily_extracted_articles
+        WHERE user_id IN (${inUsers})
+          AND quota_date = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...comboArgs);
     }
 
     if (!row && topic) {
       const listenRow = db.prepare(`
         SELECT * FROM daily_listen_articles
-        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+        WHERE user_id IN (${inUsers})
           AND pack_date = ?
           AND theme = ?
           AND genre = ?
@@ -7105,7 +7125,38 @@ const handleGetDailyExtractArticle = (req, res) => {
           AND (duration = ? OR duration = ?)
           AND status = 'ready'
         ORDER BY created_at DESC LIMIT 1
-      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration));
+      `).get(...themedComboArgs);
+      if (listenRow?.body_text) {
+        row = {
+          id: listenRow.id,
+          user_id: listenRow.user_id,
+          quota_date: listenRow.pack_date,
+          theme: listenRow.theme,
+          genre: listenRow.genre,
+          cefr_level: listenRow.cefr_level,
+          article: listenRow.body_text,
+          words_json: listenRow.vocab_json,
+          phrases_json: listenRow.phrases_json,
+          sentences_json: '[]',
+          duration: listenRow.duration,
+          input_signature: listenRow.input_signature,
+          updated_at: listenRow.updated_at,
+        };
+        cacheSource = 'daily_listen_articles';
+      }
+    }
+
+    if (!row) {
+      const listenRow = db.prepare(`
+        SELECT * FROM daily_listen_articles
+        WHERE user_id IN (${inUsers})
+          AND pack_date = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+          AND status = 'ready'
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...comboArgs);
       if (listenRow?.body_text) {
         row = {
           id: listenRow.id,
@@ -7130,10 +7181,11 @@ const handleGetDailyExtractArticle = (req, res) => {
       return res.json({ success: true, found: false });
     }
 
-    const audioRow = topic
+    const audioTheme = row.theme || topic;
+    const audioRow = audioTheme
       ? db.prepare(`
         SELECT * FROM daily_listen_audios
-        WHERE user_id IN (${userIds.map(() => '?').join(',')})
+        WHERE user_id IN (${inUsers})
           AND pack_date = ?
           AND theme = ?
           AND genre = ?
@@ -7141,8 +7193,17 @@ const handleGetDailyExtractArticle = (req, res) => {
           AND (duration = ? OR duration = ?)
           AND status = 'ready'
         ORDER BY created_at DESC LIMIT 1
-      `).get(...userIds, today, topic, genre, cefrLevel, duration, Number(duration))
-      : null;
+      `).get(...userIds, today, audioTheme, genre, cefrLevel, duration, Number(duration))
+      : db.prepare(`
+        SELECT * FROM daily_listen_audios
+        WHERE user_id IN (${inUsers})
+          AND pack_date = ?
+          AND genre = ?
+          AND cefr_level = ?
+          AND (duration = ? OR duration = ?)
+          AND status = 'ready'
+        ORDER BY created_at DESC LIMIT 1
+      `).get(...comboArgs);
 
     const dataPayload = {
       id: row.id,

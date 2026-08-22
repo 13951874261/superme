@@ -6,6 +6,7 @@ interface StrategicRoadmapProps {
   stage: StageTrack;
   handleTrackChange: (newTrack: StageTrack) => void;
   masteredThemes: string[];
+  practicedThemes?: string[];
   customThemesCount: number;
   currentTheme: string;
 }
@@ -19,10 +20,14 @@ export default function StrategicRoadmap({
   stage,
   handleTrackChange,
   masteredThemes,
+  practicedThemes = [],
   customThemesCount,
   currentTheme,
 }: StrategicRoadmapProps) {
   const uniqueMasteredThemes = Array.from(new Set(masteredThemes));
+  const uniquePracticedThemes = Array.from(new Set(
+    [...practicedThemes, ...masteredThemes, currentTheme].filter(Boolean)
+  ));
   const businessThemeSet = new Set(businessThemeValues);
   const allThemeSet = new Set(allThemeValues);
 
@@ -31,9 +36,11 @@ export default function StrategicRoadmap({
 
   const businessMasteredCount = uniqueMasteredThemes.filter(theme => businessThemeSet.has(theme)).length;
   const allMasteredCount = uniqueMasteredThemes.filter(theme => allThemeSet.has(theme)).length;
+  const businessPracticedCount = uniquePracticedThemes.filter(theme => businessThemeSet.has(theme)).length;
+  const allPracticedCount = uniquePracticedThemes.filter(theme => allThemeSet.has(theme)).length;
 
-  const businessProgressRatio = businessTotal > 0 ? businessMasteredCount / businessTotal : 0;
-  const allProgressRatio = allTotal > 0 ? allMasteredCount / allTotal : 0;
+  const businessProgressRatio = businessTotal > 0 ? businessPracticedCount / businessTotal : 0;
+  const allProgressRatio = allTotal > 0 ? allPracticedCount / allTotal : 0;
   const activeProgressRatio = stage === 'business' ? businessProgressRatio : allProgressRatio;
 
   const timelineFillPercent = stage === 'business'
@@ -41,8 +48,8 @@ export default function StrategicRoadmap({
     : Math.min(100, Math.max(0, allProgressRatio * 100));
 
   const activeSummary = stage === 'business'
-    ? `已攻克 ${businessMasteredCount}/${businessTotal}`
-    : `已攻克 ${allMasteredCount}/${allTotal}`;
+    ? `已练习 ${businessPracticedCount}/${businessTotal} · 攻克 ${businessMasteredCount}`
+    : `已练习 ${allPracticedCount}/${allTotal} · 攻克 ${allMasteredCount}`;
 
   const businessExamples = BUSINESS_THEMES.slice(0, 3).map(item => toSceneChip(item.label));
   const allExamples = [ALL_THEMES[0], ALL_THEMES[10], ALL_THEMES[15]]
@@ -127,7 +134,7 @@ export default function StrategicRoadmap({
             </div>
           </div>
           <div className="flex items-center justify-between text-[10px] font-medium text-slate-500 mb-1">
-            <span>10 核心场景 · {businessMasteredCount}/{businessTotal}</span>
+            <span>10 核心场景 · 练习 {businessPracticedCount}/{businessTotal}</span>
             <span className="tabular-nums">{Math.round(businessProgressRatio * 100)}%</span>
           </div>
           <div className="h-1 rounded-full bg-slate-100 overflow-hidden mb-1">
@@ -173,7 +180,7 @@ export default function StrategicRoadmap({
             </div>
           </div>
           <div className="flex items-center justify-between text-[10px] font-medium text-slate-500 mb-1">
-            <span>16 场景 · {allMasteredCount}/{allTotal}</span>
+            <span>16 场景 · 练习 {allPracticedCount}/{allTotal}</span>
             <span className="tabular-nums">{Math.round(allProgressRatio * 100)}%</span>
           </div>
           <div className="h-1 rounded-full bg-slate-100 overflow-hidden mb-1">

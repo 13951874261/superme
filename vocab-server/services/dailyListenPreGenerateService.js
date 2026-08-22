@@ -416,23 +416,30 @@ function getListenRowByCombo(db, tableName, parts) {
 
 function getListenRowByComboLoose(db, tableName, parts) {
   const exact = getListenRowByCombo(db, tableName, parts);
-  if (exact) return exact;
   const table = tableName === 'daily_listen_audios'
     ? 'daily_listen_audios'
     : 'daily_listen_articles';
-  return db.prepare(`
-    SELECT * FROM ${table}
-    WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
-    ORDER BY CASE status
-      WHEN 'ready' THEN 0
-      WHEN 'generating' THEN 1
-      WHEN 'failed' THEN 2
-      ELSE 3
-    END, created_at DESC
-    LIMIT 1
-  `).get(
-    parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration,
-  );
+  let loose = null;
+  try {
+    loose = db.prepare(`
+      SELECT * FROM ${table}
+      WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
+      ORDER BY CASE status
+        WHEN 'ready' THEN 0
+        WHEN 'generating' THEN 1
+        WHEN 'failed' THEN 2
+        ELSE 3
+      END, created_at DESC
+      LIMIT 1
+    `).get(
+      parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration,
+    );
+  } catch {
+    loose = null;
+  }
+  if (exact && exact.status === 'ready') return exact;
+  if (loose && loose.status === 'ready') return loose;
+  return exact || loose;
 }
 
 function getArticleRow(db, parts) {
@@ -443,10 +450,14 @@ function getAudioRow(db, parts) {
   return getListenRowByCombo(db, 'daily_listen_audios', parts);
 }
 
+function extractedArticleText(row) {
+  return String(row?.article || row?.article_text || row?.material_text || row?.body_text || '').trim();
+}
+
 function getExtractedArticleRow(db, parts) {
   if (!db || typeof db.prepare !== 'function') return null;
   try {
-    return db.prepare(`
+    const exact = db.prepare(`
       SELECT * FROM daily_extracted_articles
       WHERE user_id=? AND quota_date=? AND theme=? AND genre=? AND cefr_level=?
         AND (CAST(duration AS TEXT)=? OR duration=?)
@@ -460,6 +471,21 @@ function getExtractedArticleRow(db, parts) {
       String(parts.duration),
       parts.duration,
     );
+    if (extractedArticleText(exact)) return exact;
+    const loose = db.prepare(`
+      SELECT * FROM daily_extracted_articles
+      WHERE user_id=? AND quota_date=? AND genre=? AND cefr_level=?
+        AND (CAST(duration AS TEXT)=? OR duration=?)
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(
+      parts.userId,
+      parts.packDate,
+      parts.genre,
+      parts.cefrLevel,
+      String(parts.duration),
+      parts.duration,
+    );
+    return extractedArticleText(loose) ? loose : null;
   } catch {
     return null;
   }
@@ -504,8 +530,8 @@ function getPregeneratedCombo(db, raw) {
 
   let status = 'missing';
   if (articleStatus === 'ready' && audioStatus === 'ready') status = 'ready';
-  else if (articleStatus === 'ready' || audioStatus === 'ready') status = 'partial';
   else if (articleStatus === 'generating' || audioStatus === 'generating') status = 'generating';
+  else if (articleStatus === 'ready' || audioStatus === 'ready') status = 'partial';
   else if (articleStatus === 'failed' || audioStatus === 'failed') status = 'failed';
 
   const canBackfill = status === 'missing' || status === 'failed' || status === 'partial';
@@ -530,6 +556,78 @@ function getPregeneratedCombo(db, raw) {
       audioUrl: audioRow.audio_url,
     } : null,
   };
+}
+
+const listenSyncInflight = new Map();
+
+function listenSyncKey(parts) {
+  return `${parts.userId}|${parts.packDate}|${parts.genre}|${parts.cefrLevel}|${parts.duration}`;
+}
+
+function startListenSyncFromLongArticleIfNeeded(db, raw) {
+  const packDate = raw.date || raw.packDate || dailyPackService.getPackDate();
+  const parts = comboKeyParts({
+    ...raw,
+    packDate,
+    cefrLevel: raw.cefrLevel || raw.cefr,
+  });
+  const comboRaw = { ...raw, date: packDate, cefrLevel: parts.cefrLevel };
+  const combo = getPregeneratedCombo(db, comboRaw);
+  if (combo.status === 'ready' || combo.status === 'generating' || !isCacheableDuration(parts.duration)) {
+    return { started: false, combo, promise: Promise.resolve(combo) };
+  }
+  const extracted = getExtractedArticleRow(db, parts);
+  if (!extractedArticleText(extracted)) {
+    return { started: false, combo, promise: Promise.resolve(combo) };
+  }
+
+  const key = listenSyncKey(parts);
+  const existing = listenSyncInflight.get(key);
+  if (existing) return existing;
+
+  const syncParts = comboKeyParts({
+    ...parts,
+    theme: extracted.theme || parts.theme,
+  });
+  if (combo.articleStatus !== 'ready') {
+    upsertArticle(db, syncParts, { status: 'generating', source: 'auto-sync' });
+  }
+  if (combo.audioStatus !== 'ready') {
+    upsertAudio(db, syncParts, { status: 'generating', source: 'auto-sync' });
+  }
+  const only = combo.articleStatus === 'ready' ? 'audio' : 'both';
+  const promise = module.exports.generateOneCombo(
+    db,
+    {
+      userId: syncParts.userId,
+      theme: syncParts.theme,
+      genre: syncParts.genre,
+      cefrLevel: syncParts.cefrLevel,
+      duration: syncParts.duration,
+      packDate,
+    },
+    { source: 'auto-sync', only },
+  ).catch((err) => {
+    console.warn(
+      '[DailyListen] auto-sync from long article failed user=%s %s/%s/%sm: %s',
+      parts.userId,
+      parts.genre,
+      parts.cefrLevel,
+      parts.duration,
+      err.message || String(err),
+    );
+    return getPregeneratedCombo(db, comboRaw);
+  }).finally(() => {
+    listenSyncInflight.delete(key);
+  });
+
+  const started = {
+    started: true,
+    combo: getPregeneratedCombo(db, comboRaw),
+    promise,
+  };
+  listenSyncInflight.set(key, started);
+  return started;
 }
 
 let generators = {
@@ -1494,7 +1592,11 @@ async function runDailyListenCronJob(db, options = {}) {
       const userSummary = await runCoordinatedUserListen(
         db,
         user,
-        { packDate, source: 'cron' },
+        {
+          packDate,
+          source: 'cron',
+          skipReadyAudio: options.skipReadyAudio === true,
+        },
       );
       summary.syncedFromArticles += userSummary.syncedFromArticles;
       summary.combosOk += userSummary.combosOk;
@@ -1562,9 +1664,10 @@ async function resumeInterruptedListenJobs(db) {
   }
   for (const row of rows) {
     try {
-      await runDailyListenCronJob(db, {
+      await module.exports.runDailyListenCronJob(db, {
         cronTickId: row.cronTickId,
         userId: row.userId,
+        skipReadyAudio: true,
       });
     } catch (err) {
       console.warn('[DailyListen Cron] resume interrupted fail user=%s: %s', row.userId, err.message);
@@ -1752,6 +1855,7 @@ module.exports = {
   resolveArticleStatus,
   resolveAudioStatus,
   getPregeneratedCombo,
+  startListenSyncFromLongArticleIfNeeded,
   setGenerators,
   upsertArticle,
   upsertAudio,

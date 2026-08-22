@@ -291,6 +291,25 @@ export default function ListenTab() {
   };
 
   useEffect(() => {
+    if (pregenStatus !== 'generating' || !theme) return undefined;
+    let cancelled = false;
+    const id = window.setInterval(() => {
+      void fetchPregenerated({
+        theme,
+        genre: listenGenre,
+        cefrLevel: listenCefr,
+        duration: listenDuration,
+      }).then((data) => {
+        if (!cancelled) applyPregenResult(data);
+      }).catch(() => { /* 下一轮再查 */ });
+    }, 2500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [pregenStatus, theme, listenGenre, listenCefr, listenDuration]);
+
+  useEffect(() => {
     if (!curTtsTaskId) return;
     const task = tasks.find(t => t.id === curTtsTaskId);
     if (!task) return;
@@ -752,6 +771,13 @@ export default function ListenTab() {
               </div>
               )}
 
+              {isCacheableDuration && pregenStatus === 'generating' && (
+                <div className="relative z-10 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
+                  <p className="text-[11px] text-white/80 flex-1 min-w-[12rem] leading-relaxed">
+                    正在用今日长文配音，请稍候…
+                  </p>
+                </div>
+              )}
               {isCacheableDuration && (pregenStatus === 'missing' || pregenStatus === 'failed') && (
                 <div className="relative z-10 flex flex-wrap items-center gap-3 rounded-xl border border-white/10 bg-black/30 px-3 py-2.5">
                   <p className="text-[11px] text-white/80 flex-1 min-w-[12rem] leading-relaxed">

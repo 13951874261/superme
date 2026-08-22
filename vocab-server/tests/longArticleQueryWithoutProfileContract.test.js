@@ -19,6 +19,7 @@ const getter = server.slice(getStart, getEnd);
 
 assert.match(getter, /quota_date = \?/, '查长文必须带年月日');
 assert.match(getter, /theme = \?/, '查长文必须带主题');
+assert.match(getter, /主题先精确，未命中再回退今日同组合/, '主题未命中时必须回退今日同组合长文');
 assert.match(getter, /genre = \?/, '查长文必须带题材');
 assert.match(getter, /cefr_level = \?/, '查长文必须带难度');
 assert.match(getter, /duration = \?/, '查长文必须带时长');

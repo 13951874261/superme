@@ -322,7 +322,7 @@ export function IntelBriefing({
                       智能整理
                     </h5>
                     <span className="text-[9px] bg-indigo-100 text-[var(--color-brand)] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider mt-0.5 inline-block">
-                      智能整理中
+                      {isAutoGenerating ? '智能整理中' : '待整理'}
                     </span>
                   </div>
                 </div>
