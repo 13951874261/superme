@@ -55,3 +55,16 @@ export function evaluateRulesTipQuality(rules: string | string[] | undefined | n
     rules: normalized,
   };
 }
+
+/** 每日场景到达/换一条时的选中态：空则跟上；原先就是旧每日场景则跟上；手动预设不覆盖。 */
+export function nextSelectedAfterDailyPush<T extends { id: string }>(
+  prev: T | null | undefined,
+  daily: T | null | undefined,
+  previousDailyId?: string | null,
+): T | null {
+  if (!daily) return prev ?? null;
+  if (!prev) return daily;
+  if (prev.id === daily.id) return daily;
+  if (previousDailyId && prev.id === previousDailyId) return daily;
+  return prev;
+}

@@ -38,4 +38,20 @@ assert.match(
   'daily push card must preview the first 3 rules'
 );
 
+assert.match(
+  moduleSource,
+  /nextSelectedAfterDailyPush/,
+  '每日场景到达或换一条必须走自动选中'
+);
+assert.doesNotMatch(
+  moduleSource,
+  /setActiveTab\('manners'\);\s*setSelectedScenario\(null\)/,
+  '切到社交训练不得清空已选场景'
+);
+assert.doesNotMatch(
+  moduleSource,
+  /setActiveTab\('aesthetics'\);\s*setSelectedScenario\(null\)/,
+  '切到审美修炼不得清空已选场景'
+);
+
 console.log('aestheticsPushFrontend.test.js passed');

@@ -4,6 +4,7 @@ import {
   AESTHETICS_RULES_MIN,
   ensureMinRules,
   evaluateRulesTipQuality,
+  nextSelectedAfterDailyPush,
   normalizeRulesList,
 } from './aestheticsRulesTips';
 
@@ -34,4 +35,21 @@ test('evaluateRulesTipQuality：原有 2 条为 below_standard 但 rules 补满 
   assert.equal(q.quality, 'below_standard');
   assert.equal(q.count, 2);
   assert.equal(q.rules.length, 5);
+});
+
+test('每日场景到达时：未选中则自动选中，已选手动预设则不覆盖', () => {
+  const daily = { id: 'daily-1' };
+  const preset = { id: 'preset-wine' };
+  assert.deepEqual(nextSelectedAfterDailyPush(null, daily), daily);
+  assert.deepEqual(nextSelectedAfterDailyPush(preset, daily), preset);
+  assert.deepEqual(nextSelectedAfterDailyPush(daily, daily), daily);
+});
+
+test('换一条：原先选的是旧每日场景则跟上，原先是预设则保留', () => {
+  const oldDaily = { id: 'daily-1' };
+  const nextDaily = { id: 'daily-2' };
+  const preset = { id: 'preset-wine' };
+  assert.deepEqual(nextSelectedAfterDailyPush(oldDaily, nextDaily, 'daily-1'), nextDaily);
+  assert.deepEqual(nextSelectedAfterDailyPush(null, nextDaily, 'daily-1'), nextDaily);
+  assert.deepEqual(nextSelectedAfterDailyPush(preset, nextDaily, 'daily-1'), preset);
 });

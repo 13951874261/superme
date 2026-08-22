@@ -18,7 +18,7 @@ import { playClick, playSuccess, playError } from '../../utils/soundEffects';
 
 import { getAppUserId, injectUserProfileAndTime } from '../../utils/profileHelper';
 
-import { AESTHETICS_RULES_MIN, evaluateRulesTipQuality, ensureMinRules } from '../../utils/aestheticsRulesTips';
+import { AESTHETICS_RULES_MIN, evaluateRulesTipQuality, ensureMinRules, nextSelectedAfterDailyPush } from '../../utils/aestheticsRulesTips';
 import { ensureAestheticsResult } from '../../utils/aestheticsResultGuard';
 
 
@@ -298,7 +298,7 @@ export default function EntertainmentModule() {
 
           const r = payload.result;
 
-          setDailyPush({
+          const mapped = {
 
             id: String(r.scenario_id),
 
@@ -324,9 +324,13 @@ export default function EntertainmentModule() {
 
             push_date: r.push_date
 
-          });
+          } as Scenario;
+
+          setDailyPush(mapped);
 
           setDailyPushSource(r.source || 'generated');
+
+          setSelectedScenario((prev) => nextSelectedAfterDailyPush(prev, mapped));
 
         }
 
@@ -852,7 +856,7 @@ export default function EntertainmentModule() {
 
         <button 
 
-          onClick={() => { triggerClick(); setActiveTab('manners'); setSelectedScenario(null); }}
+          onClick={() => { triggerClick(); setActiveTab('manners'); }}
 
           className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
 
@@ -874,7 +878,7 @@ export default function EntertainmentModule() {
 
         <button 
 
-          onClick={() => { triggerClick(); setActiveTab('aesthetics'); setSelectedScenario(null); }}
+          onClick={() => { triggerClick(); setActiveTab('aesthetics'); }}
 
           className={`flex-1 flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
 
@@ -1038,7 +1042,9 @@ export default function EntertainmentModule() {
 
                             const r = payload.result;
 
-                            setDailyPush({
+                            const previousDailyId = dailyPush?.id;
+
+                            const mapped = {
 
                               id: String(r.scenario_id),
 
@@ -1064,9 +1070,13 @@ export default function EntertainmentModule() {
 
                               push_date: r.push_date
 
-                            });
+                            } as Scenario;
+
+                            setDailyPush(mapped);
 
                             setDailyPushSource(r.source || 'generated');
+
+                            setSelectedScenario((prev) => nextSelectedAfterDailyPush(prev, mapped, previousDailyId));
 
                           }
 
