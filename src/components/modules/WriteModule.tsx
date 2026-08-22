@@ -6,11 +6,11 @@ import WriteTab from './english/tabs/WriteTab';
 export default function WriteModule() {
   return (
     <ModuleWrapper 
-      title="写作 ｜ 决策写作与价值提炼" 
+      title="写作 ｜ 中文公文与文治批改" 
       icon={<PenTool className="w-8 h-8" strokeWidth={2.5} />}
-      description="打破行政局限，实现三级批改与商业表达提升。"
+      description="体制内公文、中文商务函、履历价值提炼。走文治审阅，与英语书面练习分开。"
     >
-      <WriteTab />
+      <WriteTab variant="zh" />
     </ModuleWrapper>
   );
 }

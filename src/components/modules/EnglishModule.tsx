@@ -101,7 +101,7 @@ function EnglishModuleContent() {
             }}
           />
         ))}
-        {panel('write', <WriteTab />)}
+        {panel('write', <WriteTab variant="en" />)}
         {panel('impromptu', <ImpromptuSpeechTab />)}
       </div>
     </ModuleWrapper>

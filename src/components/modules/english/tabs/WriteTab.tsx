@@ -10,40 +10,12 @@ import { playClick, playSuccess, playError, playScan, playPageTurn } from '../..
 import { consumeWriteContext } from '../../oralWarRoom/utils';
 import { Copy, Check, Upload, Trash2, BookOpen, Layers, Zap } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-
-// 五大高管写作训练模块定义
-const WRITE_MODULES = [
-  { 
-    id: 'gov_write', 
-    label: '体制内公文写作', 
-    desc: '政府汇报、部门公文、调研报告三级纵深批改', 
-    placeholder: '在此起草您的公文、汇报或调研报告草案...' 
-  },
-  { 
-    id: 'biz_proposal', 
-    label: '高阶商务与提案', 
-    desc: '向上请示、跨部门协调、外企信函、隐性施压或出海商业提案', 
-    placeholder: '在此起草您的商务信函或提案草案...' 
-  },
-  { 
-    id: 'limit_challenge', 
-    label: '字数极限挑战', 
-    desc: '字数压缩（200/100/50字）或充分延展论点训练', 
-    placeholder: '在此粘贴您的长篇段落或核心论点，进行压缩或延展训练...' 
-  },
-  { 
-    id: 'personal_brand', 
-    label: '个人品牌与提炼', 
-    desc: '日常行政工作经验转化为大型国企/出海企业急需的可迁移高商业价值提案', 
-    placeholder: '在此输入您的工作背景或项目履历，由 AI 指导提炼个人核心商业价值...' 
-  },
-  { 
-    id: 'essay_reflection', 
-    label: '随笔与思辨练习', 
-    desc: '职场随笔或认知感悟的深度逻辑与思维方向诊断', 
-    placeholder: '在此撰写您的职场随笔或认知感悟...' 
-  }
-];
+import {
+  defaultWriteModuleId,
+  mapGovernanceToReview,
+  writeModulesFor,
+  type WriteVariant,
+} from '../../../../utils/writeVariants';
 
 function isL1Perfect(l1Text: string): boolean {
   if (!l1Text) return false;
@@ -95,20 +67,36 @@ const ReviewCard = ({ title, content, isLoading, color = 'text-zinc-500', isDark
   </div>
 );
 
-export default function WriteTab() {
+export default function WriteTab({ variant = 'en' }: { variant?: WriteVariant }) {
   const {
     theme,
     sessionId,
     setMasteryData,
     markEmailComplete,
-    writingText, setWritingText,
-    writeIntent, setWriteIntent,
-    isReviewing, setIsReviewing,
-    reviewResult, setReviewResult,
+    writingText: enWritingText, setWritingText: setEnWritingText,
+    writeIntent: enWriteIntent, setWriteIntent: setEnWriteIntent,
+    isReviewing: enIsReviewing, setIsReviewing: setEnIsReviewing,
+    reviewResult: enReviewResult, setReviewResult: setEnReviewResult,
     inlineNotice, noticeAnchor, showNotice
   } = useEnglishContext();
 
-  const [activeModule, setActiveModule] = useState<string>('gov_write');
+  const isZh = variant === 'zh';
+  const WRITE_MODULES = writeModulesFor(variant);
+  const [zhWritingText, setZhWritingText] = useState('');
+  const [zhWriteIntent, setZhWriteIntent] = useState('');
+  const [zhIsReviewing, setZhIsReviewing] = useState(false);
+  const [zhReviewResult, setZhReviewResult] = useState<{ L1: string; L2: string; L3: string; optimized_version?: string } | null>(null);
+
+  const writingText = isZh ? zhWritingText : enWritingText;
+  const setWritingText = isZh ? setZhWritingText : setEnWritingText;
+  const writeIntent = isZh ? zhWriteIntent : enWriteIntent;
+  const setWriteIntent = isZh ? setZhWriteIntent : setEnWriteIntent;
+  const isReviewing = isZh ? zhIsReviewing : enIsReviewing;
+  const setIsReviewing = isZh ? setZhIsReviewing : setEnIsReviewing;
+  const reviewResult = isZh ? zhReviewResult : enReviewResult;
+  const setReviewResult = isZh ? setZhReviewResult : setEnReviewResult;
+
+  const [activeModule, setActiveModule] = useState<string>(() => defaultWriteModuleId(variant));
   const [benchmarkText, setBenchmarkText] = useState<string>(() => localStorage.getItem('write_benchmark_text') || '');
   const [limitChallengeType, setLimitChallengeType] = useState<'compress_200' | 'compress_100' | 'compress_50' | 'expand'>('compress_100');
   
@@ -127,17 +115,21 @@ export default function WriteTab() {
   const [isCyberLocked, setIsCyberLocked] = useState(false);
   const [showContextSheet, setShowContextSheet] = useState(false);
 
-  // 同步锁定与面板状态
+  // 同步锁定与面板状态：英语写作按 L3 锁模块；中文文治不锁，避免两套评分串台
   useEffect(() => {
     if (reviewResult) {
-      const score = deriveL3MasteryScore(reviewResult);
-      setIsCyberLocked(score < 8);
+      if (!isZh) {
+        const score = deriveL3MasteryScore(reviewResult);
+        setIsCyberLocked(score < 8);
+      } else {
+        setIsCyberLocked(false);
+      }
       setShowContextSheet(true);
     } else {
       setIsCyberLocked(false);
       setShowContextSheet(false);
     }
-  }, [reviewResult]);
+  }, [reviewResult, isZh]);
 
   // 智能空白处点击判定逻辑
   const handleOutsideClick = (e: React.MouseEvent) => {
@@ -159,10 +151,11 @@ export default function WriteTab() {
     }
   };
 
-  // 从多角色沙盘跳转时预填书面闭环上下文
+  // 从多角色沙盘跳转时预填书面闭环上下文（仅英语入口）
   const [oralWriteContext, setOralWriteContext] = useState<{ sceneTitle: string; conflicts: string[] } | null>(null);
 
   useEffect(() => {
+    if (isZh) return;
     const ctx = consumeWriteContext();
     if (!ctx?.sceneTitle) return;
     setActiveModule('biz_proposal');
@@ -177,16 +170,17 @@ export default function WriteTab() {
     playPageTurn();
     showNotice('review', `已载入练习场景「${ctx.sceneTitle}」，请完成书面练习`, 'success');
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isZh]);
 
-  // 监听主题切换，清空当前输入
+  // 英语主题切换时清空英语草稿；中文文治草稿独立保留
   useEffect(() => {
+    if (isZh) return;
     setChallengeText('');
     setWritingText('');
     setWriteIntent('');
     setReviewResult(null);
     setOralWriteContext(null);
-  }, [theme, setWritingText, setWriteIntent, setReviewResult]);
+  }, [theme, isZh, setWritingText, setWriteIntent, setReviewResult]);
 
   // 对标文本自动保存
   const handleBenchmarkChange = (val: string) => {
@@ -234,7 +228,9 @@ export default function WriteTab() {
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
       const moduleName = WRITE_MODULES.find(m => m.id === activeModule)?.label || theme;
-      const promptTheme = `【任务生成模式】请针对主题“${theme}” and 写作训练维度“${moduleName}”，生成一封极具突破性、需要高管站位来有效回复的商业邮件或公文写作任务。只输出任务正文。`;
+      const promptTheme = isZh
+        ? `【任务生成模式】请针对中文公文/商务写作维度“${moduleName}”，生成一份需要领导站位来处理的中文写作任务。只输出任务正文。`
+        : `【任务生成模式】请针对主题“${theme}” and English writing module “${moduleName}”，生成一封需要高管用英语回复的商务邮件任务。只输出任务正文。`;
       const result = await runListenMaterialGenerator(promptTheme, 'meeting', 'B2', 'short');
       const immediate = resolveListenMaterialText(result);
       if (immediate) {
@@ -278,49 +274,41 @@ ${benchmarkText
 `.trim();
 
     try {
-      // 【Write Governance 集成】根据模块类型选择 Governance 或通用评测
+      const currentMod = WRITE_MODULES.find((m) => m.id === activeModule);
+      let raw: Record<string, string> = { L1: '', L2: '', L3: '', optimized_version: '' };
       let governanceResult: WriteGovernanceResult | null = null;
-      if (activeModule === 'gov_write') {
-        // 体制内公文写作 → 走 Governance 文治系统
-        try {
-          governanceResult = await withTimeout(runWriteGovernanceReview({
-            taskType: 'document_correction',
-            originalText: writingText,
-            additionalParams: [
-              writeIntent || '',
-              benchmarkText
-                ? `【参考对标文本（可选）】:\n${benchmarkText}`
-                : '【提示】: 未提供对标文本，请按通用高级政商/公文标准直接完成三级批改与重构建议。',
-            ].filter(Boolean).join('\n'),
-          }), 45000, '治理审阅超时');
-        } catch (govErr) {
-          console.warn('[WriteGovernance] Governance 调用失败，降级到通用评测:', govErr);
-        }
+
+      if (variant === 'zh') {
+        const taskType = currentMod?.taskType || 'document_correction';
+        governanceResult = await withTimeout(runWriteGovernanceReview({
+          taskType,
+          originalText: writingText,
+          additionalParams: [
+            writeIntent || '',
+            benchmarkText
+              ? `【参考对标文本（可选）】:\n${benchmarkText}`
+              : '【提示】: 未提供对标文本，请按中文公文/商务函标准直接完成批改。',
+          ].filter(Boolean).join('\n'),
+        }), 45000, '文治审阅超时');
+        raw = mapGovernanceToReview(governanceResult);
+      } else {
+        const englishRaw = await withTimeout(
+          runEnglishWriteReview(writingText, finalIntent, theme),
+          45000,
+          '写作审阅超时',
+        ) as Record<string, string>;
+        raw = {
+          L1: String(englishRaw.L1_Grammar || englishRaw.L1 || ''),
+          L2: String(englishRaw.L2_Business_Tone || englishRaw.L2 || ''),
+          L3: String(englishRaw.L3_Strategic_Position || englishRaw.L3 || ''),
+          optimized_version: String(englishRaw.optimized_version || ''),
+        };
       }
 
-      const raw = governanceResult
-        ? {
-            L1: governanceResult.level_1 || '',
-            L2: governanceResult.level_2 || '',
-            L3: governanceResult.level_3 || '',
-            optimized_version: (() => {
-              try {
-                const parsed = governanceResult.rawJson ? JSON.parse(governanceResult.rawJson) : {};
-                return String(parsed.optimized_version || '');
-              } catch {
-                return '';
-              }
-            })(),
-          }
-        : (await withTimeout(
-            runEnglishWriteReview(writingText, finalIntent, theme),
-            45000,
-            '写作审阅超时'
-          )) as any;
       const normalized = {
-        L1: String(raw.L1_Grammar || raw.L1 || ''),
-        L2: String(raw.L2_Business_Tone || raw.L2 || ''),
-        L3: String(raw.L3_Strategic_Position || raw.L3 || ''),
+        L1: String(raw.L1 || ''),
+        L2: String(raw.L2 || ''),
+        L3: String(raw.L3 || ''),
         optimized_version: String(raw.optimized_version || ''),
       };
       setReviewResult(normalized);
@@ -356,8 +344,8 @@ ${benchmarkText
       setDailyFeedback(feedbackData);
       localStorage.setItem('write_daily_feedback', JSON.stringify(feedbackData));
 
-      const l3Score = deriveL3MasteryScore({ ...raw, ...normalized });
-      if (sessionId) {
+      const l3Score = isZh ? 0 : deriveL3MasteryScore({ ...raw, ...normalized });
+      if (sessionId && !isZh) {
         const att = await createTrainingAttempt({
           sessionId,
           userId: getAppUserId(),
@@ -389,37 +377,16 @@ ${benchmarkText
         }
       }
 
-      // 【Write Governance 集成】将 Governance 结果也持久化
-      if (governanceResult) {
-        try {
-          const att2 = await createTrainingAttempt({
-            sessionId,
-            userId: getAppUserId(),
-            moduleType: 'write',
-            sceneType: theme,
-            caseText: writingText.slice(0, 4000),
-            userAnswer: {
-              writeLevel: 'Governance',
-              theme,
-              mailIntent: JSON.stringify(governanceResult).slice(0, 5000),
-            },
-            durationSeconds: 0,
-            score: 10, // Governance 不打分，用 10 表示完成
-            resultJson: JSON.stringify(governanceResult).slice(0, 12000),
-          });
-        } catch (gErr) {
-          console.warn('[WriteGovernance] 持久化 Governance 结果失败:', gErr);
-        }
-      }
-
-      if (l3Score >= 8) {
+      if (!isZh && l3Score >= 8) {
         playSuccess(); // 翻纸屑声与纸张翻页声结合
         setShowConfetti(true);
+      } else if (isZh) {
+        playSuccess();
       } else {
         playPageTurn();
       }
 
-      if (isL1Perfect(normalized.L1)) {
+      if (!isZh && isL1Perfect(normalized.L1)) {
         try {
           await markEmailComplete(theme);
         } catch (markErr) {
@@ -427,18 +394,20 @@ ${benchmarkText
         }
       }
 
-      void checkThemeMastery(theme)
-        .then((res) => {
-          if (res.success) {
-            setMasteryData({
-              isMastered: res.isMastered,
-              oralCount: res.oralCount,
-              maxWriteScore: res.maxWriteScore,
-              emailCompleted: res.emailCompleted,
-            });
-          }
-        })
-        .catch(() => {});
+      if (!isZh) {
+        void checkThemeMastery(theme)
+          .then((res) => {
+            if (res.success) {
+              setMasteryData({
+                isMastered: res.isMastered,
+                oralCount: res.oralCount,
+                maxWriteScore: res.maxWriteScore,
+                emailCompleted: res.emailCompleted,
+              });
+            }
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       playError();
       console.error('审阅失败:', error);
@@ -473,9 +442,11 @@ ${benchmarkText
            <Zap className="w-3.5 h-3.5" />
         </div>
         <div className="flex-1 flex flex-wrap items-center justify-between gap-2">
-          <h5 className="text-xs font-bold text-zinc-800">写作审阅使用说明</h5>
+          <h5 className="text-xs font-bold text-zinc-800">{isZh ? '中文文治审阅说明' : '英语书面审阅说明'}</h5>
           <p className="text-[11px] text-zinc-400 font-medium">
-            左侧可导入对标文本与指南（不填也可审阅），中栏起草进行极限演练，右侧获取高管级三维反馈。
+            {isZh
+              ? '左侧可放对标公文（选填），中栏起草中文稿，右侧走文治批改，不计入英语主题掌握分。'
+              : '左侧可导入英文对标文本（选填），中栏用英语起草，右侧给出语法 / 语气 / 战略站位三维反馈。'}
           </p>
         </div>
       </div>
@@ -504,7 +475,9 @@ ${benchmarkText
                 <BookOpen className="w-3.5 h-3.5 text-[#FF5722]" /> 对标文本（可选）
               </h4>
               <p className="text-[10px] text-zinc-455 leading-normal">
-                选填。有对标文本时，AI 会参考其格式、站位与分寸做对比；不填则按通用高级商务/政商标准直接审阅。
+                {isZh
+                  ? '选填。有对标公文时按格式与站位对比；不填则按中文公文/商务函通例批改。'
+                  : 'Optional. With a model text, AI compares format and tone; otherwise it reviews against executive English standards.'}
               </p>
               <div className="relative">
                 <textarea
@@ -541,18 +514,20 @@ ${benchmarkText
                 行文写作提示
               </h4>
               <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2">
-                <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
-                  <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">1. 破冰与站位 (Opening Position)</h5>
-                  <p className="text-[10px] text-zinc-505 leading-normal">起手直奔主题，避免琐碎客套。应以：“本提案旨在回应双方对于...”或“针对近期政策变动，我们建议...”切入。</p>
-                </div>
-                <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
-                  <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">2. 分寸与抗压 (Assertive Tone)</h5>
-                  <p className="text-[10px] text-zinc-505 leading-normal">在委婉拒绝或施压时，多使用中性的被动语态及情态动词淡化主观性。例如：“考虑到目前的政策契合度，该方案暂难直接推进。”</p>
-                </div>
-                <div className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
-                  <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">3. 字数挑战法则 (Concise Writing)</h5>
-                  <p className="text-[10px] text-zinc-505 leading-normal">高管阅读极度推崇“结论先行”。将次要叙述性信息极度压缩，仅保留“现状-诊断-建议方案”核心脉络。</p>
-                </div>
+                {(isZh ? [
+                  { t: '1. 事由与依据', d: '开头写清发文目的、政策依据与主送对象，避免口头化寒暄。' },
+                  { t: '2. 层次与结语', d: '事项分段，请批/请阅/请转明确落在结尾，语气对上对下分开。' },
+                  { t: '3. 禁区', d: '不写无出处的判断，不把口语承诺写进正式件。' },
+                ] : [
+                  { t: '1. Opening Position', d: 'Lead with the ask. Skip small talk. Example: “This note flags the SLA gap and proposes a 10-day recovery path.”' },
+                  { t: '2. Assertive Tone', d: 'Use modal verbs and evidence, not blame. Example: “Given the current policy fit, we cannot proceed as drafted.”' },
+                  { t: '3. Concise Writing', d: 'Conclusion first. Keep status → diagnosis → ask.' },
+                ]).map((tip) => (
+                  <div key={tip.t} className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
+                    <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">{tip.t}</h5>
+                    <p className="text-[10px] text-zinc-505 leading-normal">{tip.d}</p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -560,7 +535,7 @@ ${benchmarkText
           {/* 2. 中栏：纵深批阅与训练区 */}
           <div className="flex-1 bg-white border border-slate-100/90 shadow-[0_12px_35px_rgba(0,0,0,0.02)] rounded-3xl p-5 md:p-6 flex flex-col h-auto min-w-0">
             {/* 五大模块切换 TAB */}
-            <div className="grid grid-cols-5 bg-[#f8f9fa] border border-slate-200/50 p-1 rounded-xl mb-4 shrink-0 shadow-inner">
+            <div className="grid grid-cols-3 bg-[#f8f9fa] border border-slate-200/50 p-1 rounded-xl mb-4 shrink-0 shadow-inner">
               {WRITE_MODULES.map((mod) => {
                 const isActive = activeModule === mod.id;
                 const isLocked = isCyberLocked && !isActive;
@@ -654,24 +629,24 @@ ${benchmarkText
 
             {/* 意图输入 */}
             <div className="mb-3 shrink-0">
-              <label htmlFor="write-intent-input" className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">写作意图与指示 / Core Intent</label>
+              <label htmlFor={`write-intent-input-${variant}`} className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">{isZh ? '写作意图与指示' : 'Core Intent / 写作意图'}</label>
               <input
-                id="write-intent-input"
+                id={`write-intent-input-${variant}`}
                 type="text"
                 value={writeIntent}
                 onChange={(e) => setWriteIntent(e.target.value)}
-                placeholder="明确您的写作意图（如：委婉拒绝、极限向上请示、对齐上级某政策等）"
+                placeholder={isZh ? '例如：请批示、请转办、对齐某份文件口径' : 'e.g. polite decline, escalate to VP, align on SLA'}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs text-zinc-800 outline-none focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300 placeholder-zinc-350 transition-[border-color,box-shadow] shadow-inner"
               />
             </div>
 
             <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2.5 shrink-0 flex items-center gap-1">
-              Drafting Zone // 决策起草区
+              {isZh ? '起草区' : 'Drafting Zone'}
             </h4>
 
             {/* 文本草稿起草区 */}
             <textarea
-              id="write-draft-input"
+              id={`write-draft-input-${variant}`}
               ref={textareaRef}
               value={writingText}
               onChange={(e) => setWritingText(e.target.value)}
@@ -707,7 +682,7 @@ ${benchmarkText
                     <span>AI 正在审阅中…</span>
                   </>
                 ) : (
-                  '提交三维战略审阅 (Submit Strategy Review)'
+                  <span>{isZh ? '提交文治审阅' : 'Submit English Review'}</span>
                 )}
               </button>
 
@@ -735,14 +710,12 @@ ${benchmarkText
               onClick={(e) => e.stopPropagation()}
             >
               {/* ① 浅层：格式与措辞合规 */}
-              <ReviewCard title="① 浅层：格式与措辞合规" content={reviewResult?.L1} isLoading={isReviewing} />
+              <ReviewCard title={isZh ? '① 格式与措辞' : '① Grammar & wording'} content={reviewResult?.L1} isLoading={isReviewing} />
               
-              {/* ② 中层：逻辑结构与条理 */}
-              <ReviewCard title="② 中层：逻辑结构与条理" content={reviewResult?.L2} isLoading={isReviewing} color="text-amber-600" />
+              <ReviewCard title={isZh ? '② 逻辑与条理' : '② Business tone'} content={reviewResult?.L2} isLoading={isReviewing} color="text-amber-600" />
               
-              {/* ③ 深层：政治站位与领导思维 */}
               <ReviewCard
-                title="③ 深层：政治站位与领导思维"
+                title={isZh ? '③ 站位与改写' : '③ Strategic position'}
                 content={reviewResult?.L3}
                 isLoading={isReviewing}
                 isDark
