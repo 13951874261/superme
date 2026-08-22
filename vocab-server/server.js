@@ -10302,9 +10302,9 @@ async function applyAudioEffects(audioPath, effects) {
 
   // 确保音效文件存在
   ensureSoundEffectsExist();
-  const soundEffectsDir = pathMod.join(__dirname, 'public', 'sound_effects');
-  const interruptionEffect = pathMod.join(soundEffectsDir, 'interruption.mp3');
-  const staticNoiseEffect = pathMod.join(soundEffectsDir, 'static_noise.mp3');
+  const soundEffectsDir = path.join(__dirname, 'public', 'sound_effects');
+  const interruptionEffect = path.join(soundEffectsDir, 'interruption.mp3');
+  const staticNoiseEffect = path.join(soundEffectsDir, 'static_noise.mp3');
 
   // 构建输入列表
   const inputs = ['-i', audioPath];
@@ -10318,8 +10318,8 @@ async function applyAudioEffects(audioPath, effects) {
   }
 
   // 判断是否需要混音（打断或信息缺失）
-  const hasInterruption = effects.interruptions && fsMod.existsSync(interruptionEffect);
-  const hasNoise = effects.information_gap && fsMod.existsSync(staticNoiseEffect);
+  const hasInterruption = effects.interruptions && fs.existsSync(interruptionEffect);
+  const hasNoise = effects.information_gap && fs.existsSync(staticNoiseEffect);
 
   // 添加额外输入
   if (hasInterruption) {
@@ -10341,9 +10341,9 @@ async function applyAudioEffects(audioPath, effects) {
       });
     });
 
-    if (fsMod.existsSync(tmpPath)) {
-      if (fsMod.existsSync(audioPath)) fsMod.unlinkSync(audioPath);
-      fsMod.renameSync(tmpPath, audioPath);
+    if (fs.existsSync(tmpPath)) {
+      if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      fs.renameSync(tmpPath, audioPath);
     }
     return;
   }
@@ -10397,25 +10397,25 @@ async function applyAudioEffects(audioPath, effects) {
       });
     });
 
-    if (fsMod.existsSync(tmpPath)) {
-      if (fsMod.existsSync(audioPath)) fsMod.unlinkSync(audioPath);
-      fsMod.renameSync(tmpPath, audioPath);
+    if (fs.existsSync(tmpPath)) {
+      if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+      fs.renameSync(tmpPath, audioPath);
     }
   }
 }
 
 // 确保音效文件存在，不存在则自动生成
 function ensureSoundEffectsExist() {
-  const dir = pathMod.join(__dirname, 'public', 'sound_effects');
-  if (!fsMod.existsSync(dir)) {
-    fsMod.mkdirSync(dir, { recursive: true });
+  const dir = path.join(__dirname, 'public', 'sound_effects');
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
   }
 
   const ffmpegPath = process.env.FFMPEG_PATH || 'ffmpeg';
-  const interruptionPath = pathMod.join(dir, 'interruption.mp3');
-  const staticNoisePath = pathMod.join(dir, 'static_noise.mp3');
+  const interruptionPath = path.join(dir, 'interruption.mp3');
+  const staticNoisePath = path.join(dir, 'static_noise.mp3');
 
-  if (!fsMod.existsSync(interruptionPath)) {
+  if (!fs.existsSync(interruptionPath)) {
     console.log('[SOUND] 生成 interruption.mp3...');
     try {
       const { execSync } = require('child_process');
@@ -10425,7 +10425,7 @@ function ensureSoundEffectsExist() {
     }
   }
 
-  if (!fsMod.existsSync(staticNoisePath)) {
+  if (!fs.existsSync(staticNoisePath)) {
     console.log('[SOUND] 生成 static_noise.mp3...');
     try {
       const { execSync } = require('child_process');

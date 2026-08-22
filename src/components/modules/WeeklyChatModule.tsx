@@ -206,7 +206,7 @@ export default function WeeklyChatModule() {
           <div className="space-y-6">
             <div className="bg-zinc-950 text-zinc-100 p-6 rounded-2xl space-y-4">
               <h4 className="text-xs font-bold tracking-widest text-zinc-400 flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-400" /> 3. 大模型启发互动研判
+                <Zap className="w-4 h-4 text-amber-400" /> 3. 大模型启发互动分析
               </h4>
               <p className="text-xs leading-relaxed text-zinc-300 font-medium whitespace-pre-line">
                 {currentResult.analysis}

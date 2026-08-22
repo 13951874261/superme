@@ -646,7 +646,7 @@ export async function processMaterialsAndExtract(files: File[], topic: string, u
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || !data.success || !data.taskId) {
-    throw new Error(data?.error || data?.message || '无法发起异步提纯任务');
+    throw new Error(data?.error || data?.message || '无法发起异步提炼任务');
   }
 
   return data; // 返回 { success: true, taskId }
@@ -1047,7 +1047,7 @@ export async function sendOralChatMessageStream(
       : {}),
   });
 
-  options.onStatus?.('正在启动多角色沙盘推演...');
+  options.onStatus?.('正在启动多角色练习推演…');
 
   const res = await fetch('/api/english/oral/chat', {
     method: 'POST',
@@ -2240,8 +2240,8 @@ export async function runCognitiveAscension(
     }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || '升维推演引擎请求失败，请检查后端');
-  if (!data?.result) throw new Error(data?.error || '升维研判结果为空，请稍后重试');
+  if (!res.ok) throw new Error(data?.error || '深度研判请求失败，请检查后端');
+  if (!data?.result) throw new Error(data?.error || '深度研判结果为空，请稍后重试');
   return data.result as CognitiveAscensionResult;
 }
 

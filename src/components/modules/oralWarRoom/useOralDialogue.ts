@@ -240,7 +240,7 @@ export function useOralDialogue({
     setCurrentTarget('');
     clearPendingText();
     setIsSending(true);
-    setLastNotice(sandboxMode === 'daily' ? '对话搭档正在回应...' : '华尔街/中东对手正在推演回应...');
+    setLastNotice(sandboxMode === 'daily' ? '对话搭档正在回应...' : '对方正在思考回应…');
 
     try {
       const res = await sendOralChatMessage(apiPayload, conversationId, userId, buildOralContext(activeScene));

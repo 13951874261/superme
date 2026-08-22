@@ -341,7 +341,7 @@ function OralWarRoomChatComponent({
               <span>{combatPoints} XP</span>
             </div>
             <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 bg-white rounded-full px-2.5 py-1.5 border border-gray-200 whitespace-nowrap">
-              {isSending ? '推演中' : '待命'}
+              {isSending ? '回应中' : '待命'}
             </div>
             {onNavigateWrite && (
               <button

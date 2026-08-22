@@ -819,7 +819,7 @@ export default function GameTheoryModule() {
     <ModuleWrapper 
       title="博弈训练 ｜ 高管层博弈练习" 
       icon={<Brain className="w-8 h-8 text-zinc-700" strokeWidth={2} />}
-      description="核心定位：不仅是读文字，而是读结构、读政策背后的风向、读外企运作实质与漏洞。破阶到 0.01% 的战略决策底层操作系统。"
+      description="核心定位：不仅是读文字，而是读结构、读政策背后的风向、读外企运作实质与漏洞。帮助形成更清晰的战略决策判断力。"
     >
       {/* 战略评估弹窗已改用右侧 30% Context Sheet */}
 

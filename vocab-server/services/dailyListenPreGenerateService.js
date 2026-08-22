@@ -393,27 +393,55 @@ function comboKeyParts({ userId, packDate, theme, genre, cefrLevel, duration, hi
   };
 }
 
-function getArticleRow(db, parts) {
-  // 查询不带画像签名：账号 + 日期 + 主题 + 题材 + 难度 + 时长
+function getListenRowByCombo(db, tableName, parts) {
+  const table = tableName === 'daily_listen_audios'
+    ? 'daily_listen_audios'
+    : 'daily_listen_articles';
+  // 查询不带画像签名：账号 + 日期 + 主题 + 题材 + 难度 + 时长。
+  // 同一组合优先 ready，否则取 generating/failed 占位行，供 upsert 更新而不是再 INSERT。
   return db.prepare(`
-    SELECT * FROM daily_listen_articles
+    SELECT * FROM ${table}
     WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
-      AND status='ready'
-    ORDER BY created_at DESC LIMIT 1
+    ORDER BY CASE status
+      WHEN 'ready' THEN 0
+      WHEN 'generating' THEN 1
+      WHEN 'failed' THEN 2
+      ELSE 3
+    END, created_at DESC
+    LIMIT 1
   `).get(
     parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
   );
 }
 
+function getArticleRow(db, parts) {
+  return getListenRowByCombo(db, 'daily_listen_articles', parts);
+}
+
 function getAudioRow(db, parts) {
-  return db.prepare(`
-    SELECT * FROM daily_listen_audios
-    WHERE user_id=? AND pack_date=? AND theme=? AND genre=? AND cefr_level=? AND duration=?
-      AND status='ready'
-    ORDER BY created_at DESC LIMIT 1
-  `).get(
-    parts.userId, parts.packDate, parts.theme, parts.genre, parts.cefrLevel, parts.duration,
-  );
+  return getListenRowByCombo(db, 'daily_listen_audios', parts);
+}
+
+function getExtractedArticleRow(db, parts) {
+  if (!db || typeof db.prepare !== 'function') return null;
+  try {
+    return db.prepare(`
+      SELECT * FROM daily_extracted_articles
+      WHERE user_id=? AND quota_date=? AND theme=? AND genre=? AND cefr_level=?
+        AND (CAST(duration AS TEXT)=? OR duration=?)
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(
+      parts.userId,
+      parts.packDate,
+      parts.theme,
+      parts.genre,
+      parts.cefrLevel,
+      String(parts.duration),
+      parts.duration,
+    );
+  } catch {
+    return null;
+  }
 }
 
 function fileOk(p) {
@@ -760,6 +788,30 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
   fs.mkdirSync(userDirA, { recursive: true });
   fs.mkdirSync(userDirAu, { recursive: true });
   const baseName = `${packDate}_${parts.genre}_${parts.cefrLevel}_${parts.duration}m`;
+
+  const extracted = getExtractedArticleRow(db, parts);
+  if (extracted && String(extracted.article || extracted.article_text || extracted.material_text || extracted.body_text || '').trim()) {
+    const existingCombo = getPregeneratedCombo(db, { ...parts, date: packDate, cefrLevel: parts.cefrLevel });
+    if (only === 'both' && existingCombo.status === 'ready') return existingCombo;
+    if (only === 'audio' && existingCombo.audioStatus === 'ready') return existingCombo;
+    if (only === 'article' && existingCombo.articleStatus === 'ready') return existingCombo;
+    if (only === 'article') {
+      const scriptText = extracted.article || extracted.article_text || extracted.material_text || extracted.body_text;
+      const txtPath = path.join(userDirA, `${baseName}.txt`);
+      fs.writeFileSync(txtPath, scriptText, 'utf8');
+      upsertArticle(db, parts, {
+        status: 'ready',
+        source,
+        body_text: scriptText,
+        vocab_json: extracted.words_json || extracted.extracted_words_json || '[]',
+        phrases_json: extracted.phrases_json || extracted.extracted_phrases_json || '[]',
+        file_path: txtPath,
+      });
+      return getPregeneratedCombo(db, { ...parts, date: packDate, cefrLevel: parts.cefrLevel });
+    }
+    await syncAudioFromLongArticleRow(db, extracted, source);
+    return getPregeneratedCombo(db, { ...parts, date: packDate, cefrLevel: parts.cefrLevel });
+  }
 
   let script = null;
   if (only === 'both' || only === 'article') {
@@ -1507,10 +1559,23 @@ async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
     file_path: txtPath,
   });
 
+  const audioPath = path.join(userDirAu, `${baseName}.mp3`);
+  const audioUrl = `/api/daily_listen_audio/${parts.userId}/${baseName}.mp3`;
+  if (fileOk(audioPath)) {
+    upsertAudio(db, parts, {
+      status: 'ready',
+      source,
+      script_text: scriptText,
+      audio_path: audioPath,
+      audio_url: audioUrl,
+    });
+    console.log(`[ListenAudio Sync] ✅ Adopted existing audio for user=${uid} (${genre}/${cefrLevel}/${duration}m)`);
+    return { success: true, audioUrl, adopted: true };
+  }
+
   // 2. 调用音频合成引擎，直接基于长文文本生成 .mp3 音频
   upsertAudio(db, parts, { status: 'generating', source });
   try {
-    const audioPath = path.join(userDirAu, `${baseName}.mp3`);
     const voiceId = listenPrefsService.getListenVoiceId(db, parts.userId);
     if (generators.synthesizeAudioFile) {
       await generators.synthesizeAudioFile(scriptText, audioPath, {
@@ -1530,7 +1595,6 @@ async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
         stream.on('error', reject);
       });
     }
-    const audioUrl = `/api/daily_listen_audio/${parts.userId}/${baseName}.mp3`;
     upsertAudio(db, parts, {
       status: 'ready',
       source,
@@ -1541,7 +1605,11 @@ async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
     console.log(`[ListenAudio Sync] ✅ Successfully synced audio for user=${uid} (${genre}/${cefrLevel}/${duration}m)`);
     return { success: true, audioUrl };
   } catch (e) {
-    upsertAudio(db, parts, { status: 'failed', source, error_message: e.message });
+    try {
+      upsertAudio(db, parts, { status: 'failed', source, error_message: e.message });
+    } catch (writeErr) {
+      console.error(`[ListenAudio Sync] mark failed also threw for user=${uid}:`, writeErr.message);
+    }
     console.error(`[ListenAudio Sync] ❌ Audio synthesis failed for user=${uid}:`, e.message);
     return { success: false, error: e.message };
   }
@@ -1586,11 +1654,19 @@ async function batchSyncAudiosFromLongArticles(
         continue;
       }
     }
-    const res = await syncAudioFromLongArticleRow(db, article, source);
-    if (res && res.success) {
-      success++;
-    } else {
+    try {
+      const res = await syncAudioFromLongArticleRow(db, article, source);
+      if (res && res.success) {
+        success++;
+      } else {
+        failed++;
+      }
+    } catch (itemErr) {
       failed++;
+      console.error(
+        `[ListenAudio Batch Sync] combo error user=${uid} ${article.genre}/${article.cefr_level}/${article.duration}m:`,
+        itemErr.message,
+      );
     }
   }
 
@@ -1619,6 +1695,7 @@ module.exports = {
   comboKeyParts,
   getArticleRow,
   getAudioRow,
+  getExtractedArticleRow,
   fileOk,
   resolveArticleStatus,
   resolveAudioStatus,

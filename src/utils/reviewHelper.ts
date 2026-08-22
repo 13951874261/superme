@@ -232,7 +232,7 @@ const KEYWORD_THEME_MAP: Record<string, Partial<TrainingRebalancePlan>> = {
     oralSandbox: {
       scenario: '高风险项目审批——信贷推动 vs 风控否决的僵局',
       roles: '信贷部负责人(你), 风控总监(对手), 合规官(第三方)',
-      focus: '在制度约束下的灵活破局',
+      focus: '在制度约束下的灵活应对',
       difficulty: 4,
     },
   },
@@ -408,8 +408,8 @@ export function hasActiveRebalancePlan(): boolean {
 export function getRebalanceHintMessage(): string {
   const plan = getNextWeekPushPlan();
   if (!plan?.oralSandbox?.scenario && !plan?.generalFocus?.length) {
-    return '已根据上周夜话投喂，为您重组了本场景训练参数。';
+    return '已根据上周夜话输入，为您调整了本场景训练参数。';
   }
   const focus = plan.generalFocus?.[0] || plan.oralSandbox?.focus || plan.oralSandbox?.scenario;
-  return `已根据上周夜话投喂重组训练：${focus}`;
+  return `已根据上周夜话输入调整训练：${focus}`;
 }
