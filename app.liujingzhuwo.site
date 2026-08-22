@@ -5,6 +5,16 @@ server {
     root /var/www/super-agent/dist;
     index index.html;
 
+    gzip on;
+    gzip_min_length 1024;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
     location / {
         try_files $uri $uri/ /index.html;
     }

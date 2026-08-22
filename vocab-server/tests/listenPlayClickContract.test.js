@@ -26,5 +26,8 @@ assert.match(player, /preload="auto"/, 'audio 必须 preload=auto，否则 35m �
 assert.match(player, /canplay/, 'readyState 不够时必须等 canplay 再 play');
 assert.doesNotMatch(player, /speakEnglish/, '播放失败不得改朗读整篇原文');
 assert.match(player, /Math\.floor\(e\.currentTarget\.currentTime\)/, 'onTimeUpdate 必须按整秒更新，禁止每帧 setState');
+assert.match(player, /音频缓冲中，马上开始/, '未就绪点击播放必须给出缓冲提醒');
+assert.match(player, /setIsBuffering\(true\)/, 'readyState 不够时必须进入缓冲态');
+assert.match(player, /Loader2 className="w-10 h-10 animate-spin"/, '缓冲中播放按钮必须显示旋转加载');
 
 console.log('✅ listenPlayClickContract.test.js 通过');

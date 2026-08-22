@@ -37,6 +37,7 @@ export default function ListenTab() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingCanPlayRef = useRef<(() => void) | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -138,6 +139,7 @@ export default function ListenTab() {
   }, [playbackRate, globalRateMultiplier]);
 
   useEffect(() => {
+    setIsBuffering(false);
     const el = audioRef.current;
     return () => {
       if (el && pendingCanPlayRef.current) {
@@ -237,6 +239,7 @@ export default function ListenTab() {
     setIsTextVisible(false);
     setHasPlayed(false);
     setIsPlaying(false);
+    setIsBuffering(false);
     audioRef.current?.pause();
     setCurrentTime(0);
     setDuration(0);
@@ -815,37 +818,53 @@ export default function ListenTab() {
                       setCurrentTime((prev) => (prev === next ? prev : next));
                     }}
                     onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-                    onEnded={() => setIsPlaying(false)}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
+                    onEnded={() => { setIsPlaying(false); setIsBuffering(false); }}
+                    onPlay={() => { setIsPlaying(true); setIsBuffering(false); }}
+                    onPause={() => { setIsPlaying(false); setIsBuffering(false); }}
                     onError={() => {
                       setListenAudioUrl(null);
                       setIsPlaying(false);
+                      setIsBuffering(false);
                       setDuration(0);
                       setCurrentTime(0);
                       showNotice('listen', '语音文件异常，请稍后重试或重新生成', 'warning');
                     }}
                   />
+                  <div className="flex flex-col gap-1.5 min-w-0 flex-1">
+                  <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                   <button
                     type="button"
                     disabled={!listenAudioUrl}
-                    aria-label={isPlaying ? '暂停' : '播放听力音频'}
+                    aria-label={isBuffering ? '音频缓冲中，点击取消' : (isPlaying ? '暂停' : '播放听力音频')}
                     onClick={() => {
                       const el = audioRef.current;
                       if (!el || !listenAudioUrl) return;
                       setHasPlayed(true);
+                      if (isBuffering) {
+                        if (pendingCanPlayRef.current) {
+                          el.removeEventListener('canplay', pendingCanPlayRef.current);
+                          pendingCanPlayRef.current = null;
+                        }
+                        setIsBuffering(false);
+                        setIsPlaying(false);
+                        return;
+                      }
                       if (!el.paused) {
                         el.pause();
                         return;
                       }
                       setIsPlaying(true);
                       const tryPlay = () => {
-                        void el.play().catch(() => setIsPlaying(false));
+                        void el.play().catch(() => {
+                          setIsPlaying(false);
+                          setIsBuffering(false);
+                        });
                       };
                       if (el.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
                         tryPlay();
                         return;
                       }
+                      setIsBuffering(true);
                       if (pendingCanPlayRef.current) {
                         el.removeEventListener('canplay', pendingCanPlayRef.current);
                       }
@@ -861,11 +880,11 @@ export default function ListenTab() {
                     className={`text-white hover:text-[#FF5722] transition-colors shrink-0 rounded-full ${
                       !listenAudioUrl
                         ? 'opacity-40 cursor-wait'
-                        : `cursor-pointer ${isPlaying ? 'animate-pulse-glow text-[#FF5722]' : (listenAudioUrl && !hasPlayed ? 'animate-soft-pulse text-[#FF5722]' : '')}`
+                        : `cursor-pointer ${isBuffering || isPlaying ? 'animate-pulse-glow text-[#FF5722]' : (listenAudioUrl && !hasPlayed ? 'animate-soft-pulse text-[#FF5722]' : '')}`
                     }`}
-                    title={!listenAudioUrl ? '音频加载中' : (isPlaying ? '暂停' : '播放听力音频')}
+                    title={!listenAudioUrl ? '音频加载中' : (isBuffering ? '音频缓冲中，马上开始…' : (isPlaying ? '暂停' : '播放听力音频'))}
                   >
-                    {isPlaying ? <PauseCircle className="w-10 h-10" aria-hidden="true" /> : <PlayCircle className="w-10 h-10" aria-hidden="true" />}
+                    {isBuffering ? <Loader2 className="w-10 h-10 animate-spin" aria-hidden="true" /> : (isPlaying ? <PauseCircle className="w-10 h-10" aria-hidden="true" /> : <PlayCircle className="w-10 h-10" aria-hidden="true" />)}
                   </button>
                   <div className="flex-1 min-w-0 flex items-center gap-2 sm:gap-3 px-1 sm:px-2">
                     <span className="text-[10px] font-mono w-5 sm:w-6 text-right text-gray-400 shrink-0">{Math.floor(currentTime)}s</span>
@@ -894,6 +913,11 @@ export default function ListenTab() {
                   >
                     <FastForward className="w-3 h-3" /> {(playbackRate * globalRateMultiplier).toFixed(2)}x
                   </button>
+                  </div>
+                  {isBuffering && (
+                    <p className="text-[10px] text-gray-400 leading-relaxed">音频缓冲中，马上开始…</p>
+                  )}
+                  </div>
                 </>
               )}
             </div>
