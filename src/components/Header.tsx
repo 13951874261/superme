@@ -7,6 +7,11 @@ import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
 import { useTask } from './TaskContext';
 import { TASK_CENTER_PULSE_EVENT } from '../utils/backgroundHandoff';
+import {
+  CAREER_CHANGED_EVENT,
+  careerNodeLabel,
+  readCareerPath,
+} from '../utils/careerProgression';
 
 gsap.registerPlugin(useGSAP);
 
@@ -23,6 +28,7 @@ function HeaderComponent() {
   const [previewErrorVoiceId, setPreviewErrorVoiceId] = useState<string | null>(null);
   const { pendingCount, setIsOpen } = useTask();
   const taskCenterBtnRef = useRef<HTMLButtonElement>(null);
+  const [careerPath, setCareerPath] = useState(readCareerPath);
 
   useGSAP(
     (_ctx, contextSafe) => {
@@ -54,11 +60,16 @@ function HeaderComponent() {
     const handleStorageChange = () => {
       setSelectedVoice(localStorage.getItem('super_agent_default_voice') || 'en-GB-LibbyNeural');
     };
+    const syncCareer = () => setCareerPath(readCareerPath());
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', syncCareer);
     window.addEventListener('global-voice-changed', handleStorageChange);
+    window.addEventListener(CAREER_CHANGED_EVENT, syncCareer);
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', syncCareer);
       window.removeEventListener('global-voice-changed', handleStorageChange);
+      window.removeEventListener(CAREER_CHANGED_EVENT, syncCareer);
     };
   }, []);
 
@@ -298,40 +309,37 @@ function HeaderComponent() {
         <div className="col-span-12 xl:col-span-3 flex flex-col gap-1 xl:pl-4 xl:border-l xl:border-slate-100">
           <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono tracking-wider">
             <span>EVOLUTION</span>
-            <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md">45%</span>
+            <span className="text-[10px] font-bold text-slate-800 bg-slate-100 px-1.5 py-0.5 rounded-md">{careerPath.progress}%</span>
           </div>
           
           {/* 进度条轨道容器：固定高度，确保圆点垂直居中 */}
           <div className="relative h-7">
             {/* 进度背景条：跨越三个节点 */}
             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-1 bg-slate-100 rounded-full z-0">
-              <div className="h-full bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-all duration-1000 ease-out" style={{ width: '45%' }}></div>
+              <div className="h-full bg-gradient-to-r from-[var(--color-brand-light)] to-[var(--color-accent)] rounded-full transition-all duration-1000 ease-out" style={{ width: `${careerPath.progress}%` }}></div>
             </div>
 
             {/* 节点轨道：均匀分布 */}
             <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 flex justify-between items-start z-10 px-1">
-              {/* 节点 1：2020 科员 (已达成) */}
-              <div className="flex flex-col items-center w-16 -mt-1">
+              <div className="flex flex-col items-center max-w-[32%] min-w-0 -mt-1">
                 <div className="w-3 h-3 rounded-full bg-slate-500 border-2 border-white shadow-sm"></div>
-                <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">2020</span>
-                <span className="text-[10px] font-semibold text-slate-600 mt-0.5 whitespace-nowrap">科员</span>
+                <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">既往</span>
+                <span className="text-[10px] font-semibold text-slate-600 mt-0.5 truncate max-w-full" title={careerPath.history}>{careerNodeLabel(careerPath.history)}</span>
               </div>
 
-              {/* 节点 2：2026 支行副行长 (当前节点) */}
-              <div className="flex flex-col items-center w-16 -mt-1">
+              <div className="flex flex-col items-center max-w-[32%] min-w-0 -mt-1">
                 <div className="w-4 h-4 rounded-full bg-[var(--color-accent)] border-2 border-white shadow-md flex items-center justify-center relative">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--color-accent)] opacity-75"></span>
                   <div className="w-1.5 h-1.5 rounded-full bg-white relative z-20"></div>
                 </div>
-                <span className="text-[9px] text-[var(--color-accent)] font-bold font-mono leading-none mt-1">2026</span>
-                <span className="text-[10px] font-bold text-slate-800 mt-0.5 whitespace-nowrap">支行副行长</span>
+                <span className="text-[9px] text-[var(--color-accent)] font-bold font-mono leading-none mt-1">现职</span>
+                <span className="text-[10px] font-bold text-slate-800 mt-0.5 truncate max-w-full" title={careerPath.current}>{careerNodeLabel(careerPath.current)}</span>
               </div>
 
-              {/* 节点 3：2027 跨国大区VP (未达成) */}
-              <div className="flex flex-col items-center w-16 -mt-1 opacity-55">
+              <div className="flex flex-col items-center max-w-[32%] min-w-0 -mt-1 opacity-55">
                 <div className="w-3 h-3 rounded-full bg-slate-200 border-2 border-white shadow-sm"></div>
-                <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">2027</span>
-                <span className="text-[10px] font-semibold text-slate-500 mt-0.5 whitespace-nowrap">大区VP</span>
+                <span className="text-[9px] text-slate-400 font-mono leading-none mt-1">目标</span>
+                <span className="text-[10px] font-semibold text-slate-500 mt-0.5 truncate max-w-full" title={careerPath.target}>{careerNodeLabel(careerPath.target)}</span>
               </div>
             </div>
           </div>

@@ -8199,12 +8199,24 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
               runId: newRun.id, userId, module: 'listen', status: 'running',
             });
             try {
-              await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+              const listenJob = await dailyListenPreGenerateService.runDailyListenCronJob(db, {
                 cronTickId: tick,
               });
+              const listenStep = dailyCronRunService.findStep(db, {
+                runId: newRun.id, module: 'listen',
+              });
+              const listenStatus = dailyCronRunService.resolveListenTerminalStatus({
+                combosFail: listenJob?.summary?.combosFail,
+                existingStatus: listenStep?.status,
+              });
               dailyCronRunService.upsertStep(db, {
-                runId: newRun.id, userId, module: 'listen', status: 'completed',
-                progress: 100, finishedAt: Date.now(),
+                runId: newRun.id, userId, module: 'listen',
+                status: listenStatus,
+                progress: 100,
+                finishedAt: Date.now(),
+                errorMessage: listenStatus === 'failed'
+                  ? (listenStep?.error_message || `combosFail=${listenJob?.summary?.combosFail || 0}`)
+                  : null,
               });
             } catch (e) {
               dailyCronRunService.upsertStep(db, {
@@ -8267,15 +8279,32 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
                     db, userId, snap.theme || theme, 'user_rerun', g, c, d,
                   );
                 } else if (fs.module === 'listen') {
-                  await dailyListenPreGenerateService.runDailyListenCronJob(db, {
+                  const listenJob = await dailyListenPreGenerateService.runDailyListenCronJob(db, {
                     cronTickId: tick,
                   });
+                  const listenStep = dailyCronRunService.findStep(db, {
+                    runId: newRun.id, module: 'listen', comboKey: fs.combo_key,
+                  });
+                  const listenStatus = dailyCronRunService.resolveListenTerminalStatus({
+                    combosFail: listenJob?.summary?.combosFail,
+                    existingStatus: listenStep?.status,
+                  });
+                  dailyCronRunService.upsertStep(db, {
+                    runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
+                    status: listenStatus, progress: 100, finishedAt: Date.now(),
+                    inputs: snap, inputSources: sources,
+                    errorMessage: listenStatus === 'failed'
+                      ? (listenStep?.error_message || `combosFail=${listenJob?.summary?.combosFail || 0}`)
+                      : null,
+                  });
                 }
-                dailyCronRunService.upsertStep(db, {
-                  runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
-                  status: 'completed', progress: 100, finishedAt: Date.now(),
-                  inputs: snap, inputSources: sources,
-                });
+                if (fs.module !== 'listen') {
+                  dailyCronRunService.upsertStep(db, {
+                    runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
+                    status: 'completed', progress: 100, finishedAt: Date.now(),
+                    inputs: snap, inputSources: sources,
+                  });
+                }
               } catch (e) {
                 dailyCronRunService.upsertStep(db, {
                   runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,

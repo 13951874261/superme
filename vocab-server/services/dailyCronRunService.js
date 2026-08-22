@@ -260,6 +260,17 @@ function aggregateExecutionStatus(stepStatuses) {
   return 'completed';
 }
 
+function resolveListenTerminalStatus({
+  thrown = false,
+  combosFail = 0,
+  existingStatus = null,
+} = {}) {
+  if (thrown) return 'failed';
+  if (Number(combosFail) > 0) return 'failed';
+  if (existingStatus === 'failed') return 'failed';
+  return 'completed';
+}
+
 function computeRunProgress({ finishedUnits, totalUnits }) {
   const total = Number(totalUnits) || 0;
   const finished = Number(finishedUnits) || 0;
@@ -517,9 +528,6 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
   const finishedAt = (executionStatus === 'running' || executionStatus === 'pending')
     ? null
     : now;
-  const auditHealth = (executionStatus === 'failed' || executionStatus === 'partial_failed')
-    ? 'degraded'
-    : null;
 
   try {
     db.prepare(`
@@ -527,7 +535,10 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
         status = ?,
         execution_status = ?,
         progress = ?,
-        audit_health = COALESCE(?, audit_health),
+        audit_health = CASE
+          WHEN ? IN ('failed', 'partial_failed') THEN 'degraded'
+          ELSE audit_health
+        END,
         finished_at = CASE WHEN ? IS NULL THEN finished_at ELSE ? END,
         updated_at = ?,
         summary_json = ?
@@ -536,7 +547,7 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
       executionStatus,
       executionStatus,
       progress,
-      auditHealth,
+      executionStatus,
       finishedAt,
       finishedAt,
       now,
@@ -734,6 +745,7 @@ module.exports = {
   clearFinishedRunsForUser,
   cleanupOldCronRuns,
   aggregateExecutionStatus,
+  resolveListenTerminalStatus,
   computeRunProgress,
   countFinishedUnits,
   createCronTickId,

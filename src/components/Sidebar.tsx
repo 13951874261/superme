@@ -11,6 +11,7 @@ import KnowledgeVaultDrawer from './KnowledgeVault/KnowledgeVaultDrawer';
 import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
+import { readCareerPath, writeCareerPath } from '../utils/careerProgression';
 
 type CalendarDaySlot = {
   day: number;
@@ -176,15 +177,7 @@ function SidebarComponent({
   };
 
   // 职业路径数据持久化
-  const [careerPath, setCareerPath] = useState(() => {
-    const saved = localStorage.getItem('superme_career');
-    return saved ? JSON.parse(saved) : {
-      history: '高级经理 (Senior Manager)',
-      current: '总监 (Director)',
-      target: '合伙人 (Partner / Managing Director)',
-      progress: 65
-    };
-  });
+  const [careerPath, setCareerPath] = useState(() => readCareerPath());
 
   // 职业生涯编辑相关状态
   const [isEditingCareer, setIsEditingCareer] = useState(false);
@@ -522,10 +515,10 @@ function SidebarComponent({
                              <button 
                                onClick={() => {
                                  playPageTurn();
-                                 setCareerPath(careerEditData);
-                                 localStorage.setItem('superme_career', JSON.stringify(careerEditData));
+                                 const next = writeCareerPath(careerEditData);
+                                 setCareerPath(next);
                                  setIsEditingCareer(false);
-                                 if (careerEditData.progress === 100) {
+                                 if (next.progress === 100) {
                                    setShowConfetti(true);
                                  }
                                }}
