@@ -149,7 +149,7 @@ export function useOralDialogue({
     const apiPayload = `${difficultyPrefix}[系统隐性指令：切换场景「${scene.shortTitle}」。角色：${scene.roleList}。${dailyHint}请由非用户角色率先开口（对话启动句），参考风格："${opener}"。用户尚未发言。必须在 JSON 返回 dialogue、current_speaker、role_address、branch_suggestions、difficulty_rating(${scene.level})、cultural_signal 及四维 feedback 字段。${switchInstruction}]`;
 
     try {
-      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene, mode));
+      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene, mode), 8000);
       if (res.conversation_id) setConversationId(res.conversation_id);
       const rawText = String(res.answer || res.message || '');
       const parsed = parseAiPayload(rawText);

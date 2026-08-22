@@ -1,4 +1,4 @@
-import { getUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
+import { getUserCurrentProfile, getUserWeaknessProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
 import { recordL3Response, recordL4TaskEnqueue } from '../utils/perfSlaTelemetry';
 import {
   extractKeywordsFromText,
@@ -906,7 +906,7 @@ export async function callVocabPurify(
 }
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const profile = getUserCurrentProfile();
+  const profile = getUserWeaknessProfile();
   const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;
 
   try {
@@ -955,9 +955,11 @@ async function proxyOralChatMessage(
     conversationId?: string | null;
     userId?: string;
     inputs?: Record<string, unknown>;
+    timeoutMs?: number;
   } = {},
 ): Promise<{ answer?: string; message?: string; conversation_id?: string }> {
-  const res = await fetch('/api/english/oral/chat', {
+  const timeoutMs = options.timeoutMs;
+  const req = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -966,7 +968,10 @@ async function proxyOralChatMessage(
       userId: options.userId ?? getAppUserId(),
       inputs: options.inputs ?? {},
     }),
-  });
+  };
+  const res = timeoutMs
+    ? await fetchWithTimeout('/api/english/oral/chat', req, timeoutMs)
+    : await fetch('/api/english/oral/chat', req);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(String(data.message || data.error || '口语 Chat API 请求失败'));
@@ -978,12 +983,11 @@ export async function sendOralChatMessage(
   query: string,
   conversationId: string | null = null,
   userId = getAppUserId(),
-  oralContext?: OralChatContext
+  oralContext?: OralChatContext,
+  timeoutMs?: number,
 ) {
-  const profile = getUserCurrentProfile();
-
   const inputs = injectUserProfileAndTime({
-    user_weakness_profile: profile || '',
+    user_weakness_profile: getUserWeaknessProfile() || '',
     ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
     ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
     ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
@@ -999,7 +1003,7 @@ export async function sendOralChatMessage(
       : {}),
   });
 
-  const data = await proxyOralChatMessage(query, { conversationId, userId, inputs });
+  const data = await proxyOralChatMessage(query, { conversationId, userId, inputs, timeoutMs });
   interceptOutputText(data);
 
   if (data.conversation_id) {
@@ -1026,12 +1030,11 @@ export async function sendOralChatMessageStream(
     onStatus?: (statusText: string) => void;
   } = {}
 ): Promise<{ answer?: string; message?: string; conversation_id?: string }> {
-  const profile = getUserCurrentProfile();
   const userId = options.userId ?? getAppUserId();
   const oralContext = options.oralContext;
 
   const inputs = injectUserProfileAndTime({
-    user_weakness_profile: profile || '',
+    user_weakness_profile: getUserWeaknessProfile() || '',
     ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
     ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
     ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),

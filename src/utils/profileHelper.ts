@@ -142,6 +142,26 @@ export function getUserCurrentProfile(): string {
   }
 }
 
+export function isAccentProfile(value: string): boolean {
+  const t = String(value || '').trim();
+  return t === '英国 (UK)' || t === '美国 (US)';
+}
+
+export function sanitizeWeaknessProfile(value: string): string {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (isAccentProfile(raw)) return '';
+  return raw
+    .split(/[;；,，]/)
+    .map((part) => part.trim())
+    .filter((part) => part && !isAccentProfile(part))
+    .join('; ');
+}
+
+export function getUserWeaknessProfile(): string {
+  return sanitizeWeaknessProfile(getUserCurrentProfile());
+}
+
 /**
  * 保存画像并向全局广播状态同步事件，同时写入后端 SQLite
  */
@@ -507,17 +527,18 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
   }
   
   const profile = getUserCurrentProfile();
+  const weakness = getUserWeaknessProfile();
   const result = { ...inputs };
   const errorSummary = getErrorLedgerSummary();
   const l3Vars = getL3VarsLocal();
   const l3Line = formatL3VarsForProfile(l3Vars);
 
-  if (profile) {
+  if (weakness) {
     if (typeof result.theme === "string" && !result.theme.includes("Weakness:")) {
-      result.theme = `${result.theme} (Weakness: ${profile})`;
+      result.theme = `${result.theme} (Weakness: ${weakness})`;
     }
     if (typeof result.topic === "string" && !result.topic.includes("Weakness:")) {
-      result.topic = `${result.topic} (Weakness: ${profile})`;
+      result.topic = `${result.topic} (Weakness: ${weakness})`;
     }
   }
 

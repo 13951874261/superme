@@ -509,12 +509,16 @@ export function useOralWarRoomSession({
   }, []);
 
   useEffect(() => {
-    if (embedded) return;
     if (sceneInitRef.current === activeSceneId) return;
     sceneInitRef.current = activeSceneId;
     void initiateSceneDialogue(activeScene);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeSceneId]);
+
+  const handleRetryOpening = useCallback(() => {
+    sceneInitRef.current = activeSceneId;
+    void initiateSceneDialogue(activeScene);
+  }, [activeSceneId, activeScene, initiateSceneDialogue]);
 
   const latestExchange = useMemo(() => {
     const aiMessages = messages.filter(m => m.role === 'ai');
@@ -604,6 +608,7 @@ export function useOralWarRoomSession({
     latestExchange,
     latestFeedback,
     handleSceneSelect,
+    handleRetryOpening,
     sandboxMode,
     handleSandboxModeChange,
     handleEndDailyExpressionReview,

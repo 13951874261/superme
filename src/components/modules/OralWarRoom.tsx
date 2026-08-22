@@ -125,6 +125,7 @@ export default function OralWarRoom(props: OralWarRoomProps) {
           expressionReview={session.expressionReview}
           expressionReviewStatus={session.expressionReviewStatus}
           expressionReviewError={session.expressionReviewError}
+          onRetryOpening={session.handleRetryOpening}
         />
 
         <AnimatePresence>

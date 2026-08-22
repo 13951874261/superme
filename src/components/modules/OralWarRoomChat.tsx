@@ -93,6 +93,7 @@ export interface OralWarRoomChatProps {
   expressionReview?: ExpressionReview | null;
   expressionReviewStatus?: 'idle' | 'loading' | 'ready' | 'error';
   expressionReviewError?: string | null;
+  onRetryOpening?: () => void;
 }
 
 interface ChatMessageBubbleProps {
@@ -275,6 +276,7 @@ function OralWarRoomChatComponent({
   expressionReview = null,
   expressionReviewStatus = 'idle',
   expressionReviewError = null,
+  onRetryOpening,
 }: OralWarRoomChatProps) {
   return (
     <section className={`flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))] relative ${
@@ -542,6 +544,16 @@ function OralWarRoomChatComponent({
             <p className="text-xs text-gray-500">
               {isSending ? '对手角色正在开场...' : '等待 AI 率先开口...'}
             </p>
+            {onRetryOpening && (
+              <button
+                type="button"
+                onClick={onRetryOpening}
+                disabled={isSending}
+                className="text-[10px] font-black uppercase tracking-widest text-[#FF5722] disabled:opacity-50"
+              >
+                重新开场
+              </button>
+            )}
           </div>
         )}
         {latestExchange.userText && (
@@ -773,8 +785,20 @@ function OralWarRoomChatComponent({
       <div className="shrink-0 border-t border-gray-100 p-4 bg-white shadow-[0_-4px_20px_rgba(0,0,0,0.06)] z-10">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div className={`text-sm font-bold truncate ${lastNotice.startsWith('⚠️') ? 'text-red-600' : 'text-[#202124]'}`}>{lastNotice}</div>
-          <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate max-w-[40%]">
-            {activeScene.conflicts.join(' / ')}
+          <div className="flex items-center gap-2">
+            {onRetryOpening && (
+              <button
+                type="button"
+                onClick={onRetryOpening}
+                disabled={isSending}
+                className="shrink-0 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-[#FF5722] text-white disabled:opacity-50"
+              >
+                重新开场
+              </button>
+            )}
+            <div className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate max-w-[40%]">
+              {activeScene.conflicts.join(' / ')}
+            </div>
           </div>
         </div>
         {showNegotiationControls && (

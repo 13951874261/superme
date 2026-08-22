@@ -4,7 +4,7 @@ import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
 import SpeakButton from '../../../SpeakButton';
-import { getUserCurrentProfile } from '../../../../utils/profileHelper';
+import { getUserWeaknessProfile } from '../../../../utils/profileHelper';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../../../utils/reviewHelper';
 
 const MAX_SECONDS = 1800; // 30分钟上限
@@ -48,9 +48,9 @@ export default function ImpromptuSpeechTab() {
   const effectiveTheme = rebalanceTopic || theme;
 
   useEffect(() => {
-    setUserProfile(getUserCurrentProfile());
+    setUserProfile(getUserWeaknessProfile());
     const handleProfileChange = () => {
-      setUserProfile(getUserCurrentProfile());
+      setUserProfile(getUserWeaknessProfile());
     };
     window.addEventListener('global-profile-changed', handleProfileChange);
     const handleRebalance = (e: Event) => {
@@ -220,7 +220,7 @@ export default function ImpromptuSpeechTab() {
     setIsLoadingPrompter(true);
     try {
       const { runSpeechPrompter } = await import('../../../../services/difyAPI');
-      const userProfile = getUserCurrentProfile();
+      const userProfile = getUserWeaknessProfile();
       const targetTheme = userProfile 
         ? `${effectiveTheme} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)` 
         : effectiveTheme;
@@ -434,7 +434,7 @@ export default function ImpromptuSpeechTab() {
       // 阶段 2：AI 评测
       setEvaluatingStage('evaluating');
       const durationStr = `${Math.floor(elapsed / 60)} 分 ${elapsed % 60} 秒`;
-      const profileStrForEval = getUserCurrentProfile();
+      const profileStrForEval = getUserWeaknessProfile();
       let enrichedThemeForEval = effectiveTheme;
       if (profileStrForEval) {
         enrichedThemeForEval = `${effectiveTheme} (针对画像短板进行挑战判定: ${profileStrForEval})`;
