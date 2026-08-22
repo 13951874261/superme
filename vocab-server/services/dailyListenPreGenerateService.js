@@ -414,6 +414,27 @@ function getListenRowByCombo(db, tableName, parts) {
   );
 }
 
+function getListenRowByComboLoose(db, tableName, parts) {
+  const exact = getListenRowByCombo(db, tableName, parts);
+  if (exact) return exact;
+  const table = tableName === 'daily_listen_audios'
+    ? 'daily_listen_audios'
+    : 'daily_listen_articles';
+  return db.prepare(`
+    SELECT * FROM ${table}
+    WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
+    ORDER BY CASE status
+      WHEN 'ready' THEN 0
+      WHEN 'generating' THEN 1
+      WHEN 'failed' THEN 2
+      ELSE 3
+    END, created_at DESC
+    LIMIT 1
+  `).get(
+    parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration,
+  );
+}
+
 function getArticleRow(db, parts) {
   return getListenRowByCombo(db, 'daily_listen_articles', parts);
 }
@@ -476,8 +497,8 @@ function getPregeneratedCombo(db, raw) {
   if (!isCacheableDuration(parts.duration)) {
     return { success: true, status: 'uncached_duration', canBackfill: false, packDate };
   }
-  const articleRow = getArticleRow(db, parts);
-  const audioRow = getAudioRow(db, parts);
+  const articleRow = getListenRowByComboLoose(db, 'daily_listen_articles', parts);
+  const audioRow = getListenRowByComboLoose(db, 'daily_listen_audios', parts);
   const articleStatus = resolveArticleStatus(articleRow);
   const audioStatus = resolveAudioStatus(audioRow);
 
@@ -1481,8 +1502,7 @@ async function runDailyListenCronJob(db, options = {}) {
       summary.errors.push(...userSummary.errors);
 
       if (run) {
-        const listenFailed = (userSummary.combosFail || 0) > 0 && (userSummary.combosOk || 0) === 0;
-        const listenPartial = (userSummary.combosFail || 0) > 0 && (userSummary.combosOk || 0) > 0;
+        const listenFailed = (userSummary.combosFail || 0) > 0;
         dailyCronRunService.upsertStep(db, {
           runId: run.id,
           userId: user.user_id,
@@ -1490,7 +1510,7 @@ async function runDailyListenCronJob(db, options = {}) {
           status: listenFailed ? 'failed' : 'completed',
           progress: 100,
           finishedAt: Date.now(),
-          errorMessage: listenFailed || listenPartial
+          errorMessage: listenFailed
             ? `combosFail=${userSummary.combosFail}`
             : null,
           resultSummary: userSummary,
@@ -1519,6 +1539,38 @@ async function runDailyListenCronJob(db, options = {}) {
   const cleanup = module.exports.cleanupDailyListenStorage(db);
   console.log('[DailyListen Cron] done', summary, cleanup);
   return { summary, cleanup };
+}
+
+async function resumeInterruptedListenJobs(db) {
+  const packDate = dailyPackService.getPackDate();
+  let rows = [];
+  try {
+    rows = db.prepare(`
+      SELECT DISTINCT r.cron_tick_id AS cronTickId, s.user_id AS userId
+      FROM daily_cron_steps s
+      JOIN daily_cron_runs r ON r.id = s.run_id
+      WHERE s.module = 'listen'
+        AND s.status = 'failed'
+        AND r.pack_date = ?
+        AND (
+          IFNULL(s.error_message, '') LIKE '%interrupted%'
+          OR IFNULL(r.error_message, '') LIKE '%interrupted%'
+        )
+    `).all(packDate);
+  } catch {
+    return { resumed: 0 };
+  }
+  for (const row of rows) {
+    try {
+      await runDailyListenCronJob(db, {
+        cronTickId: row.cronTickId,
+        userId: row.userId,
+      });
+    } catch (err) {
+      console.warn('[DailyListen Cron] resume interrupted fail user=%s: %s', row.userId, err.message);
+    }
+  }
+  return { resumed: rows.length };
 }
 
 /**
@@ -1717,6 +1769,7 @@ module.exports = {
   runDailyListenForUser,
   scheduleUserDailyCatchup,
   runDailyListenCronJob,
+  resumeInterruptedListenJobs,
   syncAudioFromLongArticleRow,
   batchSyncAudiosFromLongArticles,
 };

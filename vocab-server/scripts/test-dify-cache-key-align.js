@@ -73,14 +73,18 @@ function testReadExactSignatureHitAndMiss() {
   assert.ok(hit);
   assert.strictEqual(hit.theme, theme, '库内 theme 应为入参主题而非 Dify 输出');
 
-  const miss = dailyPackService.getDailyPackRow(
+  const fallback = dailyPackService.getDailyPackRow(
     db,
     'lzhmy',
     packDate,
     dailyPackService.computeInputSignature('别的主题', 'collaborate', 'profile'),
     '别的主题'
   );
-  assert.strictEqual(miss, undefined);
+  assert.ok(fallback, '同用户今日已有 ready 包时，主题/签名不一致仍应读到缓存');
+  assert.strictEqual(fallback.theme, theme);
+  const serialized = dailyPackService.serializeDailyPack(fallback);
+  assert.strictEqual(serialized.status, 'ready');
+  assert.ok(serialized.wakeup);
 
   const nullMiss = dailyPackService.getDailyPackRow(db, 'lzhmy', packDate, null);
   assert.strictEqual(nullMiss, undefined, '无签名不得宽回退');

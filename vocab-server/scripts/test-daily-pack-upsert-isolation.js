@@ -141,6 +141,30 @@ function testGetDailyPackRowExactSignatureOnly() {
   assert.strictEqual(byExact.id, 'mine-generating');
 }
 
+function testGetDailyPackRowFallsBackToTodayReadyPack() {
+  const db = createDb();
+  const packDate = '2026-08-03';
+  insertPack(db, {
+    id: 'mine-ready',
+    userId: 'lzhmy',
+    packDate,
+    theme: '新人报到',
+    signature: 'sig-old-theme',
+    status: 'ready',
+  });
+
+  const row = dailyPackService.getDailyPackRow(
+    db,
+    'lzhmy',
+    packDate,
+    'sig-page-theme',
+    '商务谈判：让步与施压',
+  );
+  assert.ok(row, '首页入参主题不同时，仍应命中今日已 ready 包');
+  assert.strictEqual(row.id, 'mine-ready');
+  assert.strictEqual(row.theme, '新人报到');
+}
+
 function main() {
   const tests = [
     ['upsert 不复用他人 id', testUpsertDoesNotReuseOtherUserId],
@@ -148,6 +172,7 @@ function main() {
     ['读不回退跨用户', testGetDailyPackRowDoesNotFallbackAcrossUsers],
     ['读不回退全局历史', testGetDailyPackRowDoesNotFallbackToGlobalHistory],
     ['读仅精确签名', testGetDailyPackRowExactSignatureOnly],
+    ['读回退到今日 ready 包', testGetDailyPackRowFallsBackToTodayReadyPack],
   ];
 
   let failed = 0;

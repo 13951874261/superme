@@ -507,13 +507,19 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
   const statuses = db.prepare(
     'SELECT status FROM daily_cron_steps WHERE run_id = ?',
   ).all(runId).map((r) => r.status);
-  const executionStatus = aggregateExecutionStatus(statuses);
+  let executionStatus = aggregateExecutionStatus(statuses);
+  if (statuses.length < unitTotal && executionStatus === 'completed') {
+    executionStatus = 'running';
+  }
   const finishedUnits = countFinishedUnits(db, runId);
   const progress = computeRunProgress({ finishedUnits, totalUnits: unitTotal });
   const now = Date.now();
   const finishedAt = (executionStatus === 'running' || executionStatus === 'pending')
     ? null
     : now;
+  const auditHealth = (executionStatus === 'failed' || executionStatus === 'partial_failed')
+    ? 'degraded'
+    : null;
 
   try {
     db.prepare(`
@@ -521,6 +527,7 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
         status = ?,
         execution_status = ?,
         progress = ?,
+        audit_health = COALESCE(?, audit_health),
         finished_at = CASE WHEN ? IS NULL THEN finished_at ELSE ? END,
         updated_at = ?,
         summary_json = ?
@@ -529,6 +536,7 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
       executionStatus,
       executionStatus,
       progress,
+      auditHealth,
       finishedAt,
       finishedAt,
       now,

@@ -17,26 +17,28 @@ function extract(source, startMarker, endMarker) {
   return source.slice(start, end);
 }
 
-test('login-ping records login and theme without scheduling catch-up', () => {
+test('login-ping records login without scheduling catch-up', () => {
   const route = extract(
     read('vocab-server/server.js'),
     "app.post('/api/user/login-ping'",
-    "app.get('/api/daily-pack/today'",
+    "app.get('/api/system/date'",
   );
 
   assert.doesNotMatch(route, /scheduleUserDailyCatchup/);
+  assert.doesNotMatch(route, /upsertUserTheme/);
+  assert.match(route, /recordUserLogin\(db,\s*userId\)/);
   assert.match(route, /res\.json\(\{\s*success:\s*true,\s*catchupScheduled:\s*false,\s*\.\.\.result\s*\}\)/);
 });
 
-test('login-ping keeps both database writes inside the 500 boundary', () => {
+test('login-ping keeps the login write inside the 500 boundary and does not rewrite theme', () => {
   const route = extract(
     read('vocab-server/server.js'),
     "app.post('/api/user/login-ping'",
-    "app.get('/api/daily-pack/today'",
+    "app.get('/api/system/date'",
   );
 
-  assert.match(route, /recordUserLogin\(db,\s*userId\)[\s\S]*upsertUserTheme\(db,\s*userId,\s*theme\)/);
-  assert.doesNotMatch(route, /upsertUserTheme fail/);
+  assert.match(route, /recordUserLogin\(db,\s*userId\)/);
+  assert.doesNotMatch(route, /upsertUserTheme/);
   assert.match(route, /catch\s*\(e\)\s*\{\s*res\.status\(500\)/);
 });
 

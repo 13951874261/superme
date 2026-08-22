@@ -173,6 +173,22 @@ function findUserDailyPackByDate(db, userId, packDate) {
   ).get(uid, packDate);
 }
 
+function isAccentProfile(value) {
+  const t = String(value || '').trim();
+  return t === '英国 (UK)' || t === '美国 (US)';
+}
+
+function sanitizeWeaknessProfile(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  if (isAccentProfile(raw)) return '';
+  return raw
+    .split(/[;；,，]/)
+    .map((part) => part.trim())
+    .filter((part) => part && !isAccentProfile(part))
+    .join('; ');
+}
+
 function getDailyPackRow(db, userId, packDate, inputSignature = null, theme = null) {
   const uid = normalizeUserId(userId);
   // D1: 有签名则精确命中；无签名不宽回退到「任意 ready」
@@ -186,9 +202,6 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null, theme = nu
     "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
   ).get(uid, packDate);
   if (fallback) {
-    if (theme && fallback.theme !== theme) {
-      return undefined;
-    }
     console.log(`[DailyPack Row Fallback] userId=${uid} matched today's ready pack via fallback instead of exact signature.`);
     return fallback;
   }
@@ -264,7 +277,7 @@ function getUserCurrentProfile(db, userId) {
   const uid = normalizeUserId(userId);
   try {
     const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
-    return String(row?.profile_content || '').trim().slice(0, 280);
+    return sanitizeWeaknessProfile(String(row?.profile_content || '')).slice(0, 280);
   } catch {
     return '';
   }
@@ -906,6 +919,8 @@ module.exports = {
   PACK_TZ,
   FLAW_SUB_THEMES,
   normalizeUserId,
+  isAccentProfile,
+  sanitizeWeaknessProfile,
   computeInputSignature,
   computeDailyArticleInputSignature,
   computeListenArticleInputSignature,

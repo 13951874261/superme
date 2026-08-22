@@ -477,6 +477,17 @@ try {
 }
 const dailyListenPreGenerateService = require('./services/dailyListenPreGenerateService');
 dailyListenPreGenerateService.initDailyListenTables(db);
+setImmediate(() => {
+  dailyListenPreGenerateService.resumeInterruptedListenJobs(db)
+    .then((result) => {
+      if (result?.resumed) {
+        console.log('[DailyListen Cron] resumed interrupted jobs', result);
+      }
+    })
+    .catch((e) => {
+      console.warn('[DailyListen Cron] resume interrupted failed:', e.message);
+    });
+});
 const listenPrefsService = require('./services/listenPrefsService');
 listenPrefsService.initListenPrefsTable(db);
 const aestheticsPushService = require('./services/aestheticsPushService');
@@ -7736,14 +7747,10 @@ app.put('/api/user/theme', (req, res) => {
 app.post('/api/user/login-ping', (req, res) => {
   try {
     const userId = req.body?.userId;
-    const theme = req.body?.theme || '商务谈判：让步与施压';
     if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
 
-    // 1. 记录登录日志
+    // 登录只记 login log，不改写 user_theme_prefs
     const result = dailyListenPreGenerateService.recordUserLogin(db, userId);
-
-    // 2. 自动将前台用户输入的用户名与其主题写入 user_theme_prefs 物理表
-    dailyPackService.upsertUserTheme(db, userId, theme);
 
     // N1: 登录不再触发异步补跑；缺包由手动生成或 02:00 cron 负责
     res.json({ success: true, catchupScheduled: false, ...result });
@@ -7770,13 +7777,6 @@ const handleGetTodayDailyPack = (req, res) => {
 
     // 兼顾账号别名
     const userIds = [rawUserId];
-
-    // 自动保障前台用户及其选择的主题写入 user_theme_prefs 物理表
-    try {
-      if (theme) {
-        for (const u of userIds) dailyPackService.upsertUserTheme(db, u, theme);
-      }
-    } catch (e) {}
 
     const packDate = dailyPackService.getPackDate();
     const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
