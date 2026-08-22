@@ -497,7 +497,7 @@ export default function GameTheoryModule() {
       } else if (task.status === 'failed') {
         clear();
         playGentleWarning();
-        const msg = task.error || '博弈研判失败';
+        const msg = task.error || '博弈分析失败';
         if (taskId === pendingCaseTaskId) setSubmitError(msg);
         if (taskId === pendingSimTaskId) setSimSubmitError(msg);
       }
@@ -740,7 +740,7 @@ export default function GameTheoryModule() {
       }
 
       const fullAnswer = `① 利益结构分析：\n${stakeholderInterests}\n\n② 善/恶动机透视：\n${motivesAnalysis}\n\n③ 对方权力弱点：\n${weaknesses}\n\n④ 博弈关键节点：\n${keyPoints}`;
-      const titleHint = caseText.trim().slice(0, 40) || '案例研判';
+      const titleHint = caseText.trim().slice(0, 40) || '案例分析';
 
       const inputs: GameTheoryAnalyzeInput & { source_type: 'case_analysis'; title: string } = {
         scene_type: activeEnv,
@@ -756,7 +756,7 @@ export default function GameTheoryModule() {
       addTask({
         id: taskId,
         type: 'game_theory',
-        name: `博弈研判: ${titleHint}`,
+        name: `博弈分析: ${titleHint}`,
         status: 'running',
         progress: 10,
         logs: knowledgeTaskLogs(knowledgeReminder),
@@ -773,7 +773,7 @@ export default function GameTheoryModule() {
       setAnimateBorder(false);
       playGentleWarning();
       console.error('推演失败:', err);
-      setSubmitError('推演失败，请稍后再试');
+      setSubmitError('分析失败，请稍后再试');
     } finally {
       setIsLoading(false);
     }
@@ -872,7 +872,7 @@ export default function GameTheoryModule() {
                       
                       <div className="flex flex-col gap-1.5 mb-6">
                         {([
-                          { id: 'gov_struggle', name: '体制内政治' },
+                          { id: 'gov_struggle', name: '体制内冲突' },
                           { id: 'corp_clash', name: '外企权力冲突' },
                           { id: 'upward_takeover', name: '以下克上' }
                         ] as const).map(env => (
@@ -1088,7 +1088,7 @@ export default function GameTheoryModule() {
                         ) : (
                           <>
                             <Sparkles className="w-4 h-4 text-zinc-400" />
-                            <span>提交四维研判并启动董事会推演</span>
+                            <span>提交四维分析并开始董事会模拟</span>
                           </>
                         )}
                       </button>
@@ -1244,7 +1244,7 @@ export default function GameTheoryModule() {
                   {prototypes.length === 0 ? (
                     <div className="text-center py-12 text-xs text-zinc-500 font-semibold leading-relaxed">
                       <HelpCircle className="w-6 h-6 mx-auto mb-2 text-zinc-600" />
-                      当前人性档案库为空。<br />请在上方手动登记，或在“高管案例研判”推演成功后由系统自动捕获存库。
+                      当前人性档案库为空。<br />请在上方手动登记，或在“高管案例分析”成功后由系统自动捕获存库。
                     </div>
                   ) : (
                     <div 
@@ -1535,7 +1535,7 @@ export default function GameTheoryModule() {
                       ) : (
                         <>
                           <Sparkles className="w-4 h-4 text-zinc-400" />
-                          <span>启动人机博弈对决推演</span>
+                          <span>启动人机博弈对决练习</span>
                         </>
                       )}
                     </button>
@@ -1670,7 +1670,7 @@ export default function GameTheoryModule() {
                 </div>
               ) : historyItems.length === 0 ? (
                 <div className="py-16 text-center text-xs text-zinc-400 font-medium border border-dashed border-zinc-200 rounded-2xl">
-                  暂无对局记录。完成案例研判或人机对战后将自动归档到此处。
+                  暂无对局记录。完成案例分析或人机对战后将自动归档到此处。
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1701,7 +1701,7 @@ export default function GameTheoryModule() {
                             <div className="min-w-0 space-y-1">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600">
-                                  {item.source_type === 'simulation' ? '人机对战' : '案例研判'}
+                                  {item.source_type === 'simulation' ? '人机对战' : '案例分析'}
                                 </span>
                                 <span className="text-[10px] text-zinc-400 font-mono">
                                   {new Date(item.created_at).toLocaleString()}
@@ -1732,13 +1732,13 @@ export default function GameTheoryModule() {
                           <div className="mt-4 pt-4 border-t border-zinc-100 space-y-3">
                             <div className="rounded-xl p-4 bg-zinc-50 border border-zinc-100 text-center">
                               <p className="text-sm font-bold text-zinc-900 mb-1">
-                                {expandedDetail.full_result.is_success ? '策略奏效 ｜ 推演成功' : '策略受挫 ｜ 推演预警'}
+                                {expandedDetail.full_result.is_success ? '策略奏效 ｜ 分析成功' : '策略受挫 ｜ 分析预警'}
                               </p>
                               <p className="text-2xl font-black font-mono text-zinc-800">{expandedDetail.full_result.score}</p>
                             </div>
                             {expandedDetail.full_result.quality === 'below_standard' && (
                               <div className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-[11px] font-semibold text-red-800 leading-relaxed">
-                                {expandedDetail.full_result.quality_note || '研判内容未达要求，请完善后再试'}
+                                {expandedDetail.full_result.quality_note || '分析内容未达要求，请完善后再试'}
                               </div>
                             )}
                             {item.source_type === 'simulation' ? (
@@ -1844,7 +1844,7 @@ export default function GameTheoryModule() {
               {/* 左 70%：5 层纵深因果链 */}
               <div className="lg:col-span-7 space-y-5">
                 <div className="bg-white border border-zinc-200/80 rounded-[2rem] p-6 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)]">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">1. 录入待推演的管理事件 (Crisis Event Input)</span>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-3">1. 录入待分析的管理事件</span>
                   <textarea
                     value={ascEvent}
                     onChange={e => setAscEvent(e.target.value)}
@@ -1855,7 +1855,7 @@ export default function GameTheoryModule() {
                 </div>
 
                 <div className="space-y-3">
-                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block pl-2">2. 5 层因果链推演</span>
+                  <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block pl-2">2. 5 层因果链分析</span>
                   {ascLayers.map((val, i) => (
                     <div key={i}
                       className="bg-white border border-zinc-200/80 rounded-2xl p-4 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] transition-all hover:shadow-md"
@@ -1891,12 +1891,12 @@ export default function GameTheoryModule() {
                   {ascLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
-                      <span>深度研判中…</span>
+                      <span>深度分析中…</span>
                     </>
                   ) : (
                     <>
                       <Compass className="w-4 h-4 text-zinc-400" />
-                      <span>提交五层因果链并开始研判</span>
+                      <span>提交五层因果链并开始分析</span>
                     </>
                   )}
                 </button>
@@ -1951,7 +1951,7 @@ export default function GameTheoryModule() {
 
                     {/* 逐层研判 */}
                     <div className="bg-white rounded-[2rem] p-5 border border-zinc-200/80 shadow-[0_4px_20px_-4px_rgba(9,9,11,0.04)] space-y-3">
-                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">逐层研判明细 (Verdict details)</span>
+                      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-1">逐层分析明细</span>
                       <div className="space-y-3.5">
                         {ascResult.layer_feedback && ascResult.layer_feedback.map((item, idx) => (
                           <div key={idx} className="border-b border-zinc-100 pb-2.5 last:border-0 last:pb-0">
@@ -1966,7 +1966,7 @@ export default function GameTheoryModule() {
                               </span>
                             </div>
                             <p className="text-[10px] text-zinc-600 leading-relaxed font-medium">
-                              <span className="text-zinc-400 font-bold">研判缝隙: </span>{item.gap || '无'}
+                              <span className="text-zinc-400 font-bold">待补问题: </span>{item.gap || '无'}
                             </p>
                           </div>
                         ))}

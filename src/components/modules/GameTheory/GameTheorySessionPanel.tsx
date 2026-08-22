@@ -60,7 +60,7 @@ import {
 gsap.registerPlugin(useGSAP);
 
 const SCENE_OPTIONS: Array<{ id: SessionSceneType; name: string }> = [
-  { id: 'gov_struggle', name: '体制内政治' },
+  { id: 'gov_struggle', name: '体制内冲突' },
   { id: 'corp_clash', name: '外企权力冲突' },
   { id: 'upward_takeover', name: '以下克上' },
 ];
@@ -1121,7 +1121,7 @@ export default function GameTheorySessionPanel() {
                 onChange={(e) => setSourceType(e.target.value as SessionSourceType)}
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-3 py-2 text-xs font-bold outline-none"
               >
-                <option value="guided_simulation">模拟推演</option>
+                <option value="guided_simulation">模拟练习</option>
                 <option value="real_record">真实记录</option>
               </select>
               <select

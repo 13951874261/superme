@@ -484,7 +484,7 @@ export default function EntertainmentModule() {
           triggerWarning();
         }
       } else {
-        throw new Error(data?.error || '研判服务响应异常');
+        throw new Error(data?.error || '分析服务响应异常');
       }
     } catch (e) {
 
@@ -822,7 +822,7 @@ export default function EntertainmentModule() {
 
     setReflectionResult({
 
-      gain: "今日在线上对【政商务饭局与敬酒】及【古典音乐鉴赏】情境进行了研判，初步摸清了“杯口低于长官”这一潜规则的物理时机，同时在智力博弈对抗中体验了期望值防线。阶层隐性竞争力的核心正是在这些细微克制处显露。",
+      gain: "今日在线上对【政商务饭局与敬酒】及【古典音乐鉴赏】情境进行了分析，初步摸清了“杯口低于长官”这一潜规则的物理时机，同时在智力博弈对抗中体验了期望值防线。进阶竞争力的核心正是在这些细微克制处显露。",
 
       focus: "明日重点训练【中式雅集】的香道微力量控制，并在德州/21点博弈中继续锤炼控制下注回撤的心理定力。"
 
@@ -988,7 +988,7 @@ export default function EntertainmentModule() {
 
                 </h3>
 
-                <p className="text-[11px] text-zinc-500 mt-0.5">请选中下方场景进入模拟研判或深度解析</p>
+                <p className="text-[11px] text-zinc-500 mt-0.5">请选中下方场景进入模拟分析或深度解析</p>
 
               </div>
 
