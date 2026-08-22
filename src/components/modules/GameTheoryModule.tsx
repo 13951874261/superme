@@ -1976,7 +1976,7 @@ export default function GameTheoryModule() {
                     {/* 终极规律 */}
                     {ascResult.ultimate_law && (
                       <div className="bg-zinc-900 text-zinc-100 rounded-[2rem] p-6 border border-zinc-800 shadow-md">
-                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2">AI 萃取的终极规律</span>
+                        <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest block mb-2">AI 总结的终极规律</span>
                         <p className="text-xs text-zinc-300 font-medium leading-relaxed italic">
                           “{ascResult.ultimate_law}”
                         </p>

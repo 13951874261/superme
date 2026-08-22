@@ -265,7 +265,7 @@ function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
             <div className="mb-3 space-y-2">
               <div className="bg-zinc-900 text-zinc-200 rounded-xl p-3 text-[11px] leading-relaxed">
                 <span className="text-amber-400 font-bold flex items-center gap-1 mb-1">
-                  <Zap className="w-3 h-3" /> 启发研判
+                  <Zap className="w-3 h-3" /> 启发分析
                 </span>
                 {chatResult.analysis}
               </div>

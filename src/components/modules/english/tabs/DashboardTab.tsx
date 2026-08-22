@@ -863,7 +863,7 @@ export default function DashboardTab() {
         <SOPGuide isSopExpanded={isSopExpanded} />
       </div>
 
-      {/* 均分布局：上/中两行对开等高，弹药库通栏 */}
+      {/* 均分布局：上/中两行对开等高，词汇库通栏 */}
       <div className="flex flex-col gap-2">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 items-stretch">
           <div className="lg:col-span-7 bg-white rounded-xl p-2.5 border border-slate-100 shadow-[0_4px_14px_rgba(0,0,0,0.012)] flex flex-col h-full min-h-[11rem]">

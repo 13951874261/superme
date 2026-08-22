@@ -170,7 +170,7 @@ export default function WriteTab() {
     const conflictLine = (ctx.conflicts || []).join(' / ');
     setWriteIntent(
       `【书面练习 · ${ctx.sceneTitle}】\n`
-      + `核心冲突：${conflictLine || '见上文练习推演'}\n`
+      + `核心冲突：${conflictLine || '见上文练习内容'}\n`
       + `跨文化背景：${ctx.culturalContext || ''}\n\n`
       + '请撰写一封高阶商务信函/邮件，回应上述多角色博弈情境。要求：语法严谨、逻辑闭环、分寸得体，无破绽。',
     );
@@ -234,7 +234,7 @@ export default function WriteTab() {
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
       const moduleName = WRITE_MODULES.find(m => m.id === activeModule)?.label || theme;
-      const promptTheme = `【任务生成模式】请针对主题“${theme}” and 写作训练维度“${moduleName}”，生成一封极具突破性、需要高管站位来破局回复的商业邮件或公文写作任务。只输出任务正文。`;
+      const promptTheme = `【任务生成模式】请针对主题“${theme}” and 写作训练维度“${moduleName}”，生成一封极具突破性、需要高管站位来有效回复的商业邮件或公文写作任务。只输出任务正文。`;
       const result = await runListenMaterialGenerator(promptTheme, 'meeting', 'B2', 'short');
       const immediate = resolveListenMaterialText(result);
       if (immediate) {

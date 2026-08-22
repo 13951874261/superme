@@ -94,7 +94,7 @@ export function VocabularyGrid({
             <div className="flex items-center justify-between shrink-0 mb-3">
               <h5 className="text-[11px] font-black uppercase tracking-widest text-slate-800 flex items-center gap-1.5">
                 <span className="w-1.5 h-3 bg-[var(--color-brand)] rounded-full"></span>
-                已整理出的商战生词 ({extractedWords.length})
+                已整理出的商务生词 ({extractedWords.length})
               </h5>
             </div>
             <div className="flex-1 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin' }}>

@@ -502,7 +502,7 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
-                  <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ③ 盈利成色审计 (现金流匹配与数据脱水破绽)
+                  <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ③ 盈利成色分析（现金流匹配与数据问题）
                 </span>
               </div>
               <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[100px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.profit_logic_flaws}</div>
@@ -515,7 +515,7 @@ export default function ReadModule() {
             >
               <div className="flex items-center justify-between mb-4 border-b border-neutral-800 pb-3">
                 <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-amber-500/10 text-amber-400 uppercase">
-                  <Shield className="w-3.5 h-3.5 text-amber-500" /> 04 / 溯源与防伪审计
+                  <Shield className="w-3.5 h-3.5 text-amber-500" /> ④ 溯源与防伪检查
                 </span>
                 <span className="text-[10px] font-bold text-amber-500">信息防伪指引</span>
               </div>
@@ -572,7 +572,7 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-blue-50 text-blue-600 uppercase">
-                <Compass className="w-3.5 h-3.5 text-blue-500" /> ② 利益对峙 (隐性底线与诉求脱水)
+                <Compass className="w-3.5 h-3.5 text-blue-500" /> ② 利益对峙（隐性底线与核心诉求）
               </span>
             </div>
             <div className="w-full bg-[#f8f9fa] rounded-2xl p-4 text-xs md:text-sm text-[#202124] font-semibold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-slate-100/80">{result?.stance_reversal}</div>
@@ -623,7 +623,7 @@ export default function ReadModule() {
           >
             <div className="flex items-center justify-between mb-4 border-b border-orange-100/10 pb-3">
               <span className="flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black tracking-widest bg-orange-50 text-[#FF5722] uppercase">
-                <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ② 思维挑刺 (论证局限性与逻辑偏见审计)
+                <Zap className="w-3.5 h-3.5 text-[#FF5722]" /> ② 思维挑刺（论证局限性与逻辑问题）
               </span>
             </div>
             <div className="w-full bg-[#fffcf8] rounded-2xl p-4 text-xs md:text-sm text-[#b83c18] font-bold min-h-[150px] whitespace-pre-wrap leading-relaxed border border-orange-100/30">{result?.logic_flaws}</div>
@@ -871,7 +871,7 @@ export default function ReadModule() {
               className="w-full bg-transparent p-0 text-sm outline-none resize-none leading-relaxed text-[#202124] placeholder-gray-300 font-semibold" 
               placeholder={
                 activeTab === 'book'
-                  ? "在这里输入您对课外书的阅读感悟、精彩章节提炼或思维碎碎念，让 AI 深入为您挑刺漏洞、构建认知闭环..."
+                  ? "在这里输入您对课外书的阅读感悟、精彩章节提炼或思维碎碎念，让 AI 深入为您挑刺漏洞、形成完整理解..."
                   : "粘贴冗杂的原文，或点击右上方“每日 AI 素材推送”由 AI 推送符合该场景下的训练素材..."
               }
             />
@@ -1112,7 +1112,7 @@ export default function ReadModule() {
                           </button>
                         ) : (
                           <div className="w-full bg-amber-50/30 rounded-2xl p-3 border border-amber-100/50 mt-2">
-                            <span className="text-[9px] font-black text-amber-700 block mb-1 uppercase tracking-wider">● 针对性审计反馈</span>
+                            <span className="text-[9px] font-black text-amber-700 block mb-1 uppercase tracking-wider">● 针对性问题反馈</span>
                             <p className="text-[11px] text-amber-900 font-semibold leading-relaxed whitespace-pre-wrap">{reversalFeedback}</p>
                           </div>
                         )}
@@ -1179,7 +1179,7 @@ export default function ReadModule() {
                         <span className="text-[10px] bg-blue-500/10 text-blue-600 font-black px-1.5 py-0.5 rounded">2</span>
                         <div className="text-[11px] text-blue-900/90 font-medium">
                           <span className="block text-blue-950 font-black mb-0.5">财报与商业模式</span>
-                          审计出海企业盈利破绽与海外市场合规/风险痛点。
+                          分析出海企业盈利问题与海外市场合规/风险痛点。
                         </div>
                       </div>
                       <div className="p-3 bg-[var(--color-accent)]/5 rounded-2xl border border-[var(--color-accent)]/20 flex gap-2 items-start transition-all hover:bg-[var(--color-accent)]/10 hover:shadow-sm">

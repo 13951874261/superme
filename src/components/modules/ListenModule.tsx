@@ -1585,7 +1585,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-widest">累计研判对话</span>
+                <span className="text-[10px] text-slate-400 font-bold block uppercase tracking-widest">累计分析对话</span>
                 <p className="text-lg font-black text-white">{dailyStats.completedCount} 组 <span className="text-xs font-medium text-slate-400">({dailyStats.studyMinutes} 分钟)</span></p>
               </div>
             </div>
