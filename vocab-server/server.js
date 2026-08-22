@@ -500,7 +500,7 @@ const aestheticsPush = aestheticsPushService.createService({
 const { createReadPenetrationAnalyzer } = require('./services/readPenetrationProxy');
 const { createWorkflowRunner, createWorkflowUploader } = require('./services/englishWorkflowProxy');
 const { analyzeListening } = require('./services/listenAnalysisService');
-const { normalizePrototypeArchive } = require('./services/prototypeArchiveGuard');
+const { normalizePrototypeArchive, isTestFixturePrototypeName, filterVisiblePrototypes } = require('./services/prototypeArchiveGuard');
 const { initGameTheorySessionTables, createGameTheorySessionService } = require('./services/gameTheorySessionService');
 initGameTheorySessionTables(db);
 const gameTheoryCasePushService = require('./services/gameTheoryCasePushService');
@@ -9269,7 +9269,7 @@ app.get('/api/game-theory/prototypes', (req, res) => {
   try {
     const userId = req.query.userId || 'default-user';
     const rows = db.prepare('SELECT * FROM personal_prototypes WHERE user_id = ? ORDER BY added_at DESC').all(userId);
-    res.json(rows);
+    res.json(filterVisiblePrototypes(rows));
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Database error' });
@@ -9285,6 +9285,9 @@ app.post('/api/game-theory/prototypes', (req, res) => {
     }
     if (!name) {
       return res.status(400).json({ error: 'Missing name' });
+    }
+    if (isTestFixturePrototypeName(name)) {
+      return res.status(400).json({ error: 'Invalid prototype name' });
     }
 
     const existing = db.prepare('SELECT id FROM personal_prototypes WHERE user_id = ? AND name = ?').get(userId, name);

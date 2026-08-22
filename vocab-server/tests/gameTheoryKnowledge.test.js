@@ -22,11 +22,20 @@ function syncedExtra(moduleTargets, confirmedAt, difficulty = 1) {
   });
 }
 
-function makeSelectDb(rows) {
+function makeSelectDb(rows, tacticRows = []) {
   return {
     prepare(sql) {
-      if (String(sql).includes('SELECT * FROM knowledge_vault WHERE user_id = ?')) {
+      const text = String(sql);
+      if (text.includes('SELECT * FROM knowledge_vault WHERE user_id = ?')) {
         return { all: () => rows };
+      }
+      if (text.includes('FROM game_theory_tactics')) {
+        return {
+          all: (...args) => {
+            makeSelectDb.lastTacticsArgs = args;
+            return tacticRows;
+          }
+        };
       }
       throw new Error('unexpected sql: ' + sql);
     }
@@ -220,5 +229,33 @@ const deepInjected = loadInjectedKnowledge(makeSelectDb([deepRow]), 'u1', 'game_
 assert.equal(deepInjected.maxDifficulty, 3);
 assert.equal(deepInjected.isDeepened, true);
 assert.ok(deepInjected.context.includes('（加深）'));
+
+const tactics = [
+  { id: 'tac1', user_id: 'system', name: '下马威', description: '开局用公开质询压住对方节奏', created_at: 1 },
+  { id: 'tac2', user_id: 'u1', name: '让步诱饵', description: '先让一步换取关键条款', created_at: 2 },
+  { id: 'tac3', user_id: 'u1', name: '信息封锁', description: '切断对方横向求证通道', created_at: 3 },
+  { id: 'tac4', user_id: 'system', name: '第四条', description: 'd4', created_at: 4 },
+  { id: 'tac5', user_id: 'system', name: '第五条', description: 'd5', created_at: 5 },
+  { id: 'tac6', user_id: 'system', name: '第六条不应注入', description: 'd6', created_at: 6 },
+];
+const tacticsFallback = loadInjectedKnowledge(makeSelectDb([], tactics), 'u1');
+assert.equal(tacticsFallback.syncedCount, 0);
+assert.equal(tacticsFallback.usedCount, MAX_KNOWLEDGE_ITEMS);
+assert.deepEqual(tacticsFallback.ids, []);
+assert.ok(tacticsFallback.context.startsWith('【博弈知识】'));
+assert.ok(tacticsFallback.context.includes('下马威'));
+assert.ok(tacticsFallback.context.includes('第五条'));
+assert.equal(tacticsFallback.context.includes('第六条不应注入'), false);
+assert.equal(tacticsFallback.reminder, '已引用战术库 5 条');
+assert.deepEqual(makeSelectDb.lastTacticsArgs, ['system', 'u1']);
+
+const vaultWins = loadInjectedKnowledge(makeSelectDb([deepRow], tactics), 'u1');
+assert.ok(vaultWins.context.includes('BATNA实战'));
+assert.equal(vaultWins.context.includes('下马威'), false);
+assert.equal(vaultWins.usedCount, 1);
+
+const listenNoTactics = loadInjectedKnowledge(makeSelectDb([], tactics), 'u1', 'listen');
+assert.equal(listenNoTactics.usedCount, 0);
+assert.equal(listenNoTactics.context, '');
 
 console.log('gameTheoryKnowledge.test.js passed');

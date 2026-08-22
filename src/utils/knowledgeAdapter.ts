@@ -58,6 +58,18 @@ export function buildGameTheoryKnowledgeContext(items: KnowledgeItem[]): string 
   return buildKnowledgeContext(items, 'game_theory', '【博弈知识】');
 }
 
+export function buildGameTheoryKnowledgeHint(linkedCount: number, tacticsCount: number): string {
+  const linked = Math.max(0, Number(linkedCount) || 0);
+  if (linked > 0) {
+    return `已同步 ${linked} 条博弈知识，本次训练将自动引用 ${Math.min(linked, MAX_KNOWLEDGE_ITEMS)} 条`;
+  }
+  const tactics = Math.max(0, Number(tacticsCount) || 0);
+  if (tactics > 0) {
+    return `已引用战术库 ${Math.min(tactics, MAX_KNOWLEDGE_ITEMS)} 条`;
+  }
+  return '尚未同步博弈知识，本次训练不注入资料抽屉内容';
+}
+
 export function buildWritingKnowledgeContext(items: KnowledgeItem[]): string {
   return buildKnowledgeContext(items, 'writing', '【写作知识】');
 }

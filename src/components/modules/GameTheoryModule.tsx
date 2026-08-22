@@ -21,6 +21,7 @@ import {
   GameTheoryHistoryItem,
   TacticItem,
   pushGameTheoryCase,
+  getTactics,
 } from '../../services/difyAPI';
 import TacticsPanel from './GameTheory/TacticsPanel';
 import GameTheorySessionPanel from './GameTheory/GameTheorySessionPanel';
@@ -31,6 +32,7 @@ import { useTask } from '../TaskContext';
 import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import { consumeGameTheorySessionFocus, GT_NAV_SESSION_EVENT } from '../../utils/gtFocusTab';
 import { evaluateCasePushQuality } from '../../utils/gtCaseQuality';
+import { buildGameTheoryKnowledgeHint } from '../../utils/knowledgeAdapter';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
   return reminder
@@ -139,26 +141,18 @@ export default function GameTheoryModule() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/knowledge-vault/linked?userId=${encodeURIComponent(getAppUserId())}&module=game_theory`)
-      .then((res) => res.json())
-      .then((list) => {
-        if (cancelled) return;
-        const rows = Array.isArray(list) ? list : [];
-        setLinkedGameKnowledge(rows);
-        const n = rows.length;
-        const used = Math.min(n, 5);
-        setKnowledgeHint(
-          n > 0
-            ? `已同步 ${n} 条博弈知识，本次训练将自动引用 ${used} 条`
-            : '尚未同步博弈知识，本次训练不注入资料抽屉内容'
-        );
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setLinkedGameKnowledge([]);
-          setKnowledgeHint('');
-        }
-      });
+    Promise.all([
+      fetch(`/api/knowledge-vault/linked?userId=${encodeURIComponent(getAppUserId())}&module=game_theory`)
+        .then((res) => res.json())
+        .catch(() => []),
+      getTactics().catch(() => []),
+    ]).then(([list, tacticsList]) => {
+      if (cancelled) return;
+      const rows = Array.isArray(list) ? list : [];
+      const tacticsCount = Array.isArray(tacticsList) ? tacticsList.length : 0;
+      setLinkedGameKnowledge(rows);
+      setKnowledgeHint(buildGameTheoryKnowledgeHint(rows.length, tacticsCount));
+    });
     return () => {
       cancelled = true;
     };

@@ -72,6 +72,33 @@ function emptyInjection() {
   };
 }
 
+function loadTacticsFallback(db, userId) {
+  let rows = [];
+  try {
+    rows = db.prepare(
+      'SELECT * FROM game_theory_tactics WHERE user_id = ? OR user_id = ? ORDER BY created_at ASC'
+    ).all('system', userId) || [];
+  } catch {
+    return null;
+  }
+  if (!rows.length) return null;
+  const used = rows.slice(0, MAX_KNOWLEDGE_ITEMS);
+  const body = used.map((row, index) => {
+    const title = String((row && row.name) || `战术${index + 1}`).trim() || `战术${index + 1}`;
+    const desc = String((row && row.description) || '').trim();
+    return desc ? `${index + 1}. ${title}\n${desc}` : `${index + 1}. ${title}`;
+  }).join('\n\n');
+  return {
+    ids: [],
+    syncedCount: 0,
+    usedCount: used.length,
+    maxDifficulty: 1,
+    isDeepened: false,
+    context: truncateContext(`【博弈知识】\n${body}`),
+    reminder: `已引用战术库 ${used.length} 条`
+  };
+}
+
 function loadInjectedKnowledge(db, userId, moduleName = GAME_THEORY_MODULE) {
   if (!db || !userId) return emptyInjection();
   const rows = db.prepare('SELECT * FROM knowledge_vault WHERE user_id = ?').all(userId);
@@ -80,6 +107,10 @@ function loadInjectedKnowledge(db, userId, moduleName = GAME_THEORY_MODULE) {
   );
   const used = syncedAll.slice(0, MAX_KNOWLEDGE_ITEMS);
   if (!used.length) {
+    if (moduleName === GAME_THEORY_MODULE) {
+      const tacticsFallback = loadTacticsFallback(db, userId);
+      if (tacticsFallback) return tacticsFallback;
+    }
     return {
       ids: [],
       syncedCount: syncedAll.length,

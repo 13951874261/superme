@@ -5,6 +5,7 @@ import {
   MAX_CONTEXT_CHARS,
   MAX_KNOWLEDGE_ITEMS,
   buildGameTheoryKnowledgeContext,
+  buildGameTheoryKnowledgeHint,
   buildListenKnowledgeContext,
   selectKnowledgeForInject,
 } from './knowledgeAdapter';
@@ -72,4 +73,17 @@ test('自动注入只取最近确认的 5 条，空列表返回空字符串', ()
   assert.ok(context.includes('知识6'));
   assert.equal(context.includes('知识1'), false);
   assert.ok(context.length <= MAX_CONTEXT_CHARS + 20);
+});
+
+test('博弈页提示：抽屉有货优先，否则回退战术库条数', () => {
+  assert.equal(
+    buildGameTheoryKnowledgeHint(8, 20),
+    '已同步 8 条博弈知识，本次训练将自动引用 5 条',
+  );
+  assert.equal(buildGameTheoryKnowledgeHint(0, 8), '已引用战术库 5 条');
+  assert.equal(buildGameTheoryKnowledgeHint(0, 3), '已引用战术库 3 条');
+  assert.equal(
+    buildGameTheoryKnowledgeHint(0, 0),
+    '尚未同步博弈知识，本次训练不注入资料抽屉内容',
+  );
 });

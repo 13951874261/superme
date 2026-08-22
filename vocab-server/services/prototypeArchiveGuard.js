@@ -8,11 +8,24 @@ function isUserPrototype(name, description) {
   return false;
 }
 
+function isTestFixturePrototypeName(name) {
+  const text = String(name || '').trim();
+  if (!text) return false;
+  return /^E2E[-_]/i.test(text) || /E2E-VP-\d+/i.test(text);
+}
+
+function filterVisiblePrototypes(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(
+    (row) => !isTestFixturePrototypeName(row && row.name)
+  );
+}
+
 function normalizePrototypeArchive(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const name = String(raw.name || '').trim();
   if (!name) return null;
   if (isUserPrototype(name, raw.description)) return null;
+  if (isTestFixturePrototypeName(name)) return null;
   return {
     name,
     type: String(raw.type || '未分类').trim() || '未分类',
@@ -20,4 +33,9 @@ function normalizePrototypeArchive(raw) {
   };
 }
 
-module.exports = { normalizePrototypeArchive, isUserPrototype };
+module.exports = {
+  normalizePrototypeArchive,
+  isUserPrototype,
+  isTestFixturePrototypeName,
+  filterVisiblePrototypes,
+};
