@@ -6899,8 +6899,10 @@ app.post('/api/english/oral/chat', async (req, res) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.warn('[沙盘推演] 远程推演服务响应异常 (' + response.status + '):', errorData);
-      return res.status(response.status).json(errorData);
+      const { mapOralUpstreamError } = require('./services/oralChatUpstreamError');
+      const mapped = mapOralUpstreamError(response.status, errorData);
+      console.warn('[沙盘推演] 远程推演服务响应异常 (' + response.status + ' → ' + mapped.status + '):', mapped.body);
+      return res.status(mapped.status).json(mapped.body);
     }
 
     if (isStream) {
@@ -6946,7 +6948,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
       res.write(`data: ${JSON.stringify({ event: 'error', message: err.message || '推演中断' })}\n\n`);
       return res.end();
     }
-    return res.status(500).json({ message: err.message || '口语沙盘对话代理失败' });
+    return res.status(500).json({ fallback: true, message: err.message || '口语沙盘对话代理失败' });
   }
 });
 
@@ -12040,118 +12042,91 @@ app.post('/api/knowledge-vault/import-mapped', (req, res) => {
   }
 });
 
+app.post('/api/insight/listen/pool/cron-run', async (req, res) => {
+  try {
+    const secret = process.env.DAILY_PACK_CRON_SECRET || '';
+    if (secret && req.headers['x-cron-secret'] !== secret) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const insightDailyCron = require('./services/insightDailyCron');
+    const result = await insightDailyCron.runInsightDailyCronJob(db, {
+      taskQueue: require('./services/taskQueue'),
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[InsightDaily Cron Manual]', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/insight/listen/pool/backfill', (req, res) => {
+  try {
+    const body = req.body || {};
+    const userId = body.userId || body.user || 'default-user';
+    const category = body.category;
+    if (!category) {
+      return res.status(400).json({ success: false, error: 'category required' });
+    }
+    const taskQueue = require('./services/taskQueue');
+    const insightDailyCron = require('./services/insightDailyCron');
+    const task = taskQueue.createTask('insight_case_backfill', `洞察案例后台生成 · ${category}`);
+    taskQueue.updateTask(task.id, {
+      status: 'running',
+      progress: 5,
+      logs: ['后台生成中，请稍后在任务中心查看'],
+    });
+    res.json({ success: true, taskId: task.id, status: task.status });
+    insightDailyCron.runBackfill(db, { userId, category }).then((result) => {
+      const added = Array.isArray(result.added) ? result.added.length : 0;
+      if (added === 0) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: '未能写入新案例',
+          logs: ['补生成未入池，请稍后在任务中心查看'],
+          result: { readyCount: result.ready?.length || 0, added: 0 },
+        });
+        return;
+      }
+      taskQueue.updateTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        logs: ['新案例已入当日池，可刷新查看'],
+        result: { readyCount: result.ready.length, added },
+      });
+    }).catch((e) => {
+      taskQueue.updateTask(task.id, { status: 'failed', error: e.message, logs: [e.message] });
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/insight/listen/pool', (req, res) => {
+  try {
+    const insightDailyPoolService = require('./services/insightDailyPoolService');
+    const userId = req.query.userId || req.query.user || 'default-user';
+    const payload = insightDailyPoolService.getPool(db, {
+      userId,
+      category: req.query.category,
+      packDate: req.query.packDate || req.query.date,
+    });
+    res.json(payload);
+  } catch (error) {
+    const badRequest = error.message === 'category required';
+    res.status(badRequest ? 400 : 500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/insight/listen/scenario', async (req, res) => {
   try {
     const body = req.body || {};
     const userId = body.userId || body.user || 'default-user';
-    const {
-      resolveInsightGenApiKey,
-      buildInsightGenInputs,
-      parseInsightGenAnswer,
-      runDifyCompletion,
-    } = require('./services/insightSpeakProxy');
-    const {
-      tryParseDraft,
-      evaluateFull,
-      getFallbackDraft,
-      generateRetryHint,
-      buildScenarioResponse,
-      wrapPlain,
-    } = require('./services/insightScenarioScript');
-    const prepared = buildInsightGenInputs(body);
-    const apiKey = resolveInsightGenApiKey(process.env);
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
-
-    let bestDraft = null;
-    let bestEval = null;
-    let bestScore = -1;
-    let lastAnswerText = '';
-    let retryCount = 0;
-    const maxAttempts = 3;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      let answerText = '';
-      const inputs = { ...prepared.inputs };
-      let query = '';
-
-      if (attempt > 1 && bestEval) {
-        const hint = generateRetryHint(bestEval);
-        query = hint;
-        inputs.retry_hint = hint;
-      }
-
-      try {
-        const data = await runDifyCompletion({
-          apiKey,
-          baseUrl,
-          inputs,
-          userId,
-          query,
-        });
-        answerText = parseInsightGenAnswer(data);
-        lastAnswerText = answerText;
-      } catch (difyErr) {
-        console.warn(`[insight/scenario] attempt ${attempt} dify failed:`, difyErr.message);
-        if (!apiKey || difyErr.statusCode === 503) {
-          break;
-        }
-      }
-
-      const draft = tryParseDraft(answerText);
-      if (draft) {
-        const evalResult = evaluateFull(draft);
-        if (evalResult.quality === 'ok') {
-          return res.json(buildScenarioResponse({
-            draft,
-            category: prepared.category,
-            retryCount: attempt - 1,
-            evaluation: evalResult.evaluation,
-            quality: evalResult.quality,
-          }));
-        }
-
-        const compositeRank = (evalResult.evaluation.passedDuration ? 50 : 0) + (evalResult.evaluation.scriptScore || 0);
-        if (compositeRank > bestScore) {
-          bestScore = compositeRank;
-          bestDraft = draft;
-          bestEval = evalResult.evaluation;
-          retryCount = attempt - 1;
-        }
-      }
-    }
-
-    if (bestDraft) {
-      const evalResult = evaluateFull(bestDraft);
-      return res.json(buildScenarioResponse({
-        draft: bestDraft,
-        category: prepared.category,
-        retryCount,
-        evaluation: evalResult.evaluation,
-        quality: 'below_standard',
-      }));
-    }
-
-    if (lastAnswerText && lastAnswerText.trim()) {
-      const draft = wrapPlain(lastAnswerText, prepared.category);
-      const evalResult = evaluateFull(draft);
-      return res.json(buildScenarioResponse({
-        draft,
-        category: prepared.category,
-        retryCount: Math.max(0, retryCount),
-        evaluation: evalResult.evaluation,
-        quality: 'below_standard',
-      }));
-    }
-
-    const fallbackDraft = getFallbackDraft(prepared.category);
-    const fallbackEval = evaluateFull(fallbackDraft);
-    return res.json(buildScenarioResponse({
-      draft: fallbackDraft,
-      category: prepared.category,
-      retryCount: 0,
-      evaluation: fallbackEval.evaluation,
-      quality: 'ok',
-    }));
+    const { generateInsightScenario } = require('./services/insightScenarioGenerate');
+    const payload = await generateInsightScenario({
+      category: body.category,
+      userId,
+    });
+    res.json(payload);
   } catch (error) {
     const badRequest = error.message === 'category required';
     res.status(badRequest ? 400 : 500).json({ success: false, error: error.message });
@@ -12804,6 +12779,9 @@ app.listen(PORT, () => {
     }
   }
   dailyPackCron.scheduleDailyPackCron(db);
+  require('./services/insightDailyCron').scheduleInsightDailyCron(db, {
+    taskQueue: require('./services/taskQueue'),
+  });
 });
 }
 

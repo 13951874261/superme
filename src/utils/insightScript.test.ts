@@ -7,6 +7,7 @@ import {
   evaluateInsightScriptQuality,
   wrapPlainScenarioAsDraft,
   parseInsightScenarioPayload,
+  nextInsightPoolAction,
 } from './insightScript';
 
 function minimalDraft(overrides: Partial<ScriptWorkshopDraft> = {}): ScriptWorkshopDraft {
@@ -112,4 +113,29 @@ test('parseInsightScenarioPayload 优先 draft，否则 scenario 字符串', () 
   const withString = parseInsightScenarioPayload({ success: true, scenario: '旧版字符串案例' });
   assert.equal(withString.draft.phases[0].content, '旧版字符串案例');
   assert.equal(withString.quality, 'below_standard');
+});
+
+test('nextInsightPoolAction: 进页/部分池/刷尽', () => {
+  assert.deepEqual(nextInsightPoolAction('enter', 3, 10), { action: 'show', cursor: 0 });
+  assert.deepEqual(nextInsightPoolAction('refresh', 0, 4), { action: 'show', cursor: 1 });
+  assert.deepEqual(nextInsightPoolAction('refresh', 3, 4), { action: 'backfill', cursor: 3 });
+  assert.deepEqual(nextInsightPoolAction('refresh', 0, 0), { action: 'backfill', cursor: 0 });
+  assert.deepEqual(nextInsightPoolAction('enter', 0, 0), { action: 'backfill', cursor: 0 });
+});
+
+test('nextInsightPoolAction: 10 套刷新互不重复且第 11 次才 backfill', () => {
+  const seen = new Set<number>();
+  const enter = nextInsightPoolAction('enter', 99, 10);
+  assert.equal(enter.action, 'show');
+  seen.add(enter.cursor);
+  let cursor = enter.cursor;
+  for (let i = 0; i < 9; i += 1) {
+    const step = nextInsightPoolAction('refresh', cursor, 10);
+    assert.equal(step.action, 'show');
+    assert.equal(seen.has(step.cursor), false);
+    seen.add(step.cursor);
+    cursor = step.cursor;
+  }
+  assert.equal(seen.size, 10);
+  assert.deepEqual(nextInsightPoolAction('refresh', cursor, 10), { action: 'backfill', cursor });
 });

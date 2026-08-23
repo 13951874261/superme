@@ -29,7 +29,7 @@ import {
   Loader2,
   Award
 } from 'lucide-react';
-import { fetchInsightFeedback, fetchDynamicInsightScenario, uploadMaterialToKB, extractListenKnowledgeDraft } from '../../services/difyAPI';
+import { fetchInsightFeedback, fetchInsightCasePool, submitInsightCaseBackfill, uploadMaterialToKB, extractListenKnowledgeDraft } from '../../services/difyAPI';
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
 import InsightMindMap from './insight/InsightMindMap';
 import InsightScriptReadonlyView from './insight/InsightScriptReadonlyView';
@@ -51,12 +51,13 @@ import {
 import { downloadInsightDocx } from '../../utils/insightWordExport';
 import { useTask } from '../TaskContext';
 import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
+import type { InsightScenarioResult } from '../../utils/insightScript';
 import type { ScriptWorkshopDraft } from './GameTheory/ScriptWorkshopTypes';
-import { PRESET_BENCHMARK_SCRIPTS } from './GameTheory/scriptEvaluator';
 import {
   evaluateInsightScriptQuality,
   flattenInsightScript,
   wrapPlainScenarioAsDraft,
+  nextInsightPoolAction,
   type InsightScriptQuality,
   type InsightScriptEvaluation,
 } from '../../utils/insightScript';
@@ -89,7 +90,13 @@ interface ListenModuleProps {
 
 function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
 
-  const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
+  const { tasks, addTask, setIsOpen: setTaskCenterOpen, startPolling } = useTask();
+  const poolCursorRef = useRef(0);
+  const refreshBtnRef = useRef<HTMLButtonElement | null>(null);
+  const backfillLockRef = useRef<Record<string, { inflight: boolean; atCount: number; taskId?: string }>>({});
+  const loadGenRef = useRef(0);
+  const startPollingRef = useRef(startPolling);
+  startPollingRef.current = startPolling;
   const [activeCategory, setActiveCategory] = useState<CategoryType>('体制内');
   const [currentScenario, setCurrentScenario] = useState<string>('');
   const [currentDraft, setCurrentDraft] = useState<ScriptWorkshopDraft | null>(null);
@@ -251,18 +258,53 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadDraftNotice, setUploadDraftNotice] = useState('');
 
-  // 动态获取题目的函数
-  const loadNewScenario = useCallback(async (category: CategoryType) => {
-    setIsLoadingScenario(true);
-    setCurrentScenario('');
-    setCurrentDraft(null);
-    setScriptEvaluation({ totalWords: 0, estimatedMinutes: 0 });
-    setScriptQuality('ok');
-    setFeedback(null); 
+  const applyScenarioResult = useCallback((result: InsightScenarioResult) => {
+    setCurrentDraft(result.draft);
+    setScriptEvaluation({
+      totalWords: result.evaluation.totalWords,
+      estimatedMinutes: result.evaluation.estimatedMinutes,
+      passedDuration: result.evaluation.passedDuration,
+      scriptScore: result.evaluation.scriptScore,
+      passedScript: result.evaluation.passedScript,
+    });
+    setScriptQuality(result.quality);
+    setCurrentScenario(result.scenario);
+  }, []);
+
+  const requestBackfill = useCallback(async (category: CategoryType, readyCount: number) => {
+    const locks = backfillLockRef.current;
+    const lock = locks[category] || { inflight: false, atCount: -1 };
+    if (lock.inflight && lock.atCount === readyCount) return;
+    lock.inflight = true;
+    lock.atCount = readyCount;
+    locks[category] = lock;
+    try {
+      const { taskId } = await submitInsightCaseBackfill(category);
+      lock.taskId = taskId;
+      addTask({
+        id: taskId,
+        type: 'insight_case_backfill',
+        name: `洞察案例后台生成 · ${category}`,
+        status: 'running',
+        progress: 5,
+        logs: ['后台生成中，请稍后在任务中心查看'],
+      });
+      notifyBackgroundHandoff({
+        anchor: refreshBtnRef.current,
+        message: '后台生成中，请稍后在任务中心查看',
+      });
+      startPollingRef.current(taskId);
+    } catch {
+      lock.inflight = false;
+      throw new Error('backfill failed');
+    }
+  }, [addTask]);
+
+  const resetPracticeSheet = useCallback(() => {
+    setFeedback(null);
     setMindMap(null);
     setEvaluatedScore(null);
     setFormStep(1);
-    // 重置表单
     setAnalysisForm({
       socialLevel: '',
       innerLevel: '',
@@ -276,45 +318,59 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
       trustScore: 3,
       trustReason: ''
     });
-    
-    try {
-      const result = await fetchDynamicInsightScenario(category);
-      setCurrentDraft(result.draft);
-      setScriptEvaluation({
-        totalWords: result.evaluation.totalWords,
-        estimatedMinutes: result.evaluation.estimatedMinutes,
-        passedDuration: result.evaluation.passedDuration,
-        scriptScore: result.evaluation.scriptScore,
-        passedScript: result.evaluation.passedScript,
-      });
-      setScriptQuality(result.quality);
-      setCurrentScenario(result.scenario);
-    } catch (error) {
-      console.warn('[ListenModule] 动态出题不可用，改用预设长剧本', error);
-      const draft: ScriptWorkshopDraft = {
-        ...PRESET_BENCHMARK_SCRIPTS[0],
-        sceneTitle: `【${category}】${PRESET_BENCHMARK_SCRIPTS[0].sceneTitle}`,
-      };
-      const e = evaluateInsightScriptQuality(draft);
-      setCurrentDraft(draft);
-      setScriptEvaluation({
-        totalWords: e.totalWords,
-        estimatedMinutes: e.estimatedMinutes,
-        passedDuration: e.passedDuration,
-        scriptScore: e.scriptScore,
-        passedScript: e.passedScript,
-      });
-      setScriptQuality(e.quality);
-      setCurrentScenario(flattenInsightScript(draft));
-    } finally {
-      setIsLoadingScenario(false);
-    }
   }, []);
 
-  // 首次加载或切换类别时，自动获取题目
+  const loadNewScenario = useCallback(async (category: CategoryType, mode: 'enter' | 'refresh' = 'enter') => {
+    const gen = ++loadGenRef.current;
+    setIsLoadingScenario(true);
+    if (mode === 'enter') {
+      setCurrentScenario('');
+      setCurrentDraft(null);
+      setScriptEvaluation({ totalWords: 0, estimatedMinutes: 0 });
+      setScriptQuality('ok');
+      resetPracticeSheet();
+      poolCursorRef.current = 0;
+    }
+    try {
+      const pool = await fetchInsightCasePool(category);
+      if (gen !== loadGenRef.current) return;
+      const cases = pool.cases || [];
+      const lock = backfillLockRef.current[category];
+      if (lock && cases.length > lock.atCount) lock.inflight = false;
+      const decided = nextInsightPoolAction(mode, poolCursorRef.current, cases.length);
+      if (decided.action === 'backfill') {
+        await requestBackfill(category, cases.length);
+        return;
+      }
+      if (gen !== loadGenRef.current) return;
+      poolCursorRef.current = decided.cursor;
+      if (mode === 'refresh') resetPracticeSheet();
+      applyScenarioResult(cases[decided.cursor]);
+    } catch (error) {
+      console.warn('[ListenModule] 日池不可用', error);
+      if (mode === 'refresh' && gen === loadGenRef.current) {
+        try { await requestBackfill(category, 0); } catch { /* 保持当前案例 */ }
+      }
+    } finally {
+      if (gen === loadGenRef.current) setIsLoadingScenario(false);
+    }
+  }, [applyScenarioResult, requestBackfill, resetPracticeSheet]);
+
+  const loadNewScenarioRef = useRef(loadNewScenario);
+  loadNewScenarioRef.current = loadNewScenario;
   useEffect(() => {
-    loadNewScenario(activeCategory);
-  }, [activeCategory, loadNewScenario]);
+    void loadNewScenarioRef.current(activeCategory, 'enter');
+  }, [activeCategory]);
+  useEffect(() => {
+    for (const t of tasks) {
+      if (t.type !== 'insight_case_backfill') continue;
+      if (t.status !== 'completed' && t.status !== 'failed') continue;
+      const locks = backfillLockRef.current;
+      for (const cat of Object.keys(locks)) {
+        if (locks[cat].taskId === t.id) locks[cat].inflight = false;
+      }
+    }
+  }, [tasks]);
 
   // 切换场景分类时的反馈
   const handleCategoryChange = (category: CategoryType) => {
@@ -1159,7 +1215,8 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
           </div>
           
           <button
-            onClick={() => loadNewScenario(activeCategory)}
+            ref={refreshBtnRef}
+            onClick={() => loadNewScenario(activeCategory, 'refresh')}
             disabled={isLoadingScenario}
             className="text-xs font-bold text-[var(--color-brand)] hover:text-[var(--color-brand-hover)] flex items-center gap-1 bg-slate-50 hover:bg-slate-100 px-3 py-2 rounded-xl transition-all disabled:opacity-50"
           >
@@ -1196,7 +1253,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
             />
           ) : (
             <p className="text-sm leading-relaxed text-slate-100 whitespace-pre-wrap font-medium">
-              {isLoadingScenario ? '正在生成新案例...' : currentScenario || '正在生成新案例...'}
+              {isLoadingScenario ? '正在读取当日案例…' : currentScenario || '今日案例尚未就绪，后台生成中，请稍后在任务中心查看'}
             </p>
           )}
         </div>

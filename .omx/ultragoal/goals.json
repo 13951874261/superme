@@ -1,43 +1,36 @@
 {
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-material-purify-manual-collect.md",
+  "sourceBrief": ".omx/specs/deep-interview-ls-case-daily-pool.md",
   "briefPath": ".omx/ultragoal/brief.md",
   "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for material-purify-manual-collect",
-  "status": "active",
-  "createdAt": "2026-08-21T11:40:00Z",
-  "updatedAt": "2026-08-21T11:50:00Z",
-  "supersedes": "bg-handoff-feedback",
-  "note": "omx CLI unavailable; manual ultragoal. G001 merged per user: 三块 UI + 停入库 together. Awaiting consent before code.",
+  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for ls-case-daily-pool",
+  "status": "complete",
+  "createdAt": "2026-08-23T11:31:00Z",
+  "updatedAt": "2026-08-23T12:15:00Z",
+  "supersedes": "material-purify-manual-collect",
+  "note": "omx CLI unavailable; G001–G003 complete; browser E2E + independent APPROVE/CLEAR recorded.",
   "goals": [
     {
       "id": "G001",
-      "title": "材料标签一眼三块 + 同时停自动入库",
+      "title": "洞察日池只读：表 + GET + 30天指纹",
       "status": "complete",
-      "objective": "今日学习材料用标签页分开「今日长文 / 上传材料」。上传材料标签必须一眼看到与长文相同的三块：生词、短语、高频句型（复用 VocabularyGrid，每条「+ 收录」）。同时：提纯不再 INSERT 生词本；任务结果带 article/words/phrases/sentences；材料与长文分缓存互不覆盖；切断视频完成自动二次导入。材料「+ 收录」走 3 秒转后台和矩阵补齐，但不占今日额度。",
+      "objective": "抽出 generateInsightScenario 供复用。新建 insight_daily_cases：按用户/日/类列出 ready 案例；GET /api/insight/listen/pool 只读、不打 Dify；写入时按用户+分类做 30 天指纹去重。",
       "dependsOn": []
     },
     {
       "id": "G002",
-      "title": "提交后台明确告知 + 查看材料",
+      "title": "04:00 cron 每用户每类 10 套 + 刷尽补生成",
       "status": "complete",
-      "objective": "MaterialUploader 三入口接入 notifyBackgroundHandoff；任务中心完成主按钮改为「查看材料」，点击切到上传材料标签并滚动。",
+      "objective": "独立 04:00 cron（不并进 02:00）对 cron 目标用户并行补齐每类 10 套；POST backfill 进 taskQueue；任务中心可见。",
       "dependsOn": ["G001"]
     },
     {
       "id": "G003",
-      "title": "合约测试覆盖三块展示与入库切断",
+      "title": "听模块只读缓存刷新 + 合约测试",
       "status": "complete",
-      "objective": "补契约测试：不自动 INSERT、视频不二次导入、材料/长文分 key、IntelBriefing 含生词/短语/句型三块、handoff 与查看材料按钮。",
+      "objective": "ListenModule 进页/刷新只走日池；部分就绪可练；刷尽提示后台生成中并进任务中心；补 LS-POOL 合约测试。",
       "dependsOn": ["G001", "G002"]
-    },
-    {
-      "id": "G004",
-      "title": "验收用例提交用户核对 + 质量门",
-      "status": "pending",
-      "objective": "按 spec 草案给出菜单路径测试用例请用户核对；跑相关合约测试。正式双人 code-review 若环境不可用则记录 residual。",
-      "dependsOn": ["G003"]
     }
   ]
 }

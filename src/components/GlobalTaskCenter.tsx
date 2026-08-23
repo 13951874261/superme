@@ -618,7 +618,7 @@ export default function GlobalTaskCenter() {
                           ? 'bg-[#FF5722]/10 text-[#FF5722]'
                           : task.type === 'game_theory'
                             ? 'bg-zinc-100 text-zinc-700'
-                            : task.type === 'insight_listen' || task.type === 'listen_backfill'
+                            : task.type === 'insight_listen' || task.type === 'listen_backfill' || task.type === 'insight_case_backfill' || task.type === 'insight_daily_cron'
                               ? 'bg-[#FF5722]/10 text-[#FF5722]'
                               : task.type === 'speak'
                                 ? 'bg-indigo-50 text-indigo-600'
@@ -630,7 +630,7 @@ export default function GlobalTaskCenter() {
                           <Video className="w-4 h-4" />
                         ) : task.type === 'game_theory' ? (
                           <Brain className="w-4 h-4" />
-                        ) : task.type === 'insight_listen' ? (
+                        ) : task.type === 'insight_listen' || task.type === 'insight_case_backfill' || task.type === 'insight_daily_cron' ? (
                           <Headphones className="w-4 h-4" />
                         ) : task.type === 'speak' ? (
                           <Mic className="w-4 h-4" />

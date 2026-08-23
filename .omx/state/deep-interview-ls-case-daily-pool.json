@@ -1,106 +1,23 @@
 {
-  "active": true,
-  "current_phase": "deep-interview",
+  "active": false,
+  "current_phase": "crystallized",
   "state": {
     "interview_id": "ls-case-daily-pool-20260823",
     "profile": "standard",
     "type": "brownfield",
     "slug": "ls-case-daily-pool",
-    "initial_idea": "案例应模仿长文的形式，每日4:00定时生成多套。包括体制内职场、外企职场及通用社交等。每个至少10套，且30天内不可重复。当天进入后优先显示后台生成的，刷新也仅刷新后台生成的，如多次刷新后无缓存内容，再提示后台实时生成，但要有提醒，后台生成中请稍后查看，并可在任务中心中查看。",
-    "rounds": [
-      {
-        "n": 1,
-        "target": "intent",
-        "question": "核心先解决哪一个问题？",
-        "answer": "进页/刷新太慢——现在每次现场调 Dify，要等",
-        "answer_value": "latency",
-        "source": "from-user",
-        "ambiguity_after": 0.525
-      },
-      {
-        "n": 2,
-        "target": "intent",
-        "challenge_mode": "contrarian",
-        "question": "若只修慢：02:00、每类3套现有剧本、无30天去重、不改4:00——算不算这轮达成？",
-        "answer": "不算——必须每类至少10套，3套太少",
-        "answer_value": "need-10",
-        "source": "from-user",
-        "ambiguity_after": 0.45
-      },
-      {
-        "n": 3,
-        "target": "scope",
-        "question": "「每类至少10套」是哪种10？",
-        "answer": "每个用户 × 三类 × 每天 10 套（人多就多打 Dify）",
-        "answer_value": "per-user",
-        "source": "from-user",
-        "ambiguity_after": 0.41
-      },
-      {
-        "n": 4,
-        "target": "constraints",
-        "question": "「每个用户每天30套」里的用户是谁？",
-        "answer": "按用户生成，可考虑多线程并行。",
-        "answer_value": "per-user-parallel-unspecified-audience",
-        "source": "from-user",
-        "ambiguity_after": 0.392
-      },
-      {
-        "n": 5,
-        "target": "constraints",
-        "question": "4:00 预生成的用户范围？",
-        "answer": "跟现有 02:00 一样：所有 cron 目标用户，每人每天 30 套",
-        "answer_value": "all-cron-users",
-        "source": "from-user",
-        "ambiguity_after": 0.35
-      },
-      {
-        "n": 6,
-        "target": "outcome",
-        "question": "8:00 进页时该分类只完成 4/10，进页应该怎样？",
-        "answer": "有几套显示几套；刷新只走已完成的；缺的继续在任务中心跑，进页不现场打 Dify",
-        "answer_value": "show-ready-only",
-        "source": "from-user",
-        "ambiguity_after": 0.285
-      },
-      {
-        "n": 7,
-        "target": "outcome",
-        "question": "4 套刷完后第 5 次点刷新该怎样？",
-        "answer": "提交一条后台补生成任务，当前页保持第 4 套；提示去任务中心，完成后可再刷新取到新套",
-        "answer_value": "async-backfill",
-        "source": "from-user",
-        "ambiguity_after": 0.258
-      },
-      {
-        "n": 8,
-        "target": "scope",
-        "challenge_mode": "terminologist",
-        "question": "「案例应模仿长文的形式」对齐哪一种？",
-        "answer": "只对齐英语长文的供给模型（预生成 + 只读 + 任务中心），内容仍用现有洞察剧本",
-        "answer_value": "supply-only",
-        "source": "from-user",
-        "ambiguity_after": 0.211
-      }
-    ],
-    "current_ambiguity": 0.211,
+    "rounds_completed": 10,
+    "current_ambiguity": 0.12,
     "threshold": 0.2,
     "max_rounds": 12,
-    "challenge_modes_used": ["contrarian", "terminologist"],
-    "current_stage": "intent-first",
-    "current_focus": "scope",
     "pressure_pass_complete": true,
-    "non_goals_explicit": false,
-    "decision_boundaries_explicit": false,
+    "non_goals_explicit": true,
+    "decision_boundaries_explicit": true,
+    "challenge_modes_used": ["contrarian", "terminologist"],
     "prompt_safe_summary_status": "not_needed",
     "context_snapshot_path": ".omx/context/ls-case-daily-pool-20260823T111200Z.md",
-    "scores": {
-      "intent": 0.93,
-      "outcome": 0.84,
-      "scope": 0.8,
-      "constraints": 0.62,
-      "success": 0.5,
-      "context": 0.85
-    }
+    "interview_path": ".omx/interviews/ls-case-daily-pool-20260823T123000Z.md",
+    "spec_path": ".omx/specs/deep-interview-ls-case-daily-pool.md",
+    "handoff_pending": true
   }
 }

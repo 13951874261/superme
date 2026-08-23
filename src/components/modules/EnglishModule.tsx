@@ -82,6 +82,7 @@ function EnglishModuleContent() {
         {panel('oral', (
           <OralWarRoom
             embedded
+            active={activeTab === 'oral'}
             sceneTheme={theme}
             sessionId={sessionId}
             userId={getAppUserId()}

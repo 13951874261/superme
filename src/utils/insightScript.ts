@@ -135,3 +135,15 @@ export function parseInsightScenarioPayload(data: any): InsightScenarioResult {
     retryCount: 0,
   };
 }
+
+export function nextInsightPoolAction(
+  mode: 'enter' | 'refresh',
+  cursor: number,
+  readyCount: number,
+): { action: 'show' | 'backfill'; cursor: number } {
+  if (readyCount <= 0) return { action: 'backfill', cursor: Math.max(0, cursor) };
+  if (mode === 'enter') return { action: 'show', cursor: 0 };
+  const next = cursor + 1;
+  if (next >= readyCount) return { action: 'backfill', cursor };
+  return { action: 'show', cursor: next };
+}

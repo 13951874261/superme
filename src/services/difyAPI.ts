@@ -956,6 +956,7 @@ async function proxyOralChatMessage(
     userId?: string;
     inputs?: Record<string, unknown>;
     timeoutMs?: number;
+    signal?: AbortSignal;
   } = {},
 ): Promise<{ answer?: string; message?: string; conversation_id?: string }> {
   const timeoutMs = options.timeoutMs;
@@ -968,6 +969,7 @@ async function proxyOralChatMessage(
       userId: options.userId ?? getAppUserId(),
       inputs: options.inputs ?? {},
     }),
+    signal: options.signal,
   };
   const res = timeoutMs
     ? await fetchWithTimeout('/api/english/oral/chat', req, timeoutMs)
@@ -985,6 +987,7 @@ export async function sendOralChatMessage(
   userId = getAppUserId(),
   oralContext?: OralChatContext,
   timeoutMs?: number,
+  signal?: AbortSignal,
 ) {
   const inputs = injectUserProfileAndTime({
     user_weakness_profile: getUserWeaknessProfile() || '',
@@ -1003,7 +1006,7 @@ export async function sendOralChatMessage(
       : {}),
   });
 
-  const data = await proxyOralChatMessage(query, { conversationId, userId, inputs, timeoutMs });
+  const data = await proxyOralChatMessage(query, { conversationId, userId, inputs, timeoutMs, signal });
   interceptOutputText(data);
 
   if (data.conversation_id) {
@@ -1751,6 +1754,47 @@ export async function fetchDynamicInsightScenario(
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data?.message || data?.error || `获取动态考题失败 HTTP ${res.status}`);
   return parseInsightScenarioPayload(data);
+}
+
+export interface InsightCasePool {
+  packDate: string;
+  category: string;
+  target: number;
+  readyCount: number;
+  cases: InsightScenarioResult[];
+}
+
+export async function fetchInsightCasePool(
+  category: string,
+  userId = getAppUserId()
+): Promise<InsightCasePool> {
+  const q = new URLSearchParams({ category, userId });
+  const res = await fetch(`/api/insight/listen/pool?${q}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `获取案例池失败 HTTP ${res.status}`);
+  const cases = Array.isArray(data.cases) ? data.cases.map((item: unknown) => parseInsightScenarioPayload(item)) : [];
+  return {
+    packDate: String(data.packDate || ''),
+    category: String(data.category || category),
+    target: Number(data.target || 10),
+    readyCount: Number(data.readyCount || cases.length),
+    cases,
+  };
+}
+
+export async function submitInsightCaseBackfill(
+  category: string,
+  userId = getAppUserId()
+): Promise<{ taskId: string }> {
+  const res = await fetch('/api/insight/listen/pool/backfill', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ category, userId }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data?.error || `提交后台生成失败 HTTP ${res.status}`);
+  if (!data.taskId) throw new Error('未返回任务 ID');
+  return { taskId: String(data.taskId) };
 }
 
 // ── 破局系统（说）相关接口 ─────────────────────────────────────────

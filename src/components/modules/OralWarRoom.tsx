@@ -16,6 +16,7 @@ import { useOralWarRoomSession } from './oralWarRoom/useOralWarRoomSession';
 
 interface OralWarRoomProps {
   embedded?: boolean;
+  active?: boolean;
   sceneTheme?: string;
   sessionId?: string | null;
   userId?: string;

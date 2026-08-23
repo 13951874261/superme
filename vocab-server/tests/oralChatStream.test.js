@@ -11,6 +11,7 @@ async function testOralChatStreamContract() {
 
   // 1. 验证路由定义及 stream 参数提取
   assert.ok(content.includes("app.post('/api/english/oral/chat'"), '必须包含 /api/english/oral/chat 路由');
+  assert.ok(content.includes('mapOralUpstreamError'), 'Dify 5xx/522 必须映射为可降级错误');
   assert.ok(content.includes('const isStream = Boolean(stream === true || stream === \'true\');'), '必须支持 stream: true 解析');
 
   // 2. 验证 Dify response_mode 动态分流

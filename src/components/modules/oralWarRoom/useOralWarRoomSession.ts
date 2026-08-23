@@ -49,6 +49,7 @@ import { useOralDialogue } from './useOralDialogue';
 
 export interface UseOralWarRoomSessionOptions {
   embedded?: boolean;
+  active?: boolean;
   sceneTheme?: string;
   sessionId?: string | null;
   userId?: string;
@@ -58,6 +59,7 @@ export interface UseOralWarRoomSessionOptions {
 
 export function useOralWarRoomSession({
   embedded = false,
+  active = true,
   sceneTheme = '',
   sessionId = null,
   userId = getAppUserId(),
@@ -88,6 +90,7 @@ export function useOralWarRoomSession({
   const [currentFlawClaim, setCurrentFlawClaim] = useState('');
   const [currentDifficulty, setCurrentDifficulty] = useState<number | null>(null);
   const sceneInitRef = useRef<string | null>(null);
+  const openingAbortRef = useRef<AbortController | null>(null);
   const [showControlCard, setShowControlCard] = useState(false);
   const [isInputLocked, setIsInputLocked] = useState(false);
   const [writeCompleted, setWriteCompleted] = useState(false);
@@ -336,6 +339,7 @@ export function useOralWarRoomSession({
     bottomRef,
     sandboxMode,
     customBackground: customBackgroundEnabled || sandboxMode === 'daily' ? customBackground : '',
+    openingAbortRef,
   });
 
   handleSendWithTextRef.current = handleSendWithText;
@@ -509,15 +513,20 @@ export function useOralWarRoomSession({
   }, []);
 
   useEffect(() => {
+    if (active === false) openingAbortRef.current?.abort();
+  }, [active]);
+
+  useEffect(() => {
+    if (active === false) return;
     if (sceneInitRef.current === activeSceneId) return;
     sceneInitRef.current = activeSceneId;
     void initiateSceneDialogue(activeScene);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeSceneId]);
+  }, [activeSceneId, active]);
 
   const handleRetryOpening = useCallback(() => {
     sceneInitRef.current = activeSceneId;
-    void initiateSceneDialogue(activeScene);
+    void initiateSceneDialogue(activeScene, undefined, { remote: true });
   }, [activeSceneId, activeScene, initiateSceneDialogue]);
 
   const latestExchange = useMemo(() => {

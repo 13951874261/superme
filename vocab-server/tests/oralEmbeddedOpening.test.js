@@ -30,6 +30,11 @@ function testEmbeddedAlsoAutoOpens() {
 function testOpeningTimeoutAndRetry() {
   const dialogue = read(dialoguePath);
   assert.match(dialogue, /timeoutMs:\s*8_?000|8000/, '开场请求必须带约 8 秒超时');
+  assert.match(dialogue, /opts\.remote/, '进页默认本地开场，remote 才打 Dify');
+  assert.match(dialogue, /openingAbortRef/, '开场必须可中断');
+  const session = read(sessionPath);
+  assert.match(session, /active === false\) openingAbortRef\.current\?\.abort/, '隐藏页签必须中断开场请求');
+  assert.match(session, /remote:\s*true/, '重新开场才打 Dify');
   const chat = read(chatPath);
   assert.match(chat, /重新开场/, '必须提供重新开场按钮');
   assert.match(chat, /onRetryOpening/, 'Chat 必须接收重新开场回调');
@@ -40,6 +45,7 @@ function testOpeningTimeoutAndRetry() {
   const proxy = dify.slice(proxyStart, proxyStart + 900);
   assert.match(proxy, /timeoutMs/, '口语代理必须支持超时中断');
   assert.match(proxy, /fetchWithTimeout/, '超时必须复用已有 fetchWithTimeout，禁止另写一套');
+  assert.match(proxy, /signal/, '开场 AbortSignal 必须传到 fetch');
 }
 
 testEmbeddedAlsoAutoOpens();

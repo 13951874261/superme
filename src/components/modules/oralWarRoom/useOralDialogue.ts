@@ -80,6 +80,7 @@ export interface UseOralDialogueOptions {
   bottomRef: RefObject<HTMLDivElement | null>;
   sandboxMode: SandboxMode;
   customBackground: string;
+  openingAbortRef: RefObject<AbortController | null>;
 }
 
 export function useOralDialogue({
@@ -113,6 +114,7 @@ export function useOralDialogue({
   bottomRef,
   sandboxMode,
   customBackground,
+  openingAbortRef,
 }: UseOralDialogueOptions) {
   const scrollToBottom = useCallback(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -135,9 +137,52 @@ export function useOralDialogue({
     };
   }, [currentTarget, sessionMemory, sandboxMode, customBackground]);
 
-  const initiateSceneDialogue = useCallback(async (scene: SceneEntry, modeOverride?: SandboxMode) => {
+  const applyLocalOpening = useCallback((scene: SceneEntry, notice: string) => {
+    const fallbackMsg: MessageItem = {
+      id: `${Date.now()}-a`,
+      role: 'ai',
+      content: JSON.stringify({
+        current_speaker: scene.blockers[0]?.name || 'Opponent',
+        dialogue: scene.openingLine,
+        hidden_intent: '测试您的第一反应与控场能力',
+        flaw_point: '',
+        difficulty_rating: scene.level,
+        role_address: 'You',
+        branch_suggestions: scene.conflicts.join(', '),
+        cultural_signal: scene.culturalContext.slice(0, 80),
+      }),
+      parsed: {
+        current_speaker: scene.blockers[0]?.name || 'Opponent',
+        dialogue: scene.openingLine,
+        hidden_intent: '测试您的第一反应与控场能力',
+        flaw_point: '',
+        evaluation: '',
+        difficulty_rating: scene.level,
+        role_address: 'You',
+        branch_suggestions: scene.conflicts.join(', '),
+        cultural_signal: scene.culturalContext.slice(0, 80),
+      },
+    };
+    setMessages([fallbackMsg]);
+    setCurrentDifficulty(scene.level);
+    setLastNotice(notice);
+  }, [setMessages, setCurrentDifficulty, setLastNotice]);
+
+  const initiateSceneDialogue = useCallback(async (
+    scene: SceneEntry,
+    modeOverride?: SandboxMode,
+    opts: { remote?: boolean } = {},
+  ) => {
     if (isSending) return;
     const mode = modeOverride ?? sandboxMode;
+    // ponytail: 进页只出本地开场；Dify 仅「重新开场」。日池 GET 等上游 522 稳了再加。
+    if (!opts.remote) {
+      applyLocalOpening(scene, '已加载场景开场（本地剧本）。完整推演请点「重新开场」或去任务中心。');
+      return;
+    }
+    openingAbortRef.current?.abort();
+    const ac = new AbortController();
+    openingAbortRef.current = ac;
     setIsSending(true);
     setLastNotice(mode === 'daily' ? '对话搭档正在开场...' : '对手角色正在开场...');
     const difficultyPrefix = getDifficultyPrefix('【全局指令：极限施压模式】\n');
@@ -149,7 +194,7 @@ export function useOralDialogue({
     const apiPayload = `${difficultyPrefix}[系统隐性指令：切换场景「${scene.shortTitle}」。角色：${scene.roleList}。${dailyHint}请由非用户角色率先开口（对话启动句），参考风格："${opener}"。用户尚未发言。必须在 JSON 返回 dialogue、current_speaker、role_address、branch_suggestions、difficulty_rating(${scene.level})、cultural_signal 及四维 feedback 字段。${switchInstruction}]`;
 
     try {
-      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene, mode), 8000);
+      const res = await sendOralChatMessage(apiPayload, null, userId, buildOralContext(scene, mode), 8000, ac.signal);
       if (res.conversation_id) setConversationId(res.conversation_id);
       const rawText = String(res.answer || res.message || '');
       const parsed = parseAiPayload(rawText);
@@ -158,38 +203,11 @@ export function useOralDialogue({
       processAiResponse(parsed, '', false);
       scrollToBottom();
     } catch {
-      const fallbackMsg: MessageItem = {
-        id: `${Date.now()}-a`,
-        role: 'ai',
-        content: JSON.stringify({
-          current_speaker: scene.blockers[0]?.name || 'Opponent',
-          dialogue: scene.openingLine,
-          hidden_intent: '测试您的第一反应与控场能力',
-          flaw_point: '',
-          difficulty_rating: scene.level,
-          role_address: 'You',
-          branch_suggestions: scene.conflicts.join(', '),
-          cultural_signal: scene.culturalContext.slice(0, 80),
-        }),
-        parsed: {
-          current_speaker: scene.blockers[0]?.name || 'Opponent',
-          dialogue: scene.openingLine,
-          hidden_intent: '测试您的第一反应与控场能力',
-          flaw_point: '',
-          evaluation: '',
-          difficulty_rating: scene.level,
-          role_address: 'You',
-          branch_suggestions: scene.conflicts.join(', '),
-          cultural_signal: scene.culturalContext.slice(0, 80),
-        },
-      };
-      setMessages([fallbackMsg]);
-      setCurrentDifficulty(scene.level);
-      setLastNotice('已加载场景开场（离线模式）');
+      applyLocalOpening(scene, '已加载场景开场（离线模式）');
     } finally {
       setIsSending(false);
     }
-  }, [isSending, userId, sandboxMode, buildOralContext, processAiResponse, scrollToBottom, setIsSending, setLastNotice, setConversationId, setMessages, setCurrentDifficulty]);
+  }, [isSending, userId, sandboxMode, buildOralContext, processAiResponse, scrollToBottom, setIsSending, setLastNotice, setConversationId, applyLocalOpening, openingAbortRef]);
 
   const handleSendWithText = useCallback(async (forceContent: string) => {
     const rawContent = forceContent.trim();

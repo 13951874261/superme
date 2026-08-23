@@ -1,100 +1,213 @@
-﻿# 全站功能验证报告（三缺口复测）
+﻿# 功能与接口验证测试矩阵
 
-## 测试概述
+- **执行时间**：2026-08-23 19:43–19:53（UTC+8）
+- **环境**：`https://app.liujingzhuwo.site/`
+- **账号**：userId=`lzhmy`，解锁密码=`1`
+- **方法**：浏览器自动化登录 + 全量菜单扫描 + 逐模块点击 + 页面内 fetch/XHR 抓包（共 **381** 次请求）
+- **代码改动**：本次为线上探针，未改仓库代码。本地未部署改动含 `GET /api/insight/listen/pool`。
+- **截图**：`dist/e2e-screenshots/01-task-center.png`、`dist/e2e-screenshots/02-game-theory-tactics.png`
 
-| 项 | 内容 |
-| --- | --- |
-| 执行时间 | 2026-08-23 14:31–14:33（UTC+8） |
-| 测试环境 | 生产 [https://app.liujingzhuwo.site/](https://app.liujingzhuwo.site/) |
-| 账号 / 密码 | User ID `lzhmy` / 解锁秘钥 `1` |
-| 执行方式 | API 抽检 + Playwright 登录后走首页 / 进度总控 / 即兴演讲 / 任务中心 / 底部复盘（Cursor 内置 Browser MCP 本轮不可用，改用项目已有 Playwright） |
-| 代码修改概述 | **本轮未改产品代码**。验证 8/23 已部署项：统一主题 `ea8d175`、声线≠短板 `92ff86e`、Cron 删除改隐藏 `752ed61`。 |
-| 总测试用例数 | 6 |
-| 通过 | 5 |
-| 部分通过 / 无法复核 | 1 |
-| 失败 | 0 |
-| 截图目录 | `dist/e2e-verify/` |
+## 结论摘要
 
-**入口（共用）**
+| 项 | 结果 |
+|---|---|
+| 登录 | 通过。本地秘钥校验后 `POST /api/user/login-ping` **200**，`GET /api/user/profile/lzhmy` **200** |
+| 顶栏 7 模块切换 | 通过。听读 / 表达 / 精读 / 写作 / 博弈 / 审美均可打开，无白屏 |
+| 英语 6 个子页签 | 5 个通过；**即兴演讲**打开时后台口语接口失败 |
+| 破坏性按钮 | 未点：重置今日、清空已结束、删除记录、整次重新执行、完成打卡 |
+| 接口健康 | 绝大多数 **200**；失败见下方「失败案例」 |
 
-- 访问地址：`https://app.liujingzhuwo.site/`
-- 前置：密码 `1` 解锁，账号 `lzhmy`
+**统计（按唯一接口+状态）**：成功接口约 40+；明确失败 4 类（oral/chat 超时与 400、insight pool 404、探针参数不全的 400）。
 
-**关键结论（先看这个）**
+---
 
-复测清单上剩下的 3 类问题，**功能面已对齐**：
+## 第一步：登录
 
-1. **当前主题**全站读同一本户口本「新人报到」。侧栏不再写「海外信贷谈判与博弈」。今日包 `currentTheme=新人报到`，`stale=false`。
-2. **底部复盘**写「暂无短板」，不再把「英国 (UK)」当短板。顶栏声线仍是 `Libby (英国 (UK))`，这是口音，不是短板。
-3. **任务中心**能看到今日 Cron `run_11ba7da3…`，四模块全成功。不再是空列表。
+| 编号 | 菜单路径 / 地址 | 输入 | 预期 | 实际 | 对应需求 |
+|---|---|---|---|---|---|
+| T01 | 首页 `https://app.liujingzhuwo.site/` → 密码框 → 解锁登录 | 密码 `1`，账号 `lzhmy` | 进入工作台，无报错弹窗；鉴权 200 | **通过**。按钮变为「正在初始化…」后进入主界面 | 登录模块 |
 
-仍无法用今天这条成功 run 证明「精听失败不得标 completed」。软隐藏（点删除只藏不删）本轮没有点删除，未实测。
+后台：
 
-```
-主题对照（同一用户 lzhmy、2026-08-23）
-
-  GET /api/user/theme          → 新人报到
-  GET /api/daily-pack/today    → theme=新人报到, currentTheme=新人报到, stale=false, source=cron
-  侧栏                         → 当前主题：新人报到
-  唤醒条 / 演讲页              → 新人报到
-  wakeup.theme                 → Business Communication（课英文小标题，不当当前主题）
-  主题下拉里的旧选项            → 商务谈判：让步与施压（仅 OPTION，不是当前主题）
+```text
+POST /api/user/login-ping  → 200  {"success":true,"catchupScheduled":false,"userId":"lzhmy"}
+GET  /api/user/profile/lzhmy → 200  {"success":true,"data":{"user_id":"lzhmy",...}}
 ```
 
----
-
-## 功能测试用例与执行详情
-
-| 编号 | 菜单路径 / 接口 | 测试输入 | 预期结果 | 实际结果 | 截图 | 对应需求 |
-| --- | --- | --- | --- | --- | --- | --- |
-| FV-THEME-SIDE | 侧栏 | 登录后首页 | 文案为「当前主题：{户口本}」，不再写死周主题 | **通过** `当前主题：新人报到` | `10-home-theme-weakness.png` | 侧栏跟户口本 |
-| FV-CRON-02 | `GET /api/user/theme` + `GET /api/daily-pack/today` + 进度总控 / 即兴演讲 | userId=`lzhmy` | 当前主题四处同一中文 | **通过** 四处「新人报到」；`stale=false` | `11-dashboard-theme.png` / `12-speech-theme.png` | 主题单一数据源 |
-| FV-REVIEW-UK | 底部「专属复盘与弱点扫描」 | 无 | 短板不是 TTS 声线 | **通过** 「当前全局短板画像」= **暂无短板**；顶栏仍 `Libby (英国 (UK))` | `14-review-weakness.png` | 声线 ≠ 短板 |
-| FV-CRON-01 | 顶栏后台任务 / `GET /api/daily-cron/runs?userId=lzhmy&days=7` | lzhmy | 能看到今日四模块 | **通过** UI「每日定时任务 2026-08-23」；接口 1 条 run，`hiddenCount=0`；唤醒/破绽/长文/精听均为 1/1 或 64/64 | `13-task-center.png` | Cron 可观测 |
-| FV-CRON-HIDE | 任务中心删除 | 本轮未点删除 | 删后列表没了、`hiddenCount≥1`、库行还在 | **未测** 有可见 run，未做破坏性删除 | — | 软隐藏 |
-| FV-CRON-03 | 同一 run 状态 | 有失败不得标完成 | 失败则 `partial_failed` / `degraded` | **无法复核** 今日精听 1/1 成功，`status=completed` / `auditHealth=ok` 在成功路径上合理 | `13-task-center.png` | 失败态 |
-
-`GET /api/vocab/health` → `{ok:true, service:"vocab-server"}`。
+说明：前端先做本地密码比对（默认 `1`），再打 login-ping / profile。不是传统 Token 登录，会话靠 `userId`。
 
 ---
 
-## 失败案例分析
+## 第二步：菜单与按钮清单（扫描结果）
 
-无失败项。
+**顶栏**：英语学习 / 听读 / 表达 / 精读 / 写作 / 博弈训练 / 高阶审美
 
-### 附带、不判失败
+**英语子页签**：进度总控 / 生词复习 / 精听盲听 / 多角色练习 / 纵深书面 / 即兴演讲
 
-1. **主题下拉仍有「商务谈判：让步与施压」**  
-   只出现在 `<option>`，不是当前主题。成绩单/可选主题可以有很多名字。
+**听读**：理论框架库、体系要点、树形导图、全展开、导出 Word、分类（体制内/外企/通用社交）、刷新案例、模拟一键侧写
 
-2. **唤醒包 `wakeup.theme = Business Communication`**  
-   规格已定：这是课的英文小标题，不当户口本。
+**表达**：金字塔/因果结构、进入场景博弈会话、即兴发言、整理素材
 
-3. **FV-CRON-03**  
-   代码侧已改「失败不得 completed」。今天这条 run 没有失败步，现网仍缺一条失败样例。
+**精读**：场景分类、每日 AI 素材推送、政策意图解构
 
-4. **部署日志里其他用户的 `think_only_article`**  
-   账号 `user_4d51a0fc-...` 的 Cron 精听仍可能因模型只吐思考、没有正文而失败。不在本次 3 项范围内。
+**写作**：体制内公文 / 中文商务函 / 履历价值提炼、获取AI挑战任务、提交文治审阅
 
----
+**博弈**：高管冲突 / 策略档案 / 人机对战 / 多人会话 / 对局历史 / 顶层认知
 
-## 具体解决方案（待你选下一步再改）
+**审美**：顶级政商社交 / 高端审美 / 智力博弈 / 德州扑克 / 交互复盘、换一条
 
-1. 要证明 FV-CRON-03：等下一次真实失败，或手动造一条精听失败 run（不要改今天已成功的记录）。
-2. 要测软隐藏：在任务中心删一条已结束 run，看空态「已隐藏 N 条」和接口 `hiddenCount`。
-3. 下一个产品缺口：修 DailyListen `think_only_article`（模型只返回思考标签、正文不可用）。
+**全局**：资料抽屉、每周一聊、声线、后台任务、词典三件套、习惯打卡、职业轨迹
+
+首次进入英语页即可视交互控件 **324** 个（含大量「播放/收录」单词按钮，未逐词点击）。
 
 ---
 
-## 截图清单
+## 第三步：逐项执行与接口契约
 
-| 文件 | 覆盖用例 |
-| --- | --- |
-| `dist/e2e-verify/10-home-theme-weakness.png` | 登录后首页、侧栏当前主题、每日包 |
-| `dist/e2e-verify/11-dashboard-theme.png` | 进度总控主题「新人报到」 |
-| `dist/e2e-verify/12-speech-theme.png` | 即兴演讲主题「新人报到」，无 HIGH-OBSTACLE |
-| `dist/e2e-verify/13-task-center.png` | 今日 Cron 四模块成功 |
-| `dist/e2e-verify/14-review-weakness.png` | 底部短板「暂无短板」 |
-| `dist/e2e-verify/verify-3items.json` | Playwright 文本抽取 |
+### A. 英语学习
 
-未执行：整次重跑 Cron、重置今日、点删除、提交文治/英语审阅、开始演讲录音。
+| 编号 | 路径 | 输入 | 预期 | 实际 | 需求 |
+|---|---|---|---|---|---|
+| T02 | 顶栏 → 英语学习 | 无 | 进度总控 + 今日战区简报 | **通过**。`GET /api/theme/check-mastery` 200 | 模块切换 |
+| T03 | 进度总控 | 无 | 主题/配额加载 | **通过**。本地 UI，无新失败接口 | 子页签 |
+| T04 | 生词复习 | 无 | 复习词卡 + 记忆矩阵 | **通过**。`GET /api/vocab/review` 200，`GET /api/vocab/memory/:id` 200，`GET /api/vocab/item/:id` 200 | 生词 |
+| T05 | 精听盲听 | 无 | 查预生成听力，无则提示任务中心 | **部分通过**。`GET /api/listen/pregenerated` **200** `status:"ready"`，article+audio 已就绪；`GET /api/english/listen-prefs` 200 | 听力缓存 |
+| T06 | 多角色练习 | 无 | 沙盘场景出现 | **通过**。出现「国际银团贷款谈判 / 跨文化雷达」 | 口语沙盘 |
+| T07 | 纵深书面 | 无 | 书面页打开 | **通过**。`GET /api/theme/check-mastery` 200 | 书面 |
+| T08 | 即兴演讲 | 打开页签即触发 | 不卡死；接口 200 | **失败**。见 F1 | 即兴 |
+| T09 | 查询/生成今日长文 | 点击 | 只查缓存，命中则渲染 | **通过**。`GET /api/english/daily-extract/article/exact` **200** `found:true`，68ms | 长文缓存 |
+| T10 | 刷新词汇 | 点击 | 刷新或转入任务中心 | **部分通过**。`POST /api/daily-pack/regenerate` 200，`status:"generating"`，页面轮询 `/api/daily-pack/today`。未卡死，但是**同步轮询**而非任务中心抽屉 | 日包 |
+| T11 | 播放/收录（抽样） | 未逐条点全部 40+ 词 | — | 登录后自动 `POST /api/dify/dict-query` **230 次 200**，多数 `fromCache:true` | 词典缓存 |
+
+### B. 听读
+
+| 编号 | 路径 | 输入 | 预期 | 实际 | 需求 |
+|---|---|---|---|---|---|
+| T12 | 顶栏 → 听读 | 无 | 理论框架 + 案例 | **通过**。理论树/导图可点，无新 5xx | 听读壳 |
+| T13 | 体系要点 / 树形导图 / 全展开 | 点击 | 本地切换 | **通过**。无网络（本地渲染） | 导图 |
+| T14 | 体制内 / 外企 / 通用社交 / 刷新案例 | 点击 | 查日池缓存，空则提示任务中心 | **失败（后端未上线）**。生产 `GET /api/insight/listen/pool` → **404** `Endpoint not found`。刷新案例无有效回包。见 F2 | 洞察日池 |
+| T15 | 模拟一键侧写 | 点击 | 调试填充表单 | **通过**。本地填充，无破坏 | 调试 |
+
+### C. 表达 / 精读 / 写作
+
+| 编号 | 路径 | 输入 | 预期 | 实际 | 需求 |
+|---|---|---|---|---|---|
+| T16 | 表达 | 无 | 结构模板 + 场景入口 | **通过** | 表达壳 |
+| T17 | 进入场景博弈会话 | 点击 | 跳转博弈并拉会话 | **通过**。`GET /api/game-theory/sessions` 200，含「跨部门预算谈判」 | 跨模块 |
+| T18 | 精读 | 无 | 场景分类可见 | **通过** | 精读壳 |
+| T19 | 政策意图解构 | 点击 | 快速出素材 | **慢通过**。连带 `GET /api/game-theory/cases/push` **200**，耗时 **12502ms**。见建议 R3 | 案例推送 |
+| T20 | 写作 → 获取AI挑战任务 | 点击 | 不卡页，进任务中心 | **通过（模式正确）**。`POST /api/listen/generate-material-long` 200 `status:"pending"`，随后轮询 `GET /api/tasks/:id` 200 | 写作后台化 |
+
+### D. 博弈训练 / 高阶审美 / 任务中心 / 抽屉
+
+| 编号 | 路径 | 输入 | 预期 | 实际 | 需求 |
+|---|---|---|---|---|---|
+| T21 | 博弈训练 | 无 | 拉战术库 | **通过**。`GET /api/game-theory/tactics` 200；`prototypes` 200 `[]`；`linked` 200 | 博弈壳 |
+| T22 | 对局历史 | 点击 | 列出历史 | **通过**。`GET /api/game-theory/history` 200 | 历史 |
+| T23 | 博弈策略与人性档案 | 点击 | 手段库卡片 | **通过**。见截图 02 | 档案 |
+| T24 | 高阶审美 | 无 | 日推场景 | **通过**。`GET /api/aesthetics/daily-push` 200，`scenario_id:"fallback-auction"` | 审美缓存 |
+| T25 | 审美子页签 | 点击 5 个 | 本地切换 | **通过**。无网络 | 子页签 |
+| T26 | 换一条 | 点击 | 换场景，不 5xx | **通过**。`POST /api/aesthetics/daily-push/regenerate` 200，约 2s | 换题 |
+| T27 | 后台任务 → 查看详情 | 点击 | 日任务明细 200 | **通过**。`GET /api/daily-cron/runs/:id` 200。当日：抽稿 1/1、听力 1/1、长文 **64/64**、精听 1/1，失败 0。见截图 01 | 日 cron |
+| T28 | 资料抽屉 | 点击 | 打开知识库 | **通过**。英语笔记 / 同步 / 录入表单出现，无新失败接口 | 抽屉 |
+
+### E. 未执行（有意跳过）
+
+| 按钮 | 原因 |
+|---|---|
+| 重置今日 / 清空已结束 / 删除记录 / 整次重新执行 | 破坏性，会清线上任务或日包 |
+| 完成打卡 | 写训练进度 |
+| 上传 PDF/音频/录音 | 需本地文件与麦克风 |
+| 提交文治审阅 / 提交社交指数 / 提交输入并更新训练计划 | 需长文本，且会改下周计划 |
+| 导出 Word/CSV | 下载副作用 |
+| 逐词「播放/收录」 | 324 控件里重复项；词典接口已由页面自动覆盖验证 |
+
+---
+
+## 失败案例
+
+### F1 — 即兴演讲打开即打口语接口，失败
+
+- **路径**：英语学习 → 即兴演讲
+- **请求**：`POST /api/english/oral/chat`
+- **实际**：
+  1. 第一次 **status=0**，耗时 8004ms（前端超时/中断，无 body）
+  2. 第二次 **HTTP 400**，耗时 26781ms  
+     `{"code":"invalid_param","message":"Run failed: ... PluginInvokeError ... status code 522"}`
+- **原因**：打开页签就同步打 Dify 口语 Chat；上游 522（网关超时）被包装成 400。页面被这条慢请求拖住。
+- **方案**：
+  1. 打开页签只渲染本地题面，**用户点「开始」再请求**。
+  2. 开场白改日 cron 预生成，前端只 `GET` 缓存；没有则提示「去任务中心」，不卡当前页。
+  3. 超时后取消请求并 toast，不要让页签切换等待 8–26s。
+
+### F2 — 听读日池接口生产未部署
+
+- **路径**：听读 → 分类 / 刷新案例
+- **请求**：`GET /api/insight/listen/pool?category=体制内&userId=lzhmy`
+- **实际**：**404** `{"error":"Endpoint not found"}`（三个分类皆然）
+- **原因**：本地 `vocab-server/server.js` 已有该路由（未部署到 `app.liujingzhuwo.site`）。前端 `ListenModule` 已按「查池 → 不够则 backfill 进任务中心」写好。
+- **方案**：部署本仓库 `insightDailyPoolService` + `/api/insight/listen/pool` + `/pool/backfill`。部署前刷新案例只能走内置 fallback / 旧 `POST /api/insight/listen/scenario`。
+
+### F3 — 探针误用导致的 400（非产品按钮）
+
+| 请求 | 状态 | 说明 |
+|---|---|---|
+| `GET /api/listen/pregenerated?userId=&duration=5` | 400 | 缺 theme/genre/cefr。UI 带齐参数时是 200 `ready` |
+| `POST /api/dify/dict-query` 无 `word` | 400 | 探针字段写错。UI 正常调用 230 次均 200 |
+
+不计入产品缺陷。
+
+---
+
+## 适合「后台生成 + 页面只查缓存」的功能
+
+判断标准：生成慢（>2s）、结果与「今日/主题/分类」绑定、打开页不必等模型。没有缓存时只提示任务中心，不阻塞当前页。
+
+### 已按此模式工作（保持）
+
+| 功能 | 查询接口 | 证据 | 缺失时 |
+|---|---|---|---|
+| 今日长文 | `GET /api/english/daily-extract/article` / `exact` | 命中 `found:true`，68ms | 已有 3s 竞速 + 任务中心 |
+| 精听预生成 | `GET /api/listen/pregenerated` | UI 调用 `status:"ready"`，article+audio 齐 | `canBackfill` + 任务中心 |
+| 每日定时包 | `GET /api/daily-cron/runs` | 长文 64/64、精听 1/1 已就绪 | 任务中心看进度 |
+| 写作 AI 挑战 | `POST /api/listen/generate-material-long` | 163ms 回 `pending`，不卡页 | 已进任务队列 |
+| 词典 | `POST /api/dify/dict-query` | 大量 `fromCache:true` | 未命中才打模型 |
+| 审美日推 | `GET /api/aesthetics/daily-push` | 200，有 fallback 场景 | 「换一条」才 regenerate |
+| 生词收录 | vocab collect | 代码已 3s 移交任务中心 | 任务中心补齐释义 |
+| 博弈推演 | 任务中心（代码路径） | 模块文案已写「提交后台」 | 完成后进对局历史 |
+
+### 应该改成此模式（按优先级）
+
+| 优先级 | 功能 | 现状 | 建议 |
+|---|---|---|---|
+| P0 | **听读洞察案例** | 前端已写日池，生产 **404** | 先部署 pool；页上只 `GET` 缓存。`readyCount=0` → toast「后台生成中，去任务中心」，禁止当场打模型卡页 |
+| P0 | **即兴演讲开场** | 进页签就 `oral/chat`，8s 超时 / 26s 400 | 日 cron 预生成讲题+开场；页上只读缓存。没有则任务中心，不自动 chat |
+| P1 | **博弈案例推送** `GET /api/game-theory/cases/push` | 点击等 **12.5s** | 纳入每日 cron，页上只读已推送列表；刷新走 backfill 任务 |
+| P1 | **刷新词汇 / 日包 regenerate** | 页内轮询 `daily-pack/today` `generating` | 改 `addTask` + 任务中心，当前页继续用旧包 |
+| P2 | **审美「换一条」** | 同步 regenerate ~2s，尚可接受 | 做成 3 条日池，点换只切下一条；池空再 backfill |
+| P2 | **精读「每日 AI 素材推送」** | 若走 cases/push 会再等 10s+ | 与博弈案例共用日池 |
+
+### 不适合预生成（保持即时）
+
+用户当下输入决定输出：语法润色、发音诊断、口语沙盘多轮 SSE、文治审阅、社交指数分析、四维复盘、词典未缓存生词。这些继续「3s 竞速，超时进任务中心」即可，不要预生成。
+
+---
+
+## 红队记录
+
+| 推演 | 结果 |
+|---|---|
+| 空表单提交 | 「提交社交指数 / 提交文治 / 更新训练计划」均为 disabled，未误打后台 |
+| 破坏性按钮 | 已识别并跳过，线上日任务与词本未清 |
+| 模块 keep-alive | 英语壳 `hidden` 不卸载，抓按钮必须过滤不可见节点，否则会点到隐藏控件 |
+| 任务中心遮罩 | 打开后挡住主区点击；测模块前需先关抽屉 |
+| 词汇债务锁 | 本次未触发沙盘/写作锁定条 |
+
+---
+
+## 建议修复顺序（未改代码，待确认）
+
+1. 部署 `GET /api/insight/listen/pool` + backfill（本地已有，生产 404）。
+2. 即兴演讲改为「先渲染、再按需请求 / 读日池」，禁止进页签自动 `oral/chat`。
+3. `cases/push` 纳入 cron，前端只查缓存。
+4. 「刷新词汇」改任务中心，停止页内 generating 轮询。
