@@ -477,6 +477,8 @@ try {
 }
 const dailyListenPreGenerateService = require('./services/dailyListenPreGenerateService');
 dailyListenPreGenerateService.initDailyListenTables(db);
+const oralOpeningCacheService = require('./services/oralOpeningCacheService');
+oralOpeningCacheService.initOralOpeningTables(db);
 setImmediate(() => {
   dailyListenPreGenerateService.resumeInterruptedListenJobs(db)
     .then((result) => {
@@ -6949,6 +6951,87 @@ app.post('/api/english/oral/chat', async (req, res) => {
       return res.end();
     }
     return res.status(500).json({ fallback: true, message: err.message || '口语沙盘对话代理失败' });
+  }
+});
+
+app.get('/api/english/oral/opening', (req, res) => {
+  try {
+    const userId = req.query.userId || req.query.user || 'default-user';
+    const payload = oralOpeningCacheService.getOpening(db, {
+      userId,
+      packDate: req.query.packDate || req.query.date,
+      theme: req.query.theme,
+      sceneId: req.query.sceneId,
+    });
+    res.json(payload);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/english/oral/opening/backfill', (req, res) => {
+  try {
+    const body = req.body || {};
+    const userId = body.userId || body.user || 'default-user';
+    const sceneId = body.sceneId;
+    if (!sceneId) {
+      return res.status(400).json({ success: false, error: 'sceneId required' });
+    }
+    const taskQueue = require('./services/taskQueue');
+    const theme = body.theme || oralOpeningCacheService.DEFAULT_CRON_THEME;
+    const task = taskQueue.createTask(
+      'oral_opening_backfill',
+      `口语开场后台生成 · ${sceneId}`,
+    );
+    taskQueue.updateTask(task.id, {
+      status: 'running',
+      progress: 5,
+      logs: ['后台生成中，请稍后在任务中心查看'],
+    });
+    res.json({ success: true, taskId: task.id, status: task.status });
+
+    oralOpeningCacheService.runBackfill(db, {
+      userId,
+      sceneId,
+      theme,
+      packDate: body.packDate,
+      force: true,
+    }).then((result) => {
+      taskQueue.updateTask(task.id, {
+        status: 'completed',
+        progress: 100,
+        logs: ['口语开场已写入当日缓存，可刷新场景查看'],
+        result: {
+          sceneId: result.opening?.sceneId || sceneId,
+          packDate: result.opening?.packDate,
+          ready: Boolean(result.opening),
+        },
+      });
+    }).catch((e) => {
+      taskQueue.updateTask(task.id, {
+        status: 'failed',
+        error: e.message,
+        logs: [e.message],
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/english/oral/opening/cron-run', async (req, res) => {
+  try {
+    const secret = process.env.DAILY_PACK_CRON_SECRET || '';
+    if (secret && req.headers['x-cron-secret'] !== secret) {
+      return res.status(403).json({ success: false, error: 'forbidden' });
+    }
+    const result = await oralOpeningCacheService.runDailyOralOpeningCronJob(db, {
+      userId: req.body?.userId,
+    });
+    res.json({ success: true, ...result });
+  } catch (error) {
+    console.error('[OralOpening Cron Manual]', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 

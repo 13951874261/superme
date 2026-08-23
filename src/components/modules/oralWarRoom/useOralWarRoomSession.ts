@@ -526,7 +526,7 @@ export function useOralWarRoomSession({
 
   const handleRetryOpening = useCallback(() => {
     sceneInitRef.current = activeSceneId;
-    void initiateSceneDialogue(activeScene, undefined, { remote: true });
+    void initiateSceneDialogue(activeScene, undefined, { backfill: true });
   }, [activeSceneId, activeScene, initiateSceneDialogue]);
 
   const latestExchange = useMemo(() => {

@@ -1,5 +1,6 @@
 import { useCallback, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { sendOralChatMessage, type ParsedAiResponse, type OralChatContext } from '../../../services/difyAPI';
+import { fetchOralOpening, requestOralOpeningBackfill } from '../../../services/oralOpeningAPI';
 import { createTrainingAttempt } from '../../../services/trainingAPI';
 import { playSendMessage } from '../../../utils/soundEffects';
 import { ROLE_SWITCH_INSTRUCTION } from './scenes';
@@ -171,12 +172,50 @@ export function useOralDialogue({
   const initiateSceneDialogue = useCallback(async (
     scene: SceneEntry,
     modeOverride?: SandboxMode,
-    opts: { remote?: boolean } = {},
+    opts: { remote?: boolean; backfill?: boolean } = {},
   ) => {
     if (isSending) return;
     const mode = modeOverride ?? sandboxMode;
-    // ponytail: 进页只出本地开场；Dify 仅「重新开场」。日池 GET 等上游 522 稳了再加。
+
+    if (opts.backfill) {
+      try {
+        await requestOralOpeningBackfill({
+          userId,
+          sceneId: scene.id,
+          theme: sceneTheme,
+        });
+        setLastNotice('已提交任务中心生成口语开场，完成后请重新进入场景或点「重新开场」刷新。');
+      } catch {
+        setLastNotice('提交后台生成失败，请稍后在任务中心重试。');
+      }
+      return;
+    }
+
     if (!opts.remote) {
+      try {
+        const cached = await fetchOralOpening({
+          userId,
+          sceneId: scene.id,
+          theme: sceneTheme,
+          signal: openingAbortRef.current?.signal,
+        });
+        if (cached.ready && cached.opening?.answer) {
+          const rawText = cached.opening.answer;
+          const parsed = parseAiPayload(rawText);
+          const aiMsg: MessageItem = { id: `${Date.now()}-a`, role: 'ai', content: rawText, parsed };
+          setMessages([aiMsg]);
+          if (cached.opening.conversationId) {
+            setConversationId(cached.opening.conversationId);
+          }
+          processAiResponse(parsed, '', false);
+          setCurrentDifficulty(scene.level);
+          setLastNotice('已加载今日预生成开场（缓存）。');
+          scrollToBottom();
+          return;
+        }
+      } catch {
+        // 缓存读取失败时回退本地开场
+      }
       applyLocalOpening(scene, '已加载场景开场（本地剧本）。完整推演请点「重新开场」或去任务中心。');
       return;
     }
@@ -207,7 +246,7 @@ export function useOralDialogue({
     } finally {
       setIsSending(false);
     }
-  }, [isSending, userId, sandboxMode, buildOralContext, processAiResponse, scrollToBottom, setIsSending, setLastNotice, setConversationId, applyLocalOpening, openingAbortRef]);
+  }, [isSending, userId, sceneTheme, sandboxMode, buildOralContext, processAiResponse, scrollToBottom, setIsSending, setLastNotice, setConversationId, applyLocalOpening, openingAbortRef, setMessages, setCurrentDifficulty]);
 
   const handleSendWithText = useCallback(async (forceContent: string) => {
     const rawContent = forceContent.trim();

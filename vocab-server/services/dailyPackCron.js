@@ -413,6 +413,12 @@ function scheduleDailyPackCron(db) {
               cronTickId: packSummary.cronTickId,
             });
           }
+          if (process.env.DAILY_ORAL_OPENING_CRON_ENABLED !== 'false') {
+            const oralOpeningCacheService = require('./oralOpeningCacheService');
+            await oralOpeningCacheService.runDailyOralOpeningCronJob(db, {
+              cronTickId: packSummary.cronTickId,
+            });
+          }
         } finally {
           isExecutingCron = false;
         }
