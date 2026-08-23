@@ -26,7 +26,11 @@ export async function appendErrorLedgerEntries(
   category: ErrorLedgerCategory,
   entries: Record<string, unknown>[],
 ): Promise<void> {
-  if (!entries.length) return;
+  if (!category) {
+    console.warn('[errorLedger] Missing category, skipping');
+    return;
+  }
+  if (!entries || !entries.length) return;
 
   const ledger = readLocalLedger();
   const bucket = Array.isArray(ledger[category]) ? [...ledger[category]!] : [];
