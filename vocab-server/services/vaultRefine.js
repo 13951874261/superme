@@ -2,7 +2,6 @@
  * XF-FEED-02：知识点使用达阈后异步再提炼 + 变难 + 扩枝加厚深度硬卡。
  */
 const crypto = require('crypto');
-const https = require('https');
 const extra = require('./knowledgeVaultExtra');
 const { evaluateVaultRefineDepth } = require('./vaultRefineDepthQuality');
 
@@ -103,51 +102,20 @@ function markRefinePending(db, row, usageCount) {
   return nextExtra;
 }
 
-function callRefineLLM(prompt, apiKey) {
-  const llmUrl = process.env.WRITE_GOVERNANCE_LLM_URL || 'https://23.95.214.232/v1/chat/completions';
-  const requestBody = JSON.stringify({
-    model: 'dify',
+async function callRefineLLM(prompt, apiKey) {
+  const { chatCompletions, extractAssistantContent } = require('./openaiCompatLlm');
+  const data = await chatCompletions({
     messages: [
       { role: 'system', content: '你是知识精进助手。只输出 JSON。' },
       { role: 'user', content: prompt },
     ],
     temperature: 0.3,
-    stream: false,
+    timeoutMs: 45000,
+    apiKey,
   });
-
-  return new Promise((resolve, reject) => {
-    const request = https.request(llmUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, (response) => {
-      let raw = '';
-      response.on('data', (chunk) => { raw += chunk; });
-      response.on('end', () => {
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          reject(new Error('LLM HTTP ' + response.statusCode + ': ' + raw.slice(0, 200)));
-          return;
-        }
-        try {
-          const payload = JSON.parse(raw);
-          const content = String(payload?.choices?.[0]?.message?.content || '');
-          const output = parseRefineLlmOutput(content);
-          if (!output || !output.summary) reject(new Error('LLM refine missing summary or structure'));
-          else resolve(output);
-        } catch (error) {
-          reject(new Error('LLM refine parse failed: ' + error.message));
-        }
-      });
-    });
-    request.setTimeout(45000, () => request.destroy(new Error('LLM refine timeout')));
-    request.on('error', reject);
-    request.write(requestBody);
-    request.end();
-  });
+  const output = parseRefineLlmOutput(extractAssistantContent(data));
+  if (!output || !output.summary) throw new Error('LLM refine missing summary or structure');
+  return output;
 }
 
 function buildLocalRefineFallback(title, summary, existingMindmap) {

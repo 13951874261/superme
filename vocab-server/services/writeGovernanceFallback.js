@@ -1,7 +1,5 @@
-const https = require('https');
+const { chatCompletions } = require('./openaiCompatLlm');
 
-const LLM_URL = process.env.WRITE_GOVERNANCE_LLM_URL || 'https://23.95.214.232/v1/chat/completions';
-const LLM_MODEL = 'dify';
 const REQUEST_TIMEOUT_MS = 45000;
 
 function detectLanguage(text) {
@@ -58,47 +56,17 @@ function extractJson(text) {
   return JSON.parse(match[0]);
 }
 
-function callLLM(systemPrompt, userPrompt, apiKey) {
-  return new Promise((resolve, reject) => {
-    const requestBody = JSON.stringify({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.2,
-      stream: false,
-    });
-    const request = https.request(LLM_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, response => {
-      let raw = '';
-      response.on('data', chunk => { raw += chunk; });
-      response.on('end', () => {
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          reject(new Error('LLM HTTP ' + response.statusCode + ': ' + raw.slice(0, 200)));
-          return;
-        }
-        try {
-          const payload = JSON.parse(raw);
-          const content = String(payload?.choices?.[0]?.message?.content || '');
-          resolve(extractJson(content));
-        } catch (error) {
-          reject(new Error('LLM parse failed: ' + error.message));
-        }
-      });
-    });
-    request.setTimeout(REQUEST_TIMEOUT_MS, () => request.destroy(new Error('LLM timeout')));
-    request.on('error', reject);
-    request.write(requestBody);
-    request.end();
+async function callLLM(systemPrompt, userPrompt, apiKey) {
+  const data = await chatCompletions({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.2,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    apiKey,
   });
+  return extractJson(data?.choices?.[0]?.message?.content || '');
 }
 
 function toText(input) {

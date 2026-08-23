@@ -2168,7 +2168,7 @@ function buildImageGenerationPayload(model, prompt) {
     };
   }
 
-  if (model === 'nb/nanobanana-flash' || model === 'nb/nanobanana-pro') {
+  if (model === 'nb/nanobanana-flash' || model === 'nb/nanobanana-pro' || model === 'ag/gemini-3.1-flash-image') {
     return {
       model,
       prompt,
@@ -6165,6 +6165,23 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
             lastError = result.error;
             console.log(`[generate-image] model ${model} failed: ${lastError}`);
             taskQueue.updateTask(task.id, { logs: [`模型 ${model} 失败: ${lastError}`] });
+          }
+        }
+
+        if (!imageUrl) {
+          const fallbackBase = process.env.IMAGE_GEN_FALLBACK_URL || 'http://192.210.136.140:20128/v1';
+          const fallbackKey = process.env.IMAGE_GEN_FALLBACK_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
+          const fallbackModel = process.env.IMAGE_GEN_FALLBACK_MODEL || 'ag/gemini-3.1-flash-image';
+          taskQueue.updateTask(task.id, { logs: [`Agnes 全部失败，尝试备用生图: ${fallbackModel}`] });
+          const fallbackResult = await tryGenerateImageOnce(fallbackBase, fallbackKey, fallbackModel, memoryAids.image_prompt);
+          if (fallbackResult.ok) {
+            imageUrl = fallbackResult.imageUrl;
+            downloadUrl = fallbackResult.downloadUrl;
+            lastError = '';
+            taskQueue.updateTask(task.id, { logs: [`备用模型 ${fallbackModel} 成功`] });
+          } else {
+            lastError = fallbackResult.error;
+            taskQueue.updateTask(task.id, { logs: [`备用生图失败: ${lastError}`] });
           }
         }
 
@@ -11044,9 +11061,8 @@ app.post('/api/tasks/clear-finished', (req, res) => {
 
 // 当 Dify 工作流提取词汇为空时，调用本地 LLM 动态提取生词、短语与句型 (使用 dify 模型)
 async function extractVocabFallback(body, cefrLevel = 'B1', genre = 'meeting', duration = '15', theme = '') {
-  const https = require('https');
-  const url = 'https://23.95.214.232/v1/chat/completions';
-  const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
+  const { chatCompletions, getLlmModels, DEFAULT_LLM_KEY } = require('./services/openaiCompatLlm');
+  const apiKey = process.env.LISTEN_LLM_API_KEY || DEFAULT_LLM_KEY;
 
   const systemPrompt = `You are a senior business English pedagogy expert. Read the English article provided below and extract key business vocabulary words, business phrases, and key business sentence structures.
 
@@ -11095,67 +11111,26 @@ The JSON schema must be exactly:
   ]
 }`;
 
-  const executeRequest = (modelName) => {
-    return new Promise((resolve, reject) => {
-      const requestBody = JSON.stringify({
-        model: modelName,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `Input Article:\n"""\n${body}\n"""` }
-        ],
-        temperature: 0.2,
-        stream: false
-      });
-
-      const options = {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(requestBody)
-        },
-        rejectUnauthorized: false
-      };
-
-      let aborted = false;
-      const req = https.request(url, options, (res) => {
-        res.setEncoding('utf-8');
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          if (aborted) return;
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve({ statusCode: res.statusCode, data });
-          } else {
-            reject(new Error(`LLM status error: ${res.statusCode} - ${data}`));
-          }
-        });
-      });
-
-      req.on('error', (err) => {
-        if (aborted) return;
-        reject(err);
-      });
-
-      // 长文兜底提纯需要更长超时，避免 15s 误杀导致词表仍为空
-      req.setTimeout(60000, () => {
-        aborted = true;
-        req.destroy();
-        reject(new Error('Request timeout after 60s'));
-      });
-
-      req.write(requestBody);
-      req.end();
+  const executeRequest = async (modelName) => {
+    const data = await chatCompletions({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Input Article:\n"""\n${body}\n"""` }
+      ],
+      temperature: 0.2,
+      timeoutMs: 60000,
+      apiKey,
+      models: [modelName],
     });
+    return { statusCode: 200, data: JSON.stringify(data) };
   };
 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-  // Try up to 3 times (attempts with different models: 'dify' then 'gptgpt/gpt-5')
-  const modelsToTry = ['dify', 'gptgpt/gpt-5', 'dify'];
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const modelsToTry = getLlmModels();
+  for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
     const selectedModel = modelsToTry[attempt];
-    console.log(`[Vocab Fallback] Calling fallback LLM (attempt ${attempt + 1}/3) using model=${selectedModel}...`);
+    console.log(`[Vocab Fallback] Calling fallback LLM (attempt ${attempt + 1}/${modelsToTry.length}) using model=${selectedModel}...`);
     try {
       const response = await executeRequest(selectedModel);
       const json = JSON.parse(response.data);
@@ -11188,86 +11163,36 @@ The JSON schema must be exactly:
       };
     } catch (err) {
       console.warn(`[Vocab Fallback] Attempt ${attempt + 1} failed:`, err.message);
-      if (attempt < 2) {
+      if (attempt < modelsToTry.length - 1) {
         await delay(1000);
       }
     }
   }
 
-  console.error('[Vocab Fallback] All 3 attempts failed to extract vocab.');
+  console.error('[Vocab Fallback] All model attempts failed to extract vocab.');
   return { vocab: [], phrases: [], sentences: [] };
 }
 
-// 语音转译文本智能润色与纠错接口 (调用 23.95.214.232/v1)
 async function callPolishLLM(rawText) {
-  return new Promise((resolve, reject) => {
-    const https = require('https');
-    const url = 'https://23.95.214.232/v1/chat/completions';
-    const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
-
-    const requestBody = JSON.stringify({
-      model: 'dify',
-      messages: [
-        {
-          role: 'system',
-          content: '你是一个专业的中英文语音识别（STT）原始转录文本智能纠错与润色助手。\\n\\n你的核心任务是：纠正原始文本中由于语音识别错误导致的“同音错别字”和“近音词”，在不改变说话人原本意图和口语语气的准则下，使其成为符合生活常识、逻辑通顺的规范句子。\\n\\n请严格遵循以下规则处理：\\n1. **逻辑与常识纠错（最重要）**：STT 转写极易产生离谱的近音错字（例如把“盒子”误听为“核子/合同/和子”，把“生锈/成熟”误听为“伸熟/神树”）。你必须结合上下文，将这些逻辑不通的词汇纠正为符合常识的正常词汇，确保句子读起来通顺合理。\\n2. **标点与分句补全**：结合语气与停顿，合理添加标点符号（中文使用全角，英文使用半角）。\\n3. **保留口语语气**：保留说话人的第一人称、口语语气和口头表达习惯（如“啊/啦/吧”等语气词），绝对不要把通俗的口语强行改写为官僚、书面或过于正式的官腔。\\n4. **自适应语言**：自动处理纯中文、纯英文或中英混杂文本。\\n5. **严格的输出限制**：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何解释、旁白、前缀（如“纠正后：”）或双引号。\\n6. **无法润色时必须回退原文**：若输入已通顺无需修改、仅为单个单词/短词、你不确定如何纠正，或无法有效润色，必须原样输出输入文本，禁止输出空字符串。仅当输入本身为空，或仅为杂音标签（如 silence、BLANK_AUDIO）时，才输出空字符串。'
-        },
-        {
-          role: 'user',
-          content: `原始转录文本：\\n"""\\n${rawText}\\n"""`
-        }
-      ],
-      temperature: 0.7,
-      stream: false
-    });
-
-    const options = {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody)
+  const { chatCompletions, extractAssistantContent, DEFAULT_LLM_KEY } = require('./services/openaiCompatLlm');
+  const apiKey = process.env.LISTEN_LLM_API_KEY || DEFAULT_LLM_KEY;
+  const data = await chatCompletions({
+    messages: [
+      {
+        role: 'system',
+        content: '你是一个专业的中英文语音识别（STT）原始转录文本智能纠错与润色助手。\\n\\n你的核心任务是：纠正原始文本中由于语音识别错误导致的“同音错别字”和“近音词”，在不改变说话人原本意图和口语语气的准则下，使其成为符合生活常识、逻辑通顺的规范句子。\\n\\n请严格遵循以下规则处理：\\n1. **逻辑与常识纠错（最重要）**：STT 转写极易产生离谱的近音错字（例如把“盒子”误听为“核子/合同/和子”，把“生锈/成熟”误听为“伸熟/神树”）。你必须结合上下文，将这些逻辑不通的词汇纠正为符合常识的正常词汇，确保句子读起来通顺合理。\\n2. **标点与分句补全**：结合语气与停顿，合理添加标点符号（中文使用全角，英文使用半角）。\\n3. **保留口语语气**：保留说话人的第一人称、口语语气和口头表达习惯（如“啊/啦/吧”等语气词），绝对不要把通俗的口语强行改写为官僚、书面或过于正式的官腔。\\n4. **自适应语言**：自动处理纯中文、纯英文或中英混杂文本。\\n5. **严格的输出限制**：仅输出最终纠正、润色后的纯文本内容。绝对不能包含任何解释、旁白、前缀（如“纠正后：”）或双引号。\\n6. **无法润色时必须回退原文**：若输入已通顺无需修改、仅为单个单词/短词、你不确定如何纠正，或无法有效润色，必须原样输出输入文本，禁止输出空字符串。仅当输入本身为空，或仅为杂音标签（如 silence、BLANK_AUDIO）时，才输出空字符串。'
       },
-      rejectUnauthorized: false // 关键设置：忽略自签名或 IP HTTPS 证书校验
-    };
-
-    let aborted = false;
-    const req = https.request(url, options, (res) => {
-      res.setEncoding('utf-8');
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        if (aborted) return;
-        if (res.statusCode >= 200 && res.statusCode < 300) {
-          try {
-            const json = JSON.parse(data);
-            const polishedText = String(json.choices?.[0]?.message?.content || '').trim();
-            // 无法润色/模型返回空时回退原始转写
-            resolve(polishedText || String(rawText || '').trim());
-          } catch (e) {
-            reject(new Error(`JSON 解析失败: ${e.message}`));
-          }
-        } else {
-          reject(new Error(`LLM 接口返回错误码: ${res.statusCode}, 响应: ${data}`));
-        }
-      });
-    });
-
-    req.on('error', (err) => {
-      if (aborted) return;
-      reject(err);
-    });
-
-    // Set timeout of 15 seconds
-    req.setTimeout(15000, () => {
-      aborted = true;
-      req.destroy();
-      reject(new Error('Request timeout after 15s'));
-    });
-
-    req.write(requestBody);
-    req.end();
+      {
+        role: 'user',
+        content: `原始转录文本：\\n"""\\n${rawText}\\n"""`
+      }
+    ],
+    temperature: 0.7,
+    timeoutMs: 15000,
+    apiKey,
   });
+  const polishedText = extractAssistantContent(data).trim();
+  return polishedText || String(rawText || '').trim();
 }
 
 app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
@@ -11421,9 +11346,8 @@ app.post('/api/audio/transcriptions', upload.any(), async (req, res) => {
 // 提取思维导图与核心知识点 (fallback 本地 LLM)
 // ==========================================
 async function generateMindmapAndTheoryNodesFallback(body, topic = 'General Business') {
-  const https = require('https');
-  const url = 'https://23.95.214.232/v1/chat/completions';
-  const apiKey = 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
+  const { chatCompletions, getLlmModels, DEFAULT_LLM_KEY } = require('./services/openaiCompatLlm');
+  const apiKey = process.env.LISTEN_LLM_API_KEY || DEFAULT_LLM_KEY;
 
   const systemPrompt = `你是一位资深的职场博弈、逻辑学与商务英语教学专家。请阅读用户提供的文章/书本片段，为其提炼并输出一套系统的学习内容，包含思维导图、核心理论知识点、框架构成以及具体的解释与生活/工作应用举例。
 
@@ -11454,65 +11378,26 @@ JSON Schema 必须严格为：
   "scenario": "根据上述提炼的博弈论或沟通技巧知识点，设计一个相关的模拟对话博弈练习场景（包含前因后果的完整案例），限250字，以供用户进行听力或口语表达练习。要求案例博弈激烈、背景清晰。"
 }`;
 
-  const executeRequest = (modelName) => {
-    return new Promise((resolve, reject) => {
-      const requestBody = JSON.stringify({
-        model: modelName,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `输入文章内容:
+  const executeRequest = async (modelName) => {
+    const data = await chatCompletions({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `输入文章内容:
 """
 ${body.substring(0, 8000)}
 """` }
-        ],
-        temperature: 0.3,
-        stream: false
-      });
-
-      const options = {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'Content-Length': Buffer.byteLength(requestBody)
-        },
-        rejectUnauthorized: false
-      };
-
-      let aborted = false;
-      const req = https.request(url, options, (res) => {
-        res.setEncoding('utf-8');
-        let data = '';
-        res.on('data', (chunk) => { data += chunk; });
-        res.on('end', () => {
-          if (aborted) return;
-          if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve({ statusCode: res.statusCode, data });
-          } else {
-            reject(new Error(`LLM status error: ${res.statusCode} - ${data}`));
-          }
-        });
-      });
-
-      req.on('error', (err) => {
-        if (aborted) return;
-        reject(err);
-      });
-
-      req.setTimeout(35000, () => {
-        aborted = true;
-        req.destroy();
-        reject(new Error('Request timeout after 35s'));
-      });
-
-      req.write(requestBody);
-      req.end();
+      ],
+      temperature: 0.3,
+      timeoutMs: 35000,
+      apiKey,
+      models: [modelName],
     });
+    return { statusCode: 200, data: JSON.stringify(data) };
   };
 
-  const modelsToTry = ['dify', 'gptgpt/gpt-5', 'dify'];
+  const modelsToTry = getLlmModels();
   let lastErr = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
     try {
       const res = await executeRequest(modelsToTry[attempt]);
       const jsonRes = JSON.parse(res.data);

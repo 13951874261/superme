@@ -1,7 +1,5 @@
-const https = require('https');
+const { chatCompletions, extractJsonObject } = require('./openaiCompatLlm');
 
-const LLM_URL = 'https://23.95.214.232/v1/chat/completions';
-const LLM_MODEL = 'dify';
 const REQUEST_TIMEOUT_MS = 30000;
 
 function buildSystemPrompt() {
@@ -12,48 +10,17 @@ function buildUserPrompt(targetWord, userSentence, theme) {
   return `【目标词汇】${targetWord}\n【用户造句】${userSentence}\n【实战主题】${theme || '商务沟通'}`;
 }
 
-function callLLM(systemPrompt, userPrompt, apiKey) {
-  return new Promise((resolve, reject) => {
-    const requestBody = JSON.stringify({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.2,
-      stream: false,
-    });
-    const req = https.request(LLM_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error(`LLM HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
-        }
-        try {
-          const data = JSON.parse(raw);
-          const content = String(data?.choices?.[0]?.message?.content || '');
-          const match = content.match(/\{[\s\S]*\}/);
-          if (!match) return reject(new Error('LLM did not return JSON'));
-          resolve(JSON.parse(match[0]));
-        } catch (error) {
-          reject(new Error(`LLM parse failed: ${error.message}`));
-        }
-      });
-    });
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error('LLM timeout')));
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
+async function callLLM(systemPrompt, userPrompt, apiKey) {
+  const data = await chatCompletions({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.2,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    apiKey,
   });
+  return extractJsonObject(data?.choices?.[0]?.message?.content || '');
 }
 
 function normalizeScore(value) {

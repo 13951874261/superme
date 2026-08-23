@@ -1,18 +1,8 @@
-const https = require('https');
+const { chatCompletions, extractJsonObject } = require('./openaiCompatLlm');
 
-const LLM_URL = 'https://23.95.214.232/v1/chat/completions';
-const LLM_MODEL = 'dify';
 // 句式矩阵需要一次产出翻译、语法结构、替换表达与场景 SOP，耗时明显高于单词，
 // 因此放宽单次生成时长；前端由 3 秒竞速托管到任务中心，不会因此卡住交互。
 const REQUEST_TIMEOUT_MS = Number(process.env.VOCAB_MATRIX_LLM_TIMEOUT_MS || 90000);
-
-const httpsAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 50,
-  maxFreeSockets: 10,
-  timeout: REQUEST_TIMEOUT_MS,
-});
 
 const PLACEHOLDER_PATTERNS = [
   '目标词', '待补充', '待复习补充', '中文释义加载中', '暂无', 'TODO', 'N/A', 'null', 'undefined',
@@ -126,49 +116,21 @@ function buildUserPrompt({ text = '', kind = 'word', topic = '' } = {}) {
   return `【长文主题】${topic || '商务实战'}\n\n【${label}】\n"""\n${String(text || '').trim()}\n"""`;
 }
 
-function callLLM(systemPrompt, userPrompt, apiKey) {
-  return new Promise((resolve, reject) => {
-    const requestBody = JSON.stringify({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.3,
-      stream: false,
-    });
-    const req = https.request(LLM_URL, {
-      method: 'POST',
-      agent: httpsAgent,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error(`Matrix LLM HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
-        }
-        try {
-          const data = JSON.parse(raw);
-          const content = data?.choices?.[0]?.message?.content || '';
-          const match = content.match(/\{[\s\S]*\}/);
-          if (!match) return reject(new Error('Matrix LLM did not return JSON'));
-          resolve(JSON.parse(match[0]));
-        } catch (error) {
-          reject(new Error(`Matrix LLM parse failed: ${error.message}`));
-        }
-      });
-    });
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error('Matrix LLM timeout')));
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
+async function callLLM(systemPrompt, userPrompt, apiKey) {
+  const data = await chatCompletions({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.3,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    apiKey,
   });
+  try {
+    return extractJsonObject(data?.choices?.[0]?.message?.content || '');
+  } catch (error) {
+    throw new Error(`Matrix LLM parse failed: ${error.message}`);
+  }
 }
 
 /**

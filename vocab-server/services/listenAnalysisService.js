@@ -1,18 +1,7 @@
-const https = require('https');
 const crypto = require('crypto');
+const { chatCompletions, extractJsonObject } = require('./openaiCompatLlm');
 
-const LLM_URL = 'https://23.95.214.232/v1/chat/completions';
-const LLM_MODEL = 'dify';
 const REQUEST_TIMEOUT_MS = 30000;
-
-// 1. HTTPS Keep-Alive 连接池复用，消除 TCP/TLS 重复握手开销
-const httpsAgent = new https.Agent({
-  keepAlive: true,
-  keepAliveMsecs: 30000,
-  maxSockets: 50,
-  maxFreeSockets: 10,
-  timeout: 30000,
-});
 
 // 2. 内存 LRU 结果缓存（支持 TTL 和容量淘汰）
 const CACHE_MAX_SIZE = 1000;
@@ -58,49 +47,17 @@ function buildUserPrompt(userInput, standardText, theme) {
   return `【背景主题】${theme || '商务谈判'}\n\n【用户草稿】（What the user heard）：\n"""\n${userInput || ''}\n"""\n\n【标准原文】（The actual transcript）：\n"""\n${standardText || ''}\n"""`;
 }
 
-function callLLM(systemPrompt, userPrompt, apiKey) {
-  return new Promise((resolve, reject) => {
-    const requestBody = JSON.stringify({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.3,
-      stream: false,
-    });
-    const req = https.request(LLM_URL, {
-      method: 'POST',
-      agent: httpsAgent,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error(`LLM HTTP ${res.statusCode}: ${raw.slice(0, 200)}`));
-        }
-        try {
-          const data = JSON.parse(raw);
-          const content = data?.choices?.[0]?.message?.content || '';
-          const match = content.match(/\{[\s\S]*\}/);
-          if (!match) return reject(new Error('LLM did not return JSON'));
-          resolve(JSON.parse(match[0]));
-        } catch (error) {
-          reject(new Error(`LLM parse failed: ${error.message}`));
-        }
-      });
-    });
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error('LLM timeout')));
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
+async function callLLM(systemPrompt, userPrompt, apiKey) {
+  const data = await chatCompletions({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.3,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    apiKey,
   });
+  return extractJsonObject(data?.choices?.[0]?.message?.content || '');
 }
 
 function normalizeResult(raw) {

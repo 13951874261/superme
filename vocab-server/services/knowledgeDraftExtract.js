@@ -86,9 +86,8 @@ function extractJsonObject(text) {
   return JSON.parse(match[0]);
 }
 
-function callExtractLLM(excerpt, meta, apiKey) {
-  const https = require('https');
-  const llmUrl = process.env.WRITE_GOVERNANCE_LLM_URL || 'https://23.95.214.232/v1/chat/completions';
+async function callExtractLLM(excerpt, meta, apiKey) {
+  const { chatCompletions } = require('./openaiCompatLlm');
   const systemPrompt = [
     '你是政商务洞察教练。请把材料提炼成资料抽屉「理论框架」草稿。',
     '必须返回严格 JSON，禁止 Markdown 代码块和额外说明。',
@@ -101,49 +100,18 @@ function callExtractLLM(excerpt, meta, apiKey) {
     excerpt,
   ].filter(Boolean).join('\n');
 
-  const requestBody = JSON.stringify({
-    model: 'dify',
+  const data = await chatCompletions({
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
     temperature: 0.2,
-    stream: false,
+    timeoutMs: 45000,
+    apiKey,
   });
-
-  return new Promise((resolve, reject) => {
-    const request = https.request(llmUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, (response) => {
-      let raw = '';
-      response.on('data', (chunk) => { raw += chunk; });
-      response.on('end', () => {
-        if (response.statusCode < 200 || response.statusCode >= 300) {
-          reject(new Error('LLM HTTP ' + response.statusCode + ': ' + raw.slice(0, 200)));
-          return;
-        }
-        try {
-          const payload = JSON.parse(raw);
-          const content = String(payload?.choices?.[0]?.message?.content || '');
-          const parsed = parseExtractedDraft(extractJsonObject(content));
-          if (!parsed) reject(new Error('LLM draft missing title/summary'));
-          else resolve(parsed);
-        } catch (error) {
-          reject(new Error('LLM parse failed: ' + error.message));
-        }
-      });
-    });
-    request.setTimeout(45000, () => request.destroy(new Error('LLM timeout')));
-    request.on('error', reject);
-    request.write(requestBody);
-    request.end();
-  });
+  const parsed = parseExtractedDraft(extractJsonObject(data?.choices?.[0]?.message?.content || ''));
+  if (!parsed) throw new Error('LLM draft missing title/summary');
+  return parsed;
 }
 
 function insertTheoryDraft(db, params) {

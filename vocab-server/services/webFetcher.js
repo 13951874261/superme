@@ -57,8 +57,8 @@ async function fetchUrlContent(urlString) {
     throw new Error('Web fetch failed: invalid URL or restricted network address');
   }
 
-  const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
-  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://23.95.214.232/v1').replace(/\/$/, '');
+  const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
+  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'http://192.210.136.140:20128/v1').replace(/\/$/, '');
   const fetchUrl = `${endpointBase}/web/fetch`;
   const hostname = new URL(fetchUrl).hostname;
   // IP hosts (e.g. 23.95.214.232) present a cert for 9router.234124123.xyz only.

@@ -1,6 +1,4 @@
-const https = require('https');
-const LLM_URL = 'https://23.95.214.232/v1/chat/completions';
-const LLM_MODEL = 'dify';
+const { chatCompletions, extractJsonObject } = require('./openaiCompatLlm');
 const REQUEST_TIMEOUT_MS = 45000;
 
 function sysPrompt() {
@@ -23,48 +21,17 @@ function userPrompt(scene, response) {
   ].join('\n');
 }
 
-function callLLM(sys, usr, key) {
-  return new Promise((resolve, reject) => {
-    const body = JSON.stringify({
-      model: LLM_MODEL,
-      messages: [
-        { role: 'system', content: sys },
-        { role: 'user', content: usr },
-      ],
-      temperature: 0.2,
-      stream: false,
-    });
-    const req = https.request(LLM_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer ' + key,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(body),
-      },
-      rejectUnauthorized: false,
-    }, res => {
-      let raw = '';
-      res.on('data', chunk => { raw += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error('LLM HTTP ' + res.statusCode + ': ' + raw.slice(0, 200)));
-        }
-        try {
-          const d = JSON.parse(raw);
-          const text = String(d?.choices?.[0]?.message?.content || '');
-          const m = text.match(/\{[\s\S]*\}/);
-          if (!m) return reject(new Error('no JSON in LLM response'));
-          resolve(JSON.parse(m[0]));
-        } catch (e) {
-          reject(new Error('LLM parse failed: ' + e.message));
-        }
-      });
-    });
-    req.setTimeout(REQUEST_TIMEOUT_MS, () => req.destroy(new Error('LLM timeout')));
-    req.on('error', reject);
-    req.write(body);
-    req.end();
+async function callLLM(sys, usr, key) {
+  const data = await chatCompletions({
+    messages: [
+      { role: 'system', content: sys },
+      { role: 'user', content: usr },
+    ],
+    temperature: 0.2,
+    timeoutMs: REQUEST_TIMEOUT_MS,
+    apiKey: key,
   });
+  return extractJsonObject(data?.choices?.[0]?.message?.content || '');
 }
 
 function normalize(r, sceneCategory) {

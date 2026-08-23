@@ -276,54 +276,21 @@ async function transcribeAudioFileSliced(audioPath, {
 }
 
 async function callPolishLLM(rawText) {
-  const https = require('https');
-  const apiKey = process.env.DIFY_LISTEN_LLM_API_KEY || 'sk-a9e3a6f7056c707d-u4kje7-d3419e72';
-  const url = process.env.LLM_URL || 'https://23.95.214.232/v1/chat/completions';
-
+  const { chatCompletions, extractAssistantContent, DEFAULT_LLM_KEY } = require('./openaiCompatLlm');
+  const apiKey = process.env.LISTEN_LLM_API_KEY || process.env.DIFY_LISTEN_LLM_API_KEY || DEFAULT_LLM_KEY;
   const systemPrompt = "你是一位专业的语音识别（ASR）后处理专家。你的任务是对原始识别文本进行纠错、标点恢复和格式化，使其成为一篇通顺、可读的标准文本。直接输出处理后的文本，不要任何解释、标记或格式化（如不要 markdown 代码块）。若输入已通顺、仅为单词/短词、你不确定如何纠正，或无法有效润色，必须原样输出输入文本，禁止输出空字符串。仅当输入本身为空或仅为杂音标签时才输出空字符串。请保留文本中形如 [转写缺口 MM:SS-MM:SS] 的缺口标记，不要删除或改写。";
   const userPrompt = "请处理以下语音识别原始文本：\n\n" + rawText;
-
-  return new Promise((resolve, reject) => {
-    const requestBody = JSON.stringify({
-      model: 'dify',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.2,
-      stream: false,
-    });
-
-    const req = https.request(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(requestBody),
-      },
-      rejectUnauthorized: false,
-    }, (res) => {
-      let raw = '';
-      res.on('data', (chunk) => { raw += chunk; });
-      res.on('end', () => {
-        if (res.statusCode < 200 || res.statusCode >= 300) {
-          return reject(new Error('LLM HTTP ' + res.statusCode + ': ' + raw.slice(0, 200)));
-        }
-        try {
-          const data = JSON.parse(raw);
-          const content = String(data?.choices?.[0]?.message?.content || '').trim();
-          // 无法润色/模型返回空时回退原始转写
-          resolve(content || String(rawText || '').trim());
-        } catch (error) {
-          reject(new Error('LLM parse failed: ' + error.message));
-        }
-      });
-    });
-    req.setTimeout(120000, () => req.destroy(new Error('LLM timeout')));
-    req.on('error', reject);
-    req.write(requestBody);
-    req.end();
+  const data = await chatCompletions({
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+    temperature: 0.2,
+    timeoutMs: 120000,
+    apiKey,
   });
+  const content = extractAssistantContent(data).trim();
+  return content || String(rawText || '').trim();
 }
 
 module.exports = {
