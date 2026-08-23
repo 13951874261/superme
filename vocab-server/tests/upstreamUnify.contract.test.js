@@ -8,8 +8,8 @@ const webSrc = fs.readFileSync(path.join(root, 'services/webFetcher.js'), 'utf8'
 const llm = require('../services/openaiCompatLlm');
 
 assert.ok(
-  serverSrc.includes("IMAGE_GEN_FALLBACK_URL || 'http://192.210.136.140:20128/v1'"),
-  'image gen must keep Agnes primary and add 192.210 fallback'
+  serverSrc.includes("IMAGE_GEN_FALLBACK_URL || 'https://9router.234124123.xyz/v1'"),
+  'image gen must keep Agnes primary and add 9router fallback'
 );
 assert.ok(serverSrc.includes('ag/gemini-3.1-flash-image'), 'image fallback model must be gemini');
 assert.ok(serverSrc.includes("IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.cn/v1'"), 'Agnes remains primary');
@@ -19,7 +19,7 @@ assert.strictEqual(llm.DEFAULT_LLM_KEY, 'sk-aow2api-your-custom-key');
 assert.deepStrictEqual(llm.DEFAULT_LLM_MODELS, ['57', '113', '114', '110']);
 assert.ok(!serverSrc.includes('https://23.95.214.232/v1/chat/completions'), 'server.js must not hardcode old chat completions');
 
-assert.ok(webSrc.includes("FETCH_ENDPOINT_BASE || 'http://192.210.136.140:20128/v1'"), 'web fetch default must be 192.210');
+assert.ok(webSrc.includes("FETCH_ENDPOINT_BASE || 'https://9router.234124123.xyz/v1'"), 'web fetch default must be 9router');
 assert.ok(webSrc.includes('sk-d2c5fb65e9516bbc-rd1lv9-762292df'), 'web fetch default key must match new gateway');
 assert.ok(webSrc.includes("parsed.protocol === 'https:'"), 'web fetch must pick http/https by protocol');
 

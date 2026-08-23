@@ -6169,7 +6169,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         }
 
         if (!imageUrl) {
-          const fallbackBase = process.env.IMAGE_GEN_FALLBACK_URL || 'http://192.210.136.140:20128/v1';
+          const fallbackBase = process.env.IMAGE_GEN_FALLBACK_URL || 'https://9router.234124123.xyz/v1';
           const fallbackKey = process.env.IMAGE_GEN_FALLBACK_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
           const fallbackModel = process.env.IMAGE_GEN_FALLBACK_MODEL || 'ag/gemini-3.1-flash-image';
           taskQueue.updateTask(task.id, { logs: [`Agnes 全部失败，尝试备用生图: ${fallbackModel}`] });
@@ -10091,8 +10091,8 @@ const https = require('https');
 const http = require('http');
 
 function getTtsUpstreamUrls() {
-  const primary = process.env.TTS_API_URL || 'http://192.210.136.140:20128/v1/audio/speech';
-  const fallback = process.env.TTS_API_FALLBACK_URL || 'http://192.210.136.140:20128/v1/audio/speech';
+  const primary = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
+  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://9router.234124123.xyz/v1/audio/speech';
   return [...new Set([primary, fallback].filter(Boolean))];
 }
 
