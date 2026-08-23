@@ -96,6 +96,12 @@ function testRoutesAndFrontendHydrateFromTable() {
   const ctx = fs.readFileSync(path.join(root, 'src/components/modules/english/context/EnglishContext.tsx'), 'utf8');
   assert.match(ctx, /fetchUserTheme/, '登录后英语页必须用表里的主题，不能只信 localStorage');
   assert.match(ctx, /themeHydrated/, '未从服务器读到主题前，不得把本地旧主题写回表');
+  assert.match(ctx, /applyCurrentTheme/, '写后台成功后必须广播，侧栏才能实时联动');
+
+  const sidebar = fs.readFileSync(path.join(root, 'src/components/Sidebar.tsx'), 'utf8');
+  assert.match(sidebar, /当前主题/, '侧栏必须显示当前主题');
+  assert.doesNotMatch(sidebar, /海外信贷谈判与博弈/, '侧栏不得写死周主题');
+  assert.match(sidebar, /THEME_CHANGED_EVENT/, '侧栏必须听主题变更');
 
   const training = fs.readFileSync(path.join(root, 'src/services/trainingAPI.ts'), 'utf8');
   const focusFn = training.slice(training.indexOf('export async function setThemeFocus'), training.indexOf('export async function markEmailComplete'));
@@ -108,6 +114,34 @@ testExistingThemeIsNotOverwritten();
 console.log('PASS 已有主题登录不覆盖');
 testSwitchThemeKeepsSingleRow();
 console.log('PASS 切换主题仍一人一行');
+function testTodayPackFollowsPrefsNotRequestTheme() {
+  const { db, dir } = openDb();
+  try {
+    dailyPackService.upsertUserTheme(db, 'lzhmy', '新人报到');
+    dailyPackService.upsertDailyPack(db, {
+      userId: 'lzhmy',
+      packDate: '2026-08-23',
+      theme: '商务谈判：让步与施压',
+      inputSignature: 'sig-old',
+      wakeup: { theme: 'Business Communication', vocab: [] },
+      flawVocab: [],
+      source: 'user_rerun',
+      status: 'ready',
+    });
+    const row = dailyPackService.getTodayPackForCurrentTheme(db, 'lzhmy', '2026-08-23', '新人报到');
+    assert.equal(row.theme, '商务谈判：让步与施压');
+    const body = dailyPackService.serializeDailyPack(row, '新人报到');
+    assert.equal(body.currentTheme, '新人报到');
+    assert.equal(body.theme, '商务谈判：让步与施压');
+    assert.equal(body.stale, true);
+  } finally {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 testRoutesAndFrontendHydrateFromTable();
 console.log('PASS 读接口 / focus 写表 / 登录不改主题 / 前台水合');
+testTodayPackFollowsPrefsNotRequestTheme();
+console.log('PASS 今日包跟户口本，旧材料标过期');
 console.log('\nuserThemeGetOrCreate.test.js 全部通过');

@@ -12,6 +12,8 @@ import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEff
 import { GLOBAL_SPRING } from '../utils/motion';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 import { readCareerPath, writeCareerPath } from '../utils/careerProgression';
+import { THEME_CHANGED_EVENT, readCurrentTheme } from '../utils/currentTheme';
+import { fetchUserTheme } from '../services/dailyPackAPI';
 
 type CalendarDaySlot = {
   day: number;
@@ -178,6 +180,25 @@ function SidebarComponent({
 
   // 职业路径数据持久化
   const [careerPath, setCareerPath] = useState(() => readCareerPath());
+  const [currentTheme, setCurrentTheme] = useState(() => readCurrentTheme());
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchUserTheme()
+      .then((theme) => {
+        if (!cancelled && theme) setCurrentTheme(theme);
+      })
+      .catch(() => {});
+    const onThemeChange = (event: Event) => {
+      const next = String((event as CustomEvent<{ theme?: string }>).detail?.theme || readCurrentTheme()).trim();
+      if (next) setCurrentTheme(next);
+    };
+    window.addEventListener(THEME_CHANGED_EVENT, onThemeChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(THEME_CHANGED_EVENT, onThemeChange);
+    };
+  }, []);
 
   // 职业生涯编辑相关状态
   const [isEditingCareer, setIsEditingCareer] = useState(false);
@@ -244,11 +265,11 @@ function SidebarComponent({
             <h1 className="text-3xl font-black text-[#FF5722] tracking-tighter">B·AI</h1>
           </div>
           
-          {/* 单行或凝练呈现：今日日期 + 本周主题 */}
+          {/* 单行：今日日期 + 当前主题（只读户口本） */}
           <div className="mb-8">
             <div className="text-zinc-900 font-black text-sm tracking-tight leading-relaxed">
-              <span className="text-[#FF5722] mr-2">{selectedDate}</span> 
-              本周主题：海外信贷谈判与博弈
+              <span className="text-[#FF5722] mr-2">{selectedDate}</span>
+              {currentTheme ? `当前主题：${currentTheme}` : '当前主题'}
             </div>
           </div>
           

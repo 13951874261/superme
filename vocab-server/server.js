@@ -7855,30 +7855,27 @@ app.get('/api/system/date', (req, res) => {
 const handleGetTodayDailyPack = (req, res) => {
   try {
     const rawUserId = req.body?.userId || req.query.userId || 'default-user';
-    const theme = String(req.body?.theme || req.query.theme || '商务谈判：让步与施压').trim();
-    const historyExclude = String(req.body?.historyExclude || req.query.historyExclude || '').trim();
-    const userCurrentProfile = String(req.body?.userCurrentProfile || req.query.userCurrentProfile || '').trim();
+    const currentTheme = dailyPackService.getOrCreateUserTheme(db, rawUserId).theme;
 
     // 兼顾账号别名
     const userIds = [rawUserId];
 
     const packDate = dailyPackService.getPackDate();
-    const inputSignature = dailyPackService.computeInputSignature(theme, historyExclude, userCurrentProfile);
     let row = null;
 
     for (const u of userIds) {
-      row = dailyPackService.getDailyPackRow(db, u, packDate, inputSignature, theme);
+      row = dailyPackService.getTodayPackForCurrentTheme(db, u, packDate, currentTheme);
       if (row) break;
     }
 
     if (row && row.status === 'ready') {
-      console.log(`[每日唤醒] 成功命中学员专属晨间预生成训练包 (用户: ${rawUserId}, 主题: ${theme})`);
+      console.log(`[每日唤醒] 成功命中学员专属晨间预生成训练包 (用户: ${rawUserId}, 主题: ${currentTheme})`);
     } else {
       console.log(`[每日唤醒] 今日训练包当前状态为 ${row ? row.status : '未生成'} (用户: ${rawUserId})`);
     }
 
     // 仅返回当前用户（含别名）缓存；不再回退 default-user
-    res.json(dailyPackService.serializeDailyPack(row));
+    res.json(dailyPackService.serializeDailyPack(row, currentTheme));
   } catch (error) {
     console.warn('[每日唤醒] 读取今日训练包发生异常:', error.message);
     res.status(500).json({ success: false, error: error.message });
@@ -7899,8 +7896,8 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     } = req.body || {};
     const uid = dailyPackService.normalizeUserId(userId);
     const packDate = dailyPackService.getPackDate();
-    const pref = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(uid);
-    const resolvedTheme = String(theme || pref?.theme || '').trim();
+    const pref = dailyPackService.getOrCreateUserTheme(db, uid);
+    const resolvedTheme = String(pref.theme || '').trim();
     if (!resolvedTheme) {
       return res.status(400).json({ success: false, error: '请先选择并同步学习主题' });
     }
@@ -7931,7 +7928,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
       status: 'generating',
       errorMessage: null,
     });
-    res.json(dailyPackService.serializeDailyPack(pending));
+    res.json(dailyPackService.serializeDailyPack(pending, resolvedTheme));
 
     setImmediate(() => {
       (async () => {

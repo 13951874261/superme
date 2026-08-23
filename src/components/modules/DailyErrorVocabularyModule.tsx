@@ -19,6 +19,7 @@ export default function DailyErrorVocabularyModule() {
   const [words, setWords] = useState<FlawVocabWord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [staleHint, setStaleHint] = useState<string | null>(null);
   const { collect, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
@@ -34,8 +35,14 @@ export default function DailyErrorVocabularyModule() {
 
       if (pack.status === 'ready' && Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
         setWords(pack.flawVocab.slice(0, 6));
+        setStaleHint(
+          pack.stale
+            ? `这份材料还是按「${pack.theme}」生成的，点刷新按「${pack.currentTheme || theme}」重做。`
+            : null,
+        );
         return;
       }
+      setStaleHint(null);
 
       if (pack.status === 'missing' || pack.status === 'failed') {
         setWords([]);
@@ -58,7 +65,7 @@ export default function DailyErrorVocabularyModule() {
 
   useEffect(() => {
     void fetchFlawVocab(false);
-  }, []);
+  }, [theme]);
 
   // 逐条收录：收录即补齐词汇矩阵，3 秒未完成转入任务中心
   const handleAddWord = async (word: FlawVocabWord, anchor?: HTMLElement | null) => {
@@ -89,7 +96,9 @@ export default function DailyErrorVocabularyModule() {
             <h4 className="text-base font-black tracking-widest uppercase flex items-center gap-2">
               每日易错词汇
             </h4>
-            <p className="text-xs text-slate-400 mt-1 font-medium">今日预生成 · 可刷新</p>
+            <p className="text-xs text-slate-400 mt-1 font-medium">
+              {staleHint || '今日预生成 · 可刷新'}
+            </p>
           </div>
         </div>
         <button

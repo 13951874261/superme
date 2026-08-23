@@ -33,6 +33,8 @@ export interface DailyPackResponse {
   status: 'missing' | 'ready' | 'failed' | 'generating';
   packDate?: string;
   theme?: string;
+  currentTheme?: string;
+  stale?: boolean;
   source?: string;
   errorMessage?: string | null;
   wakeup?: WakeupPayload | null;

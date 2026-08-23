@@ -72,7 +72,11 @@ export default function DailyWakeupModule() {
     setPackStatus(pack.status);
     if (pack.status === 'ready' && pack.wakeup) {
       setResult(pack.wakeup);
-      setNotice(`已加载今日唤醒：${pack.wakeup.theme || theme}`);
+      setNotice(
+        pack.stale
+          ? `这份材料还是按「${pack.theme}」生成的，点刷新按「${pack.currentTheme || theme}」重做。`
+          : `已加载今日唤醒：${pack.currentTheme || theme}`,
+      );
       return true;
     }
     setResult(null);
@@ -101,10 +105,9 @@ export default function DailyWakeupModule() {
   };
 
   useEffect(() => {
-    // 不使用 cancelled 短路：StrictMode 双挂载时，旧请求结果也应写入，避免永远停在初始 notice
-    void loadTodayPack('mount');
+    void loadTodayPack('theme');
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [theme]);
 
   useEffect(() => {
     const refreshIfEmpty = () => {

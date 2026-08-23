@@ -11,7 +11,8 @@ async function testDailyPackTodayContract() {
 
   // 1. 验证 /api/daily-pack/today 路由
   assert.ok(serverContent.includes("app.get('/api/daily-pack/today'"), '必须包含 /api/daily-pack/today 路由');
-  assert.ok(serverContent.includes('dailyPackService.getDailyPackRow(db, u, packDate, inputSignature, theme)'), '必须从 SQLite 缓存读取，禁止同步调用 LLM');
+  assert.ok(serverContent.includes('dailyPackService.getTodayPackForCurrentTheme(db, u, packDate, currentTheme)'), '必须从 SQLite 按户口本主题读缓存，禁止同步调用 LLM');
+  assert.ok(serverContent.includes('getOrCreateUserTheme'), '今日包必须先读 user_theme_prefs，禁止请求默认商务谈判');
 
   // 2. 验证业务语言日志
   assert.ok(serverContent.includes('[每日唤醒] 成功命中学员专属晨间预生成训练包'), '必须包含业务化命中日志');

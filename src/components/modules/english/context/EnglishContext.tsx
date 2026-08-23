@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, getThemeStayStats, CustomTheme, ThemeStayStats } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { syncUserTheme, fetchUserTheme } from '../../../../services/dailyPackAPI';
+import { applyCurrentTheme } from '../../../../utils/currentTheme';
 import { ComparisonResult } from '../../../../types/listening';
 import { LongAudio } from '../../../../services/listeningAPI';
 
@@ -269,7 +270,7 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
         if (cancelled || !serverTheme) return;
         themeHydratedRef.current = true;
         setTheme(serverTheme);
-        localStorage.setItem('english_theme', serverTheme);
+        applyCurrentTheme(serverTheme);
       })
       .catch((err) => {
         console.warn('[EnglishContext] fetchUserTheme failed:', err);
@@ -344,9 +345,13 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
     if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
     themeSyncTimerRef.current = window.setTimeout(() => {
       // 静默自动向后台登记当前用户的 user_id 与 theme 绑定关系
-      void syncUserTheme(theme).catch((err) => {
-        console.warn('[EnglishContext] theme sync failed:', err);
-      });
+      void syncUserTheme(theme)
+        .then((row) => {
+          applyCurrentTheme(row.theme || theme);
+        })
+        .catch((err) => {
+          console.warn('[EnglishContext] theme sync failed:', err);
+        });
     }, 300);
     return () => {
       if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);

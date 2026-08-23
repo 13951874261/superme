@@ -188,6 +188,18 @@ function findUserDailyPackByDate(db, userId, packDate) {
   ).get(uid, packDate);
 }
 
+function getTodayPackForCurrentTheme(db, userId, packDate, currentTheme) {
+  const uid = normalizeUserId(userId);
+  const theme = String(currentTheme || '').trim();
+  if (theme) {
+    const exact = db.prepare(
+      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND theme = ? ORDER BY created_at DESC LIMIT 1'
+    ).get(uid, packDate, theme);
+    if (exact) return exact;
+  }
+  return findUserDailyPackByDate(db, uid, packDate);
+}
+
 function isAccentProfile(value) {
   const t = String(value || '').trim();
   return t === '英国 (UK)' || t === '美国 (US)';
@@ -756,12 +768,24 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
   }
 }
 
-function serializeDailyPack(row) {
-  if (!row) return { success: true, status: 'missing' };
+function serializeDailyPack(row, currentTheme) {
+  const current = String(currentTheme || '').trim();
+  if (!row) {
+    return {
+      success: true,
+      status: 'missing',
+      currentTheme: current || undefined,
+      theme: current || undefined,
+      stale: false,
+    };
+  }
+  const packTheme = String(row.theme || '').trim();
   return {
     success: true,
     packDate: row.pack_date,
-    theme: row.theme,
+    theme: packTheme,
+    currentTheme: current || packTheme,
+    stale: Boolean(current && packTheme && current !== packTheme),
     status: row.status,
     source: row.source,
     errorMessage: row.error_message || null,
@@ -947,6 +971,7 @@ module.exports = {
   DEFAULT_USER_THEME,
   listUsersWithSyncedTheme,
   findUserDailyPackByDate,
+  getTodayPackForCurrentTheme,
   getDailyPackRow,
   getFallbackFlawVocab,
   buildFlawDisplayWords,

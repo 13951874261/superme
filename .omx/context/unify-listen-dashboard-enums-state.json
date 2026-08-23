@@ -1,0 +1,20 @@
+{
+  "active": true,
+  "current_phase": "deep-interview",
+  "state": {
+    "interview_id": "unify-listen-dashboard-enums-20260823",
+    "profile": "standard",
+    "type": "brownfield",
+    "initial_idea": "统一精听和总控中的枚举值。保持一致性。",
+    "rounds": [],
+    "current_ambiguity": 1.0,
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "challenge_modes_used": [],
+    "codebase_context": "三套体裁名单不一致；难度/时长已一致。详见 snapshot。",
+    "current_stage": "intent-first",
+    "current_focus": "intent",
+    "context_snapshot_path": ".omx/context/unify-listen-dashboard-enums-20260823T021700Z.md",
+    "omx_cli": "unavailable-in-this-runtime"
+  }
+}
