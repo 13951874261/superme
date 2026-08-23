@@ -8029,13 +8029,14 @@ app.get('/api/daily-cron/runs', (req, res) => {
     const userId = req.query.userId || 'default-user';
     const days = Number(req.query.days || 7);
     const runs = dailyCronRunService.listRunsForUser(db, userId, { days });
+    const hiddenCount = dailyCronRunService.countHiddenRunsForUser(db, userId, { days });
     const items = runs.map((run) => {
       const steps = db.prepare(
         'SELECT * FROM daily_cron_steps WHERE run_id = ?',
       ).all(run.id);
       return dailyCronRunService.serializeRunSummary(run, steps);
     });
-    res.json({ success: true, runs: items });
+    res.json({ success: true, runs: items, hiddenCount });
   } catch (error) {
     console.error('[DailyCron runs]', error);
     res.status(500).json({ success: false, error: error.message });
@@ -10073,8 +10074,8 @@ const https = require('https');
 const http = require('http');
 
 function getTtsUpstreamUrls() {
-  const primary = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
-  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://23.95.214.232/v1/audio/speech';
+  const primary = process.env.TTS_API_URL || 'http://192.210.136.140:20128/v1/audio/speech';
+  const fallback = process.env.TTS_API_FALLBACK_URL || 'http://192.210.136.140:20128/v1/audio/speech';
   return [...new Set([primary, fallback].filter(Boolean))];
 }
 
@@ -10166,10 +10167,8 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   try {
   const taskQueue = taskId ? require('./services/taskQueue') : null;
   const ttsUpstreamUrls = getTtsUpstreamUrls();
-  const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+  const apiKey = process.env.TTS_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
-  const gatewayFailed = { value: false }; // 标记是否走了本地 fallback
-  const preferEdgeTts = finalModel.startsWith('edge-tts/');
 
   // ?????????????????????? 2000 ??????????????????????????????????
   const MAX_CHUNK = 2000;
@@ -10279,21 +10278,6 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 120000);
       try {
-        if (preferEdgeTts) {
-          try {
-            const edgeResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
-            pendingMap.set(idx, edgeResult);
-            flush();
-            lastErr = null;
-            break;
-          } catch (edgeErr) {
-            console.warn('[TTS] edge-tts primary failed, trying upstream:', edgeErr.message);
-            if (taskQueue && taskId) {
-              taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 本地 edge-tts 失败，尝试上游网关…`] });
-            }
-          }
-        }
-
         const body = { model: finalModel, input: chunkText };
 
         let r = null;
@@ -10316,44 +10300,35 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
             console.warn(`[TTS] Upstream failed (${apiUrl}):`, formatTtsFetchError(err));
           }
         }
-        if (!r) {
-          throw upstreamErr || new Error('All TTS upstream URLs failed');
-        }
 
         clearTimeout(timeoutId);
 
-        if (r.ok) {
+        if (r && r.ok) {
           const chunkData = Buffer.from(await r.arrayBuffer());
           pendingMap.set(idx, chunkData);
           flush();
           lastErr = null;
-          break; // 合成成功，跳出重试
+          break;
         }
 
-        // 502/504 ????????? -> ??????? Edge TTS ???????????
-        if (r.status === 502 || r.status === 504) {
-          console.warn(`[TTS] Gateway error ${r.status}, trying fallback...`);
+        const upstreamStatus = r ? r.status : (upstreamErr ? formatTtsFetchError(upstreamErr) : 'unreachable');
+        console.warn(`[TTS] Upstream failed (${upstreamStatus}), trying edge-tts fallback...`);
+        if (taskQueue && taskId) {
+          taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 上游失败 ${upstreamStatus}，尝试本地 edge-tts…`] });
+        }
+        try {
+          const fallbackResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
+          pendingMap.set(idx, fallbackResult);
+          flush();
+          lastErr = null;
+          break;
+        } catch (fallbackErr) {
+          console.error('[TTS] Fallback failed:', fallbackErr.message);
           if (taskQueue && taskId) {
-            taskQueue.updateTask(taskId, { logs: [`第 ${attempt} 次: 网关错误 ${r.status}，尝试备用合成…`] });
+            taskQueue.updateTask(taskId, { logs: [`本地 edge-tts 兜底失败: ${fallbackErr.message}`] });
           }
-          try {
-            const fallbackResult = await synthesizeWithEdgeTTS(chunkText, ttsVoice || 'en-GB-LibbyNeural', signal);
-            pendingMap.set(idx, fallbackResult);
-            flush();
-            lastErr = null;
-            gatewayFailed.value = true;
-            break;
-          } catch (fallbackErr) {
-            console.error('[TTS] Fallback failed:', fallbackErr.message);
-            if (taskQueue && taskId) {
-              taskQueue.updateTask(taskId, { logs: [`备用合成失败: ${fallbackErr.message}`] });
-            }
-            lastErr = new TtsGatewayError(`主服务 ${r.status}，备用合成也失败: ${fallbackErr.message}`);
-            continue;
-          }
+          lastErr = new TtsGatewayError(`主服务 ${upstreamStatus}，备用合成也失败: ${fallbackErr.message}`);
         }
-
-        lastErr = new Error(`HTTP ${r.status}: ${await r.text().catch(() => '')}`);
       } catch (e) {
         clearTimeout(timeoutId);
         console.error('[TTS] Upstream fetch failed:', formatTtsFetchError(e));

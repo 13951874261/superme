@@ -53,9 +53,11 @@ function testDeleteCascades() {
   const id = seedFinishedRun(db, { status: 'partial_failed' });
   const r = svc.deleteRunForUser(db, id, 'u1');
   assert.strictEqual(r.ok, true);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_runs WHERE id = ?').get(id).n, 0);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_steps WHERE run_id = ?').get(id).n, 0);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_log_events WHERE run_id = ?').get(id).n, 0);
+  const row = db.prepare('SELECT hidden_at FROM daily_cron_runs WHERE id = ?').get(id);
+  assert.ok(row && row.hidden_at, '删除只隐藏，7 天内行还在');
+  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_steps WHERE run_id = ?').get(id).n, 1);
+  assert.strictEqual(svc.listRunsForUser(db, 'u1', { days: 30 }).length, 0);
+  assert.strictEqual(svc.countHiddenRunsForUser(db, 'u1', { days: 30 }), 1);
 }
 
 function testDeleteRunning409() {
@@ -110,8 +112,8 @@ function testClearFinishedScopedToUser() {
   const u2Done = seedFinishedRun(db, { userId: 'u2', status: 'failed' });
   const r = svc.clearFinishedRunsForUser(db, 'u1');
   assert.ok(r.deletedRuns >= 1);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_runs WHERE id = ?').get(u1Done).n, 0);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_runs WHERE id = ?').get(u2Done).n, 1);
+  assert.ok(db.prepare('SELECT hidden_at FROM daily_cron_runs WHERE id = ?').get(u1Done).hidden_at);
+  assert.strictEqual(db.prepare('SELECT hidden_at FROM daily_cron_runs WHERE id = ?').get(u2Done).hidden_at, null);
 }
 
 function testClearFinished() {
@@ -125,8 +127,8 @@ function testClearFinished() {
   });
   const r = svc.clearFinishedRunsForUser(db, 'u1');
   assert.ok(r.deletedRuns >= 1);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_runs WHERE id = ?').get(done).n, 0);
-  assert.strictEqual(db.prepare('SELECT COUNT(*) AS n FROM daily_cron_runs WHERE id = ?').get(run.id).n, 1);
+  assert.ok(db.prepare('SELECT hidden_at FROM daily_cron_runs WHERE id = ?').get(done).hidden_at);
+  assert.strictEqual(db.prepare('SELECT hidden_at FROM daily_cron_runs WHERE id = ?').get(run.id).hidden_at, null);
 }
 
 try {

@@ -139,6 +139,11 @@ function initDailyCronRunTables(db) {
     CREATE INDEX IF NOT EXISTS idx_daily_cron_events_run
       ON daily_cron_log_events(run_id, created_at);
   `);
+  try {
+    db.exec('ALTER TABLE daily_cron_runs ADD COLUMN hidden_at INTEGER');
+  } catch {
+    // already exists
+  }
 }
 
 function markInterruptedRunning(db, reason = 'interrupted: server restart') {
@@ -202,6 +207,20 @@ function deleteRunRows(db, runIds) {
   };
 }
 
+function hideRunRows(db, runIds) {
+  if (!runIds.length) {
+    return { deletedRuns: 0, deletedSteps: 0, deletedEvents: 0 };
+  }
+  const now = Date.now();
+  const placeholders = runIds.map(() => '?').join(',');
+  const res = db.prepare(`
+    UPDATE daily_cron_runs
+    SET hidden_at = COALESCE(hidden_at, ?), updated_at = ?
+    WHERE id IN (${placeholders}) AND hidden_at IS NULL
+  `).run(now, now, ...runIds);
+  return { deletedRuns: res.changes, deletedSteps: 0, deletedEvents: 0 };
+}
+
 function deleteRunForUser(db, runId, userId) {
   const ownership = assertRunOwner(db, runId, userId);
   if (!ownership.ok) return { ok: false, code: ownership.code || 404 };
@@ -209,7 +228,7 @@ function deleteRunForUser(db, runId, userId) {
   if (!isFinishedRunStatus(status)) {
     return { ok: false, code: 409 };
   }
-  const stats = deleteRunRows(db, [runId]);
+  const stats = hideRunRows(db, [runId]);
   return { ok: true, code: 200, ...stats };
 }
 
@@ -220,9 +239,10 @@ function clearFinishedRunsForUser(db, userId) {
     SELECT id FROM daily_cron_runs
     WHERE user_id = ?
       AND status IN (${statusPlaceholders})
+      AND hidden_at IS NULL
   `).all(uid, ...FINISHED_RUN_STATUSES);
   const ids = rows.map((r) => r.id);
-  return deleteRunRows(db, ids);
+  return hideRunRows(db, ids);
 }
 
 function cleanupOldCronRuns(db, now = new Date()) {
@@ -649,9 +669,18 @@ function listRunsForUser(db, userId, { days = RETENTION_DAYS } = {}) {
   const since = addShanghaiDays(getPackDate(), -(Number(days) || RETENTION_DAYS) + 1);
   return db.prepare(`
     SELECT * FROM daily_cron_runs
-    WHERE user_id = ? AND pack_date >= ?
+    WHERE user_id = ? AND pack_date >= ? AND hidden_at IS NULL
     ORDER BY created_at DESC
   `).all(uid, since);
+}
+
+function countHiddenRunsForUser(db, userId, { days = RETENTION_DAYS } = {}) {
+  const uid = normalizeUserId(userId);
+  const since = addShanghaiDays(getPackDate(), -(Number(days) || RETENTION_DAYS) + 1);
+  return db.prepare(`
+    SELECT COUNT(*) AS n FROM daily_cron_runs
+    WHERE user_id = ? AND pack_date >= ? AND hidden_at IS NOT NULL
+  `).get(uid, since)?.n || 0;
 }
 
 function getRunDetailForUser(db, runId, userId) {
@@ -765,6 +794,7 @@ module.exports = {
   LONG_CEFR,
   LONG_DURATIONS,
   listRunsForUser,
+  countHiddenRunsForUser,
   getRunDetailForUser,
   acquireRerunLock,
   releaseRerunLock,

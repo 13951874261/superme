@@ -58,6 +58,7 @@ export interface TaskItem {
 interface TaskContextType {
   tasks: TaskItem[];
   cronRuns: DailyCronRunSummary[];
+  hiddenCronCount: number;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   addTask: (task: TaskItem) => void;
@@ -77,14 +78,16 @@ const API_BASE = '';
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [cronRuns, setCronRuns] = useState<DailyCronRunSummary[]>([]);
+  const [hiddenCronCount, setHiddenCronCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const activePolls = useRef<Set<string>>(new Set());
   const lastGlobalPollTimeRef = useRef<number>(0);
 
   const fetchCronRuns = useCallback(async () => {
     try {
-      const runs = await fetchDailyCronRuns(7, getAppUserId());
-      setCronRuns(runs);
+      const data = await fetchDailyCronRuns(7, getAppUserId());
+      setCronRuns(data.runs);
+      setHiddenCronCount(data.hiddenCount);
     } catch (e) {
       console.error('Failed to fetch daily cron runs:', e);
     }
@@ -343,6 +346,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         tasks,
         cronRuns,
+        hiddenCronCount,
         isOpen,
         setIsOpen,
         addTask,

@@ -74,12 +74,18 @@ export type DailyCronRunDetail = {
   }>;
 };
 
-export async function fetchDailyCronRuns(days = 7, userId = getAppUserId()): Promise<DailyCronRunSummary[]> {
+export async function fetchDailyCronRuns(days = 7, userId = getAppUserId()): Promise<{
+  runs: DailyCronRunSummary[];
+  hiddenCount: number;
+}> {
   const res = await fetch(`/api/daily-cron/runs?userId=${encodeURIComponent(userId)}&days=${days}`);
   if (!res.ok) throw new Error(`daily-cron runs HTTP ${res.status}`);
   const data = await res.json();
   if (!data.success) throw new Error(data.error || 'fetch runs failed');
-  return Array.isArray(data.runs) ? data.runs : [];
+  return {
+    runs: Array.isArray(data.runs) ? data.runs : [],
+    hiddenCount: Number(data.hiddenCount || 0),
+  };
 }
 
 export async function fetchDailyCronRunDetail(runId: string, userId = getAppUserId()): Promise<DailyCronRunDetail> {

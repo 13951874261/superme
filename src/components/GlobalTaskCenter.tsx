@@ -354,6 +354,7 @@ export default function GlobalTaskCenter() {
   const {
     tasks,
     cronRuns,
+    hiddenCronCount,
     isOpen,
     setIsOpen,
     pendingCount,
@@ -568,9 +569,13 @@ export default function GlobalTaskCenter() {
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
               <FileText className="w-12 h-12 text-gray-300 stroke-[1.5]" />
               <div>
-                <p className="text-xs font-bold text-gray-600">暂无任何后台任务</p>
-                <p className="text-[10px] text-gray-400 mt-1 max-w-[220px] leading-relaxed">
-                  网页提取、视频转写或每日定时任务的记录会出现在这里。
+                <p className="text-xs font-bold text-gray-600">
+                  {hiddenCronCount > 0 ? '暂无可见的后台任务' : '今日尚未调度'}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-1 max-w-[240px] leading-relaxed">
+                  {hiddenCronCount > 0
+                    ? `已隐藏 ${hiddenCronCount} 条近 7 天定时任务，记录仍保留至过期，便于复核失败态。`
+                    : '网页提取、视频转写或每日定时任务的记录会出现在这里。'}
                 </p>
               </div>
             </div>
