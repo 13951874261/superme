@@ -12,7 +12,7 @@ import {
   getDirectionLabel,
   type WeeklyHistoryItem,
 } from '../../utils/reviewHelper';
-import { getUserCurrentProfile, appendUserProfileFactor, ingestUserMemory, getRecentEpisodesSummaryLocal, runMemoryDreaming } from '../../utils/profileHelper';
+import { getUserWeaknessProfile, appendUserProfileFactor, ingestUserMemory, getRecentEpisodesSummaryLocal, runMemoryDreaming } from '../../utils/profileHelper';
 
 export default function WeeklyChatModule() {
   const [content, setContent] = useState('');
@@ -28,7 +28,7 @@ export default function WeeklyChatModule() {
   const [hasPushPlan, setHasPushPlan] = useState(false);
 
   useEffect(() => {
-    setGlobalProfile(getUserCurrentProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
+    setGlobalProfile(getUserWeaknessProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
     setRecentEpisodes(getRecentEpisodesSummaryLocal());
     setHasPushPlan(!!getNextWeekPushPlan());
 
@@ -36,7 +36,7 @@ export default function WeeklyChatModule() {
     loadHistory();
 
     const handleProfileChange = () => {
-      setGlobalProfile(getUserCurrentProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
+      setGlobalProfile(getUserWeaknessProfile() || '暂无特定短板设定 (系统正处于全面扫描状态)');
       setRecentEpisodes(getRecentEpisodesSummaryLocal());
     };
     const handleRebalance = () => setHasPushPlan(!!getNextWeekPushPlan());

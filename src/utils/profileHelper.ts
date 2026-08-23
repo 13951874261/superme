@@ -142,9 +142,31 @@ export function getUserCurrentProfile(): string {
   }
 }
 
+export const ACCENT_PREF_KEY = 'super_agent_accent_pref';
+export const ACCENT_CHANGED_EVENT = 'superme-accent-changed';
+
 export function isAccentProfile(value: string): boolean {
   const t = String(value || '').trim();
   return t === '英国 (UK)' || t === '美国 (US)';
+}
+
+export function getAccentPref(): string {
+  try {
+    const saved = String(localStorage.getItem(ACCENT_PREF_KEY) || '').trim();
+    if (isAccentProfile(saved)) return saved;
+    const fromProfile = String(getUserCurrentProfile() || '').trim();
+    return isAccentProfile(fromProfile) ? fromProfile : '';
+  } catch {
+    return '';
+  }
+}
+
+export function saveAccentPref(value: string) {
+  const next = isAccentProfile(value) ? String(value).trim() : '';
+  localStorage.setItem(ACCENT_PREF_KEY, next);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(ACCENT_CHANGED_EVENT));
+  }
 }
 
 export function sanitizeWeaknessProfile(value: string): string {
@@ -218,13 +240,13 @@ export function getUserProfileFactorsArray(): string[] {
     try {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.map((s) => String(s).trim()).filter(Boolean);
+        return parsed.map((s) => String(s).trim()).filter((s) => s && !isAccentProfile(s));
       }
     } catch {
       /* fall through */
     }
   }
-  return raw.split(/[,，;；]/).map((s) => s.trim()).filter(Boolean);
+  return raw.split(/[,，;；]/).map((s) => s.trim()).filter((s) => s && !isAccentProfile(s));
 }
 
 /**
@@ -251,9 +273,8 @@ export function appendUserProfileFactor(newFactorsStr: string) {
 
   const incoming = newFactorsStr.split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
   incoming.forEach(factor => {
-    if (!currentArray.includes(factor)) {
-      currentArray.push(factor);
-    }
+    if (isAccentProfile(factor) || currentArray.includes(factor)) return;
+    currentArray.push(factor);
   });
 
   if (currentArray.length > 5) {
@@ -282,9 +303,8 @@ export function updateProfileFromText(text: string): boolean {
     lower.includes("[profile: 英国]") ||
     (lower.includes("英国") && (lower.includes("画像") || lower.includes("对齐") || lower.includes("设定")))
   ) {
-    const current = getUserCurrentProfile();
-    if (current !== "英国 (UK)") {
-      saveUserCurrentProfile("英国 (UK)");
+    if (getAccentPref() !== "英国 (UK)") {
+      saveAccentPref("英国 (UK)");
       void ingestUserMemory({ source: 'profile_text', l3VarsDelta: { accent: 'UK', spelling_variant: 'UK' } });
       return true;
     }
@@ -300,9 +320,8 @@ export function updateProfileFromText(text: string): boolean {
     lower.includes("[profile: 美国]") ||
     (lower.includes("美国") && (lower.includes("画像") || lower.includes("对齐") || lower.includes("设定")))
   ) {
-    const current = getUserCurrentProfile();
-    if (current !== "美国 (US)") {
-      saveUserCurrentProfile("美国 (US)");
+    if (getAccentPref() !== "美国 (US)") {
+      saveAccentPref("美国 (US)");
       void ingestUserMemory({ source: 'profile_text', l3VarsDelta: { accent: 'US', spelling_variant: 'US' } });
       return true;
     }

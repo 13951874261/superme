@@ -1,6 +1,6 @@
 import React, { useEffect, useState, memo } from 'react';
 import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap, ChevronRight } from 'lucide-react';
-import { getUserCurrentProfile, appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
+import { getUserWeaknessProfile, appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 import ProfileEditModal from './ProfileEditModal';
 import {
@@ -41,7 +41,7 @@ function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
   const showProfileExpand = profile.length > profilePreviewThreshold;
 
   const refreshReviewState = () => {
-    setProfile(getUserCurrentProfile() || '系统全面扫描中');
+    setProfile(getUserWeaknessProfile() || '暂无短板');
     setDaysSince(daysSinceLastReview());
     const history = getReviewHistory();
     setLatestReview(history[0] || null);

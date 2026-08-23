@@ -6,7 +6,7 @@ import MemoryAidPanel from './MemoryAidPanel';
 import DifyAssistantFrame from './DifyAssistantFrame';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
-import { getUserCurrentProfile, saveUserCurrentProfile, sanitizeProfileContent } from '../utils/profileHelper';
+import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, sanitizeProfileContent } from '../utils/profileHelper';
 import { resetDifyChatbotSession } from '../utils/difyChatbot';
 import { playClick, playReveal, playSwitch } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
@@ -21,7 +21,7 @@ interface RightPanelProps {
 
 function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
 
-  const [profile, setProfile] = useState(() => getUserCurrentProfile());
+  const [profile, setProfile] = useState(() => getAccentPref());
   const [assistantRefreshKey, setAssistantRefreshKey] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -159,14 +159,16 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
   useEffect(() => {
     const bumpAssistant = () => setAssistantRefreshKey((k) => k + 1);
     const handleProfileChange = () => {
-      setProfile(getUserCurrentProfile());
+      setProfile(getAccentPref());
       bumpAssistant();
     };
+    window.addEventListener(ACCENT_CHANGED_EVENT, handleProfileChange);
     window.addEventListener('global-profile-changed', handleProfileChange);
     window.addEventListener('global-user-id-changed', bumpAssistant);
     window.addEventListener('dify-embed-scope-changed', bumpAssistant);
     window.addEventListener('dify-assistant-open', bumpAssistant);
     return () => {
+      window.removeEventListener(ACCENT_CHANGED_EVENT, handleProfileChange);
       window.removeEventListener('global-profile-changed', handleProfileChange);
       window.removeEventListener('global-user-id-changed', bumpAssistant);
       window.removeEventListener('dify-embed-scope-changed', bumpAssistant);
@@ -238,7 +240,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                         <button
                           key={item.value}
                           onClick={() => {
-                            saveUserCurrentProfile(item.value);
+                            saveAccentPref(item.value);
                             setShowProfileMenu(false);
                           }}
                           className="w-full flex flex-col items-start p-2 rounded-xl text-left transition hover:bg-slate-50 cursor-pointer"

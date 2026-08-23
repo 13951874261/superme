@@ -42,7 +42,7 @@ const TRANSCRIBING_PROMPTS = [
 import { playSuccessCyber, playErrorCyber, playHeartbeat, playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
 import Confetti from '../Confetti';
 import SpeakButton from '../SpeakButton';
-import { getUserCurrentProfile } from '../../utils/profileHelper';
+import { getUserWeaknessProfile } from '../../utils/profileHelper';
 import { motion, AnimatePresence } from 'motion/react';
 import { useTask } from '../TaskContext';
 import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
@@ -331,7 +331,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
 
   useEffect(() => {
     const checkProfile = () => {
-      const profile = getUserCurrentProfile();
+      const profile = getUserWeaknessProfile();
       const keywords = ['直属总监', '总监', '压制', '退缩', '汇报', '口语分寸', '分寸感'];
       let foundKeyword = '';
       if (profile) {
@@ -426,7 +426,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
       return;
     }
 
-    const profile = getUserCurrentProfile();
+    const profile = getUserWeaknessProfile();
     const keywords = ['直属总监', '总监', '压制', '退缩', '汇报', '口语分寸', '分寸感'];
     let foundKeyword = '';
     if (profile) {
@@ -976,7 +976,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
                   高管级进化提示 ｜ Executive Evolution
                 </span>
                 <p className="text-xs font-semibold text-amber-800 leading-relaxed">
-                  能力进化针对性推送中：已检测到您的树洞短板（{getUserCurrentProfile()}），已自动调高相关高难度博弈关卡的出现权重。
+                  能力进化针对性推送中：已检测到您的树洞短板（{getUserWeaknessProfile()}），已自动调高相关高难度博弈关卡的出现权重。
                 </p>
               </div>
             </div>

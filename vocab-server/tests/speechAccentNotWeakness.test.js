@@ -66,6 +66,29 @@ function testSpeechTabAndDifyUseWeaknessHelper() {
 
 testSanitizeWeaknessProfileBehavior();
 console.log('PASS sanitizeWeaknessProfile 过滤地区标签');
+function testReviewAreaDoesNotShowAccentAsWeakness() {
+  const helper = read(helperPath);
+  assert.match(helper, /export function getAccentPref/, '口音必须单独存，不能写进短板');
+  assert.match(helper, /export function saveAccentPref/, '改口音不得调用 saveUserCurrentProfile');
+  const fromText = extractFn(helper, 'updateProfileFromText');
+  assert.match(fromText, /saveAccentPref/, '文本里的英音/美音只改口音');
+  assert.doesNotMatch(fromText, /saveUserCurrentProfile\(/, '文本切口音不得覆盖短板');
+
+  const summary = read(path.join(root, 'src/components/SummaryArea.tsx'));
+  assert.match(summary, /getUserWeaknessProfile/, '复盘短板必须读过滤后的短板');
+  assert.match(summary, /暂无短板/, '没有短板时不得回退成英国');
+  assert.doesNotMatch(summary, /getUserCurrentProfile\(\)/, '复盘区不得直接展示原画像');
+
+  const settings = read(path.join(root, 'src/components/GlobalSettingsPanel.tsx'));
+  assert.match(settings, /saveAccentPref\('英国 \(UK\)'\)/, '设置里的英国按钮只改口音');
+  assert.doesNotMatch(settings, /saveUserCurrentProfile\('英国 \(UK\)'\)/, '设置不得把英国写进短板');
+
+  const right = read(path.join(root, 'src/components/RightPanel.tsx'));
+  assert.match(right, /saveAccentPref/, '右侧画像菜单的英美选项只改口音');
+}
+
 testSpeechTabAndDifyUseWeaknessHelper();
 console.log('PASS 即兴演讲 / Dify 弱点槽改用短板读取');
+testReviewAreaDoesNotShowAccentAsWeakness();
+console.log('PASS 复盘/设置不再把英国当短板');
 console.log('\nspeechAccentNotWeakness.test.js 全部通过');

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, ZapOff, Activity, Lock, Unlock, Image } from 'lucide-react';
 import { playClick, playSwitch, playReveal, playDrag, playValidatePass, playValidateFail, setGlobalVolume } from '../utils/soundEffects';
-import { getUserCurrentProfile, saveUserCurrentProfile, getAppUserId, setAppUserId, loadUserProfileFromServer } from '../utils/profileHelper';
+import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, getAppUserId, setAppUserId, loadUserProfileFromServer } from '../utils/profileHelper';
 import { reloadDifyChatbotEmbed } from '../utils/difyChatbot';
 
 export type GlobalDifficulty = 'standard' | 'hardcore';
@@ -15,7 +15,7 @@ export default function GlobalSettingsPanel() {
   const [isInterceptorEnabled, setIsInterceptorEnabled] = useState<boolean>(
     localStorage.getItem('super_agent_global_interceptor') !== 'false'
   );
-  const [profile, setProfile] = useState(() => getUserCurrentProfile());
+  const [profile, setProfile] = useState(() => getAccentPref());
   const [appUserId, setAppUserIdState] = useState(() => getAppUserId());
   const [userIdDraft, setUserIdDraft] = useState('');
   const [isUserIdSectionOpen, setIsUserIdSectionOpen] = useState(false);
@@ -112,11 +112,11 @@ export default function GlobalSettingsPanel() {
   };
 
   useEffect(() => {
-    const handleProfileChange = () => {
-      setProfile(getUserCurrentProfile());
+    const handleAccentChange = () => {
+      setProfile(getAccentPref());
     };
-    window.addEventListener('global-profile-changed', handleProfileChange);
-    return () => window.removeEventListener('global-profile-changed', handleProfileChange);
+    window.addEventListener(ACCENT_CHANGED_EVENT, handleAccentChange);
+    return () => window.removeEventListener(ACCENT_CHANGED_EVENT, handleAccentChange);
   }, []);
 
   useEffect(() => {
@@ -171,21 +171,21 @@ export default function GlobalSettingsPanel() {
               <div className="flex bg-gray-800 p-1 rounded-xl">
                 <button
                   type="button"
-                  onClick={() => { saveUserCurrentProfile('英国 (UK)'); playSwitch(); }}
+                  onClick={() => { saveAccentPref('英国 (UK)'); playSwitch(); }}
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '英国 (UK)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   英国 (UK)
                 </button>
                 <button
                   type="button"
-                  onClick={() => { saveUserCurrentProfile('美国 (US)'); playSwitch(); }}
+                  onClick={() => { saveAccentPref('美国 (US)'); playSwitch(); }}
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${profile === '美国 (US)' ? 'bg-[#FF5722] text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   美国 (US)
                 </button>
                 <button
                   type="button"
-                  onClick={() => { saveUserCurrentProfile(''); playSwitch(); }}
+                  onClick={() => { saveAccentPref(''); playSwitch(); }}
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!profile ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   默认
