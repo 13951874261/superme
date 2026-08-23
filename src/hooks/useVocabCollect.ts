@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { addWordEnriched, addVocabWithTimeout, batchAddWordsAsync } from '../services/vocabAPI';
 import { useTask } from '../components/TaskContext';
 import { playSuccess, playError } from '../utils/soundEffects';
 import { notifyBackgroundHandoff } from '../utils/backgroundHandoff';
+import { collectedKeysFromVocabAddTasks, reconcileVocabCollectQueue } from './reconcileVocabCollectQueue';
 
 /** 收录竞速阈值：3 秒内未完成即转入后台【任务中心】异步处理，防止前端卡死 */
 export const VOCAB_COLLECT_RACE_MS = 3000;
@@ -33,11 +34,45 @@ const normalizeKey = (text: string) => text.trim().toLowerCase();
  * 收录即由服务端补齐词汇矩阵；3 秒未完成则转入任务中心继续补齐。
  */
 export function useVocabCollect(options: UseVocabCollectOptions = {}) {
-  const { addTask, startPolling } = useTask();
+  const { addTask, startPolling, tasks } = useTask();
   const { notify } = options;
   const [collecting, setCollecting] = useState<Record<string, boolean>>({});
   const [queued, setQueued] = useState<Record<string, boolean>>({});
   const [collected, setCollected] = useState<Record<string, boolean>>({});
+  const queuedTaskIdsRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const { collectedKeys, failedKeys, remaining } = reconcileVocabCollectQueue(
+      queuedTaskIdsRef.current,
+      tasks,
+    );
+    const namedKeys = collectedKeysFromVocabAddTasks(tasks);
+    const doneKeys = Array.from(new Set([...collectedKeys, ...namedKeys]));
+    if (doneKeys.length === 0 && failedKeys.length === 0) return;
+
+    queuedTaskIdsRef.current = remaining;
+    setQueued((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const key of doneKeys) {
+        if (key in next) { delete next[key]; changed = true; }
+      }
+      for (const key of failedKeys) {
+        if (key in next) { delete next[key]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+    if (doneKeys.length > 0) {
+      setCollected((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const key of doneKeys) {
+          if (!next[key]) { next[key] = true; changed = true; }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [tasks]);
 
   const collect = useCallback(async (request: VocabCollectRequest): Promise<VocabCollectResult> => {
     const text = (request.text || '').trim();
@@ -94,6 +129,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
           logs: ['[生词收录] 稍久未完成，已转入任务中心继续写入并补齐释义等信息…'],
         });
         startPolling?.(queuedRes.taskId);
+        queuedTaskIdsRef.current[queuedRes.taskId] = key;
         setQueued((prev) => ({ ...prev, [key]: true }));
         const msg = `“${label}” 已加入生词本，详细信息正在后台补齐，可在【任务中心】查看`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
@@ -142,6 +178,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
           logs: ['[生词收录] 未能立刻完成，已改由任务中心继续补齐释义等信息…'],
         });
         startPolling?.(queuedRes.taskId);
+        queuedTaskIdsRef.current[queuedRes.taskId] = key;
         setQueued((prev) => ({ ...prev, [key]: true }));
         const msg = `“${label}” 已加入生词本，详细信息正在后台补齐，可在【任务中心】查看`;
         notifyBackgroundHandoff({ anchor, message: msg, tone: 'info' });
@@ -157,8 +194,30 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
     }
   }, [addTask, startPolling, notify]);
 
+  const hydrateCollected = useCallback((texts: string[]) => {
+    const keys = texts.map(normalizeKey).filter(Boolean);
+    if (keys.length === 0) return;
+    setQueued((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const key of keys) {
+        if (key in next) { delete next[key]; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+    setCollected((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      for (const key of keys) {
+        if (!next[key]) { next[key] = true; changed = true; }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   return {
     collect,
+    hydrateCollected,
     isCollecting: (text: string) => !!collecting[normalizeKey(text)],
     isQueued: (text: string) => !!queued[normalizeKey(text)],
     isCollected: (text: string) => !!collected[normalizeKey(text)],

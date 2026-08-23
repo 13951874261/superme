@@ -8,6 +8,7 @@ import PronunciationTrainer from './PronunciationTrainer';
 import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
 import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, WakeupWord, buildDailyPackQueryInput } from '../../services/dailyPackAPI';
+import { lookupVocabWords } from '../../services/vocabAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
 
@@ -40,7 +41,7 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
-  const { collect, isCollecting, isQueued, isCollected } = useVocabCollect({
+  const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
   
@@ -212,6 +213,24 @@ export default function DailyWakeupModule() {
   };
 
   const completedCount = useMemo(() => result?.vocab?.length || 0, [result]);
+
+  useEffect(() => {
+    const words = result?.vocab?.map((item) => item.word).filter(Boolean) || [];
+    if (words.length === 0) return;
+    let cancelled = false;
+    const syncCollected = () => {
+      void lookupVocabWords(words).then((items) => {
+        if (cancelled || !items.length) return;
+        hydrateCollected(items.map((item) => item.word));
+      }).catch(() => {});
+    };
+    syncCollected();
+    window.addEventListener('vocab-updated', syncCollected);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('vocab-updated', syncCollected);
+    };
+  }, [result, hydrateCollected]);
 
   // 动态徽章
   const stickerBadge = useMemo(() => {

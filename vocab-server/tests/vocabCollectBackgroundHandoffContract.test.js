@@ -17,14 +17,16 @@ const enrichedBody = enrichedFn.slice(0, enrichedFn.indexOf('export async functi
 assert.match(enrichedBody, /silent:\s*true/, 'addWordEnriched 必须 silent:true，交互提示交给 useVocabCollect');
 
 // 2. 超时转后台必须提示任务中心
-assert.match(hook, /已转入后台处理，稍后可在【任务中心】查看/);
+assert.match(hook, /可在【任务中心】查看/);
 assert.match(hook, /startPolling/);
+assert.match(hook, /collectedKeysFromVocabAddTasks|reconcileVocabCollectQueue/);
 
 // 3. 后台批量必须 forceNew 独立重试
 const asyncIdx = server.indexOf("app.post('/api/vocab/batch-add-async'");
 assert.ok(asyncIdx > 0, '缺少 batch-add-async');
 const asyncChunk = server.slice(asyncIdx, asyncIdx + 6000);
 assert.match(asyncChunk, /forceNew:\s*true/, 'batch-add-async 调用 enrich 时必须 forceNew:true');
+assert.match(asyncChunk, /生词本收录: \$\{firstLabel\}/, '单条后台任务名须带上词，供前端回收已收录');
 
 // 4. 软失败：矩阵失败保留词条
 assert.match(server, /matrix_pending_retry:\s*true/, '矩阵失败须写入 matrix_pending_retry');

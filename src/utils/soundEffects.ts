@@ -1,4 +1,4 @@
-const SOUND_ENABLED_KEY = 'super_agent_sound_enabled';
+﻿const SOUND_ENABLED_KEY = 'super_agent_sound_enabled';
 const SOUND_VOLUME_KEY = 'super_agent_sound_volume';
 
 let audioCtx: AudioContext | null = null;
@@ -49,173 +49,287 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-function effectiveVolume(scale = 1): number {
+function ev(scale = 1): number {
   return Math.max(0.001, globalVolume * scale);
 }
 
-/** 短促点击：正弦波 + 快速衰减 */
-function synthClick(freq = 1000, duration = 0.05, volumeScale = 0.18) {
-  const ctx = getAudioContext();
-  if (!ctx || !readSoundEnabled()) return;
+// ─── 底层音色引擎 ───
 
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(freq, now);
-
-  const peak = effectiveVolume(volumeScale);
-  gain.gain.setValueAtTime(peak, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + duration + 0.02);
-}
-
-/** 成功提示：双正弦波上行 */
-function synthSuccess(notes = [523.25, 659.25], noteDuration = 0.11, volumeScale = 0.14) {
-  const ctx = getAudioContext();
-  if (!ctx || !readSoundEnabled()) return;
-
-  const now = ctx.currentTime;
-  const peak = effectiveVolume(volumeScale);
-
-  notes.forEach((freq, index) => {
-    const start = now + index * noteDuration * 0.75;
+/** 带泛音叠加的钟琴音色：基频 + 2 层泛音 + 高频微光 */
+function bellTone(ctx: AudioContext, freq: number, t: number, dur: number, vol: number) {
+  const harmonics = [
+    { ratio: 1, gain: 1, type: 'sine' as OscillatorType },
+    { ratio: 2.0, gain: 0.35, type: 'sine' as OscillatorType },
+    { ratio: 3.0, gain: 0.12, type: 'sine' as OscillatorType },
+    { ratio: 5.04, gain: 0.06, type: 'sine' as OscillatorType },
+  ];
+  harmonics.forEach(h => {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
-
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq, start);
-
-    gain.gain.setValueAtTime(0.001, start);
-    gain.gain.exponentialRampToValueAtTime(peak, start + 0.008);
-    gain.gain.exponentialRampToValueAtTime(0.001, start + noteDuration);
-
+    osc.type = h.type;
+    osc.frequency.setValueAtTime(freq * h.ratio, t);
+    const peak = vol * h.gain;
+    gain.gain.setValueAtTime(0.001, t);
+    gain.gain.linearRampToValueAtTime(peak, t + 0.004);
+    gain.gain.exponentialRampToValueAtTime(peak * 0.6, t + dur * 0.3);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + noteDuration + 0.02);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
   });
 }
 
-/** 错误警示：方波降调 */
-function synthError(startFreq = 420, endFreq = 140, duration = 0.22, volumeScale = 0.09) {
-  const ctx = getAudioContext();
-  if (!ctx || !readSoundEnabled()) return;
-
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
-
-  osc.type = 'square';
-  osc.frequency.setValueAtTime(startFreq, now);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 1), now + duration);
-
-  const peak = effectiveVolume(volumeScale);
-  gain.gain.setValueAtTime(peak, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + duration + 0.02);
+/** 马林巴音色：三角波基频 + 正弦泛音 + 快速衰减 */
+function marimbaTone(ctx: AudioContext, freq: number, t: number, dur: number, vol: number) {
+  const layers: { ratio: number; type: OscillatorType; g: number }[] = [
+    { ratio: 1, type: 'triangle', g: 1 },
+    { ratio: 4.0, type: 'sine', g: 0.18 },
+    { ratio: 10.0, type: 'sine', g: 0.04 },
+  ];
+  layers.forEach(l => {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = l.type;
+    osc.frequency.setValueAtTime(freq * l.ratio, t);
+    const peak = vol * l.g;
+    gain.gain.setValueAtTime(peak, t);
+    gain.gain.exponentialRampToValueAtTime(peak * 0.4, t + dur * 0.15);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.05);
+  });
 }
 
-/** 正弦扫频（展开/翻页等过渡音） */
-function synthSweep(from: number, to: number, duration: number, volumeScale = 0.1) {
-  const ctx = getAudioContext();
-  if (!ctx || !readSoundEnabled()) return;
-
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
+/** 柔和噪声脉冲（模拟纸张/气流） */
+function noiseBurst(ctx: AudioContext, t: number, dur: number, vol: number, filterFreq = 3000) {
+  const bufferSize = Math.ceil(ctx.sampleRate * dur);
+  const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = (Math.random() * 2 - 1);
+  }
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(filterFreq, t);
+  filter.Q.setValueAtTime(1.2, t);
   const gain = ctx.createGain();
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  src.connect(filter);
+  filter.connect(gain);
+  gain.connect(ctx.destination);
+  src.start(t);
+  src.stop(t + dur + 0.02);
+}
 
+/** 水滴共鸣：正弦下滑 + 谐振滤波器 */
+function resonantDrop(ctx: AudioContext, freq: number, t: number, dur: number, vol: number) {
+  const osc = ctx.createOscillator();
+  const filter = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
   osc.type = 'sine';
-  osc.frequency.setValueAtTime(from, now);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(to, 1), now + duration);
-
-  const peak = effectiveVolume(volumeScale);
-  gain.gain.setValueAtTime(peak, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
-
-  osc.connect(gain);
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(freq * 0.45, 80), t + dur);
+  filter.type = 'bandpass';
+  filter.frequency.setValueAtTime(freq * 1.2, t);
+  filter.frequency.exponentialRampToValueAtTime(freq * 0.5, t + dur);
+  filter.Q.setValueAtTime(8, t);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.connect(filter);
+  filter.connect(gain);
   gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + duration + 0.02);
+  osc.start(t);
+  osc.stop(t + dur + 0.05);
 }
 
-/** 水滴声：高频正弦波 + 快速衰减，模拟水滴滴落 */
-function synthWaterDrop(freq = 1400, duration = 0.08, volumeScale = 0.08) {
+/** 柔和警示：三角波 + 低频共振 */
+function warmAlert(ctx: AudioContext, freq: number, endFreq: number, t: number, dur: number, vol: number) {
+  const osc = ctx.createOscillator();
+  const sub = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const subGain = ctx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(freq, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(endFreq, 20), t + dur);
+  sub.type = 'sine';
+  sub.frequency.setValueAtTime(freq * 0.5, t);
+  sub.frequency.exponentialRampToValueAtTime(Math.max(endFreq * 0.5, 20), t + dur);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  subGain.gain.setValueAtTime(vol * 0.3, t);
+  subGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  osc.connect(gain);
+  sub.connect(subGain);
+  gain.connect(ctx.destination);
+  subGain.connect(ctx.destination);
+  osc.start(t);
+  sub.start(t);
+  osc.stop(t + dur + 0.05);
+  sub.stop(t + dur + 0.05);
+}
+
+// ─── 导出音效函数 ───
+
+/** 点击：轻盈的钟琴短触 + 微噪声质感 */
+export const playClick = () => {
   const ctx = getAudioContext();
   if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 1800, t, 0.06, ev(0.12));
+  noiseBurst(ctx, t, 0.025, ev(0.03), 6000);
+};
 
-  const now = ctx.currentTime;
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+/** 成功：温暖的马林巴琶音上行（C5 → E5 → G5） */
+export const playSuccess = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  const notes = [523.25, 659.25, 783.99];
+  notes.forEach((f, i) => {
+    marimbaTone(ctx, f, t + i * 0.09, 0.18, ev(0.13));
+  });
+};
 
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(freq, now);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(freq * 0.6, 1), now + duration);
+/** 错误：柔和的三角波下行 + 低频底蕴 */
+export const playError = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  warmAlert(ctx, 380, 180, t, 0.28, ev(0.1));
+};
 
-  const peak = effectiveVolume(volumeScale);
-  gain.gain.setValueAtTime(peak, now);
-  gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+/** 翻页/加入词库：纸张沙沙声 + 轻微音调扫动 */
+export const playPageTurn = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  noiseBurst(ctx, t, 0.12, ev(0.08), 2800);
+  bellTone(ctx, 420, t + 0.02, 0.08, ev(0.04));
+};
 
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + duration + 0.02);
-}
+/** 水滴声：共鸣腔水滴 */
+export const playWaterDrop = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  resonantDrop(ctx, 1600, t, 0.12, ev(0.1));
+};
 
-// 纸张翻页声（加入词库、划线）
-export const playPageTurn = () => synthSweep(480, 220, 0.1, 0.09);
+/** 确认/通关水滴 */
+export const playDrop = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  resonantDrop(ctx, 1200, t, 0.1, ev(0.12));
+};
 
-// 水滴声（确认、通关）
-export const playDrop = () => synthSuccess([659.25], 0.08, 0.1);
-
-// 成功/错误声
-export const playSuccess = () => synthSuccess();
-export const playError = () => synthError();
-
-// 点击音效
-export const playClick = () => synthClick();
-
-// Tab/模块切换
+/** Tab/模块切换：双钟琴快闪 */
 export const playSwitch = () => {
-  synthClick(900, 0.04, 0.14);
-  setTimeout(() => synthClick(1150, 0.04, 0.12), 55);
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 1200, t, 0.05, ev(0.1));
+  bellTone(ctx, 1500, t + 0.06, 0.05, ev(0.08));
 };
 
-// 面板展开/折叠
-export const playReveal = () => synthSweep(280, 560, 0.12, 0.08);
+/** 面板展开/折叠：泛音绽放 */
+export const playReveal = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 440, t, 0.15, ev(0.07));
+  bellTone(ctx, 880, t + 0.03, 0.12, ev(0.05));
+  noiseBurst(ctx, t, 0.06, ev(0.025), 4000);
+};
 
-// AI 处理/加载
-export const playScan = () => synthClick(440, 0.12, 0.07);
+/** AI 处理/扫描：柔和脉冲 */
+export const playScan = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 660, t, 0.14, ev(0.06));
+  noiseBurst(ctx, t + 0.02, 0.05, ev(0.02), 5000);
+};
 
-// 滑块拖动
-export const playDrag = () => synthClick(720, 0.035, 0.06);
+/** 滑块拖动：微触感 */
+export const playDrag = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 1400, t, 0.03, ev(0.05));
+};
 
-// 表单验证
-export const playValidatePass = () => synthSuccess([523.25, 784], 0.09, 0.12);
-export const playValidateFail = () => synthError(380, 120, 0.18, 0.08);
+/** 表单验证通过：明亮的双音钟琴 */
+export const playValidatePass = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 523.25, t, 0.12, ev(0.1));
+  bellTone(ctx, 783.99, t + 0.08, 0.12, ev(0.08));
+};
 
-// 口语沙盘专用音效
-export const playSendMessage = () => synthWaterDrop(1200, 0.07, 0.09);
-export const playRecordStart = () => synthWaterDrop(980, 0.06, 0.08);
-export const playRecordStop = () => synthClick(880, 0.05, 0.1);
+/** 表单验证失败：柔和警告 */
+export const playValidateFail = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  warmAlert(ctx, 350, 160, t, 0.2, ev(0.08));
+};
+
+/** 口语沙盘 - 发送消息：清脆水滴送出 */
+export const playSendMessage = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  resonantDrop(ctx, 1400, t, 0.08, ev(0.1));
+  bellTone(ctx, 2200, t + 0.02, 0.04, ev(0.04));
+};
+
+/** 口语沙盘 - 开始录音：温暖启动音 */
+export const playRecordStart = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 880, t, 0.08, ev(0.09));
+  bellTone(ctx, 1320, t + 0.06, 0.06, ev(0.06));
+};
+
+/** 口语沙盘 - 停止录音：沉稳收束 */
+export const playRecordStop = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  marimbaTone(ctx, 660, t, 0.08, ev(0.1));
+};
+
+/** 口语沙盘 - 场景切换 */
 export const playSceneSwitch = () => playPageTurn();
+
+/** 口语沙盘 - 突破 */
 export const playBreakthrough = () => {
-  synthClick(1050, 0.04, 0.12);
-  setTimeout(() => synthClick(880, 0.05, 0.1), 45);
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  marimbaTone(ctx, 784, t, 0.1, ev(0.12));
+  bellTone(ctx, 1568, t + 0.08, 0.12, ev(0.08));
 };
-export const playRoleSwitch = () => synthClick(920, 0.04, 0.11);
+
+/** 口语沙盘 - 角色切换 */
+export const playRoleSwitch = () => {
+  const ctx = getAudioContext();
+  if (!ctx || !readSoundEnabled()) return;
+  const t = ctx.currentTime;
+  bellTone(ctx, 1000, t, 0.05, ev(0.09));
+  bellTone(ctx, 1260, t + 0.055, 0.05, ev(0.07));
+};
 
 // 兼容老音效函数映射
-export const playWaterDrop = () => synthWaterDrop();
 export const playSuccessCyber = () => playSuccess();
 export const playErrorCyber = () => playError();
 export const playGentleWarning = () => playError();

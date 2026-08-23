@@ -30,6 +30,8 @@ assert.match(header, /useGSAP/, 'Header 脉冲用 useGSAP');
 assert.match(hook, /isQueued/, 'hook 导出 isQueued');
 assert.match(hook, /notifyBackgroundHandoff/, '超时转后台走统一 handoff');
 assert.match(hook, /anchor/, '支持就近锚点');
+assert.match(hook, /reconcileVocabCollectQueue/, '任务完成后回收 queued');
+assert.match(hook, /collectedKeysFromVocabAddTasks/, '已完成任务名回收已收录');
 
 assert.match(grid, /VOCAB_COLLECT_LABEL/, '词表使用收录文案常量');
 assert.match(grid, /isQueued/, '词表绑定 queued 态');
@@ -40,12 +42,18 @@ assert.match(dashboard, /isBackgroundGenerating/, '长文后台态');
 assert.match(arsenal, /后台处理中/, '弹药库按钮后台文案');
 
 assert.match(read('src/components/modules/DailyWakeupModule.tsx'), /isQueued/, '唤醒收录 queued 态');
+assert.match(read('src/components/modules/DailyWakeupModule.tsx'), /hydrateCollected/, '唤醒从生词本回收已收录');
+assert.match(read('src/components/modules/DailyWakeupModule.tsx'), /lookupVocabWords/, '唤醒查库对齐收录态');
 assert.match(read('src/components/modules/DailyErrorVocabularyModule.tsx'), /后台处理中/, '破绽收录后台文案');
+assert.match(read('src/components/modules/DailyErrorVocabularyModule.tsx'), /hydrateCollected/, '破绽从生词本回收已收录');
+assert.match(read('src/components/modules/DailyErrorVocabularyModule.tsx'), /lookupVocabWords/, '破绽查库对齐收录态');
 assert.match(read('src/components/modules/english/tabs/dashboard/ThemeGateway.tsx'), /notifyBackgroundHandoff/, '场景清理 handoff');
 assert.match(read('src/components/modules/english/tabs/ListenTab.tsx'), /notifyBackgroundHandoff/, '听力 backfill handoff');
 assert.match(read('src/components/VocabExportControl.tsx'), /notifyBackgroundHandoff/, '导出 handoff');
 assert.match(read('src/components/DictionaryPanel.tsx'), /useVocabCollect/, '词典面板走统一收录');
 assert.match(read('src/components/DictionaryPanel.tsx'), /VOCAB_COLLECT_LABEL|后台处理中/, '词典面板后台处理中态');
+assert.match(read('src/components/DictionaryPanel.tsx'), /hydrateCollected/, '词典从生词本回收已收录');
+assert.match(read('src/components/DictionaryPanel.tsx'), /lookupVocabWords/, '词典搜索时查库对齐收录态');
 assert.doesNotMatch(
   read('src/components/DictionaryPanel.tsx').split('export default function DictionaryPanel')[1] || '',
   /addWord\(/,

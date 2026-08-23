@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo, useRef } from 'react';
+﻿import React, { useState, useEffect, memo, useRef } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import gsap from 'gsap';

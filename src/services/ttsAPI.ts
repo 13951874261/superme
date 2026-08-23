@@ -1,4 +1,4 @@
-const DEFAULT_VOICE_ID = 'en-GB-LibbyNeural';
+﻿const DEFAULT_VOICE_ID = 'en-GB-LibbyNeural';
 const VOICE_STORAGE_KEY = 'super_agent_default_voice';
 
 export function getGlobalVoiceId(): string {

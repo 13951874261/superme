@@ -5,7 +5,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 
 gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
-import { queryDictionary } from '../services/vocabAPI';
+import { lookupVocabWords, queryDictionary } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
@@ -800,7 +800,7 @@ export default function DictionaryPanel() {
   const [activeTab, setActiveTab] = useState('');
   const [saveError, setSaveError] = useState(false);
   const [markedSaved, setMarkedSaved] = useState(false);
-  const { collect, isCollecting, isQueued, isCollected } = useVocabCollect({
+  const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
 
@@ -825,6 +825,25 @@ export default function DictionaryPanel() {
     window.addEventListener('vocab-view', handleView);
     return () => window.removeEventListener('vocab-view', handleView);
   }, []);
+
+  useEffect(() => {
+    const text = query.trim();
+    if (!text || !result?.ok) return;
+    let cancelled = false;
+    const syncCollected = () => {
+      void lookupVocabWords([text]).then((items) => {
+        if (cancelled || !items.length) return;
+        hydrateCollected(items.map((item) => item.word));
+        setMarkedSaved(true);
+      }).catch(() => {});
+    };
+    syncCollected();
+    window.addEventListener('vocab-updated', syncCollected);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('vocab-updated', syncCollected);
+    };
+  }, [query, result?.ok, hydrateCollected]);
 
   const handleToggle = (type: DictType, e: React.MouseEvent) => {
     e.stopPropagation();

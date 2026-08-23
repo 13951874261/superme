@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack } from '../../services/dailyPackAPI';
 import { useVocabCollect } from '../../hooks/useVocabCollect';
+import { lookupVocabWords } from '../../services/vocabAPI';
 import { showToast } from '../Toast';
 import SpeakButton from '../SpeakButton';
 import { useEnglishContext } from './english/context/EnglishContext';
@@ -20,7 +21,7 @@ export default function DailyErrorVocabularyModule() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staleHint, setStaleHint] = useState<string | null>(null);
-  const { collect, isCollecting, isQueued, isCollected } = useVocabCollect({
+  const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
 
@@ -66,6 +67,24 @@ export default function DailyErrorVocabularyModule() {
   useEffect(() => {
     void fetchFlawVocab(false);
   }, [theme]);
+
+  useEffect(() => {
+    const texts = words.map((item) => item.word).filter(Boolean);
+    if (texts.length === 0) return;
+    let cancelled = false;
+    const syncCollected = () => {
+      void lookupVocabWords(texts).then((items) => {
+        if (cancelled || !items.length) return;
+        hydrateCollected(items.map((item) => item.word));
+      }).catch(() => {});
+    };
+    syncCollected();
+    window.addEventListener('vocab-updated', syncCollected);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('vocab-updated', syncCollected);
+    };
+  }, [words, hydrateCollected]);
 
   // 逐条收录：收录即补齐词汇矩阵，3 秒未完成转入任务中心
   const handleAddWord = async (word: FlawVocabWord, anchor?: HTMLElement | null) => {

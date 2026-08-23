@@ -3760,9 +3760,13 @@ app.post('/api/vocab/batch-add-async', async (req, res) => {
     }
 
     const taskQueue = require('./services/taskQueue');
+    const firstWord = readVocabItemText(itemList[0]);
+    const firstLabel = firstWord.length > 20 ? `${firstWord.slice(0, 20)}…` : firstWord;
     const task = taskQueue.createTask(
       'vocab_add',
-      `生词本批量收录: ${itemList.length} 个词句 (${topic})`,
+      itemList.length === 1
+        ? `生词本收录: ${firstLabel}`
+        : `生词本批量收录: ${itemList.length} 个词句 (${topic})`,
     );
 
     console.log(`[Vocab Async] 收到生词批量后台入库请求: ${itemList.length} 项 (任务ID: ${task.id})`);

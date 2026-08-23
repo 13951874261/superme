@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus, ChevronUp, ChevronDown, AlertCircle } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';

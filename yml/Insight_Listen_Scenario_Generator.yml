@@ -1,0 +1,176 @@
+# 洞察(听) · 动态出题长剧本生成器
+# 对应后端：POST /api/insight/listen/scenario → runDifyCompletion → /v1/completion-messages
+# 建议服务端 Key：DIFY_INSIGHT_GEN_KEY（兼容 VITE_DIFY_INSIGHT_GEN_KEY）
+# 导入：Dify 工作室 → 导入 DSL 文件 → 核对模型 → 调试 → 发布 → 复制 API Key
+# 注意：本文件是文本生成应用（mode: completion），不是工作流。
+#       yml/Insight_Listen_Engine.yml 是侧写点评工作流，不能替代本应用。
+app:
+  description: 按体制内/外企/通用社交生成 8–10 分钟多方博弈长剧本，返回 ScriptWorkshopDraft JSON，供洞察(听)刷新案例使用
+  icon: 🎯
+  icon_background: '#1E293B'
+  icon_type: emoji
+  mode: completion
+  name: Insight_Listen_Scenario_Generator
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.1
+model_config:
+  agent_mode:
+    enabled: false
+    max_iteration: 5
+    strategy: react
+    tools: []
+  annotation_reply:
+    enabled: false
+  chat_prompt_config: {}
+  completion_prompt_config: {}
+  dataset_configs:
+    datasets:
+      datasets: []
+    retrieval_model: multiple
+  dataset_query_variable: ''
+  external_data_tools: []
+  file_upload:
+    image:
+      detail: high
+      enabled: false
+      number_limits: 3
+      transfer_methods:
+      - remote_url
+      - local_file
+  model:
+    completion_params:
+      temperature: 0.85
+      max_tokens: 8192
+    mode: chat
+    name: '86'
+    provider: langgenius/openai_api_compatible/openai_api_compatible
+  more_like_this:
+    enabled: false
+  opening_statement: ''
+  pre_prompt: |
+    你是顶级政商博弈剧本编剧。任务：为「洞察(听)」训练生成一条全新的结构化长剧本。
+
+    【输入】
+    - 场景分类 category：{{category}}（仅允许：体制内 / 外企 / 通用社交）
+    - 重试提示 retry_hint：{{retry_hint}}
+    - 补充指令 query：{{query}}
+    若 retry_hint 或 query 非空，必须按其中的失败维度整篇重写，禁止只改标题或人名。
+
+    【分类写法】
+    - 体制内：编制、考核、公文留痕、请示汇报、纪检列席、指标分摊。合成匿名，不得指向可识别真实单位或公职人员。禁止复用《处室风云：专项编制与绩效指标暗战》及其李处长/王科长/赵科长/孙主任人设。
+    - 外企：矩阵汇报、总部/本地、OKR、预算冻结、裁员传闻、合规口径。可用公开商业结构作骨架，必须改写成新冲突。
+    - 通用社交：饭局、人情、站队、面子、信息不对等施压。禁止写成单句寒暄片段。
+
+    【每次必须全新】
+    换核心冲突、信息差来源、决策点和人物关系，不得只换地名/公司名。只写合法组织政治与程序博弈，不写违法操作指南。
+
+    【硬约束——服务端 scriptEvaluator 会打分，低于 85 或时长不在 8–12 分钟会被判定不合格并重试】
+    1. 角色 characters ≥ 3，且每人必须在四幕对白中至少发言 2 轮。
+    2. 信息差 infoMatrix ≥ 2，type 只能是 public / exclusive / misinformed / fake_trap。
+    3. phases 必须恰好 4 幕，phaseId 为 1、2、3、4。
+    4. 四幕 content 去空白后总汉字数必须落在 2100–2600（约 8–10 分钟，按 250 字/分钟）。
+    5. 配比：阶段一约 15–22%；阶段二约 25–32%；阶段三（高潮）≥ 30%；阶段四约 10–16%。
+    6. 对白轮次 ≥ 16。格式必须是：
+       **角色名**（动作或神态）：台词
+    7. 四幕结构：铺垫 → 试探摊牌 → 高潮对峙（含信息差兑现）→ 收束/未完成的交易。
+    8. 禁止：空壳阶段、用摘要冒充对白、机械降神（后半程突然出现前半程毫无伏笔的炸弹级反转词）。
+    9. sceneSummary ≥ 80 字，交代时间地点、利害、为何今晚必须摊牌。
+    10. 只输出一个 JSON 对象。不要 Markdown 围栏，不要前言后语。
+
+    【JSON 契约——字段名必须一字不差】
+    {
+      "sceneTitle": "《与分类匹配的全新标题》",
+      "sceneSummary": "≥80字",
+      "characters": [
+        {
+          "id": "c1",
+          "name": "姓名",
+          "roleTitle": "职务",
+          "surfaceGoal": "会上公开说的目标",
+          "hiddenMotive": "不说出口的底牌",
+          "redLine": "绝不能退的利益红线",
+          "winCondition": "怎样算自己赢"
+        }
+      ],
+      "infoMatrix": [
+        {
+          "id": "info-1",
+          "type": "public",
+          "title": "公开信息",
+          "content": "所有人都知道的事实"
+        },
+        {
+          "id": "info-2",
+          "type": "exclusive",
+          "owner": "持有该信息的角色名",
+          "title": "独占信息",
+          "content": "只有此人掌握、将在高潮抛出的证据"
+        }
+      ],
+      "phases": [
+        {
+          "phaseId": 1,
+          "title": "阶段一：……",
+          "targetDuration": "1.5 - 2.0 min",
+          "targetWordsRange": "380 - 480 字",
+          "targetRatio": 0.18,
+          "content": "对白正文，约 380–480 字"
+        },
+        {
+          "phaseId": 2,
+          "title": "阶段二：……",
+          "targetDuration": "2.5 - 3.0 min",
+          "targetWordsRange": "650 - 800 字",
+          "targetRatio": 0.30,
+          "content": "对白正文，约 650–800 字"
+        },
+        {
+          "phaseId": 3,
+          "title": "阶段三：……",
+          "targetDuration": "3.0 - 4.0 min",
+          "targetWordsRange": "800 - 1000 字",
+          "targetRatio": 0.38,
+          "content": "对白正文，约 800–1000 字，必须兑现至少一项独占信息"
+        },
+        {
+          "phaseId": 4,
+          "title": "阶段四：……",
+          "targetDuration": "1.0 - 1.5 min",
+          "targetWordsRange": "270 - 350 字",
+          "targetRatio": 0.14,
+          "content": "对白正文，约 270–350 字，留下未完成的交易或下次交锋口子"
+        }
+      ]
+    }
+
+    现在根据 category={{category}} 生成完整 JSON。
+  prompt_type: simple
+  retriever_resource:
+    enabled: false
+  sensitive_word_avoidance:
+    configs: []
+    enabled: false
+    type: ''
+  speech_to_text:
+    enabled: false
+  suggested_questions: []
+  suggested_questions_after_answer:
+    enabled: false
+  text_to_speech:
+    enabled: false
+    language: ''
+    voice: ''
+  user_input_form:
+  - text-input:
+      default: 体制内
+      label: 场景分类
+      max_length: 32
+      required: true
+      variable: category
+  - paragraph:
+      default: ''
+      label: 重试提示
+      max_length: 1000
+      required: false
+      variable: retry_hint
