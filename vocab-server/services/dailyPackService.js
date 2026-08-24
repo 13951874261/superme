@@ -572,6 +572,28 @@ async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurr
   return JSON.parse(clean);
 }
 
+function normalizeWakeupPayload(value, fallbackTheme = '') {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  const grammar = source.grammar && typeof source.grammar === 'object' ? source.grammar : {};
+  const examples = Array.isArray(grammar.examples)
+    ? grammar.examples.map((example) => ({
+        correct: String(example?.correct || ''),
+        incorrect: String(example?.incorrect || ''),
+      })).filter((example) => example.correct && example.incorrect)
+    : [];
+
+  return {
+    ...source,
+    theme: String(source.theme || fallbackTheme).trim(),
+    vocab: Array.isArray(source.vocab) ? source.vocab : [],
+    grammar: {
+      point: String(grammar.point || '').trim() || '暂无语法点',
+      explanation: String(grammar.explanation || '').trim() || '暂无语法讲解。',
+      examples,
+    },
+  };
+}
+
 /** 唤醒 10 词：排除推送历史 + 硬过滤 + 重试 1 次 + 补齐 + 写历史 */
 async function generateWakeupVocabForUser(db, userId, {
   theme,
@@ -606,11 +628,11 @@ async function generateWakeupVocabForUser(db, userId, {
   const base = (result.raw && typeof result.raw === 'object' && !Array.isArray(result.raw))
     ? result.raw
     : {};
-  const wakeup = {
+  const wakeup = normalizeWakeupPayload({
     ...base,
     theme: base.theme || theme,
     vocab: result.words,
-  };
+  }, theme);
   if (result.notice) wakeup._dedupeNotice = result.notice;
   return wakeup;
 }
@@ -789,7 +811,7 @@ function serializeDailyPack(row, currentTheme) {
     status: row.status,
     source: row.source,
     errorMessage: row.error_message || null,
-    wakeup: row.wakeup_json ? JSON.parse(row.wakeup_json) : null,
+    wakeup: row.wakeup_json ? normalizeWakeupPayload(JSON.parse(row.wakeup_json), row.theme) : null,
     flawVocab: row.flaw_vocab_json ? JSON.parse(row.flaw_vocab_json) : null,
   };
 }

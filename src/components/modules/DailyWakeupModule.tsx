@@ -492,11 +492,11 @@ export default function DailyWakeupModule() {
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
                 <div className="lg:col-span-5 flex flex-col">
-                  <h5 className="text-xl font-black mb-2">{result.grammar.point}</h5>
-                  <p className="text-gray-300 text-sm leading-relaxed">{result.grammar.explanation}</p>
+                  <h5 className="text-xl font-black mb-2">{result.grammar?.point || '暂无语法点'}</h5>
+                  <p className="text-gray-300 text-sm leading-relaxed">{result.grammar?.explanation || '暂无语法讲解。'}</p>
                 </div>
                 <div className="lg:col-span-7 flex flex-col gap-2.5">
-                  {result.grammar.examples.map((ex, idx) => (
+                  {(result.grammar?.examples || []).map((ex, idx) => (
                     <div key={idx} className="rounded-xl bg-white/5 border border-white/10 p-3 flex flex-col md:flex-row gap-3">
                       <div className="flex-1">
                         <div className="flex items-center justify-between mb-1.5">

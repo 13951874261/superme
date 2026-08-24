@@ -831,10 +831,10 @@ export default function ImpromptuSpeechTab() {
                                 核心论点 {i + 1}
                               </div>
                               <h6 className="text-xs font-black text-gray-800 mb-2 leading-relaxed">
-                                {arg.point}
+                                {arg?.point || '暂无核心论点'}
                               </h6>
                               <div className="border-l-2 border-amber-400 pl-2.5 bg-amber-50/15 py-1.5 text-xs text-gray-600 italic leading-relaxed">
-                                {arg.evidence}
+                                {arg?.evidence || '暂无论据'}
                               </div>
                             </div>
                             {arg.transition && (
