@@ -58,7 +58,7 @@ export default function DailyErrorVocabularyModule() {
       setWords([]);
       setError('暂无缓存，请点击「刷新词汇」手动生成');
     } catch (e: any) {
-      setError(e.message || '获取每日易错词汇失败，请重试');
+      setError(e.message || '获取每日破绽词汇失败，请重试');
     } finally {
       setIsLoading(false);
     }
@@ -113,7 +113,7 @@ export default function DailyErrorVocabularyModule() {
           </div>
           <div className="text-left">
             <h4 className="text-base font-black tracking-widest uppercase flex items-center gap-2">
-              每日易错词汇
+              每日破绽词汇
             </h4>
             <p className="text-xs text-slate-400 mt-1 font-medium">
               {staleHint || '今日预生成 · 可刷新'}
