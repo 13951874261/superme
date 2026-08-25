@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
@@ -6480,7 +6480,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         body: JSON.stringify({
           inputs: {
             topic: topic || 'General Business',
-            user_current_profile: user_current_profile || ''
+            user_current_profile: user_current_profile || '',
+            article_text: articleText || '',
+            content: articleText || '',
           },
           response_mode: 'blocking',
           user: userId || 'system'
@@ -6495,7 +6497,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       // 从工作流 outputs 中提取词汇和句型结果
       const outputs = wfData?.data?.outputs || {};
-      const rawExtracted = outputs.extracted_words || outputs.result || outputs.text || '';
+      const rawExtracted = outputs.extracted_words || outputs.vocabulary || outputs.terms || outputs.new_words || outputs.result || outputs.text || '';
 
       let extractedItems = [];
       if (Array.isArray(rawExtracted)) {
@@ -6521,6 +6523,9 @@ app.post('/api/material/process-and-extract', async (req, res) => {
               return s;
             }));
           }
+          if (Array.isArray(parsed.vocabulary)) extractedItems.push(...parsed.vocabulary);
+          if (Array.isArray(parsed.terms)) extractedItems.push(...parsed.terms);
+          if (Array.isArray(parsed.new_words)) extractedItems.push(...parsed.new_words);
           if (Array.isArray(parsed)) extractedItems = parsed;
         } catch (e) {
           // 解析失败时按逗号/换行粗分
@@ -6575,7 +6580,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
        * @returns {number} 单词数量
        */
       function countWords(str) {
-        if (!str || typeof str !== 'string') return 0;
+  const hasChinese = /[\u4e00-\u9fff]/.test(str);
+  if (hasChinese) return Math.ceil(str.replace(/[.!?,;'":()[]{}.!?，、]/g, '').length / 2);
         return str
           .trim()
           .replace(/[.!?,;:'"()[\]{}]/g, '')   // 去掉常见标点
