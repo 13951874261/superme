@@ -238,11 +238,13 @@ export default function DashboardTab() {
   // 监听 intel-data-refreshed 事件，触发情报面板即时更新
   useEffect(() => {
     const handleIntelRefresh = () => {
-      setGeneratedArticle(localStorage.getItem('super_agent_last_generated_article') || '');
+      const article = localStorage.getItem('super_agent_last_generated_article') || '';
+      setGeneratedArticle(article);
       setExtractedWords(JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]'));
       setExtractedPhrases(JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]'));
       setExtractedSentences(JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]'));
       setIntelSource(localStorage.getItem('super_agent_intel_source') || '每日系统生成');
+      if (article) setBriefingTab('longform');
     };
 
     window.addEventListener('intel-data-refreshed', handleIntelRefresh);
@@ -294,6 +296,7 @@ export default function DashboardTab() {
       }
       if (detail?.article) {
         setGeneratedArticle(detail.article);
+        setBriefingTab('longform');
       }
       if (detail?.words) {
         setExtractedWords(detail.words);
@@ -607,6 +610,7 @@ export default function DashboardTab() {
           setExtractedSentences(res.data.sentences || []);
           setIsArticleExpanded(false);
           setIntelSource('每日系统生成');
+          setBriefingTab('longform');
 
           localStorage.setItem('super_agent_intel_source', '每日系统生成');
           localStorage.setItem('super_agent_last_generated_article', res.data.article);
@@ -662,6 +666,7 @@ export default function DashboardTab() {
 
       if (exactRes.found && exactRes.data) {
         showNotice('dashboard', '已找到长文和词汇，直接加载，也可以重新生成', 'success');
+        setBriefingTab('longform');
         setGeneratedArticle(exactRes.data.article);
         setIsArticleExpanded(false);
         setExtractedWords(exactRes.data.words || []);
@@ -776,6 +781,10 @@ export default function DashboardTab() {
         return;
       }
 
+      if (!('result' in race)) {
+        // 超时已在上面处理完，兜底 return
+        return;
+      }
       applyDisplayResult(race.result);
     } catch (e: any) {
       playError();

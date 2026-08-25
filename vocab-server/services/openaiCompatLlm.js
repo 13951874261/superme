@@ -1,9 +1,9 @@
 const http = require('http');
 const https = require('https');
 
-const DEFAULT_LLM_URL = 'http://150.158.34.217:38000/v1/chat/completions';
+const DEFAULT_LLM_URL = 'https://aow2.234124123.xyz/aow/v1/chat/completions';
 const DEFAULT_LLM_KEY = 'sk-aow2api-your-custom-key';
-const DEFAULT_LLM_MODELS = ['57', '113', '114', '110'];
+const DEFAULT_LLM_MODELS = ['114'];
 
 function getLlmUrl() {
   return process.env.LLM_URL || process.env.WRITE_GOVERNANCE_LLM_URL || DEFAULT_LLM_URL;

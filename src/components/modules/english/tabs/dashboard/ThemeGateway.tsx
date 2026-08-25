@@ -109,6 +109,11 @@ export function ThemeGateway({
         return;
       }
 
+      if (!('result' in race)) {
+        // 超时已在上面处理完，兜底
+        return;
+      }
+
       if (!race.result.success) {
         throw new Error(race.result.error || '场景清理失败');
       }

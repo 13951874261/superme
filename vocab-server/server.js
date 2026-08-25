@@ -2307,12 +2307,13 @@ const {
 function formatDifyModelError(raw) {
   const text = String(raw || '').trim();
   if (!text) return 'Dify 模型调用失败，未返回错误详情';
-  if (/Server Unavailable|ConnectTimeout|23\.95\.214\.232|38000|Max retries exceeded/i.test(text)) {
+  if (/Server Unavailable|ConnectTimeout|fusion panel|Max retries exceeded|503/i.test(text)) {
     return [
-      'Dify 下游 LLM 推理服务不可用（23.95.214.232:38000 连接超时）。',
+      'Dify 下游 LLM 推理服务不可用（融合面板所有模型均失败或连接超时）。',
       '长文生成应用：materail_generate_url_enhanced',
-      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY（默认 DIFY_ENGLISH_MASTERY_KEY）',
-      '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL，或重启 38000 端口推理服务。',
+      '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY',
+      `本地兜底网关：${process.env.LLM_URL || 'https://aow2.234124123.xyz/aow/v1/chat/completions'}（模型 ${process.env.LLM_MODELS || '114'}）。`,
+      '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL 与模型名，或在 aow 网关后台检查通道健康状态。',
     ].join(' ');
   }
   if (/^\[models\]/i.test(text)) return `Dify 模型调用失败: ${text}`;

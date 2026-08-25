@@ -229,13 +229,19 @@ function AppContent() {
   useEffect(() => {
     const goListen = () => setActiveModule('listen');
     const goSpeak = () => setActiveModule('speak');
+    const goDashboard = () => {
+      if (activeModule !== 'english') setActiveModule('english');
+      else setActiveTab('dashboard');
+    };
     window.addEventListener('navigate-insight-listen', goListen);
     window.addEventListener('navigate-speak', goSpeak);
+    window.addEventListener('open-uploaded-material', goDashboard);
     return () => {
       window.removeEventListener('navigate-insight-listen', goListen);
       window.removeEventListener('navigate-speak', goSpeak);
+      window.removeEventListener('open-uploaded-material', goDashboard);
     };
-  }, []);
+  }, [activeModule]);
 
   /**
    * 智能判定并处理左侧空白区域的点击事件，实现 70/30 黄金折叠面板的“即刻收起”
@@ -396,11 +402,13 @@ export default function App() {
       {!isAuthenticated ? (
         <LoginPage key="login-page" onUnlock={() => setIsAuthenticated(true)} />
       ) : (
-        <EnglishProvider key="app-shell">
-          <TaskProvider>
-            <AppContent />
-          </TaskProvider>
-        </EnglishProvider>
+        <React.Fragment key="app-shell">
+          <EnglishProvider>
+            <TaskProvider>
+              <AppContent />
+            </TaskProvider>
+          </EnglishProvider>
+        </React.Fragment>
       )}
     </AnimatePresence>
   );

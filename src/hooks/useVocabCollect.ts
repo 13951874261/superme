@@ -138,6 +138,11 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
         return 'queued';
       }
 
+      if (!('result' in race)) {
+        // 超时已在上面处理完，兜底
+        return;
+      }
+
       const result = race.result as { matrixReady?: boolean };
       setCollected((prev) => ({ ...prev, [key]: true }));
       setQueued((prev) => {
