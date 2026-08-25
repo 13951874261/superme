@@ -788,11 +788,16 @@ function parseVocabFromRaw(raw) {
     if (Array.isArray(parsed)) vocab = parsed;
     else if (parsed && Array.isArray(parsed.words)) vocab = parsed.words;
     else if (parsed && Array.isArray(parsed.vocab)) vocab = parsed.vocab;
+    else if (parsed && Array.isArray(parsed.new_words)) vocab = parsed.new_words;
     const phrases = normalizePhraseList(
-      parsed && !Array.isArray(parsed) ? (parsed.phrases || parsed.phrase || []) : [],
+      parsed && !Array.isArray(parsed)
+        ? (parsed.phrases || parsed.phrase || parsed.useful_phrases || parsed.key_phrases || [])
+        : [],
     );
     const sentences = normalizeSentenceList(
-      parsed && !Array.isArray(parsed) ? (parsed.sentences || []) : [],
+      parsed && !Array.isArray(parsed)
+        ? (parsed.sentences || parsed.sentence_patterns || parsed.grammar_patterns || [])
+        : [],
     );
     return { vocab, phrases, sentences };
   };
