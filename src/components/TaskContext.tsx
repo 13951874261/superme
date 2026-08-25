@@ -73,7 +73,9 @@ interface TaskContextType {
 
 const TaskContext = createContext<TaskContextType | undefined>(undefined);
 
-const API_BASE = '';
+const API_BASE = import.meta.env.DEV ? 'http://localhost:3001' : '';
+const POLL_REQUEST_TIMEOUT_MS = 10_000;
+const POLL_MAX_TRANSIENT_FAILURES = 6;
 
 export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -81,6 +83,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [hiddenCronCount, setHiddenCronCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const activePolls = useRef<Set<string>>(new Set());
+  const transientFailuresRef = useRef<Map<string, number>>(new Map());
   const lastGlobalPollTimeRef = useRef<number>(0);
 
   const fetchCronRuns = useCallback(async () => {
@@ -95,10 +98,10 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchTasks = async () => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 3000);
-    try {
-      const response = await fetch(`${API_BASE}/api/tasks`, { signal: controller.signal });
-      clearTimeout(timer);
+      const timer = setTimeout(() => controller.abort(), POLL_REQUEST_TIMEOUT_MS);
+      try {
+        const response = await fetch(`${API_BASE}/api/tasks`, { signal: controller.signal });
+        clearTimeout(timer);
       if (response.ok) {
         const data = await response.json();
         if (data.success && Array.isArray(data.tasks)) {
@@ -223,7 +226,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
       lastGlobalPollTimeRef.current = now;
 
       const pollController = new AbortController();
-      const pollTimer = setTimeout(() => pollController.abort(), 3000);
+      const pollTimer = setTimeout(() => pollController.abort(), POLL_REQUEST_TIMEOUT_MS);
 
       try {
         const response = await fetch(`${API_BASE}/api/tasks/${id}`, { signal: pollController.signal });
@@ -233,6 +236,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         const data = await response.json();
         if (data.success) {
+          transientFailuresRef.current.delete(id);
           setTasks((prev) =>
             prev.map((t) =>
               t.id === id
@@ -254,6 +258,7 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (data.status === 'completed' || data.status === 'failed') {
             clearInterval(interval);
             activePolls.current.delete(id);
+            transientFailuresRef.current.delete(id);
             if (data.type === 'theme_delete') {
               window.dispatchEvent(new CustomEvent('custom-theme-delete-finished', {
                 detail: {
@@ -319,20 +324,16 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
         }
       } catch (e) {
-        console.error(`Error polling task ${id}:`, e);
-        clearInterval(interval);
-        activePolls.current.delete(id);
-        setTasks((prev) =>
-          prev.map((t) =>
-            t.id === id
-              ? {
-                  ...t,
-                  status: 'failed',
-                  error: '轮询任务状态失败，网络连接中断',
-                }
+        const transientFailures = (transientFailuresRef.current.get(id) || 0) + 1;
+        transientFailuresRef.current.set(id, transientFailures);
+        console.warn(`Error polling task ${id} (transient failure ${transientFailures}/${POLL_MAX_TRANSIENT_FAILURES}):`, e);
+        if (transientFailures >= POLL_MAX_TRANSIENT_FAILURES) {
+          setTasks((prev) => prev.map((t) => (
+            t.id === id && (t.status === 'pending' || t.status === 'running')
+              ? { ...t, error: '任务状态暂时无法获取，系统将继续后台处理；请稍后刷新任务中心' }
               : t
-          )
-        );
+          )));
+        }
       }
     }, 5000);
   };
