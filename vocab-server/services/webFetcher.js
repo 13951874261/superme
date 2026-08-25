@@ -86,7 +86,7 @@ async function fetchUrlContent(urlString) {
   }
 
   const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
-  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'http://192.210.136.140:20128/v1').replace(/\/$/, '');
+  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://fetch.234124123.xyz/v1').replace(/\/$/, '');
   const fetchUrl = `${endpointBase}/web/fetch`;
   const hostname = new URL(fetchUrl).hostname;
   const insecureTls = process.env.FETCH_INSECURE_TLS === '1'
