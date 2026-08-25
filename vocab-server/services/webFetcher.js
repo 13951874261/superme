@@ -7,6 +7,9 @@ function isIpHostname(hostname) {
   return /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname);
 }
 
+const REQUEST_TIMEOUT_MS = 20_000;
+const RETRY_COUNT = 1;
+
 /**
  * POST JSON to upstream; supports insecure TLS for IP hosts (same pattern as IMAGE_GEN).
  * @returns {Promise<{ status: number, text: string }>}
@@ -41,9 +44,34 @@ function postJson(urlString, headers, body, insecureTls) {
       });
     });
     req.on('error', reject);
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error('ETIMEDOUT'));
+    });
     req.write(payload);
     req.end();
   });
+}
+
+/**
+ * Retry wrapper for transient network errors.
+ * @returns {Promise<{ status: number, text: string }>}
+ */
+async function postJsonWithRetry(urlString, headers, body, insecureTls) {
+  const retryable = /ETIMEDOUT|ECONNRESET|ENOTFOUND|ECONNREFUSED|ENETUNREACH|EAI_AGAIN/i;
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRY_COUNT; attempt++) {
+    try {
+      return await postJson(urlString, headers, body, insecureTls);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < RETRY_COUNT && retryable.test(err.message)) {
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastErr;
 }
 
 /**
@@ -58,11 +86,9 @@ async function fetchUrlContent(urlString) {
   }
 
   const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
-  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://9router.234124123.xyz/v1').replace(/\/$/, '');
+  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'http://192.210.136.140:20128/v1').replace(/\/$/, '');
   const fetchUrl = `${endpointBase}/web/fetch`;
   const hostname = new URL(fetchUrl).hostname;
-  // IP hosts (e.g. 23.95.214.232) present a cert for 9router.234124123.xyz only.
-  // Match IMAGE_GEN / TTS: skip TLS name check for IP or when FETCH_INSECURE_TLS=1.
   const insecureTls = process.env.FETCH_INSECURE_TLS === '1'
     || process.env.FETCH_INSECURE_TLS === 'true'
     || isIpHostname(hostname);
@@ -74,7 +100,7 @@ async function fetchUrlContent(urlString) {
     max_characters: 0,
   });
 
-  const { status, text } = await postJson(
+  const { status, text } = await postJsonWithRetry(
     fetchUrl,
     {
       Authorization: `Bearer ${apiKey}`,
