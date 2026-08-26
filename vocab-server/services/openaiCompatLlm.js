@@ -1,7 +1,7 @@
 const http = require('http');
 const https = require('https');
 
-const DEFAULT_LLM_URL = 'https://aow2.234124123.xyz/aow/v1/chat/completions';
+const DEFAULT_LLM_URL = 'https://fetch.234124123.xyz/v1/chat/completions';
 const DEFAULT_LLM_KEY = 'sk-aow2api-your-custom-key';
 const DEFAULT_LLM_MODELS = ['114'];
 

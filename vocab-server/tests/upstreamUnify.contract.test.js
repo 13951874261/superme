@@ -14,7 +14,7 @@ assert.ok(
 assert.ok(serverSrc.includes('ag/gemini-3.1-flash-image'), 'image fallback model must be gemini');
 assert.ok(serverSrc.includes("IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.cn/v1'"), 'Agnes remains primary');
 
-assert.strictEqual(llm.DEFAULT_LLM_URL, 'https://aow2.234124123.xyz/aow/v1/chat/completions');
+assert.strictEqual(llm.DEFAULT_LLM_URL, 'https://fetch.234124123.xyz/v1/chat/completions');
 assert.strictEqual(llm.DEFAULT_LLM_KEY, 'sk-aow2api-your-custom-key');
 assert.deepStrictEqual(llm.DEFAULT_LLM_MODELS, ['114']);
 assert.ok(!serverSrc.includes('https://23.95.214.232/v1/chat/completions'), 'server.js must not hardcode old chat completions');

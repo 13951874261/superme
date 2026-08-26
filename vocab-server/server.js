@@ -2312,7 +2312,7 @@ function formatDifyModelError(raw) {
       'Dify 下游 LLM 推理服务不可用（融合面板所有模型均失败或连接超时）。',
       '长文生成应用：materail_generate_url_enhanced',
       '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY',
-      `本地兜底网关：${process.env.LLM_URL || 'https://aow2.234124123.xyz/aow/v1/chat/completions'}（模型 ${process.env.LLM_MODELS || '114'}）。`,
+      `本地兜底网关：${process.env.LLM_URL || 'https://fetch.234124123.xyz/v1/chat/completions'}（模型 ${process.env.LLM_MODELS || '114'}）。`,
       '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL 与模型名，或在 aow 网关后台检查通道健康状态。',
     ].join(' ');
   }
@@ -10202,8 +10202,8 @@ const https = require('https');
 const http = require('http');
 
 function getTtsUpstreamUrls() {
-  const primary = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
-  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://9router.234124123.xyz/v1/audio/speech';
+  const primary = process.env.TTS_API_URL || 'https://fetch.234124123.xyz/v1/audio/speech';
+  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://fetch.234124123.xyz/v1/audio/speech';
   return [...new Set([primary, fallback].filter(Boolean))];
 }
 

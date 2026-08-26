@@ -3573,8 +3573,8 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   try {
   const taskQueue = taskId ? require('./services/taskQueue') : null;
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
-  const apiUrl = process.env.TTS_API_URL || 'https://9router.234124123.xyz/v1/audio/speech';
-  const apiKey = process.env.TTS_API_KEY || 'sk-899c9c34738f61b5-2u53op-6ed8a313';
+  const apiUrl = process.env.TTS_API_URL || 'https://fetch.234124123.xyz/v1/audio/speech';
+  const apiKey = process.env.TTS_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
   const gatewayFailed = { value: false }; // 标记是否已触发降级
 
   // 切分文本，每块上限 2000 字符（低于上游硬限制，留有余量）
@@ -4176,10 +4176,10 @@ app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) =>
             formData.append('response_format', config.response_format);
           }
 
-          const response = await fetch('https://9router.234124123.xyz/v1/audio/transcriptions', {
+          const response = await fetch('https://fetch.234124123.xyz/v1/audio/transcriptions', {
             method: 'POST',
             headers: {
-              'Authorization': req.headers.authorization || 'Bearer sk-899c9c34738f61b5-2u53op-6ed8a313',
+              'Authorization': req.headers.authorization || 'Bearer sk-d2c5fb65e9516bbc-rd1lv9-762292df',
             },
             body: formData,
           });
