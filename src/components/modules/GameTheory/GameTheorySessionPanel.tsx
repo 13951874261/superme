@@ -331,11 +331,13 @@ function LightSignalRow({ signals, checkpoint }: { signals: string[]; checkpoint
 }
 
 function RoundCard({
+  key,
   round,
   roles,
   highContrast,
   isLatest,
 }: {
+  key?: string;
   round: GameTheorySessionRound;
   roles: SessionRoleDraft[];
   highContrast: boolean;

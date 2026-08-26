@@ -85,6 +85,7 @@ function KnowledgeSyncPanel({
   onRetryRefine,
   disabled,
 }: {
+  key?: string;
   item: KnowledgeSyncFields & { id: string; source?: string };
   onSync: (id: string, targets: KnowledgeModule[]) => Promise<void>;
   onRetryRefine?: (id: string) => Promise<void>;

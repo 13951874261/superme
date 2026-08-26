@@ -1,6 +1,6 @@
 export type WriteVariant = 'zh' | 'en';
 
-export type WriteGovernanceTaskType = 'document_correction' | 'business_writing' | 'value_proposal';
+export type WriteGovernanceTaskType = 'document_correction' | 'business_writing' | 'value_proposal' | 'logic_optimization';
 
 export type WriteModuleDef = {
   id: string;
@@ -22,6 +22,10 @@ export type WriteGovernanceLike = {
   admin_flaws?: string;
   value_extraction?: string;
   business_proposal?: string;
+  pyramid_structure?: string;
+  final_article?: string;
+  structural_diagnosis?: string;
+  actionable_takeaway?: string;
   rawJson?: string;
 };
 

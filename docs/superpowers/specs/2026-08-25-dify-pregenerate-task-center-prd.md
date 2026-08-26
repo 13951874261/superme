@@ -232,9 +232,11 @@
 │  │ unifiedPreGenerateService.js                       │   │
 │  │ - getFeatureConfig(feature) → {cron, dimensions,   │   │
 │  │   difyWorkflowKey, cacheTable, ttlDays}            │   │
-│  │ - runBatch(userId, feature, date)                  │   │
-│  │ - getCached(userId, feature, key)                  │   │
-│  │ - writeback(userId, feature, key, result)          │   │
+│  │ - runBatch(userId, feature, queryKey, date)        │   │
+│  │ - getCached(userId, feature, queryKey, profileHash)│   │
+│  │ - writeback(userId, feature, queryKey, profileHash, │   │
+│  │   result)                                           │   │
+│  │ - validateSessionUser(userId, profileHash)         │   │
 │  └───────────────┬───────────────────────────────────┘   │
 │                  ▼                                        │
 │  ┌───────────────────────────────────────────────────┐   │
@@ -247,7 +249,8 @@
 │                                                           │
 │  ┌───────────────────────────────────────────────────┐   │
 │  │ pregen_results (SQLite 表)                          │   │
-│  │ user_id | feature | cache_key | status | payload   │   │
+│  │ user_id | feature | query_key | profile_hash       │   │
+│  │ condition_hash | date | status | payload           │   │
 │  │ created_at | expires_at                              │   │
 │  └───────────────────────────────────────────────────┘   │
 └──────────────────────────────────────────────────────────┘
@@ -255,6 +258,33 @@
                          ▼
               Dify Workflow API (外部)
 ```
+
+### 账号与查询条件绑定规则（强制）
+
+1. **身份来源**：所有查询、生成、回填、任务状态读取均以后端会话解析出的当前登录账号为准；前端传入的 `userId` 只作展示或兼容字段，服务端不得信任，禁止用它切换数据范围。
+2. **画像条件**：允许使用当前账号的“账号画像 hash”（`profile_hash`）作为个性化条件。画像 hash 必须由服务端根据当前账号画像计算或读取，前端不得直接指定、替换或伪造。
+3. **条件完整性**：缓存命中键必须同时包含 `user_id + feature_id + normalized_query + condition_hash + profile_hash + content_date`。缺少任一字段时视为未命中，不允许降级为同模块、同日期或同画像的共享内容。
+4. **规范化与防篡改**：服务端按模块白名单过滤字段、统一枚举/排序/空值规则后生成 `normalized_query` 与 `condition_hash`；任务创建后从服务端保存的条件读取执行参数，客户端不得通过修改任务请求复用其他条件结果。
+5. **Dify 侧身份**：调用 Dify Workflow API 时，`user` 使用稳定的当前账号标识；`inputs` 同时携带模块查询条件与 `profile_hash`。不得以公共账号、随机 ID 或仅使用画像 hash 代替账号 ID。
+6. **存储隔离**：数据库查询必须使用当前会话账号与完整条件联合过滤；唯一约束至少覆盖 `(user_id, feature_id, condition_hash, profile_hash, content_date)`。越权、条件不完整或画像 hash 不匹配时统一返回未命中/拒绝，不返回近似结果。
+7. **画像变更**：账号画像 hash 变化后，旧结果不可用于新画像；旧记录可保留用于审计，但必须标记过期或失效，重新生成新条件结果。
+
+### 各模块前台查询条件定义（以当前功能为准）
+
+| feature_id | 前台功能 | 必须进入查询条件的字段 |
+|------------|----------|------------------------|
+| `listen_insight_pool` | ListenModule 案例池 | `category`、`difficulty`、`scenario_type`、`pool_size`、`pack_date`、当前 `profile_hash` |
+| `read_daily_material` | ReadModule 今日推送 | `scene_type`、`framework`、`difficulty`、`topic`、`pack_date`、当前 `profile_hash` |
+| `gt_preset_analysis` | GameTheoryModule 预设分析 | `preset_case_id`、`environment`、`analysis_depth`、`language`、当前 `profile_hash` |
+| `speak_influence_matrix` | SpeakModule 影响力引擎 | `scenario_id`、`dimension`、`structure`、`tone`、`language`、当前 `profile_hash` |
+| `aesthetics_daily_push` | EntertainmentModule 每日推送 | `active_tab`、`category`、`scenario_id`、`push_date`、当前 `profile_hash` |
+| `oral_opening_cache` | Oral War Room 开场白 | `scene_id`、`role_set`、`difficulty`、`language`、`opening_version`、当前 `profile_hash` |
+| `weekly_chat_enhanced` | WeeklyChatModule 实时分析 | `content_hash`、`directions`、`week_range`、当前 `profile_hash` |
+| `biweekly_review_analysis` | BiweeklyReviewModal 复盘 | `answers_hash`、`review_period`、当前 `profile_hash` |
+| `write_review` | WriteTab 批阅 | `variant`、`active_module`、`write_intent`、`writing_content_hash`、`benchmark_hash`、当前 `profile_hash` |
+| `vocab_purify` | 词汇提纯 | `source_content_hash`、`language`、`extraction_mode`、当前 `profile_hash` |
+
+> 说明：实时交互也必须遵守同一绑定规则；“不预生成”不等于“可跨账号/跨条件读取”。仅对完全由当前用户运行时输入决定的内容使用输入 hash，禁止使用不完整条件命中。
 
 ### 统一预生成配置表
 
@@ -272,11 +302,14 @@
 #### GET `/api/pregen/:feature`
 
 ```json
-// 请求 Query
-{ "userId": "xxx", "key": "category=gov_struggle&model=pig_game", "date": "2026-08-26" }
+// 请求 Query：userId/profileHash 由服务端会话和账号画像解析，前端不可覆盖
+{ "feature": "listen_insight_pool", "conditions": { "category": "gov_struggle", "difficulty": 4, "scenario_type": "insight", "pool_size": 5, "pack_date": "2026-08-26" } }
+
+// 服务端内部命中键
+{ "userId": "session-user-123", "profileHash": "sha256:...", "conditionHash": "sha256:...", "date": "2026-08-26" }
 
 // 命中响应 (HTTP 200)
-{ "hit": true, "status": "ready", "payload": { ... }, "generatedAt": "2026-08-25T16:00:00Z" }
+{ "hit": true, "status": "ready", "payload": { ... }, "generatedAt": "2026-08-25T16:00:00Z", "scope": { "feature": "listen_insight_pool", "conditionHash": "sha256:..." } }
 
 // 部分响应
 { "hit": true, "status": "partial", "payload": { ... }, "missingKeys": ["audio"] }
@@ -288,19 +321,22 @@
 #### POST `/api/pregen/:feature/backfill`
 
 ```json
-// 请求
-{ "userId": "xxx", "key": "...", "date": "..." }
+// 请求：服务端从会话取 userId/conditions，从账号画像取 profileHash
+{ "feature": "listen_insight_pool", "conditions": { "category": "gov_struggle", "difficulty": 4, "scenario_type": "insight", "pool_size": 5, "pack_date": "2026-08-26" } }
+// 任务参数由服务端固化，不接受客户端拼接的 params 字段
 
 // 响应（立即返回，不等待 Dify）
-{ "success": true, "taskId": "task_xxx", "status": "pending" }
+{ "success": true, "taskId": "task_xxx", "status": "pending", "scope": { "feature": "listen_insight_pool", "conditionHash": "sha256:..." } }
 ```
 
 ### 安全与隐私
 
-- 预生成数据按 `user_id` 隔离，禁止跨用户查询
-- Dify API Key 仅存在于服务端 `.env`，前端零暴露
-- 缓存过期自动清理，默认 TTL 见上表
-- 用户画像注入预生成 inputs 时需脱敏处理
+- 预生成、实时查询、回填、任务详情均按当前会话 `user_id` 隔离，禁止跨用户查询或复用。
+- 查询必须绑定模块完整条件；禁止仅按 `feature`、日期、category、输入 hash 或 profile hash 单独命中。
+- `profile_hash` 只允许服务端计算/读取；画像原文不进入缓存键、任务中心展示或日志，Dify inputs 仅传脱敏画像数据或 hash。
+- Dify API Key 仅存在于服务端 `.env`，前端零暴露。
+- 缓存过期自动清理，默认 TTL 见上表；画像 hash 变化立即使旧个性化结果失效。
+- 任务详情、任务取消、任务结果读取均校验任务所属 `user_id` 与 `condition_hash`，不接受客户端替换作用域。
 
 ---
 

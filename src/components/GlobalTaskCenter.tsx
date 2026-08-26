@@ -131,11 +131,13 @@ function ModuleStatCell({
 }
 
 function DailyCronCard({
+  key,
   run,
   onChanged,
   onDelete,
   deleting,
 }: {
+  key?: string;
   run: DailyCronRunSummary;
   onChanged: () => void;
   onDelete: () => Promise<void> | void;
@@ -646,6 +648,11 @@ export default function GlobalTaskCenter() {
                         <h4 className="text-xs font-black text-gray-800 truncate" title={task.name}>
                           {task.name}
                         </h4>
+                        {task.type === 'daily_extract' && (
+                          <p className={`text-[10px] font-bold mt-0.5 ${task.generationConditions ? 'text-emerald-600' : 'text-amber-600'}`}>
+                            提交条件：{task.generationConditions ? '与前台一致' : '无法核验'}
+                          </p>
+                        )}
                         <p className="text-[10px] text-gray-400 font-mono mt-0.5">ID: {task.id}</p>
                       </div>
                     </div>

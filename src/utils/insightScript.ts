@@ -47,7 +47,7 @@ export function flattenInsightScript(draft: ScriptWorkshopDraft): string {
 }
 
 export function evaluateInsightScriptQuality(draft: ScriptWorkshopDraft): InsightScriptEvaluation & { quality: InsightScriptQuality } {
-  const totalWords = (draft.phases || []).reduce((sum, p) => sum + countWords(p.content || ''), 0);
+    const totalWords = ((draft.phases ?? []) as ScriptPhaseData[]).reduce((sum, p) => sum + countWords(p.content || ''), 0);
   const estimatedMinutes = estimateDurationMinutes(totalWords);
   const passedDuration = estimatedMinutes >= 8 && estimatedMinutes <= 12;
   const report = evaluateScriptDraft(draft);

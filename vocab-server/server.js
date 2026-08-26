@@ -7413,11 +7413,29 @@ app.post('/api/english/daily-extract', async (req, res) => {
     // Step 3: 登记 taskQueue（任务中心）+ extractionTasks（status 轮询），共用同一 taskId
     const taskQueue = require('./services/taskQueue');
     const topicLabel = String(topic || materialText || '长文').slice(0, 40);
+    const genreLabels = {
+      meeting: '高管会议',
+      email: '商务邮件',
+      report: '行业研报',
+      negotiation: '谈判拉扯',
+      presentation: '路演汇报',
+      reading: '沉浸阅读',
+      news: '财经新闻',
+    };
+    const genreLabel = genreLabels[genre] || genre;
+    const generationConditions = {
+      topic: String(topic || materialText || '长文'),
+      genre: String(genre),
+      genreLabel,
+      cefrLevel: String(cefrLevel),
+      duration: String(duration),
+    };
     const tq = taskQueue.createTask(
       'daily_extract',
-      `长文生成与提纯: ${topicLabel} (${genre}/${cefrLevel}/${duration}m)`
+      `长文生成｜${genreLabel}｜${cefrLevel}｜${duration}分钟`
     );
     const taskId = tq.id;
+    taskQueue.updateTask(taskId, { generationConditions });
     extractionTasks.set(taskId, {
       status: 'pending',
       createdAt: Date.now()

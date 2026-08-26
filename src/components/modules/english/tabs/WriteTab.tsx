@@ -296,7 +296,7 @@ ${benchmarkText
           runEnglishWriteReview(writingText, finalIntent, theme),
           45000,
           '写作审阅超时',
-        ) as Record<string, string>;
+        ) as unknown as Record<string, string>;
         raw = {
           L1: String(englishRaw.L1_Grammar || englishRaw.L1 || ''),
           L2: String(englishRaw.L2_Business_Tone || englishRaw.L2 || ''),

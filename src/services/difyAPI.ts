@@ -1380,7 +1380,7 @@ export async function runImpromptuSpeechEvaluation(
 // ── 文治系统 Governance 工作流接口 ──────────────────────────────────
 
 /** 文治系统 task_type 枚举 */
-export type WriteGovernanceTaskType = 'document_correction' | 'business_writing' | 'value_proposal';
+export type WriteGovernanceTaskType = 'document_correction' | 'business_writing' | 'value_proposal' | 'logic_optimization';
 
 /** 文治系统返回结果（按 task_type 映射不同字段） */
 export interface WriteGovernanceResult {
@@ -1397,6 +1397,10 @@ export interface WriteGovernanceResult {
   admin_flaws?: string;
   value_extraction?: string;
   business_proposal?: string;
+  pyramid_structure?: string;
+  final_article?: string;
+  structural_diagnosis?: string;
+  actionable_takeaway?: string;
   /** 原始 JSON（用于解析 L3 分数） */
   rawJson?: string;
   knowledgeReminder?: string;

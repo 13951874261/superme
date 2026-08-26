@@ -750,10 +750,27 @@ export default function DashboardTab() {
 
       const race = await withDailyExtractTimeout(waitPromise, DAILY_EXTRACT_RACE_MS);
       if (race.isTimeout) {
+        const genreLabel = ({
+          meeting: '高管会议',
+          email: '商务邮件',
+          report: '行业研报',
+          negotiation: '谈判拉扯',
+          presentation: '路演汇报',
+          reading: '沉浸阅读',
+          news: '财经新闻',
+        } as Record<string, string>)[genre] || genre;
+        const generationConditions = {
+          topic: String(theme),
+          genre,
+          genreLabel,
+          cefrLevel,
+          duration: String(duration),
+        };
         addTask({
           id: started.taskId,
           type: 'daily_extract',
-          name: `长文生成: ${String(theme).slice(0, 24)} (${genre}/${cefrLevel}/${duration}m)`,
+          name: `长文生成｜${genreLabel}｜${cefrLevel}｜${duration}分钟`,
+          generationConditions,
           status: 'running',
           progress: 20,
           logs: ['超过 3 秒未完成，已转入后台继续生成；完成后可再次查询命中缓存'],
