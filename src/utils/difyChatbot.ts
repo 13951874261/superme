@@ -96,6 +96,7 @@ export function buildMinimalIframeUrl(userId: string): string {
   const params = new URLSearchParams({
     user_id: userId,
     _refresh: String(Date.now()),
+    skip_memory_pack: true,
   });
   return `${base}/chatbot/${DIFY_EMBED_TOKEN}?${params.toString()}`;
 }
@@ -239,6 +240,11 @@ async function buildIframeUrlWithFallback(userId: string, forceNew: boolean): Pr
     // Memory pack invalidation is still triggered by resetDifyChatbotSession().
     const config = await buildFullConfig(userId);
     const fitted = await fitConfigToEmbedUrl(config);
+    // ponytail: fitConfigToEmbedUrl 即使走完所有 shrink 步骤仍可能超长（gzip+base64 膨胀），必须兜底
+    if (fitted.url.length > EMBED_IFRAME_URL_MAX_LEN) {
+      console.warn('[difyChatbot] URL still', fitted.url.length, 'after shrink, fallback to minimal');
+      return buildMinimalIframeUrl(userId);
+    }
     return fitted.url;
   } catch (e) {
     console.warn('[difyChatbot] build full config failed, fallback to minimal:', e);
