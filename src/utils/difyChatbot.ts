@@ -96,7 +96,7 @@ export function buildMinimalIframeUrl(userId: string): string {
   const params = new URLSearchParams({
     user_id: userId,
     _refresh: String(Date.now()),
-    skip_memory_pack: true,
+    skip_memory_pack: 'true',
   });
   return `${base}/chatbot/${DIFY_EMBED_TOKEN}?${params.toString()}`;
 }
