@@ -199,6 +199,10 @@ function parseSense(block, fallbackWord) {
   const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
   const examples = lines.slice(exampleStart)
     .filter((line) => !/^Add to word list|^To top$/i.test(line))
+    .filter((line) => {
+      // Skip pure Chinese translation lines (no English letters)
+      return /[A-Za-z]/.test(line);
+    })
     .map(splitEnglishChinese)
     .filter((item) => item.en);
 
