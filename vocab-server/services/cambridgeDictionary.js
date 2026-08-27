@@ -195,11 +195,14 @@ function parseSense(block, fallbackWord) {
     }
   }
 
-  // Extract examples - stop at next ### heading or non-example content
+  // Extract examples - stop at Idioms, ## Examples, or next sense
   const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
   const isNonExampleLine = (line) => {
-    // Stop at next sense heading or section
-    if (/^###/.test(line) || /^##/.test(line)) return true;
+    // Stop at Idioms section or next major section
+    if (/^###\s*\*?\s*idioms\s*\*?$/i.test(line)) return true;
+    if (/^##\s+Examples/i.test(line)) return true;
+    if (/^##/.test(line)) return true;
+    if (/^###/.test(line)) return true;
     // Skip metadata lines
     if (/^(uk|us)$/i.test(line)) return true;
     if (/^your browser doesn't support html5 audio$/i.test(line)) return true;
@@ -301,8 +304,8 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   
   // Extract idioms from the ### **Idioms** section
   const idioms = [];
-  const idiomsSection = sourceText.match(/###\s+\*\*?Idioms\*\*?([\s\S]*?)(?=^##|\Z)/im);
-  if (idiomsSection) {
+  const idiomsSection = sourceText.match(/###\s+\*\*?Idioms\*\*?([\s\S]*)/im);
+  if (idiomsSection && idiomsSection[1]) {
     const idiomMatches = Array.from(idiomsSection[1].matchAll(/\[(.+?)\]\(https:\/\/[^)]+\)/g), (m) => cleanMarkdown(m[1]));
     idioms.push(...idiomMatches.filter(i =>
       i &&
@@ -312,11 +315,12 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     ));
   }
 
-  // Extract collocations
-  const collocations = unique(
-    Array.from(sourceText.matchAll(/\b(?:collocation|phrase)\b[^\n]*\n+([^\n]+)/gi), (match) => cleanMarkdown(match[1]))
+  // Extract collocations from ## Collocations section
+  const collocationsSection = sourceText.match(/##\s+Collocations([\s\S]*?)(?=^##|\Z)/im);
+  const collocations = collocationsSection ? unique(
+    Array.from(collocationsSection[1].matchAll(/^- (.+)$/gm), (m) => cleanMarkdown(m[1].trim()))
     .filter(Boolean)
-  );
+  ) : [];
 
   // Extract inflections
   const inflections = unique(
