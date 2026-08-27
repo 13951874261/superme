@@ -5473,7 +5473,7 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
             user_current_profile: user_current_profile || ''
           }),
           response_mode: 'streaming',
-          user: userId || 'frontend-panel'
+          user: userId  // 强制使用传入的 userId，不允许降级到默认值
         }),
         signal: controller.signal
       });
@@ -5586,7 +5586,7 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
         db.prepare(`
           INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at, user_id)
           VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now(), userId || 'frontend-panel');
+        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now(), userId);
 
         console.log(`[Dict Background] 深度职场解析完成并沉淀入库: "${cleanWord}" (${dictType})`);
       }
@@ -5626,7 +5626,14 @@ function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, us
 app.post('/api/dify/dict-query', async (req, res) => {
   req.setTimeout(0);
   res.setTimeout(0);
-  const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId = 'frontend-panel' } = req.body;
+  const { word, dictType: rawDictType, direction = 'auto', userContext = '', locale = 'zh-CN', user_current_profile, userId } = req.body;
+  
+  // 强制校验：userId 必须存在且非空，防止缓存污染
+  if (!userId || typeof userId !== 'string' || !userId.trim()) {
+    return res.status(400).json({ ok: false, message: 'userId is required for cache isolation' });
+  }
+  const cleanUserId = userId.trim().slice(0, 64);
+  
   const dictType = ['zh_modern', 'en_en_business', 'en_zh_bidirectional'].includes(rawDictType) ? rawDictType : 'en_zh_bidirectional';
 
   if (!word || !String(word).trim()) {
@@ -5648,7 +5655,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
     direction,
     userContext,
     locale,
-    userId,
+    userId: cleanUserId,
   });
 
   // 1. 本地历史成功缓存优先（0 毫秒秒开）：若已有深度解析记录，直接秒开返回
