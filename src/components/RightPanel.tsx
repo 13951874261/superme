@@ -7,7 +7,7 @@ import DifyAssistantFrame from './DifyAssistantFrame';
 import { motion, AnimatePresence } from 'motion/react';
 import SpeakButton from './SpeakButton';
 import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, sanitizeProfileContent } from '../utils/profileHelper';
-import { resetDifyChatbotSession } from '../utils/difyChatbot';
+import { resetDifyChatbotSession, invalidateMemoryPackCache } from '../utils/difyChatbot';
 import { playClick, playReveal, playSwitch } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 
@@ -22,7 +22,6 @@ interface RightPanelProps {
 function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
 
   const [profile, setProfile] = useState(() => getAccentPref());
-  const [assistantRefreshKey, setAssistantRefreshKey] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   const [localWordEntry, setLocalWordEntry] = useState<VocabEntry | null>(null);
@@ -157,24 +156,15 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
   })();
 
   useEffect(() => {
-    // ponytail: bumpAssistant only triggers refreshKey increment; prepareDifyAssistantIframe(false) reuses warm cache
-    // forceNew was causing memory pack cache invalidation → slow API call on every panel open
-    const bumpAssistant = () => setAssistantRefreshKey((k) => k + 1);
     const handleProfileChange = () => {
       setProfile(getAccentPref());
-      bumpAssistant();
+      invalidateMemoryPackCache();
     };
     window.addEventListener(ACCENT_CHANGED_EVENT, handleProfileChange);
-    window.addEventListener('global-profile-changed', handleProfileChange);
-    window.addEventListener('global-user-id-changed', bumpAssistant);
-    window.addEventListener('dify-embed-scope-changed', bumpAssistant);
-    window.addEventListener('dify-assistant-open', bumpAssistant);
+    window.addEventListener("global-profile-changed", handleProfileChange);
     return () => {
       window.removeEventListener(ACCENT_CHANGED_EVENT, handleProfileChange);
-      window.removeEventListener('global-profile-changed', handleProfileChange);
-      window.removeEventListener('global-user-id-changed', bumpAssistant);
-      window.removeEventListener('dify-embed-scope-changed', bumpAssistant);
-      window.removeEventListener('dify-assistant-open', bumpAssistant);
+      window.removeEventListener("global-profile-changed", handleProfileChange);
     };
   }, []);
 
@@ -303,7 +293,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
               >
                 {activeTab === 'assistant' ? (
                   <div className="w-full h-full relative">
-                    <DifyAssistantFrame refreshKey={String(assistantRefreshKey)} />
+                    <DifyAssistantFrame refreshKey={profile} />
                   </div>
                 ) : (
                   /* 情报解密舱 (上下文词汇详情) */

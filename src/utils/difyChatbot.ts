@@ -29,7 +29,7 @@ let cachedIframeUrl: { key: string; url: string; at: number } | null = null;
 let iframeUrlInflight: Promise<string> | null = null;
 const IFRAME_URL_CACHE_MS = 300_000; // 5 min
 
-function invalidateMemoryPackCache(): void {
+export function invalidateMemoryPackCache(): void {
   cachedMemoryPack = null;
   cachedIframeUrl = null;
   iframeUrlInflight = null;

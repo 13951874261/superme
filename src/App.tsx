@@ -21,8 +21,7 @@ import BiweeklyReviewModal from './components/modules/BiweeklyReviewModal';
 import { useBiweeklyReviewTrigger } from './hooks/useBiweeklyReviewTrigger';
 import {
   loadDifyChatbotEmbed,
-  prepareDifyAssistantIframe,
-  refreshDifyChatbotContext,
+  prepareDifyAssistantIframe, buildMinimalIframeUrl, refreshDifyChatbotContext,
   rotateEmbedSessionOnPageLoad,
   rotateEmbedSessionOnRouteChange,
 } from './utils/difyChatbot';
@@ -382,6 +381,7 @@ function AppContent() {
           )}
         </button>
       </motion.div>
+<DifyPreloadIframe />
     </div>
   );
 }
@@ -414,3 +414,22 @@ export default function App() {
     </AnimatePresence>
   );
 }
+
+// ponytail: 隐藏预加载 iframe，后台预热 Dify 大屏到浏览器缓存
+function DifyPreloadIframe() {
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  React.useEffect(() => {
+    const url = buildMinimalIframeUrl(getAppUserId());
+    if (iframeRef.current) iframeRef.current.src = url;
+  }, []);
+  return (
+    <iframe
+      ref={iframeRef}
+      aria-hidden="true"
+      style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', border: 'none' }}
+      title="dify-preload"
+    />
+  );
+}
+
+

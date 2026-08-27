@@ -18,3 +18,4 @@ coverage/
 *.db-wal
 vocab-server/vocab.db
 vocab-server/data/
+test_examples.js
