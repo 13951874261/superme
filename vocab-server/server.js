@@ -3631,6 +3631,8 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
     db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?').run(JSON.stringify(memoryAids), row.id);
   }
 
+  const finalRow = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(row.id);
+
   return {
     id: row.id,
     word,
@@ -3639,6 +3641,11 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
     matrixReady: vocabMatrixEnricher.isMatrixComplete(payload, kind),
     memoryReady,
     matrixError: matrixError || undefined,
+    entry: finalRow ? {
+      ...finalRow,
+      payload,
+      memory_aids: memoryAids,
+    } : undefined,
   };
 }
 
