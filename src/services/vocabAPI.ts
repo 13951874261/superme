@@ -121,6 +121,18 @@ export interface ExampleSentenceEnZh {
   zh: string;
 }
 
+export interface CambridgeSense {
+  headword: string;
+  part_of_speech: string;
+  label: string;
+  level: string;
+  grammar: string[];
+  register: string;
+  definition_en: string;
+  translation_zh: string;
+  examples: ExampleSentenceEnZh[];
+}
+
 export interface EnZhBidirectionalPayload {
   direction_resolved: 'en_to_zh' | 'zh_to_en';
   phonetic: string;
@@ -134,6 +146,12 @@ export interface EnZhBidirectionalPayload {
   collocations: string[];
   etymology?: string;
   level?: string;
+  phonetics?: { uk?: string; us?: string };
+  senses?: CambridgeSense[];
+  inflections?: string[];
+  source?: string;
+  source_url?: string;
+  copyright?: string;
 }
 
 export type DictPayload = ZhModernPayload | EnEnBusinessPayload | EnZhBidirectionalPayload;
@@ -428,10 +446,10 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userContext: '',
-        locale: 'zh-CN',
-        userId: getAppUserId(),
         ...params,
+        userContext: params.userContext || '',
+        locale: params.locale || 'zh-CN',
+        userId: getAppUserId(),
         direction: resolvedDirection,
         user_current_profile: getUserCurrentProfile(),
       }),
@@ -590,7 +608,7 @@ export async function batchAddWordsAsync(
 ): Promise<{ success: boolean; taskId: string; status: string }> {
   return request('/batch-add-async', {
     method: 'POST',
-    body: JSON.stringify({ items, topic, source }),
+    body: JSON.stringify({ items, topic, source, userId: getAppUserId() }),
   });
 }
 

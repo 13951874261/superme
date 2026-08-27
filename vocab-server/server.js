@@ -5,6 +5,11 @@ const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
+const {
+  isSingleEnglishWord,
+  fetchCambridgeEntry,
+  mergeCambridgeWithDify,
+} = require('./services/cambridgeDictionary');
 
 const multer = require('multer');
 const uploadDir = path.join(__dirname, 'public', 'temp_videos');
@@ -256,6 +261,10 @@ try {
   db.prepare('ALTER TABLE dict_query_log ADD COLUMN level TEXT').run();
   console.log('Migration: Added level column to dict_query_log table.');
 } catch (e) {}
+try {
+  db.prepare('ALTER TABLE dict_query_log ADD COLUMN user_id TEXT').run();
+  console.log('Migration: Added user_id column to dict_query_log table.');
+} catch (e) {}
 
 // ?????????????? (????????????????????????????????)
 db.prepare(`CREATE TABLE IF NOT EXISTS materials (id TEXT PRIMARY KEY, title TEXT, created_at INTEGER)`).run();
@@ -314,6 +323,7 @@ try {
 try {
   db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_success ON dict_query_log(is_success)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_level ON dict_query_log(is_success, level)').run();
+  db.prepare('CREATE INDEX IF NOT EXISTS idx_dict_log_user_word ON dict_query_log(user_id, word, dict_type, is_success)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_session ON training_attempts(session_id)').run();
   db.prepare('CREATE INDEX IF NOT EXISTS idx_training_attempt_user_scene ON training_attempts(user_id, scene_type, module_type)').run();
   console.log('Migration: Created performance indexes successfully.');
@@ -3563,7 +3573,7 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
         topic,
         apiKey: process.env.VOCAB_MATRIX_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
       });
-      payload = {
+      const enrichedPayload = {
         ...payload,
         ...matrix,
         source: source || payload.source || '',
@@ -3571,6 +3581,9 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
         matrix_pending_retry: false,
         matrix_error: '',
       };
+      payload = payload.cambridge_raw
+        ? mergeCambridgeWithDify(payload.cambridge_raw, enrichedPayload)
+        : enrichedPayload;
     } catch (error) {
       // 软失败：保留已入库词条，标记可重试；不 DELETE，避免「红条 + 词条消失」
       matrixError = error?.message || String(error);
@@ -5426,7 +5439,7 @@ function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
 }
 
 // 后台异步静默深度增强：调用 Dify SSE 工作流，解析完成后沉淀写入 SQLite
-function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userContext, locale, user_current_profile, userId }) {
+function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userContext, locale, user_current_profile, userId, cambridgePromise = null }) {
   const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
   if (!DIFY_DICT_API_KEY) return;
   const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
@@ -5549,6 +5562,14 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
         if (!parsedResult.payload.translation_main && parsedResult.payload.meaning_zh) {
           parsedResult.payload.translation_main = parsedResult.payload.meaning_zh;
         }
+        if (cambridgePromise) {
+          try {
+            const cambridge = await cambridgePromise;
+            if (cambridge) parsedResult.payload = mergeCambridgeWithDify(cambridge, parsedResult.payload);
+          } catch (error) {
+            console.warn(`[Dict Background] Cambridge 融合跳过 (${cleanWord}):`, error.message);
+          }
+        }
         parsedResult.ok = true;
         parsedResult.type = dictType;
 
@@ -5556,9 +5577,9 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
         const level = typeof rawLevel === 'string' && rawLevel.trim() ? rawLevel.trim() : null;
 
         db.prepare(`
-          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at)
-          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
-        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now());
+          INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at, user_id)
+          VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+        `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now(), userId || 'frontend-panel');
 
         console.log(`[Dict Background] 深度职场解析完成并沉淀入库: "${cleanWord}" (${dictType})`);
       }
@@ -5566,6 +5587,32 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
       console.warn(`[Dict Background] 异步增强异常 (${cleanWord}):`, bgErr.message);
     }
   })().catch(() => {});
+}
+
+function settleWithin(promise, timeoutMs) {
+  return promise ? Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))]) : Promise.resolve(null);
+}
+
+function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, userContext, locale, userId }) {
+  if (!promise) return;
+  promise.then((cambridge) => {
+    if (!cambridge) return;
+    let difyPayload = buildInstantDictPayload(cleanWord, dictType);
+    const latest = db.prepare(`
+      SELECT response_payload FROM dict_query_log
+      WHERE user_id = ? AND word = ? COLLATE NOCASE AND dict_type = ? AND is_success = 1
+      ORDER BY created_at DESC LIMIT 1
+    `).get(userId, cleanWord, dictType);
+    try {
+      const parsed = latest?.response_payload ? JSON.parse(latest.response_payload) : null;
+      if (parsed?.payload) difyPayload = parsed.payload;
+    } catch (_) {}
+    const result = { ok: true, type: dictType, payload: mergeCambridgeWithDify(cambridge, difyPayload) };
+    db.prepare(`
+      INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `).run(crypto.randomUUID(), cleanWord, dictType, direction, userContext, locale, JSON.stringify(result), result.payload.level || null, Date.now(), userId);
+  }).catch((error) => console.warn(`[Dict Query] Cambridge 后台持久化失败 (${cleanWord}):`, error.message));
 }
 
 // 词典查询：后端代理 Dify dict_tool_workflow，双轨架构（秒级即时直出 + 后台静默增强）
@@ -5580,6 +5627,22 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 
   const cleanWord = String(word).trim();
+  const useCambridge = dictType === 'en_zh_bidirectional' && isSingleEnglishWord(cleanWord);
+  const cambridgePromise = useCambridge
+    ? fetchCambridgeEntry(cleanWord).catch((error) => {
+        console.warn(`[Dict Query] Cambridge 抓取失败，回退 Dify (${cleanWord}):`, error.message);
+        return null;
+      })
+    : null;
+  persistCambridgeWhenReady({
+    promise: cambridgePromise,
+    cleanWord,
+    dictType,
+    direction,
+    userContext,
+    locale,
+    userId,
+  });
 
   // 1. 本地历史成功缓存优先（0 毫秒秒开）：若已有深度解析记录，直接秒开返回
   try {
@@ -5587,10 +5650,11 @@ app.post('/api/dify/dict-query', async (req, res) => {
       SELECT response_payload, level FROM dict_query_log
       WHERE word = ? COLLATE NOCASE
         AND dict_type = ?
+        AND user_id = ?
         AND is_success = 1
         AND response_payload IS NOT NULL
       ORDER BY created_at DESC LIMIT 1
-    `).get(cleanWord, dictType);
+    `).get(cleanWord, dictType, userId);
 
     if (cached?.response_payload) {
       try {
@@ -5598,6 +5662,10 @@ app.post('/api/dify/dict-query', async (req, res) => {
         if (cachedResult && (cachedResult.ok || cachedResult.payload)) {
           console.log(`[Dict Query] 命中本地词典历史缓存: "${cleanWord}" (${dictType})`);
           if (!cachedResult.type) cachedResult.type = dictType;
+          if (cambridgePromise) {
+            const cambridge = await settleWithin(cambridgePromise, 3000);
+            if (cambridge) cachedResult.payload = mergeCambridgeWithDify(cambridge, cachedResult.payload || {});
+          }
           return res.json({ ...cachedResult, ok: true, fromCache: true });
         }
       } catch (_) {}
@@ -5610,9 +5678,9 @@ app.post('/api/dify/dict-query', async (req, res) => {
   try {
     const vocabRow = db.prepare(`
       SELECT payload FROM vocabulary
-      WHERE word = ? COLLATE NOCASE AND payload IS NOT NULL
+      WHERE user_id = ? AND word = ? COLLATE NOCASE AND payload IS NOT NULL
       ORDER BY added_at DESC LIMIT 1
-    `).get(cleanWord);
+    `).get(userId, cleanWord);
 
     if (vocabRow?.payload) {
       try {
@@ -5642,6 +5710,10 @@ app.post('/api/dify/dict-query', async (req, res) => {
             }
           };
           console.log(`[Dict Query] 命中本地 vocabulary 词库: "${cleanWord}"`);
+          if (cambridgePromise) {
+            const cambridge = await settleWithin(cambridgePromise, 3000);
+            if (cambridge) vocabFallbackResult.payload = mergeCambridgeWithDify(cambridge, vocabFallbackResult.payload);
+          }
           return res.json(vocabFallbackResult);
         }
       } catch (_) {}
@@ -5663,15 +5735,18 @@ app.post('/api/dify/dict-query', async (req, res) => {
     userContext,
     locale,
     user_current_profile,
-    userId
+    userId,
+    cambridgePromise,
   });
 
+  const cambridge = await settleWithin(cambridgePromise, 3000);
+  const instantPayload = buildInstantDictPayload(cleanWord, dictType);
   return res.json({
     ok: true,
     type: dictType,
     fromCache: false,
     backgroundEnriching: true,
-    payload: buildInstantDictPayload(cleanWord, dictType)
+    payload: cambridge ? mergeCambridgeWithDify(cambridge, instantPayload) : instantPayload,
   });
 });
 

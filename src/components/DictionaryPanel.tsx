@@ -535,6 +535,12 @@ interface EnZhBidirectionalViewProps {
 }
 
 export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
+  return payload.senses?.length
+    ? <UtilityEnZhBidirectionalView payload={payload} query={query} />
+    : <LegacyEnZhBidirectionalView payload={payload} query={query} />;
+}
+
+function LegacyEnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
   const { direction_resolved, phonetic, pos, translation_main, other_meanings = [], business_examples = [], example_sentences = [], etymology } = payload;
   const extracted = extractSynonymsAntonymsCollocations(query, payload);
   const synonymsList = extracted.synonyms;
@@ -860,7 +866,7 @@ export default function DictionaryPanel() {
     if (!query.trim()) return;
     setIsLoading(true); setResult(null); setActiveTab(''); setSaveError(false); setMarkedSaved(false);
     try {
-      const parsed = await queryDictionary({ word: query.trim(), dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '', userId: 'frontend-panel' });
+      const parsed = await queryDictionary({ word: query.trim(), dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '' });
       setResult(parsed);
       const firstKey = Object.keys(parsed?.payload || {})[0];
       if (firstKey) setActiveTab(firstKey);

@@ -116,7 +116,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
 
       if (race.isTimeout) {
         const queuedRes = await batchAddWordsAsync(
-          [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType }],
+          [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType, payload: request.payload }],
           request.topic || '逐条收录',
           request.source || 'Manual Select'
         );
@@ -170,7 +170,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       // 同步路径真失败时仍尝试托管后台，避免用户只能看到红条
       try {
         const queuedRes = await batchAddWordsAsync(
-          [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType }],
+          [{ word: text, is_phrase: isPhrase, is_sentence: isSentence, dictType, payload: request.payload }],
           request.topic || '逐条收录',
           request.source || 'Manual Select'
         );

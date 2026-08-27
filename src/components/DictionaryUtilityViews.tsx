@@ -407,6 +407,12 @@ export function UtilityEnZhBidirectionalView({
     antonyms = [],
     collocations = [],
     etymology,
+    phonetics,
+    senses = [],
+    inflections = [],
+    source,
+    source_url,
+    copyright,
   } = payload;
 
   const validBusiness = business_examples
@@ -420,6 +426,7 @@ export function UtilityEnZhBidirectionalView({
   const isEnToZh = direction_resolved === 'en_to_zh';
   const [showExt, setShowExt] = useState(false);
   const [showOther, setShowOther] = useState(false);
+  const [showCambridge, setShowCambridge] = useState(false);
   const extCount = collocations.length + (etymology?.trim() ? 1 : 0);
 
   return (
@@ -433,6 +440,42 @@ export function UtilityEnZhBidirectionalView({
         speakText={query}
       />
       <CoreGloss text={translation_main || ''} />
+
+      {senses.length > 0 && (
+        <FoldBlock title="Cambridge 词典详情" count={senses.length} open={showCambridge} onToggle={() => setShowCambridge((v) => !v)}>
+          {(phonetics?.uk || phonetics?.us) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-600">
+              {phonetics.uk && <span><b className="text-stone-800">UK</b> {phonetics.uk}</span>}
+              {phonetics.us && <span><b className="text-stone-800">US</b> {phonetics.us}</span>}
+            </div>
+          )}
+          {senses.map((sense, idx) => (
+            <div key={`${sense.label}-${idx}`} className="border-t border-stone-200 pt-2 first:border-0 first:pt-0">
+              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                <span className="text-xs font-semibold text-stone-900">{idx + 1}. {sense.label || sense.part_of_speech}</span>
+                {[sense.part_of_speech, sense.level, sense.register, ...(sense.grammar || [])].filter(Boolean).map((tag) => (
+                  <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded border border-stone-200 bg-white text-stone-600">{tag}</span>
+                ))}
+              </div>
+              <div className="text-xs text-stone-700 leading-relaxed">{sense.definition_en}</div>
+              <div className="text-xs font-medium text-stone-900 mt-0.5">{sense.translation_zh}</div>
+              {(sense.examples || []).map((example, exampleIndex) => (
+                <div key={exampleIndex} className="mt-1.5 pl-2 border-l-2 border-stone-200 text-[11px] leading-relaxed">
+                  <div className="text-stone-700">{example.en}</div>
+                  {example.zh && <div className="text-stone-500">{example.zh}</div>}
+                </div>
+              ))}
+            </div>
+          ))}
+          {inflections.length > 0 && <div className="text-xs text-stone-600"><b className="text-stone-800">词形：</b>{inflections.join('、')}</div>}
+          {(source || copyright) && (
+            <div className="border-t border-stone-200 pt-2 text-[10px] text-stone-500 leading-relaxed">
+              {source_url ? <a href={source_url} target="_blank" rel="noreferrer" className="text-[#FF5722] hover:underline">{source || 'Cambridge Dictionary'}</a> : source}
+              {copyright && <span className="ml-1">{copyright}</span>}
+            </div>
+          )}
+        </FoldBlock>
+      )}
 
       {(validBusiness.length > 0 || validExamples.length > 0) && (
         <div>
