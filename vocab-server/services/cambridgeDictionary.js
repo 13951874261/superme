@@ -282,10 +282,15 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   
   // Extract idioms from the ### **Idioms** section
   const idioms = [];
-  const idiomsSection = sourceText.match(/###\s+\*\*Idioms\*\*([\s\S]*?)(?=^##|\Z)/im);
+  const idiomsSection = sourceText.match(/###\s+\*\*?Idioms\*\*?([\s\S]*?)(?=^##|\Z)/im);
   if (idiomsSection) {
     const idiomMatches = Array.from(idiomsSection[1].matchAll(/\[(.+?)\]\(https:\/\/[^)]+\)/g), (m) => cleanMarkdown(m[1]));
-    idioms.push(...idiomMatches.filter(i => i && !i.toLowerCase().includes('meaning')));
+    idioms.push(...idiomMatches.filter(i =>
+      i &&
+      !i.toLowerCase().includes('meaning') &&
+      !i.toLowerCase().includes('dictionary') &&
+      !i.toLowerCase().includes('cambridge')
+    ));
   }
 
   // Extract collocations
