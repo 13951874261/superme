@@ -152,6 +152,7 @@ export interface EnZhBidirectionalPayload {
   source?: string;
   source_url?: string;
   copyright?: string;
+  raw_markdown?: string;
 }
 
 export type DictPayload = ZhModernPayload | EnEnBusinessPayload | EnZhBidirectionalPayload;

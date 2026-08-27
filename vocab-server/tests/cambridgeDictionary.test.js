@@ -65,6 +65,7 @@ const cambridge = parseCambridgeMarkdown(markdown, {
 });
 
 assert.strictEqual(cambridge.headword, 'vibe');
+assert.strictEqual(cambridge.raw_markdown, markdown);
 assert.deepStrictEqual(cambridge.phonetics, { uk: '/vaɪb/', us: '/vaɪb/' });
 assert.strictEqual(cambridge.phonetic, '/vaɪb/');
 assert.strictEqual(cambridge.pos, 'noun');
@@ -86,8 +87,8 @@ const merged = mergeCambridgeWithDify(cambridge, {
   phonetic: '/wrong/',
   pos: 'verb',
   translation_main: 'Dify 释义',
-  other_meanings: [{ meaning: 'Dify 其他义项', context: 'fallback' }],
-  example_sentences: [{ en: 'Dify example.', zh: 'Dify 例句。' }],
+  other_meanings: [{ meaning: '（某地的）气氛，氛围', context: 'duplicate' }, { meaning: 'Dify 其他义项', context: 'fallback' }],
+  example_sentences: [{ en: 'The city is famous for its laid-back vibe.', zh: '重复例句。' }, { en: 'Dify example.', zh: 'Dify 例句。' }],
   synonyms: ['atmosphere'],
   antonyms: ['tension'],
   collocations: ['team vibe'],
@@ -99,6 +100,10 @@ assert.strictEqual(merged.pos, 'noun');
 assert.strictEqual(merged.translation_main, '（某地的）气氛，氛围');
 assert.strictEqual(merged.senses.length, 2);
 assert.ok(merged.example_sentences.some((item) => item.en === 'Dify example.'));
+assert.strictEqual(merged.example_sentences.filter((item) => item.en === 'The city is famous for its laid-back vibe.').length, 1);
+assert.strictEqual(merged.other_meanings.filter((item) => item.meaning === '（某地的）气氛，氛围').length, 0);
+assert.strictEqual(merged.translation_main, '（某地的）气氛，氛围');
+assert.ok(merged.other_meanings.some((item) => item.meaning === 'Dify 其他义项'));
 assert.deepStrictEqual(merged.synonyms, ['atmosphere']);
 assert.strictEqual(merged.business_note, '团队文化语境。');
 assert.strictEqual(merged.cambridge_raw.senses.length, 2);

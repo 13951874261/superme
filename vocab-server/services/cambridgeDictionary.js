@@ -23,6 +23,10 @@ function splitEnglishChinese(value) {
   return { en: text.slice(0, index).trim(), zh: text.slice(index).trim() };
 }
 
+function normalizeComparable(value) {
+  return cleanMarkdown(String(value || '')).toLowerCase().replace(/[^a-z0-9\u3400-\u9fff]+/g, '');
+}
+
 function unique(items, key = (item) => JSON.stringify(item)) {
   const seen = new Set();
   return items.filter((item) => {
@@ -105,6 +109,7 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
 
   return {
     headword: String(word || senses[0].headword || '').trim(),
+    raw_markdown: String(markdown || ''),
     phonetic: phonetics.uk || phonetics.us || '',
     phonetics,
     pos: unique(senses.map((sense) => sense.part_of_speech).filter(Boolean)).join(' / '),
@@ -113,8 +118,8 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     definitions_en: senses.map((sense) => sense.definition_en).filter(Boolean),
     translation_main: senses[0].translation_zh,
     meaning_zh: senses[0].translation_zh,
-    other_meanings: senses.slice(1).map((sense) => ({ meaning: sense.translation_zh, context: [sense.label, sense.definition_en].filter(Boolean).join(' · ') })),
-    example_sentences: unique(senses.flatMap((sense) => sense.examples), (item) => `${item.en}\0${item.zh}`),
+    other_meanings: unique(senses.slice(1).map((sense) => ({ meaning: sense.translation_zh, context: [sense.label, sense.definition_en].filter(Boolean).join(' · ') })), (item) => normalizeComparable(`${item.meaning}\0${item.context}`)),
+    example_sentences: unique(senses.flatMap((sense) => sense.examples), (item) => normalizeComparable(`${item.en}\0${item.zh}`)),
     collocations,
     inflections,
     audio,
@@ -129,12 +134,25 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
   const cambridgeValues = Object.fromEntries(Object.entries(cambridge).filter(([, value]) => (
     value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
   )));
+  const cambridgeMeanings = new Set([
+    normalizeComparable(cambridge.translation_main),
+    normalizeComparable(cambridge.meaning_zh),
+    ...(cambridge.senses || []).map((s) => normalizeComparable(s.translation_zh)),
+    ...(cambridge.other_meanings || []).map((m) => normalizeComparable(m.meaning)),
+  ].filter(Boolean));
+
+  const filteredDifyOtherMeanings = (Array.isArray(dify.other_meanings) ? dify.other_meanings : []).filter((item) => {
+    const norm = normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en);
+    return norm && !cambridgeMeanings.has(norm);
+  });
+
   const merged = {
     ...dify,
     ...cambridgeValues,
     direction_resolved: dify.direction_resolved || 'en_to_zh',
-    example_sentences: unique([...(cambridge.example_sentences || []), ...difyExamples], (item) => `${item.en}\0${item.zh}`),
-    collocations: unique([...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])], String),
+    example_sentences: unique([...(cambridge.example_sentences || []), ...difyExamples], (item) => normalizeComparable(item.en || `${item.en}\0${item.zh}`)),
+    other_meanings: unique([...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings], (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)),
+    collocations: unique([...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])], (item) => normalizeComparable(item)),
     cambridge_raw: cambridge,
     dify_raw: dify,
     field_sources: {},

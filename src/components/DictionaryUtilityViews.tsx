@@ -413,6 +413,7 @@ export function UtilityEnZhBidirectionalView({
     source,
     source_url,
     copyright,
+    raw_markdown,
   } = payload;
 
   const validBusiness = business_examples
@@ -468,6 +469,16 @@ export function UtilityEnZhBidirectionalView({
             </div>
           ))}
           {inflections.length > 0 && <div className="text-xs text-stone-600"><b className="text-stone-800">词形：</b>{inflections.join('、')}</div>}
+          {raw_markdown && (
+            <details className="mt-2 text-[11px] text-stone-500 border-t border-stone-200 pt-2 group">
+              <summary className="cursor-pointer font-semibold text-stone-700 hover:text-[#FF5722] select-none py-1">
+                查看 Cambridge 网页完整 Markdown 原文
+              </summary>
+              <pre className="mt-1.5 p-2 bg-stone-100/80 rounded-lg text-[10px] font-mono text-stone-700 max-h-48 overflow-y-auto whitespace-pre-wrap break-words leading-relaxed border border-stone-200/60">
+                {raw_markdown}
+              </pre>
+            </details>
+          )}
           {(source || copyright) && (
             <div className="border-t border-stone-200 pt-2 text-[10px] text-stone-500 leading-relaxed">
               {source_url ? <a href={source_url} target="_blank" rel="noreferrer" className="text-[#FF5722] hover:underline">{source || 'Cambridge Dictionary'}</a> : source}
