@@ -6,18 +6,21 @@ function isSingleEnglishWord(value) {
   return /^[A-Za-z]+(?:[-'][A-Za-z]+)*$/.test(String(value || '').trim());
 }
 
+/**
+ * Clean markdown: remove URLs but preserve labels like (MOOD), [C], [U]
+ */
 function cleanMarkdown(value) {
   let text = String(value || '');
 
-  // Step 1: Remove all markdown link URLs - extract content from [content](url)
+  // Step 1: Remove [content](url) patterns - extract content only
   text = text.replace(/\[([^\[\]]*)\]\([^)]+\)/g, '$1');
   text = text.replace(/\[\[([^\[\]]*)\]\]\([^)]+\)/g, '[$1]');
 
-  // Step 2: Remove ONLY URLs in parentheses (like https://...), NOT labels like (MOOD)
+  // Step 2: Remove ONLY URLs in parentheses, NOT labels like (MOOD) or (INSTRUMENT)
   text = text.replace(/\((https?:\/\/[^)]+)\)/g, '');
 
-  // Step 3: Remove any remaining brackets and backslashes
-  text = text.replace(/[\[\]\\]/g, '');
+  // Step 3: Remove backslashes only (preserve brackets for grammar tags)
+  text = text.replace(/\\/g, '');
 
   // Step 4: Clean up markdown artifacts
   return text
@@ -47,11 +50,16 @@ function unique(items, key = (item) => JSON.stringify(item)) {
   });
 }
 
+/**
+ * Parse a single sense block
+ * Handles both structured (### headings) and flat structures
+ */
 function parseSense(block, fallbackWord) {
   const rawLines = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const heading = cleanMarkdown(rawLines.shift() || '');
 
-  // Parse heading - handle: "vibenoun (MOOD)", "noun U", "vibe noun (MOOD)"
+  // Parse heading to extract POS and label
+  // Handles: "vibenoun (MOOD)", "noun U", "vibe noun (MOOD)", "noun[[ U ]]"
   const posWords = ['phrasal verb', 'modal verb', 'adjective', 'adverb', 'noun', 'verb', 'pronoun', 'preposition', 'conjunction', 'exclamation', 'determiner'];
   let partOfSpeech = '';
   let label = '';
@@ -82,7 +90,7 @@ function parseSense(block, fallbackWord) {
     // Pattern 3: merged word+POS (e.g., "vibenoun (MOOD)")
     const r3 = new RegExp(`^(.+?)${pEscaped}(?:\\s*\\[([^\\]]+)\\]|(?:\\s*\\(([^)]+)\\)))?$`, 'i');
     const m3 = heading.match(r3);
-    if (m3 && m3[1] && m3[1].length > 0 && !m3[1].includes(p)) {
+    if (m3 && m3[1] && m3[1].length > 0 && !m3[1].toLowerCase().includes(p)) {
       explicitHeadword = m3[1].trim();
       partOfSpeech = p.toLowerCase();
       label = m3[2] || m3[3] || '';
@@ -94,33 +102,40 @@ function parseSense(block, fallbackWord) {
     .map((line) => line.replace(/^(?:Add to word list)+/i, '').replace(/Add to word listAdd to word list/gi, '').trim())
     .filter(Boolean);
 
+  // Remove content after copyright notice
   const contentEnd = lines.findIndex((line) => /^\(?Translation of\b|^To top$|^See more results/i.test(line));
   if (contentEnd >= 0) lines.splice(contentEnd);
 
   const inflectionLabel = '(?:plural|singular|past tense|past participle|present participle|third person singular|comparative|superlative)';
-  const registerPattern = '(formal|informal|literary|slang|old-fashioned|approving|disapproving)';
+  
+  // Extract grammar tags [C], [U], [plural], etc.
   const grammar = unique(lines.flatMap((line) => {
-    // Match [C], [U], [plural], etc. (bracketed format)
-    const bracketMatches = Array.from(line.matchAll(new RegExp(`\\[\\s*([CU]|${inflectionLabel})\\s*\\]`, 'gi')), (match) => match[1]);
-    // Match C informal, U formal, etc. (plain text format after cleanMarkdown)
-    const plainMatches = Array.from(line.matchAll(new RegExp(`\\b([CU])\\s+(?:${registerPattern})\\b`, 'gi')), (match) => match[1]);
-    return [...bracketMatches, ...plainMatches];
+    const matches = Array.from(line.matchAll(new RegExp(`\\[\\s*([CU]|${inflectionLabel})\\s*\\]`, 'gi')), (m) => m[1]);
+    return matches;
   }));
-  // Match register at end of line, or after level tags like "[ C ]" or "C "
+
+  // Extract register (formal, informal, etc.)
+  const registerPattern = '(formal|informal|literary|slang|old-fashioned|approving|disapproving)';
   const registerLinePattern = new RegExp(`(?:^|[\\s\\[\\]])(${registerPattern})\\s*$`, 'i');
   const registerLine = lines.find((line) => {
     const match = line.match(registerLinePattern);
     return !!match;
   });
   const register = registerLine?.match(registerLinePattern)?.[1] || '';
+  
+  // Extract CEFR level
   const level = lines.find((line) => /^(A1|A2|B1|B2|C1|C2)$/i.test(line)) || '';
 
+  // Build metadata set for skipping
   const metadataIndexes = new Set();
   lines.forEach((line, index) => {
-    if (line === registerLine || /^(A1|A2|B1|B2|C1|C2)$/i.test(line) || new RegExp(`\\[\\s*(?:[CU]|${inflectionLabel})\\s*\\]`, 'i').test(line)) metadataIndexes.add(index);
+    if (line === registerLine || /^(A1|A2|B1|B2|C1|C2)$/i.test(line) 
+        || new RegExp(`\\[\\s*(?:[CU]|${inflectionLabel})\\s*\\]`, 'i').test(line)) {
+      metadataIndexes.add(index);
+    }
   });
 
-  // Find English definition (first non-metadata line with English letters that looks like a definition)
+  // Find definition lines - skip phonetics, audio messages, etc.
   const isNonDefinitionLine = (line) => {
     const l = line.toLowerCase();
     return /^(uk|us|add to word list|idioms?|noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)(?:\s*\/.+\/)?$/i.test(line)
@@ -128,6 +143,8 @@ function parseSense(block, fallbackWord) {
       || l.startsWith('your browser')
       || l === 'add to word listadd to word list';
   };
+
+  // Find definition index
   let definitionIndex = lines.findIndex((line, index) =>
     !metadataIndexes.has(index)
     && !/^Add to word list$/i.test(line)
@@ -146,20 +163,24 @@ function parseSense(block, fallbackWord) {
       translationZh = defLine.slice(zhMatch.index).trim();
     } else {
       definitionEn = defLine;
-      const translationIndex = lines.findIndex((line, index) => index > definitionIndex && /[\u3400-\u9fff]/.test(line));
+      // Look for Chinese translation in subsequent lines
+      const translationIndex = lines.findIndex((line, index) => 
+        index > definitionIndex && /[\u3400-\u9fff]/.test(line)
+      );
       if (translationIndex >= 0) {
         translationZh = lines[translationIndex];
       }
     }
   }
 
+  // Extract examples
   const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
   const examples = lines.slice(exampleStart)
     .filter((line) => !/^Add to word list|^To top$/i.test(line))
     .map(splitEnglishChinese)
     .filter((item) => item.en);
 
-  // Match inflected headwords: "**vibes**[ [ plural ]](url)" or "vibes plural"
+  // Extract inflected headwords
   const inflectedHeadword = lines.find((line) => new RegExp(`\\[\\s*${inflectionLabel}\\s*\\]`, 'i').test(line))
     ?.replace(/\[.*$/, '').trim()
     || lines.find((line) => new RegExp(`\\b${inflectionLabel}\\b`, 'i').test(line))
@@ -178,13 +199,19 @@ function parseSense(block, fallbackWord) {
   };
 }
 
+/**
+ * Parse Cambridge markdown into structured data
+ * Handles both structured (### headings) and flat structures
+ */
 function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
+  // Remove everything after Examples section
   const sourceText = String(markdown || '').split(/^## Examples of\b/im)[0];
+  
+  // Find all ### headings
   const headingPattern = /^###\s+(.+)$/gm;
   const allMatches = Array.from(sourceText.matchAll(headingPattern));
 
   // Filter to only POS-type headings - exclude "Idioms", "See more results", etc.
-  // Match headings that contain a POS word (may be merged like "vibenoun")
   const posHeadingPattern = /(?:noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)/i;
   const matches = allMatches.filter(m => posHeadingPattern.test(m[1]));
 
@@ -198,29 +225,56 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     }).filter((sense) => sense.definition_en || sense.translation_zh);
   } else {
     // Format 2: flat structure without ### headings (e.g., mud)
-    const posLineMatch = sourceText.match(/^(noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)\b/im);
+    // Look for POS line pattern like "noun[[ U ]](url)"
+    const posLinePattern = /(noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)\b/i;
+    const posLineMatch = sourceText.match(posLinePattern);
+    
     if (posLineMatch) {
       const posStart = posLineMatch.index;
       const beforePos = sourceText.slice(0, posStart).trim();
+      
+      // Extract headword from before POS line
       const headwordMatch = beforePos.match(/([A-Za-z]+(?:['''][A-Za-z]+)*)\s*$/i);
       const extractedHeadword = headwordMatch?.[1] || word;
 
       const senseBlock = sourceText.slice(posStart);
-      senses = [parseSense(`${extractedHeadword}\n${senseBlock}`, word)].filter((sense) => sense.definition_en || sense.translation_zh);
+      senses = [parseSense(`${extractedHeadword}\n${senseBlock}`, word)]
+        .filter((sense) => sense.definition_en || sense.translation_zh);
     }
   }
 
   if (!senses.length) throw new Error('Cambridge page contained no parseable senses');
 
+  // Extract phonetics
   const phonetics = {};
   const pronunciationBlock = sourceText.match(/\buk\b([\s\S]*?)(?=^###\s+)/im)?.[1] || '';
   const pronunciationMatches = Array.from(pronunciationBlock.matchAll(/(\/[^/\n]+\/)(?:us\b)?/gi), (match) => match[1]);
   if (pronunciationMatches[0]) phonetics.uk = pronunciationMatches[0];
   if (pronunciationMatches[1]) phonetics.us = pronunciationMatches[1];
+  
+  // Extract audio URLs
   const audio = unique(Array.from(sourceText.matchAll(/\((https?:\/\/[^)]+\.mp3(?:\?[^)]*)?)\)/gi), (match) => match[1]));
+  
+  // Extract copyright
   const copyrightMatch = sourceText.match(/\(Translation of[\s\S]*?from the ([^)]+?)\s+(©\s*Cambridge University Press)\)/i);
-  const collocations = unique(Array.from(sourceText.matchAll(/\b(?:collocation|phrase)\b[^\n]*\n+([^\n]+)/gi), (match) => cleanMarkdown(match[1])).map((match) => cleanMarkdown(match[1])).filter(Boolean));
-  const inflections = unique(senses.map((sense) => sense.headword).filter((headword) => headword && headword.toLowerCase() !== String(word || '').toLowerCase()));
+  
+  // Extract idioms if present
+  const idiomMatch = sourceText.match(/\*\*Idioms\*\*[\s\S]*?((?:\*[^*]+\*\*|[^\n]+)\n*)+/i);
+  const idioms = idiomMatch 
+    ? Array.from(sourceText.matchAll(/\[(.+?)\]\(https:\/\/[^)]+\)/g), (m) => cleanMarkdown(m[1]))
+    : [];
+
+  // Extract collocations
+  const collocations = unique(
+    Array.from(sourceText.matchAll(/\b(?:collocation|phrase)\b[^\n]*\n+([^\n]+)/gi), (match) => cleanMarkdown(match[1]))
+    .filter(Boolean)
+  );
+
+  // Extract inflections
+  const inflections = unique(
+    senses.map((sense) => sense.headword)
+      .filter((headword) => headword && headword.toLowerCase() !== String(word || '').toLowerCase())
+  );
 
   return {
     headword: String(word || senses[0].headword || '').trim(),
@@ -233,8 +287,18 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     definitions_en: senses.map((sense) => sense.definition_en).filter(Boolean),
     translation_main: senses[0].translation_zh,
     meaning_zh: senses[0].translation_zh,
-    other_meanings: unique(senses.slice(1).map((sense) => ({ meaning: sense.translation_zh, context: [sense.label, sense.definition_en].filter(Boolean).join(' · ') })), (item) => normalizeComparable(`${item.meaning}\0${item.context}`)),
-    example_sentences: unique(senses.flatMap((sense) => sense.examples), (item) => normalizeComparable(`${item.en}\0${item.zh}`)),
+    other_meanings: unique(
+      senses.slice(1).map((sense) => ({
+        meaning: sense.translation_zh,
+        context: [sense.label, sense.definition_en].filter(Boolean).join(' · ')
+      })),
+      (item) => normalizeComparable(`${item.meaning}\0${item.context}`)
+    ),
+    example_sentences: unique(
+      senses.flatMap((sense) => sense.examples),
+      (item) => normalizeComparable(`${item.en}\0${item.zh}`)
+    ),
+    idioms,
     collocations,
     inflections,
     audio,
@@ -245,10 +309,14 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
 }
 
 function mergeCambridgeWithDify(cambridge, dify = {}) {
-  const difyExamples = Array.isArray(dify.example_sentences) ? dify.example_sentences.map((item) => typeof item === 'string' ? { en: item, zh: '' } : item) : [];
-  const cambridgeValues = Object.fromEntries(Object.entries(cambridge).filter(([, value]) => (
-    value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
-  )));
+  const difyExamples = Array.isArray(dify.example_sentences) 
+    ? dify.example_sentences.map((item) => typeof item === 'string' ? { en: item, zh: '' } : item) 
+    : [];
+  const cambridgeValues = Object.fromEntries(
+    Object.entries(cambridge).filter(([, value]) => (
+      value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
+    ))
+  );
   const cambridgeMeanings = new Set([
     normalizeComparable(cambridge.translation_main),
     normalizeComparable(cambridge.meaning_zh),
@@ -265,9 +333,19 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
     ...dify,
     ...cambridgeValues,
     direction_resolved: dify.direction_resolved || 'en_to_zh',
-    example_sentences: unique([...(cambridge.example_sentences || []), ...difyExamples], (item) => normalizeComparable(item.en || `${item.en}\0${item.zh}`)),
-    other_meanings: unique([...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings], (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)),
-    collocations: unique([...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])], (item) => normalizeComparable(item)),
+    example_sentences: unique(
+      [...(cambridge.example_sentences || []), ...difyExamples],
+      (item) => normalizeComparable(item.en || `${item.en}\0${item.zh}`)
+    ),
+    other_meanings: unique(
+      [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
+      (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
+    ),
+    collocations: unique(
+      [...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])],
+      (item) => normalizeComparable(item)
+    ),
+    idioms: cambridge.idioms || [],
     cambridge_raw: cambridge,
     dify_raw: dify,
     field_sources: {},
