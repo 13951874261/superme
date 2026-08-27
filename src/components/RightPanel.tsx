@@ -157,6 +157,8 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
   })();
 
   useEffect(() => {
+    // ponytail: bumpAssistant only triggers refreshKey increment; prepareDifyAssistantIframe(false) reuses warm cache
+    // forceNew was causing memory pack cache invalidation → slow API call on every panel open
     const bumpAssistant = () => setAssistantRefreshKey((k) => k + 1);
     const handleProfileChange = () => {
       setProfile(getAccentPref());

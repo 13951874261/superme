@@ -234,9 +234,9 @@ async function buildFullConfig(userId: string): Promise<DifyChatbotConfig> {
 
 async function buildIframeUrlWithFallback(userId: string, forceNew: boolean): Promise<string> {
   try {
-    if (forceNew) {
-      invalidateMemoryPackCache();
-    }
+    // ponytail: forceNew only rotates embed session ID, memory pack cache stays warm
+    // to avoid re-fetching /api/user/memory/pack-for-llm on every panel open.
+    // Memory pack invalidation is still triggered by resetDifyChatbotSession().
     const config = await buildFullConfig(userId);
     const fitted = await fitConfigToEmbedUrl(config);
     return fitted.url;

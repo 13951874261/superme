@@ -88,9 +88,10 @@ function parseSense(block, fallbackWord) {
     }
 
     // Pattern 3: merged word+POS (e.g., "vibenoun (MOOD)")
-    const r3 = new RegExp(`^(.+?)${pEscaped}(?:\\s*\\[([^\\]]+)\\]|(?:\\s*\\(([^)]+)\\)))?$`, 'i');
+    // Use negative lookahead to ensure we don't match words that already contain the POS
+    const r3 = new RegExp(`^(.+?)${pEscaped}(?![a-z])(?:\\s*\\[([^\\]]+)\\]|(?:\\s*\\(([^)]+)\\)))?$`, 'i');
     const m3 = heading.match(r3);
-    if (m3 && m3[1] && m3[1].length > 0 && !m3[1].toLowerCase().includes(p)) {
+    if (m3 && m3[1] && m3[1].length > 0) {
       explicitHeadword = m3[1].trim();
       partOfSpeech = p.toLowerCase();
       label = m3[2] || m3[3] || '';
@@ -101,6 +102,27 @@ function parseSense(block, fallbackWord) {
   const lines = rawLines.map(cleanMarkdown)
     .map((line) => line.replace(/^(?:Add to word list)+/i, '').replace(/Add to word listAdd to word list/gi, '').trim())
     .filter(Boolean);
+
+  // If partOfSpeech not found from heading, try to extract from body lines
+  // This handles flat structures like "mud" where POS is in a body line
+  if (!partOfSpeech) {
+    // Check common POS first (noun, verb, adjective, adverb) before complex ones
+    const posPriority = ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'exclamation', 'determiner', 'modal verb', 'phrasal verb'];
+    for (const p of posPriority) {
+      const pEscaped = p.replace(/\s/g, '\\\\s');
+      const posInBody = lines.find((line) => new RegExp(`^${pEscaped}\\s*(?:\\[([^\\]]+)\\]|(?:\\(([^)]+)\\)))?$`, 'i'));
+      if (posInBody) {
+        partOfSpeech = p.toLowerCase();
+        // Also extract label if present
+        const m = posInBody.match(new RegExp(`^${pEscaped}\\s*\\[([^\\]]+)\\]`, 'i'));
+        if (m) {
+          // Clean up label: remove any leading/trailing brackets, spaces
+          label = m[1].trim().replace(/^\[+|\]+$/g, '').trim();
+        }
+        break;
+      }
+    }
+  }
 
   // Remove content after copyright notice
   const contentEnd = lines.findIndex((line) => /^\(?Translation of\b|^To top$|^See more results/i.test(line));
@@ -258,11 +280,13 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   // Extract copyright
   const copyrightMatch = sourceText.match(/\(Translation of[\s\S]*?from the ([^)]+?)\s+(©\s*Cambridge University Press)\)/i);
   
-  // Extract idioms if present
-  const idiomMatch = sourceText.match(/\*\*Idioms\*\*[\s\S]*?((?:\*[^*]+\*\*|[^\n]+)\n*)+/i);
-  const idioms = idiomMatch 
-    ? Array.from(sourceText.matchAll(/\[(.+?)\]\(https:\/\/[^)]+\)/g), (m) => cleanMarkdown(m[1]))
-    : [];
+  // Extract idioms from the ### **Idioms** section
+  const idioms = [];
+  const idiomsSection = sourceText.match(/###\s+\*\*Idioms\*\*([\s\S]*?)(?=^##|\Z)/im);
+  if (idiomsSection) {
+    const idiomMatches = Array.from(idiomsSection[1].matchAll(/\[(.+?)\]\(https:\/\/[^)]+\)/g), (m) => cleanMarkdown(m[1]));
+    idioms.push(...idiomMatches.filter(i => i && !i.toLowerCase().includes('meaning')));
+  }
 
   // Extract collocations
   const collocations = unique(

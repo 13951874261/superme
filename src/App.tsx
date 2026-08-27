@@ -98,6 +98,7 @@ function AppContent() {
 
   useEffect(() => {
     rotateEmbedSessionOnPageLoad();
+    // ponytail: 启动时即开始构建 iframe URL 并缓存，panel 打开时直接命中
     void prepareDifyAssistantIframe();
 
     let idleId: number | undefined;
