@@ -99,7 +99,7 @@ assert.strictEqual(merged.phonetic, '/vaɪb/');
 assert.strictEqual(merged.pos, 'noun');
 assert.strictEqual(merged.translation_main, '（某地的）气氛，氛围');
 assert.strictEqual(merged.senses.length, 2);
-assert.ok(merged.example_sentences.some((item) => item.en === 'Dify example.'));
+assert.ok(!merged.example_sentences.some((item) => item.en === 'Dify example.'));
 assert.strictEqual(merged.example_sentences.filter((item) => item.en === 'The city is famous for its laid-back vibe.').length, 1);
 assert.strictEqual(merged.other_meanings.filter((item) => item.meaning === '（某地的）气氛，氛围').length, 0);
 assert.strictEqual(merged.translation_main, '（某地的）气氛，氛围');

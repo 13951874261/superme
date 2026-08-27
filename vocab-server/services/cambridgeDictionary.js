@@ -195,10 +195,25 @@ function parseSense(block, fallbackWord) {
     }
   }
 
-  // Extract examples
+  // Extract examples - stop at next ### heading or non-example content
   const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
+  const isNonExampleLine = (line) => {
+    // Stop at next sense heading or section
+    if (/^###/.test(line) || /^##/.test(line)) return true;
+    // Skip metadata lines
+    if (/^(uk|us)$/i.test(line)) return true;
+    if (/^your browser doesn't support html5 audio$/i.test(line)) return true;
+    if (/^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\//.test(line)) return true; // Phonetic
+    if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) return true; // CEFR levels
+    if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) return true; // POS
+    if (/^(Add to word list|To top)$/i.test(line)) return true;
+    // Skip lines that are just links or navigation
+    if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) return true;
+    return false;
+  };
+
   const examples = lines.slice(exampleStart)
-    .filter((line) => !/^Add to word list|^To top$/i.test(line))
+    .filter((line) => !isNonExampleLine(line))
     .filter((line) => {
       // Skip pure Chinese translation lines (no English letters)
       return /[A-Za-z]/.test(line);
@@ -342,9 +357,6 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
 }
 
 function mergeCambridgeWithDify(cambridge, dify = {}) {
-  const difyExamples = Array.isArray(dify.example_sentences) 
-    ? dify.example_sentences.map((item) => typeof item === 'string' ? { en: item, zh: '' } : item) 
-    : [];
   const cambridgeValues = Object.fromEntries(
     Object.entries(cambridge).filter(([, value]) => (
       value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
@@ -366,10 +378,8 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
     ...dify,
     ...cambridgeValues,
     direction_resolved: dify.direction_resolved || 'en_to_zh',
-    example_sentences: unique(
-      [...(cambridge.example_sentences || []), ...difyExamples],
-      (item) => normalizeComparable(item.en || `${item.en}\0${item.zh}`)
-    ),
+    // 仅展示 Cambridge 例句，不使用 Dify 补充例句
+    example_sentences: cambridge.example_sentences || [],
     other_meanings: unique(
       [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
       (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
