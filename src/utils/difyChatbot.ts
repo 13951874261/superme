@@ -115,6 +115,9 @@ export interface DifyChatbotConfig {
   inputs: Record<string, string | number>;
   systemVariables: { user_id: string; conversation_id?: string };
   userVariables: Record<string, string>;
+  systemMessage?: string;
+  openingStatement?: string;
+  speechToText?: boolean;
 }
 
 let embedLoaded = false;
@@ -298,6 +301,9 @@ export function buildDifyChatbotConfig(options?: {
     inputs,
     systemVariables,
     userVariables: {},
+    systemMessage: "",
+    openingStatement: "",
+    speechToText: false,
   };
 }
 
@@ -326,6 +332,9 @@ export async function prepareDifyAssistantIframe(forceNew = false): Promise<stri
   const userId = getDifyChatbotUserId(forceNew);
   const cacheKey = `${userId}::${getAppAccountUserId()}`;
   const now = Date.now();
+  // ponytail: 首帧用 minimal URL 立即展示（无 memory_pack API 调用）；后台异步补全全量 URL
+  // 升级路径：若需始终含 memory_pack，可改回 buildIframeUrlWithFallback 同步等待
+  const minimalUrl = buildMinimalIframeUrl(userId);
   if (
     !forceNew
     && cachedIframeUrl?.key === cacheKey
@@ -336,15 +345,18 @@ export async function prepareDifyAssistantIframe(forceNew = false): Promise<stri
   if (iframeUrlInflight) {
     return iframeUrlInflight;
   }
-  iframeUrlInflight = buildIframeUrlWithFallback(userId, forceNew)
-    .then((url) => {
-      cachedIframeUrl = { key: cacheKey, url, at: Date.now() };
-      return url;
-    })
-    .finally(() => {
-      iframeUrlInflight = null;
-    });
-  return iframeUrlInflight;
+  const fullUrlPromise = buildIframeUrlWithFallback(userId, forceNew).catch(() => minimalUrl);
+  iframeUrlInflight = fullUrlPromise.then((url) => {
+    cachedIframeUrl = { key: cacheKey, url, at: Date.now() };
+    const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="全局 AI 助手"]');
+    if (iframe && iframe.src !== url) {
+      iframe.src = url;
+    }
+    return url;
+  }).finally(() => {
+    iframeUrlInflight = null;
+  });
+  return minimalUrl;
 }
 
 export function applyDifyChatbotConfig(): DifyChatbotConfig {
