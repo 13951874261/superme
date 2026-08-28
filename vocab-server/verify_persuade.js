@@ -1,8 +1,8 @@
 const https = require('https');
 
-function query(word) {
+function query(word, userId) {
   return new Promise((resolve, reject) => {
-    const postData = JSON.stringify({ word, userId: 'test-user-001' });
+    const postData = JSON.stringify({ word, userId: userId || 'test-user-new' });
     const req = https.request({
       hostname: 'app.liujingzhuwo.site',
       port: 443,
@@ -31,39 +31,43 @@ function query(word) {
 }
 
 async function main() {
-  console.log('=== persuade ===');
-  const result = await query('persuade');
+  const result = await query('persuade', 'verify-user-2024');
   
   if (!result.ok) {
     console.log('Request failed:', result.message);
     return;
   }
   
-  const payload = result.payload;
-  console.log('headword:', payload.headword);
-  console.log('senses:', payload.senses?.length);
+  console.log('=== Full Response Keys ===');
+  console.log(Object.keys(result));
+  console.log('\n=== Payload Keys ===');
+  console.log(Object.keys(result.payload || {}));
   
-  if (payload.senses) {
-    payload.senses.forEach((sense, i) => {
+  // Check example_sentences
+  console.log('\n=== example_sentences ===');
+  if (result.payload.example_sentences) {
+    console.log('Count:', result.payload.example_sentences.length);
+    result.payload.example_sentences.forEach((ex, i) => {
+      const en = typeof ex === 'string' ? ex : ex.en;
+      const zh = typeof ex === 'string' ? '' : (ex.zh || '');
+      console.log(`[${i}] ${en} | ${zh}`);
+    });
+  }
+  
+  // Check senses
+  console.log('\n=== senses ===');
+  if (result.payload.senses) {
+    console.log('Count:', result.payload.senses.length);
+    result.payload.senses.forEach((sense, i) => {
       console.log(`\nSense ${i + 1}:`);
-      console.log('  def_en:', sense.definition_en);
+      console.log('  label:', sense.label);
+      console.log('  def_en:', sense.definition_en?.substring(0, 50));
       console.log('  trans_zh:', sense.translation_zh);
       console.log('  examples:', sense.examples?.length);
       sense.examples?.forEach((ex, j) => {
         console.log(`    [${j}] ${ex.en}`);
       });
     });
-  }
-  
-  // Check for problematic content
-  const allExamples = payload.senses?.flatMap(s => s.examples?.map(e => e.en) || []);
-  const badPatterns = ['uk', '/pəˈsweɪd/', 'Synonym', 'Opposites', 'Compare', 'deter', 'dissuade', 'convince', 'encourage'];
-  const badExamples = allExamples?.filter(e => badPatterns.some(p => e === p || e.includes(p)));
-  
-  if (badExamples?.length > 0) {
-    console.log('\n⚠ PROBLEMATIC:', badExamples);
-  } else {
-    console.log('\n✓ All examples clean - no phonetics/synonyms/antonyms');
   }
 }
 
