@@ -250,4 +250,61 @@ assert.ok(!persuadeExamples.some(e => e === 'convince'), 'compare word should no
 assert.ok(!persuadeExamples.some(e => e === 'encourage'), 'compare word should not be in examples');
 assert.ok(persuadeExamples.some(e => e.includes('persuade her')), 'real example should remain');
 
+// Test Examples section parsing with "From the Cambridge English Corpus"
+const examplesSectionMarkdown = `# Translation of **counterproductive** – English–Mandarin Chinese dictionary
+
+counterproductive
+
+adjective
+
+uk
+
+Your browser doesn't support HTML5 audio
+
+/ˌkaʊn.tə.prəˈdʌk.tɪv/us
+
+Your browser doesn't support HTML5 audio
+
+/ˌkaʊn.t̬ɚ.prəˈdʌk.tɪv/
+
+C1
+
+[[ U ]]making a situation that is already bad become worse, or making something that is not successful have less success than before
+
+适得其反的；产生相反效果的
+
+From the Cambridge English Corpus
+The measures were counterproductive.
+这些措施适得其反。
+
+It had a counterproductive effect on morale.
+它对士气产生了负面影响。
+
+Counterproductive behaviour can lead to job loss.
+适得其反的行为可能导致失业。
+
+## Examples of counterproductive
+
+The sanctions are having a counterproductive effect.
+制裁正在产生适得其反的效果。
+
+His actions were counterproductive to the goal.
+他的行为与目标背道而驰。
+`;
+
+const counterproductCambridge = parseCambridgeMarkdown(examplesSectionMarkdown, {
+  word: 'counterproductive',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/counterproductive',
+});
+
+// Check no "From the Cambridge English Corpus" in examples
+assert.ok(!counterproductCambridge.example_sentences.some(e => e.en.includes('From the Cambridge English Corpus')), 'Corpus attribution should not be in examples');
+
+// Check Examples section content is parsed
+const allExamplesEn = counterproductCambridge.example_sentences.map(e => e.en);
+assert.ok(allExamplesEn.some(e => e.includes('sanctions')), 'Examples section - sanctions example should be included');
+assert.ok(allExamplesEn.some(e => e.includes('counterproductive effect')), 'Examples section - counterproductive effect should be included');
+assert.ok(allExamplesEn.some(e => e.includes('His actions')), 'Examples section - His actions example should be included');
+assert.ok(allExamplesEn.some(e => e.includes('measures')), 'Sense examples - measures example should be included');
+
 console.log('cambridge dictionary tests passed');

@@ -195,7 +195,7 @@ function parseSense(block, fallbackWord) {
     }
   }
 
-  // Extract examples - stop at Idioms, ## Examples, or next sense
+  // Extract examples - stop at Idioms section or next major section
   const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
   const isNonExampleLine = (line) => {
     // Stop at Idioms section or next major section
@@ -218,6 +218,8 @@ function parseSense(block, fallbackWord) {
     if (/^[a-z]+$/i.test(line) && line.length < 15) return true;
     // Skip lines starting with "- " (related examples from other sections)
     if (/^- /.test(line)) return true;
+    // Skip Cambridge corpus attribution line
+    if (/^from the cambridge english corpus$/i.test(line)) return true;
     return false;
   };
 
@@ -260,8 +262,17 @@ function parseSense(block, fallbackWord) {
  * Handles both structured (### headings) and flat structures
  */
 function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
-  // Remove everything after Examples section
-  const sourceText = String(markdown || '').split(/^## Examples of\b/im)[0];
+  const fullMarkdown = String(markdown || '');
+
+  // Extract Examples section separately - don't discard it
+  let examplesSectionContent = '';
+  const examplesSectionMatch = fullMarkdown.match(/^## Examples of\s+[^\n]+\n\n?([\s\S]*?)(?=\n##|\Z)/im);
+  if (examplesSectionMatch && examplesSectionMatch[1]) {
+    examplesSectionContent = examplesSectionMatch[1].trim();
+  }
+
+  // Work with main content (before Examples section for sense parsing)
+  const sourceText = examplesSectionMatch ? fullMarkdown.slice(0, examplesSectionMatch.index) : fullMarkdown;
   
   // Find all ### headings
   const headingPattern = /^###\s+(.+)$/gm;
@@ -359,7 +370,12 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
       (item) => normalizeComparable(`${item.meaning}\0${item.context}`)
     ),
     example_sentences: unique(
-      senses.flatMap((sense) => sense.examples),
+      [
+        // Sense examples
+        ...senses.flatMap((sense) => sense.examples),
+        // Examples section
+        ...parseExamplesSection(examplesSectionContent, word),
+      ],
       (item) => normalizeComparable(`${item.en}\0${item.zh}`)
     ),
     idioms,
@@ -370,6 +386,48 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     source_url: sourceUrl || `${CAMBRIDGE_BASE}/${encodeURIComponent(String(word || '').toLowerCase())}`,
     copyright: copyrightMatch?.[2] || '© Cambridge University Press',
   };
+}
+
+/**
+ * Parse examples from "## Examples of word" section
+ */
+function parseExamplesSection(content, word) {
+  if (!content || !word) return [];
+  const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const result = [];
+  let currentEn = '';
+  let currentZh = '';
+
+  for (const line of lines) {
+    // Skip attribution line
+    if (/^from the cambridge english corpus$/i.test(line)) continue;
+    if (/^© Cambridge University Press$/i.test(line)) break;
+
+    // Check if line contains Chinese characters
+    const zhMatch = line.match(/[\u3400-\u9fff]/);
+    if (zhMatch) {
+      if (currentEn) {
+        const enText = currentEn.trim();
+        if (enText && /[A-Za-z]/.test(enText)) {
+          result.push({ en: enText, zh: line.substring(zhMatch.index).trim() });
+        }
+        currentEn = '';
+      }
+      currentZh = line;
+    } else {
+      // Collect English lines (skip metadata, bullet points)
+      if (!/^[•\-]|\[|https?:\/\//i.test(line) && line.length > 5) {
+        currentEn = currentEn ? `${currentEn} ${line}` : line;
+      }
+    }
+  }
+
+  // Handle last example
+  if (currentEn && /[A-Za-z]/.test(currentEn.trim())) {
+    result.push({ en: currentEn.trim(), zh: currentZh });
+  }
+
+  return result;
 }
 
 function mergeCambridgeWithDify(cambridge, dify = {}) {
