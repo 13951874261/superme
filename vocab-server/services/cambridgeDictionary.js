@@ -50,6 +50,34 @@ function unique(items, key = (item) => JSON.stringify(item)) {
   });
 }
 
+function extractCambridgeExamplesSection(markdown, word) {
+  const text = String(markdown || '');
+  const start = text.match(/^##\s+Examples of\b[^\n]*$/im);
+  if (!start || start.index == null) return [];
+
+  const afterHeading = text.slice(start.index + start[0].length);
+  const nextSection = afterHeading.search(/^##\s+(?!Examples of\b)/im);
+  const section = nextSection >= 0 ? afterHeading.slice(0, nextSection) : afterHeading;
+
+  const normalizedWord = String(word || '').trim().toLowerCase();
+  return unique(
+    section
+      .split('\n')
+      .map(splitEnglishChinese)
+      .filter(({ en }) => {
+        const normalized = en.toLowerCase();
+        return en
+          && /[a-z]/i.test(en)
+          && normalized !== normalizedWord
+          && !/^from the cambridge english corpus$/i.test(en)
+          && !/^these examples are from corpora and from sources on the web/i.test(en)
+          && !/\bwikipedia\b/i.test(en)
+          && !/^(a1|a2|b1|b2|c1|c2)$/i.test(en);
+      }),
+    ({ en }) => normalizeComparable(en)
+  );
+}
+
 /**
  * Parse a single sense block
  * Handles both structured (### headings) and flat structures
@@ -107,10 +135,10 @@ function parseSense(block, fallbackWord) {
   // This handles flat structures like "mud" where POS is in a body line
   if (!partOfSpeech) {
     // Check common POS first (noun, verb, adjective, adverb) before complex ones
-    const posPriority = ['noun', 'verb', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'exclamation', 'determiner', 'modal verb', 'phrasal verb'];
+    const posPriority = ['verb', 'noun', 'adjective', 'adverb', 'pronoun', 'preposition', 'conjunction', 'exclamation', 'determiner', 'modal verb', 'phrasal verb'];
     for (const p of posPriority) {
       const pEscaped = p.replace(/\s/g, '\\\\s');
-      const posInBody = lines.find((line) => new RegExp(`^${pEscaped}\\s*(?:\\[([^\\]]+)\\]|(?:\\(([^)]+)\\)))?$`, 'i'));
+      const posInBody = lines.find((line) => new RegExp(`^${pEscaped}(?:\\s*\\[.*)?$`, 'i').test(line));
       if (posInBody) {
         partOfSpeech = p.toLowerCase();
         // Also extract label if present
@@ -213,7 +241,7 @@ function parseSense(block, fallbackWord) {
     // Skip lines that are just links or navigation
     if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) return true;
     // Skip section headers like "Synonym", "Opposites", "Compare"
-    if (/^(Synonym|Opposites|Compare|Related word|Phrasal verb|See more)$/i.test(line)) return true;
+    if (/^(Synonym|Opposites|Compare|Idioms?|Related word|Phrasal verb|See more)$/i.test(line)) return true;
     // Skip single words (likely synonyms/antonyms in lists)
     if (/^[a-z]+$/i.test(line) && line.length < 15) return true;
     // Skip lines starting with "- " (related examples from other sections)
@@ -226,8 +254,8 @@ function parseSense(block, fallbackWord) {
   let stopCollecting = false;
   let inExamplesSection = false;
   for (const line of lines.slice(exampleStart)) {
-    // Stop at Idioms section
-    if (/^###\s*\*?\s*idioms\s*\*?$/i.test(line)) { stopCollecting = true; continue; }
+    // Stop at Idioms. After cleanMarkdown, "### **Idioms**" becomes "Idioms".
+    if (/^###\s*\*?\s*idioms\s*\*?$/i.test(line) || /^idioms?$/i.test(line)) { stopCollecting = true; break; }
     // Handle ## sections
     if (/^##/.test(line)) {
       if (/^##\s+Examples/i.test(line)) { inExamplesSection = true; continue; }
@@ -238,7 +266,7 @@ function parseSense(block, fallbackWord) {
     if (/^###/.test(line)) { stopCollecting = true; continue; }
     if (stopCollecting) continue;
     // Stop at Synonym/Opposites/Compare headers (inline section markers)
-    if (/^(Synonym|Opposites|Compare)$/i.test(line)) { stopCollecting = true; continue; }
+    if (/^(Synonym|Opposites|Compare|Idioms?)$/i.test(line)) { stopCollecting = true; break; }
     // Skip metadata lines
     if (/^(uk|us)$/i.test(line)) continue;
     if (/^your browser doesn't support html5 audio$/i.test(line)) continue;
@@ -249,7 +277,7 @@ function parseSense(block, fallbackWord) {
     // Skip lines that are just links or navigation
     if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) continue;
     // Skip section headers like "Synonym", "Opposites", "Compare"
-    if (/^(Synonym|Opposites|Compare|Related word|Phrasal verb|See more)$/i.test(line)) continue;
+    if (/^(Synonym|Opposites|Compare|Idioms?|Related word|Phrasal verb|See more)$/i.test(line)) continue;
     // Skip single words (likely synonyms/antonyms in lists)
     if (/^[a-z]+$/i.test(line) && line.length < 15) continue;
     // Skip lines starting with "- " (related examples from other sections)
@@ -307,7 +335,10 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   } else {
     // Format 2: flat structure without ### headings (e.g., mud)
     // Look for POS line pattern like "noun[[ U ]](url)"
-    const posLinePattern = /(noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)\b/i;
+    // Match a part-of-speech only when it begins its own Markdown line.
+    // Without the anchor, words such as "pronoun" in unrelated page content
+    // can be mistaken for the entry's part of speech.
+    const posLinePattern = /^\s*(noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)\b/im;
     const posLineMatch = sourceText.match(posLinePattern);
     
     if (posLineMatch) {
@@ -325,6 +356,16 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   }
 
   if (!senses.length) throw new Error('Cambridge page contained no parseable senses');
+
+  // The corpus examples live after the main dictionary entry. Attach them to
+  // the primary sense while excluding the source-attribution/disclaimer lines.
+  const corpusExamples = extractCambridgeExamplesSection(markdown, word);
+  if (corpusExamples.length) {
+    senses[0].examples = unique(
+      [...(senses[0].examples || []), ...corpusExamples],
+      ({ en }) => normalizeComparable(en)
+    );
+  }
 
   // Extract phonetics
   const phonetics = {};
@@ -350,6 +391,13 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
       !i.toLowerCase().includes('dictionary') &&
       !i.toLowerCase().includes('cambridge')
     ));
+  }
+
+  const idiomKeys = new Set(idioms.map((item) => normalizeComparable(item)));
+  if (idiomKeys.size) {
+    for (const sense of senses) {
+      sense.examples = (sense.examples || []).filter((item) => !idiomKeys.has(normalizeComparable(item.en)));
+    }
   }
 
   // Extract collocations from ## Collocations section

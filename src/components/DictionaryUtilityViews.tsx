@@ -406,6 +406,7 @@ export function UtilityEnZhBidirectionalView({
     synonyms = [],
     antonyms = [],
     collocations = [],
+    idioms = [],
     etymology,
     phonetics,
     senses = [],
@@ -428,6 +429,7 @@ export function UtilityEnZhBidirectionalView({
   const [showExt, setShowExt] = useState(false);
   const [showOther, setShowOther] = useState(false);
   const [showCambridge, setShowCambridge] = useState(false);
+  const [showIdioms, setShowIdioms] = useState(false);
   const extCount = collocations.length + (etymology?.trim() ? 1 : 0);
 
   return (
@@ -504,6 +506,16 @@ export function UtilityEnZhBidirectionalView({
             ))}
           </div>
         </div>
+      )}
+
+      {idioms.length > 0 && (
+        <FoldBlock title="习语" count={idioms.length} open={showIdioms} onToggle={() => setShowIdioms((v) => !v)}>
+          <div className="space-y-1.5">
+            {idioms.map((item, idx) => (
+              <div key={idx} className="text-xs text-stone-800 leading-relaxed">{item}</div>
+            ))}
+          </div>
+        </FoldBlock>
       )}
 
       {other_meanings.length > 0 && (

@@ -144,6 +144,7 @@ export interface EnZhBidirectionalPayload {
   synonyms: string[];
   antonyms: string[];
   collocations: string[];
+  idioms?: string[];
   etymology?: string;
   level?: string;
   phonetics?: { uk?: string; us?: string };

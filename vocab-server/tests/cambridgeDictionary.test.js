@@ -85,8 +85,6 @@ Modern houses have replaced the one-room mud huts...
 These mud flats are a special research value.
 这片淤泥滩有特殊的科研价值。
 
-(Translation of **mud** from the Cambridge English-Chinese (Simplified) Dictionary © Cambridge University Press)
-
 ### **Idioms**
 
 [here's mud in your eye!](https://dictionary.cambridge.org/dictionary/english-chinese-simplified/here-s-mud-in-your-eye "meaning")
@@ -94,6 +92,8 @@ These mud flats are a special research value.
 [hurl/throw/sling mud at someone](https://dictionary.cambridge.org/dictionary/english-chinese-simplified/hurl-throw-sling-mud-at "meaning")
 
 [mud sticks](https://dictionary.cambridge.org/dictionary/english-chinese-simplified/mud-sticks "meaning")
+
+(Translation of **mud** from the Cambridge English-Chinese (Simplified) Dictionary © Cambridge University Press)
 
 ## Examples of mud
 
@@ -147,6 +147,8 @@ assert.strictEqual(mudCambridge.senses[0].translation_zh, '泥， 泥土; 烂泥
 const allExampleEn = mudCambridge.example_sentences.map(e => e.en);
 assert.ok(!allExampleEn.some(e => e.includes("here's mud in your eye")), 'idiom should not be in examples');
 assert.ok(!allExampleEn.some(e => e.includes('mud sticks')), 'phrase should not be in examples');
+assert.ok(!allExampleEn.some(e => e.includes('hurl/throw/sling mud at someone')), 'idiom phrase should not be in examples');
+assert.ok(allExampleEn.some(e => e.includes('bogged down')), 'real Cambridge example should remain');
 assert.ok(!allExampleEn.some(e => e.toLowerCase() === 'uk'), 'metadata "uk" should not be in examples');
 assert.ok(!allExampleEn.some(e => e.startsWith('/mʌd/')), 'phonetic should not be in examples');
 assert.ok(!allExampleEn.some(e => e.startsWith('/pəˈsweɪd/us')), 'phonetic with region should not be in examples');
@@ -249,5 +251,67 @@ assert.ok(!persuadeExamples.some(e => e === 'Compare'), 'compare header should n
 assert.ok(!persuadeExamples.some(e => e === 'convince'), 'compare word should not be in examples');
 assert.ok(!persuadeExamples.some(e => e === 'encourage'), 'compare word should not be in examples');
 assert.ok(persuadeExamples.some(e => e.includes('persuade her')), 'real example should remain');
+
+// Test persuade with ## Examples section and corpus attribution
+const persuadeWithCorpusMarkdown = `# Translation of **persuade** – English–Mandarin Chinese dictionary
+
+persuade
+
+verb
+
+uk
+
+/pəˈsweɪd/us
+
+/pɚˈsweɪd/
+
+B1
+
+to make someone do or believe something by giving them a good reason...
+
+劝服; 说服
+
+If she doesn't want to go, nothing you can say will persuade her.
+如果她不想去，你说什么也劝不动她。
+
+## Examples of persuade
+
+Advocates of retrenchment must _persuade_ affected officials to transcend their special interests for the good of common goals.
+
+From the Cambridge English Corpus
+
+Moreover, though some motives are mutually reinforcing, others are contradictory: treating discussion as an opportunity for persuading others, for example, can conflict with educating oneself.
+
+From the Cambridge English Corpus
+
+It was not only husbands who persuaded women to return.
+
+From the Cambridge English Corpus
+
+These examples are from corpora and from sources on the web. Any opinions in the examples do not represent the opinion of the Cambridge Dictionary editors or of Cambridge University Press or its licensors.
+
+B1
+`;
+
+const persuadeCorpus = parseCambridgeMarkdown(persuadeWithCorpusMarkdown, {
+  word: 'persuade',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/persuade',
+});
+
+assert.strictEqual(persuadeCorpus.pos, 'verb', 'pos should be verb not noun');
+assert.strictEqual(persuadeCorpus.senses.length, 1);
+assert.strictEqual(persuadeCorpus.senses[0].part_of_speech, 'verb');
+assert.strictEqual(persuadeCorpus.senses[0].translation_zh, '劝服; 说服');
+
+const corpusExamples = persuadeCorpus.example_sentences.map(e => e.en);
+assert.ok(corpusExamples.some(e => e.includes('persuade her')), 'inline example should be present');
+assert.ok(corpusExamples.some(e => e.includes('retrenchment')), 'corpus example should be present');
+assert.ok(corpusExamples.some(e => e.includes('mutually reinforcing')), 'corpus example 2 should be present');
+assert.ok(corpusExamples.some(e => e.includes('husbands who persuaded')), 'corpus example 3 should be present');
+assert.ok(!corpusExamples.some(e => e === 'To make someone do or believe something by giving them a good reason...'), 'definition should not be in examples');
+assert.ok(!corpusExamples.some(e => e === 'B1'), 'level should not be in examples');
+assert.ok(!corpusExamples.some(e => e.toLowerCase().includes('from the cambridge english corpus')), 'corpus attribution should not be in examples');
+assert.ok(!corpusExamples.some(e => e.toLowerCase().includes('these examples are from corpora')), 'corpus disclaimer should not be in examples');
+assert.ok(!corpusExamples.some(e => e.startsWith('/pəˈsweɪd/')), 'phonetic should not be in examples');
 
 console.log('cambridge dictionary tests passed');
