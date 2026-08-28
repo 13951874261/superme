@@ -206,7 +206,7 @@ function parseSense(block, fallbackWord) {
     // Skip metadata lines
     if (/^(uk|us)$/i.test(line)) return true;
     if (/^your browser doesn't support html5 audio$/i.test(line)) return true;
-    if (/^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\//.test(line)) return true; // Phonetic
+    if (/^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\/(?:us|uk)?$/.test(line)) return true; // Phonetic
     if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) return true; // CEFR levels
     if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) return true; // POS
     if (/^(Add to word list|To top)$/i.test(line)) return true;
@@ -221,14 +221,20 @@ function parseSense(block, fallbackWord) {
     return false;
   };
 
-  const examples = lines.slice(exampleStart)
-    .filter((line) => !isNonExampleLine(line))
-    .filter((line) => {
-      // Skip pure Chinese translation lines (no English letters)
-      return /[A-Za-z]/.test(line);
-    })
-    .map(splitEnglishChinese)
-    .filter((item) => item.en);
+  // Extract examples - stop at section headers or metadata
+  const examples = [];
+  let stopCollecting = false;
+  for (const line of lines.slice(exampleStart)) {
+    if (stopCollecting) break;
+    if (/^(Synonym|Opposites|Compare)$/i.test(line)) {
+      stopCollecting = true;
+      continue;
+    }
+    if (isNonExampleLine(line)) continue;
+    if (!/[A-Za-z]/.test(line)) continue;
+    const item = splitEnglishChinese(line);
+    if (item.en) examples.push(item);
+  }
 
   // Extract inflected headwords
   const inflectedHeadword = lines.find((line) => new RegExp(`\\[\\s*${inflectionLabel}\\s*\\]`, 'i').test(line))

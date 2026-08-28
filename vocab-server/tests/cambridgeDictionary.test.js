@@ -149,6 +149,7 @@ assert.ok(!allExampleEn.some(e => e.includes("here's mud in your eye")), 'idiom 
 assert.ok(!allExampleEn.some(e => e.includes('mud sticks')), 'phrase should not be in examples');
 assert.ok(!allExampleEn.some(e => e.toLowerCase() === 'uk'), 'metadata "uk" should not be in examples');
 assert.ok(!allExampleEn.some(e => e.startsWith('/mʌd/')), 'phonetic should not be in examples');
+assert.ok(!allExampleEn.some(e => e.startsWith('/pəˈsweɪd/us')), 'phonetic with region should not be in examples');
 assert.ok(!allExampleEn.some(e => e === 'B2' || e === 'noun'), 'POS/level should not be in examples');
 assert.ok(!allExampleEn.some(e => e.includes('Vocabulary')), 'navigation should not be in examples');
 assert.ok(!allExampleEn.some(e => e.includes('Wikipedia')), 'Wikipedia content should not be in examples');
@@ -191,5 +192,62 @@ assert.strictEqual(merged.field_sources.synonyms, 'dify');
 const emptyCambridgeMerged = mergeCambridgeWithDify({ ...cambridge, phonetic: '', level: '' }, { phonetic: '/dɪfi/', level: 'B2' });
 assert.strictEqual(emptyCambridgeMerged.phonetic, '/dɪfi/');
 assert.strictEqual(emptyCambridgeMerged.level, 'B2');
+
+// persuade markdown test case - flat structure with phonetic + region suffix
+const persuadeMarkdown = `# Translation of **persuade** – English–Mandarin Chinese dictionary
+
+persuade
+
+verb
+
+uk
+
+Your browser doesn't support HTML5 audio
+
+/pəˈsweɪd/us
+
+Your browser doesn't support HTML5 audio
+
+/pɚˈsweɪd/
+
+B1
+
+[[ + T ]]to make someone do or believe something by giving them a good reason...
+
+劝服; 说服
+
+If she doesn't want to go, nothing you can say will persuade her.
+如果她不想去，你说什么也劝不动她。
+
+Synonym
+talk someone into something
+Opposites
+deter
+dissuade
+Compare
+convince
+encourage
+`;
+
+const persuadeCambridge = parseCambridgeMarkdown(persuadeMarkdown, {
+  word: 'persuade',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/persuade',
+});
+
+const persuadeExamples = persuadeCambridge.example_sentences.map(e => e.en);
+assert.ok(!persuadeExamples.some(e => e === 'uk'), 'uk should not be in examples');
+assert.ok(!persuadeExamples.some(e => e.includes("Your browser")), 'audio message should not be in examples');
+assert.ok(!persuadeExamples.some(e => e.startsWith('/pəˈsweɪd/us')), 'phonetic with region should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === '/pɚˈsweɪd/'), 'phonetic without region should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'B1'), 'level should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'Synonym'), 'synonym header should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'talk someone into something'), 'synonym should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'Opposites'), 'opposites header should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'deter'), 'antonym should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'dissuade'), 'antonym should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'Compare'), 'compare header should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'convince'), 'compare word should not be in examples');
+assert.ok(!persuadeExamples.some(e => e === 'encourage'), 'compare word should not be in examples');
+assert.ok(persuadeExamples.some(e => e.includes('persuade her')), 'real example should remain');
 
 console.log('cambridge dictionary tests passed');
