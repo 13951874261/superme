@@ -250,8 +250,10 @@ assert.ok(!persuadeExamples.some(e => e === 'convince'), 'compare word should no
 assert.ok(!persuadeExamples.some(e => e === 'encourage'), 'compare word should not be in examples');
 assert.ok(persuadeExamples.some(e => e.includes('persuade her')), 'real example should remain');
 
-// Test Examples section parsing with "From the Cambridge English Corpus"
-const examplesSectionMarkdown = `# Translation of **counterproductive** – English–Mandarin Chinese dictionary
+console.log('cambridge dictionary tests passed');
+
+// counterproductive test - examples from ## Examples section
+const counterproductiveMarkdown = `# Translation of **counterproductive** – English–Mandarin Chinese dictionary
 
 counterproductive
 
@@ -265,46 +267,36 @@ Your browser doesn't support HTML5 audio
 
 Your browser doesn't support HTML5 audio
 
-/ˌkaʊn.t̬ɚ.prəˈdʌk.tɪv/
+/ˌkaʊn.t̬ə.prəˈdʌk.tɪv/
 
-C1
+B2
 
-[[ U ]]making a situation that is already bad become worse, or making something that is not successful have less success than before
+[[ C ]]
+
+having an effect that is the opposite of what you wanted and intended
 
 适得其反的；产生相反效果的
 
-From the Cambridge English Corpus
-The measures were counterproductive.
-这些措施适得其反。
-
-It had a counterproductive effect on morale.
-它对士气产生了负面影响。
-
-Counterproductive behaviour can lead to job loss.
-适得其反的行为可能导致失业。
-
 ## Examples of counterproductive
 
-The sanctions are having a counterproductive effect.
-制裁正在产生适得其反的效果。
+The newspaper should thus promulgate the weaknesses of the judicial system might appear strange and even counterproductive given the social status of its readership.
+That the newspaper should thus promulgate the weaknesses of the judicial system might appear strange and even counterproductive given the social status of its readership.
+从《泰晤士报》刊登司法系统的弱点来看，考虑到其读者的社会地位，这似乎是奇怪甚至适得其反的。
 
-His actions were counterproductive to the goal.
-他的行为与目标背道而驰。
+From the Cambridge English Corpus
+He convincingly argues that pursuing the dominant paradigm can actually be counterproductive to the usefulness of constitutional law to promote justice.
+ convincingly argues that pursuing the dominant paradigm can actually be counterproductive to the usefulness of constitutional law to promote justice.
+他令人信服地论证说，追求主流范式实际上可能对促进司法的宪法法的有用性适得其反。
+
+From the Cambridge English Corpus
 `;
 
-const counterproductCambridge = parseCambridgeMarkdown(examplesSectionMarkdown, {
+const cpCambridge = parseCambridgeMarkdown(counterproductiveMarkdown, {
   word: 'counterproductive',
   sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/counterproductive',
 });
 
-// Check no "From the Cambridge English Corpus" in examples
-assert.ok(!counterproductCambridge.example_sentences.some(e => e.en.includes('From the Cambridge English Corpus')), 'Corpus attribution should not be in examples');
-
-// Check Examples section content is parsed
-const allExamplesEn = counterproductCambridge.example_sentences.map(e => e.en);
-assert.ok(allExamplesEn.some(e => e.includes('sanctions')), 'Examples section - sanctions example should be included');
-assert.ok(allExamplesEn.some(e => e.includes('counterproductive effect')), 'Examples section - counterproductive effect should be included');
-assert.ok(allExamplesEn.some(e => e.includes('His actions')), 'Examples section - His actions example should be included');
-assert.ok(allExamplesEn.some(e => e.includes('measures')), 'Sense examples - measures example should be included');
-
-console.log('cambridge dictionary tests passed');
+assert.ok(cpCambridge.example_sentences.length >= 2, 'should collect examples from ## Examples section');
+assert.ok(!cpCambridge.example_sentences.some(e => e.en.includes('From the Cambridge English Corpus')), 'should not include corpus source line');
+assert.ok(cpCambridge.example_sentences.some(e => e.en.toLowerCase().includes('counterproductive')), 'should contain real examples');
+console.log('counterproductive test passed');

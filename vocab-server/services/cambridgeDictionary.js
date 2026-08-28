@@ -195,7 +195,7 @@ function parseSense(block, fallbackWord) {
     }
   }
 
-  // Extract examples - stop at Idioms section or next major section
+  // Extract examples - stop at Idioms, ## Examples, or next sense
   const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
   const isNonExampleLine = (line) => {
     // Stop at Idioms section or next major section
@@ -218,8 +218,6 @@ function parseSense(block, fallbackWord) {
     if (/^[a-z]+$/i.test(line) && line.length < 15) return true;
     // Skip lines starting with "- " (related examples from other sections)
     if (/^- /.test(line)) return true;
-    // Skip Cambridge corpus attribution line
-    if (/^from the cambridge english corpus$/i.test(line)) return true;
     return false;
   };
 
@@ -262,17 +260,8 @@ function parseSense(block, fallbackWord) {
  * Handles both structured (### headings) and flat structures
  */
 function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
-  const fullMarkdown = String(markdown || '');
-
-  // Extract Examples section separately - don't discard it
-  let examplesSectionContent = '';
-  const examplesSectionMatch = fullMarkdown.match(/^## Examples of\s+[^\n]+\n\n?([\s\S]*?)(?=\n##|\Z)/im);
-  if (examplesSectionMatch && examplesSectionMatch[1]) {
-    examplesSectionContent = examplesSectionMatch[1].trim();
-  }
-
-  // Work with main content (before Examples section for sense parsing)
-  const sourceText = examplesSectionMatch ? fullMarkdown.slice(0, examplesSectionMatch.index) : fullMarkdown;
+  // Keep full markdown - don't truncate at Examples section
+  const sourceText = String(markdown || '');
   
   // Find all ### headings
   const headingPattern = /^###\s+(.+)$/gm;
@@ -371,11 +360,10 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     ),
     example_sentences: unique(
       [
-        // Sense examples
         ...senses.flatMap((sense) => sense.examples),
-        // Examples section
-        ...parseExamplesSection(examplesSectionContent, word),
-      ],
+        // Also collect examples from ## Examples of [word] section
+        ...(extractExamplesFromSection(sourceText, word) || []),
+      ].filter(e => e.en && !/from the cambridge english corpus/i.test(e.en)),
       (item) => normalizeComparable(`${item.en}\0${item.zh}`)
     ),
     idioms,
@@ -388,46 +376,46 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   };
 }
 
-/**
- * Parse examples from "## Examples of word" section
- */
-function parseExamplesSection(content, word) {
-  if (!content || !word) return [];
-  const lines = content.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-  const result = [];
-  let currentEn = '';
-  let currentZh = '';
-
+function extractExamplesFromSection(sourceText, word) {
+  const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`^## Examples of \\*\\*?${escapedWord}\\*\\*?\\s*\\n([\\s\\S]*?)(?=\\n##|\\Z)`, 'im');
+  const examplesMatch = sourceText.match(pattern);
+  if (!examplesMatch) return [];
+  
+  const lines = examplesMatch[1].split('\n').map(l => cleanMarkdown(l.trim())).filter(Boolean);
+  const examples = [];
+  let inExample = false;
+  let currentExample = '';
+  
   for (const line of lines) {
-    // Skip attribution line
-    if (/^from the cambridge english corpus$/i.test(line)) continue;
-    if (/^© Cambridge University Press$/i.test(line)) break;
-
-    // Check if line contains Chinese characters
-    const zhMatch = line.match(/[\u3400-\u9fff]/);
-    if (zhMatch) {
-      if (currentEn) {
-        const enText = currentEn.trim();
-        if (enText && /[A-Za-z]/.test(enText)) {
-          result.push({ en: enText, zh: line.substring(zhMatch.index).trim() });
-        }
-        currentEn = '';
+    // Skip "From the Cambridge English Corpus" lines
+    if (/from the cambridge english corpus/i.test(line)) continue;
+    // Skip empty lines or separator lines
+    if (!line || /^[-*_]$/i.test(line)) {
+      if (inExample && currentExample) {
+        const item = splitEnglishChinese(currentExample);
+        if (item.en) examples.push(item);
+        currentExample = '';
+        inExample = false;
       }
-      currentZh = line;
-    } else {
-      // Collect English lines (skip metadata, bullet points)
-      if (!/^[•\-]|\[|https?:\/\//i.test(line) && line.length > 5) {
-        currentEn = currentEn ? `${currentEn} ${line}` : line;
-      }
+      continue;
     }
+    // Start new example if previous one ended
+    if (inExample && currentExample) {
+      const item = splitEnglishChinese(currentExample);
+      if (item.en) examples.push(item);
+    }
+    currentExample = line;
+    inExample = true;
   }
-
-  // Handle last example
-  if (currentEn && /[A-Za-z]/.test(currentEn.trim())) {
-    result.push({ en: currentEn.trim(), zh: currentZh });
+  
+  // Push last example
+  if (inExample && currentExample) {
+    const item = splitEnglishChinese(currentExample);
+    if (item.en) examples.push(item);
   }
-
-  return result;
+  
+  return examples;
 }
 
 function mergeCambridgeWithDify(cambridge, dify = {}) {
