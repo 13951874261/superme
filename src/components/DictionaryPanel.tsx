@@ -5,7 +5,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 
 gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
-import { lookupVocabWords, queryDictionaryWithEnrichmentPoll } from '../services/vocabAPI';
+import { lookupVocabWords, queryDictionaryWithEnrichmentPoll, getVocabItem, updateWordPayload, buildVocabPayloadFromDict, vocabSyncFingerprint, hasDifyEnrichmentFields } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
@@ -810,24 +810,66 @@ export default function DictionaryPanel() {
     notify: (message, type) => showToast({ message, type }),
   });
   const searchAbortRef = useRef<AbortController | null>(null);
+  const vocabIdRef = useRef<string | null>(null);
+  const lastVocabSyncFpRef = useRef<string>('');
 
   const wordKey = query.trim();
   const collecting = wordKey ? isCollecting(wordKey) : false;
   const queued = wordKey ? isQueued(wordKey) : false;
   const collected = markedSaved || (wordKey ? isCollected(wordKey) : false);
 
+  const runDictSearch = async (type: DictType, wordOverride?: string) => {
+    const text = String(wordOverride ?? query).trim();
+    if (!text) return;
+    setQuery(text);
+    setOpenDict(type);
+    setIsLoading(true);
+    setResult(null);
+    setActiveTab('');
+    setSaveError(false);
+    searchAbortRef.current?.abort();
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
+    try {
+      const parsed = await queryDictionaryWithEnrichmentPoll(
+        { word: text, dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '' },
+        {
+          signal: ac.signal,
+          onUpdate: (partial) => {
+            if (ac.signal.aborted) return;
+            setResult(partial);
+            if (partial?.inVocabulary) setMarkedSaved(true);
+            const firstKey = Object.keys(partial?.payload || {})[0];
+            if (firstKey) setActiveTab(firstKey);
+            setIsLoading(false);
+          },
+        }
+      );
+      if (!ac.signal.aborted) {
+        setResult(parsed);
+        if (parsed?.inVocabulary) setMarkedSaved(true);
+        const firstKey = Object.keys(parsed?.payload || {})[0];
+        if (firstKey) setActiveTab(firstKey);
+      }
+    } catch (err: any) {
+      if (!ac.signal.aborted) {
+        setResult({ ok: false, message: err.message || '网络请求异常' });
+      }
+    } finally {
+      if (!ac.signal.aborted) setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     const handleView = (e: any) => {
-      const entry = e.detail;
-      setQuery(entry.word || '');
-      setOpenDict((entry.dict_type as DictType) || 'en_zh_bidirectional');
-      if (entry.payload) {
-        setResult({ ok: true, type: entry.dict_type, payload: entry.payload });
-        const keys = Object.keys(entry.payload);
-        if (keys.length > 0) setActiveTab(keys[0]);
-      }
-      setSaveError(false);
+      const entry = e.detail || {};
+      const word = String(entry.word || '').trim();
+      if (!word) return;
+      const dictType = (entry.dict_type as DictType) || 'en_zh_bidirectional';
+      // 生词本点开：不直接展示瘦 payload，强制走完整词典查询（Cambridge 秒开 + Dify 轮询）
       setMarkedSaved(true);
+      setSaveError(false);
+      void runDictSearch(dictType, word);
     };
     window.addEventListener('vocab-view', handleView);
     return () => window.removeEventListener('vocab-view', handleView);
@@ -842,6 +884,7 @@ export default function DictionaryPanel() {
         if (cancelled || !items.length) return;
         hydrateCollected(items.map((item) => item.word));
         setMarkedSaved(true);
+        if (items[0]?.id) vocabIdRef.current = items[0].id;
       }).catch(() => {});
     };
     syncCollected();
@@ -852,6 +895,45 @@ export default function DictionaryPanel() {
     };
   }, [query, result?.ok, hydrateCollected]);
 
+  // 已收录：查询结果（Cam 优先 + Dify 渐进）回写生词本
+  useEffect(() => {
+    const text = query.trim();
+    if (!text || !result?.ok || !result.payload) return;
+    const inBook = !!(result.inVocabulary || markedSaved || (wordKey ? isCollected(wordKey) : false));
+    if (!inBook) return;
+
+    let cancelled = false;
+    const syncPayload = async () => {
+      try {
+        let id = vocabIdRef.current;
+        if (!id) {
+          const items = await lookupVocabWords([text]);
+          id = items[0]?.id || null;
+          if (id) vocabIdRef.current = id;
+        }
+        if (cancelled || !id) return;
+
+        const full = await getVocabItem(id);
+        if (cancelled) return;
+        const existing = full?.payload && typeof full.payload === 'object' ? full.payload : {};
+        const next = buildVocabPayloadFromDict(result.payload, existing, {
+          word: text,
+          source: 'dictionary_query_sync',
+        });
+        const fp = vocabSyncFingerprint(next);
+        if (fp === lastVocabSyncFpRef.current) return;
+        await updateWordPayload(id, next);
+        if (cancelled) return;
+        lastVocabSyncFpRef.current = fp;
+        window.dispatchEvent(new Event('vocab-updated'));
+      } catch (err) {
+        console.warn('[DictionaryPanel] 已收录词回写生词本失败:', err);
+      }
+    };
+    void syncPayload();
+    return () => { cancelled = true; };
+  }, [query, result, markedSaved, wordKey, isCollected]);
+
   const handleToggle = (type: DictType, e: React.MouseEvent) => {
     e.stopPropagation();
     if (openDict === type) {
@@ -861,57 +943,59 @@ export default function DictionaryPanel() {
     }
     setSaveError(false);
     setMarkedSaved(false);
+    vocabIdRef.current = null;
+    lastVocabSyncFpRef.current = '';
   };
 
   const handleSearch = async (type: DictType) => {
-    if (!query.trim()) return;
-    setIsLoading(true); setResult(null); setActiveTab(''); setSaveError(false); setMarkedSaved(false);
-    searchAbortRef.current?.abort();
-    const ac = new AbortController();
-    searchAbortRef.current = ac;
-    try {
-      const parsed = await queryDictionaryWithEnrichmentPoll(
-        { word: query.trim(), dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '' },
-        {
-          signal: ac.signal,
-          onUpdate: (partial) => {
-            if (ac.signal.aborted) return;
-            setResult(partial);
-            const firstKey = Object.keys(partial?.payload || {})[0];
-            if (firstKey) setActiveTab(firstKey);
-            setIsLoading(false);
-          },
-        }
-      );
-      if (!ac.signal.aborted) {
-        setResult(parsed);
-        const firstKey = Object.keys(parsed?.payload || {})[0];
-        if (firstKey) setActiveTab(firstKey);
-      }
-    } catch (err: any) {
-      if (!ac.signal.aborted) {
-        setResult({ ok: false, message: err.message || '网络请求异常' });
-      }
-    } finally {
-      if (!ac.signal.aborted) setIsLoading(false);
-    }
+    setMarkedSaved(false);
+    vocabIdRef.current = null;
+    lastVocabSyncFpRef.current = '';
+    await runDictSearch(type);
   };
 
   const handleSave = async (type: DictType, anchor?: HTMLElement | null) => {
     if (!result?.payload || !query.trim()) return;
     setSaveError(false);
     const text = query.trim();
+    // 收录先写 Cambridge（当前卡片），Dify 字段有则一并带上；无则稍后自动补
+    const camFirstPayload = buildVocabPayloadFromDict(result.payload, null, {
+      word: text,
+      source: 'Dictionary Panel',
+    });
     const outcome = await collect({
       text,
       dictType: type,
       isPhrase: /\s/.test(text),
       source: 'Dictionary Panel',
       topic: '词典收录',
-      payload: result.payload as Record<string, any>,
+      payload: camFirstPayload,
       anchor,
     });
-    if (outcome === 'failed') setSaveError(true);
-    if (outcome === 'collected') setMarkedSaved(true);
+    if (outcome === 'failed') {
+      setSaveError(true);
+      return;
+    }
+
+    setMarkedSaved(true);
+    lastVocabSyncFpRef.current = '';
+    // 立刻用当前 Cam 结果回写一次（步骤4 effect 也会跟）；并在缺 Dify 时静默继续轮询以便自动补
+    if (!hasDifyEnrichmentFields(result.payload)) {
+      searchAbortRef.current?.abort();
+      const ac = new AbortController();
+      searchAbortRef.current = ac;
+      void queryDictionaryWithEnrichmentPoll(
+        { word: text, dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '' },
+        {
+          signal: ac.signal,
+          onUpdate: (partial) => {
+            if (ac.signal.aborted) return;
+            setResult(partial);
+            if (partial?.inVocabulary) setMarkedSaved(true);
+          },
+        }
+      ).catch(() => {});
+    }
   };
 
   return (

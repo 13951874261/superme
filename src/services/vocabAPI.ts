@@ -166,6 +166,8 @@ export interface DictResult {
   message?: string;
   fromCache?: boolean;
   backgroundEnriching?: boolean;
+  /** 该词是否已在当前用户生词本中（后端 dict-query 返回） */
+  inVocabulary?: boolean;
 }
 
 /** Dify enrichment fields (synonyms / antonyms / collocations / etymology / business_examples) */
@@ -181,6 +183,103 @@ export function hasDifyEnrichmentFields(payload: DictPayload | Record<string, un
     || list(p.business_examples)
     || text(p.etymology)
   );
+}
+
+/**
+ * 将词典查询 payload 转为生词本存储结构：Cambridge 字段优先，Dify 仅补缺；
+ * 保留已有矩阵/记忆等扩展字段；剥离 raw_markdown 等超大字段。
+ */
+export function buildVocabPayloadFromDict(
+  dictPayload: DictPayload | Record<string, any> | null | undefined,
+  existing?: Record<string, any> | null,
+  meta?: { word?: string; source?: string }
+): Record<string, any> {
+  const d = (dictPayload && typeof dictPayload === 'object') ? dictPayload as Record<string, any> : {};
+  const ex = (existing && typeof existing === 'object') ? { ...existing } : {};
+  delete ex.raw_markdown;
+  delete ex.cambridge_raw;
+  delete ex.dify_raw;
+
+  const fillList = (key: string) => {
+    const cur = d[key];
+    const seed = ex[key];
+    if (Array.isArray(cur) && cur.length > 0) return cur;
+    if (Array.isArray(seed) && seed.length > 0) return seed;
+    return Array.isArray(cur) ? cur : (Array.isArray(seed) ? seed : []);
+  };
+  const fillText = (primary: unknown, fallback: unknown) => {
+    const a = typeof primary === 'string' ? primary.trim() : '';
+    if (a) return primary as string;
+    const b = typeof fallback === 'string' ? fallback.trim() : '';
+    return b ? (fallback as string) : (typeof primary === 'string' ? primary : (typeof fallback === 'string' ? fallback : ''));
+  };
+
+  const meaning = fillText(
+    d.translation_main || d.meaning_zh || d.meaning,
+    ex.meaning || ex.translation_main || ex.meaning_zh
+  );
+  const definitionEn = fillText(
+    (Array.isArray(d.definitions_en) && d.definitions_en[0])
+      || d.senses?.[0]?.definition_en
+      || d.definition_en,
+    ex.definition_en
+  );
+
+  let examples: any[] = [];
+  if (Array.isArray(d.example_sentences) && d.example_sentences.length > 0) {
+    examples = d.example_sentences.map((sent: any) => (
+      typeof sent === 'string' ? sent : (sent?.en || sent?.zh || '')
+    )).filter(Boolean);
+  } else if (Array.isArray(d.senses) && d.senses.some((s: any) => s?.examples?.length)) {
+    examples = d.senses.flatMap((s: any) => s.examples || [])
+      .map((exItem: any) => (typeof exItem === 'string' ? exItem : exItem?.en || ''))
+      .filter(Boolean);
+  } else if (Array.isArray(ex.examples) && ex.examples.length > 0) {
+    examples = ex.examples;
+  }
+
+  return {
+    ...ex,
+    word: meta?.word || d.headword || ex.word || '',
+    phonetic: fillText(d.phonetic, ex.phonetic),
+    partOfSpeech: fillText(d.pos || d.partOfSpeech, ex.partOfSpeech || ex.pos),
+    meaning,
+    translation_main: meaning,
+    meaning_zh: meaning,
+    definition_en: definitionEn,
+    level: fillText(d.level, ex.level),
+    examples,
+    example_sentences: Array.isArray(d.example_sentences) && d.example_sentences.length > 0
+      ? d.example_sentences
+      : (ex.example_sentences || []),
+    senses: Array.isArray(d.senses) && d.senses.length > 0 ? d.senses : (ex.senses || []),
+    idioms: fillList('idioms'),
+    synonyms: fillList('synonyms'),
+    antonyms: fillList('antonyms'),
+    collocations: fillList('collocations'),
+    business_examples: fillList('business_examples'),
+    etymology: fillText(d.etymology, ex.etymology),
+    business_note: fillText(d.business_notes || d.business_note, ex.business_note || ex.business_notes),
+    direction_resolved: fillText(d.direction_resolved, ex.direction_resolved) || 'en_to_zh',
+    source: meta?.source || ex.source || 'dictionary',
+  };
+}
+
+/** 用于判断生词本是否需要再次回写（避免轮询重复 PATCH） */
+export function vocabSyncFingerprint(payload: Record<string, any> | null | undefined): string {
+  const p = payload || {};
+  return JSON.stringify({
+    m: p.meaning || p.translation_main || '',
+    ph: p.phonetic || '',
+    pos: p.partOfSpeech || p.pos || '',
+    ex: Array.isArray(p.examples) ? p.examples.length : 0,
+    se: Array.isArray(p.senses) ? p.senses.length : 0,
+    syn: Array.isArray(p.synonyms) ? p.synonyms.length : 0,
+    ant: Array.isArray(p.antonyms) ? p.antonyms.length : 0,
+    col: Array.isArray(p.collocations) ? p.collocations.length : 0,
+    biz: Array.isArray(p.business_examples) ? p.business_examples.length : 0,
+    ety: typeof p.etymology === 'string' ? p.etymology.slice(0, 80) : '',
+  });
 }
 
 

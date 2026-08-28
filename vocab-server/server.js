@@ -5411,6 +5411,49 @@ function hasDifyEnrichmentPayload(payload) {
   );
 }
 
+/** 是否具备可展示的 Cambridge 主体（例句/义项），用于避免生词本瘦 payload 顶替前台 */
+function hasCambridgeDisplayPayload(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  if (Array.isArray(payload.senses) && payload.senses.length > 0) return true;
+  if (Array.isArray(payload.example_sentences) && payload.example_sentences.length > 0) return true;
+  if (payload.cambridge_raw && typeof payload.cambridge_raw === 'object') return true;
+  return false;
+}
+
+/** 从生词本 payload 提取可并入的种子（仅作补缺，不作展示主数据） */
+function buildVocabSeedPayload(cleanWord, vocabPayload) {
+  const p = vocabPayload && typeof vocabPayload === 'object' ? vocabPayload : {};
+  const meaningZh = p.meaning || p.meaning_zh || p.zh_meaning || p.translation_main || '';
+  const definitionEn = p.definition_en || p.definitionEn || '';
+  const examples = Array.isArray(p.examples) ? p.examples : (Array.isArray(p.example_sentences) ? p.example_sentences : []);
+  const list = (v) => (Array.isArray(v) ? v.filter(Boolean) : []);
+  return {
+    headword: cleanWord,
+    phonetic: p.phonetic || '',
+    pos: p.partOfSpeech || p.pos || '',
+    level: p.level || '',
+    meaning_zh: meaningZh,
+    translation_main: meaningZh,
+    definitions_en: definitionEn ? [definitionEn] : [],
+    definition: meaningZh || definitionEn,
+    business_notes: p.business_note || p.businessNote || p.business_notes || '',
+    example_sentences: examples.map((ex) => (typeof ex === 'string' ? { en: ex, zh: '' } : ex)),
+    synonyms: list(p.synonyms),
+    antonyms: list(p.antonyms),
+    collocations: list(p.collocations),
+    business_examples: list(p.business_examples),
+    etymology: typeof p.etymology === 'string' ? p.etymology : '',
+  };
+}
+
+function resolveDictDirection(dictType, direction, cleanWord) {
+  let resolvedDirection = direction || 'auto';
+  if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
+    resolvedDirection = /[\u4e00-\u9fa5]/.test(cleanWord) ? 'zh_to_en' : 'en_to_zh';
+  }
+  return resolvedDirection;
+}
+
 function sanitizeDictPayloadForDisplay(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const headword = payload.headword || '';
@@ -5746,7 +5789,44 @@ app.post('/api/dify/dict-query', async (req, res) => {
     userId: cleanUserId,
   });
 
-  // 1. 本地历史成功缓存优先（0 毫秒秒开）：若已有深度解析记录，直接秒开返回
+  // 生词本仅作字段种子（Dify 补缺），绝不单独作为前台主展示
+  let vocabSeedPayload = null;
+  try {
+    const vocabRow = db.prepare(`
+      SELECT payload FROM vocabulary
+      WHERE user_id = ? AND word = ? COLLATE NOCASE AND payload IS NOT NULL
+      ORDER BY added_at DESC LIMIT 1
+    `).get(cleanUserId, cleanWord);
+    if (vocabRow?.payload) {
+      try {
+        const parsedVocab = JSON.parse(vocabRow.payload);
+        if (parsedVocab && (parsedVocab.meaning || parsedVocab.meaning_zh || parsedVocab.definition_en || parsedVocab.phonetic || parsedVocab.translation_main)) {
+          vocabSeedPayload = buildVocabSeedPayload(cleanWord, parsedVocab);
+        }
+      } catch (_) {}
+    }
+  } catch (vocabErr) {
+    console.warn('[Dict Query] 检索 vocabulary 库警告:', vocabErr.message);
+  }
+
+  const kickEnrichmentIfNeeded = (payload) => {
+    const needsEnrichment = !hasDifyEnrichmentPayload(payload);
+    if (needsEnrichment) {
+      runBackgroundDifyDictEnrichment({
+        cleanWord,
+        dictType,
+        direction: resolveDictDirection(dictType, direction, cleanWord),
+        userContext,
+        locale,
+        user_current_profile,
+        userId: cleanUserId,
+        cambridgePromise,
+      });
+    }
+    return needsEnrichment;
+  };
+
+  // 1. 本地词典历史缓存：仅当已有 Cambridge 可展示主体时秒开；瘦缓存则继续走 Cambridge 路径
   try {
     const cached = db.prepare(`
       SELECT response_payload, level FROM dict_query_log
@@ -5756,42 +5836,61 @@ app.post('/api/dify/dict-query', async (req, res) => {
         AND is_success = 1
         AND response_payload IS NOT NULL
       ORDER BY created_at DESC LIMIT 1
-    `).get(cleanWord, dictType, userId);
+    `).get(cleanWord, dictType, cleanUserId);
 
     if (cached?.response_payload) {
       try {
         const cachedResult = JSON.parse(cached.response_payload);
         if (cachedResult && (cachedResult.ok || cachedResult.payload)) {
-          console.log(`[Dict Query] 命中本地词典历史缓存: "${cleanWord}" (${dictType})`);
           if (!cachedResult.type) cachedResult.type = dictType;
-          if (cambridgePromise) {
-            const cambridge = await settleWithin(cambridgePromise, 3000);
-            if (cambridge) cachedResult.payload = mergeCambridgeWithDify(cambridge, cachedResult.payload || {});
+          let basePayload = cachedResult.payload || {};
+          // 生词本种子只补 Dify 类缺字段，不覆盖已有 Cambridge 主体
+          if (vocabSeedPayload) {
+            const fill = (key) => {
+              const cur = basePayload[key];
+              const seed = vocabSeedPayload[key];
+              if (Array.isArray(cur) && cur.length > 0) return cur;
+              if (Array.isArray(seed) && seed.length > 0) return seed;
+              if (typeof cur === 'string' && cur.trim()) return cur;
+              if (typeof seed === 'string' && seed.trim()) return seed;
+              return cur ?? seed;
+            };
+            basePayload = {
+              ...vocabSeedPayload,
+              ...basePayload,
+              synonyms: fill('synonyms'),
+              antonyms: fill('antonyms'),
+              collocations: fill('collocations'),
+              business_examples: fill('business_examples'),
+              etymology: fill('etymology'),
+            };
           }
-          cachedResult.payload = sanitizeDictPayloadForDisplay(cachedResult.payload || {});
-          const needsEnrichment = !hasDifyEnrichmentPayload(cachedResult.payload);
-          if (needsEnrichment) {
-            let resolvedDirection = direction || 'auto';
-            if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
-              resolvedDirection = /[\u4e00-\u9fa5]/.test(cleanWord) ? 'zh_to_en' : 'en_to_zh';
-            }
-            runBackgroundDifyDictEnrichment({
-              cleanWord,
-              dictType,
-              direction: resolvedDirection,
-              userContext,
-              locale,
-              user_current_profile,
-              userId: cleanUserId,
-              cambridgePromise,
+
+          if (cambridgePromise) {
+            const cambridge = await settleWithin(cambridgePromise, hasCambridgeDisplayPayload(basePayload) ? 3000 : 8000);
+            if (cambridge) basePayload = mergeCambridgeWithDify(cambridge, basePayload);
+          }
+
+          basePayload = sanitizeDictPayloadForDisplay(basePayload);
+          if (!basePayload.direction_resolved) {
+            basePayload.direction_resolved = resolveDictDirection(dictType, direction, cleanWord);
+          }
+          // 仍无 Cambridge 主体且本可抓 Cambridge：不返回瘦缓存，落入首查路径
+          if (useCambridge && !hasCambridgeDisplayPayload(basePayload)) {
+            console.log(`[Dict Query] 缓存过瘦，改走 Cambridge 秒开: "${cleanWord}"`);
+          } else {
+            console.log(`[Dict Query] 命中本地词典历史缓存: "${cleanWord}" (${dictType})`);
+            const needsEnrichment = kickEnrichmentIfNeeded(basePayload);
+            return res.json({
+              ...cachedResult,
+              ok: true,
+              type: dictType,
+              fromCache: true,
+              backgroundEnriching: needsEnrichment,
+              payload: basePayload,
+              inVocabulary: !!vocabSeedPayload,
             });
           }
-          return res.json({
-            ...cachedResult,
-            ok: true,
-            fromCache: true,
-            backgroundEnriching: needsEnrichment,
-          });
         }
       } catch (_) {}
     }
@@ -5799,81 +5898,9 @@ app.post('/api/dify/dict-query', async (req, res) => {
     console.warn('[Dict Query] 读取本地历史缓存警告:', cacheErr.message);
   }
 
-  // 2. 检查 vocabulary 生词库中是否已有该词条数据（二次秒开兜底）
-  try {
-    const vocabRow = db.prepare(`
-      SELECT payload FROM vocabulary
-      WHERE user_id = ? AND word = ? COLLATE NOCASE AND payload IS NOT NULL
-      ORDER BY added_at DESC LIMIT 1
-    `).get(userId, cleanWord);
-
-    if (vocabRow?.payload) {
-      try {
-        const p = JSON.parse(vocabRow.payload);
-        if (p && (p.meaning || p.meaning_zh || p.definition_en || p.phonetic)) {
-          const meaningZh = p.meaning || p.meaning_zh || p.zh_meaning || '';
-          const definitionEn = p.definition_en || p.definitionEn || '';
-          const examples = Array.isArray(p.examples) ? p.examples : [];
-          const pos = p.partOfSpeech || p.pos || '';
-          const phonetic = p.phonetic || '';
-
-          const vocabFallbackResult = {
-            ok: true,
-            type: dictType,
-            fromCache: true,
-            payload: {
-              headword: cleanWord,
-              phonetic: phonetic,
-              pos: pos,
-              level: p.level || 'B1',
-              meaning_zh: meaningZh,
-              translation_main: meaningZh,
-              definitions_en: definitionEn ? [definitionEn] : [],
-              definition: meaningZh || definitionEn,
-              business_notes: p.business_note || p.businessNote || '',
-              example_sentences: examples.map((ex) => (typeof ex === 'string' ? { en: ex, zh: '' } : ex)),
-            }
-          };
-          console.log(`[Dict Query] 命中本地 vocabulary 词库: "${cleanWord}"`);
-          if (cambridgePromise) {
-            const cambridge = await settleWithin(cambridgePromise, 3000);
-            if (cambridge) vocabFallbackResult.payload = mergeCambridgeWithDify(cambridge, vocabFallbackResult.payload);
-          }
-          vocabFallbackResult.payload = sanitizeDictPayloadForDisplay(vocabFallbackResult.payload);
-          const needsEnrichment = !hasDifyEnrichmentPayload(vocabFallbackResult.payload);
-          if (needsEnrichment) {
-            let resolvedDirection = direction || 'auto';
-            if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
-              resolvedDirection = /[\u4e00-\u9fa5]/.test(cleanWord) ? 'zh_to_en' : 'en_to_zh';
-            }
-            runBackgroundDifyDictEnrichment({
-              cleanWord,
-              dictType,
-              direction: resolvedDirection,
-              userContext,
-              locale,
-              user_current_profile,
-              userId: cleanUserId,
-              cambridgePromise,
-            });
-          }
-          return res.json({
-            ...vocabFallbackResult,
-            backgroundEnriching: needsEnrichment,
-          });
-        }
-      } catch (_) {}
-    }
-  } catch (vocabErr) {
-    console.warn('[Dict Query] 检索 vocabulary 库警告:', vocabErr.message);
-  }
-
-  // 3. 首次查询：立即返回基础释义，后台静默调用 Dify 补全深度解析
-  let resolvedDirection = direction || 'auto';
-  if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
-    resolvedDirection = /[\u4e00-\u9fa5]/.test(cleanWord) ? 'zh_to_en' : 'en_to_zh';
-  }
-  console.log(`[Dict Query] 首查秒回基础释义，后台增强: "${cleanWord}" (${dictType})`);
+  // 2. 首查 / 瘦缓存：Cambridge 秒开 + 生词本种子补缺；不再把 vocabulary 瘦数据直接返回给前台
+  const resolvedDirection = resolveDictDirection(dictType, direction, cleanWord);
+  console.log(`[Dict Query] Cambridge 秒开（生词本仅作种子）: "${cleanWord}" (${dictType})`);
   runBackgroundDifyDictEnrichment({
     cleanWord,
     dictType,
@@ -5881,20 +5908,27 @@ app.post('/api/dify/dict-query', async (req, res) => {
     userContext,
     locale,
     user_current_profile,
-    userId,
+    userId: cleanUserId,
     cambridgePromise,
   });
 
-  const cambridge = await settleWithin(cambridgePromise, 3000);
-  const instantPayload = buildInstantDictPayload(cleanWord, dictType);
+  const cambridge = await settleWithin(cambridgePromise, 8000);
+  let instantPayload = vocabSeedPayload
+    ? { ...buildInstantDictPayload(cleanWord, dictType), ...vocabSeedPayload }
+    : buildInstantDictPayload(cleanWord, dictType);
+  if (!instantPayload.direction_resolved) {
+    instantPayload.direction_resolved = resolvedDirection;
+  }
+  const payload = sanitizeDictPayloadForDisplay(
+    cambridge ? mergeCambridgeWithDify(cambridge, instantPayload) : instantPayload
+  );
   return res.json({
     ok: true,
     type: dictType,
     fromCache: false,
-    backgroundEnriching: true,
-    payload: sanitizeDictPayloadForDisplay(
-      cambridge ? mergeCambridgeWithDify(cambridge, instantPayload) : instantPayload
-    ),
+    backgroundEnriching: !hasDifyEnrichmentPayload(payload),
+    payload,
+    inVocabulary: !!vocabSeedPayload,
   });
 });
 

@@ -430,7 +430,17 @@ export function UtilityEnZhBidirectionalView({
     .filter((sent) => (typeof sent === 'string' ? sent.trim() : sent.en?.trim() || sent.zh?.trim()))
     .map((sent) => (typeof sent === 'string' ? { en: sent, zh: '' } : sent));
 
-  const isEnToZh = direction_resolved === 'en_to_zh';
+  // 缺 direction 时：含中文按汉→英，否则默认英→汉（避免英文词误标「汉 → 英」）
+  const isEnToZh = direction_resolved
+    ? direction_resolved === 'en_to_zh'
+    : !/[\u4e00-\u9fa5]/.test(String(query || ''));
+
+  const senseExamples = senses.flatMap((s) => s.examples || []).filter((ex) => ex?.en?.trim() || ex?.zh?.trim());
+  // 优先 senses 内例句；若无则回退顶层 example_sentences（生词本/瘦合并场景）
+  const displayExamples = senseExamples.length > 0
+    ? senseExamples
+    : validExamples.map((ex) => ({ en: ex.en || '', zh: ex.zh || '' }));
+
   const [showExt, setShowExt] = useState(false);
   const [showOther, setShowOther] = useState(false);
   const [showCambridge, setShowCambridge] = useState(false);
@@ -495,18 +505,17 @@ export function UtilityEnZhBidirectionalView({
         </FoldBlock>
       )}
 
-      {/* Only show examples from Cambridge senses, not business_examples */}
-      {senses.length > 0 && senses.some(s => s.examples?.length > 0) && (
+      {displayExamples.length > 0 && (
         <div>
           <SectionLabel>Cambridge 例句</SectionLabel>
           <div className="space-y-2">
-            {senses.flatMap(s => s.examples || []).map((example, idx) => (
+            {displayExamples.map((example, idx) => (
               <ExampleCard
                 key={idx}
                 index={idx + 1}
-                primary={example.en}
-                secondary={example.zh}
-                speak={example.en}
+                primary={example.en || ''}
+                secondary={example.zh || ''}
+                speak={example.en || ''}
               />
             ))}
           </div>
