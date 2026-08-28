@@ -212,6 +212,12 @@ function parseSense(block, fallbackWord) {
     if (/^(Add to word list|To top)$/i.test(line)) return true;
     // Skip lines that are just links or navigation
     if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) return true;
+    // Skip section headers like "Synonym", "Opposites", "Compare"
+    if (/^(Synonym|Opposites|Compare|Related word|Phrasal verb|See more)$/i.test(line)) return true;
+    // Skip single words (likely synonyms/antonyms in lists)
+    if (/^[a-z]+$/i.test(line) && line.length < 15) return true;
+    // Skip lines starting with "- " (related examples from other sections)
+    if (/^- /.test(line)) return true;
     return false;
   };
 
