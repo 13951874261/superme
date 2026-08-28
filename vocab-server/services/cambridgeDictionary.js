@@ -206,7 +206,7 @@ function parseSense(block, fallbackWord) {
     // Skip metadata lines
     if (/^(uk|us)$/i.test(line)) return true;
     if (/^your browser doesn't support html5 audio$/i.test(line)) return true;
-    if (/^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\/(?:us|uk)?$/.test(line)) return true; // Phonetic
+    if (/^\/.*\/(?:us|uk)?$/.test(line)) return true; // Phonetic
     if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) return true; // CEFR levels
     if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) return true; // POS
     if (/^(Add to word list|To top)$/i.test(line)) return true;
