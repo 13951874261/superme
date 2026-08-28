@@ -5398,6 +5398,19 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
 });
 
 // 辅助构建即时词典预览卡片数据（零等待秒级直出）
+function hasDifyEnrichmentPayload(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  const list = (v) => Array.isArray(v) && v.length > 0;
+  const text = (v) => typeof v === 'string' && v.trim().length > 0;
+  return (
+    list(payload.synonyms)
+    || list(payload.antonyms)
+    || list(payload.collocations)
+    || list(payload.business_examples)
+    || text(payload.etymology)
+  );
+}
+
 function sanitizeDictPayloadForDisplay(payload) {
   if (!payload || typeof payload !== 'object') return payload;
   const headword = payload.headword || '';
@@ -5694,7 +5707,29 @@ app.post('/api/dify/dict-query', async (req, res) => {
             if (cambridge) cachedResult.payload = mergeCambridgeWithDify(cambridge, cachedResult.payload || {});
           }
           cachedResult.payload = sanitizeDictPayloadForDisplay(cachedResult.payload || {});
-          return res.json({ ...cachedResult, ok: true, fromCache: true });
+          const needsEnrichment = !hasDifyEnrichmentPayload(cachedResult.payload);
+          if (needsEnrichment) {
+            let resolvedDirection = direction || 'auto';
+            if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
+              resolvedDirection = /[\u4e00-\u9fa5]/.test(cleanWord) ? 'zh_to_en' : 'en_to_zh';
+            }
+            runBackgroundDifyDictEnrichment({
+              cleanWord,
+              dictType,
+              direction: resolvedDirection,
+              userContext,
+              locale,
+              user_current_profile,
+              userId: cleanUserId,
+              cambridgePromise,
+            });
+          }
+          return res.json({
+            ...cachedResult,
+            ok: true,
+            fromCache: true,
+            backgroundEnriching: needsEnrichment,
+          });
         }
       } catch (_) {}
     }

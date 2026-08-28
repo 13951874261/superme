@@ -523,11 +523,31 @@ export function UtilityEnZhBidirectionalView({
         </FoldBlock>
       )}
 
+      {validBusiness.length > 0 && (
+        <div>
+          <SectionLabel>商务例句</SectionLabel>
+          <div className="space-y-2">
+            {validBusiness.map((ex, idx) => (
+              <ExampleCard
+                key={idx}
+                index={idx + 1}
+                primary={ex.en || ''}
+                secondary={[ex.scene, ex.zh].filter(Boolean).join(' · ')}
+                speak={ex.en || ''}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {other_meanings.length > 0 && (
         <FoldBlock title="其他释义" count={other_meanings.length} open={showOther} onToggle={() => setShowOther((v) => !v)}>
           {other_meanings.map((item, idx) => (
             <div key={idx} className="text-xs">
-              <div className="font-semibold text-stone-800">{item.meaning}</div>
+              <div className="font-semibold text-stone-800">
+                {(item as { pos?: string }).pos ? `${(item as { pos?: string }).pos} · ` : ''}
+                {item.meaning}
+              </div>
               {item.context && <div className="text-stone-500 mt-0.5 leading-relaxed">{item.context}</div>}
             </div>
           ))}
@@ -551,20 +571,22 @@ export function UtilityEnZhBidirectionalView({
         </div>
       )}
 
-      <FoldBlock title="搭配与词源" count={extCount} open={showExt} onToggle={() => setShowExt((v) => !v)}>
-        {collocations.length > 0 && (
-          <div>
-            <div className="text-[10px] font-semibold text-stone-500 mb-1">常用搭配</div>
-            <TagCloud items={collocations} tone="neutral" />
-          </div>
-        )}
-        {etymology?.trim() && (
-          <div>
-            <div className="text-[10px] font-semibold text-stone-500 mb-1">词源</div>
-            <div className="text-xs text-stone-600 leading-relaxed">{etymology}</div>
-          </div>
-        )}
-      </FoldBlock>
+      {extCount > 0 && (
+        <FoldBlock title="搭配与词源" count={extCount} open={showExt} onToggle={() => setShowExt((v) => !v)}>
+          {collocations.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold text-stone-500 mb-1">常用搭配</div>
+              <TagCloud items={collocations} tone="neutral" />
+            </div>
+          )}
+          {etymology?.trim() && (
+            <div>
+              <div className="text-[10px] font-semibold text-stone-500 mb-1">词源</div>
+              <div className="text-xs text-stone-600 leading-relaxed">{etymology}</div>
+            </div>
+          )}
+        </FoldBlock>
+      )}
     </div>
   );
 }

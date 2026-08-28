@@ -5,7 +5,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 
 gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
-import { lookupVocabWords, queryDictionary } from '../services/vocabAPI';
+import { lookupVocabWords, queryDictionaryWithEnrichmentPoll } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
@@ -809,6 +809,7 @@ export default function DictionaryPanel() {
   const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
+  const searchAbortRef = useRef<AbortController | null>(null);
 
   const wordKey = query.trim();
   const collecting = wordKey ? isCollecting(wordKey) : false;
@@ -865,15 +866,34 @@ export default function DictionaryPanel() {
   const handleSearch = async (type: DictType) => {
     if (!query.trim()) return;
     setIsLoading(true); setResult(null); setActiveTab(''); setSaveError(false); setMarkedSaved(false);
+    searchAbortRef.current?.abort();
+    const ac = new AbortController();
+    searchAbortRef.current = ac;
     try {
-      const parsed = await queryDictionary({ word: query.trim(), dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '' });
-      setResult(parsed);
-      const firstKey = Object.keys(parsed?.payload || {})[0];
-      if (firstKey) setActiveTab(firstKey);
+      const parsed = await queryDictionaryWithEnrichmentPoll(
+        { word: query.trim(), dictType: type, direction: 'auto', locale: 'zh-CN', userContext: '' },
+        {
+          signal: ac.signal,
+          onUpdate: (partial) => {
+            if (ac.signal.aborted) return;
+            setResult(partial);
+            const firstKey = Object.keys(partial?.payload || {})[0];
+            if (firstKey) setActiveTab(firstKey);
+            setIsLoading(false);
+          },
+        }
+      );
+      if (!ac.signal.aborted) {
+        setResult(parsed);
+        const firstKey = Object.keys(parsed?.payload || {})[0];
+        if (firstKey) setActiveTab(firstKey);
+      }
     } catch (err: any) {
-      setResult({ ok: false, message: err.message || '网络请求异常' });
+      if (!ac.signal.aborted) {
+        setResult({ ok: false, message: err.message || '网络请求异常' });
+      }
     } finally {
-      setIsLoading(false);
+      if (!ac.signal.aborted) setIsLoading(false);
     }
   };
 

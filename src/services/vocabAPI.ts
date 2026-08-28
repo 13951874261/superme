@@ -164,6 +164,23 @@ export interface DictResult {
   payload?: DictPayload;
   error_code?: string;
   message?: string;
+  fromCache?: boolean;
+  backgroundEnriching?: boolean;
+}
+
+/** Dify enrichment fields (synonyms / antonyms / collocations / etymology / business_examples) */
+export function hasDifyEnrichmentFields(payload: DictPayload | Record<string, unknown> | null | undefined): boolean {
+  if (!payload || typeof payload !== 'object') return false;
+  const p = payload as Record<string, unknown>;
+  const list = (v: unknown) => Array.isArray(v) && v.length > 0;
+  const text = (v: unknown) => typeof v === 'string' && v.trim().length > 0;
+  return (
+    list(p.synonyms)
+    || list(p.antonyms)
+    || list(p.collocations)
+    || list(p.business_examples)
+    || text(p.etymology)
+  );
 }
 
 
@@ -462,11 +479,54 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
       throw new Error(data?.message || `HTTP ${res.status}`);
     }
     interceptOutputText(data);
-    return data;
+    return data as DictResult;
   } catch (err: any) {
     console.error('[vocabAPI] queryDictionary exception:', err);
     throw err;
   }
+}
+
+/**
+ * 首响可能是 Cambridge 秒开（backgroundEnriching=true），Dify 同义/搭配等在后台写入。
+ * 轮询直到 enrichment 字段出现或超时；每次成功结果都会 callback，便于 UI 渐进刷新。
+ */
+export async function queryDictionaryWithEnrichmentPoll(
+  params: DictQueryParams,
+  options?: {
+    onUpdate?: (result: DictResult) => void;
+    maxAttempts?: number;
+    intervalMs?: number;
+    signal?: AbortSignal;
+  }
+): Promise<DictResult> {
+  const maxAttempts = options?.maxAttempts ?? 8;
+  const intervalMs = options?.intervalMs ?? 2000;
+  let latest = await queryDictionary(params);
+  options?.onUpdate?.(latest);
+
+  // 仅当首响明确标记后台增强中，才轮询等待 Dify 字段
+  if (!latest?.ok || !latest.backgroundEnriching || hasDifyEnrichmentFields(latest.payload)) {
+    return latest;
+  }
+
+  for (let i = 0; i < maxAttempts; i += 1) {
+    if (options?.signal?.aborted) break;
+    await new Promise((r) => setTimeout(r, intervalMs));
+    if (options?.signal?.aborted) break;
+    try {
+      const next = await queryDictionary(params);
+      if (!next?.ok) continue;
+      latest = next;
+      options?.onUpdate?.(next);
+      // 只要 enrichment 字段出现就结束；缓存命中但字段仍空则继续等 Dify 写入
+      if (hasDifyEnrichmentFields(next.payload)) {
+        return next;
+      }
+    } catch {
+      // keep polling
+    }
+  }
+  return latest;
 }
 
 // --- 新增记忆辅助与遗忘曲线相关类型 ---
