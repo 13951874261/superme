@@ -221,16 +221,41 @@ function parseSense(block, fallbackWord) {
     return false;
   };
 
-  // Extract examples - stop at section headers or metadata
+  // Extract examples - include both inline examples and ## Examples section
   const examples = [];
   let stopCollecting = false;
+  let inExamplesSection = false;
   for (const line of lines.slice(exampleStart)) {
-    if (stopCollecting) break;
-    if (/^(Synonym|Opposites|Compare)$/i.test(line)) {
+    // Stop at Idioms section
+    if (/^###\s*\*?\s*idioms\s*\*?$/i.test(line)) { stopCollecting = true; continue; }
+    // Handle ## sections
+    if (/^##/.test(line)) {
+      if (/^##\s+Examples/i.test(line)) { inExamplesSection = true; continue; }
       stopCollecting = true;
       continue;
     }
-    if (isNonExampleLine(line)) continue;
+    // Stop at ### sections (except inside ## Examples where we already handled)
+    if (/^###/.test(line)) { stopCollecting = true; continue; }
+    if (stopCollecting) continue;
+    // Stop at Synonym/Opposites/Compare headers (inline section markers)
+    if (/^(Synonym|Opposites|Compare)$/i.test(line)) { stopCollecting = true; continue; }
+    // Skip metadata lines
+    if (/^(uk|us)$/i.test(line)) continue;
+    if (/^your browser doesn't support html5 audio$/i.test(line)) continue;
+    if (/^\/.*\/(?:us|uk)?$/.test(line)) continue; // Phonetic
+    if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) continue; // CEFR levels
+    if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) continue; // POS
+    if (/^(Add to word list|To top)$/i.test(line)) continue;
+    // Skip lines that are just links or navigation
+    if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) continue;
+    // Skip section headers like "Synonym", "Opposites", "Compare"
+    if (/^(Synonym|Opposites|Compare|Related word|Phrasal verb|See more)$/i.test(line)) continue;
+    // Skip single words (likely synonyms/antonyms in lists)
+    if (/^[a-z]+$/i.test(line) && line.length < 15) continue;
+    // Skip lines starting with "- " (related examples from other sections)
+    if (/^- /.test(line)) continue;
+    // Skip corpus attribution lines
+    if (/^From the Cambridge English Corpus$/i.test(line)) continue;
     if (!/[A-Za-z]/.test(line)) continue;
     const item = splitEnglishChinese(line);
     if (item.en) examples.push(item);
@@ -260,8 +285,8 @@ function parseSense(block, fallbackWord) {
  * Handles both structured (### headings) and flat structures
  */
 function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
-  // Keep full markdown - don't truncate at Examples section
-  const sourceText = String(markdown || '');
+  // Remove everything after Examples section
+  const sourceText = String(markdown || '').split(/^## Examples of\b/im)[0];
   
   // Find all ### headings
   const headingPattern = /^###\s+(.+)$/gm;
@@ -359,11 +384,7 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
       (item) => normalizeComparable(`${item.meaning}\0${item.context}`)
     ),
     example_sentences: unique(
-      [
-        ...senses.flatMap((sense) => sense.examples),
-        // Also collect examples from ## Examples of [word] section
-        ...(extractExamplesFromSection(sourceText, word) || []),
-      ].filter(e => e.en && !/from the cambridge english corpus/i.test(e.en)),
+      senses.flatMap((sense) => sense.examples),
       (item) => normalizeComparable(`${item.en}\0${item.zh}`)
     ),
     idioms,
@@ -374,49 +395,6 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     source_url: sourceUrl || `${CAMBRIDGE_BASE}/${encodeURIComponent(String(word || '').toLowerCase())}`,
     copyright: copyrightMatch?.[2] || '© Cambridge University Press',
   };
-}
-
-function extractExamplesFromSection(sourceText, word) {
-  const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Match ## Examples of [word] with optional bold markers and optional extra newlines
-  const pattern = new RegExp(`^## Examples of \\*\\*?${escapedWord}\\*\\*?\\s*\\n+([\\s\\S]*?)(?=\\n##|\\Z)`, 'im');
-  const examplesMatch = sourceText.match(pattern);
-  if (!examplesMatch) return [];
-  
-  const lines = examplesMatch[1].split('\n').map(l => cleanMarkdown(l.trim())).filter(Boolean);
-  const examples = [];
-  let inExample = false;
-  let currentExample = '';
-  
-  for (const line of lines) {
-    // Skip "From the Cambridge English Corpus" lines
-    if (/from the cambridge english corpus/i.test(line)) continue;
-    // Skip empty lines or separator lines
-    if (!line || /^[-*_]$/i.test(line)) {
-      if (inExample && currentExample) {
-        const item = splitEnglishChinese(currentExample);
-        if (item.en) examples.push(item);
-        currentExample = '';
-        inExample = false;
-      }
-      continue;
-    }
-    // Start new example if previous one ended
-    if (inExample && currentExample) {
-      const item = splitEnglishChinese(currentExample);
-      if (item.en) examples.push(item);
-    }
-    currentExample = line;
-    inExample = true;
-  }
-  
-  // Push last example
-  if (inExample && currentExample) {
-    const item = splitEnglishChinese(currentExample);
-    if (item.en) examples.push(item);
-  }
-  
-  return examples;
 }
 
 function mergeCambridgeWithDify(cambridge, dify = {}) {
