@@ -378,7 +378,8 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
 
 function extractExamplesFromSection(sourceText, word) {
   const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const pattern = new RegExp(`^## Examples of \\*\\*?${escapedWord}\\*\\*?\\s*\\n([\\s\\S]*?)(?=\\n##|\\Z)`, 'im');
+  // Match ## Examples of [word] with optional bold markers and optional extra newlines
+  const pattern = new RegExp(`^## Examples of \\*\\*?${escapedWord}\\*\\*?\\s*\\n+([\\s\\S]*?)(?=\\n##|\\Z)`, 'im');
   const examplesMatch = sourceText.match(pattern);
   if (!examplesMatch) return [];
   
