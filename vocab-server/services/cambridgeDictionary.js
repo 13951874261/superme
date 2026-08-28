@@ -520,13 +520,12 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
       [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
       (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
     ),
-    // 搭配：Cambridge 真实段落 + Dify 工作流；剔除 instant 模板假数据
+    // 搭配 / 同义 / 反义：仅 Dify 工作流（剔除 instant 模板假数据）
     collocations: unique(
-      [...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])]
-        .filter((item) => !isInstantTemplateCollocation(item, cambridge.headword || dify.headword)),
+      (Array.isArray(dify.collocations) ? dify.collocations : [])
+        .filter((item) => item && !isInstantTemplateCollocation(item, cambridge.headword || dify.headword)),
       (item) => normalizeComparable(item)
     ),
-    // 同/反义词：优先 Dify 工作流（Cambridge markdown 通常无此字段）
     synonyms: unique(
       (Array.isArray(dify.synonyms) ? dify.synonyms : []).filter(Boolean),
       (item) => normalizeComparable(item)
@@ -542,6 +541,14 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
   };
   for (const key of Object.keys(merged)) {
     if (['cambridge_raw', 'dify_raw', 'field_sources'].includes(key)) continue;
+    if (['collocations', 'synonyms', 'antonyms'].includes(key)) {
+      merged.field_sources[key] = 'dify';
+      continue;
+    }
+    if (key === 'example_sentences') {
+      merged.field_sources[key] = 'cambridge';
+      continue;
+    }
     merged.field_sources[key] = Object.prototype.hasOwnProperty.call(cambridgeValues, key) ? 'cambridge' : 'dify';
   }
   return merged;

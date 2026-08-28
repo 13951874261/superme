@@ -198,6 +198,8 @@ assert.strictEqual(merged.dify_raw.translation_main, 'Dify 释义');
 assert.strictEqual(merged.field_sources.phonetic, 'cambridge');
 assert.strictEqual(merged.field_sources.synonyms, 'dify');
 assert.strictEqual(merged.field_sources.antonyms, 'dify');
+assert.strictEqual(merged.field_sources.collocations, 'dify');
+assert.strictEqual(merged.field_sources.example_sentences, 'cambridge');
 const emptyCambridgeMerged = mergeCambridgeWithDify({ ...cambridge, phonetic: '', level: '' }, { phonetic: '/dɪfi/', level: 'B2' });
 assert.strictEqual(emptyCambridgeMerged.phonetic, '/dɪfi/');
 assert.strictEqual(emptyCambridgeMerged.level, 'B2');
@@ -488,5 +490,14 @@ assert.ok(!mergedClean.collocations.includes('demonstrate strategy'));
 assert.ok(mergedClean.collocations.includes('clearly demonstrate'));
 assert.deepStrictEqual(mergedClean.synonyms, ['show', 'prove']);
 assert.deepStrictEqual(mergedClean.antonyms, ['hide']);
+assert.strictEqual(mergedClean.field_sources.collocations, 'dify');
+assert.strictEqual(mergedClean.field_sources.example_sentences, 'cambridge');
+// 搭配仅 Dify：Cambridge 自带搭配不应进入合并结果
+const cambridgeOnlyColloc = mergeCambridgeWithDify(
+  { ...corpusLevelList, collocations: ['cambridge only colloc'] },
+  { headword: 'demonstrate', collocations: [], synonyms: [], antonyms: [] }
+);
+assert.ok(!cambridgeOnlyColloc.collocations.includes('cambridge only colloc'));
+assert.deepStrictEqual(cambridgeOnlyColloc.collocations, []);
 
 console.log('cambridge dictionary tests passed');
