@@ -499,8 +499,9 @@ export async function queryDictionaryWithEnrichmentPoll(
     signal?: AbortSignal;
   }
 ): Promise<DictResult> {
-  const maxAttempts = options?.maxAttempts ?? 8;
-  const intervalMs = options?.intervalMs ?? 2000;
+  // Dify 增强有队列+限流，常需 30–90s；过短轮询会误以为“没有返回”
+  const maxAttempts = options?.maxAttempts ?? 24;
+  const intervalMs = options?.intervalMs ?? 3000;
   let latest = await queryDictionary(params);
   options?.onUpdate?.(latest);
 

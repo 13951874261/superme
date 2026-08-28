@@ -5466,17 +5466,72 @@ function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
   };
 }
 
-// 后台异步静默深度增强：调用 Dify SSE 工作流，解析完成后沉淀写入 SQLite
-function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userContext, locale, user_current_profile, userId, cambridgePromise = null }) {
+// 后台异步静默深度增强：同词去重 + 有限并发，避免轮询/划词风暴把 Dify 请求全部 abort
+const dictEnrichmentInFlight = new Map();
+const dictEnrichmentQueue = [];
+let dictEnrichmentActive = 0;
+const DICT_ENRICHMENT_MAX_CONCURRENT = 2;
+const DICT_ENRICHMENT_TIMEOUT_MS = 180000;
+
+function enqueueDictEnrichment(task) {
+  return new Promise((resolve) => {
+    const run = async () => {
+      dictEnrichmentActive += 1;
+      try {
+        resolve(await task());
+      } catch (_) {
+        resolve(undefined);
+      } finally {
+        dictEnrichmentActive -= 1;
+        const next = dictEnrichmentQueue.shift();
+        if (next) next();
+      }
+    };
+    if (dictEnrichmentActive < DICT_ENRICHMENT_MAX_CONCURRENT) run();
+    else dictEnrichmentQueue.push(run);
+  });
+}
+
+function shouldSkipDictEnrichmentInput(cleanWord) {
+  const w = String(cleanWord || '').trim();
+  if (!w) return true;
+  // 划词整句会淹没词典增强队列；只增强单词或短词组
+  if (w.length > 48) return true;
+  if (w.split(/\s+/).filter(Boolean).length > 3) return true;
+  return false;
+}
+
+function runBackgroundDifyDictEnrichment(args) {
   const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
   if (!DIFY_DICT_API_KEY) return;
-  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  const cleanWord = String(args.cleanWord || '').trim();
+  if (shouldSkipDictEnrichmentInput(cleanWord)) {
+    console.log(`[Dict Background] 跳过非词条输入: "${cleanWord.slice(0, 60)}"`);
+    return;
+  }
+  const dictType = args.dictType || 'en_zh_bidirectional';
+  const userId = args.userId || '';
+  const key = `${userId}::${dictType}::${cleanWord.toLowerCase()}`;
+  if (dictEnrichmentInFlight.has(key)) {
+    console.log(`[Dict Background] 已有进行中任务，跳过重复: "${cleanWord}"`);
+    return dictEnrichmentInFlight.get(key);
+  }
+  const job = enqueueDictEnrichment(() => runBackgroundDifyDictEnrichmentJob({ ...args, cleanWord, dictType }))
+    .finally(() => {
+      dictEnrichmentInFlight.delete(key);
+    });
+  dictEnrichmentInFlight.set(key, job);
+  return job;
+}
 
-  (async () => {
-    try {
+async function runBackgroundDifyDictEnrichmentJob({ cleanWord, dictType, direction, userContext, locale, user_current_profile, userId, cambridgePromise = null }) {
+  const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
+  const BASE_URL = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+  let timeoutId = null;
+  try {
       console.log(`[Dict Background] 开始静默深度分析: "${cleanWord}" (${dictType})...`);
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 120000);
+      timeoutId = setTimeout(() => controller.abort(), DICT_ENRICHMENT_TIMEOUT_MS);
 
       const response = await fetch(`${BASE_URL}/workflows/run`, {
         method: 'POST',
@@ -5612,10 +5667,11 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
 
         console.log(`[Dict Background] 深度职场解析完成并沉淀入库: "${cleanWord}" (${dictType})`);
       }
-    } catch (bgErr) {
-      console.warn(`[Dict Background] 异步增强异常 (${cleanWord}):`, bgErr.message);
-    }
-  })().catch(() => {});
+  } catch (bgErr) {
+    console.warn(`[Dict Background] 异步增强异常 (${cleanWord}):`, bgErr.message);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 }
 
 function settleWithin(promise, timeoutMs) {
@@ -5626,6 +5682,7 @@ function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, us
   if (!promise) return;
   promise.then((cambridge) => {
     if (!cambridge) return;
+    // 写入前再读最新缓存，避免慢速 Cambridge 覆盖已完成的 Dify 增强结果
     let difyPayload = buildInstantDictPayload(cleanWord, dictType);
     const latest = db.prepare(`
       SELECT response_payload FROM dict_query_log
@@ -5641,6 +5698,11 @@ function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, us
       type: dictType,
       payload: sanitizeDictPayloadForDisplay(mergeCambridgeWithDify(cambridge, difyPayload)),
     };
+    // 若最新已有 Dify 字段且本次合并后丢失，则放弃写入（防竞态覆盖）
+    if (hasDifyEnrichmentPayload(difyPayload) && !hasDifyEnrichmentPayload(result.payload)) {
+      console.warn(`[Dict Query] Cambridge 持久化跳过，避免覆盖 Dify 增强 (${cleanWord})`);
+      return;
+    }
     db.prepare(`
       INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at, user_id)
       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
@@ -5778,7 +5840,27 @@ app.post('/api/dify/dict-query', async (req, res) => {
             if (cambridge) vocabFallbackResult.payload = mergeCambridgeWithDify(cambridge, vocabFallbackResult.payload);
           }
           vocabFallbackResult.payload = sanitizeDictPayloadForDisplay(vocabFallbackResult.payload);
-          return res.json(vocabFallbackResult);
+          const needsEnrichment = !hasDifyEnrichmentPayload(vocabFallbackResult.payload);
+          if (needsEnrichment) {
+            let resolvedDirection = direction || 'auto';
+            if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
+              resolvedDirection = /[\u4e00-\u9fa5]/.test(cleanWord) ? 'zh_to_en' : 'en_to_zh';
+            }
+            runBackgroundDifyDictEnrichment({
+              cleanWord,
+              dictType,
+              direction: resolvedDirection,
+              userContext,
+              locale,
+              user_current_profile,
+              userId: cleanUserId,
+              cambridgePromise,
+            });
+          }
+          return res.json({
+            ...vocabFallbackResult,
+            backgroundEnriching: needsEnrichment,
+          });
         }
       } catch (_) {}
     }
