@@ -5417,48 +5417,39 @@ function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
   const clean = String(word || '').trim();
   const isChinese = /[\u4e00-\u9fa5]/.test(clean);
 
+  // 秒开仅返回骨架：搭配/同反义/例句等 enrichment 等 Dify 或 Cambridge 真实数据，禁止模板假数据
   if (dictType === 'zh_modern' || isChinese) {
     return {
       headword: clean,
       phonetic: '',
-      pos: '书面语/通用',
-      level: '通用',
-      definition: `${clean}：现代书面语词条`,
-      meaning_zh: `${clean}`,
-      translation_main: `${clean}`,
-      example_sentences: [
-        `在职场与商务交流中，精准运用「${clean}」能够提升表达的专业度与逻辑性。`,
-        `关于${clean}的深层语境分析与用法正在后台实时同步中。`
-      ],
+      pos: '',
+      level: '',
+      definition: '',
+      meaning_zh: '',
+      translation_main: '',
+      example_sentences: [],
       collocations: [],
-      usage_notes: '标准书面语表达。后台大模型正在深度解析更多职场例句与辨析...',
+      synonyms: [],
+      antonyms: [],
+      usage_notes: '',
     };
   }
 
-  // 英文词条基础字段
   return {
     headword: clean,
-    phonetic: `/${clean.toLowerCase()}/`,
-    pos: 'n. / v.',
-    level: 'B1 / B2',
-    translation_main: `${clean}`,
-    meaning_zh: `${clean}`,
-    definitions_en: [`The term "${clean}" in modern professional and daily usage.`],
-    definition: `${clean}`,
-    business_notes: 'AI 大模型已在后台为您开启深度职场黑话穿透解析，本次优先为您即时呈现基础释义。',
-    example_sentences: [
-      {
-        en: `We need to focus on "${clean}" to optimize our overall strategy.`,
-        zh: `我们需要聚焦于「${clean}」以优化我们的整体战略。`
-      },
-      {
-        en: `Understanding the practical nuances of "${clean}" is crucial in high-stakes discussions.`,
-        zh: `在高管会议与商务拉扯中，理解「${clean}」的实战细节至关重要。`
-      }
-    ],
+    phonetic: '',
+    pos: '',
+    level: '',
+    translation_main: '',
+    meaning_zh: '',
+    definitions_en: [],
+    definition: '',
+    business_notes: '',
+    example_sentences: [],
     collocations: [],
     synonyms: [],
-    antonyms: []
+    antonyms: [],
+    etymology: '',
   };
 }
 

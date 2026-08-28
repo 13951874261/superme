@@ -520,9 +520,19 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
       [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
       (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
     ),
+    // 搭配：Cambridge 真实段落 + Dify 工作流；剔除 instant 模板假数据
     collocations: unique(
       [...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])]
         .filter((item) => !isInstantTemplateCollocation(item, cambridge.headword || dify.headword)),
+      (item) => normalizeComparable(item)
+    ),
+    // 同/反义词：优先 Dify 工作流（Cambridge markdown 通常无此字段）
+    synonyms: unique(
+      (Array.isArray(dify.synonyms) ? dify.synonyms : []).filter(Boolean),
+      (item) => normalizeComparable(item)
+    ),
+    antonyms: unique(
+      (Array.isArray(dify.antonyms) ? dify.antonyms : []).filter(Boolean),
       (item) => normalizeComparable(item)
     ),
     idioms: cambridge.idioms || [],

@@ -190,11 +190,14 @@ assert.strictEqual(merged.other_meanings.filter((item) => item.meaning === '（�
 assert.strictEqual(merged.translation_main, '（某地的）气氛，氛围');
 assert.ok(merged.other_meanings.some((item) => item.meaning === 'Dify 其他义项'));
 assert.deepStrictEqual(merged.synonyms, ['atmosphere']);
+assert.deepStrictEqual(merged.antonyms, ['tension']);
+assert.ok(merged.collocations.includes('team vibe'));
 assert.strictEqual(merged.business_note, '团队文化语境。');
 assert.strictEqual(merged.cambridge_raw.senses.length, 2);
 assert.strictEqual(merged.dify_raw.translation_main, 'Dify 释义');
 assert.strictEqual(merged.field_sources.phonetic, 'cambridge');
 assert.strictEqual(merged.field_sources.synonyms, 'dify');
+assert.strictEqual(merged.field_sources.antonyms, 'dify');
 const emptyCambridgeMerged = mergeCambridgeWithDify({ ...cambridge, phonetic: '', level: '' }, { phonetic: '/dɪfi/', level: 'B2' });
 assert.strictEqual(emptyCambridgeMerged.phonetic, '/dɪfi/');
 assert.strictEqual(emptyCambridgeMerged.level, 'B2');
@@ -475,11 +478,15 @@ assert.strictEqual(dirtySanitized[0].en, 'She demonstrated the product.');
 
 const mergedClean = mergeCambridgeWithDify(corpusLevelList, {
   headword: 'demonstrate',
+  synonyms: ['show', 'prove'],
+  antonyms: ['hide'],
   collocations: ['key demonstrate', 'apply demonstrate', 'demonstrate strategy', 'clearly demonstrate'],
 });
 assert.ok(!mergedClean.collocations.includes('key demonstrate'));
 assert.ok(!mergedClean.collocations.includes('apply demonstrate'));
 assert.ok(!mergedClean.collocations.includes('demonstrate strategy'));
 assert.ok(mergedClean.collocations.includes('clearly demonstrate'));
+assert.deepStrictEqual(mergedClean.synonyms, ['show', 'prove']);
+assert.deepStrictEqual(mergedClean.antonyms, ['hide']);
 
 console.log('cambridge dictionary tests passed');
