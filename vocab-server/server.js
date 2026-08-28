@@ -9,6 +9,8 @@ const {
   isSingleEnglishWord,
   fetchCambridgeEntry,
   mergeCambridgeWithDify,
+  sanitizeExampleSentences,
+  isInstantTemplateCollocation,
 } = require('./services/cambridgeDictionary');
 
 const multer = require('multer');
@@ -5396,6 +5398,21 @@ app.post('/api/dify/mychat/chat', async (req, res) => {
 });
 
 // 辅助构建即时词典预览卡片数据（零等待秒级直出）
+function sanitizeDictPayloadForDisplay(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  const headword = payload.headword || '';
+  const next = { ...payload };
+  if (Array.isArray(next.example_sentences)) {
+    next.example_sentences = sanitizeExampleSentences(next.example_sentences);
+  }
+  if (Array.isArray(next.collocations)) {
+    next.collocations = next.collocations.filter(
+      (item) => !isInstantTemplateCollocation(item, headword)
+    );
+  }
+  return next;
+}
+
 function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
   const clean = String(word || '').trim();
   const isChinese = /[\u4e00-\u9fa5]/.test(clean);
@@ -5413,7 +5430,7 @@ function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
         `在职场与商务交流中，精准运用「${clean}」能够提升表达的专业度与逻辑性。`,
         `关于${clean}的深层语境分析与用法正在后台实时同步中。`
       ],
-      collocations: [`深度${clean}`, `理解${clean}`],
+      collocations: [],
       usage_notes: '标准书面语表达。后台大模型正在深度解析更多职场例句与辨析...',
     };
   }
@@ -5439,7 +5456,7 @@ function buildInstantDictPayload(word, dictType = 'en_zh_bidirectional') {
         zh: `在高管会议与商务拉扯中，理解「${clean}」的实战细节至关重要。`
       }
     ],
-    collocations: [`key ${clean}`, `apply ${clean}`, `${clean} strategy`],
+    collocations: [],
     synonyms: [],
     antonyms: []
   };
@@ -5579,6 +5596,7 @@ function runBackgroundDifyDictEnrichment({ cleanWord, dictType, direction, userC
         }
         parsedResult.ok = true;
         parsedResult.type = dictType;
+        parsedResult.payload = sanitizeDictPayloadForDisplay(parsedResult.payload);
 
         const rawLevel = parsedResult?.payload?.level || parsedResult?.level || null;
         const level = typeof rawLevel === 'string' && rawLevel.trim() ? rawLevel.trim() : null;
@@ -5614,7 +5632,11 @@ function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, us
       const parsed = latest?.response_payload ? JSON.parse(latest.response_payload) : null;
       if (parsed?.payload) difyPayload = parsed.payload;
     } catch (_) {}
-    const result = { ok: true, type: dictType, payload: mergeCambridgeWithDify(cambridge, difyPayload) };
+    const result = {
+      ok: true,
+      type: dictType,
+      payload: sanitizeDictPayloadForDisplay(mergeCambridgeWithDify(cambridge, difyPayload)),
+    };
     db.prepare(`
       INSERT INTO dict_query_log (id, word, dict_type, direction, user_context, locale, is_success, response_payload, level, created_at, user_id)
       VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
@@ -5680,6 +5702,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
             const cambridge = await settleWithin(cambridgePromise, 3000);
             if (cambridge) cachedResult.payload = mergeCambridgeWithDify(cambridge, cachedResult.payload || {});
           }
+          cachedResult.payload = sanitizeDictPayloadForDisplay(cachedResult.payload || {});
           return res.json({ ...cachedResult, ok: true, fromCache: true });
         }
       } catch (_) {}
@@ -5728,6 +5751,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
             const cambridge = await settleWithin(cambridgePromise, 3000);
             if (cambridge) vocabFallbackResult.payload = mergeCambridgeWithDify(cambridge, vocabFallbackResult.payload);
           }
+          vocabFallbackResult.payload = sanitizeDictPayloadForDisplay(vocabFallbackResult.payload);
           return res.json(vocabFallbackResult);
         }
       } catch (_) {}
@@ -5760,7 +5784,9 @@ app.post('/api/dify/dict-query', async (req, res) => {
     type: dictType,
     fromCache: false,
     backgroundEnriching: true,
-    payload: cambridge ? mergeCambridgeWithDify(cambridge, instantPayload) : instantPayload,
+    payload: sanitizeDictPayloadForDisplay(
+      cambridge ? mergeCambridgeWithDify(cambridge, instantPayload) : instantPayload
+    ),
   });
 });
 

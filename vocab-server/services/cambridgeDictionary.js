@@ -55,6 +55,42 @@ function isPhoneticLine(value) {
   return /^\/[^/\n]+\/(?:\s*(?:us|uk))?$/i.test(String(value || '').trim());
 }
 
+/**
+ * Dictionary metadata that must never appear as an example sentence:
+ * - single CEFR: B2
+ * - comma-separated CEFR lists: B2,C1,C2,B2
+ * - grammar codes after cleanMarkdown: C[ T ], [U], T, I
+ */
+function isMetadataResidueLine(value) {
+  const line = String(value || '').trim();
+  if (!line) return false;
+  if (/^(A1|A2|B1|B2|C1|C2)$/i.test(line)) return true;
+  if (/^(?:A1|A2|B1|B2|C1|C2)(?:\s*,\s*(?:A1|A2|B1|B2|C1|C2))+$/i.test(line)) return true;
+  if (/^\[?\s*[CTUI]\s*(?:,\s*[A-Z]+)*\s*\]?\s*$/i.test(line)) return true;
+  if (/^[CTUI]\s*\[[^\]]*\]\s*$/i.test(line)) return true;
+  return false;
+}
+
+function sanitizeExampleSentences(examples) {
+  return (Array.isArray(examples) ? examples : []).filter((item) => {
+    const en = typeof item === 'string' ? item : (item?.en || '');
+    return en && !isMetadataResidueLine(en) && !isPhoneticLine(en);
+  });
+}
+
+/** Instant-preview fake collocations like "key demonstrate" / "深度xxx" — never show as real data. */
+function isInstantTemplateCollocation(item, word) {
+  const text = String(item || '').trim();
+  const w = String(word || '').trim();
+  if (!text) return true;
+  if (!w) return false;
+  const escaped = w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(
+    `^(?:key|apply)\\s+${escaped}$|^${escaped}\\s+strategy$|^(?:深度|理解)${escaped}$`,
+    'i'
+  ).test(text);
+}
+
 function extractCambridgeExamplesSection(markdown, word) {
   const text = String(markdown || '');
   const start = text.match(/^##\s+Examples of\b[^\n]*$/im);
@@ -77,7 +113,7 @@ function extractCambridgeExamplesSection(markdown, word) {
           && !/^from the cambridge english corpus$/i.test(en)
           && !/^these examples are from corpora and from sources on the web/i.test(en)
           && !/\bwikipedia\b/i.test(en)
-          && !/^(a1|a2|b1|b2|c1|c2)$/i.test(en);
+          && !isMetadataResidueLine(en);
       }),
     ({ en }) => normalizeComparable(en)
   );
@@ -242,11 +278,7 @@ function parseSense(block, fallbackWord) {
     if (/^(uk|us)$/i.test(line)) return true;
     if (/^your browser doesn't support html5 audio$/i.test(line)) return true;
     if (isPhoneticLine(line)) return true;
-    if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) return true; // CEFR levels
-    // Skip comma-separated CEFR levels like "B2,C1,C2,B2"
-    if (/^[A-Z]\d?(?:\s*,\s*[A-Z]\d?)+$/.test(line)) return true;
-    // Skip grammar tags like "C[ T ]", "C[U]", "T, I"
-    if (/^\[?\s*[CTUI]\s*(?:,\s*[A-Z]+)*\s*\]?\s*$/i.test(line)) return true;
+    if (isMetadataResidueLine(line)) return true;
     if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) return true; // POS
     if (/^(Add to word list|To top)$/i.test(line)) return true;
     // Skip lines that are just links or navigation
@@ -284,11 +316,7 @@ function parseSense(block, fallbackWord) {
     if (isPhoneticLine(line)) continue;
     if (definitionKey && normalizeComparable(line) === definitionKey) continue;
     if (translationZh && line === translationZh) continue;
-    if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) continue; // CEFR levels
-    // Skip comma-separated CEFR levels like "B2,C1,C2,B2"
-    if (/^[A-Z]\d?(?:\s*,\s*[A-Z]\d?)+$/.test(line)) continue;
-    // Skip grammar tags like "C[ T ]", "C[U]", "T, I"
-    if (/^\[?\s*[CTUI]\s*(?:,\s*[A-Z]+)*\s*\]?\s*$/i.test(line)) continue;
+    if (isMetadataResidueLine(line)) continue;
     if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) continue; // POS
     if (/^(Add to word list|To top)$/i.test(line)) continue;
     // Skip lines that are just links or navigation
@@ -450,10 +478,10 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
       })),
       (item) => normalizeComparable(`${item.meaning}\0${item.context}`)
     ),
-    example_sentences: unique(
+    example_sentences: sanitizeExampleSentences(unique(
       senses.flatMap((sense) => sense.examples),
       (item) => normalizeComparable(`${item.en}\0${item.zh}`)
-    ),
+    )),
     idioms,
     collocations,
     inflections,
@@ -486,14 +514,15 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
     ...dify,
     ...cambridgeValues,
     direction_resolved: dify.direction_resolved || 'en_to_zh',
-    // 仅展示 Cambridge 例句，不使用 Dify 补充例句
-    example_sentences: cambridge.example_sentences || [],
+    // 仅展示 Cambridge 例句，不使用 Dify 补充例句；并消毒元数据残片
+    example_sentences: sanitizeExampleSentences(cambridge.example_sentences || []),
     other_meanings: unique(
       [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
       (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
     ),
     collocations: unique(
-      [...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])],
+      [...(cambridge.collocations || []), ...(Array.isArray(dify.collocations) ? dify.collocations : [])]
+        .filter((item) => !isInstantTemplateCollocation(item, cambridge.headword || dify.headword)),
       (item) => normalizeComparable(item)
     ),
     idioms: cambridge.idioms || [],
@@ -515,4 +544,12 @@ async function fetchCambridgeEntry(word) {
   return parseCambridgeMarkdown(result.markdown, { word, sourceUrl });
 }
 
-module.exports = { isSingleEnglishWord, parseCambridgeMarkdown, mergeCambridgeWithDify, fetchCambridgeEntry };
+module.exports = {
+  isSingleEnglishWord,
+  isMetadataResidueLine,
+  sanitizeExampleSentences,
+  isInstantTemplateCollocation,
+  parseCambridgeMarkdown,
+  mergeCambridgeWithDify,
+  fetchCambridgeEntry,
+};

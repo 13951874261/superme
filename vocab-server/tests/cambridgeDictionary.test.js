@@ -3,6 +3,9 @@ const {
   isSingleEnglishWord,
   parseCambridgeMarkdown,
   mergeCambridgeWithDify,
+  isMetadataResidueLine,
+  sanitizeExampleSentences,
+  isInstantTemplateCollocation,
 } = require('../services/cambridgeDictionary');
 
 const markdown = `# Translation of **vibe** – English–Mandarin Chinese dictionary
@@ -417,5 +420,66 @@ assert.ok(!metadataExamples.some((e) => e === 'C[T]'), 'grammar tag like C[T] sh
 assert.ok(!metadataExamples.some((e) => e === '[T]'), 'standalone tag should not be in examples');
 assert.ok(metadataExamples.some((e) => e.includes('blood sample')), 'real example should remain');
 assert.ok(metadataExamples.some((e) => e.includes('typical example')), 'real example should remain');
+
+// ## Examples of section must also drop comma-separated CEFR residue
+const corpusLevelListMarkdown = `# Translation of **demonstrate** – English–Mandarin Chinese dictionary
+
+demonstrate
+
+verb
+
+uk
+
+/ˈdem.ən.streɪt/us
+
+/ˈdem.ən.streɪt/
+
+to show something clearly by giving proof or evidence
+
+证明；展示；演示
+
+She demonstrated how to use the new software.
+她演示了如何使用新软件。
+
+## Examples of demonstrate
+
+These results demonstrate the effectiveness of the approach.
+
+From the Cambridge English Corpus
+
+B2,C1,C2,B2
+`;
+
+const corpusLevelList = parseCambridgeMarkdown(corpusLevelListMarkdown, {
+  word: 'demonstrate',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/demonstrate',
+});
+const corpusLevelExamples = corpusLevelList.example_sentences.map((e) => e.en);
+assert.ok(corpusLevelExamples.some((e) => e.includes('effectiveness of the approach')), 'corpus example should remain');
+assert.ok(!corpusLevelExamples.some((e) => e === 'B2,C1,C2,B2'), 'CEFR list in ## Examples of must not become an example');
+
+assert.strictEqual(isMetadataResidueLine('B2,C1,C2,B2'), true);
+assert.strictEqual(isMetadataResidueLine('C[ T ]'), true);
+assert.strictEqual(isMetadataResidueLine('Improved safety measures work.'), false);
+assert.strictEqual(isInstantTemplateCollocation('key demonstrate', 'demonstrate'), true);
+assert.strictEqual(isInstantTemplateCollocation('apply demonstrate', 'demonstrate'), true);
+assert.strictEqual(isInstantTemplateCollocation('demonstrate strategy', 'demonstrate'), true);
+assert.strictEqual(isInstantTemplateCollocation('clearly demonstrate', 'demonstrate'), false);
+
+const dirtySanitized = sanitizeExampleSentences([
+  { en: 'B2,C1,C2,B2', zh: '' },
+  { en: 'She demonstrated the product.', zh: '她演示了产品。' },
+]);
+assert.strictEqual(dirtySanitized.length, 1);
+assert.strictEqual(dirtySanitized[0].en, 'She demonstrated the product.');
+
+const mergedClean = mergeCambridgeWithDify(corpusLevelList, {
+  headword: 'demonstrate',
+  collocations: ['key demonstrate', 'apply demonstrate', 'demonstrate strategy', 'clearly demonstrate'],
+});
+assert.ok(!mergedClean.collocations.includes('key demonstrate'));
+assert.ok(!mergedClean.collocations.includes('apply demonstrate'));
+assert.ok(!mergedClean.collocations.includes('demonstrate strategy'));
+assert.ok(mergedClean.collocations.includes('clearly demonstrate'));
 
 console.log('cambridge dictionary tests passed');
