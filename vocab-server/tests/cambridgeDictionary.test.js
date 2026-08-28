@@ -315,4 +315,107 @@ assert.ok(!corpusExamples.some(e => e.toLowerCase().includes('from the cambridge
 assert.ok(!corpusExamples.some(e => e.toLowerCase().includes('these examples are from corpora')), 'corpus disclaimer should not be in examples');
 assert.ok(!corpusExamples.some(e => e.startsWith('/pəˈsweɪd/')), 'phonetic should not be in examples');
 
+const counterproductiveMarkdown = `# Translation of **counterproductive** – English–Mandarin Chinese dictionary
+
+counterproductive
+
+adjective
+
+uk
+
+Your browser doesn't support HTML5 audio
+
+/ˌkaʊn.tə.prəˈdʌk.tɪv/us
+
+Your browser doesn't support HTML5 audio
+
+/ˌkaʊn.t̬ɚ.prəˈdʌk.tɪv/
+
+having an effect that is opposite to the one intended or wanted
+
+产生相反效果的；产生相反作用的；事与愿违的，适得其反的
+
+Improved safety measures in cars can be counterproductive as they encourage people to drive faster.
+提高车辆安全性的措施可能会适得其反，因为这会激励人们开快车。
+
+(Translation of **counterproductive** from the Cambridge English-Chinese (Simplified) Dictionary © Cambridge University Press)
+
+## Examples of counterproductive
+
+The whole system was thus counterproductive because it undermined financial responsibility within departments without achieving any strategic economic gains.
+
+From the Cambridge English Corpus
+`;
+
+const counterproductive = parseCambridgeMarkdown(counterproductiveMarkdown, {
+  word: 'counterproductive',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/counterproductive',
+});
+
+assert.strictEqual(counterproductive.pos, 'adjective');
+assert.strictEqual(
+  counterproductive.senses[0].definition_en,
+  'having an effect that is opposite to the one intended or wanted'
+);
+assert.ok(counterproductive.senses[0].translation_zh.includes('产生相反效果'));
+assert.ok(counterproductive.translation_main.includes('产生相反效果'));
+
+const counterproductiveExamples = counterproductive.example_sentences.map((item) => item.en);
+assert.ok(!counterproductiveExamples.some((e) => e.includes('having an effect that is opposite')), 'English definition must not be an example');
+assert.ok(!counterproductiveExamples.some((e) => e.startsWith('/')), 'phonetic must not be an example');
+assert.ok(counterproductiveExamples.some((e) => e.includes('Improved safety measures')), 'inline example should remain');
+assert.ok(counterproductiveExamples.some((e) => e.includes('undermined financial responsibility')), '## Examples of corpus sentence should remain');
+
+// Metadata residue: grammar tags (C[[ T ]]) and comma-separated CEFR levels (B2,C1,C2,B2)
+const metadataResidueMarkdown = `# Translation of **sample** – English–Mandarin Chinese dictionary
+
+sample
+
+noun
+
+uk
+
+Your browser doesn't support HTML5 audio
+
+/ˈsæm.pəl/us
+
+Your browser doesn't support HTML5 audio
+
+/ˈsæm.pəl/
+
+B2,C1,C2,B2
+
+[[ C[ T ] ]](https://dictionary.cambridge.org/help/codes.html)
+
+a small part of something that shows what the whole is like
+
+样本；样品；样例
+
+He works on a sample basis.
+他按样本工作。
+
+This is a typical example of his work.
+这是他的作品典型例子。
+
+(Translation of **sample** from the Cambridge English-Chinese (Simplified) Dictionary © Cambridge University Press)
+
+## Examples of sample
+
+The researchers collected a blood sample from each participant.
+研究人员从每位参与者身上采集了血样。
+`;
+
+const metadataResidue = parseCambridgeMarkdown(metadataResidueMarkdown, {
+  word: 'sample',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/sample',
+});
+
+const metadataExamples = metadataResidue.example_sentences.map((e) => e.en);
+assert.ok(!metadataExamples.some((e) => e === 'B2,C1,C2,B2'), 'comma-separated CEFR levels should not be in examples');
+assert.ok(!metadataExamples.some((e) => e === 'C[ T ]'), 'grammar tag like C[ T ] should not be in examples');
+assert.ok(!metadataExamples.some((e) => e === 'C[T]'), 'grammar tag like C[T] should not be in examples');
+assert.ok(!metadataExamples.some((e) => e === '[T]'), 'standalone tag should not be in examples');
+assert.ok(metadataExamples.some((e) => e.includes('blood sample')), 'real example should remain');
+assert.ok(metadataExamples.some((e) => e.includes('typical example')), 'real example should remain');
+
 console.log('cambridge dictionary tests passed');

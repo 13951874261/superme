@@ -50,6 +50,11 @@ function unique(items, key = (item) => JSON.stringify(item)) {
   });
 }
 
+/** Full-line IPA, including syllable dots and /ipa/us glued suffixes. */
+function isPhoneticLine(value) {
+  return /^\/[^/\n]+\/(?:\s*(?:us|uk))?$/i.test(String(value || '').trim());
+}
+
 function extractCambridgeExamplesSection(markdown, word) {
   const text = String(markdown || '');
   const start = text.match(/^##\s+Examples of\b[^\n]*$/im);
@@ -186,7 +191,7 @@ function parseSense(block, fallbackWord) {
   const isNonDefinitionLine = (line) => {
     const l = line.toLowerCase();
     return /^(uk|us|add to word list|idioms?|noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)(?:\s*\/.+\/)?$/i.test(line)
-      || /^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\/(?:us|uk)?$/.test(line)
+      || isPhoneticLine(line)
       || l.startsWith('your browser')
       || l === 'add to word listadd to word list';
   };
@@ -220,8 +225,13 @@ function parseSense(block, fallbackWord) {
     }
   }
 
-  // Extract examples - stop at Idioms, ## Examples, or next sense
-  const exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
+  // Extract examples after both the English definition and its Chinese gloss
+  let exampleStart = definitionIndex >= 0 ? definitionIndex + 1 : 0;
+  if (translationZh) {
+    const zhIndex = lines.findIndex((line, index) => index >= exampleStart && line === translationZh);
+    if (zhIndex >= 0) exampleStart = zhIndex + 1;
+  }
+  const definitionKey = normalizeComparable(definitionEn);
   const isNonExampleLine = (line) => {
     // Stop at Idioms section or next major section
     if (/^###\s*\*?\s*idioms\s*\*?$/i.test(line)) return true;
@@ -231,8 +241,12 @@ function parseSense(block, fallbackWord) {
     // Skip metadata lines
     if (/^(uk|us)$/i.test(line)) return true;
     if (/^your browser doesn't support html5 audio$/i.test(line)) return true;
-    if (/^\/.*\/(?:us|uk)?$/.test(line)) return true; // Phonetic
+    if (isPhoneticLine(line)) return true;
     if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) return true; // CEFR levels
+    // Skip comma-separated CEFR levels like "B2,C1,C2,B2"
+    if (/^[A-Z]\d?(?:\s*,\s*[A-Z]\d?)+$/.test(line)) return true;
+    // Skip grammar tags like "C[ T ]", "C[U]", "T, I"
+    if (/^\[?\s*[CTUI]\s*(?:,\s*[A-Z]+)*\s*\]?\s*$/i.test(line)) return true;
     if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) return true; // POS
     if (/^(Add to word list|To top)$/i.test(line)) return true;
     // Skip lines that are just links or navigation
@@ -267,8 +281,14 @@ function parseSense(block, fallbackWord) {
     // Skip metadata lines
     if (/^(uk|us)$/i.test(line)) continue;
     if (/^your browser doesn't support html5 audio$/i.test(line)) continue;
-    if (/^\/.*\/(?:us|uk)?$/.test(line)) continue; // Phonetic
+    if (isPhoneticLine(line)) continue;
+    if (definitionKey && normalizeComparable(line) === definitionKey) continue;
+    if (translationZh && line === translationZh) continue;
     if (/^(A1|A2|B1|B2|C1|C2)$/.test(line)) continue; // CEFR levels
+    // Skip comma-separated CEFR levels like "B2,C1,C2,B2"
+    if (/^[A-Z]\d?(?:\s*,\s*[A-Z]\d?)+$/.test(line)) continue;
+    // Skip grammar tags like "C[ T ]", "C[U]", "T, I"
+    if (/^\[?\s*[CTUI]\s*(?:,\s*[A-Z]+)*\s*\]?\s*$/i.test(line)) continue;
     if (/^(verb|noun|adjective|adverb|preposition|conjunction|interjection)$/i.test(line)) continue; // POS
     if (/^(Add to word list|To top)$/i.test(line)) continue;
     // Skip lines that are just links or navigation
@@ -283,8 +303,6 @@ function parseSense(block, fallbackWord) {
     if (/^From the Cambridge English Corpus$/i.test(line)) continue;
     // Skip copyright/translation notices
     if (/^\(Translation of\b/i.test(line)) continue;
-    // Skip pure IPA phonetics (e.g. /mʌd/, /pəˈsweɪd/, /pəˈsweɪd/us) — cover cases not caught by the metadata filter above
-    if (/^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\/(?:us|uk)?$/.test(line)) continue;
     if (!/[A-Za-z]/.test(line)) continue;
     const item = splitEnglishChinese(line);
     if (item.en) examples.push(item);

@@ -73,8 +73,8 @@ function CompactHead({
   );
 }
 
-function CoreGloss({ text }: { text: string }) {
-  if (!text?.trim()) return null;
+function CoreGloss({ text, en }: { text: string; en?: string }) {
+  if (!text?.trim() && !en?.trim()) return null;
   return (
     <div className="relative pl-3">
       <div className="absolute left-0 top-0.5 bottom-0.5 w-0.5 rounded-full bg-[#FF5722]" />
@@ -82,7 +82,12 @@ function CoreGloss({ text }: { text: string }) {
         <BookOpen className="w-3 h-3" />
         核心释义
       </div>
-      <div className="text-[15px] font-semibold text-[#202124] leading-snug">{text}</div>
+      {text?.trim() && (
+        <div className="text-[15px] font-semibold text-[#202124] leading-snug">{text}</div>
+      )}
+      {en?.trim() && (
+        <div className="text-[13px] text-stone-600 leading-snug mt-0.5">{en}</div>
+      )}
     </div>
   );
 }
@@ -442,7 +447,7 @@ export function UtilityEnZhBidirectionalView({
         meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
         speakText={query}
       />
-      <CoreGloss text={translation_main || ''} />
+      <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
 
       {senses.length > 0 && (
         <FoldBlock title="Cambridge 词典详情" count={senses.length} open={showCambridge} onToggle={() => setShowCambridge((v) => !v)}>
