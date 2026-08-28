@@ -1,4 +1,4 @@
-const { fetchUrlContent } = require('./webFetcher');
+﻿const { fetchUrlContent } = require('./webFetcher');
 
 const CAMBRIDGE_BASE = 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified';
 
@@ -152,10 +152,7 @@ function parseSense(block, fallbackWord) {
     }
   }
 
-  // Remove content after copyright notice
-  const contentEnd = lines.findIndex((line) => /^\(?Translation of\b|^To top$|^See more results/i.test(line));
-  if (contentEnd >= 0) lines.splice(contentEnd);
-
+  // 版权行只影响 copyrightMatch 的提取，不再截断 lines —— 允许 ## Examples of 段落进入解析
   const inflectionLabel = '(?:plural|singular|past tense|past participle|present participle|third person singular|comparative|superlative)';
   
   // Extract grammar tags [C], [U], [plural], etc.
@@ -284,6 +281,10 @@ function parseSense(block, fallbackWord) {
     if (/^- /.test(line)) continue;
     // Skip corpus attribution lines
     if (/^From the Cambridge English Corpus$/i.test(line)) continue;
+    // Skip copyright/translation notices
+    if (/^\(Translation of\b/i.test(line)) continue;
+    // Skip pure IPA phonetics (e.g. /mʌd/, /pəˈsweɪd/, /pəˈsweɪd/us) — cover cases not caught by the metadata filter above
+    if (/^\/[\wˈˌɪʊɛæɑɔəʌɪː]+\/(?:us|uk)?$/.test(line)) continue;
     if (!/[A-Za-z]/.test(line)) continue;
     const item = splitEnglishChinese(line);
     if (item.en) examples.push(item);

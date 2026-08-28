@@ -155,6 +155,7 @@ assert.ok(!allExampleEn.some(e => e.startsWith('/pəˈsweɪd/us')), 'phonetic wi
 assert.ok(!allExampleEn.some(e => e === 'B2' || e === 'noun'), 'POS/level should not be in examples');
 assert.ok(!allExampleEn.some(e => e.includes('Vocabulary')), 'navigation should not be in examples');
 assert.ok(!allExampleEn.some(e => e.includes('Wikipedia')), 'Wikipedia content should not be in examples');
+assert.ok(allExampleEn.some(e => e.includes('Full of aggressive, dirty and equally tender vibes and melodies...')), 'corpus example from ## Examples of should be present');
 
 // Idioms should be extracted separately
 assert.strictEqual(mudCambridge.idioms.length, 3, 'should extract 3 idioms');
