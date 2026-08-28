@@ -52,6 +52,54 @@ He would often play the vibes in their recording sessions.
 Wikipedia content that must not become a Cambridge sense.
 `;
 
+const mudMarkdown = `# Translation of **mud** – English–Mandarin Chinese dictionary
+
+mud
+
+noun
+
+uk
+
+Your browser doesn't support HTML5 audio
+
+/mʌd/us
+
+Your browser doesn't support HTML5 audio
+
+/mʌd/
+
+### mudnoun  (U)
+
+[[ U ]](https://dictionary.cambridge.org/help/codes.html)
+
+earth that has been mixed with water
+
+泥， 泥土; 烂泥， 泥浆; 淤泥
+
+The vehicles got bogged down in the heavy mud.
+车辆陷到了淤泥里动弹不得。
+
+Modern houses have replaced the one-room mud huts...
+新式住房取代了农民世代居住的单间草顶土屋。
+
+These mud flats are a special research value.
+这片淤泥滩有特殊的科研价值。
+
+(Translation of **mud** from the Cambridge English-Chinese (Simplified) Dictionary © Cambridge University Press)
+
+### **Idioms**
+
+[here's mud in your eye!](https://dictionary.cambridge.org/dictionary/english-chinese-simplified/here-s-mud-in-your-eye "meaning")
+
+[hurl/throw/sling mud at someone](https://dictionary.cambridge.org/dictionary/english-chinese-simplified/hurl-throw-sling-mud-at "meaning")
+
+[mud sticks](https://dictionary.cambridge.org/dictionary/english-chinese-simplified/mud-sticks "meaning")
+
+## Examples of mud
+
+Full of aggressive, dirty and equally tender vibes and melodies...
+`;
+
 assert.strictEqual(isSingleEnglishWord('vibe'), true);
 assert.strictEqual(isSingleEnglishWord("don't"), true);
 assert.strictEqual(isSingleEnglishWord('cost-effective'), true);
@@ -59,6 +107,7 @@ assert.strictEqual(isSingleEnglishWord('cost structure'), false);
 assert.strictEqual(isSingleEnglishWord('成本'), false);
 assert.strictEqual(isSingleEnglishWord('Our costs rose.'), false);
 
+// Test vibe parsing
 const cambridge = parseCambridgeMarkdown(markdown, {
   word: 'vibe',
   sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/vibe',
@@ -82,6 +131,35 @@ assert.ok(!cambridge.example_sentences.some((item) => item.en.includes('Translat
 assert.strictEqual(cambridge.source, 'Cambridge English-Chinese (Simplified) Dictionary');
 assert.strictEqual(cambridge.copyright, '© Cambridge University Press');
 
+// Test mud parsing - ensure idioms are not in examples
+const mudCambridge = parseCambridgeMarkdown(mudMarkdown, {
+  word: 'mud',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/mud',
+});
+
+assert.strictEqual(mudCambridge.headword, 'mud');
+assert.strictEqual(mudCambridge.pos, 'noun');
+assert.strictEqual(mudCambridge.senses.length, 1);
+assert.strictEqual(mudCambridge.senses[0].label, 'U');
+assert.strictEqual(mudCambridge.senses[0].translation_zh, '泥， 泥土; 烂泥， 泥浆; 淤泥');
+
+// Examples must NOT contain idioms or metadata
+const allExampleEn = mudCambridge.example_sentences.map(e => e.en);
+assert.ok(!allExampleEn.some(e => e.includes("here's mud in your eye")), 'idiom should not be in examples');
+assert.ok(!allExampleEn.some(e => e.includes('mud sticks')), 'phrase should not be in examples');
+assert.ok(!allExampleEn.some(e => e.toLowerCase() === 'uk'), 'metadata "uk" should not be in examples');
+assert.ok(!allExampleEn.some(e => e.startsWith('/mʌd/')), 'phonetic should not be in examples');
+assert.ok(!allExampleEn.some(e => e === 'B2' || e === 'noun'), 'POS/level should not be in examples');
+assert.ok(!allExampleEn.some(e => e.includes('Vocabulary')), 'navigation should not be in examples');
+assert.ok(!allExampleEn.some(e => e.includes('Wikipedia')), 'Wikipedia content should not be in examples');
+
+// Idioms should be extracted separately
+assert.strictEqual(mudCambridge.idioms.length, 3, 'should extract 3 idioms');
+assert.ok(mudCambridge.idioms.includes("here's mud in your eye!"));
+assert.ok(mudCambridge.idioms.includes('mud sticks'));
+assert.ok(mudCambridge.idioms.includes('hurl/throw/sling mud at someone'));
+
+// Test merge - Dify examples should NOT appear
 const merged = mergeCambridgeWithDify(cambridge, {
   direction_resolved: 'en_to_zh',
   phonetic: '/wrong/',

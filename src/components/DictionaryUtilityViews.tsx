@@ -488,30 +488,19 @@ export function UtilityEnZhBidirectionalView({
         </FoldBlock>
       )}
 
-      {(validBusiness.length > 0 || validExamples.length > 0) && (
+      {/* Only show examples from Cambridge senses, not business_examples */}
+      {senses.length > 0 && senses.some(s => s.examples?.length > 0) && (
         <div>
-          <SectionLabel>例句</SectionLabel>
+          <SectionLabel>Cambridge 例句</SectionLabel>
           <div className="space-y-2">
-            {validBusiness.map((ex, idx) => (
-              <React.Fragment key={`biz-${idx}`}>
-                <ExampleCard
-                  index={idx + 1}
-                  scene={ex.scene || '商务场景'}
-                  primary={ex.en}
-                  secondary={ex.zh}
-                  speak={ex.en}
-                />
-              </React.Fragment>
-            ))}
-            {validExamples.map((sent, idx) => (
-              <React.Fragment key={`ex-${idx}`}>
-                <ExampleCard
-                  index={validBusiness.length + idx + 1}
-                  primary={sent.en}
-                  secondary={sent.zh}
-                  speak={sent.en}
-                />
-              </React.Fragment>
+            {senses.flatMap(s => s.examples || []).map((example, idx) => (
+              <ExampleCard
+                key={idx}
+                index={idx + 1}
+                primary={example.en}
+                secondary={example.zh}
+                speak={example.en}
+              />
             ))}
           </div>
         </div>
