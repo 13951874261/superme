@@ -824,17 +824,29 @@ export default function DictionaryPanel() {
   const vocabIdRef = useRef<string | null>(null);
   const lastVocabSyncFpRef = useRef<string>('');
   const examplesDirtyRef = useRef(false);
+  /** 仅「已发起查询」的词才允许回写/点查生词本，避免输入框改字时用旧 result 污染其他词 */
+  const [searchedWord, setSearchedWord] = useState('');
 
   const wordKey = query.trim();
+  const searchAligned =
+    !!searchedWord
+    && wordKey.toLowerCase() === searchedWord.toLowerCase();
   const collecting = wordKey ? isCollecting(wordKey) : false;
   const queued = wordKey ? isQueued(wordKey) : false;
-  const collected = markedSaved || (wordKey ? isCollected(wordKey) : false);
+  const collected = searchAligned && (markedSaved || (wordKey ? isCollected(wordKey) : false));
   const examplesDirty = examplesSeedFp !== '' && examplesFingerprint(editableExamples) !== examplesSeedFp;
+
+  const resultMatchesQuery = (payload: any, text: string) => {
+    const head = String(payload?.headword || payload?.word || '').trim();
+    if (!head) return true;
+    return head.toLowerCase() === text.toLowerCase();
+  };
 
   const runDictSearch = async (type: DictType, wordOverride?: string) => {
     const text = String(wordOverride ?? query).trim();
     if (!text) return;
     setQuery(text);
+    setSearchedWord(text);
     setOpenDict(type);
     setIsLoading(true);
     setResult(null);
@@ -854,6 +866,7 @@ export default function DictionaryPanel() {
           signal: ac.signal,
           onUpdate: (partial) => {
             if (ac.signal.aborted) return;
+            if (partial?.payload && !resultMatchesQuery(partial.payload, text)) return;
             setResult(partial);
             if (partial?.inVocabulary) setMarkedSaved(true);
             const firstKey = Object.keys(partial?.payload || {})[0];
@@ -863,10 +876,14 @@ export default function DictionaryPanel() {
         }
       );
       if (!ac.signal.aborted) {
-        setResult(parsed);
-        if (parsed?.inVocabulary) setMarkedSaved(true);
-        const firstKey = Object.keys(parsed?.payload || {})[0];
-        if (firstKey) setActiveTab(firstKey);
+        if (parsed?.payload && !resultMatchesQuery(parsed.payload, text)) {
+          setResult({ ok: false, message: '词典返回词条与查询不一致，请重试' });
+        } else {
+          setResult(parsed);
+          if (parsed?.inVocabulary) setMarkedSaved(true);
+          const firstKey = Object.keys(parsed?.payload || {})[0];
+          if (firstKey) setActiveTab(firstKey);
+        }
       }
     } catch (err: any) {
       if (!ac.signal.aborted) {
@@ -894,7 +911,8 @@ export default function DictionaryPanel() {
 
   useEffect(() => {
     const text = query.trim();
-    if (!text || !result?.ok) return;
+    if (!text || !result?.ok || !searchAligned) return;
+    if (!resultMatchesQuery(result.payload, text)) return;
     let cancelled = false;
     const syncCollected = () => {
       void lookupVocabWords([text]).then((items) => {
@@ -910,7 +928,7 @@ export default function DictionaryPanel() {
       cancelled = true;
       window.removeEventListener('vocab-updated', syncCollected);
     };
-  }, [query, result?.ok, hydrateCollected]);
+  }, [query, result?.ok, result?.payload, hydrateCollected, searchAligned]);
 
   // 查询结果变化时：重置可编辑 Cambridge 例句（本地已改则保留）
   useEffect(() => {
@@ -931,7 +949,8 @@ export default function DictionaryPanel() {
   // 已收录：查询结果（Cam 优先 + Dify 渐进）回写生词本（保留已有例句，不写 senses）
   useEffect(() => {
     const text = query.trim();
-    if (!text || !result?.ok || !result.payload) return;
+    if (!text || !result?.ok || !result.payload || !searchAligned) return;
+    if (!resultMatchesQuery(result.payload, text)) return;
     const inBook = !!(result.inVocabulary || markedSaved || (wordKey ? isCollected(wordKey) : false));
     if (!inBook) return;
 
@@ -948,6 +967,12 @@ export default function DictionaryPanel() {
 
         const full = await getVocabItem(id);
         if (cancelled) return;
+        // 二次校验：条目 word 必须与当前查询一致，防止 id 错绑
+        if (full?.word && String(full.word).trim().toLowerCase() !== text.toLowerCase()) {
+          console.warn('[DictionaryPanel] 跳过回写：生词本词条与查询不一致', full.word, text);
+          vocabIdRef.current = null;
+          return;
+        }
         const existing = full?.payload && typeof full.payload === 'object' ? full.payload : {};
         const next = buildVocabPayloadFromDict(result.payload, existing, {
           word: text,
@@ -966,7 +991,7 @@ export default function DictionaryPanel() {
     };
     void syncPayload();
     return () => { cancelled = true; };
-  }, [query, result, markedSaved, wordKey, isCollected]);
+  }, [query, result, markedSaved, wordKey, isCollected, searchAligned]);
 
   const handleToggle = (type: DictType, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -977,6 +1002,7 @@ export default function DictionaryPanel() {
     }
     setSaveError(false);
     setMarkedSaved(false);
+    setSearchedWord('');
     setEditableExamples([]);
     setExamplesSeedFp('');
     setShowUpdatePrompt(false);

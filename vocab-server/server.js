@@ -5461,6 +5461,27 @@ function buildVocabSeedPayload(cleanWord, vocabPayload) {
   };
 }
 
+/** 生词本增强字段若明显不属于当前词（如串写了上一词的商务例句），则丢弃避免污染展示 */
+function scrubMismatchedVocabEnrichment(cleanWord, seed) {
+  if (!seed || typeof seed !== 'object') return seed;
+  const word = String(cleanWord || '').trim().toLowerCase();
+  if (!word) return seed;
+  const biz = Array.isArray(seed.business_examples) ? seed.business_examples : [];
+  if (biz.length === 0) return seed;
+  const re = new RegExp(`\\b${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+  const mentions = biz.some((item) => re.test(typeof item === 'string' ? item : JSON.stringify(item || {})));
+  if (mentions) return seed;
+  console.warn(`[Dict Query] 生词本增强字段与词条不符，已丢弃: "${cleanWord}"`);
+  return {
+    ...seed,
+    synonyms: [],
+    antonyms: [],
+    collocations: [],
+    business_examples: [],
+    etymology: '',
+  };
+}
+
 function resolveDictDirection(dictType, direction, cleanWord) {
   let resolvedDirection = direction || 'auto';
   if (dictType === 'en_zh_bidirectional' && (!direction || direction === 'auto')) {
@@ -5816,7 +5837,10 @@ app.post('/api/dify/dict-query', async (req, res) => {
       try {
         const parsedVocab = JSON.parse(vocabRow.payload);
         if (parsedVocab && (parsedVocab.meaning || parsedVocab.meaning_zh || parsedVocab.definition_en || parsedVocab.phonetic || parsedVocab.translation_main)) {
-          vocabSeedPayload = buildVocabSeedPayload(cleanWord, parsedVocab);
+          vocabSeedPayload = scrubMismatchedVocabEnrichment(
+            cleanWord,
+            buildVocabSeedPayload(cleanWord, parsedVocab)
+          );
         }
       } catch (_) {}
     }
