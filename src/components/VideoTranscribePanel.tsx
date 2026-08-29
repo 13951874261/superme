@@ -339,7 +339,7 @@ export default function VideoTranscribePanel({
               setVideoUrl(e.target.value);
               setSelectedFile(null); // 清理拖拽文件以保持互斥
             }}
-            placeholder="粘贴 MP4 视频直链地址 (如 https://example.com/movie.mp4)"
+            placeholder="支持 YouTube / 哔哩哔哩页面链接，或 MP4 直链 (如 https://www.bilibili.com/video/BV...)"
             className="w-full px-4 py-3 bg-[var(--color-surface-mid)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-xs transition-all focus:border-[var(--color-primary)] focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_var(--color-primary-light)]"
             disabled={isSubmitting}
           />

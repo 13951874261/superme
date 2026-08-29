@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { exec } = require('child_process');
 const { validateUrl } = require('./urlValidator');
+const {
+  isPlatformVideoUrl,
+  getPlatformLabel,
+  downloadAudioFromPlatformUrl,
+  cleanupPlatformArtifacts,
+} = require('./platformVideoDownloader');
 const taskQueue = require('./taskQueue');
 
 // 临时目录初始化
@@ -28,6 +34,7 @@ async function startTranscribeTask(taskId, {
 } = {}) {
   let videoPath = null;
   let audioPath = null;
+  let platformAudioPath = null;
 
   try {
     taskQueue.updateTask(taskId, { status: 'running', progress: 5, logs: ['正在初始化转写任务…'] });
@@ -50,6 +57,21 @@ async function startTranscribeTask(taskId, {
         } else {
           throw new Error('本地直链对应的视频文件不存在');
         }
+      } else if (isPlatformVideoUrl(url)) {
+        const platformLabel = getPlatformLabel(url);
+        taskQueue.updateTask(taskId, { progress: 10, logs: [`校验 ${platformLabel} 链接: ${url}`] });
+        const isValid = await validateUrl(url);
+        if (!isValid) {
+          throw new Error('视频链接格式非法或为受限的内部地址');
+        }
+
+        const maxMb = parseInt(process.env.MAX_VIDEO_UPLOAD_MB, 10) || 200;
+        taskQueue.updateTask(taskId, {
+          progress: 15,
+          logs: [`识别为 ${platformLabel} 链接，正在通过 yt-dlp 下载音频…`],
+        });
+        platformAudioPath = await downloadAudioFromPlatformUrl(url, taskId, { maxMb });
+        taskQueue.updateTask(taskId, { progress: 40, logs: [`${platformLabel} 音频下载完成，准备转换为 Whisper 输入格式…`] });
       } else {
         taskQueue.updateTask(taskId, { progress: 10, logs: [`校验视频链接: ${url}`] });
         const isValid = await validateUrl(url);
@@ -119,13 +141,22 @@ async function startTranscribeTask(taskId, {
       throw new Error('未提供有效的视频链接或视频文件数据');
     }
 
-    // 2. FFmpeg 音频提取 (MP3, 16kHz, 单声道)
+    // 2. FFmpeg 音频提取/归一化 (MP3, 16kHz, 单声道)
     audioPath = path.join(TMP_VIDEO_DIR, `audio_${taskId}.mp3`);
-    taskQueue.updateTask(taskId, { progress: 50, logs: ['启动 FFmpeg 音轨提取组件…'] });
+    const ffmpegInputPath = platformAudioPath || videoPath;
+    if (!ffmpegInputPath) {
+      throw new Error('未获取到可处理的视频或音频文件');
+    }
+
+    taskQueue.updateTask(taskId, {
+      progress: 50,
+      logs: [platformAudioPath ? '启动 FFmpeg 音频归一化组件…' : '启动 FFmpeg 音轨提取组件…'],
+    });
 
     await new Promise((resolve, reject) => {
-      // 提取音轨命令
-      const cmd = `ffmpeg -y -i "${videoPath}" -vn -acodec libmp3lame -ar 16000 -ac 1 "${audioPath}"`;
+      const cmd = platformAudioPath
+        ? `ffmpeg -y -i "${ffmpegInputPath}" -acodec libmp3lame -ar 16000 -ac 1 "${audioPath}"`
+        : `ffmpeg -y -i "${ffmpegInputPath}" -vn -acodec libmp3lame -ar 16000 -ac 1 "${audioPath}"`;
       exec(cmd, (error, stdout, stderr) => {
         if (error) {
           console.error('[FFmpeg Error]:', stderr);
@@ -361,6 +392,7 @@ async function startTranscribeTask(taskId, {
       if (!keepVideo && videoPath && fs.existsSync(videoPath)) {
         fs.unlinkSync(videoPath);
       }
+      cleanupPlatformArtifacts(taskId);
       if (audioPath && fs.existsSync(audioPath)) {
         fs.unlinkSync(audioPath);
       }
