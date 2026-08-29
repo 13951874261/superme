@@ -5,6 +5,7 @@ const {
   normalizeMatrix,
   isMatrixComplete,
   generateVocabMatrix,
+  seedMatrixFromDictPayload,
   buildFallbackMemoryAids,
   runMemoryAidWorkflow,
 } = require('../services/vocabMatrixEnricher');
@@ -137,6 +138,32 @@ assert.ok(buildSystemPrompt('word').includes('只返回合法 JSON'));
   assert.strictEqual(aids.mnemonic_phrase, 'leverage the lever');
 
   await assert.rejects(() => runMemoryAidWorkflow({ word: 'x', apiKey: '' }), /DIFY_MEMORY_AID_API_KEY/);
+
+  // 9. 词典 payload 可种子化矩阵（month 场景：LLM 失败时仍可补齐）
+  const monthDict = {
+    direction_resolved: 'en_to_zh',
+    phonetic: '/mʌnθ/',
+    pos: 'n.',
+    translation_main: '月；月份',
+    etymology: '源自古英语 mōnaþ',
+    synonyms: ['moon'],
+    antonyms: [],
+    collocations: ['this month', 'next month', 'once a month'],
+    example_sentences: [
+      { en: 'My birthday is in May.', zh: '我的生日在五月。' },
+    ],
+  };
+  const seeded = seedMatrixFromDictPayload(monthDict, { text: 'month', kind: 'word' });
+  assert.ok(seeded, 'month 词典 payload 应能种子化矩阵');
+  assert.strictEqual(seeded.meaning, '月；月份');
+  assert.strictEqual(seeded.phonetic, '/mʌnθ/');
+  assert.ok(seeded.matrix_seeded_from_dict);
+  assert.ok(isMatrixComplete(seeded, 'word'), '种子化后应判定矩阵已补齐');
+  assert.strictEqual(
+    seedMatrixFromDictPayload({ translation_main: '只有释义' }, { text: 'x', kind: 'word' }),
+    null,
+    '缺音标/节点时不得伪造成功',
+  );
 
   console.log('vocab matrix enricher tests passed');
 })().catch((error) => { console.error(error); process.exit(1); });

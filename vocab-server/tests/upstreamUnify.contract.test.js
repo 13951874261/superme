@@ -16,7 +16,7 @@ assert.ok(serverSrc.includes("IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.cn/
 
 assert.strictEqual(llm.DEFAULT_LLM_URL, 'https://fetch.234124123.xyz/v1/chat/completions');
 assert.strictEqual(llm.DEFAULT_LLM_KEY, 'sk-aow2api-your-custom-key');
-assert.deepStrictEqual(llm.DEFAULT_LLM_MODELS, ['114']);
+assert.deepStrictEqual(llm.DEFAULT_LLM_MODELS, ['mart-paid']);
 assert.ok(!serverSrc.includes('https://23.95.214.232/v1/chat/completions'), 'server.js must not hardcode old chat completions');
 
 assert.ok(webSrc.includes("FETCH_ENDPOINT_BASE || 'https://fetch.234124123.xyz/v1'"), 'web fetch default must use the confirmed upstream');

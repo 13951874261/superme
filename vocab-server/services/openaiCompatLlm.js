@@ -3,7 +3,7 @@ const https = require('https');
 
 const DEFAULT_LLM_URL = 'https://fetch.234124123.xyz/v1/chat/completions';
 const DEFAULT_LLM_KEY = 'sk-aow2api-your-custom-key';
-const DEFAULT_LLM_MODELS = ['114'];
+const DEFAULT_LLM_MODELS = ['mart-paid'];
 
 function getLlmUrl() {
   return process.env.LLM_URL || process.env.WRITE_GOVERNANCE_LLM_URL || DEFAULT_LLM_URL;
@@ -27,9 +27,27 @@ function extractAssistantContent(data) {
 }
 
 function extractJsonObject(content) {
-  const match = String(content || '').match(/\{[\s\S]*\}/);
+  let s = String(content || '').trim();
+  // Strip common reasoning wrappers / fences before locating JSON
+  s = s.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  s = s.replace(/<reasoning>[\s\S]*?<\/reasoning>/gi, '').trim();
+  const fence = s.match(/```(?:json|JSON)?\s*([\s\S]*?)```/);
+  if (fence) s = fence[1].trim();
+
+  const match = s.match(/\{[\s\S]*\}/);
   if (!match) throw new Error('LLM did not return JSON');
-  return JSON.parse(match[0]);
+
+  const candidate = match[0];
+  try {
+    return JSON.parse(candidate);
+  } catch (err) {
+    const fixed = candidate.replace(/,(\s*[}\]])/g, '$1');
+    try {
+      return JSON.parse(fixed);
+    } catch {
+      throw new Error(`LLM did not return JSON (${err.message})`);
+    }
+  }
 }
 
 function postOnce(url, apiKey, bodyObj, timeoutMs) {

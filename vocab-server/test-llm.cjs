@@ -4,7 +4,7 @@ const url = 'https://aow2.234124123.xyz/aow/v1/chat/completions';
 const apiKey = 'sk-aow2api-your-custom-key';
 
 const requestBody = JSON.stringify({
-  model: '114',
+  model: 'mart-paid',
   messages: [
     { role: 'user', content: 'reply with ok' }
   ],

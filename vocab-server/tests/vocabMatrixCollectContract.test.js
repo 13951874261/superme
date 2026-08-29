@@ -16,7 +16,7 @@ const flawSource = read('src/components/modules/DailyErrorVocabularyModule.tsx')
 assert.match(serverSource, /app\.post\('\/api\/vocab\/add-enriched'/, '缺少单条收录并补齐矩阵的同步端点');
 assert.match(serverSource, /async function runVocabEntryEnrichment/, '缺少矩阵补齐核心实现');
 assert.ok(
-  serverSource.includes('const result = await enrichAndPersistVocabEntry({\n              userId,'),
+  /const result = await enrichAndPersistVocabEntry\(\{\r?\n\s*userId,/.test(serverSource),
   '后台批量任务必须复用同一套矩阵补齐逻辑'
 );
 assert.match(serverSource, /inflightVocabEnrichment/, '缺少进行中去重，3 秒竞速会重复生成矩阵');
@@ -30,6 +30,7 @@ assert.ok(
 // 2. 三类词条（单词/短语/句式）都必须走矩阵补齐
 assert.match(serverSource, /vocabMatrixEnricher\.classifyKind/, '缺少词/短语/句式口径判定');
 assert.match(serverSource, /vocabMatrixEnricher\.generateVocabMatrix/, '缺少矩阵正文生成调用');
+assert.match(serverSource, /seedMatrixFromDictPayload/, '矩阵 LLM 失败时须尝试词典 payload 种子化');
 assert.match(serverSource, /vocabMatrixEnricher\.runMemoryAidWorkflow/, '缺少记忆辅助与记忆节点生成');
 assert.match(serverSource, /INSERT INTO vocabulary[\s\S]{0,600}?ease_factor/, '入库必须初始化 SM-2 字段');
 

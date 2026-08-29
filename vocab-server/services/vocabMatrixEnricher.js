@@ -100,8 +100,9 @@ function buildSystemPrompt(kind) {
     + '\n  "meaning_zh": "中文简明释义",'
     + '\n  "definition_en": "英文商务语境定义",'
     + '\n  "synonyms": ["同近义词1", "同近义词2", "同近义词3", "同近义词4"],'
-    + '\n  "antonyms": ["反义词1", "反义词2"],'
+    + '\n  "antonyms": ["反义词1"],'
     + '\n  "collocations": ["高频搭配词组1", "搭配2", "搭配3", "搭配4"],'
+    + '\n说明：antonyms 仅填真正成立的反义词；若无公认反义词必须输出空数组 []，禁止编造。'
     + '\n  "business_note": "商务使用要点与常见误用提醒",'
     + '\n  "memory_hook": "词根拆解或联想记忆钩子",'
     + '\n  "register": "语态分寸标签（如 High Power / 决策级）",'
@@ -117,20 +118,30 @@ function buildUserPrompt({ text = '', kind = 'word', topic = '' } = {}) {
 }
 
 async function callLLM(systemPrompt, userPrompt, apiKey) {
-  const data = await chatCompletions({
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-    temperature: 0.3,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-    apiKey,
-  });
-  try {
-    return extractJsonObject(data?.choices?.[0]?.message?.content || '');
-  } catch (error) {
-    throw new Error(`Matrix LLM parse failed: ${error.message}`);
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const reinforcedUser = attempt === 0
+      ? userPrompt
+      : `${userPrompt}\n\n【重试】上一次未输出合法 JSON。请立刻只输出一个以 { 开头、以 } 结尾的 JSON 对象，不要 Markdown、不要解释、不要思考过程。`;
+    const data = await chatCompletions({
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: reinforcedUser },
+      ],
+      temperature: attempt === 0 ? 0.3 : 0.1,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      apiKey,
+    });
+    const content = data?.choices?.[0]?.message?.content || '';
+    try {
+      return extractJsonObject(content);
+    } catch (error) {
+      lastError = error;
+      const preview = String(content).replace(/\s+/g, ' ').slice(0, 200);
+      console.warn(`[Vocab Matrix] LLM JSON parse fail attempt=${attempt + 1}: ${error.message}; preview=${preview}`);
+    }
   }
+  throw new Error(`Matrix LLM parse failed: ${lastError?.message || 'LLM did not return JSON'}`);
 }
 
 /**
@@ -277,6 +288,48 @@ async function runMemoryAidWorkflow({
   };
 }
 
+/**
+ * 当矩阵 LLM 失败时，用已有词典 payload（如 en_zh_bidirectional）种子化矩阵，
+ * 避免「词已入库但矩阵永久 pending」。字段不足时返回 null。
+ */
+function seedMatrixFromDictPayload(payload = {}, { text = '', kind = 'word' } = {}) {
+  if (kind === 'sentence') return null;
+  const source = payload && typeof payload === 'object' ? payload : {};
+  const meaning = cleanText(source.translation_main)
+    || cleanText(source.meaning_zh)
+    || cleanText(source.meaning)
+    || cleanText(source.definition);
+  const phonetic = cleanText(source.phonetic);
+  if (!meaning || !phonetic) return null;
+
+  const synonyms = cleanList(source.synonyms, 6);
+  const collocations = cleanList(source.collocations, 6);
+  if (!synonyms.length && !collocations.length) return null;
+
+  const examples = cleanExamples(
+    source.examples || source.example_sentences || source.business_examples,
+    3,
+  );
+  const seeded = normalizeMatrix({
+    phonetic,
+    part_of_speech: cleanText(source.pos) || cleanText(source.partOfSpeech) || (kind === 'phrase' ? 'phrase' : ''),
+    meaning_zh: meaning,
+    definition_en: cleanText(source.definition_en),
+    synonyms,
+    antonyms: cleanList(source.antonyms, 4),
+    collocations,
+    business_note: cleanText(source.business_note) || cleanText(source.etymology),
+    memory_hook: cleanText(source.memory_hook) || cleanText(source.etymology),
+    register: 'Neutral / 协作级',
+    scenarios: ['商务沟通', '书面表达'],
+    sop_tip: '沿用词典释义，矩阵 LLM 待重试时可覆盖',
+    examples,
+  }, { text, kind });
+
+  seeded.matrix_seeded_from_dict = true;
+  return isMatrixComplete(seeded, kind) ? seeded : null;
+}
+
 /** 矩阵内容自带的记忆钩子兜底，确保记忆辅助与记忆节点不空缺 */
 function buildFallbackMemoryAids(matrix = {}) {
   const hook = cleanText(matrix.memory_hook);
@@ -297,6 +350,7 @@ module.exports = {
   normalizeMatrix,
   isMatrixComplete,
   generateVocabMatrix,
+  seedMatrixFromDictPayload,
   runMemoryAidWorkflow,
   buildFallbackMemoryAids,
   parseWorkflowJson,
