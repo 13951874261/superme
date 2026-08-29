@@ -9,13 +9,11 @@ export default function DifyPreloadIframe() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
-    // ponytail: 页面加载后立即预热 Dify 大屏到浏览器缓存
-    // 升级路径：若需按用户定制内容，可改为按需加载
-    const url = buildMinimalIframeUrl(getDifyChatbotUserId());
-    const iframe = iframeRef.current;
-    if (iframe) {
-      iframe.src = url;
-    }
+    let cancelled = false;
+    void buildMinimalIframeUrl(getDifyChatbotUserId()).then((url) => {
+      if (!cancelled && iframeRef.current) iframeRef.current.src = url;
+    });
+    return () => { cancelled = true; };
   }, []);
 
   return (

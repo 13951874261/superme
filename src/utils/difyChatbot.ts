@@ -91,17 +91,15 @@ export function getDifyChatbotUserId(_forceNewEmbedSession = false): string {
   return getAppUserId();
 }
 
-export const EMBED_SESSION_BUDGET_MS = 2500;
-
-export function buildMinimalIframeUrl(userId: string, conversationId?: string | null): string {
+export async function buildMinimalIframeUrl(userId: string, conversationId?: string | null): Promise<string> {
   const base = DIFY_EMBED_BASE_URL.replace(/\/$/, '');
   const params = new URLSearchParams({
-    'sys.user_id': userId,
     _refresh: String(Date.now()),
     skip_memory_pack: 'true',
   });
+  params.set('sys.user_id', await compressAndEncodeBase64(userId));
   const convId = String(conversationId || '').trim();
-  if (convId) params.set('sys.conversation_id', convId);
+  if (convId) params.set('sys.conversation_id', await compressAndEncodeBase64(convId));
   return `${base}/chatbot/${DIFY_EMBED_TOKEN}?${params.toString()}`;
 }
 
@@ -158,11 +156,7 @@ async function encodeConfigToChatbotUrl(config: DifyChatbotConfig): Promise<stri
       .filter(([, value]) => value !== undefined && String(value).trim() !== '')
       .map(async ([key, value]) => {
         const valStr = String(value);
-        if (key === 'user_id' || key === 'conversation_id' || valStr.length < 60) {
-          params.set(`sys.${key}`, valStr);
-        } else {
-          params.set(`sys.${key}`, await compressAndEncodeBase64(valStr));
-        }
+        params.set(`sys.${key}`, await compressAndEncodeBase64(valStr));
       }),
   );
 
@@ -250,12 +244,12 @@ async function buildIframeUrlWithFallback(userId: string, forceNew: boolean): Pr
     // ponytail: fitConfigToEmbedUrl 即使走完所有 shrink 步骤仍可能超长（gzip+base64 膨胀），必须兜底
     if (fitted.url.length > EMBED_IFRAME_URL_MAX_LEN) {
       console.warn('[difyChatbot] URL still', fitted.url.length, 'after shrink, fallback to minimal');
-      return buildMinimalIframeUrl(userId);
+      return await buildMinimalIframeUrl(userId);
     }
     return fitted.url;
   } catch (e) {
     console.warn('[difyChatbot] build full config failed, fallback to minimal:', e);
-    return buildMinimalIframeUrl(userId);
+    return await buildMinimalIframeUrl(userId);
   }
 }
 
@@ -332,30 +326,9 @@ export async function buildDifyChatbotIframeUrl(options?: {
   return buildIframeUrlWithFallback(userId, options?.forceNew ?? false);
 }
 
-async function fetchEmbedConversationId(userId: string, forceNew: boolean): Promise<string | null> {
-  if (forceNew) return null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), EMBED_SESSION_BUDGET_MS);
-  try {
-    const params = new URLSearchParams({ userId });
-    const res = await fetch(`/api/dify/embed-session?${params.toString()}`, {
-      signal: controller.signal,
-    });
-    if (!res.ok) return null;
-    const json = await res.json().catch(() => ({}));
-    const id = String(json?.conversationId || '').trim();
-    return id || null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export async function prepareDifyAssistantIframe(forceNew = false): Promise<string> {
-  const userId = getDifyChatbotUserId(forceNew);
-  const conversationId = await fetchEmbedConversationId(userId, forceNew);
-  return buildMinimalIframeUrl(userId, conversationId);
+export async function prepareDifyAssistantIframe(_forceNew = false): Promise<string> {
+  const userId = getDifyChatbotUserId();
+  return buildMinimalIframeUrl(userId);
 }
 
 export function applyDifyChatbotConfig(): DifyChatbotConfig {

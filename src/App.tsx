@@ -419,8 +419,11 @@ export default function App() {
 function DifyPreloadIframe() {
   const iframeRef = React.useRef<HTMLIFrameElement>(null);
   React.useEffect(() => {
-    const url = buildMinimalIframeUrl(getAppUserId());
-    if (iframeRef.current) iframeRef.current.src = url;
+    let cancelled = false;
+    void buildMinimalIframeUrl(getAppUserId()).then((url) => {
+      if (!cancelled && iframeRef.current) iframeRef.current.src = url;
+    });
+    return () => { cancelled = true; };
   }, []);
   return (
     <iframe
