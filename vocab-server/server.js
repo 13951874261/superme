@@ -13,6 +13,12 @@ const {
   isInstantTemplateCollocation,
 } = require('./services/cambridgeDictionary');
 const { resolveDifyEmbedSession } = require('./services/difyEmbedSession');
+const {
+  dedupeProfileLocal,
+  compressProfileLocal,
+  parseProfileDedupeXml,
+  extractDedupeRawFromWorkflowData,
+} = require('./services/profileDedupe');
 
 const multer = require('multer');
 const uploadDir = path.join(__dirname, 'public', 'temp_videos');
@@ -578,81 +584,6 @@ function mergeProfileNarrative(existing, delta) {
   return `${prev}; ${next}`.slice(0, 2000);
 }
 
-function splitProfileSegments(text) {
-  return String(text || '')
-    .split(/[;；]\s*/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function normalizeProfileSegment(text) {
-  return String(text || '')
-    .toLowerCase()
-    .replace(/标记:[^\s;；]+/gi, '')
-    .replace(/\s+/g, '')
-    .slice(0, 500);
-}
-
-function profileSegmentBigrams(text) {
-  const normalized = normalizeProfileSegment(text);
-  const set = new Set();
-  for (let i = 0; i < normalized.length - 1; i += 1) {
-    set.add(normalized.slice(i, i + 2));
-  }
-  return set;
-}
-
-function profileSegmentSimilarity(a, b) {
-  const na = normalizeProfileSegment(a);
-  const nb = normalizeProfileSegment(b);
-  if (!na || !nb) return 0;
-  if (na === nb) return 1;
-  if (na.includes(nb) || nb.includes(na)) {
-    const shorter = na.length <= nb.length ? na : nb;
-    const longer = na.length > nb.length ? na : nb;
-    return shorter.length / Math.max(longer.length, 1);
-  }
-  const ba = profileSegmentBigrams(a);
-  const bb = profileSegmentBigrams(b);
-  if (!ba.size || !bb.size) return 0;
-  let inter = 0;
-  for (const token of ba) {
-    if (bb.has(token)) inter += 1;
-  }
-  return inter / (ba.size + bb.size - inter);
-}
-
-function dedupeProfileLocal(existing, delta) {
-  const segments = [...splitProfileSegments(existing), ...splitProfileSegments(delta)];
-  if (!segments.length) return '';
-  const merged = [];
-  let dedupeCount = 0;
-  for (const seg of segments) {
-    const idx = merged.findIndex((item) => profileSegmentSimilarity(item, seg) >= 0.62);
-    if (idx >= 0) {
-      merged[idx] = seg;
-      dedupeCount += 1;
-    } else {
-      merged.push(seg);
-    }
-  }
-  return { mergedProfile: merged.join('; ').slice(0, 2000), dedupeCount };
-}
-
-function parseProfileDedupeXml(rawText) {
-  const text = String(rawText || '');
-  const pick = (tag) => {
-    const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
-    return m ? m[1].trim() : '';
-  };
-  const mergedProfile = pick('merged_profile');
-  if (!mergedProfile) return null;
-  return {
-    mergedProfile: mergedProfile.slice(0, 2000),
-    dedupeCount: Number(pick('dedupe_count') || 0),
-  };
-}
-
 function isProfileDedupeEnabled() {
   return Boolean(process.env.DIFY_PROFILE_DEDUPE_API_KEY);
 }
@@ -690,9 +621,11 @@ async function runProfileDedupeWorkflow(existingProfile, newDelta, userId, meta 
     }
 
     const data = await response.json();
-    const rawResult = data?.data?.outputs?.result ?? data?.data?.outputs?.text ?? '';
+    const rawResult = extractDedupeRawFromWorkflowData(data);
     const parsed = parseProfileDedupeXml(rawResult);
     if (!parsed?.mergedProfile) {
+      const preview = String(rawResult || '').replace(/\s+/g, ' ').slice(0, 240);
+      console.warn('[Profile Dedupe] parse_failed raw preview:', preview || '(empty outputs)');
       throw new Error('profile dedupe parse_failed');
     }
     return parsed;
@@ -744,12 +677,8 @@ async function compressProfileContent(profileContent, userId) {
     }
   }
 
-  const local = dedupeProfileLocal(text, '');
-  return {
-    mergedProfile: local.mergedProfile,
-    dedupeCount: local.dedupeCount,
-    source: 'local',
-  };
+  // Local 精要兜底：按句/分号拆分去重，并限制长度（修复原先单段长文无法压缩的问题）
+  return compressProfileLocal(text, 600);
 }
 
 const L3_VAR_KEYS = new Set(['accent', 'locale', 'timezone', 'training_goal', 'spelling_variant', 'weakness_focus']);
