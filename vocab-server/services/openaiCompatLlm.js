@@ -2,16 +2,32 @@ const http = require('http');
 const https = require('https');
 
 const DEFAULT_LLM_URL = 'https://fetch.234124123.xyz/v1/chat/completions';
-const DEFAULT_LLM_KEY = 'sk-aow2api-your-custom-key';
+const DEFAULT_LLM_KEY = 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
 const DEFAULT_LLM_MODELS = ['mart-paid'];
+
+function isUsableLlmKey(value) {
+  const key = String(value || '').trim();
+  if (!key) return false;
+  if (key.includes('your-custom-key')) return false;
+  return true;
+}
 
 function getLlmUrl() {
   return process.env.LLM_URL || process.env.WRITE_GOVERNANCE_LLM_URL || DEFAULT_LLM_URL;
 }
 
 function getLlmKey(override) {
-  if (override) return override;
-  return process.env.LISTEN_LLM_API_KEY || DEFAULT_LLM_KEY;
+  const candidates = [
+    override,
+    process.env.LISTEN_LLM_API_KEY,
+    process.env.VOCAB_MATRIX_LLM_API_KEY,
+    process.env.WRITE_GOVERNANCE_LLM_KEY,
+    DEFAULT_LLM_KEY,
+  ];
+  for (const candidate of candidates) {
+    if (isUsableLlmKey(candidate)) return String(candidate).trim();
+  }
+  return DEFAULT_LLM_KEY;
 }
 
 function getLlmModels() {

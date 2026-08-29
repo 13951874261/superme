@@ -3573,7 +3573,7 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
         text: word,
         kind,
         topic,
-        apiKey: process.env.VOCAB_MATRIX_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
+        apiKey: process.env.VOCAB_MATRIX_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || require('./services/openaiCompatLlm').DEFAULT_LLM_KEY,
       });
       const enrichedPayload = {
         ...payload,
