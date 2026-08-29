@@ -11236,6 +11236,63 @@ app.get('/api/tts/task/:id', (req, res) => {
 });
 
 // ==========================================
+// YouTube 下载前提：检测与配置
+// ==========================================
+app.get('/api/materials/youtube-preflight', async (req, res) => {
+  try {
+    const { runYoutubePreflight } = require('./services/youtubePreflight');
+    const probe = String(req.query.probe || '').trim() === '1';
+    const result = runYoutubePreflight({ probe });
+    res.json(result);
+  } catch (error) {
+    console.error('[YouTube Preflight Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/materials/youtube-config', upload.single('cookies'), async (req, res) => {
+  try {
+    const {
+      saveConfig,
+      ensureSecretsDir,
+      DEFAULT_COOKIES_FILE,
+      getYoutubeProxy,
+      getYoutubeCookiesFile,
+    } = require('./services/youtubeRuntimeConfig');
+    const { runYoutubePreflight } = require('./services/youtubePreflight');
+
+    const proxy = String(req.body?.proxy || '').trim();
+    const partial = {};
+    if (proxy) partial.proxy = proxy;
+
+    if (req.file) {
+      ensureSecretsDir();
+      fs.copyFileSync(req.file.path, DEFAULT_COOKIES_FILE);
+      try { fs.unlinkSync(req.file.path); } catch (_) {}
+      partial.cookiesFile = DEFAULT_COOKIES_FILE;
+    }
+
+    if (Object.keys(partial).length === 0) {
+      return res.status(400).json({ success: false, error: '请提供 proxy 或上传 cookies 文件' });
+    }
+
+    saveConfig(partial);
+    const preflight = runYoutubePreflight({ probe: false });
+    res.json({
+      success: true,
+      configured: {
+        proxy: getYoutubeProxy(),
+        cookiesFile: getYoutubeCookiesFile(),
+      },
+      ...preflight,
+    });
+  } catch (error) {
+    console.error('[YouTube Config Error]:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ==========================================
 // ?????? API
 // ==========================================
 app.post('/api/materials/fetch-url', async (req, res) => {

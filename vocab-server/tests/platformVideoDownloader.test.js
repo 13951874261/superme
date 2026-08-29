@@ -7,6 +7,8 @@ const {
   isPlatformVideoUrl,
   getPlatformLabel,
   matchPlatformRule,
+  extractBvid,
+  extractYoutubeId,
 } = require('../services/platformVideoDownloader');
 
 const youtubeCases = [
@@ -43,5 +45,9 @@ for (const url of bilibiliCases) {
 for (const url of nonPlatformCases) {
   assert.ok(!isPlatformVideoUrl(url), `不应识别为平台视频: ${url || '(empty)'}`);
 }
+
+assert.equal(extractBvid('https://www.bilibili.com/video/BV1oVh56UEXu/?spm_id_from=333.337.search-card.all.click'), 'BV1oVh56UEXu');
+assert.equal(extractYoutubeId('https://www.youtube.com/watch?v=YoBc3zII7lg'), 'YoBc3zII7lg');
+assert.equal(extractYoutubeId('https://youtu.be/YoBc3zII7lg'), 'YoBc3zII7lg');
 
 console.log('platformVideoDownloader tests passed');

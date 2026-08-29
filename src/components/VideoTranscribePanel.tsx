@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Video, Link, Languages, UploadCloud, FileVideo, AlertTriangle, Play, Sparkles } from 'lucide-react';
+import YoutubePreflightPanel, { isYoutubeUrl } from './YoutubePreflightPanel';
 
 interface VideoTranscribePanelProps {
   topicHint?: string;
@@ -21,6 +22,10 @@ export default function VideoTranscribePanel({
   const [submitStatus, setSubmitStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
+  const [youtubeReady, setYoutubeReady] = useState(false);
+
+  const showYoutubePreflight = isYoutubeUrl(videoUrl);
+  const youtubeBlocked = showYoutubePreflight && !youtubeReady;
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -96,6 +101,11 @@ export default function VideoTranscribePanel({
   const handleSubmit = async () => {
     if (!videoUrl.trim() && !selectedFile) {
       setError('请粘贴视频 URL 或拖入本地视频文件');
+      return;
+    }
+
+    if (showYoutubePreflight && !youtubeReady) {
+      setError('YouTube 运行前提未就绪，请先完成上方检测与配置');
       return;
     }
 
@@ -343,6 +353,9 @@ export default function VideoTranscribePanel({
             className="w-full px-4 py-3 bg-[var(--color-surface-mid)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-xs transition-all focus:border-[var(--color-primary)] focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_var(--color-primary-light)]"
             disabled={isSubmitting}
           />
+          {showYoutubePreflight && (
+            <YoutubePreflightPanel onReadyChange={setYoutubeReady} />
+          )}
         </div>
 
         {/* 分隔线 */}
@@ -412,7 +425,7 @@ export default function VideoTranscribePanel({
       {/* 提交流程按钮 */}
       <button
         onClick={handleSubmit}
-        disabled={isSubmitting || (!videoUrl.trim() && !selectedFile)}
+        disabled={isSubmitting || (!videoUrl.trim() && !selectedFile) || youtubeBlocked}
         className="w-full flex items-center justify-center gap-2 py-3 bg-[var(--color-primary)] hover:bg-[var(--color-primary-hover)] text-white rounded-[var(--radius-md)] text-xs font-black tracking-widest uppercase transition-all shadow-md active:scale-[0.98] active:translate-y-[1px] disabled:opacity-40 disabled:hover:bg-[var(--color-primary)] cursor-pointer"
       >
         <Play className="w-4 h-4 fill-current" />
