@@ -38,4 +38,18 @@ assert.match(
   '材料提纯必须对 DIFY_VIDEO_WORKFLOW_KEY 提供兜底 Key'
 );
 
+// english_mastery_logic 输入字段为 material_text；只传 article_text/content 会导致 Dify 正文为空、result=[]
+const materialProcessStart = source.indexOf("app.post('/api/material/process-and-extract'");
+assert.ok(materialProcessStart >= 0, '材料提纯路由必须存在');
+const materialProcessEnd = source.indexOf('\napp.', materialProcessStart + 1);
+const materialProcessSegment = source.slice(
+  materialProcessStart,
+  materialProcessEnd > materialProcessStart ? materialProcessEnd : undefined
+);
+assert.match(
+  materialProcessSegment,
+  /material_text:\s*articleText\s*\|\|\s*''/,
+  '材料提纯 workflows/run 必须传入 material_text'
+);
+
 console.log('materialsUploadContract tests passed');

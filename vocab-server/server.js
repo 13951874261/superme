@@ -6760,6 +6760,8 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         body: JSON.stringify({
           inputs: {
             topic: topic || 'General Business',
+            // english_mastery_logic 声明字段为 material_text；缺此字段时 Dify 正文为空 → result=[]
+            material_text: articleText || '',
             user_current_profile: resolveProfileForDify(userId, user_current_profile),
             article_text: articleText || '',
             content: articleText || '',
