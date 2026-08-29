@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import {
   getDifyChatbotUserId,
@@ -18,6 +18,17 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
   const [iframeSrc, setIframeSrc] = useState('');
   const [error, setError] = useState('');
   const [sessionUserId, setSessionUserId] = useState('');
+  const [openNonce, setOpenNonce] = useState(0);
+  const forceNewRef = useRef(false);
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      forceNewRef.current = Boolean((event as CustomEvent<{ forceNew?: boolean }>).detail?.forceNew);
+      setOpenNonce((prev) => prev + 1);
+    };
+    window.addEventListener('dify-assistant-open', onOpen);
+    return () => window.removeEventListener('dify-assistant-open', onOpen);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -25,8 +36,10 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
 
     const userId = getDifyChatbotUserId();
     setSessionUserId(userId);
+    const forceNew = forceNewRef.current;
+    forceNewRef.current = false;
 
-    prepareDifyAssistantIframe()
+    prepareDifyAssistantIframe(forceNew)
       .then((url) => {
         if (!cancelled && url) setIframeSrc(url);
       })
@@ -38,7 +51,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
     return () => {
       cancelled = true;
     };
-  }, [refreshKey]);
+  }, [refreshKey, openNonce]);
 
   if (error) {
     return (
@@ -52,14 +65,14 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
     return (
       <div className="flex h-full items-center justify-center text-gray-400">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
-        <span className="text-xs font-bold uppercase tracking-wider">正在连接答疑助手…</span>
+        <span className="text-xs font-bold uppercase tracking-wider">正在查找对话历史…</span>
       </div>
     );
   }
 
   return (
     <iframe
-      key={`${sessionUserId}-${refreshKey}`}
+      key={`${sessionUserId}-${refreshKey}-${openNonce}`}
       src={iframeSrc}
       className="w-full h-full border-none"
       allow="microphone; fullscreen"

@@ -12,6 +12,7 @@ const {
   sanitizeExampleSentences,
   isInstantTemplateCollocation,
 } = require('./services/cambridgeDictionary');
+const { resolveDifyEmbedSession } = require('./services/difyEmbedSession');
 
 const multer = require('multer');
 const uploadDir = path.join(__dirname, 'public', 'temp_videos');
@@ -5231,7 +5232,7 @@ app.get('/api/theme/stay-stats', (req, res) => {
 app.post('/api/material/upload', (req, res) => res.json({ success: true, message: 'Material upload mocked' }));
 app.get('/api/material/list', (req, res) => res.json([]));
 app.get('/api/knowledge-node/list', (req, res) => res.json([]));
-// Dify embed 会话校验：有效则返回 conversation_id 供 iframe URL；renew=1 时创建新会话
+// Dify embed 会话：按登录账号找回最近有效历史；找不到则 3s 内新开（不走 LLM 创建）
 app.get('/api/dify/embed-session', async (req, res) => {
   const userId = typeof req.query.userId === 'string' ? req.query.userId.trim() : '';
   const conversationId = typeof req.query.conversationId === 'string'
@@ -5248,99 +5249,19 @@ app.get('/api/dify/embed-session', async (req, res) => {
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
 
-  async function validateConversation(convId) {
-    if (!convId) return false;
-    const url = `${baseUrl}/messages?user=${encodeURIComponent(userId)}&conversation_id=${encodeURIComponent(convId)}&limit=1`;
-    try {
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      return response.ok;
-    } catch (err) {
-      console.error('[embed-session] validate conversation failed:', err);
-      return false;
-    }
-  }
-
-  async function listLatestConversation() {
-    const url = `${baseUrl}/conversations?user=${encodeURIComponent(userId)}&limit=1&sort_by=-updated_at`;
-    try {
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (!response.ok) return null;
-      const data = await response.json().catch(() => ({}));
-      return data?.data?.[0]?.id || null;
-    } catch (err) {
-      console.error('[embed-session] list conversations failed:', err);
-      return null;
-    }
-  }
-
-  async function createConversation() {
-    try {
-      const response = await fetch(`${baseUrl}/chat-messages`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          inputs: {},
-          query: ' ',
-          user: userId,
-          response_mode: 'blocking',
-        }),
-      });
-      if (!response.ok) {
-        const errText = await response.text().catch(() => '');
-        console.error('[embed-session] create conversation failed:', response.status, errText);
-        return null;
-      }
-      const data = await response.json().catch(() => ({}));
-      return data?.conversation_id || null;
-    } catch (err) {
-      console.error('[embed-session] create conversation error:', err);
-      return null;
-    }
-  }
-
   try {
-    if (renew) {
-      const created = await createConversation();
-      if (created && await validateConversation(created)) {
-        return res.json({ conversationId: created, stale: false, created: true });
-      }
-      return res.json({ conversationId: null, stale: false, forceNew: true, reason: 'renew_failed' });
-    }
-
-    if (conversationId) {
-      if (await validateConversation(conversationId)) {
-        return res.json({ conversationId, stale: false });
-      }
-      const latest = await listLatestConversation();
-      if (latest && await validateConversation(latest)) {
-        return res.json({ conversationId: latest, stale: false, recovered: true });
-      }
-      return res.json({ conversationId: null, stale: true, reason: 'cached_invalid' });
-    }
-
-    const latest = await listLatestConversation();
-    if (latest && await validateConversation(latest)) {
-      return res.json({ conversationId: latest, stale: false });
-    }
-    if (latest) {
-      return res.json({ conversationId: null, stale: true, reason: 'listed_invalid' });
-    }
-
-    const created = await createConversation();
-    if (created && await validateConversation(created)) {
-      return res.json({ conversationId: created, stale: false, created: true });
-    }
-    return res.json({ conversationId: null, stale: false, forceNew: true, reason: 'no_conversation' });
+    const result = await resolveDifyEmbedSession({
+      userId,
+      conversationId,
+      renew,
+      apiKey,
+      baseUrl,
+    });
+    return res.json(result);
   } catch (err) {
     console.error('[embed-session] error:', err);
-    return res.status(500).json({ message: err.message || 'embed 会话校验失败' });
+    const status = err.statusCode === 400 ? 400 : 500;
+    return res.status(status).json({ message: err.message || 'embed 会话校验失败' });
   }
 });
 

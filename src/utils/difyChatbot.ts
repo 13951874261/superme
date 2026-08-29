@@ -91,13 +91,17 @@ export function getDifyChatbotUserId(_forceNewEmbedSession = false): string {
   return getAppUserId();
 }
 
-export function buildMinimalIframeUrl(userId: string): string {
+export const EMBED_SESSION_BUDGET_MS = 2500;
+
+export function buildMinimalIframeUrl(userId: string, conversationId?: string | null): string {
   const base = DIFY_EMBED_BASE_URL.replace(/\/$/, '');
   const params = new URLSearchParams({
-    user_id: userId,
+    'sys.user_id': userId,
     _refresh: String(Date.now()),
     skip_memory_pack: 'true',
   });
+  const convId = String(conversationId || '').trim();
+  if (convId) params.set('sys.conversation_id', convId);
   return `${base}/chatbot/${DIFY_EMBED_TOKEN}?${params.toString()}`;
 }
 
@@ -105,7 +109,7 @@ export function resetDifyChatbotSession(): void {
   clearAllEmbedConversationCache();
   getOrCreateEmbedSessionId(true);
   invalidateMemoryPackCache();
-  window.dispatchEvent(new Event('dify-assistant-open'));
+  window.dispatchEvent(new CustomEvent('dify-assistant-open', { detail: { forceNew: true } }));
   void prepareDifyAssistantIframe(true).finally(() => refreshDifyChatbotContext());
 }
 
@@ -328,35 +332,30 @@ export async function buildDifyChatbotIframeUrl(options?: {
   return buildIframeUrlWithFallback(userId, options?.forceNew ?? false);
 }
 
+async function fetchEmbedConversationId(userId: string, forceNew: boolean): Promise<string | null> {
+  if (forceNew) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), EMBED_SESSION_BUDGET_MS);
+  try {
+    const params = new URLSearchParams({ userId });
+    const res = await fetch(`/api/dify/embed-session?${params.toString()}`, {
+      signal: controller.signal,
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => ({}));
+    const id = String(json?.conversationId || '').trim();
+    return id || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function prepareDifyAssistantIframe(forceNew = false): Promise<string> {
   const userId = getDifyChatbotUserId(forceNew);
-  const cacheKey = `${userId}::${getAppAccountUserId()}`;
-  const now = Date.now();
-  // ponytail: 首帧用 minimal URL 立即展示（无 memory_pack API 调用）；后台异步补全全量 URL
-  // 升级路径：若需始终含 memory_pack，可改回 buildIframeUrlWithFallback 同步等待
-  const minimalUrl = buildMinimalIframeUrl(userId);
-  if (
-    !forceNew
-    && cachedIframeUrl?.key === cacheKey
-    && now - cachedIframeUrl.at < IFRAME_URL_CACHE_MS
-  ) {
-    return cachedIframeUrl.url;
-  }
-  if (iframeUrlInflight) {
-    return iframeUrlInflight;
-  }
-  const fullUrlPromise = buildIframeUrlWithFallback(userId, forceNew).catch(() => minimalUrl);
-  iframeUrlInflight = fullUrlPromise.then((url) => {
-    cachedIframeUrl = { key: cacheKey, url, at: Date.now() };
-    const iframe = document.querySelector<HTMLIFrameElement>('iframe[title="全局 AI 助手"]');
-    if (iframe && iframe.src !== url) {
-      iframe.src = url;
-    }
-    return url;
-  }).finally(() => {
-    iframeUrlInflight = null;
-  });
-  return minimalUrl;
+  const conversationId = await fetchEmbedConversationId(userId, forceNew);
+  return buildMinimalIframeUrl(userId, conversationId);
 }
 
 export function applyDifyChatbotConfig(): DifyChatbotConfig {
