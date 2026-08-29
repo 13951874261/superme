@@ -25,7 +25,13 @@ assert.match(settings, /UserProfileOverlay/);
 assert.match(settings, /setIsOpen\(false\)/);
 const overlay = fs.readFileSync(path.join(root, 'src/components/UserProfileOverlay.tsx'), 'utf8');
 assert.match(overlay, /compressUserProfile/);
+assert.match(overlay, /loadUserProfileFromServer/, '打开画像前必须强制拉取服务端');
 assert.match(overlay, /saveCareerPathForAccount/);
-assert.match(overlay, /buildCareerAwareProfileString/);
+assert.match(overlay, /buildStaticDifyProfilePreview|buildCareerAwareProfileString/, '注入预览必须含职业/静态拼接');
+assert.match(overlay, /画像正文来源/, '须展示写入来源说明 E1');
+assert.match(overlay, /L3 结构化变量/);
+assert.match(overlay, /错题账本摘要/);
+assert.match(overlay, /关系图谱摘要/);
+assert.match(profileHelper, /buildStaticDifyProfilePreview/, '须提供静态注入预览辅助函数');
 
 console.log('OK careerProgression frontend contract');

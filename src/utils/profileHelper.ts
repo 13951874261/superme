@@ -428,12 +428,29 @@ export function getL3VarsLocal(): Record<string, string> {
   }
 }
 
-function formatL3VarsForProfile(vars: Record<string, string>): string {
+export function formatL3VarsForProfile(vars: Record<string, string>): string {
   const parts: string[] = [];
   if (vars.accent) parts.push(`Accent:${vars.accent}`);
   if (vars.training_goal) parts.push(`Goal:${vars.training_goal}`);
   if (vars.weakness_focus) parts.push(`Focus:${vars.weakness_focus}`);
   return parts.join('; ');
+}
+
+/** 画像页/调试用：与 inject 静态段一致（不含按请求动态的 Recall） */
+export function buildStaticDifyProfilePreview(
+  baseProfile: string,
+  career: CareerPath = readCareerPath(),
+): string {
+  const profile = buildCareerAwareProfileString(baseProfile, career);
+  const l3Line = formatL3VarsForProfile(getL3VarsLocal());
+  const errorSummary = getErrorLedgerSummary();
+  const graphSummary = getGraphSummaryLocal();
+  const graphLine = graphSummary ? `Graph: ${graphSummary.replace(/\n/g, '; ')}` : '';
+  return [profile, l3Line, errorSummary, graphLine].filter(Boolean).join('; ');
+}
+
+export function getProfileUpdatedAtMs(): number {
+  return Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
 }
 
 function normalizeRecallQuery(query: string): string {
