@@ -1,4 +1,4 @@
-import { getUserCurrentProfile, getUserWeaknessProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
+import { getUserWeaknessProfile, getInjectedUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
 import { recordL3Response, recordL4TaskEnqueue } from '../utils/perfSlaTelemetry';
 import {
   extractKeywordsFromText,
@@ -828,7 +828,7 @@ export async function startEnglishMasteryExtraction(
       cefrLevel,
       genre,
       duration,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile({ topic, theme: topic }),
     }),
   });
   const data = await response.json().catch(() => ({}));
@@ -906,8 +906,7 @@ export async function callVocabPurify(
 }
 export async function runEnglishWriteReview(userText: string, mailIntent: string, theme: string): Promise<WritingReviewResult> {
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
-  const profile = getUserWeaknessProfile();
-  const displayTheme = profile && !theme.includes("Weakness:") ? `${theme} (Weakness: ${profile})` : theme;
+  const injected = injectUserProfileAndTime({ theme });
 
   try {
     const res = await fetch('/api/dify/write-review', {
@@ -918,8 +917,8 @@ export async function runEnglishWriteReview(userText: string, mailIntent: string
       body: JSON.stringify({
         user_text: userText,
         mail_intent: mailIntent,
-        theme: displayTheme,
-        user_current_profile: profile,
+        theme: injected.theme || theme,
+        user_current_profile: injected.user_current_profile || getInjectedUserCurrentProfile({ theme }),
         userId: getAppUserId(),
       }),
     });
@@ -1198,7 +1197,7 @@ export async function runWordEnrichment(targetWord: string, theme: string, userI
       word: targetWord.trim(),
       dictType: 'en_en_business',
       userContext: theme,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile({ topic: targetWord, theme }),
       userId,
     }),
   });
@@ -1726,7 +1725,7 @@ export async function fetchInsightFeedback(inputs: InsightListenInputs, userId =
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...inputs,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile(),
       userId,
     }),
   });
@@ -1862,7 +1861,7 @@ export async function runSpeakInfluenceEngine(inputs: SpeakInfluenceInput, userI
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...inputs,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile(),
       userId,
     }),
   });
@@ -2011,7 +2010,7 @@ export async function runGameTheoryAnalysis(
     },
     body: JSON.stringify({
       ...inputs,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile(),
       userId,
     }),
   });
@@ -2150,7 +2149,7 @@ export async function startGameTheorySession(
       body: JSON.stringify({
         ...payload,
         userId,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile(),
       }),
     }
   );
@@ -2223,7 +2222,7 @@ export async function submitGameTheorySessionRound(
         userId,
         text: input.text,
         source: input.source,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile(),
       }),
     }
   );
@@ -2240,7 +2239,7 @@ export async function generateGameTheorySessionSummary(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile(),
       }),
     }
   );
@@ -2257,7 +2256,7 @@ export async function generateGameTheoryPersonalReview(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userId,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile(),
       }),
     }
   );
@@ -2286,7 +2285,7 @@ export async function runCognitiveAscension(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       ...inputs,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile(),
       userId,
     }),
   });
@@ -3066,7 +3065,7 @@ export async function runBiweeklyReviewAnalysis(
         goalAlignment: answers.goalAlignment,
         weaknessScan: answers.weaknessScan,
         tacticalDispatch: answers.tacticalDispatch,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile(),
         userId,
       }),
     });
@@ -3230,7 +3229,7 @@ export async function runWeeklyChatEnhanced(
       body: JSON.stringify({
         userText: content,
         selectedDirections: directions,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile(),
         userId,
       }),
     });

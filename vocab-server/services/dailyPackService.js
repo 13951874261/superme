@@ -1,5 +1,9 @@
 const crypto = require('crypto');
 const { isUsableLongArticle } = require('./difyStreamMerge');
+const {
+  buildInjectedUserCurrentProfile,
+  resolveUserCurrentProfileForDify,
+} = require('./profileInject');
 
 const PACK_TZ = process.env.DAILY_PACK_CRON_TZ || 'Asia/Shanghai';
 const FLAW_SUB_THEMES = [
@@ -300,14 +304,9 @@ function getSystemFormattedTime(now = new Date()) {
   return `${val('year')}-${val('month')}-${val('day')} ${val('hour')}:${val('minute')}:${val('second')} ${weekdayMap[dayIdx]}`;
 }
 
-function getUserCurrentProfile(db, userId) {
-  const uid = normalizeUserId(userId);
-  try {
-    const row = db.prepare('SELECT profile_content FROM user_memories WHERE user_id = ?').get(uid);
-    return sanitizeWeaknessProfile(String(row?.profile_content || '')).slice(0, 280);
-  } catch {
-    return '';
-  }
+function getUserCurrentProfile(db, userId, opts = {}) {
+  // 完整注入串（职业+短板+L3+账本+图谱），供日包/cron/Dify 回落；不再截断到 280
+  return buildInjectedUserCurrentProfile(db, userId, opts);
 }
 
 function getHistoryExclude(db) {
@@ -998,6 +997,8 @@ module.exports = {
   getFallbackFlawVocab,
   buildFlawDisplayWords,
   getUserCurrentProfile,
+  buildInjectedUserCurrentProfile,
+  resolveUserCurrentProfileForDify,
   getHistoryExclude,
   DEDUPE_WINDOW_DAYS,
   DEDUPE_RETENTION_DAYS,

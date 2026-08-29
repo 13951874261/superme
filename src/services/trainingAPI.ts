@@ -1,4 +1,4 @@
-import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
+import { getInjectedUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 
 export interface SessionUpsertResponse {
   success: boolean;
@@ -310,7 +310,7 @@ export async function addCustomTheme(params: {
     method: 'POST',
     body: JSON.stringify({
       ...params,
-      user_current_profile: getUserCurrentProfile(),
+      user_current_profile: getInjectedUserCurrentProfile({ theme: params.themeName }),
     }),
   });
 }

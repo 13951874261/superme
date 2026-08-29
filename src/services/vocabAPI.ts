@@ -3,7 +3,7 @@
  * 统一封装所有对服务端 /api/vocab/* 的调用
  */
 
-import { getUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
+import { getInjectedUserCurrentProfile, interceptOutputText, getAppUserId } from '../utils/profileHelper';
 import { playError } from '../utils/soundEffects';
 import { showToast } from '../components/Toast';
 import { createRequestDeduper } from './vocabRequestDeduper';
@@ -603,7 +603,11 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
         locale: params.locale || 'zh-CN',
         userId: getAppUserId(),
         direction: resolvedDirection,
-        user_current_profile: getUserCurrentProfile(),
+        user_current_profile: getInjectedUserCurrentProfile({
+          topic: params.word,
+          user_query: params.word,
+          userContext: params.userContext || '',
+        }),
       }),
     });
     const data = await res.json().catch(() => ({}));
@@ -709,7 +713,7 @@ export async function getMemoryAids(id: string): Promise<MemoryAids> {
 export async function enrichMemory(id: string): Promise<MemoryAids> {
   return request<MemoryAids>(`/enrich-memory/${id}`, {
     method: 'POST',
-    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() }),
+    body: JSON.stringify({ user_current_profile: getInjectedUserCurrentProfile() }),
     timeoutMs: 0,
   });
 }
@@ -723,7 +727,7 @@ export async function getEbbinghausData(id: string): Promise<EbbinghausData> {
 export async function generateMemoryImage(id: string): Promise<{ success: boolean; id: string; image_url: string; download_url: string }> {
   const initialRes = await request<{ success: boolean; taskId?: string; id?: string; image_url?: string; download_url?: string }>(`/generate-image/${id}`, {
     method: 'POST',
-    body: JSON.stringify({ user_current_profile: getUserCurrentProfile() }),
+    body: JSON.stringify({ user_current_profile: getInjectedUserCurrentProfile() }),
     timeoutMs: 0,
   });
 

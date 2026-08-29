@@ -478,6 +478,13 @@ try {
 }
 
 const dailyPackService = require('./services/dailyPackService');
+
+/** 客户端未传完整画像时，从 SQLite 拼职业+短板+L3+账本+图谱 */
+function resolveProfileForDify(userId, incoming, recallQuery) {
+  return dailyPackService.resolveUserCurrentProfileForDify(db, userId, incoming, {
+    recallQuery: recallQuery || undefined,
+  });
+}
 const dailyPackCron = require('./services/dailyPackCron');
 dailyPackService.initDailyPackTables(db);
 const dailyCronRunService = require('./services/dailyCronRunService');
@@ -2371,6 +2378,14 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
   const duration = String((inputs && inputs.duration) || '1');
   const maxAttempts = 2; // ??????? 1 ????? D1????? + warning
   let lastAnswer = '';
+  const safeInputs = {
+    ...(inputs || {}),
+    user_current_profile: resolveProfileForDify(
+      userId,
+      inputs?.user_current_profile,
+      inputs?.theme || inputs?.topic,
+    ),
+  };
 
   try {
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -2390,7 +2405,7 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
           },
           signal: fetchController.signal,
           body: JSON.stringify({
-            inputs: injectOralSystemTime(inputs || {}),
+            inputs: injectOralSystemTime(safeInputs),
             query,
             response_mode: 'streaming',
             user: userId,
@@ -2707,7 +2722,7 @@ app.get('/api/listen/pregenerated', (req, res) => {
     const historyExclude = String(req.query.historyExclude ?? dailyPackService.getHistoryExclude(db) ?? '').trim();
     const userFlaws = String(req.query.userFlaws || '').trim();
     const userCurrentProfile = String(
-      req.query.userCurrentProfile ?? dailyPackService.getUserCurrentProfile(db, userId) ?? '',
+      resolveProfileForDify(userId, req.query.userCurrentProfile),
     ).trim();
     const comboQuery = {
       userId,
@@ -3664,7 +3679,7 @@ app.post('/api/vocab/add-enriched', async (req, res) => {
       item: { word, dictType, category, scene_type, is_phrase, is_sentence, payload },
       topic,
       source,
-      userProfile: user_current_profile,
+      userProfile: resolveProfileForDify(userId, user_current_profile),
     });
 
     res.json({ success: true, ...result });
@@ -4769,7 +4784,7 @@ app.post('/api/theme/custom-add', async (req, res) => {
         inputs: {
           custom_theme_name: themeName,
           topic: themeName,
-          user_current_profile: user_current_profile || ''
+          user_current_profile: resolveProfileForDify(userId, user_current_profile)
         },
         response_mode: 'blocking',
         user: userId
@@ -5490,7 +5505,7 @@ async function runBackgroundDifyDictEnrichmentJob({ cleanWord, dictType, directi
             direction: direction || 'auto',
             user_context: userContext || '',
             locale: locale || 'zh-CN',
-            user_current_profile: user_current_profile || ''
+            user_current_profile: resolveProfileForDify(userId, user_current_profile)
           }),
           response_mode: 'streaming',
           user: userId  // 强制使用传入的 userId，不允许降级到默认值
@@ -5985,7 +6000,7 @@ app.post('/api/dify/write-review', async (req, res) => {
           user_text: user_text.trim(),
           mail_intent: mail_intent.trim(),
           theme: theme.trim(),
-          user_current_profile: user_current_profile || ''
+          user_current_profile: resolveProfileForDify(userId, user_current_profile)
         }, injected.context),
         response_mode: 'blocking',
         user: userId
@@ -6209,6 +6224,7 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
     }
+    const userId = req.body?.userId || row.user_id || 'default-user';
 
     const payload = await checkAndEnrichPlaceholderPayload(row);
     const word = row.word;
@@ -6248,7 +6264,7 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
           pos: pos || '',
           definition: definition || '',
           examples: examples || '',
-          user_current_profile: user_current_profile || ''
+          user_current_profile: resolveProfileForDify(userId, user_current_profile)
         },
         response_mode: 'blocking',
         user: 'system-agent'
@@ -6744,7 +6760,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
         body: JSON.stringify({
           inputs: {
             topic: topic || 'General Business',
-            user_current_profile: user_current_profile || '',
+            user_current_profile: resolveProfileForDify(userId, user_current_profile),
             article_text: articleText || '',
             content: articleText || '',
           },
@@ -7821,7 +7837,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
             duration: String(duration),
             history_exclude: historyExclude,
             user_flaws: userFlaws,
-            user_current_profile: String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || ''),
+            user_current_profile: resolveProfileForDify(userId, user_current_profile),
             _system_time,
             _system_timestamp_ms,
           }),
@@ -8105,7 +8121,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       });
       const artId = crypto.randomUUID();
       const durationVal = requestBody?.duration ? String(requestBody.duration) : (duration ? String(duration) : '25');
-      const profileForSig = String(user_current_profile || dailyPackService.getUserCurrentProfile(db, userId) || '').trim();
+      const profileForSig = resolveProfileForDify(userId, user_current_profile);
       const sigVal = dailyPackService.computeListenArticleInputSignature({
         theme: topic || 'General Business',
         genre: genre || 'meeting',
@@ -8295,7 +8311,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
 
     const resolvedHistoryExclude = String(historyExclude || dailyPackService.getHistoryExclude(db) || '').trim();
     const resolvedUserCurrentProfile = String(
-      userCurrentProfile || dailyPackService.getUserCurrentProfile(db, uid) || ''
+      resolveProfileForDify(uid, userCurrentProfile)
     ).trim();
     const inputSignature = dailyPackService.computeInputSignature(
       resolvedTheme,
@@ -8831,7 +8847,7 @@ app.post('/api/pronunciation-assessment', async (req, res) => {
         inputs: injectOralSystemTime({
           target_text: targetText,
           recognized_text: recognizedText || '',
-          user_current_profile: user_current_profile || ''
+          user_current_profile: resolveProfileForDify(userId, user_current_profile)
         }),
         response_mode: 'blocking',
         user: userId,
@@ -8898,7 +8914,7 @@ app.post('/api/grammar-polish', async (req, res) => {
       body: JSON.stringify({
         inputs: injectOralSystemTime({
           original_text: originalText,
-          user_current_profile: user_current_profile || ''
+          user_current_profile: resolveProfileForDify(userId, user_current_profile)
         }),
         response_mode: 'blocking',
         user: userId,
@@ -9012,7 +9028,7 @@ app.post('/api/game-theory/analyze', async (req, res) => {
             case_text: case_text + promptInstruction,
             user_answer,
             applied_tactics: applied_tactics || '',
-            user_current_profile: user_current_profile || '',
+            user_current_profile: resolveProfileForDify(userId, user_current_profile),
           }), injected.context),
           response_mode: 'blocking',
           user: userId,
@@ -9267,9 +9283,20 @@ function sendGameTheorySessionError(res, err) {
   return res.status(status).json(body);
 }
 
+function withResolvedGameTheoryProfile(body = {}) {
+  const next = { ...(body || {}) };
+  const uid = next.userId || next.user || 'default-user';
+  next.user_current_profile = resolveProfileForDify(
+    uid,
+    next.user_current_profile,
+    next.theme || next.scenario || next.title,
+  );
+  return next;
+}
+
 app.post('/api/game-theory/session/start', async (req, res) => {
   try {
-    const session = await gameTheorySession.startSession(req.body || {});
+    const session = await gameTheorySession.startSession(withResolvedGameTheoryProfile(req.body || {}));
     res.json({ success: true, session, session_id: session.session_id });
   } catch (err) {
     console.error('启动多人博弈会话失败:', err);
@@ -9341,7 +9368,7 @@ app.post('/api/game-theory/session/:sessionId/round', async (req, res) => {
       res.setHeader('X-Accel-Buffering', 'no');
 
       const result = await gameTheorySession.submitRound(sessionId, userId, {
-        ...req.body,
+        ...withResolvedGameTheoryProfile(req.body || {}),
         stream: true,
         onChunk: (chunk) => {
           res.write(chunk);
@@ -9353,7 +9380,11 @@ app.post('/api/game-theory/session/:sessionId/round', async (req, res) => {
       res.write(`data: ${JSON.stringify({ event: 'round_finished', result })}\n\n`);
       return res.end();
     } else {
-      const result = await gameTheorySession.submitRound(sessionId, userId, req.body || {});
+      const result = await gameTheorySession.submitRound(
+        sessionId,
+        userId,
+        withResolvedGameTheoryProfile(req.body || {}),
+      );
       console.log(`[博弈推演] 本轮博弈对抗推演完成 (会话ID: ${sessionId}, 标准报文)`);
       return res.json({ success: true, ...result });
     }
@@ -9370,7 +9401,11 @@ app.post('/api/game-theory/session/:sessionId/round', async (req, res) => {
 app.post('/api/game-theory/session/:sessionId/summary', async (req, res) => {
   try {
     const userId = req.body?.userId || 'default-user';
-    const result = await gameTheorySession.generateSummary(req.params.sessionId, userId, req.body || {});
+    const result = await gameTheorySession.generateSummary(
+      req.params.sessionId,
+      userId,
+      withResolvedGameTheoryProfile(req.body || {}),
+    );
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('生成局势全景图失败:', err);
@@ -9381,7 +9416,11 @@ app.post('/api/game-theory/session/:sessionId/summary', async (req, res) => {
 app.post('/api/game-theory/session/:sessionId/personal-review', async (req, res) => {
   try {
     const userId = req.body?.userId || 'default-user';
-    const result = await gameTheorySession.generatePersonalReview(req.params.sessionId, userId, req.body || {});
+    const result = await gameTheorySession.generatePersonalReview(
+      req.params.sessionId,
+      userId,
+      withResolvedGameTheoryProfile(req.body || {}),
+    );
     res.json({ success: true, ...result });
   } catch (err) {
     console.error('生成个人复盘失败:', err);
@@ -9471,7 +9510,7 @@ app.post('/api/biweekly-review/analyze', async (req, res) => {
           goal_alignment: goalAlignment,
           weakness_scan: weaknessScan,
           tactical_dispatch: tacticalDispatch,
-          user_current_profile: user_current_profile || '',
+          user_current_profile: resolveProfileForDify(userId, user_current_profile),
           recent_episodes_summary: composeMemorySummaryForPrompt(memoryCtx),
           error_ledger_summary: memoryCtx.errorLedgerSummary,
         }),
@@ -9583,7 +9622,7 @@ app.post('/api/weekly-chat/enhanced', async (req, res) => {
           selected_directions: Array.isArray(selectedDirections)
             ? selectedDirections.join(', ')
             : String(selectedDirections || ''),
-          user_current_profile: user_current_profile || '',
+          user_current_profile: resolveProfileForDify(userId, user_current_profile),
           recent_episodes_summary: composeMemorySummaryForPrompt(memoryCtx),
           error_ledger_summary: memoryCtx.errorLedgerSummary,
         }),
@@ -9645,7 +9684,7 @@ app.post('/api/game-theory/ascension', async (req, res) => {
           dimension,
           game_model: game_model || 'prisoner_dilemma',
           scene_type: scene_type || 'corp_clash',
-          user_current_profile: user_current_profile || '',
+          user_current_profile: resolveProfileForDify(userId, user_current_profile),
           _system_time: getOralSystemFormattedTime(),
           _system_timestamp_ms: Date.now()
         }, injected.context),
@@ -9773,11 +9812,12 @@ app.delete('/api/game-theory/prototypes/:id', (req, res) => {
 // 获取所有手段（系统默认 + 用户自定义）
 app.post('/api/read/penetration/analyze', async (req, res) => {
   try {
+    const userId = req.body?.userId || req.body?.user || 'default-user';
     const result = await analyzeReadPenetration({
       sceneType: req.body?.scene_type,
       textInput: req.body?.text_input,
-      userId: req.body?.userId || req.body?.user || 'default-user',
-      userProfile: req.body?.user_current_profile || '',
+      userId,
+      userProfile: resolveProfileForDify(userId, req.body?.user_current_profile),
       systemTime: req.body?._system_time || '',
     });
     res.json({ success: true, result });

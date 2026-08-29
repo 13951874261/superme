@@ -654,6 +654,14 @@ export function injectUserProfileAndTime(inputs: Record<string, any> = {}): Reco
 }
 
 /**
+ * 仅取完整注入后的 user_current_profile（职业+短板+L3+账本+图谱+Recall）
+ * 凡向 Dify 传画像时优先用此函数，勿裸用 getUserCurrentProfile()
+ */
+export function getInjectedUserCurrentProfile(inputs: Record<string, any> = {}): string {
+  return String(injectUserProfileAndTime(inputs).user_current_profile || '').trim();
+}
+
+/**
  * 应用启动时从后端拉取画像/长效记忆，并与 localStorage 按 updated_at 合并
  */
 export async function loadUserProfileFromServer(userId?: string): Promise<void> {

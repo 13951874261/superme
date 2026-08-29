@@ -1,4 +1,4 @@
-import { getAppUserId, getUserCurrentProfile } from '../utils/profileHelper';
+import { getAppUserId, getInjectedUserCurrentProfile } from '../utils/profileHelper';
 import { getAllWords, type VocabEntry } from './vocabAPI';
 import { recordL1Response } from '../utils/perfSlaTelemetry';
 
@@ -95,7 +95,7 @@ export async function buildDailyPackQueryInput(theme: string): Promise<DailyPack
   return {
     theme: String(theme || '').trim(),
     historyExclude,
-    userCurrentProfile: getUserCurrentProfile(),
+    userCurrentProfile: getInjectedUserCurrentProfile({ theme: String(theme || '').trim() }),
   };
 }
 

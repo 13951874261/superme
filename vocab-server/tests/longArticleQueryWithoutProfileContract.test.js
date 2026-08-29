@@ -32,7 +32,7 @@ assert.match(getter, /audioUrl:/, '返回体必须带 audioUrl');
 const runStart = server.indexOf('async function runDailyExtractAsync');
 const nextApp = server.indexOf('\napp.', runStart + 1);
 const runAsync = server.slice(runStart, nextApp > runStart ? nextApp : runStart + 80000);
-assert.match(runAsync, /user_current_profile: String\(user_current_profile \|\| dailyPackService\.getUserCurrentProfile/, '生成必须把当前用户画像传给 Dify');
+assert.match(runAsync, /user_current_profile: resolveProfileForDify\(userId, user_current_profile\)/, '生成必须把当前用户画像传给 Dify');
 assert.match(runAsync, /theme: topic \|\| "General Business"/, '落库主题必须是原主题，不得把画像拼进 theme');
 
 const getArticle = listen.slice(

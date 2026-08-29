@@ -1,10 +1,8 @@
 import {
   getAppUserId,
-  getUserCurrentProfile,
-  buildCareerAwareProfileString,
+  getInjectedUserCurrentProfile,
   sanitizeProfileContent,
   getCurrentFormattedTime,
-  getGraphSummaryLocal,
 } from './profileHelper';
 import { getNextWeekPushPlan } from './reviewHelper';
 
@@ -21,7 +19,8 @@ const DIFY_EMBED_SID_KEY = 'dify_embed_session_id';
 const DIFY_EMBED_MIGRATED = 'dify_embed_isolated_session_v1';
 const DIFY_EMBED_PAGE_TOKEN_KEY = 'dify_embed_page_token';
 const MEMORY_PACK_CACHE_MS = 300_000; // 5 min
-const EMBED_PROFILE_MAX_LEN = 200;
+/** embedCompact / 紧急截断时尽量保留前缀（职业路径 + L3 在串首） */
+const EMBED_PROFILE_MAX_LEN = 900;
 
 let cachedMemoryPack: { userId: string; text: string; at: number } | null = null;
 let memoryPackInflight: Promise<string> | null = null;
@@ -248,47 +247,48 @@ async function fitConfigToEmbedUrl(config: DifyChatbotConfig): Promise<{ config:
     return { config: working, url };
   }
 
+  // B1: 先砍 focus / memory_pack，再截 profile（前缀保留职业+L3），最后才删画像
   const shrinkSteps: Array<(inputs: Record<string, string | number>) => void> = [
     (inputs) => { delete inputs.training_rebalance_focus; },
-    (inputs) => {
-      const profile = String(inputs.user_current_profile || '');
-      inputs.user_current_profile = profile.slice(0, 280);
-    },
-    (inputs) => {
-      inputs.user_current_profile = String(inputs.user_current_profile || '').slice(0, 120);
-    },
     (inputs) => {
       const pack = String(inputs.memory_pack || '').trim();
       if (!pack) return;
       const firstBlock = pack.split('\n\n').slice(0, 2).join('\n\n');
       inputs.memory_pack = firstBlock.slice(0, 700);
     },
-    (inputs) => { delete inputs.user_current_profile; },
     (inputs) => {
       const pack = String(inputs.memory_pack || '').trim();
       inputs.memory_pack = pack.split('\n')[0]?.slice(0, 400) || pack.slice(0, 400);
     },
     (inputs) => { delete inputs.memory_pack; },
+    (inputs) => {
+      const profile = String(inputs.user_current_profile || '');
+      inputs.user_current_profile = profile.slice(0, 600);
+    },
+    (inputs) => {
+      inputs.user_current_profile = String(inputs.user_current_profile || '').slice(0, 280);
+    },
+    (inputs) => {
+      inputs.user_current_profile = String(inputs.user_current_profile || '').slice(0, 120);
+    },
+    (inputs) => { delete inputs.user_current_profile; },
   ];
 
   for (const step of shrinkSteps) {
     step(working.inputs);
     url = await encodeConfigToChatbotUrl(working);
     if (url.length <= EMBED_IFRAME_URL_MAX_LEN) {
-      console.warn('[difyChatbot] iframe URL shrunk to fit 2048 limit (memory_pack kept if possible).');
+      console.warn('[difyChatbot] iframe URL shrunk to fit limit (profile kept if possible).');
       return { config: working, url };
     }
   }
 
-  console.warn('[difyChatbot] iframe URL still exceeds 2048 after shrink; load may fail.');
+  console.warn('[difyChatbot] iframe URL still exceeds limit after shrink; load may fail.');
   return { config: working, url };
 }
 
 async function buildFullConfig(userId: string): Promise<DifyChatbotConfig> {
-  const [profile, memoryPack] = await Promise.all([
-    Promise.resolve(getUserCurrentProfile()),
-    fetchEmbedMemoryPackCached(userId),
-  ]);
+  const memoryPack = await fetchEmbedMemoryPackCached(userId);
   return buildDifyChatbotConfig({ userId, memoryPack: memoryPack || undefined });
 }
 
@@ -330,11 +330,7 @@ export function buildDifyChatbotConfig(options?: {
   const rebalanceFocus = pushPlan?.generalFocus?.join('、')
     || pushPlan?.oralSandbox?.focus
     || '';
-  const graphSummary = getGraphSummaryLocal();
-  const profileBase = buildCareerAwareProfileString(getUserCurrentProfile());
-  let profileWithGraph = sanitizeProfileContent(
-    graphSummary ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}` : profileBase
-  );
+  let profileWithGraph = sanitizeProfileContent(getInjectedUserCurrentProfile());
   if (options?.embedCompact && profileWithGraph.length > EMBED_PROFILE_MAX_LEN) {
     profileWithGraph = profileWithGraph.slice(0, EMBED_PROFILE_MAX_LEN);
   }

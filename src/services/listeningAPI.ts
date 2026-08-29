@@ -1,6 +1,6 @@
 import { ComparisonResult } from '../types/listening';
 import { transcribeAudioWithWhisper } from './difyAPI';
-import { getUserCurrentProfile, interceptOutputText } from '../utils/profileHelper';
+import { getInjectedUserCurrentProfile, injectUserProfileAndTime, interceptOutputText } from '../utils/profileHelper';
 import { buildTtsModel, requestTtsSpeech, type TtsSpeechResult } from './ttsAPI';
 
 
@@ -76,16 +76,15 @@ export async function transcribeAudio(audioBlob: Blob): Promise<string> {
  * 运行 Listening_Comparison_Engine 工作流
  */
 export async function runListeningEngine(userInput: string, standardText: string, theme: string): Promise<ComparisonResult> {
-  const profile = getUserCurrentProfile();
-  const displayTheme = profile && !theme.includes('Weakness:') ? `${theme} (Weakness: ${profile})` : theme;
+  const injected = injectUserProfileAndTime({ theme });
   const response = await fetch('/api/listen/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       userInput,
       standardText,
-      theme: displayTheme,
-      user_current_profile: profile,
+      theme: injected.theme || theme,
+      user_current_profile: injected.user_current_profile || getInjectedUserCurrentProfile({ theme }),
       userId: 'local-user',
     }),
   });
