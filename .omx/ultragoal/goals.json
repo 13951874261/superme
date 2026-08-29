@@ -1,33 +1,33 @@
 ﻿{
-  "version": 1,
-  "mode": "aggregate",
-  "briefPath": ".omx/ultragoal/brief.md",
-  "specPath": ".omx/specs/deep-interview-en-en-cambridge-single.md",
-  "aggregateObjective": "Align en_en_business single-word lookups with Cambridge English dictionary Cam-first UX and limited Dify enrichment (syn/ant/col only); pure English UI; phrases/en_zh/collect unchanged.",
-  "goals": [
-    {
-      "id": "G001",
-      "title": "Cambridge EN fetch+parse",
-      "status": "pending",
-      "objective": "Support fetch/parse for https://dictionary.cambridge.org/dictionary/english/{word} without breaking english-chinese-simplified path."
-    },
-    {
-      "id": "G002",
-      "title": "dict-query en_en single-word Cam path",
-      "status": "pending",
-      "objective": "Wire en_en_business+isSingleEnglishWord to Cam-first+Dify enrichment merge (syn/ant/col only); phrases stay Dify."
-    },
-    {
-      "id": "G003",
-      "title": "Pure-EN UtilityEnEnBusinessView",
-      "status": "pending",
-      "objective": "Redesign single-word en_en display from Cam fields + syn/ant/col; hide Chinese gloss and business_notes for Cam-backed payloads."
-    },
-    {
-      "id": "G004",
-      "title": "Verify bug + regression",
-      "status": "pending",
-      "objective": "Add/adjust tests; verify bug Cam URL/display; en_zh and phrase paths unchanged."
-    }
-  ]
+    "version":  1,
+    "mode":  "aggregate",
+    "briefPath":  ".omx/ultragoal/brief.md",
+    "specPath":  ".omx/specs/deep-interview-en-en-cambridge-single.md",
+    "aggregateObjective":  "Align en_en_business single-word lookups with Cambridge English dictionary Cam-first UX and limited Dify enrichment (syn/ant/col only); pure English UI; phrases/en_zh/collect unchanged.",
+    "goals":  [
+                  {
+                      "id":  "G001",
+                      "title":  "Cambridge EN fetch+parse",
+                      "status":  "complete",
+                      "objective":  "Support fetch/parse for https://dictionary.cambridge.org/dictionary/english/{word} without breaking english-chinese-simplified path."
+                  },
+                  {
+                      "id":  "G002",
+                      "title":  "dict-query en_en single-word Cam path",
+                      "status":  "complete",
+                      "objective":  "Wire en_en_business+isSingleEnglishWord to Cam-first+Dify enrichment merge (syn/ant/col only); phrases stay Dify."
+                  },
+                  {
+                      "id":  "G003",
+                      "title":  "Pure-EN UtilityEnEnBusinessView",
+                      "status":  "complete",
+                      "objective":  "Redesign single-word en_en display from Cam fields + syn/ant/col; hide Chinese gloss and business_notes for Cam-backed payloads."
+                  },
+                  {
+                      "id":  "G004",
+                      "title":  "Verify bug + regression",
+                      "status":  "complete",
+                      "objective":  "Add/adjust tests; verify bug Cam URL/display; en_zh and phrase paths unchanged."
+                  }
+              ]
 }
