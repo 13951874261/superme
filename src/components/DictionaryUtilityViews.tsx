@@ -9,7 +9,7 @@ import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } f
 
 export type EditableExample = { en: string; zh: string };
 
-/** 当前页「Cambridge 例句」可见列表：优先 senses 内例句，否则顶层 example_sentences */
+/** 英汉双向「可编辑例句」列表：单词优先 senses；短语/中文回退 example_sentences */
 export function extractCambridgeDisplayExamples(payload: Record<string, any> | null | undefined): EditableExample[] {
   const p = payload && typeof payload === 'object' ? payload : {};
   const senseExamples = Array.isArray(p.senses)
@@ -29,6 +29,9 @@ export function extractCambridgeDisplayExamples(payload: Record<string, any> | n
       : { en: String(sent?.en || '').trim(), zh: String(sent?.zh || '').trim() }))
     .filter((ex: EditableExample) => ex.en || ex.zh);
 }
+
+/** @deprecated 使用 extractCambridgeDisplayExamples（已覆盖 Dify 短语/中文例句） */
+export const extractEditableDisplayExamples = extractCambridgeDisplayExamples;
 
 function hasEnglishText(value: string) {
   return /[A-Za-z]{2,}/.test(value || '');
@@ -519,7 +522,7 @@ export function UtilityEnZhBidirectionalView({
 }: {
   payload: EnZhBidirectionalPayload;
   query: string;
-  /** 受控：当前可见 Cambridge 例句（含用户编辑） */
+  /** 受控：当前可见例句（单词 Cambridge / 短语与中文 Dify 均支持编辑） */
   editableExamples?: EditableExample[];
   onExamplesChange?: (next: EditableExample[]) => void;
 }) {
@@ -645,7 +648,7 @@ export function UtilityEnZhBidirectionalView({
       {(displayExamples.length > 0 || examplesEditable) && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-1.5">
-            <SectionLabel>Cambridge 例句</SectionLabel>
+            <SectionLabel>{senses.length > 0 ? 'Cambridge 例句' : '例句'}</SectionLabel>
             {examplesEditable && !adding && (
               <button
                 type="button"

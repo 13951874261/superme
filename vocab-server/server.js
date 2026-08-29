@@ -5582,11 +5582,12 @@ function shouldSkipDictEnrichmentInput(cleanWord) {
 
 function runBackgroundDifyDictEnrichment(args) {
   const DIFY_DICT_API_KEY = process.env.DIFY_DICT_API_KEY || "";
-  if (!DIFY_DICT_API_KEY) return;
+  if (!DIFY_DICT_API_KEY) return Promise.resolve(null);
   const cleanWord = String(args.cleanWord || '').trim();
-  if (shouldSkipDictEnrichmentInput(cleanWord)) {
+  // forceSync：英汉双向短语/中文前台同步查询，不受后台增强的短词限制
+  if (!args?.forceSync && shouldSkipDictEnrichmentInput(cleanWord)) {
     console.log(`[Dict Background] 跳过非词条输入: "${cleanWord.slice(0, 60)}"`);
-    return;
+    return Promise.resolve(null);
   }
   const dictType = args.dictType || 'en_zh_bidirectional';
   const userId = args.userId || '';
@@ -5745,12 +5746,26 @@ async function runBackgroundDifyDictEnrichmentJob({ cleanWord, dictType, directi
         `).run(crypto.randomUUID(), cleanWord, dictType || 'en_zh_bidirectional', direction, userContext, locale, JSON.stringify(parsedResult), level, Date.now(), userId);
 
         console.log(`[Dict Background] 深度职场解析完成并沉淀入库: "${cleanWord}" (${dictType})`);
+        return parsedResult;
       }
+      return null;
   } catch (bgErr) {
     console.warn(`[Dict Background] 异步增强异常 (${cleanWord}):`, bgErr.message);
+    return null;
   } finally {
     if (timeoutId) clearTimeout(timeoutId);
   }
+}
+
+function hasEnZhDifyDisplayPayload(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  if (typeof payload.translation_main === 'string' && payload.translation_main.trim()) return true;
+  if (typeof payload.meaning_zh === 'string' && payload.meaning_zh.trim()) return true;
+  if (typeof payload.meaning === 'string' && payload.meaning.trim()) return true;
+  if (Array.isArray(payload.example_sentences) && payload.example_sentences.length > 0) return true;
+  if (Array.isArray(payload.definitions_en) && payload.definitions_en.length > 0) return true;
+  if (Array.isArray(payload.senses) && payload.senses.length > 0) return true;
+  return hasDifyEnrichmentPayload(payload);
 }
 
 function settleWithin(promise, timeoutMs) {
@@ -5808,25 +5823,30 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 
   const cleanWord = String(word).trim();
-  const useCambridge = dictType === 'en_zh_bidirectional' && isSingleEnglishWord(cleanWord);
-  const cambridgePromise = useCambridge
+  // 仅「英汉双向 + 单个英文单词」走 Cambridge 秒开 / 生词本种子；短语、句子、中文均走 Dify 同步
+  const useCambridgeWordPath = dictType === 'en_zh_bidirectional' && isSingleEnglishWord(cleanWord);
+  const useEnZhDifySyncPath = dictType === 'en_zh_bidirectional' && !useCambridgeWordPath;
+  const cambridgePromise = useCambridgeWordPath
     ? fetchCambridgeEntry(cleanWord).catch((error) => {
         console.warn(`[Dict Query] Cambridge 抓取失败，回退 Dify (${cleanWord}):`, error.message);
         return null;
       })
     : null;
-  persistCambridgeWhenReady({
-    promise: cambridgePromise,
-    cleanWord,
-    dictType,
-    direction,
-    userContext,
-    locale,
-    userId: cleanUserId,
-  });
+  if (useCambridgeWordPath) {
+    persistCambridgeWhenReady({
+      promise: cambridgePromise,
+      cleanWord,
+      dictType,
+      direction,
+      userContext,
+      locale,
+      userId: cleanUserId,
+    });
+  }
 
-  // 生词本仅作字段种子（Dify 补缺），绝不单独作为前台主展示
+  // 生词本：单词路径可作字段种子；短语/中文仅标记 inVocabulary，不并入种子
   let vocabSeedPayload = null;
+  let inVocabulary = false;
   try {
     const vocabRow = db.prepare(`
       SELECT payload FROM vocabulary
@@ -5837,10 +5857,13 @@ app.post('/api/dify/dict-query', async (req, res) => {
       try {
         const parsedVocab = JSON.parse(vocabRow.payload);
         if (parsedVocab && (parsedVocab.meaning || parsedVocab.meaning_zh || parsedVocab.definition_en || parsedVocab.phonetic || parsedVocab.translation_main)) {
-          vocabSeedPayload = scrubMismatchedVocabEnrichment(
-            cleanWord,
-            buildVocabSeedPayload(cleanWord, parsedVocab)
-          );
+          inVocabulary = true;
+          if (useCambridgeWordPath) {
+            vocabSeedPayload = scrubMismatchedVocabEnrichment(
+              cleanWord,
+              buildVocabSeedPayload(cleanWord, parsedVocab)
+            );
+          }
         }
       } catch (_) {}
     }
@@ -5865,6 +5888,77 @@ app.post('/api/dify/dict-query', async (req, res) => {
     return needsEnrichment;
   };
 
+  // —— 英汉双向：短语 / 句子 / 中文 → 缓存或同步等待 Dify（不走 Cambridge / 种子）——
+  if (useEnZhDifySyncPath) {
+    const resolvedDirection = resolveDictDirection(dictType, direction, cleanWord);
+    try {
+      const cached = db.prepare(`
+        SELECT response_payload FROM dict_query_log
+        WHERE word = ? COLLATE NOCASE
+          AND dict_type = ?
+          AND user_id = ?
+          AND is_success = 1
+          AND response_payload IS NOT NULL
+        ORDER BY created_at DESC LIMIT 1
+      `).get(cleanWord, dictType, cleanUserId);
+      if (cached?.response_payload) {
+        try {
+          const cachedResult = JSON.parse(cached.response_payload);
+          let basePayload = sanitizeDictPayloadForDisplay(cachedResult?.payload || {});
+          if (!basePayload.direction_resolved) {
+            basePayload.direction_resolved = resolvedDirection;
+          }
+          if (hasEnZhDifyDisplayPayload(basePayload)) {
+            console.log(`[Dict Query] 英汉双向非单词命中缓存(Dify路径): "${cleanWord}"`);
+            return res.json({
+              ok: true,
+              type: dictType,
+              fromCache: true,
+              backgroundEnriching: false,
+              payload: basePayload,
+              inVocabulary,
+            });
+          }
+        } catch (_) {}
+      }
+    } catch (cacheErr) {
+      console.warn('[Dict Query] 非单词路径读缓存警告:', cacheErr.message);
+    }
+
+    console.log(`[Dict Query] 英汉双向非单词，同步等待 Dify: "${cleanWord}" (${resolvedDirection})`);
+    const difyParsed = await runBackgroundDifyDictEnrichment({
+      cleanWord,
+      dictType,
+      direction: resolvedDirection,
+      userContext,
+      locale,
+      user_current_profile,
+      userId: cleanUserId,
+      cambridgePromise: null,
+      forceSync: true,
+    });
+    if (difyParsed?.payload) {
+      const payload = sanitizeDictPayloadForDisplay({
+        ...difyParsed.payload,
+        direction_resolved: difyParsed.payload.direction_resolved || resolvedDirection,
+      });
+      return res.json({
+        ok: true,
+        type: dictType,
+        fromCache: false,
+        backgroundEnriching: false,
+        payload,
+        inVocabulary,
+      });
+    }
+    return res.json({
+      ok: false,
+      type: dictType,
+      message: '词典解析失败，请稍后重试',
+      inVocabulary,
+    });
+  }
+
   // 1. 本地词典历史缓存：仅当已有 Cambridge 可展示主体时秒开；瘦缓存则继续走 Cambridge 路径
   try {
     const cached = db.prepare(`
@@ -5883,7 +5977,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
         if (cachedResult && (cachedResult.ok || cachedResult.payload)) {
           if (!cachedResult.type) cachedResult.type = dictType;
           let basePayload = cachedResult.payload || {};
-          // 生词本种子只补 Dify 类缺字段，不覆盖已有 Cambridge 主体
+          // 生词本种子只补 Dify 类缺字段，不覆盖已有 Cambridge 主体（仅单词路径）
           if (vocabSeedPayload) {
             const fill = (key) => {
               const cur = basePayload[key];
@@ -5915,7 +6009,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
             basePayload.direction_resolved = resolveDictDirection(dictType, direction, cleanWord);
           }
           // 仍无 Cambridge 主体且本可抓 Cambridge：不返回瘦缓存，落入首查路径
-          if (useCambridge && !hasCambridgeDisplayPayload(basePayload)) {
+          if (useCambridgeWordPath && !hasCambridgeDisplayPayload(basePayload)) {
             console.log(`[Dict Query] 缓存过瘦，改走 Cambridge 秒开: "${cleanWord}"`);
           } else {
             console.log(`[Dict Query] 命中本地词典历史缓存: "${cleanWord}" (${dictType})`);
@@ -5927,7 +6021,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
               fromCache: true,
               backgroundEnriching: needsEnrichment,
               payload: basePayload,
-              inVocabulary: !!vocabSeedPayload,
+              inVocabulary,
             });
           }
         }
@@ -5937,7 +6031,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
     console.warn('[Dict Query] 读取本地历史缓存警告:', cacheErr.message);
   }
 
-  // 2. 首查 / 瘦缓存：Cambridge 秒开 + 生词本种子补缺；不再把 vocabulary 瘦数据直接返回给前台
+  // 2. 单词首查 / 其它词典：Cambridge 秒开 + 生词本种子补缺（短语/中文不会进入此分支）
   const resolvedDirection = resolveDictDirection(dictType, direction, cleanWord);
   console.log(`[Dict Query] Cambridge 秒开（生词本仅作种子）: "${cleanWord}" (${dictType})`);
   runBackgroundDifyDictEnrichment({
@@ -5967,7 +6061,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
     fromCache: false,
     backgroundEnriching: !hasDifyEnrichmentPayload(payload),
     payload,
-    inVocabulary: !!vocabSeedPayload,
+    inVocabulary,
   });
 });
 
