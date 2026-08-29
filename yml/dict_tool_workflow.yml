@@ -808,7 +808,13 @@ workflow:
             6. etymology（字符串）——词源故事。\n7. other_meanings（对象数组）——其它释义、引申义、跨界义。\n8. business_examples（对象数组）——商务场景用例。每项必须严格包含\
             \ scene（场景名，如“商务会议”）、en（英文例句）和 zh（中文翻译）三个键，且所有字段值必须为非空字符串。\n9. example_sentences（对象数组）——中英双语对照的通用例句。每项必须严格包含\
             \ en（英文句子）和 zh（中文翻译）两个键，且所有字段值必须为非空字符串。\n10. synonyms（字符串数组）——同义词。\n11.\
-            \ antonyms（字符串数组）——反义词。\n12. collocations（字符串数组）——固定搭配。"
+            \ antonyms（字符串数组）——反义词。\n12. collocations（字符串数组）——
+        - id: dict-enzh-sys
+          role: system
+          text: "【本轮输入】 {{#context#}}\n【用户画像】 {{user_current_profile}}\n\n你是英汉双向词典生成器。只输出一个合法 JSON 对象，不要使用 Markdown 代码块。\n\n【必须输出的顶层键（10个，一个都不能少）】\n1. direction_resolved（字符串）——\"en_to_zh\" 或 \"zh_to_en\"，根据 direction 字段判断。\n2. phonetic（字符串）——IPA 国际音标，英式画像用 IPA-UK，如 \"/faɪb/\"。\n3. pos（字符串）——词性，如 noun、verb。\n4. translation_main（字符串）——核心中文翻译。\n5. other_meanings（对象数组）——其它释义，每项 {meaning, context}。\n6. business_examples（对象数组）——商务用例，每项 {scene, en, zh}，至少 2 条。\n7. example_sentences（对象数组）——通用例句，每项 {en, zh}，至少 3 条。\n8. synonyms（字符串数组）——同义词，至少 3 项。\n9. antonyms（字符串数组）——反义词，至少 2 项。\n10. collocations（字符串数组）——固定搭配，至少 3 项。\n\n【画像自适应】若 {{user_current_profile}} 含 \"英国\"/\"UK\"：phonetic 用 IPA-UK；example_sentences 和 business_examples 中的英文用英式拼写（colour/optimise 等）。\n\n【约束】只输出 JSON，不要 error 键，不要拒绝词汇。所有字段必须非空。"
+        - id: dict-enzh-user
+          role: user
+          text: "词条：{{#c0300000-0000-4000-8000-000000000001.p_word#}}\ndirection：{{#c0300000-0000-4000-8000-000000000001.p_dir#}}\n\n请按 system 提示输出完整 JSON。"
         selected: false
         title: 英汉双向·LLM
         type: llm
@@ -952,3 +958,5 @@ workflow:
       y: -119.70973181615676
       zoom: 1.021636065605043
   rag_pipeline_variables: []
+
+

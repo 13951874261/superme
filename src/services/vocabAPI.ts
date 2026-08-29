@@ -185,20 +185,47 @@ export function hasDifyEnrichmentFields(payload: DictPayload | Record<string, un
   );
 }
 
+function normalizeExamplePair(item: unknown): { en: string; zh: string } | null {
+  if (typeof item === 'string') {
+    const en = item.trim();
+    return en ? { en, zh: '' } : null;
+  }
+  if (!item || typeof item !== 'object') return null;
+  const row = item as Record<string, unknown>;
+  const en = String(row.en || row.example_en || row.example || '').trim();
+  const zh = String(row.zh || row.example_zh || row.translation || '').trim();
+  if (!en && !zh) return null;
+  return { en, zh };
+}
+
+function normalizeExampleList(list: unknown): { en: string; zh: string }[] {
+  if (!Array.isArray(list)) return [];
+  return list.map(normalizeExamplePair).filter(Boolean) as { en: string; zh: string }[];
+}
+
 /**
  * 将词典查询 payload 转为生词本存储结构：Cambridge 字段优先，Dify 仅补缺；
- * 保留已有矩阵/记忆等扩展字段；剥离 raw_markdown 等超大字段。
+ * 保留已有矩阵/记忆等扩展字段；剥离 raw_markdown / senses 等不写入生词本的字段。
+ * examplesOverride：用户编辑后的「Cambridge 例句」可见列表（仅收录/更新时写入）。
  */
 export function buildVocabPayloadFromDict(
   dictPayload: DictPayload | Record<string, any> | null | undefined,
   existing?: Record<string, any> | null,
-  meta?: { word?: string; source?: string }
+  meta?: {
+    word?: string;
+    source?: string;
+    examplesOverride?: Array<{ en?: string; zh?: string } | string> | null;
+    /** 已收录自动补全时保留生词本已有例句，避免覆盖用户编辑 */
+    preserveExamples?: boolean;
+  }
 ): Record<string, any> {
   const d = (dictPayload && typeof dictPayload === 'object') ? dictPayload as Record<string, any> : {};
   const ex = (existing && typeof existing === 'object') ? { ...existing } : {};
   delete ex.raw_markdown;
   delete ex.cambridge_raw;
   delete ex.dify_raw;
+  // Cambridge 详情折叠区不写入生词本
+  delete ex.senses;
 
   const fillList = (key: string) => {
     const cur = d[key];
@@ -225,17 +252,19 @@ export function buildVocabPayloadFromDict(
     ex.definition_en
   );
 
-  let examples: any[] = [];
-  if (Array.isArray(d.example_sentences) && d.example_sentences.length > 0) {
-    examples = d.example_sentences.map((sent: any) => (
-      typeof sent === 'string' ? sent : (sent?.en || sent?.zh || '')
-    )).filter(Boolean);
-  } else if (Array.isArray(d.senses) && d.senses.some((s: any) => s?.examples?.length)) {
-    examples = d.senses.flatMap((s: any) => s.examples || [])
-      .map((exItem: any) => (typeof exItem === 'string' ? exItem : exItem?.en || ''))
-      .filter(Boolean);
-  } else if (Array.isArray(ex.examples) && ex.examples.length > 0) {
-    examples = ex.examples;
+  let examples = normalizeExampleList(meta?.examplesOverride);
+  if (examples.length === 0 && meta?.preserveExamples) {
+    examples = normalizeExampleList(ex.examples?.length ? ex.examples : ex.example_sentences);
+  }
+  if (examples.length === 0) {
+    const fromTop = normalizeExampleList(d.example_sentences);
+    if (fromTop.length > 0) {
+      examples = fromTop;
+    } else if (Array.isArray(d.senses) && d.senses.some((s: any) => s?.examples?.length)) {
+      examples = normalizeExampleList(d.senses.flatMap((s: any) => s.examples || []));
+    } else {
+      examples = normalizeExampleList(ex.examples?.length ? ex.examples : ex.example_sentences);
+    }
   }
 
   return {
@@ -249,10 +278,7 @@ export function buildVocabPayloadFromDict(
     definition_en: definitionEn,
     level: fillText(d.level, ex.level),
     examples,
-    example_sentences: Array.isArray(d.example_sentences) && d.example_sentences.length > 0
-      ? d.example_sentences
-      : (ex.example_sentences || []),
-    senses: Array.isArray(d.senses) && d.senses.length > 0 ? d.senses : (ex.senses || []),
+    example_sentences: examples,
     idioms: fillList('idioms'),
     synonyms: fillList('synonyms'),
     antonyms: fillList('antonyms'),
@@ -268,12 +294,12 @@ export function buildVocabPayloadFromDict(
 /** 用于判断生词本是否需要再次回写（避免轮询重复 PATCH） */
 export function vocabSyncFingerprint(payload: Record<string, any> | null | undefined): string {
   const p = payload || {};
+  const exNorm = normalizeExampleList(p.examples?.length ? p.examples : p.example_sentences);
   return JSON.stringify({
     m: p.meaning || p.translation_main || '',
     ph: p.phonetic || '',
     pos: p.partOfSpeech || p.pos || '',
-    ex: Array.isArray(p.examples) ? p.examples.length : 0,
-    se: Array.isArray(p.senses) ? p.senses.length : 0,
+    ex: exNorm.map((e) => `${e.en}|${e.zh}`),
     syn: Array.isArray(p.synonyms) ? p.synonyms.length : 0,
     ant: Array.isArray(p.antonyms) ? p.antonyms.length : 0,
     col: Array.isArray(p.collocations) ? p.collocations.length : 0,

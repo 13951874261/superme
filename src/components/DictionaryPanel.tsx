@@ -12,10 +12,16 @@ import {
   UtilityZhModernView,
   UtilityEnEnBusinessView,
   UtilityEnZhBidirectionalView,
+  extractCambridgeDisplayExamples,
+  type EditableExample,
 } from './DictionaryUtilityViews';
 import { useVocabCollect } from '../hooks/useVocabCollect';
 import { VOCAB_COLLECT_LABEL } from '../utils/backgroundHandoff';
 import { showToast } from './Toast';
+
+function examplesFingerprint(list: EditableExample[]): string {
+  return JSON.stringify(list.map((e) => `${e.en}|${e.zh}`));
+}
 
 type DictType = 'zh_modern' | 'en_en_business' | 'en_zh_bidirectional';
 
@@ -25,6 +31,7 @@ interface DictResult {
   payload?: any;
   error_code?: string;
   message?: string;
+  inVocabulary?: boolean;
 }
 
 const KEY_LABEL_MAP: Record<string, string> = {
@@ -806,17 +813,23 @@ export default function DictionaryPanel() {
   const [activeTab, setActiveTab] = useState('');
   const [saveError, setSaveError] = useState(false);
   const [markedSaved, setMarkedSaved] = useState(false);
+  const [editableExamples, setEditableExamples] = useState<EditableExample[]>([]);
+  const [examplesSeedFp, setExamplesSeedFp] = useState('');
+  const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
+  const [updatingVocab, setUpdatingVocab] = useState(false);
   const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
   const searchAbortRef = useRef<AbortController | null>(null);
   const vocabIdRef = useRef<string | null>(null);
   const lastVocabSyncFpRef = useRef<string>('');
+  const examplesDirtyRef = useRef(false);
 
   const wordKey = query.trim();
   const collecting = wordKey ? isCollecting(wordKey) : false;
   const queued = wordKey ? isQueued(wordKey) : false;
   const collected = markedSaved || (wordKey ? isCollected(wordKey) : false);
+  const examplesDirty = examplesSeedFp !== '' && examplesFingerprint(editableExamples) !== examplesSeedFp;
 
   const runDictSearch = async (type: DictType, wordOverride?: string) => {
     const text = String(wordOverride ?? query).trim();
@@ -827,6 +840,10 @@ export default function DictionaryPanel() {
     setResult(null);
     setActiveTab('');
     setSaveError(false);
+    setEditableExamples([]);
+    setExamplesSeedFp('');
+    setShowUpdatePrompt(false);
+    examplesDirtyRef.current = false;
     searchAbortRef.current?.abort();
     const ac = new AbortController();
     searchAbortRef.current = ac;
@@ -895,7 +912,23 @@ export default function DictionaryPanel() {
     };
   }, [query, result?.ok, hydrateCollected]);
 
-  // 已收录：查询结果（Cam 优先 + Dify 渐进）回写生词本
+  // 查询结果变化时：重置可编辑 Cambridge 例句（本地已改则保留）
+  useEffect(() => {
+    if (!result?.ok || !result.payload || result.type !== 'en_zh_bidirectional') {
+      examplesDirtyRef.current = false;
+      setEditableExamples([]);
+      setExamplesSeedFp('');
+      setShowUpdatePrompt(false);
+      return;
+    }
+    if (examplesDirtyRef.current) return;
+    const seed = extractCambridgeDisplayExamples(result.payload);
+    const seedFp = examplesFingerprint(seed);
+    setEditableExamples(seed);
+    setExamplesSeedFp(seedFp);
+  }, [result?.ok, result?.type, result?.payload]);
+
+  // 已收录：查询结果（Cam 优先 + Dify 渐进）回写生词本（保留已有例句，不写 senses）
   useEffect(() => {
     const text = query.trim();
     if (!text || !result?.ok || !result.payload) return;
@@ -919,6 +952,7 @@ export default function DictionaryPanel() {
         const next = buildVocabPayloadFromDict(result.payload, existing, {
           word: text,
           source: 'dictionary_query_sync',
+          preserveExamples: true,
         });
         const fp = vocabSyncFingerprint(next);
         if (fp === lastVocabSyncFpRef.current) return;
@@ -943,6 +977,10 @@ export default function DictionaryPanel() {
     }
     setSaveError(false);
     setMarkedSaved(false);
+    setEditableExamples([]);
+    setExamplesSeedFp('');
+    setShowUpdatePrompt(false);
+    examplesDirtyRef.current = false;
     vocabIdRef.current = null;
     lastVocabSyncFpRef.current = '';
   };
@@ -951,18 +989,66 @@ export default function DictionaryPanel() {
     setMarkedSaved(false);
     vocabIdRef.current = null;
     lastVocabSyncFpRef.current = '';
+    setEditableExamples([]);
+    setExamplesSeedFp('');
+    setShowUpdatePrompt(false);
+    examplesDirtyRef.current = false;
     await runDictSearch(type);
+  };
+
+  const buildSavePayload = (text: string) => buildVocabPayloadFromDict(result?.payload, null, {
+    word: text,
+    source: 'Dictionary Panel',
+    examplesOverride: result?.type === 'en_zh_bidirectional' ? editableExamples : undefined,
+  });
+
+  const handleUpdateVocab = async () => {
+    if (!result?.payload || !query.trim()) return;
+    const text = query.trim();
+    setUpdatingVocab(true);
+    setSaveError(false);
+    try {
+      let id = vocabIdRef.current;
+      if (!id) {
+        const items = await lookupVocabWords([text]);
+        id = items[0]?.id || null;
+        if (id) vocabIdRef.current = id;
+      }
+      if (!id) throw new Error('未找到生词本条目');
+      const full = await getVocabItem(id);
+      const existing = full?.payload && typeof full.payload === 'object' ? full.payload : {};
+      const next = buildVocabPayloadFromDict(result.payload, existing, {
+        word: text,
+        source: 'Dictionary Panel',
+        examplesOverride: editableExamples,
+      });
+      await updateWordPayload(id, next);
+      lastVocabSyncFpRef.current = vocabSyncFingerprint(next);
+      setExamplesSeedFp(examplesFingerprint(editableExamples));
+      examplesDirtyRef.current = false;
+      setShowUpdatePrompt(false);
+      setMarkedSaved(true);
+      window.dispatchEvent(new Event('vocab-updated'));
+      showToast({ message: '已更新生词本例句', type: 'success' });
+    } catch (err) {
+      console.warn('[DictionaryPanel] 更新生词本失败:', err);
+      setSaveError(true);
+      showToast({ message: '更新生词本失败', type: 'error' });
+    } finally {
+      setUpdatingVocab(false);
+    }
   };
 
   const handleSave = async (type: DictType, anchor?: HTMLElement | null) => {
     if (!result?.payload || !query.trim()) return;
     setSaveError(false);
     const text = query.trim();
-    // 收录先写 Cambridge（当前卡片），Dify 字段有则一并带上；无则稍后自动补
-    const camFirstPayload = buildVocabPayloadFromDict(result.payload, null, {
-      word: text,
-      source: 'Dictionary Panel',
-    });
+    if (collected && examplesDirty) {
+      setShowUpdatePrompt(true);
+      return;
+    }
+    // 收录先写 Cambridge（当前卡片可见核心 + 例句），Dify 字段有则一并带上
+    const camFirstPayload = buildSavePayload(text);
     const outcome = await collect({
       text,
       dictType: type,
@@ -978,6 +1064,9 @@ export default function DictionaryPanel() {
     }
 
     setMarkedSaved(true);
+    setExamplesSeedFp(examplesFingerprint(editableExamples));
+    examplesDirtyRef.current = false;
+    setShowUpdatePrompt(false);
     lastVocabSyncFpRef.current = '';
     // 立刻用当前 Cam 结果回写一次（步骤4 effect 也会跟）；并在缺 Dify 时静默继续轮询以便自动补
     if (!hasDifyEnrichmentFields(result.payload)) {
@@ -1060,7 +1149,18 @@ export default function DictionaryPanel() {
                     <div className="bg-white rounded-xl border border-stone-200/80 p-3.5 shadow-sm space-y-4">
                       {result.type === 'zh_modern' ? <UtilityZhModernView payload={result.payload} query={query} /> :
                        result.type === 'en_en_business' ? <UtilityEnEnBusinessView payload={result.payload} query={query} /> :
-                       result.type === 'en_zh_bidirectional' ? <UtilityEnZhBidirectionalView payload={result.payload} query={query} /> :
+                       result.type === 'en_zh_bidirectional' ? (
+                         <UtilityEnZhBidirectionalView
+                           payload={result.payload}
+                           query={query}
+                           editableExamples={editableExamples}
+                           onExamplesChange={(next) => {
+                             examplesDirtyRef.current = true;
+                             setEditableExamples(next);
+                             setShowUpdatePrompt(false);
+                           }}
+                         />
+                       ) :
                        <div className="space-y-4">
                          <div className="flex items-center justify-between pb-2 border-b border-stone-100">
                            <span className="text-sm font-bold text-stone-800">{query}</span>
@@ -1072,12 +1172,37 @@ export default function DictionaryPanel() {
                        </div>
                       }
 
+                      {showUpdatePrompt && collected && examplesDirty && (
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900 space-y-2">
+                          <div className="font-bold">该词已在生词本中，例句已修改，是否更新？</div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setShowUpdatePrompt(false); }}
+                              className="px-2.5 py-1 rounded-lg border border-stone-200 bg-white text-stone-600 font-bold"
+                            >
+                              取消
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updatingVocab}
+                              onClick={(e) => { e.stopPropagation(); void handleUpdateVocab(); }}
+                              className="px-2.5 py-1 rounded-lg bg-[#FF5722] text-white font-bold disabled:opacity-60"
+                            >
+                              {updatingVocab ? '更新中…' : '确认更新'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* 收录操作：与全站收录同 FSM（收录中 → 后台处理中 → 已收录） */}
                       <div className="flex justify-end pt-3 border-t border-stone-100">
                         <button
                           type="button"
                           title={
-                            collected
+                            collected && examplesDirty
+                              ? '例句已修改，点击更新生词本'
+                              : collected
                               ? VOCAB_COLLECT_LABEL.done
                               : queued
                                 ? VOCAB_COLLECT_LABEL.queued
@@ -1085,13 +1210,22 @@ export default function DictionaryPanel() {
                                   ? VOCAB_COLLECT_LABEL.collecting
                                   : '加入生词本并补齐释义等信息'
                           }
-                          disabled={collecting || queued || collected}
+                          disabled={
+                            collecting || queued || updatingVocab
+                            || (collected && !examplesDirty)
+                          }
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (collected && examplesDirty) {
+                              setShowUpdatePrompt(true);
+                              return;
+                            }
                             void handleSave(type, e.currentTarget);
                           }}
                           className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold disabled:cursor-default ${
-                            collected
+                            collected && examplesDirty
+                              ? 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                              : collected
                               ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
                               : saveError
                                 ? 'bg-red-50 text-red-500 border border-red-100'
@@ -1102,7 +1236,9 @@ export default function DictionaryPanel() {
                                     : 'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white border border-[#FF5722]/25 hover:border-[#FF5722]'
                           }`}
                         >
-                          {collected ? (
+                          {collected && examplesDirty ? (
+                            <><BookmarkPlus className="w-3.5 h-3.5" />更新生词本</>
+                          ) : collected ? (
                             <><CheckCircle2 className="w-3.5 h-3.5" />{VOCAB_COLLECT_LABEL.done}</>
                           ) : saveError ? (
                             <>失败</>

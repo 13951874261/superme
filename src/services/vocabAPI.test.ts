@@ -86,3 +86,46 @@ test('lookupVocabWords 发起 POST /lookup 批量检索', async () => {
   assert.equal(calls[0].method, 'POST');
   assert.deepEqual(calls[0].body, { words: ['apple', 'banana'] });
 });
+
+test('buildVocabPayloadFromDict 写入 {en,zh} 例句且不带 senses', async () => {
+  const { buildVocabPayloadFromDict, vocabSyncFingerprint } = await import('./vocabAPI');
+  const payload = buildVocabPayloadFromDict(
+    {
+      translation_main: '虫子',
+      phonetic: '/bʌɡ/',
+      pos: 'noun',
+      senses: [{ definition_en: 'an insect', translation_zh: '昆虫', examples: [{ en: 'a bug', zh: '一只虫子' }] }],
+      example_sentences: [{ en: 'There is a bug in the code.', zh: '代码里有个 bug。' }],
+    },
+    null,
+    {
+      word: 'bug',
+      source: 'test',
+      examplesOverride: [
+        { en: 'edited en', zh: '编辑后的中文' },
+        { en: 'second', zh: '' },
+      ],
+    }
+  );
+
+  assert.equal(payload.word, 'bug');
+  assert.equal(payload.meaning, '虫子');
+  assert.equal(payload.senses, undefined);
+  assert.deepEqual(payload.examples, [
+    { en: 'edited en', zh: '编辑后的中文' },
+    { en: 'second', zh: '' },
+  ]);
+  assert.deepEqual(payload.example_sentences, payload.examples);
+
+  const preserved = buildVocabPayloadFromDict(
+    { translation_main: '虫子', synonyms: ['insect'] },
+    { examples: [{ en: 'keep me', zh: '保留' }], meaning: '旧义' },
+    { word: 'bug', preserveExamples: true }
+  );
+  assert.deepEqual(preserved.examples, [{ en: 'keep me', zh: '保留' }]);
+  assert.ok(Array.isArray(preserved.synonyms));
+
+  const fp1 = vocabSyncFingerprint(payload);
+  const fp2 = vocabSyncFingerprint({ ...payload, examples: [{ en: 'changed', zh: '' }] });
+  assert.notEqual(fp1, fp2);
+});

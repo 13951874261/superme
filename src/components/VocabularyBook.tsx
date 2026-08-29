@@ -101,15 +101,20 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
               {translation || <span className="text-slate-400">暂无中文释义</span>}
             </div>
 
-            {payload.example_sentences && payload.example_sentences.length > 0 && (
+            {(() => {
+              const reviewExamples = Array.isArray(payload.examples) && payload.examples.length > 0
+                ? payload.examples
+                : (Array.isArray(payload.example_sentences) ? payload.example_sentences : []);
+              if (reviewExamples.length === 0) return null;
+              return (
               <div className="mt-2 pt-2 border-t border-slate-50 space-y-1">
                 <div className="text-[9px] font-bold uppercase text-slate-400 tracking-wider">精选例句</div>
-                {payload.example_sentences.slice(0, 2).map((s: any, idx: number) => (
+                {reviewExamples.map((s: any, idx: number) => (
                   <div key={idx} className="text-[11px] text-slate-600 leading-relaxed">
                     {typeof s === 'object' ? (
                       <>
                         <div className="font-semibold text-slate-700">{s.en}</div>
-                        <div className="text-slate-500">{s.zh}</div>
+                        {s.zh ? <div className="text-slate-500">{s.zh}</div> : null}
                       </>
                     ) : (
                       <div>{s}</div>
@@ -117,7 +122,8 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
                   </div>
                 ))}
               </div>
-            )}
+              );
+            })()}
           </div>
         )}
 

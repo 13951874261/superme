@@ -3,9 +3,32 @@
  * Keep default exports in DictionaryPanel.tsx unchanged for RightPanel / VocabTab.
  */
 import React, { useState } from 'react';
-import { BookOpen, ChevronRight, AlertOctagon } from 'lucide-react';
+import { BookOpen, ChevronRight, AlertOctagon, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
+
+export type EditableExample = { en: string; zh: string };
+
+/** 当前页「Cambridge 例句」可见列表：优先 senses 内例句，否则顶层 example_sentences */
+export function extractCambridgeDisplayExamples(payload: Record<string, any> | null | undefined): EditableExample[] {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const senseExamples = Array.isArray(p.senses)
+    ? p.senses.flatMap((s: any) => (Array.isArray(s?.examples) ? s.examples : []))
+    : [];
+  const fromSenses = senseExamples
+    .map((ex: any) => (typeof ex === 'string'
+      ? { en: ex.trim(), zh: '' }
+      : { en: String(ex?.en || '').trim(), zh: String(ex?.zh || '').trim() }))
+    .filter((ex: EditableExample) => ex.en || ex.zh);
+  if (fromSenses.length > 0) return fromSenses;
+
+  const top = Array.isArray(p.example_sentences) ? p.example_sentences : [];
+  return top
+    .map((sent: any) => (typeof sent === 'string'
+      ? { en: sent.trim(), zh: '' }
+      : { en: String(sent?.en || '').trim(), zh: String(sent?.zh || '').trim() }))
+    .filter((ex: EditableExample) => ex.en || ex.zh);
+}
 
 function hasEnglishText(value: string) {
   return /[A-Za-z]{2,}/.test(value || '');
@@ -145,19 +168,51 @@ function TagCloud({ items, tone }: { items: string[]; tone: 'neutral' | 'pos' | 
   );
 }
 
-function ExampleCard({
-  index,
-  scene,
-  primary,
-  secondary,
-  speak,
-}: {
+const ExampleCard: React.FC<{
   index: number;
   scene?: string;
   primary: string;
   secondary?: string;
   speak?: string;
-}): React.ReactElement {
+  editable?: boolean;
+  onSave?: (next: EditableExample) => void;
+  onDelete?: () => void;
+}> = ({
+  index,
+  scene,
+  primary,
+  secondary,
+  speak,
+  editable = false,
+  onSave,
+  onDelete,
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draftEn, setDraftEn] = useState(primary);
+  const [draftZh, setDraftZh] = useState(secondary || '');
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraftEn(primary);
+    setDraftZh(secondary || '');
+    setEditing(true);
+  };
+
+  const cancelEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditing(false);
+    setDraftEn(primary);
+    setDraftZh(secondary || '');
+  };
+
+  const commitEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = { en: draftEn.trim(), zh: draftZh.trim() };
+    if (!next.en && !next.zh) return;
+    onSave?.(next);
+    setEditing(false);
+  };
+
   return (
     <div className="rounded-xl border border-stone-200/90 bg-white px-3 py-2.5">
       <div className="flex items-center gap-2 mb-1 select-none">
@@ -167,22 +222,85 @@ function ExampleCard({
             {scene}
           </span>
         )}
-        {speak && hasEnglishText(speak) && (
-          <SpeakButton
-            text={speak}
-            title="播放例句"
-            className="ml-auto w-6 h-6 rounded-md border border-stone-100 hover:bg-stone-50 flex items-center justify-center shrink-0"
-            iconClassName="w-3 h-3"
-          />
-        )}
+        <div className="ml-auto flex items-center gap-1 shrink-0">
+          {editable && !editing && (
+            <>
+              <button
+                type="button"
+                title="编辑例句"
+                onClick={startEdit}
+                className="w-6 h-6 rounded-md border border-stone-100 hover:bg-stone-50 text-stone-500 hover:text-[#FF5722] flex items-center justify-center"
+              >
+                <Pencil className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                title="删除例句"
+                onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
+                className="w-6 h-6 rounded-md border border-stone-100 hover:bg-rose-50 text-stone-500 hover:text-rose-600 flex items-center justify-center"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            </>
+          )}
+          {editable && editing && (
+            <>
+              <button
+                type="button"
+                title="保存"
+                onClick={commitEdit}
+                className="w-6 h-6 rounded-md border border-emerald-100 bg-emerald-50 text-emerald-700 flex items-center justify-center"
+              >
+                <Check className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                title="取消"
+                onClick={cancelEdit}
+                className="w-6 h-6 rounded-md border border-stone-100 hover:bg-stone-50 text-stone-500 flex items-center justify-center"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </>
+          )}
+          {!editing && speak && hasEnglishText(speak) && (
+            <SpeakButton
+              text={speak}
+              title="播放例句"
+              className="w-6 h-6 rounded-md border border-stone-100 hover:bg-stone-50 flex items-center justify-center"
+              iconClassName="w-3 h-3"
+            />
+          )}
+        </div>
       </div>
-      <div className="text-[13px] font-medium text-[#202124] leading-relaxed select-text">{primary}</div>
-      {secondary?.trim() && (
-        <div className="text-xs text-stone-500 mt-1 leading-relaxed select-text">{secondary}</div>
+      {editing ? (
+        <div className="space-y-1.5" onClick={(e) => e.stopPropagation()}>
+          <textarea
+            value={draftEn}
+            onChange={(e) => setDraftEn(e.target.value)}
+            rows={2}
+            placeholder="英文例句"
+            className="w-full text-[13px] font-medium text-[#202124] leading-relaxed border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#FF5722] resize-y"
+          />
+          <textarea
+            value={draftZh}
+            onChange={(e) => setDraftZh(e.target.value)}
+            rows={2}
+            placeholder="中文翻译（可选）"
+            className="w-full text-xs text-stone-600 leading-relaxed border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#FF5722] resize-y"
+          />
+        </div>
+      ) : (
+        <>
+          <div className="text-[13px] font-medium text-[#202124] leading-relaxed select-text">{primary}</div>
+          {secondary?.trim() && (
+            <div className="text-xs text-stone-500 mt-1 leading-relaxed select-text">{secondary}</div>
+          )}
+        </>
       )}
     </div>
   );
-}
+};
 
 // —— 现代汉语 ——
 export function UtilityZhModernView({ payload, query }: { payload: ZhModernPayload; query: string }) {
@@ -396,9 +514,14 @@ export function UtilityEnEnBusinessView({ payload, query }: { payload: EnEnBusin
 export function UtilityEnZhBidirectionalView({
   payload,
   query,
+  editableExamples,
+  onExamplesChange,
 }: {
   payload: EnZhBidirectionalPayload;
   query: string;
+  /** 受控：当前可见 Cambridge 例句（含用户编辑） */
+  editableExamples?: EditableExample[];
+  onExamplesChange?: (next: EditableExample[]) => void;
 }) {
   const {
     direction_resolved,
@@ -436,16 +559,30 @@ export function UtilityEnZhBidirectionalView({
     : !/[\u4e00-\u9fa5]/.test(String(query || ''));
 
   const senseExamples = senses.flatMap((s) => s.examples || []).filter((ex) => ex?.en?.trim() || ex?.zh?.trim());
-  // 优先 senses 内例句；若无则回退顶层 example_sentences（生词本/瘦合并场景）
-  const displayExamples = senseExamples.length > 0
-    ? senseExamples
+  const fallbackExamples = senseExamples.length > 0
+    ? senseExamples.map((ex) => ({ en: ex.en || '', zh: ex.zh || '' }))
     : validExamples.map((ex) => ({ en: ex.en || '', zh: ex.zh || '' }));
+  const displayExamples = editableExamples ?? fallbackExamples;
+  const examplesEditable = typeof onExamplesChange === 'function';
 
   const [showExt, setShowExt] = useState(false);
   const [showOther, setShowOther] = useState(false);
   const [showCambridge, setShowCambridge] = useState(false);
   const [showIdioms, setShowIdioms] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newEn, setNewEn] = useState('');
+  const [newZh, setNewZh] = useState('');
   const extCount = collocations.length + (etymology?.trim() ? 1 : 0);
+
+  const commitAdd = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = { en: newEn.trim(), zh: newZh.trim() };
+    if (!next.en && !next.zh) return;
+    onExamplesChange?.([...displayExamples, next]);
+    setNewEn('');
+    setNewZh('');
+    setAdding(false);
+  };
 
   return (
     <div className="space-y-3 text-left select-text selection:bg-[#FF5722]/15">
@@ -505,19 +642,61 @@ export function UtilityEnZhBidirectionalView({
         </FoldBlock>
       )}
 
-      {displayExamples.length > 0 && (
+      {(displayExamples.length > 0 || examplesEditable) && (
         <div>
-          <SectionLabel>Cambridge 例句</SectionLabel>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <SectionLabel>Cambridge 例句</SectionLabel>
+            {examplesEditable && !adding && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setAdding(true); }}
+                className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FF5722] hover:bg-[#FF5722]/10 px-1.5 py-0.5 rounded-md border border-[#FF5722]/20"
+              >
+                <Plus className="w-3 h-3" />新增
+              </button>
+            )}
+          </div>
           <div className="space-y-2">
             {displayExamples.map((example, idx) => (
               <ExampleCard
-                key={idx}
+                key={`${idx}-${example.en.slice(0, 12)}`}
                 index={idx + 1}
                 primary={example.en || ''}
                 secondary={example.zh || ''}
                 speak={example.en || ''}
+                editable={examplesEditable}
+                onSave={(next) => {
+                  const list = displayExamples.slice();
+                  list[idx] = next;
+                  onExamplesChange?.(list);
+                }}
+                onDelete={() => {
+                  onExamplesChange?.(displayExamples.filter((_, i) => i !== idx));
+                }}
               />
             ))}
+            {adding && (
+              <div className="rounded-xl border border-dashed border-[#FF5722]/40 bg-[#FF5722]/5 px-3 py-2.5 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                <textarea
+                  value={newEn}
+                  onChange={(e) => setNewEn(e.target.value)}
+                  rows={2}
+                  placeholder="新增英文例句"
+                  className="w-full text-[13px] border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#FF5722] resize-y"
+                />
+                <textarea
+                  value={newZh}
+                  onChange={(e) => setNewZh(e.target.value)}
+                  rows={2}
+                  placeholder="中文翻译（可选）"
+                  className="w-full text-xs border border-stone-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#FF5722] resize-y"
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button type="button" onClick={(e) => { e.stopPropagation(); setAdding(false); setNewEn(''); setNewZh(''); }} className="px-2 py-1 text-[10px] font-bold text-stone-500 rounded-md border border-stone-200">取消</button>
+                  <button type="button" onClick={commitAdd} className="px-2 py-1 text-[10px] font-bold text-white bg-[#FF5722] rounded-md">保存</button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
