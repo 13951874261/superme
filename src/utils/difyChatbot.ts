@@ -383,32 +383,69 @@ export async function buildDifyChatbotIframeUrl(options?: {
   return buildIframeUrlWithFallback(userId, options?.forceNew ?? false);
 }
 
+const DIFY_IFRAME_URL_CACHE_KEY = 'dify_embed_iframe_url_v1';
+const DIFY_IFRAME_URL_CACHE_MS = 30 * 60 * 1000;
+
+export function readCachedDifyIframeUrl(userId = getDifyChatbotUserId()): string {
+  try {
+    const raw = sessionStorage.getItem(DIFY_IFRAME_URL_CACHE_KEY);
+    if (!raw) return '';
+    const parsed = JSON.parse(raw) as { userId?: string; url?: string; at?: number };
+    if (String(parsed.userId || '') !== String(userId || '')) return '';
+    if (Date.now() - Number(parsed.at || 0) > DIFY_IFRAME_URL_CACHE_MS) return '';
+    return String(parsed.url || '').trim();
+  } catch {
+    return '';
+  }
+}
+
+function writeCachedDifyIframeUrl(userId: string, url: string): void {
+  const trimmed = String(url || '').trim();
+  if (!trimmed) return;
+  sessionStorage.setItem(
+    DIFY_IFRAME_URL_CACHE_KEY,
+    JSON.stringify({ userId, url: trimmed, at: Date.now() }),
+  );
+}
+
 export async function prepareDifyAssistantIframe(forceNew = false): Promise<string> {
   const userId = getDifyChatbotUserId();
   if (forceNew) {
+    sessionStorage.removeItem(DIFY_IFRAME_URL_CACHE_KEY);
     return buildMinimalIframeUrl(userId, null, userId);
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 2500);
-  try {
-    const response = await fetch(`/api/dify/embed-session?userId=${encodeURIComponent(userId)}`, {
-      signal: controller.signal,
-    });
-    if (!response.ok) {
-      return buildMinimalIframeUrl(userId, null, userId);
+  const cached = readCachedDifyIframeUrl(userId);
+  const fetchFresh = async (): Promise<string> => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    try {
+      const response = await fetch(`/api/dify/embed-session?userId=${encodeURIComponent(userId)}`, {
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        return cached || await buildMinimalIframeUrl(userId, null, userId);
+      }
+      const data = await response.json().catch(() => ({}));
+      const url = await buildMinimalIframeUrl(
+        userId,
+        data?.conversationId,
+        data?.sessionUserId || userId,
+      );
+      writeCachedDifyIframeUrl(userId, url);
+      return url;
+    } catch {
+      return cached || await buildMinimalIframeUrl(userId, null, userId);
+    } finally {
+      clearTimeout(timer);
     }
-    const data = await response.json().catch(() => ({}));
-    return buildMinimalIframeUrl(
-      userId,
-      data?.conversationId,
-      data?.sessionUserId || userId,
-    );
-  } catch {
-    return buildMinimalIframeUrl(userId, null, userId);
-  } finally {
-    clearTimeout(timer);
+  };
+
+  if (cached) {
+    void fetchFresh();
+    return cached;
   }
+  return fetchFresh();
 }
 
 export function applyDifyChatbotConfig(): DifyChatbotConfig {

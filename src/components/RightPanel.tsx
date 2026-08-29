@@ -196,9 +196,9 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
       {isOpen && <div className="w-[400px] shrink-0 h-screen" aria-hidden />}
       <motion.aside
         initial={false}
-        animate={{ x: isOpen ? 0 : '100%' }}
+        animate={{ x: 0 }}
         transition={GLOBAL_SPRING}
-        className={`motion-layer fixed top-0 right-0 h-screen w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[10050]' : 'z-0 pointer-events-none'}`}
+        className={`motion-layer fixed top-0 right-0 h-screen w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[10050]' : 'invisible pointer-events-none z-0'}`}
         aria-hidden={!isOpen}
       >
 

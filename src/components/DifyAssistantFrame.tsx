@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import {
   getDifyChatbotUserId,
   prepareDifyAssistantIframe,
+  readCachedDifyIframeUrl,
 } from '../utils/difyChatbot';
 
 interface DifyAssistantFrameProps {
@@ -12,24 +13,27 @@ interface DifyAssistantFrameProps {
 
 /**
  * 右侧「全局 AI 助手」内嵌 Dify 对话。
- * 登录后即预热；呼出大屏不重建 iframe。记忆仍绑定 app_user_id（登录账号）。
+ * 登录后用缓存 URL 立刻预热；呼出大屏不重建 iframe。记忆仍绑定 app_user_id。
  */
 export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFrameProps) {
-  const [iframeSrc, setIframeSrc] = useState('');
+  const [iframeSrc, setIframeSrc] = useState(() => readCachedDifyIframeUrl());
   const [error, setError] = useState('');
   const [sessionUserId, setSessionUserId] = useState('');
   const [openNonce, setOpenNonce] = useState(0);
   const forceNewRef = useRef(false);
+  const loadedRef = useRef(false);
 
   useEffect(() => {
     const onOpen = (event: Event) => {
       const forceNew = Boolean((event as CustomEvent<{ forceNew?: boolean }>).detail?.forceNew);
       if (!forceNew) return;
       forceNewRef.current = true;
+      loadedRef.current = false;
       setOpenNonce((prev) => prev + 1);
     };
     const onSettings = () => {
       forceNewRef.current = true;
+      loadedRef.current = false;
       setOpenNonce((prev) => prev + 1);
     };
     window.addEventListener('dify-assistant-open', onOpen);
@@ -51,7 +55,12 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
 
     prepareDifyAssistantIframe(forceNew)
       .then((url) => {
-        if (!cancelled && url) setIframeSrc(url);
+        if (cancelled || !url) return;
+        setIframeSrc((prev) => {
+          if (prev && prev === url) return prev;
+          if (prev && loadedRef.current && !forceNew) return prev;
+          return url;
+        });
       })
       .catch((e) => {
         console.error('[DifyAssistantFrame] failed to build iframe url', e);
@@ -87,7 +96,11 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
       className="w-full h-full border-none"
       allow="microphone; fullscreen"
       title="全局 AI 助手"
+      loading="eager"
       credentialless=""
+      onLoad={() => {
+        loadedRef.current = true;
+      }}
     />
   );
 }

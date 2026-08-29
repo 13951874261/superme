@@ -77,6 +77,8 @@ assert.doesNotMatch(
   /iframeRef\.current\.src = url/,
   '禁止隐藏预加载 iframe 去打 Dify（会污染同源 conversationIdInfo）'
 );
-assert.match(frame, /正在查找对话历史|正在连接答疑助手|正在打开对话/, '3s 内必须有可见反馈');
+assert.match(chatbot, /dify_embed_iframe_url_v1|readCachedDifyIframeUrl/, '必须缓存已验证的 iframe URL，登录后立刻预热，不能等查找结束才开始加载 Dify');
+assert.match(frame, /loading=["']eager["']/, 'iframe 必须 eager 加载，避免浏览器把后台助手当成懒加载');
+assert.match(frame, /readCachedDifyIframeUrl/, '助手 iframe 必须用缓存 URL 同步起盘');
 
 console.log('difyAssistantOpenFrontend.test.js passed');
