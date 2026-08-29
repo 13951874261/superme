@@ -138,15 +138,17 @@ export function setDifyEmbedInputOverrides(overrides: DifyEmbedInputOverrides): 
   window.dispatchEvent(new CustomEvent('dify-embed-settings-changed'));
 }
 
-export async function buildMinimalIframeUrl(userId: string, conversationId?: string | null): Promise<string> {
+export async function buildMinimalIframeUrl(
+  userId: string,
+  conversationId?: string | null,
+  sessionUserId?: string | null,
+): Promise<string> {
   const base = DIFY_EMBED_BASE_URL.replace(/\/$/, '');
   const raw = String(userId || '').trim() || 'default-user';
-  const loginId = raw.endsWith(DIFY_EMBED_USER_SCOPE)
-    ? raw.slice(0, -DIFY_EMBED_USER_SCOPE.length)
-    : raw;
+  const loginId = raw.includes('@') ? raw.slice(0, raw.indexOf('@')) : raw;
   const overrides = getDifyEmbedInputOverrides();
   const accountId = overrides.app_user_id || loginId;
-  const embedUserId = getDifyEmbedUserId(accountId);
+  const embedUserId = String(sessionUserId || accountId).trim() || accountId;
   const params = new URLSearchParams();
   params.set('sys.user_id', await compressAndEncodeBase64(embedUserId));
   params.set('app_user_id', await compressAndEncodeBase64(accountId));
@@ -381,9 +383,32 @@ export async function buildDifyChatbotIframeUrl(options?: {
   return buildIframeUrlWithFallback(userId, options?.forceNew ?? false);
 }
 
-export async function prepareDifyAssistantIframe(_forceNew = false): Promise<string> {
+export async function prepareDifyAssistantIframe(forceNew = false): Promise<string> {
   const userId = getDifyChatbotUserId();
-  return buildMinimalIframeUrl(userId);
+  if (forceNew) {
+    return buildMinimalIframeUrl(userId, null, userId);
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 2500);
+  try {
+    const response = await fetch(`/api/dify/embed-session?userId=${encodeURIComponent(userId)}`, {
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      return buildMinimalIframeUrl(userId, null, userId);
+    }
+    const data = await response.json().catch(() => ({}));
+    return buildMinimalIframeUrl(
+      userId,
+      data?.conversationId,
+      data?.sessionUserId || userId,
+    );
+  } catch {
+    return buildMinimalIframeUrl(userId, null, userId);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export function applyDifyChatbotConfig(): DifyChatbotConfig {

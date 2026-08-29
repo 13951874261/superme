@@ -5244,18 +5244,20 @@ app.get('/api/dify/embed-session', async (req, res) => {
     return res.status(400).json({ message: '缺少 userId 参数。' });
   }
 
-  const apiKey = process.env.DIFY_CHATBOT_API_KEY;
-  const baseUrl = process.env.DIFY_API_BASE_URL
-    || process.env.VITE_DIFY_API_BASE_URL
-    || 'https://dify.234124123.xyz/v1';
+  const webBaseUrl = process.env.DIFY_WEB_BASE_URL
+    || String(process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz')
+      .replace(/\/v1\/?$/, '');
+  const appCode = process.env.DIFY_WEBAPP_CODE
+    || process.env.VITE_DIFY_CHATBOT_TOKEN
+    || 'Gz2zXRlfsAr5jYgC';
 
   try {
     const result = await resolveDifyEmbedSession({
       userId,
       conversationId,
       renew,
-      apiKey,
-      baseUrl,
+      webBaseUrl,
+      appCode,
     });
     return res.json(result);
   } catch (err) {

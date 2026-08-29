@@ -15,7 +15,17 @@ const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
 const yml = fs.readFileSync(path.join(root, 'yml/time_base/mychat_memory_kb.yml'), 'utf8');
 
 assert.match(chatModule, /呼出独立对话大屏/, '入口按钮必须仍是呼出独立对话大屏');
-assert.match(chatbot, /@embed3/, '必须换独立 embed 用户槽，避开 DEFAULT/旧 ID 死会话');
+assert.match(chatbot, /\/api\/dify\/embed-session/, '打开大屏必须按登录账号向后端查网页侧历史');
+assert.match(
+  chatbot,
+  /params\.set\(['"]sys\.conversation_id['"], await compressAndEncodeBase64\(convId\)\)/,
+  '找到有效网页会话后必须 gzip 传入 sys.conversation_id'
+);
+assert.match(
+  chatbot,
+  /const embedUserId = String\(sessionUserId \|\| accountId\)/,
+  'sys.user_id 必须用找回历史时的网页 session，不能再强行加 @embed 后缀'
+);
 assert.match(
   chatbot,
   /params\.set\(['"]sys\.user_id['"], await compressAndEncodeBase64\(embedUserId\)\)/,

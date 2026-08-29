@@ -1,5 +1,5 @@
 /**
- * 打开独立对话大屏：按登录账号找最近有效会话；找不到则新开；禁止走 LLM 创建。
+ * 打开独立对话大屏：按登录账号查 Dify 网页侧仍有效会话；找不到则新开；禁止走 LLM 创建。
  * 运行：node vocab-server/tests/difyEmbedSession.test.js
  */
 const assert = require('assert');
@@ -10,7 +10,12 @@ assert.ok(EMBED_SESSION_BUDGET_MS <= 2500, '服务端查找预算必须 ≤2500m
 function mockFetch(handlers) {
   const calls = [];
   const fetchImpl = async (url, options = {}) => {
-    calls.push({ url: String(url), method: (options.method || 'GET').toUpperCase() });
+    const headers = options.headers || {};
+    calls.push({
+      url: String(url),
+      method: (options.method || 'GET').toUpperCase(),
+      headers,
+    });
     for (const h of handlers) {
       if (h.match(String(url), options)) return h.respond(url, options);
     }
@@ -20,76 +25,100 @@ function mockFetch(handlers) {
   return fetchImpl;
 }
 
+function jsonOk(payload) {
+  return { ok: true, json: async () => payload };
+}
+
 async function resolve(overrides) {
   return resolveDifyEmbedSession({
     userId: 'lzhmy',
-    apiKey: 'app-test',
-    baseUrl: 'https://dify.example/v1',
+    webBaseUrl: 'https://dify.example',
+    appCode: 'app-code-test',
     ...overrides,
   });
 }
 
 (async () => {
-  // 找到该登录账号最近一条会话 → 返回该 ID，不创建
+  // 网页侧找到该登录账号历史（@embed2 槽）→ 返回该 ID，不走 Service API
   {
     const fetchImpl = mockFetch([
       {
-        match: (url) => url.includes('/conversations') && url.includes('user=lzhmy'),
-        respond: async () => ({
-          ok: true,
-          json: async () => ({ data: [{ id: 'bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb' }] }),
+        match: (url) => url.includes('/api/passport') && url.includes('lzhmy%40embed2'),
+        respond: async () => jsonOk({ access_token: 'tok-embed2' }),
+      },
+      {
+        match: (url) => url.includes('/api/passport'),
+        respond: async () => jsonOk({ access_token: 'tok-other' }),
+      },
+      {
+        match: (url, options) => url.includes('/api/conversations')
+          && (options.headers['X-App-Passport'] === 'tok-embed2' || options.headers['x-app-passport'] === 'tok-embed2'),
+        respond: async () => jsonOk({
+          data: [{ id: '0b4fc10d-96ff-47cc-a5e6-efe0bd962adb', updated_at: 1788002337, name: '如何不断提升自己' }],
         }),
       },
       {
-        match: (url) => url.includes('/messages') && url.includes('bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb'),
-        respond: async () => ({ ok: true, json: async () => ({ data: [] }) }),
+        match: (url) => url.includes('/api/conversations'),
+        respond: async () => jsonOk({ data: [] }),
+      },
+      {
+        match: (url) => url.includes('/api/messages') && url.includes('0b4fc10d-96ff-47cc-a5e6-efe0bd962adb'),
+        respond: async () => jsonOk({ data: [{ id: 'm1' }] }),
       },
     ]);
     const result = await resolve({ fetchImpl });
-    assert.equal(result.conversationId, 'bbbbbbbb-1111-4111-8111-bbbbbbbbbbbb');
-    assert.equal(result.forceNew, undefined);
-    assert.ok(!fetchImpl.calls.some((c) => c.url.includes('/chat-messages') || c.method === 'POST'));
-  }
-
-  // 缓存 ID 失效 → 回落到该用户最近一条有效会话
-  {
-    const fetchImpl = mockFetch([
-      {
-        match: (url) => url.includes('/messages') && url.includes('a30302c9-e68f-41ea-9593-4322b056cda8'),
-        respond: async () => ({ ok: false, status: 404 }),
-      },
-      {
-        match: (url) => url.includes('/conversations'),
-        respond: async () => ({
-          ok: true,
-          json: async () => ({ data: [{ id: 'cccccccc-2222-4222-8222-cccccccccccc' }] }),
-        }),
-      },
-      {
-        match: (url) => url.includes('/messages') && url.includes('cccccccc-2222-4222-8222-cccccccccccc'),
-        respond: async () => ({ ok: true, json: async () => ({ data: [] }) }),
-      },
-    ]);
-    const result = await resolve({
-      fetchImpl,
-      conversationId: 'a30302c9-e68f-41ea-9593-4322b056cda8',
-    });
-    assert.equal(result.conversationId, 'cccccccc-2222-4222-8222-cccccccccccc');
-    assert.equal(result.recovered, true);
+    assert.equal(result.conversationId, '0b4fc10d-96ff-47cc-a5e6-efe0bd962adb');
+    assert.equal(result.sessionUserId, 'lzhmy@embed2');
+    assert.ok(!fetchImpl.calls.some((c) => c.url.includes('/v1/')));
     assert.ok(!fetchImpl.calls.some((c) => c.method === 'POST'));
   }
 
-  // 没有任何历史 → 新开，且不得 POST /chat-messages（LLM 会超 3s）
+  // 死会话 404 跳过，改用同账号下另一条仍有效的网页会话
   {
     const fetchImpl = mockFetch([
       {
-        match: (url) => url.includes('/conversations'),
-        respond: async () => ({ ok: true, json: async () => ({ data: [] }) }),
+        match: (url) => url.includes('/api/passport'),
+        respond: async () => jsonOk({ access_token: 'tok' }),
+      },
+      {
+        match: (url) => url.includes('/api/conversations'),
+        respond: async () => jsonOk({
+          data: [
+            { id: 'a30302c9-e68f-41ea-9593-4322b056cda8', updated_at: 99 },
+            { id: 'cccccccc-2222-4222-8222-cccccccccccc', updated_at: 50 },
+          ],
+        }),
+      },
+      {
+        match: (url) => url.includes('/api/messages') && url.includes('a30302c9-e68f-41ea-9593-4322b056cda8'),
+        respond: async () => ({ ok: false, status: 404, json: async () => ({}) }),
+      },
+      {
+        match: (url) => url.includes('/api/messages') && url.includes('cccccccc-2222-4222-8222-cccccccccccc'),
+        respond: async () => jsonOk({ data: [] }),
+      },
+    ]);
+    const result = await resolve({ fetchImpl });
+    assert.equal(result.conversationId, 'cccccccc-2222-4222-8222-cccccccccccc');
+    assert.equal(result.sessionUserId, 'lzhmy');
+  }
+
+  // 没有任何网页历史 → 新开，且不得 POST
+  {
+    const fetchImpl = mockFetch([
+      {
+        match: (url) => url.includes('/api/passport'),
+        respond: async () => jsonOk({ access_token: 'tok' }),
+      },
+      {
+        match: (url) => url.includes('/api/conversations'),
+        respond: async () => jsonOk({ data: [] }),
       },
     ]);
     const result = await resolve({ fetchImpl });
     assert.equal(result.conversationId, null);
     assert.equal(result.forceNew, true);
+    assert.equal(result.sessionUserId, 'lzhmy');
     assert.equal(result.reason, 'no_conversation');
     assert.ok(!fetchImpl.calls.some((c) => c.url.includes('/chat-messages')));
   }
@@ -112,7 +141,7 @@ async function resolve(overrides) {
         match: () => true,
         respond: async () => {
           now += 4000;
-          return { ok: true, json: async () => ({ data: [] }) };
+          return jsonOk({ access_token: 'tok', data: [] });
         },
       },
     ]);

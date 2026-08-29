@@ -1,38 +1,62 @@
 const EMBED_SESSION_BUDGET_MS = 2500;
 const MIN_UPSTREAM_MS = 80;
+const LEGACY_EMBED_SCOPES = ['@embed2', '@embed3'];
+
+function loginAccountFromUserId(userId) {
+  const raw = String(userId || '').trim();
+  if (!raw) return '';
+  const at = raw.indexOf('@');
+  return at === -1 ? raw : raw.slice(0, at);
+}
+
+function candidateSessionIds(userId) {
+  const loginId = loginAccountFromUserId(userId) || String(userId || '').trim();
+  const ids = [loginId];
+  for (const scope of LEGACY_EMBED_SCOPES) {
+    ids.push(`${loginId}${scope}`);
+  }
+  return [...new Set(ids.filter(Boolean))];
+}
 
 async function resolveDifyEmbedSession({
   userId,
   conversationId = '',
   renew = false,
   fetchImpl = fetch,
-  apiKey,
-  baseUrl,
+  webBaseUrl,
+  appCode,
   now = Date.now,
   budgetMs = EMBED_SESSION_BUDGET_MS,
 } = {}) {
-  const uid = String(userId || '').trim();
-  if (!uid) {
+  const loginId = loginAccountFromUserId(userId) || String(userId || '').trim();
+  if (!loginId) {
     const err = new Error('缺少 userId 参数。');
     err.statusCode = 400;
     throw err;
   }
 
   if (renew) {
-    return { conversationId: null, stale: false, forceNew: true, reason: 'renew' };
+    return { conversationId: null, sessionUserId: loginId, stale: false, forceNew: true, reason: 'renew' };
   }
 
   const started = now();
   const remaining = () => Math.max(0, budgetMs - (now() - started));
-  const root = String(baseUrl || '').replace(/\/$/, '');
+  const root = String(webBaseUrl || '').replace(/\/$/, '').replace(/\/v1$/, '');
+  const code = String(appCode || '').trim();
+  if (!root || !code) {
+    return { conversationId: null, sessionUserId: loginId, stale: false, forceNew: true, reason: 'misconfigured' };
+  }
 
-  async function upstream(url) {
+  async function upstream(url, headers = {}) {
     if (remaining() < MIN_UPSTREAM_MS) return null;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), remaining());
     try {
       return await fetchImpl(url, {
-        headers: { Authorization: `Bearer ${apiKey}` },
+        headers: {
+          'X-App-Code': code,
+          ...headers,
+        },
         signal: controller.signal,
       });
     } catch (err) {
@@ -43,49 +67,79 @@ async function resolveDifyEmbedSession({
     }
   }
 
-  async function validateConversation(convId) {
-    if (!convId) return false;
-    const url = `${root}/messages?user=${encodeURIComponent(uid)}&conversation_id=${encodeURIComponent(convId)}&limit=1`;
+  async function passportFor(sessionUserId) {
+    const url = `${root}/api/passport?user_id=${encodeURIComponent(sessionUserId)}`;
     const response = await upstream(url);
+    if (!response || !response.ok) return '';
+    const data = await response.json().catch(() => ({}));
+    return String(data?.access_token || '').trim();
+  }
+
+  async function listConversations(token) {
+    const url = `${root}/api/conversations?limit=10&sort_by=-updated_at`;
+    const response = await upstream(url, { 'X-App-Passport': token });
+    if (!response || !response.ok) return [];
+    const data = await response.json().catch(() => ({}));
+    return Array.isArray(data?.data) ? data.data : [];
+  }
+
+  async function messagesOk(token, convId) {
+    if (!convId) return false;
+    const url = `${root}/api/messages?conversation_id=${encodeURIComponent(convId)}&limit=1`;
+    const response = await upstream(url, { 'X-App-Passport': token });
     return Boolean(response && response.ok);
   }
 
-  async function listLatestConversation() {
-    const url = `${root}/conversations?user=${encodeURIComponent(uid)}&limit=1&sort_by=-updated_at`;
-    const response = await upstream(url);
-    if (!response || !response.ok) return null;
-    const data = await response.json().catch(() => ({}));
-    return data?.data?.[0]?.id || null;
-  }
-
   const cached = String(conversationId || '').trim();
-  if (cached) {
-    if (await validateConversation(cached)) {
-      return { conversationId: cached, stale: false };
+  const candidates = [];
+
+  for (const sessionUserId of candidateSessionIds(loginId)) {
+    if (remaining() < MIN_UPSTREAM_MS) break;
+    const token = await passportFor(sessionUserId);
+    if (!token) continue;
+    const conversations = await listConversations(token);
+    for (const item of conversations) {
+      if (remaining() < MIN_UPSTREAM_MS) break;
+      const id = String(item?.id || '').trim();
+      if (!id) continue;
+      if (!(await messagesOk(token, id))) continue;
+      candidates.push({
+        conversationId: id,
+        sessionUserId,
+        updatedAt: Number(item?.updated_at || 0),
+      });
     }
-    const latest = await listLatestConversation();
-    if (latest && await validateConversation(latest)) {
-      return { conversationId: latest, stale: false, recovered: true };
-    }
-    return { conversationId: null, stale: true, forceNew: true, reason: 'cached_invalid' };
   }
 
-  const latest = await listLatestConversation();
-  if (latest && await validateConversation(latest)) {
-    return { conversationId: latest, stale: false };
+  if (cached) {
+    const hit = candidates.find((item) => item.conversationId === cached);
+    if (hit) {
+      return { conversationId: hit.conversationId, sessionUserId: hit.sessionUserId, stale: false };
+    }
   }
-  if (latest) {
-    return { conversationId: null, stale: true, forceNew: true, reason: 'listed_invalid' };
+
+  if (!candidates.length) {
+    return {
+      conversationId: null,
+      sessionUserId: loginId,
+      stale: false,
+      forceNew: true,
+      reason: remaining() < MIN_UPSTREAM_MS ? 'timeout' : 'no_conversation',
+    };
   }
+
+  candidates.sort((a, b) => b.updatedAt - a.updatedAt);
+  const best = candidates[0];
   return {
-    conversationId: null,
+    conversationId: best.conversationId,
+    sessionUserId: best.sessionUserId,
     stale: false,
-    forceNew: true,
-    reason: remaining() < MIN_UPSTREAM_MS ? 'timeout' : 'no_conversation',
+    recovered: Boolean(cached && cached !== best.conversationId),
   };
 }
 
 module.exports = {
   EMBED_SESSION_BUDGET_MS,
   resolveDifyEmbedSession,
+  candidateSessionIds,
 };
