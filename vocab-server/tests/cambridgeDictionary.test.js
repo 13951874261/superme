@@ -500,4 +500,69 @@ const cambridgeOnlyColloc = mergeCambridgeWithDify(
 assert.ok(!cambridgeOnlyColloc.collocations.includes('cambridge only colloc'));
 assert.deepStrictEqual(cambridgeOnlyColloc.collocations, []);
 
+// —— English edition (pure EN dictionary page) ——
+const englishBugMarkdown = `# Meaning of **bug** in English
+
+bug
+
+noun
+
+uk
+
+Your browser doesn't support HTML5 audio
+
+/bʌɡ/us
+
+Your browser doesn't support HTML5 audio
+
+/bʌɡ/
+
+### bugnoun  (INSECT)
+
+Add to word listAdd to word list
+
+B1[\\[ C \\]](https://dictionary.cambridge.org/help/codes.html)
+
+a very [small](https://dictionary.cambridge.org/dictionary/english/small "small") [insect](https://dictionary.cambridge.org/dictionary/english/insect "insect")
+
+- Hang on - there's a bug in [your](https://dictionary.cambridge.org/dictionary/english/your "your") [hair](https://dictionary.cambridge.org/dictionary/english/hair "hair").
+- Will this [spray](https://dictionary.cambridge.org/dictionary/english/spray "spray") get [rid](https://dictionary.cambridge.org/dictionary/english/rid "rid") of those little bugs?
+
+### bugnoun  (COMPUTER)
+
+B2[\\[ C \\]](https://dictionary.cambridge.org/help/codes.html)
+
+a mistake or problem in a computer program
+
+- They are trying to fix a software bug.
+`;
+
+const englishParsed = parseCambridgeMarkdown(englishBugMarkdown, {
+  word: 'bug',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english/bug',
+  edition: 'english',
+});
+assert.strictEqual(englishParsed.edition, 'english');
+assert.ok(englishParsed.source_url.includes('/dictionary/english/bug'));
+assert.strictEqual(englishParsed.meaning_zh, '');
+assert.ok(englishParsed.definitions_en[0].includes('insect'));
+assert.ok(englishParsed.example_sentences.some((ex) => /Hang on/i.test(ex.en)));
+assert.ok(!englishParsed.example_sentences.some((ex) => /See more results/i.test(ex.en)));
+
+const mergedEn = mergeCambridgeWithDify(englishParsed, {
+  headword: 'bug',
+  synonyms: ['glitch'],
+  antonyms: [],
+  collocations: ['software bug'],
+  business_notes: 'should be stripped',
+  meaning_zh: '虫子',
+  definitions_en: ['dify def should not win'],
+}, { mode: 'en_en' });
+assert.strictEqual(mergedEn.business_notes, '');
+assert.strictEqual(mergedEn.meaning_zh, '');
+assert.ok(mergedEn.definitions_en[0].includes('insect'));
+assert.deepStrictEqual(mergedEn.synonyms, ['glitch']);
+assert.deepStrictEqual(mergedEn.collocations, ['software bug']);
+assert.ok(mergedEn.example_sentences.some((ex) => /Hang on/i.test(ex.en)));
+
 console.log('cambridge dictionary tests passed');

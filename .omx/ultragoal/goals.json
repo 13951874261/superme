@@ -1,36 +1,33 @@
-{
+﻿{
   "version": 1,
   "mode": "aggregate",
-  "sourceBrief": ".omx/specs/deep-interview-ls-case-daily-pool.md",
   "briefPath": ".omx/ultragoal/brief.md",
-  "ledgerPath": ".omx/ultragoal/ledger.jsonl",
-  "aggregateObjective": "Pointer to .omx/ultragoal/goals.json and .omx/ultragoal/ledger.jsonl for ls-case-daily-pool",
-  "status": "complete",
-  "createdAt": "2026-08-23T11:31:00Z",
-  "updatedAt": "2026-08-23T12:15:00Z",
-  "supersedes": "material-purify-manual-collect",
-  "note": "omx CLI unavailable; G001–G003 complete; browser E2E + independent APPROVE/CLEAR recorded.",
+  "specPath": ".omx/specs/deep-interview-en-en-cambridge-single.md",
+  "aggregateObjective": "Align en_en_business single-word lookups with Cambridge English dictionary Cam-first UX and limited Dify enrichment (syn/ant/col only); pure English UI; phrases/en_zh/collect unchanged.",
   "goals": [
     {
       "id": "G001",
-      "title": "洞察日池只读：表 + GET + 30天指纹",
-      "status": "complete",
-      "objective": "抽出 generateInsightScenario 供复用。新建 insight_daily_cases：按用户/日/类列出 ready 案例；GET /api/insight/listen/pool 只读、不打 Dify；写入时按用户+分类做 30 天指纹去重。",
-      "dependsOn": []
+      "title": "Cambridge EN fetch+parse",
+      "status": "pending",
+      "objective": "Support fetch/parse for https://dictionary.cambridge.org/dictionary/english/{word} without breaking english-chinese-simplified path."
     },
     {
       "id": "G002",
-      "title": "04:00 cron 每用户每类 10 套 + 刷尽补生成",
-      "status": "complete",
-      "objective": "独立 04:00 cron（不并进 02:00）对 cron 目标用户并行补齐每类 10 套；POST backfill 进 taskQueue；任务中心可见。",
-      "dependsOn": ["G001"]
+      "title": "dict-query en_en single-word Cam path",
+      "status": "pending",
+      "objective": "Wire en_en_business+isSingleEnglishWord to Cam-first+Dify enrichment merge (syn/ant/col only); phrases stay Dify."
     },
     {
       "id": "G003",
-      "title": "听模块只读缓存刷新 + 合约测试",
-      "status": "complete",
-      "objective": "ListenModule 进页/刷新只走日池；部分就绪可练；刷尽提示后台生成中并进任务中心；补 LS-POOL 合约测试。",
-      "dependsOn": ["G001", "G002"]
+      "title": "Pure-EN UtilityEnEnBusinessView",
+      "status": "pending",
+      "objective": "Redesign single-word en_en display from Cam fields + syn/ant/col; hide Chinese gloss and business_notes for Cam-backed payloads."
+    },
+    {
+      "id": "G004",
+      "title": "Verify bug + regression",
+      "status": "pending",
+      "objective": "Add/adjust tests; verify bug Cam URL/display; en_zh and phrase paths unchanged."
     }
   ]
 }

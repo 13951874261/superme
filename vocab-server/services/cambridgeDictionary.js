@@ -1,9 +1,37 @@
-﻿const { fetchUrlContent } = require('./webFetcher');
+const { fetchUrlContent } = require('./webFetcher');
 
-const CAMBRIDGE_BASE = 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified';
+const CAMBRIDGE_BASES = {
+  'english-chinese-simplified': 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified',
+  english: 'https://dictionary.cambridge.org/dictionary/english',
+};
+/** @deprecated use CAMBRIDGE_BASES['english-chinese-simplified'] */
+const CAMBRIDGE_BASE = CAMBRIDGE_BASES['english-chinese-simplified'];
 
 function isSingleEnglishWord(value) {
   return /^[A-Za-z]+(?:[-'][A-Za-z]+)*$/.test(String(value || '').trim());
+}
+
+function resolveCambridgeEdition(edition) {
+  const key = String(edition || 'english-chinese-simplified').trim();
+  return CAMBRIDGE_BASES[key] ? key : 'english-chinese-simplified';
+}
+
+function cambridgeBaseUrl(edition) {
+  return CAMBRIDGE_BASES[resolveCambridgeEdition(edition)];
+}
+
+function isJunkEnglishExampleLine(line) {
+  const text = String(line || '').trim();
+  if (!text) return true;
+  if (/^see more results/i.test(text)) return true;
+  if (/^you can also find related/i.test(text)) return true;
+  if (/^add to word list/i.test(text)) return true;
+  if (/^smart vocabulary:/i.test(text)) return true;
+  if (/^browse\b/i.test(text)) return true;
+  if (/^from the cambridge english corpus$/i.test(text)) return true;
+  // Topic labels / nav crumbs without sentence punctuation
+  if (!/[.!?…]/.test(text) && text.split(/\s+/).length <= 4 && !/\bbug\b/i.test(text)) return true;
+  return false;
 }
 
 /**
@@ -123,7 +151,8 @@ function extractCambridgeExamplesSection(markdown, word) {
  * Parse a single sense block
  * Handles both structured (### headings) and flat structures
  */
-function parseSense(block, fallbackWord) {
+function parseSense(block, fallbackWord, edition = 'english-chinese-simplified') {
+  const isEnglishEdition = resolveCambridgeEdition(edition) === 'english';
   const rawLines = block.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const heading = cleanMarkdown(rawLines.shift() || '');
 
@@ -285,10 +314,10 @@ function parseSense(block, fallbackWord) {
     if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) return true;
     // Skip section headers like "Synonym", "Opposites", "Compare"
     if (/^(Synonym|Opposites|Compare|Idioms?|Related word|Phrasal verb|See more)$/i.test(line)) return true;
-    // Skip single words (likely synonyms/antonyms in lists)
-    if (/^[a-z]+$/i.test(line) && line.length < 15) return true;
-    // Skip lines starting with "- " (related examples from other sections)
-    if (/^- /.test(line)) return true;
+    // Skip single words (likely synonyms/antonyms in lists) — EN-ZH path only
+    if (!isEnglishEdition && /^[a-z]+$/i.test(line) && line.length < 15) return true;
+    // Skip "- " on EN-ZH; English edition handles bullets in the collector loop
+    if (!isEnglishEdition && /^- /.test(line)) return true;
     return false;
   };
 
@@ -323,17 +352,26 @@ function parseSense(block, fallbackWord) {
     if (/^\[Share on|^exit$|^Browse|^New Words|^Word of the Day/i.test(line)) continue;
     // Skip section headers like "Synonym", "Opposites", "Compare"
     if (/^(Synonym|Opposites|Compare|Idioms?|Related word|Phrasal verb|See more)$/i.test(line)) continue;
-    // Skip single words (likely synonyms/antonyms in lists)
-    if (/^[a-z]+$/i.test(line) && line.length < 15) continue;
-    // Skip lines starting with "- " (related examples from other sections)
-    if (/^- /.test(line)) continue;
+    // Skip single words (likely synonyms/antonyms in lists) — EN-ZH only;
+    // English edition examples often start with "- " bullets instead.
+    if (!isEnglishEdition && /^[a-z]+$/i.test(line) && line.length < 15) continue;
+    // EN-ZH: skip "- " related lists. English edition: treat "- " as example bullets.
+    if (/^- /.test(line)) {
+      if (!isEnglishEdition) continue;
+      const bullet = line.replace(/^-+\s*/, '').trim();
+      if (!bullet || isJunkEnglishExampleLine(bullet)) continue;
+      const item = splitEnglishChinese(bullet);
+      if (item.en) examples.push({ en: item.en, zh: '' });
+      continue;
+    }
     // Skip corpus attribution lines
     if (/^From the Cambridge English Corpus$/i.test(line)) continue;
     // Skip copyright/translation notices
     if (/^\(Translation of\b/i.test(line)) continue;
     if (!/[A-Za-z]/.test(line)) continue;
+    if (isEnglishEdition && isJunkEnglishExampleLine(line)) continue;
     const item = splitEnglishChinese(line);
-    if (item.en) examples.push(item);
+    if (item.en) examples.push(isEnglishEdition ? { en: item.en, zh: '' } : item);
   }
 
   // Extract inflected headwords
@@ -359,7 +397,9 @@ function parseSense(block, fallbackWord) {
  * Parse Cambridge markdown into structured data
  * Handles both structured (### headings) and flat structures
  */
-function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
+function parseCambridgeMarkdown(markdown, { word, sourceUrl, edition } = {}) {
+  const resolvedEdition = resolveCambridgeEdition(edition);
+  const isEnglishEdition = resolvedEdition === 'english';
   // Remove everything after Examples section
   const sourceText = String(markdown || '').split(/^## Examples of\b/im)[0];
   
@@ -377,8 +417,8 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     // Format 1: structured with ### POS headings (e.g., vibe)
     senses = matches.map((match, index) => {
       const end = matches[index + 1]?.index ?? sourceText.length;
-      return parseSense(`${match[1]}\n${sourceText.slice(match.index + match[0].length, end)}`, word);
-    }).filter((sense) => sense.definition_en || sense.translation_zh);
+      return parseSense(`${match[1]}\n${sourceText.slice(match.index + match[0].length, end)}`, word, resolvedEdition);
+    }).filter((sense) => sense.definition_en || (!isEnglishEdition && sense.translation_zh));
   } else {
     // Format 2: flat structure without ### headings (e.g., mud)
     // Look for POS line pattern like "noun[[ U ]](url)"
@@ -397,8 +437,8 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
       const extractedHeadword = headwordMatch?.[1] || word;
 
       const senseBlock = sourceText.slice(posStart);
-      senses = [parseSense(`${extractedHeadword}\n${senseBlock}`, word)]
-        .filter((sense) => sense.definition_en || sense.translation_zh);
+      senses = [parseSense(`${extractedHeadword}\n${senseBlock}`, word, resolvedEdition)]
+        .filter((sense) => sense.definition_en || (!isEnglishEdition && sense.translation_zh));
     }
   }
 
@@ -425,7 +465,10 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
   const audio = unique(Array.from(sourceText.matchAll(/\((https?:\/\/[^)]+\.mp3(?:\?[^)]*)?)\)/gi), (match) => match[1]));
   
   // Extract copyright
-  const copyrightMatch = sourceText.match(/\(Translation of[\s\S]*?from the ([^)]+?)\s+(©\s*Cambridge University Press)\)/i);
+  const copyrightMatch = isEnglishEdition
+    ? (sourceText.match(/from the Cambridge ([^©\n]+?)\s*(©\s*Cambridge University Press)/i)
+      || sourceText.match(/\(Definition of[\s\S]*?from the Cambridge ([^)]+?)\s+(©\s*Cambridge University Press)\)/i))
+    : sourceText.match(/\(Translation of[\s\S]*?from the ([^)]+?)\s+(©\s*Cambridge University Press)\)/i);
   
   // Extract idioms from the ### **Idioms** section
   const idioms = [];
@@ -447,7 +490,8 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     }
   }
 
-  // Extract collocations from ## Collocations section
+  // Extract collocations from ## Collocations section (kept on cambridge object;
+  // en_en merge policy still prefers Dify for collocations display enrichment)
   const collocationsSection = sourceText.match(/##\s+Collocations([\s\S]*?)(?=^##|\Z)/im);
   const collocations = collocationsSection ? unique(
     Array.from(collocationsSection[1].matchAll(/^- (.+)$/gm), (m) => cleanMarkdown(m[1].trim()))
@@ -460,7 +504,12 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
       .filter((headword) => headword && headword.toLowerCase() !== String(word || '').toLowerCase())
   );
 
+  const baseUrl = cambridgeBaseUrl(resolvedEdition);
+  const primaryDef = senses[0].definition_en || '';
+  const primaryZh = isEnglishEdition ? '' : (senses[0].translation_zh || '');
+
   return {
+    edition: resolvedEdition,
     headword: String(word || senses[0].headword || '').trim(),
     raw_markdown: String(markdown || ''),
     phonetic: phonetics.uk || phonetics.us || '',
@@ -469,12 +518,14 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     level: unique(senses.map((sense) => sense.level).filter(Boolean)).join(' / '),
     senses,
     definitions_en: senses.map((sense) => sense.definition_en).filter(Boolean),
-    translation_main: senses[0].translation_zh,
-    meaning_zh: senses[0].translation_zh,
+    translation_main: isEnglishEdition ? primaryDef : primaryZh,
+    meaning_zh: primaryZh,
     other_meanings: unique(
       senses.slice(1).map((sense) => ({
-        meaning: sense.translation_zh,
-        context: [sense.label, sense.definition_en].filter(Boolean).join(' · ')
+        meaning: isEnglishEdition ? sense.definition_en : sense.translation_zh,
+        context: isEnglishEdition
+          ? [sense.label, sense.part_of_speech].filter(Boolean).join(' · ')
+          : [sense.label, sense.definition_en].filter(Boolean).join(' · '),
       })),
       (item) => normalizeComparable(`${item.meaning}\0${item.context}`)
     ),
@@ -486,15 +537,19 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl } = {}) {
     collocations,
     inflections,
     audio,
-    source: copyrightMatch?.[1]?.trim() || 'Cambridge English-Chinese (Simplified) Dictionary',
-    source_url: sourceUrl || `${CAMBRIDGE_BASE}/${encodeURIComponent(String(word || '').toLowerCase())}`,
+    source: isEnglishEdition
+      ? (copyrightMatch?.[1]?.trim() || 'Cambridge Dictionary')
+      : (copyrightMatch?.[1]?.trim() || 'Cambridge English-Chinese (Simplified) Dictionary'),
+    source_url: sourceUrl || `${baseUrl}/${encodeURIComponent(String(word || '').toLowerCase())}`,
     copyright: copyrightMatch?.[2] || '© Cambridge University Press',
   };
 }
 
-function mergeCambridgeWithDify(cambridge, dify = {}) {
+function mergeCambridgeWithDify(cambridge, dify = {}, options = {}) {
+  const mode = options.mode
+    || (cambridge?.edition === 'english' ? 'en_en' : 'en_zh');
   const cambridgeValues = Object.fromEntries(
-    Object.entries(cambridge).filter(([, value]) => (
+    Object.entries(cambridge || {}).filter(([, value]) => (
       value !== '' && value != null && (!Array.isArray(value) || value.length > 0)
     ))
   );
@@ -510,17 +565,7 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
     return norm && !cambridgeMeanings.has(norm);
   });
 
-  const merged = {
-    ...dify,
-    ...cambridgeValues,
-    direction_resolved: dify.direction_resolved || 'en_to_zh',
-    // 仅展示 Cambridge 例句，不使用 Dify 补充例句；并消毒元数据残片
-    example_sentences: sanitizeExampleSentences(cambridge.example_sentences || []),
-    other_meanings: unique(
-      [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
-      (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
-    ),
-    // 搭配 / 同义 / 反义：仅 Dify 工作流（剔除 instant 模板假数据）
+  const enrichment = {
     collocations: unique(
       (Array.isArray(dify.collocations) ? dify.collocations : [])
         .filter((item) => item && !isInstantTemplateCollocation(item, cambridge.headword || dify.headword)),
@@ -534,6 +579,56 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
       (Array.isArray(dify.antonyms) ? dify.antonyms : []).filter(Boolean),
       (item) => normalizeComparable(item)
     ),
+  };
+
+  if (mode === 'en_en') {
+    const definitionsEn = (Array.isArray(cambridge.definitions_en) && cambridge.definitions_en.length)
+      ? cambridge.definitions_en
+      : (Array.isArray(dify.definitions_en) ? dify.definitions_en : []);
+    const mergedEn = {
+      ...dify,
+      ...cambridgeValues,
+      edition: 'english',
+      meaning_zh: '',
+      translation_main: definitionsEn[0] || cambridge.translation_main || '',
+      definitions_en: definitionsEn,
+      business_notes: '',
+      scenarios: [],
+      example_sentences: sanitizeExampleSentences(cambridge.example_sentences || []),
+      other_meanings: cambridge.other_meanings || [],
+      ...enrichment,
+      idioms: cambridge.idioms || [],
+      cambridge_raw: cambridge,
+      dify_raw: dify,
+      field_sources: {},
+    };
+    for (const key of Object.keys(mergedEn)) {
+      if (['cambridge_raw', 'dify_raw', 'field_sources'].includes(key)) continue;
+      if (['collocations', 'synonyms', 'antonyms'].includes(key)) {
+        mergedEn.field_sources[key] = 'dify';
+        continue;
+      }
+      if (key === 'example_sentences' || key === 'definitions_en' || key === 'senses') {
+        mergedEn.field_sources[key] = 'cambridge';
+        continue;
+      }
+      mergedEn.field_sources[key] = Object.prototype.hasOwnProperty.call(cambridgeValues, key) ? 'cambridge' : 'dify';
+    }
+    return mergedEn;
+  }
+
+  const merged = {
+    ...dify,
+    ...cambridgeValues,
+    direction_resolved: dify.direction_resolved || 'en_to_zh',
+    // 仅展示 Cambridge 例句，不使用 Dify 补充例句；并消毒元数据残片
+    example_sentences: sanitizeExampleSentences(cambridge.example_sentences || []),
+    other_meanings: unique(
+      [...(cambridge.other_meanings || []), ...filteredDifyOtherMeanings],
+      (item) => normalizeComparable(item.meaning || item.meaning_zh || item.meaning_en)
+    ),
+    // 搭配 / 同义 / 反义：仅 Dify 工作流（剔除 instant 模板假数据）
+    ...enrichment,
     idioms: cambridge.idioms || [],
     cambridge_raw: cambridge,
     dify_raw: dify,
@@ -554,11 +649,13 @@ function mergeCambridgeWithDify(cambridge, dify = {}) {
   return merged;
 }
 
-async function fetchCambridgeEntry(word) {
+async function fetchCambridgeEntry(word, options = {}) {
   if (!isSingleEnglishWord(word)) throw new Error('Cambridge lookup requires one English word');
-  const sourceUrl = `${CAMBRIDGE_BASE}/${encodeURIComponent(String(word).toLowerCase())}`;
+  const edition = resolveCambridgeEdition(options.edition);
+  const base = cambridgeBaseUrl(edition);
+  const sourceUrl = `${base}/${encodeURIComponent(String(word).toLowerCase())}`;
   const result = await fetchUrlContent(sourceUrl);
-  return parseCambridgeMarkdown(result.markdown, { word, sourceUrl });
+  return parseCambridgeMarkdown(result.markdown, { word, sourceUrl, edition });
 }
 
 module.exports = {
@@ -569,4 +666,8 @@ module.exports = {
   parseCambridgeMarkdown,
   mergeCambridgeWithDify,
   fetchCambridgeEntry,
+  resolveCambridgeEdition,
+  cambridgeBaseUrl,
+  CAMBRIDGE_BASE,
+  CAMBRIDGE_BASES,
 };

@@ -393,7 +393,7 @@ export function UtilityZhModernView({ payload, query }: { payload: ZhModernPaylo
   );
 }
 
-// —— 商务英英 ——
+// —— 英英词典（单词：Cambridge English 纯英；短语/句：保留商务英英 Dify）——
 export function UtilityEnEnBusinessView({ payload, query }: { payload: EnEnBusinessPayload; query: string }) {
   const {
     headword,
@@ -408,30 +408,63 @@ export function UtilityEnEnBusinessView({ payload, query }: { payload: EnEnBusin
     antonyms = [],
     collocations = [],
     meaning_zh,
+    edition,
+    senses = [],
+    idioms = [],
+    phonetics,
+    source,
+    source_url,
+    copyright,
   } = payload;
 
-  const validScenarios = scenarios
-    .filter((sc) => (typeof sc === 'string' ? sc.trim() : sc.example_en?.trim()))
-    .map((sc) => (typeof sc === 'string' ? { scene: 'Scenario', example_en: sc } : sc));
+  const isCambridgeEnglish = edition === 'english'
+    || (typeof source_url === 'string' && /\/dictionary\/english\//i.test(source_url))
+    || (Array.isArray(senses) && senses.length > 0);
 
+  const validScenarios = isCambridgeEnglish
+    ? []
+    : scenarios
+      .filter((sc) => (typeof sc === 'string' ? sc.trim() : sc.example_en?.trim()))
+      .map((sc) => (typeof sc === 'string' ? { scene: 'Scenario', example_en: sc } : sc));
+
+  const senseExamples = (senses || []).flatMap((s) => s.examples || []).filter((ex) => ex?.en?.trim());
   const validExamples = example_sentences
     .filter((sent) => (typeof sent === 'string' ? sent.trim() : sent?.en?.trim() || sent?.zh?.trim()))
-    .map((sent) => (typeof sent === 'string' ? sent : sent.en || sent.zh || ''));
+    .map((sent) => (typeof sent === 'string' ? { en: sent, zh: '' } : { en: sent.en || '', zh: sent.zh || '' }));
+  const displayExamples = senseExamples.length > 0 ? senseExamples : validExamples;
 
   const wordDisplay = headword || query;
   const [showExt, setShowExt] = useState(false);
   const [showOther, setShowOther] = useState(false);
-  const extCount = collocations.length + (business_notes?.trim() ? 1 : 0);
+  const [showSenses, setShowSenses] = useState(false);
+  const [showIdioms, setShowIdioms] = useState(false);
+  const extCount = collocations.length + (!isCambridgeEnglish && business_notes?.trim() ? 1 : 0);
 
   return (
     <div className="space-y-3 text-left select-text selection:bg-[#FF5722]/15">
-      <CompactHead word={wordDisplay} phonetic={phonetic} pos={pos} level={payload.level} meta="商务英英" speakText={wordDisplay} />
-      {meaning_zh?.trim() && (
+      <CompactHead
+        word={wordDisplay}
+        phonetic={phonetic}
+        pos={pos}
+        level={payload.level}
+        meta={isCambridgeEnglish ? 'Cambridge English' : '商务英英'}
+        speakText={wordDisplay}
+      />
+
+      {!isCambridgeEnglish && meaning_zh?.trim() && (
         <div className="text-xs text-stone-600 leading-relaxed">
           <span className="font-semibold text-stone-500">中文译义 · </span>
           {meaning_zh}
         </div>
       )}
+
+      {(phonetics?.uk || phonetics?.us) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-600">
+          {phonetics.uk && <span><b className="text-stone-800">UK</b> {phonetics.uk}</span>}
+          {phonetics.us && <span><b className="text-stone-800">US</b> {phonetics.us}</span>}
+        </div>
+      )}
+
       {definitions_en.length > 0 && (
         <div>
           <SectionLabel>Definitions</SectionLabel>
@@ -445,39 +478,73 @@ export function UtilityEnEnBusinessView({ payload, query }: { payload: EnEnBusin
         </div>
       )}
 
-      {(validScenarios.length > 0 || validExamples.length > 0) && (
+      {senses.length > 0 && (
+        <FoldBlock title="Senses" count={senses.length} open={showSenses} onToggle={() => setShowSenses((v) => !v)}>
+          {senses.map((sense, idx) => (
+            <div key={`${sense.label}-${idx}`} className="border-t border-stone-200 pt-2 first:border-0 first:pt-0">
+              <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                <span className="text-xs font-semibold text-stone-900">{idx + 1}. {sense.label || sense.part_of_speech}</span>
+                {[sense.part_of_speech, sense.level, sense.register, ...(sense.grammar || [])].filter(Boolean).map((tag) => (
+                  <span key={String(tag)} className="text-[10px] px-1.5 py-0.5 rounded border border-stone-200 bg-white text-stone-600">{tag}</span>
+                ))}
+              </div>
+              <div className="text-xs text-stone-700 leading-relaxed">{sense.definition_en}</div>
+            </div>
+          ))}
+        </FoldBlock>
+      )}
+
+      {displayExamples.length > 0 && (
         <div>
-          <SectionLabel>例句</SectionLabel>
+          <SectionLabel>Examples</SectionLabel>
           <div className="space-y-2">
-            {validScenarios.map((sc, idx) => (
-              <React.Fragment key={`sc-${idx}`}>
-                <ExampleCard
-                  index={idx + 1}
-                  scene={sc.scene || 'Scenario'}
-                  primary={sc.example_en}
-                  speak={sc.example_en}
-                />
-              </React.Fragment>
-            ))}
-            {validExamples.map((sent, idx) => (
-              <React.Fragment key={`ex-${idx}`}>
-                <ExampleCard
-                  index={validScenarios.length + idx + 1}
-                  primary={sent}
-                  speak={sent}
-                />
-              </React.Fragment>
+            {displayExamples.slice(0, 12).map((ex, idx) => (
+              <ExampleCard
+                key={idx}
+                index={idx + 1}
+                primary={typeof ex === 'string' ? ex : ex.en}
+                speak={typeof ex === 'string' ? ex : ex.en}
+              />
             ))}
           </div>
         </div>
       )}
 
+      {!isCambridgeEnglish && validScenarios.length > 0 && (
+        <div>
+          <SectionLabel>Scenarios</SectionLabel>
+          <div className="space-y-2">
+            {validScenarios.map((sc, idx) => (
+              <ExampleCard
+                key={`sc-${idx}`}
+                index={idx + 1}
+                scene={sc.scene || 'Scenario'}
+                primary={sc.example_en}
+                speak={sc.example_en}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {idioms.length > 0 && (
+        <FoldBlock title="Idioms" count={idioms.length} open={showIdioms} onToggle={() => setShowIdioms((v) => !v)}>
+          <div className="space-y-1.5">
+            {idioms.map((item, idx) => (
+              <div key={idx} className="text-xs text-stone-800 leading-relaxed">{item}</div>
+            ))}
+          </div>
+        </FoldBlock>
+      )}
+
       {other_meanings.length > 0 && (
         <FoldBlock title="Other meanings" count={other_meanings.length} open={showOther} onToggle={() => setShowOther((v) => !v)}>
-          {other_meanings.map((item, idx) => (
+          {other_meanings.map((item: any, idx) => (
             <div key={idx} className="text-xs">
-              <div className="font-semibold text-stone-800">{item.meaning_en}</div>
-              {item.context_en && <div className="text-stone-500 mt-0.5 leading-relaxed">{item.context_en}</div>}
+              <div className="font-semibold text-stone-800">{item.meaning_en || item.meaning}</div>
+              {(item.context_en || item.context) && (
+                <div className="text-stone-500 mt-0.5 leading-relaxed">{item.context_en || item.context}</div>
+              )}
             </div>
           ))}
         </FoldBlock>
@@ -500,15 +567,28 @@ export function UtilityEnEnBusinessView({ payload, query }: { payload: EnEnBusin
         </div>
       )}
 
-      <FoldBlock title="搭配与扩展" count={extCount} open={showExt} onToggle={() => setShowExt((v) => !v)}>
-        {business_notes?.trim() && (
-          <div>
-            <div className="text-[10px] font-semibold text-stone-500 mb-1">Business notes</div>
-            <div className="text-xs text-stone-600 leading-relaxed">{business_notes}</div>
-          </div>
-        )}
-        {collocations.length > 0 && <TagCloud items={collocations} tone="neutral" />}
-      </FoldBlock>
+      {extCount > 0 && (
+        <FoldBlock title={isCambridgeEnglish ? 'Collocations' : '搭配与扩展'} count={extCount} open={showExt} onToggle={() => setShowExt((v) => !v)}>
+          {!isCambridgeEnglish && business_notes?.trim() && (
+            <div>
+              <div className="text-[10px] font-semibold text-stone-500 mb-1">Business notes</div>
+              <div className="text-xs text-stone-600 leading-relaxed">{business_notes}</div>
+            </div>
+          )}
+          {collocations.length > 0 && <TagCloud items={collocations} tone="neutral" />}
+        </FoldBlock>
+      )}
+
+      {isCambridgeEnglish && (source || source_url || copyright) && (
+        <div className="border-t border-stone-200 pt-2 text-[10px] text-stone-500 leading-relaxed">
+          {source_url ? (
+            <a href={source_url} target="_blank" rel="noreferrer" className="text-[#FF5722] hover:underline">
+              {source || 'Cambridge Dictionary'}
+            </a>
+          ) : source}
+          {copyright && <span className="ml-1">{copyright}</span>}
+        </div>
+      )}
     </div>
   );
 }

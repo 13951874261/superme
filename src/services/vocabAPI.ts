@@ -95,13 +95,21 @@ export interface EnEnBusinessPayload {
   definitions_en: string[];
   business_notes: string;
   scenarios: (string | ScenarioEn)[];
-  other_meanings: OtherMeaningEn[];
+  other_meanings: OtherMeaningEn[] | OtherMeaningEnZh[];
   example_sentences: (string | { en: string; zh: string })[];
   synonyms: string[];
   antonyms: string[];
   collocations: string[];
   level?: string;
   meaning_zh?: string;
+  /** Cambridge English edition marker */
+  edition?: string;
+  senses?: CambridgeSense[];
+  idioms?: string[];
+  phonetics?: { uk?: string; us?: string };
+  source?: string;
+  source_url?: string;
+  copyright?: string;
 }
 
 // --- 英汉双向商务词典结构 ---

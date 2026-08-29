@@ -5728,7 +5728,11 @@ async function runBackgroundDifyDictEnrichmentJob({ cleanWord, dictType, directi
         if (cambridgePromise) {
           try {
             const cambridge = await cambridgePromise;
-            if (cambridge) parsedResult.payload = mergeCambridgeWithDify(cambridge, parsedResult.payload);
+            if (cambridge) {
+              parsedResult.payload = mergeCambridgeWithDify(cambridge, parsedResult.payload, {
+                mode: dictType === 'en_en_business' ? 'en_en' : 'en_zh',
+              });
+            }
           } catch (error) {
             console.warn(`[Dict Background] Cambridge 融合跳过 (${cleanWord}):`, error.message);
           }
@@ -5772,7 +5776,7 @@ function settleWithin(promise, timeoutMs) {
   return promise ? Promise.race([promise, new Promise((resolve) => setTimeout(() => resolve(null), timeoutMs))]) : Promise.resolve(null);
 }
 
-function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, userContext, locale, userId }) {
+function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, userContext, locale, userId, mergeMode = 'en_zh' }) {
   if (!promise) return;
   promise.then((cambridge) => {
     if (!cambridge) return;
@@ -5790,7 +5794,7 @@ function persistCambridgeWhenReady({ promise, cleanWord, dictType, direction, us
     const result = {
       ok: true,
       type: dictType,
-      payload: sanitizeDictPayloadForDisplay(mergeCambridgeWithDify(cambridge, difyPayload)),
+      payload: sanitizeDictPayloadForDisplay(mergeCambridgeWithDify(cambridge, difyPayload, { mode: mergeMode })),
     };
     // 若最新已有 Dify 字段且本次合并后丢失，则放弃写入（防竞态覆盖）
     if (hasDifyEnrichmentPayload(difyPayload) && !hasDifyEnrichmentPayload(result.payload)) {
@@ -5823,11 +5827,15 @@ app.post('/api/dify/dict-query', async (req, res) => {
   }
 
   const cleanWord = String(word).trim();
-  // 仅「英汉双向 + 单个英文单词」走 Cambridge 秒开 / 生词本种子；短语、句子、中文均走 Dify 同步
-  const useCambridgeWordPath = dictType === 'en_zh_bidirectional' && isSingleEnglishWord(cleanWord);
+  // 单个英文单词：英汉双向 → Cam 简中；英英词典 → Cam 英文；短语/句子不走 Cam
+  const useCambridgeWordPath = isSingleEnglishWord(cleanWord) && (
+    dictType === 'en_zh_bidirectional' || dictType === 'en_en_business'
+  );
+  const cambridgeEdition = dictType === 'en_en_business' ? 'english' : 'english-chinese-simplified';
+  const cambridgeMergeMode = dictType === 'en_en_business' ? 'en_en' : 'en_zh';
   const useEnZhDifySyncPath = dictType === 'en_zh_bidirectional' && !useCambridgeWordPath;
   const cambridgePromise = useCambridgeWordPath
-    ? fetchCambridgeEntry(cleanWord).catch((error) => {
+    ? fetchCambridgeEntry(cleanWord, { edition: cambridgeEdition }).catch((error) => {
         console.warn(`[Dict Query] Cambridge 抓取失败，回退 Dify (${cleanWord}):`, error.message);
         return null;
       })
@@ -5841,6 +5849,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
       userContext,
       locale,
       userId: cleanUserId,
+      mergeMode: cambridgeMergeMode,
     });
   }
 
@@ -6001,7 +6010,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
 
           if (cambridgePromise) {
             const cambridge = await settleWithin(cambridgePromise, hasCambridgeDisplayPayload(basePayload) ? 3000 : 8000);
-            if (cambridge) basePayload = mergeCambridgeWithDify(cambridge, basePayload);
+            if (cambridge) basePayload = mergeCambridgeWithDify(cambridge, basePayload, { mode: cambridgeMergeMode });
           }
 
           basePayload = sanitizeDictPayloadForDisplay(basePayload);
@@ -6053,7 +6062,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
     instantPayload.direction_resolved = resolvedDirection;
   }
   const payload = sanitizeDictPayloadForDisplay(
-    cambridge ? mergeCambridgeWithDify(cambridge, instantPayload) : instantPayload
+    cambridge ? mergeCambridgeWithDify(cambridge, instantPayload, { mode: cambridgeMergeMode }) : instantPayload
   );
   return res.json({
     ok: true,
