@@ -15,7 +15,7 @@ const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
 const yml = fs.readFileSync(path.join(root, 'yml/time_base/mychat_memory_kb.yml'), 'utf8');
 
 assert.match(chatModule, /呼出独立对话大屏/, '入口按钮必须仍是呼出独立对话大屏');
-assert.match(chatbot, /@embed2/, '必须换独立 embed 用户槽，避开 DEFAULT/旧 ID 死会话');
+assert.match(chatbot, /@embed3/, '必须换独立 embed 用户槽，避开 DEFAULT/旧 ID 死会话');
 assert.match(
   chatbot,
   /params\.set\(['"]sys\.user_id['"], await compressAndEncodeBase64\(embedUserId\)\)/,
@@ -31,10 +31,10 @@ assert.doesNotMatch(
   /_refresh:\s*String\(Date\.now\(\)\)/,
   '最小 iframe URL 禁止每次打开都 _refresh 打爆缓存'
 );
-assert.doesNotMatch(
+assert.match(
   frame,
   /credentialless/,
-  '去掉 credentialless：分区存储会导致每次都是新对话，且无法命中缓存，3 秒打不开'
+  '可见 iframe 必须隔离 Dify 域 localStorage，否则会继续读死会话 404'
 );
 assert.match(
   frame,

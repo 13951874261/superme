@@ -91,7 +91,7 @@ export function getDifyChatbotUserId(_forceNewEmbedSession = false): string {
   return getAppUserId();
 }
 
-export const DIFY_EMBED_USER_SCOPE = '@embed2';
+export const DIFY_EMBED_USER_SCOPE = '@embed3';
 
 export function getDifyEmbedUserId(accountUserId = getAppUserId()): string {
   const accountId = String(accountUserId || '').trim() || 'default-user';
