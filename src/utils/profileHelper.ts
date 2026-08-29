@@ -1,4 +1,11 @@
 import { getErrorLedgerSummary } from './errorLedgerHelper';
+import {
+  applyCareerPathLocal,
+  formatCareerProfileLine,
+  parseCareerPath,
+  readCareerPath,
+  type CareerPath,
+} from './careerProgression';
 
 const MEMORY_LAYERS_KEY = 'user_memory_layers';
 const PROFILE_UPDATED_AT_KEY = 'user_profile_server_updated_at';
@@ -230,6 +237,57 @@ export async function compressUserProfile(
   };
 }
 
+/** 将 career 写入本地 memory_layers 镜像并 POST 到账号（不传 profileContent） */
+export async function syncCareerToServer(career?: CareerPath): Promise<void> {
+  const path = parseCareerPath(career ?? readCareerPath());
+  try {
+    let layers: Record<string, unknown> = {};
+    try {
+      layers = JSON.parse(localStorage.getItem(MEMORY_LAYERS_KEY) || '{}');
+    } catch {
+      layers = {};
+    }
+    layers.career_path = path;
+    localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(layers));
+
+    await fetch('/api/user/profile/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: getAppUserId(),
+        careerPath: path,
+      }),
+    });
+  } catch (e) {
+    console.warn('[profileHelper] sync career failed:', e);
+  }
+}
+
+/** 从服务端 memory_layers.career_path 还原到本地 career 镜像 */
+export function applyCareerFromMemoryLayers(memoryLayers: unknown): void {
+  if (!memoryLayers || typeof memoryLayers !== 'object') return;
+  const raw = (memoryLayers as { career_path?: unknown }).career_path;
+  if (!raw) return;
+  applyCareerPathLocal(parseCareerPath(raw));
+}
+
+/** 账号级保存：先写本地再异步同步服务端，立即返回本地 next */
+export function saveCareerPathForAccount(data: CareerPath): CareerPath {
+  const next = applyCareerPathLocal(data);
+  void syncCareerToServer(next);
+  return next;
+}
+
+/** 将职业路径行前置到画像字符串，并去掉旧职业块 */
+export function buildCareerAwareProfileString(baseProfile: string, career: CareerPath = readCareerPath()): string {
+  const careerLine = formatCareerProfileLine(career);
+  let rest = String(baseProfile || '').trim();
+  // Remove any existing career line block (from 职业路径: through 能力匹配度=N%)
+  rest = rest.replace(/职业路径:\s*起点=[^;]*;\s*当前=[^;]*;\s*目标=[^;]*;\s*能力匹配度=\d+%/g, '').trim();
+  rest = rest.replace(/^;\s*|;?\s*$/g, '').replace(/;\s*;/g, ';').trim();
+  return [careerLine, rest].filter(Boolean).join('; ');
+}
+
 /**
  * 从持久化画像中提取结构化短板标签数组
  */
@@ -250,40 +308,20 @@ export function getUserProfileFactorsArray(): string[] {
 }
 
 /**
- * 追加画像短板并去重，限制最大长度为 5 个标签，并广播同步事件
+ * 追加画像短板：经 ingestUserMemory + 服务端 Profile Dedupe（latest wins）
  */
 export function appendUserProfileFactor(newFactorsStr: string) {
   if (!newFactorsStr) return;
-  let currentArray: string[] = [];
-  const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
-  if (raw) {
-    if (raw.startsWith('[') && raw.endsWith(']')) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          currentArray = parsed;
-        }
-      } catch (e) {
-        currentArray = raw.split(/; /).map(s => s.trim()).filter(Boolean);
-      }
-    } else {
-      currentArray = raw.split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
+  void ingestUserMemory({
+    source: 'profile_factor_append',
+    profileDelta: String(newFactorsStr).trim(),
+  }).then(() => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('global-profile-changed'));
     }
-  }
-
-  const incoming = newFactorsStr.split(/[,，;；]/).map(s => s.trim()).filter(Boolean);
-  incoming.forEach(factor => {
-    if (isAccentProfile(factor) || currentArray.includes(factor)) return;
-    currentArray.push(factor);
+  }).catch((e) => {
+    console.warn('[profileHelper] appendUserProfileFactor failed:', e);
   });
-
-  if (currentArray.length > 5) {
-    currentArray = currentArray.slice(-5);
-  }
-
-  const jsonStr = JSON.stringify(currentArray);
-  writeProfileLocal(jsonStr);
-  void syncProfileToServer(jsonStr);
 }
 
 /**
@@ -545,7 +583,7 @@ export function injectUserProfile(inputs: Record<string, any> = {}): Record<stri
     }
   }
   
-  const profile = getUserCurrentProfile();
+  const profile = buildCareerAwareProfileString(getUserCurrentProfile());
   const weakness = getUserWeaknessProfile();
   const result = { ...inputs };
   const errorSummary = getErrorLedgerSummary();
@@ -633,6 +671,9 @@ export async function loadUserProfileFromServer(userId?: string): Promise<void> 
 
     if (memory_layers && typeof memory_layers === 'object') {
       localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
+      if (serverUpdatedAt >= localUpdatedAt) {
+        applyCareerFromMemoryLayers(memory_layers);
+      }
     }
 
     if (profile_content && serverUpdatedAt >= localUpdatedAt) {
@@ -642,6 +683,9 @@ export async function loadUserProfileFromServer(userId?: string): Promise<void> 
 
     if (localRaw && (localUpdatedAt > serverUpdatedAt || !profile_content)) {
       void syncProfileToServer(localRaw);
+      if (localUpdatedAt > serverUpdatedAt) {
+        void syncCareerToServer(readCareerPath());
+      }
     }
   } catch (e) {
     console.warn('[profileHelper] load from server failed:', e);

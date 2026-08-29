@@ -11,7 +11,8 @@ import KnowledgeVaultDrawer from './KnowledgeVault/KnowledgeVaultDrawer';
 import { playClick, playPageTurn, playReveal, playDrag } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
-import { readCareerPath, writeCareerPath } from '../utils/careerProgression';
+import { CAREER_CHANGED_EVENT, readCareerPath } from '../utils/careerProgression';
+import { saveCareerPathForAccount } from '../utils/profileHelper';
 import { THEME_CHANGED_EVENT, readCurrentTheme } from '../utils/currentTheme';
 import { fetchUserTheme } from '../services/dailyPackAPI';
 
@@ -181,6 +182,16 @@ function SidebarComponent({
   // 职业路径数据持久化
   const [careerPath, setCareerPath] = useState(() => readCareerPath());
   const [currentTheme, setCurrentTheme] = useState(() => readCurrentTheme());
+
+  useEffect(() => {
+    const syncCareer = () => setCareerPath(readCareerPath());
+    window.addEventListener(CAREER_CHANGED_EVENT, syncCareer);
+    window.addEventListener('storage', syncCareer);
+    return () => {
+      window.removeEventListener(CAREER_CHANGED_EVENT, syncCareer);
+      window.removeEventListener('storage', syncCareer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -536,7 +547,7 @@ function SidebarComponent({
                              <button 
                                onClick={() => {
                                  playPageTurn();
-                                 const next = writeCareerPath(careerEditData);
+                                 const next = saveCareerPathForAccount(careerEditData);
                                  setCareerPath(next);
                                  setIsEditingCareer(false);
                                  if (next.progress === 100) {

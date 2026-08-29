@@ -1,6 +1,7 @@
 import {
   getAppUserId,
   getUserCurrentProfile,
+  buildCareerAwareProfileString,
   sanitizeProfileContent,
   getCurrentFormattedTime,
   getGraphSummaryLocal,
@@ -330,7 +331,7 @@ export function buildDifyChatbotConfig(options?: {
     || pushPlan?.oralSandbox?.focus
     || '';
   const graphSummary = getGraphSummaryLocal();
-  const profileBase = getUserCurrentProfile();
+  const profileBase = buildCareerAwareProfileString(getUserCurrentProfile());
   let profileWithGraph = sanitizeProfileContent(
     graphSummary ? `${profileBase}; Graph: ${graphSummary.replace(/\n/g, '; ')}` : profileBase
   );

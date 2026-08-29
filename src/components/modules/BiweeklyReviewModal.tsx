@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Send, Award, Target, Flame, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { runBiweeklyReviewAnalysis } from '../../services/difyAPI';
-import { appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../../utils/profileHelper';
+import { ingestUserMemory, runMemoryDreaming } from '../../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../../hooks/useBiweeklyReviewTrigger';
 import {
   setLastReviewDate,
@@ -73,7 +73,6 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
     try {
       const res = await runBiweeklyReviewAnalysis(answers);
 
-      appendUserProfileFactor(res.shortDebilitatingFactors);
       void ingestUserMemory({
         source: 'biweekly_review',
         profileDelta: res.shortDebilitatingFactors,

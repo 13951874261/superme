@@ -12,7 +12,7 @@ import {
   getDirectionLabel,
   type WeeklyHistoryItem,
 } from '../../utils/reviewHelper';
-import { getUserWeaknessProfile, appendUserProfileFactor, ingestUserMemory, getRecentEpisodesSummaryLocal, runMemoryDreaming } from '../../utils/profileHelper';
+import { getUserWeaknessProfile, ingestUserMemory, getRecentEpisodesSummaryLocal, runMemoryDreaming } from '../../utils/profileHelper';
 
 export default function WeeklyChatModule() {
   const [content, setContent] = useState('');
@@ -69,7 +69,6 @@ export default function WeeklyChatModule() {
     try {
       const result = await runWeeklyChatEnhanced(content, directions);
 
-      appendUserProfileFactor(result.profileFactors);
       saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
       setHasPushPlan(true);
 

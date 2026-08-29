@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, ZapOff, Activity, Lock, Unlock, Image } from 'lucide-react';
 import { playClick, playSwitch, playReveal, playDrag, playValidatePass, playValidateFail, setGlobalVolume } from '../utils/soundEffects';
-import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, getAppUserId, setAppUserId, loadUserProfileFromServer } from '../utils/profileHelper';
+import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, getAppUserId, setAppUserId, loadUserProfileFromServer, getUserWeaknessProfile } from '../utils/profileHelper';
+import { readCareerPath, careerNodeLabel } from '../utils/careerProgression';
 import { reloadDifyChatbotEmbed } from '../utils/difyChatbot';
+import UserProfileOverlay from './UserProfileOverlay';
 
 export type GlobalDifficulty = 'standard' | 'hardcore';
 
@@ -49,6 +51,11 @@ export default function GlobalSettingsPanel() {
   const [soundVolume, setSoundVolume] = useState<number>(
     parseFloat(localStorage.getItem('super_agent_sound_volume') || '0.5')
   );
+  const [profileOverlayOpen, setProfileOverlayOpen] = useState(false);
+
+  const careerPreview = readCareerPath();
+  const careerPreviewLine = `${careerNodeLabel(careerPreview.current)}→${careerNodeLabel(careerPreview.target)} · ${careerPreview.progress}%`;
+  const weaknessPreview = getUserWeaknessProfile() || '暂无短板';
 
   const handleSavePassword = () => {
     const currentPassword = localStorage.getItem('super_agent_lock_password') || '1';
@@ -189,6 +196,27 @@ export default function GlobalSettingsPanel() {
                   className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-colors ${!profile ? 'bg-gray-700 text-white' : 'text-gray-400 hover:text-white'}`}
                 >
                   默认
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3 block">
+                当前账号画像
+              </label>
+              <div className="bg-gray-800/50 p-3 rounded-xl border border-gray-700 space-y-2">
+                <p className="text-[9px] text-gray-400 truncate">{careerPreviewLine}</p>
+                <p className="text-[9px] text-gray-500 truncate">{weaknessPreview}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClick();
+                    setIsOpen(false);
+                    setProfileOverlayOpen(true);
+                  }}
+                  className="w-full py-2 rounded-lg bg-[#FF5722] hover:bg-[#ff6a3c] text-[10px] font-black uppercase tracking-widest text-white transition-colors"
+                >
+                  打开
                 </button>
               </div>
             </div>
@@ -483,6 +511,11 @@ export default function GlobalSettingsPanel() {
       >
         <Activity className="w-5 h-5" />
       </button>
+
+      <UserProfileOverlay
+        open={profileOverlayOpen}
+        onClose={() => setProfileOverlayOpen(false)}
+      />
     </div>
   );
 }

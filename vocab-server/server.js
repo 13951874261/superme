@@ -3066,18 +3066,30 @@ app.post('/api/user/memory/dreaming/run', async (req, res) => {
 });
 
 app.post('/api/user/profile/save', (req, res) => {
-  const { userId, profileContent, errorLedger } = req.body;
+  const { userId, profileContent, errorLedger, careerPath, memoryLayers: incomingLayers } = req.body || {};
   const uid = normalizeMemoryUserId(userId);
   const now = Date.now();
   try {
     const existing = db.prepare('SELECT profile_content, error_ledger, memory_layers FROM user_memories WHERE user_id = ?').get(uid);
+    let layers = parseJsonObject(existing?.memory_layers, {});
+    if (incomingLayers && typeof incomingLayers === 'object') {
+      layers = { ...layers, ...incomingLayers };
+    }
+    if (careerPath && typeof careerPath === 'object') {
+      layers.career_path = {
+        history: String(careerPath.history || ''),
+        current: String(careerPath.current || ''),
+        target: String(careerPath.target || ''),
+        progress: Math.min(100, Math.max(0, Math.round(Number(careerPath.progress) || 0))),
+      };
+    }
     upsertUserMemoryRow(uid, {
       profileContent: profileContent ?? existing?.profile_content ?? '',
       errorLedger: errorLedger || existing?.error_ledger || '{}',
-      memoryLayers: existing?.memory_layers || '{}',
+      memoryLayers: JSON.stringify(layers),
       updatedAt: now,
     });
-    res.json({ success: true });
+    res.json({ success: true, data: { updated_at: now, memory_layers: layers } });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

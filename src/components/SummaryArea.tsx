@@ -1,6 +1,6 @@
 import React, { useEffect, useState, memo } from 'react';
 import { Sparkles, Send, Bot, PenLine, AlertCircle, Target, Loader2, Zap, ChevronRight } from 'lucide-react';
-import { getUserWeaknessProfile, appendUserProfileFactor, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
+import { getUserWeaknessProfile, ingestUserMemory, runMemoryDreaming } from '../utils/profileHelper';
 import { useBiweeklyReviewTrigger } from '../hooks/useBiweeklyReviewTrigger';
 import ProfileEditModal from './ProfileEditModal';
 import {
@@ -76,7 +76,6 @@ function SummaryAreaComponent({ selectedDate }: SummaryAreaProps) {
     setChatResult(null);
     try {
       const result = await runWeeklyChatEnhanced(content, directions);
-      appendUserProfileFactor(result.profileFactors);
       saveNextWeekPushPlan(result.nextWeekPush as Parameters<typeof saveNextWeekPushPlan>[0]);
       appendWeeklyChatHistory({
         id: Date.now().toString(),

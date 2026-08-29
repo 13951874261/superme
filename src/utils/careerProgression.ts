@@ -43,10 +43,20 @@ export function readCareerPath(): CareerPath {
 }
 
 export function writeCareerPath(data: CareerPath): CareerPath {
+  return applyCareerPathLocal(data);
+}
+
+/** 仅写本地镜像并广播（不打服务端；服务端由 profileHelper.syncCareerToServer 负责） */
+export function applyCareerPathLocal(data: CareerPath): CareerPath {
   const next = parseCareerPath(data);
   localStorage.setItem(CAREER_STORAGE_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event(CAREER_CHANGED_EVENT));
   return next;
+}
+
+export function formatCareerProfileLine(career: CareerPath): string {
+  const c = parseCareerPath(career);
+  return `职业路径: 起点=${c.history}; 当前=${c.current}; 目标=${c.target}; 能力匹配度=${c.progress}%`;
 }
 
 export function careerNodeLabel(title: string): string {
