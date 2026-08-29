@@ -12,7 +12,7 @@ interface DifyAssistantFrameProps {
 
 /**
  * 右侧「全局 AI 助手」内嵌 Dify 对话。
- * 使用独立 embed 会话桶规避 Dify 域过期 localStorage；记忆仍绑定 app_user_id（登录账号）。
+ * 登录后即预热；呼出大屏不重建 iframe。记忆仍绑定 app_user_id（登录账号）。
  */
 export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFrameProps) {
   const [iframeSrc, setIframeSrc] = useState('');
@@ -23,11 +23,21 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
 
   useEffect(() => {
     const onOpen = (event: Event) => {
-      forceNewRef.current = Boolean((event as CustomEvent<{ forceNew?: boolean }>).detail?.forceNew);
+      const forceNew = Boolean((event as CustomEvent<{ forceNew?: boolean }>).detail?.forceNew);
+      if (!forceNew) return;
+      forceNewRef.current = true;
+      setOpenNonce((prev) => prev + 1);
+    };
+    const onSettings = () => {
+      forceNewRef.current = true;
       setOpenNonce((prev) => prev + 1);
     };
     window.addEventListener('dify-assistant-open', onOpen);
-    return () => window.removeEventListener('dify-assistant-open', onOpen);
+    window.addEventListener('dify-embed-settings-changed', onSettings);
+    return () => {
+      window.removeEventListener('dify-assistant-open', onOpen);
+      window.removeEventListener('dify-embed-settings-changed', onSettings);
+    };
   }, []);
 
   useEffect(() => {
@@ -65,7 +75,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
     return (
       <div className="flex h-full items-center justify-center text-gray-400">
         <Loader2 className="w-5 h-5 animate-spin mr-2" />
-        <span className="text-xs font-bold uppercase tracking-wider">正在查找对话历史…</span>
+        <span className="text-xs font-bold uppercase tracking-wider">正在打开对话…</span>
       </div>
     );
   }
@@ -77,7 +87,6 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
       className="w-full h-full border-none"
       allow="microphone; fullscreen"
       title="全局 AI 助手"
-      credentialless=""
     />
   );
 }

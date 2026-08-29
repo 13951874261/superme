@@ -557,12 +557,14 @@ workflow:
           max_length: 100
           options: []
           required: false
+          hide: true
           type: text-input
           variable: app_user_id
         - label: 结构化记忆包（服务端/API 注入 memory_pack，优先于 HTTP）
           max_length: 8000
           options: []
           required: false
+          hide: true
           type: text-input
           variable: memory_pack
       height: 109

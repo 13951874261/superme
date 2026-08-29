@@ -1,13 +1,18 @@
 import React, { useState, useEffect, memo } from 'react';
-import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock } from 'lucide-react';
+import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock, SlidersHorizontal } from 'lucide-react';
 import { getVocabByWord, getVocabItem, queryDictionaryWithCache, type VocabEntry } from '../services/vocabAPI';
 import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
 import MemoryAidPanel from './MemoryAidPanel';
 import DifyAssistantFrame from './DifyAssistantFrame';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import SpeakButton from './SpeakButton';
-import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, sanitizeProfileContent } from '../utils/profileHelper';
-import { resetDifyChatbotSession, invalidateMemoryPackCache } from '../utils/difyChatbot';
+import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, sanitizeProfileContent, getAppUserId } from '../utils/profileHelper';
+import {
+  resetDifyChatbotSession,
+  invalidateMemoryPackCache,
+  getDifyEmbedInputOverrides,
+  setDifyEmbedInputOverrides,
+} from '../utils/difyChatbot';
 import { playClick, playReveal, playSwitch } from '../utils/soundEffects';
 import { GLOBAL_SPRING } from '../utils/motion';
 
@@ -23,6 +28,9 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
 
   const [profile, setProfile] = useState(() => getAccentPref());
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showEmbedSettings, setShowEmbedSettings] = useState(false);
+  const [embedAccount, setEmbedAccount] = useState('');
+  const [embedMemoryPack, setEmbedMemoryPack] = useState('');
 
   const [localWordEntry, setLocalWordEntry] = useState<VocabEntry | null>(null);
   const [dictResult, setDictResult] = useState<any>(null);
@@ -168,16 +176,31 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
     };
   }, []);
 
+  const openEmbedSettings = () => {
+    const overrides = getDifyEmbedInputOverrides();
+    setEmbedAccount(overrides.app_user_id || getAppUserId());
+    setEmbedMemoryPack(overrides.memory_pack || '');
+    setShowEmbedSettings(true);
+  };
+
+  const saveEmbedSettings = () => {
+    setDifyEmbedInputOverrides({
+      app_user_id: embedAccount,
+      memory_pack: embedMemoryPack,
+    });
+    setShowEmbedSettings(false);
+  };
+
   return (
-    <AnimatePresence mode="wait">
-      {isOpen && (
-        <motion.aside
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
-          transition={GLOBAL_SPRING}
-          className={`motion-layer h-screen w-[400px] shrink-0 border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] z-[10050] overflow-hidden transform-gpu will-change-transform`}
-        >
+    <>
+      {isOpen && <div className="w-[400px] shrink-0 h-screen" aria-hidden />}
+      <motion.aside
+        initial={false}
+        animate={{ x: isOpen ? 0 : '100%' }}
+        transition={GLOBAL_SPRING}
+        className={`motion-layer fixed top-0 right-0 h-screen w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[10050]' : 'z-0 pointer-events-none'}`}
+        aria-hidden={!isOpen}
+      >
 
           {/* 头部 Tab 区域 */}
           <div className={`flex items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>
@@ -254,17 +277,30 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
               </div>
 
               {activeTab === 'assistant' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    playClick();
-                    resetDifyChatbotSession();
-                  }}
-                  className="h-8 px-2.5 rounded-full border border-gray-150 bg-white/70 text-[9px] font-black uppercase tracking-wider text-gray-500 hover:text-[#1C64F2] hover:border-[#1C64F2]/30 transition cursor-pointer"
-                  title="清除本地过期会话并重新开始"
-                >
-                  新对话
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      openEmbedSettings();
+                    }}
+                    className="h-8 px-2.5 rounded-full border border-gray-150 bg-white/70 text-[9px] font-black uppercase tracking-wider text-gray-500 hover:text-[#1C64F2] hover:border-[#1C64F2]/30 transition cursor-pointer"
+                    title="修改登录账号或记忆包"
+                  >
+                    对话设置
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      playClick();
+                      resetDifyChatbotSession();
+                    }}
+                    className="h-8 px-2.5 rounded-full border border-gray-150 bg-white/70 text-[9px] font-black uppercase tracking-wider text-gray-500 hover:text-[#1C64F2] hover:border-[#1C64F2]/30 transition cursor-pointer"
+                    title="清除本地过期会话并重新开始"
+                  >
+                    新对话
+                  </button>
+                </>
               )}
 
               <button
@@ -280,24 +316,17 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
             </div>
           </div>
 
-          {/* 内容区域 */}
-          <div className="flex-1 overflow-y-auto min-h-0 bg-white relative">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15, ease: 'easeOut' }}
-                className="w-full h-full"
-              >
-                {activeTab === 'assistant' ? (
-                  <div className="w-full h-full relative">
-                    <DifyAssistantFrame refreshKey={profile} />
-                  </div>
-                ) : (
-                  /* 情报解密舱 (上下文词汇详情) */
-                  <div className="p-5 space-y-6">
+          {/* 内容区域：助手 iframe 常驻，切换词义解析时只隐藏不卸载 */}
+          <div className="flex-1 overflow-hidden min-h-0 bg-white relative">
+            <div
+              className={`w-full h-full ${
+                activeTab === 'assistant' ? '' : 'invisible pointer-events-none absolute inset-0'
+              }`}
+            >
+              <DifyAssistantFrame refreshKey={profile} />
+            </div>
+            {activeTab === 'context' && (
+              <div className="w-full h-full overflow-y-auto p-5 space-y-6">
                     {!wordData ? (
                       <div className="flex flex-col items-center justify-center py-20 text-center text-gray-400 px-4">
                         <BookOpen className="w-12 h-12 mb-3 text-gray-300 stroke-[1.5]" />
@@ -457,14 +486,70 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                         </div>
                       </div>
                     )}
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            )}
           </div>
         </motion.aside>
+      {showEmbedSettings && isOpen && (
+        <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/30 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm font-black text-gray-800">
+                <SlidersHorizontal className="h-4 w-4 text-[#1C64F2]" />
+                对话设置
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowEmbedSettings(false)}
+                className="rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                title="关闭"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <label className="mb-3 block">
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                登录账号（选填）
+              </span>
+              <input
+                value={embedAccount}
+                onChange={(e) => setEmbedAccount(e.target.value)}
+                className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1C64F2]"
+                placeholder="默认使用当前登录账号"
+              />
+            </label>
+            <label className="mb-4 block">
+              <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500">
+                结构化记忆包（选填）
+              </span>
+              <textarea
+                value={embedMemoryPack}
+                onChange={(e) => setEmbedMemoryPack(e.target.value)}
+                rows={4}
+                className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1C64F2]"
+                placeholder="需要注入时再填写，平时可留空"
+              />
+            </label>
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowEmbedSettings(false)}
+                className="rounded-xl px-3 py-2 text-xs font-bold text-gray-500 hover:bg-gray-100"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={saveEmbedSettings}
+                className="rounded-xl bg-[#1C64F2] px-3 py-2 text-xs font-bold text-white hover:bg-[#1557d0]"
+              >
+                保存并重新打开
+              </button>
+            </div>
+          </div>
+        </div>
       )}
-    </AnimatePresence>
+    </>
   );
 }
 
