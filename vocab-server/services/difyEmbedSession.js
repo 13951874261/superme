@@ -91,25 +91,27 @@ async function resolveDifyEmbedSession({
   }
 
   const cached = String(conversationId || '').trim();
-  const candidates = [];
 
-  for (const sessionUserId of candidateSessionIds(loginId)) {
-    if (remaining() < MIN_UPSTREAM_MS) break;
+  async function lookupSlot(sessionUserId) {
     const token = await passportFor(sessionUserId);
-    if (!token) continue;
+    if (!token) return [];
     const conversations = await listConversations(token);
+    const found = [];
     for (const item of conversations) {
-      if (remaining() < MIN_UPSTREAM_MS) break;
       const id = String(item?.id || '').trim();
       if (!id) continue;
       if (!(await messagesOk(token, id))) continue;
-      candidates.push({
+      found.push({
         conversationId: id,
         sessionUserId,
         updatedAt: Number(item?.updated_at || 0),
       });
+      break;
     }
+    return found;
   }
+
+  const candidates = (await Promise.all(candidateSessionIds(loginId).map(lookupSlot))).flat();
 
   if (cached) {
     const hit = candidates.find((item) => item.conversationId === cached);
