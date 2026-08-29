@@ -77,6 +77,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
       className="w-full h-full border-none"
       allow="microphone; fullscreen"
       title="全局 AI 助手"
+      credentialless=""
     />
   );
 }

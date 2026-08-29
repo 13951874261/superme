@@ -21,7 +21,7 @@ import BiweeklyReviewModal from './components/modules/BiweeklyReviewModal';
 import { useBiweeklyReviewTrigger } from './hooks/useBiweeklyReviewTrigger';
 import {
   loadDifyChatbotEmbed,
-  prepareDifyAssistantIframe, buildMinimalIframeUrl, refreshDifyChatbotContext,
+  prepareDifyAssistantIframe, refreshDifyChatbotContext,
   rotateEmbedSessionOnPageLoad,
   rotateEmbedSessionOnRouteChange,
 } from './utils/difyChatbot';
@@ -415,24 +415,9 @@ export default function App() {
   );
 }
 
-// ponytail: 隐藏预加载 iframe，后台预热 Dify 大屏到浏览器缓存
+// 不再预加载 Dify iframe：同源会写入 conversationIdInfo，把已删除会话 ID 带进可见大屏导致 404
 function DifyPreloadIframe() {
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
-  React.useEffect(() => {
-    let cancelled = false;
-    void buildMinimalIframeUrl(getAppUserId()).then((url) => {
-      if (!cancelled && iframeRef.current) iframeRef.current.src = url;
-    });
-    return () => { cancelled = true; };
-  }, []);
-  return (
-    <iframe
-      ref={iframeRef}
-      aria-hidden="true"
-      style={{ position: 'absolute', left: '-9999px', top: '-9999px', width: '1px', height: '1px', border: 'none' }}
-      title="dify-preload"
-    />
-  );
+  return null;
 }
 
 

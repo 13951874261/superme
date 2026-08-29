@@ -91,13 +91,25 @@ export function getDifyChatbotUserId(_forceNewEmbedSession = false): string {
   return getAppUserId();
 }
 
+export const DIFY_EMBED_USER_SCOPE = '@embed2';
+
+export function getDifyEmbedUserId(accountUserId = getAppUserId()): string {
+  const accountId = String(accountUserId || '').trim() || 'default-user';
+  return `${accountId}${DIFY_EMBED_USER_SCOPE}`;
+}
+
 export async function buildMinimalIframeUrl(userId: string, conversationId?: string | null): Promise<string> {
   const base = DIFY_EMBED_BASE_URL.replace(/\/$/, '');
+  const raw = String(userId || '').trim() || 'default-user';
+  const accountId = raw.endsWith(DIFY_EMBED_USER_SCOPE)
+    ? raw.slice(0, -DIFY_EMBED_USER_SCOPE.length)
+    : raw;
+  const embedUserId = getDifyEmbedUserId(accountId);
   const params = new URLSearchParams({
     _refresh: String(Date.now()),
-    skip_memory_pack: 'true',
   });
-  params.set('sys.user_id', await compressAndEncodeBase64(userId));
+  params.set('sys.user_id', await compressAndEncodeBase64(embedUserId));
+  params.set('app_user_id', await compressAndEncodeBase64(accountId));
   const convId = String(conversationId || '').trim();
   if (convId) params.set('sys.conversation_id', await compressAndEncodeBase64(convId));
   return `${base}/chatbot/${DIFY_EMBED_TOKEN}?${params.toString()}`;
