@@ -13,6 +13,7 @@ import {
   getProfileUpdatedAtMs,
   loadUserProfileFromServer,
 } from '../utils/profileHelper';
+import { getStoredProfileRawForUser } from '../utils/accountStorage';
 import { getErrorLedgerSummary } from '../utils/errorLedgerHelper';
 import { readCareerPath, type CareerPath } from '../utils/careerProgression';
 import { playClick, playWaterDrop } from '../utils/soundEffects';
@@ -29,11 +30,7 @@ const PROFILE_BODY_SOURCES = [
 ] as const;
 
 function readStoredProfileRaw(): string {
-  return (
-    localStorage.getItem('user_current_profile') ||
-    localStorage.getItem('User_Current_Profile') ||
-    ''
-  ).trim();
+  return getStoredProfileRawForUser(getAppUserId()).trim();
 }
 
 function formatUpdatedAt(ms: number): string {

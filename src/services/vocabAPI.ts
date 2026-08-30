@@ -275,7 +275,7 @@ export function buildVocabPayloadFromDict(
     }
   }
 
-  return {
+  const out: Record<string, any> = {
     ...ex,
     word: meta?.word || d.headword || ex.word || '',
     phonetic: fillText(d.phonetic, ex.phonetic),
@@ -297,6 +297,11 @@ export function buildVocabPayloadFromDict(
     direction_resolved: fillText(d.direction_resolved, ex.direction_resolved) || 'en_to_zh',
     source: meta?.source || ex.source || 'dictionary',
   };
+  // 供后端 mergeCambridgeWithDify 使用；展示层仍用扁平字段，不依赖 senses/raw_markdown
+  if (d.cambridge_raw && typeof d.cambridge_raw === 'object') {
+    out.cambridge_raw = d.cambridge_raw;
+  }
+  return out;
 }
 
 /** 收录前拉取词典数据：单词 Cam-first（与词典面板一致）；短语/句型走 en_zh 纯 Dify 同步路径 */

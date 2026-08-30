@@ -41,6 +41,7 @@ assert.match(hook, /return 'blocked'/, 'hook 收录中换区返回 blocked');
 assert.match(api, /export async function buildVocabCollectPayload/, '收录前统一拉词典');
 assert.match(api, /dictType: 'en_zh_bidirectional'/, '走英汉双向 dict-query');
 assert.match(api, /buildVocabPayloadFromDict/, '单词走词典面板 Cam-first 合并');
+assert.match(api, /out\.cambridge_raw = d\.cambridge_raw/, '单词入库保留 cambridge_raw 供后端 merge');
 assert.match(hook, /buildVocabCollectPayload/, '收录默认拉词典 payload');
 assert.match(hook, /skipDictFetch/, '词典面板可跳过重复查询');
 assert.match(dictPanel, /skipDictFetch: true/, '词典面板带上已有 Cam payload');

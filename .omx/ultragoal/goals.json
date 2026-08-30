@@ -2,39 +2,65 @@
   "version": 1,
   "mode": "aggregate",
   "briefPath": ".omx/ultragoal/brief.md",
-  "specPath": ".omx/specs/deep-interview-vocab-zone-cambridge-collect.md",
-  "slug": "vocab-zone-cambridge-collect",
-  "aggregateObjective": "Execute .omx/ultragoal/goals.json stories for vocab-zone-cambridge-collect under .omx/ultragoal/brief.md constraints; progress in .omx/ultragoal/ledger.jsonl.",
+  "specPath": ".omx/specs/deep-interview-account-data-isolation.md",
+  "prdPath": ".omx/plans/prd-account-data-isolation.md",
+  "testSpecPath": ".omx/plans/test-spec-account-data-isolation.md",
+  "slug": "account-data-isolation",
+  "aggregateObjective": "Execute .omx/ultragoal/goals.json stories for account-data-isolation under .omx/ultragoal/brief.md constraints; progress in .omx/ultragoal/ledger.jsonl.",
   "goals": [
     {
       "id": "G001",
-      "title": "category 参数 + 迁移 API",
+      "title": "accountStorage helper + 键清单",
       "status": "complete",
-      "objective": "useVocabCollect / add-enriched / batch-add-async 接收 category；已存在词条点另一分区只更新 category，不新建行。不改表结构。"
+      "objective": "新建 src/utils/accountStorage.ts：learnKey/读写、学习键清单、偏好键不分桶；单测 U1/U2/U12。"
     },
     {
       "id": "G002",
-      "title": "双按钮 + Grid 收录中态",
-      "status": "complete",
-      "objective": "VocabularyGrid 每条显示「+ 政商务」「+ 全场景」；被点按钮 collecting+disabled；另一按钮 idle，点击仅提示稍候；已收录分区显示已收录，另一分区可点并直接迁移。"
+      "title": "画像分桶 + 停无前缀回退 + 修写脏",
+      "status": "pending",
+      "objective": "profileHelper 画像/账本/记忆层分桶；删除无前缀回退；loadUserProfileFromServer 三条写脏改只回写当前 uid 桶；UserProfileOverlay 改 helper；单测 U3–U5。"
     },
     {
       "id": "G003",
-      "title": "单词 Cam / 短语句型 Dify",
-      "status": "complete",
-      "objective": "Grid 收录单词走词典面板同路径（dict-query + buildVocabPayloadFromDict）；短语/句型走 en_zh_bidirectional 纯 Dify 同步路径。不得只写悬浮薄缓存。"
+      "title": "learning_ui_json sidecar API",
+      "status": "pending",
+      "objective": "ALTER + persistLearningUi（无行 INSERT 占位；有行只 UPDATE JSON，不碰 updated_at/upsert）；GET 工作台可带、Dify 读路径裁剪；profile SAVE 不碰该列；测 U8–U11/I1/I2/I7。"
     },
     {
       "id": "G004",
-      "title": "其余收录入口去硬编码",
-      "status": "complete",
-      "objective": "DictionaryPanel、ListenTab、FlashCard、TextHighlighter、ImmersiveReader、DailyWakeup、DailyError 等入口改为用户点选分区；CustomCardModal 保持 Segment 即可，category 语义一致。"
+      "title": "reviewHelper 分桶 + flush",
+      "status": "pending",
+      "objective": "复盘/夜话/计划键走 accountStorage；空账号不写 Date.now()（U6）；提供 flushLearningUi 供换号。"
     },
     {
       "id": "G005",
-      "title": "验收与回归",
-      "status": "complete",
-      "objective": "补齐/调整契约测试覆盖 AC-1～AC-6；确认 3 秒 handoff、额度、矩阵补齐、历史不批量改写无回归。"
+      "title": "switchAccountSession + App key",
+      "status": "pending",
+      "objective": "flush→setId→load→dispatch；App 订阅 userId 重挂；LoginPage 与 GlobalSettingsPanel 共用；E5/E7。"
+    },
+    {
+      "id": "G006",
+      "title": "模块学习键分桶",
+      "status": "pending",
+      "objective": "Dashboard 长文+材料、EnglishContext 主题/债务、口语会话/弱点、WriteTab、read summary 按清单分桶或换号清空；U13。"
+    },
+    {
+      "id": "G007",
+      "title": "embed 缓存换号清空",
+      "status": "pending",
+      "objective": "dify_embed_input_overrides 及会话缓存在换号时清空，不重做 passport。"
+    },
+    {
+      "id": "G008",
+      "title": "parseVocabUserId 400",
+      "status": "pending",
+      "objective": "无 userId helper 空 + 各 vocab 路由 400；前端不当空表；I6/I8。"
+    },
+    {
+      "id": "G009",
+      "title": "对照 test-spec 验收 + quality gate",
+      "status": "pending",
+      "objective": "跑齐可自动化用例；对照 E1–E7 清单；最终 cleanup/review gate。"
     }
   ]
 }

@@ -1,3 +1,6 @@
+import { getAppUserId } from './profileHelper';
+import { getLearnItem, removeLearnItem, setLearnItem } from './accountStorage';
+
 /**
  * 自适应动态进化体系核心工具
  */
@@ -66,20 +69,23 @@ const NEXT_WEEK_PUSH_KEY = 'superme_next_week_push';
 const DIFFICULTY_ADJUSTMENT_KEY = 'superme_difficulty_adjustment';
 const PAUSED_MODULES_KEY = 'superme_paused_modules';
 
+function uid() {
+  return getAppUserId();
+}
+
 // ---- 复盘周期 ----
 
 export function getLastReviewDate(): number {
-  const saved = localStorage.getItem(LAST_REVIEW_DATE_KEY);
+  const saved = getLearnItem(uid(), LAST_REVIEW_DATE_KEY);
   if (!saved) {
-    const now = Date.now();
-    localStorage.setItem(LAST_REVIEW_DATE_KEY, String(now));
-    return now;
+    // U6: 空账号不写 Date.now() 进桶；仅返回瞬时值供 UI 计算（距上次≈0）
+    return Date.now();
   }
   return Number(saved);
 }
 
 export function setLastReviewDate(timestamp: number) {
-  localStorage.setItem(LAST_REVIEW_DATE_KEY, String(timestamp));
+  setLearnItem(uid(), LAST_REVIEW_DATE_KEY, String(timestamp));
   window.dispatchEvent(new Event('superme-review-date-changed'));
 }
 
@@ -90,7 +96,7 @@ export function getReviewRoundNumber(): number {
 // ---- 复盘历史 ----
 
 export function getReviewHistory(): BiweeklyReviewRecord[] {
-  const raw = localStorage.getItem(BIWEEKLY_REVIEW_KEY);
+  const raw = getLearnItem(uid(), BIWEEKLY_REVIEW_KEY);
   if (!raw) return [];
   try {
     return JSON.parse(raw);
@@ -103,7 +109,7 @@ export function saveReviewRecord(record: BiweeklyReviewRecord) {
   const history = getReviewHistory();
   history.unshift(record);
   if (history.length > 20) history.pop();
-  localStorage.setItem(BIWEEKLY_REVIEW_KEY, JSON.stringify(history));
+  setLearnItem(uid(), BIWEEKLY_REVIEW_KEY, JSON.stringify(history));
 }
 
 /** 兼容旧 API */
@@ -128,13 +134,13 @@ export function saveReviewToHistory(answers: BiweeklyReviewAnswer, factors: stri
 // ---- 训练重组计划 ----
 
 export function saveNextWeekPushPlan(plan: TrainingRebalancePlan) {
-  localStorage.setItem(NEXT_WEEK_PUSH_KEY, JSON.stringify(plan));
+  setLearnItem(uid(), NEXT_WEEK_PUSH_KEY, JSON.stringify(plan));
   window.dispatchEvent(new CustomEvent('global-training-rebalance', { detail: plan }));
   window.dispatchEvent(new Event('dify-context-refresh-needed'));
 }
 
 export function getNextWeekPushPlan(): TrainingRebalancePlan | null {
-  const raw = localStorage.getItem(NEXT_WEEK_PUSH_KEY);
+  const raw = getLearnItem(uid(), NEXT_WEEK_PUSH_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw);
@@ -144,7 +150,7 @@ export function getNextWeekPushPlan(): TrainingRebalancePlan | null {
 }
 
 export function clearNextWeekPushPlan() {
-  localStorage.removeItem(NEXT_WEEK_PUSH_KEY);
+  removeLearnItem(uid(), NEXT_WEEK_PUSH_KEY);
 }
 
 export function mergeTrainingPlans(
@@ -167,7 +173,7 @@ export function mergeTrainingPlans(
 // ---- 难度调整 ----
 
 export function applyDifficultyAdjustment(baseDifficulty: number, module: string): number {
-  const raw = localStorage.getItem(DIFFICULTY_ADJUSTMENT_KEY);
+  const raw = getLearnItem(uid(), DIFFICULTY_ADJUSTMENT_KEY);
   const adjustments: Record<string, number> = raw ? JSON.parse(raw) : {};
   const bonus = adjustments[module] || 0;
   return Math.min(Math.max(baseDifficulty + bonus, 1), 5);
@@ -175,21 +181,21 @@ export function applyDifficultyAdjustment(baseDifficulty: number, module: string
 
 export function recordDifficultyIncrease(module: string, increase: number) {
   if (!increase) return;
-  const raw = localStorage.getItem(DIFFICULTY_ADJUSTMENT_KEY);
+  const raw = getLearnItem(uid(), DIFFICULTY_ADJUSTMENT_KEY);
   const adjustments: Record<string, number> = raw ? JSON.parse(raw) : {};
   adjustments[module] = (adjustments[module] || 0) + increase;
-  localStorage.setItem(DIFFICULTY_ADJUSTMENT_KEY, JSON.stringify(adjustments));
+  setLearnItem(uid(), DIFFICULTY_ADJUSTMENT_KEY, JSON.stringify(adjustments));
 }
 
 // ---- 模块暂停 ----
 
 export function getPausedModules(): string[] {
-  const raw = localStorage.getItem(PAUSED_MODULES_KEY);
+  const raw = getLearnItem(uid(), PAUSED_MODULES_KEY);
   return raw ? JSON.parse(raw) : [];
 }
 
 export function setPausedModules(modules: string[]) {
-  localStorage.setItem(PAUSED_MODULES_KEY, JSON.stringify(modules));
+  setLearnItem(uid(), PAUSED_MODULES_KEY, JSON.stringify(modules));
   window.dispatchEvent(new CustomEvent('global-modules-paused', { detail: modules }));
 }
 
@@ -338,7 +344,7 @@ export function getDirectionLabel(value: string): string {
 }
 
 export function getWeeklyChatHistory(): WeeklyHistoryItem[] {
-  const raw = localStorage.getItem(WEEKLY_CHAT_HISTORY_KEY) || localStorage.getItem('super_agent_weekly_history');
+  const raw = getLearnItem(uid(), WEEKLY_CHAT_HISTORY_KEY);
   if (!raw) return [];
   try {
     return JSON.parse(raw);
@@ -351,7 +357,7 @@ export function getWeeklyChatHistory(): WeeklyHistoryItem[] {
 export function appendWeeklyChatHistory(item: WeeklyHistoryItem) {
   const list = getWeeklyChatHistory();
   list.unshift(item);
-  localStorage.setItem(WEEKLY_CHAT_HISTORY_KEY, JSON.stringify(list));
+  setLearnItem(uid(), WEEKLY_CHAT_HISTORY_KEY, JSON.stringify(list));
   window.dispatchEvent(new Event('superme-weekly-history-updated'));
 }
 

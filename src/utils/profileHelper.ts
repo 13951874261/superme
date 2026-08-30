@@ -6,6 +6,13 @@ import {
   readCareerPath,
   type CareerPath,
 } from './careerProgression';
+import {
+  getLearnItem,
+  getStoredProfileRawForUser,
+  setLearnItem,
+  setPreferenceItem,
+  writeProfileLocalForUser,
+} from './accountStorage';
 
 const MEMORY_LAYERS_KEY = 'user_memory_layers';
 const PROFILE_UPDATED_AT_KEY = 'user_profile_server_updated_at';
@@ -26,7 +33,7 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
 
 /** 本地画像时间戳是否过期（供 visibility 等场景决定是否 refetch；不改变 loadUserProfileFromServer 强制拉取语义） */
 export function isProfileStale(): boolean {
-  const updatedAt = Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
+  const updatedAt = Number(getLearnItem(getAppUserId(), PROFILE_UPDATED_AT_KEY) || 0);
   if (!updatedAt) return true;
   return Date.now() - updatedAt > PROFILE_STALE_MS;
 }
@@ -77,33 +84,32 @@ export function getAppUserId(): string {
   return ensureAppUserId();
 }
 
-function getStoredProfileRaw(): string {
-  return localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+function getStoredProfileRaw(userId?: string): string {
+  return getStoredProfileRawForUser(userId || getAppUserId());
 }
 
-function writeProfileLocal(profile: string, updatedAt?: number) {
-  localStorage.setItem('user_current_profile', profile);
-  localStorage.setItem('User_Current_Profile', profile);
-  if (updatedAt) {
-    localStorage.setItem(PROFILE_UPDATED_AT_KEY, String(updatedAt));
-  }
+function writeProfileLocal(profile: string, updatedAt?: number, userId?: string) {
+  const uid = userId || getAppUserId();
+  writeProfileLocalForUser(uid, profile, updatedAt);
   window.dispatchEvent(new Event('global-profile-changed'));
 }
 
-async function syncProfileToServer(profileContent?: string): Promise<void> {
-  const content = profileContent ?? getStoredProfileRaw();
+async function syncProfileToServer(profileContent?: string, userId?: string): Promise<void> {
+  const uid = userId || getAppUserId();
+  const content = profileContent ?? getStoredProfileRaw(uid);
+  if (!String(content || '').trim()) return;
   try {
     const res = await fetch('/api/user/profile/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: getAppUserId(),
+        userId: uid,
         profileContent: content,
-        errorLedger: localStorage.getItem(ERROR_LEDGER_KEY) || '{}',
+        errorLedger: getLearnItem(uid, ERROR_LEDGER_KEY) || '{}',
       }),
     });
     if (res.ok) {
-      localStorage.setItem(PROFILE_UPDATED_AT_KEY, String(Date.now()));
+      setLearnItem(uid, PROFILE_UPDATED_AT_KEY, String(Date.now()));
     }
   } catch (e) {
     console.warn('[profileHelper] sync to server failed:', e);
@@ -134,7 +140,7 @@ export function sanitizeProfileContent(raw: string): string {
  */
 export function getUserCurrentProfile(): string {
   try {
-    const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+    const raw = getStoredProfileRaw();
     if (!raw) return '';
     let resultStr = raw;
     if (raw.startsWith('[') && raw.endsWith(']')) {
@@ -145,7 +151,7 @@ export function getUserCurrentProfile(): string {
     }
     return sanitizeProfileContent(resultStr);
   } catch (e) {
-    return sanitizeProfileContent(localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '');
+    return sanitizeProfileContent(getStoredProfileRaw());
   }
 }
 
@@ -170,7 +176,7 @@ export function getAccentPref(): string {
 
 export function saveAccentPref(value: string) {
   const next = isAccentProfile(value) ? String(value).trim() : '';
-  localStorage.setItem(ACCENT_PREF_KEY, next);
+  setPreferenceItem(ACCENT_PREF_KEY, next);
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event(ACCENT_CHANGED_EVENT));
   }
@@ -240,21 +246,22 @@ export async function compressUserProfile(
 /** 将 career 写入本地 memory_layers 镜像并 POST 到账号（不传 profileContent） */
 export async function syncCareerToServer(career?: CareerPath): Promise<void> {
   const path = parseCareerPath(career ?? readCareerPath());
+  const uid = getAppUserId();
   try {
     let layers: Record<string, unknown> = {};
     try {
-      layers = JSON.parse(localStorage.getItem(MEMORY_LAYERS_KEY) || '{}');
+      layers = JSON.parse(getLearnItem(uid, MEMORY_LAYERS_KEY) || '{}');
     } catch {
       layers = {};
     }
     layers.career_path = path;
-    localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(layers));
+    setLearnItem(uid, MEMORY_LAYERS_KEY, JSON.stringify(layers));
 
     await fetch('/api/user/profile/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: getAppUserId(),
+        userId: uid,
         careerPath: path,
       }),
     });
@@ -292,7 +299,7 @@ export function buildCareerAwareProfileString(baseProfile: string, career: Caree
  * 从持久化画像中提取结构化短板标签数组
  */
 export function getUserProfileFactorsArray(): string[] {
-  const raw = localStorage.getItem('User_Current_Profile') || localStorage.getItem('user_current_profile') || '';
+  const raw = getStoredProfileRaw();
   if (!raw) return [];
   if (raw.startsWith('[') && raw.endsWith(']')) {
     try {
@@ -417,7 +424,7 @@ export function getCurrentFormattedTime(): string {
 /** 读取 localStorage 中 memory_layers.l3_vars 结构化画像 */
 export function getL3VarsLocal(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    const raw = getLearnItem(getAppUserId(), MEMORY_LAYERS_KEY);
     if (!raw) return {};
     const layers = JSON.parse(raw) as { l3_vars?: Record<string, string> };
     const vars = layers.l3_vars;
@@ -450,7 +457,7 @@ export function buildStaticDifyProfilePreview(
 }
 
 export function getProfileUpdatedAtMs(): number {
-  return Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
+  return Number(getLearnItem(getAppUserId(), PROFILE_UPDATED_AT_KEY) || 0);
 }
 
 function normalizeRecallQuery(query: string): string {
@@ -504,7 +511,7 @@ export function recallMemoryLocal(query: string, topK = 5): { query: string; con
     };
   } = {};
   try {
-    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    const raw = getLearnItem(getAppUserId(), MEMORY_LAYERS_KEY);
     if (raw) layers = JSON.parse(raw);
   } catch {
     return { query: q, context: '', items: [] };
@@ -662,17 +669,27 @@ export function getInjectedUserCurrentProfile(inputs: Record<string, any> = {}):
 }
 
 /**
- * 应用启动时从后端拉取画像/长效记忆，并与 localStorage 按 updated_at 合并
+ * 应用启动时从后端拉取画像/长效记忆，并与「当前账号本地桶」按 updated_at 合并。
+ * 禁止用无前缀全局键或他账号桶内容回写目标 userId（U3/U4/U12）。
  */
 export async function loadUserProfileFromServer(userId?: string): Promise<void> {
   const uid = userId || getAppUserId();
-  const localRaw = getStoredProfileRaw();
-  const localUpdatedAt = Number(localStorage.getItem(PROFILE_UPDATED_AT_KEY) || 0);
+  const localRaw = getStoredProfileRawForUser(uid);
+  const localUpdatedAt = Number(getLearnItem(uid, PROFILE_UPDATED_AT_KEY) || 0);
+
+  const maybeSyncOwnBucket = (reason: string) => {
+    if (!String(localRaw || '').trim()) return;
+    if (uid !== getAppUserId()) {
+      console.warn('[profileHelper] skip sync: bucket userId mismatch', reason, uid);
+      return;
+    }
+    void syncProfileToServer(localRaw, uid);
+  };
 
   try {
     const res = await fetchWithTimeout(`/api/user/profile/${encodeURIComponent(uid)}`, {}, SESSION_INIT_TIMEOUT_MS);
     if (!res.ok) {
-      if (localRaw) void syncProfileToServer(localRaw);
+      maybeSyncOwnBucket(`http_${res.status}`);
       return;
     }
 
@@ -688,39 +705,40 @@ export async function loadUserProfileFromServer(userId?: string): Promise<void> 
     const serverUpdatedAt = Number(updated_at || 0);
 
     if (error_ledger && (typeof error_ledger === 'object' || error_ledger !== '{}')) {
-      localStorage.setItem(
+      setLearnItem(
+        uid,
         ERROR_LEDGER_KEY,
         typeof error_ledger === 'string' ? error_ledger : JSON.stringify(error_ledger),
       );
     }
 
     if (memory_layers && typeof memory_layers === 'object') {
-      localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
+      setLearnItem(uid, MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
       if (serverUpdatedAt >= localUpdatedAt) {
         applyCareerFromMemoryLayers(memory_layers);
       }
     }
 
     if (profile_content && serverUpdatedAt >= localUpdatedAt) {
-      writeProfileLocal(profile_content, serverUpdatedAt);
+      writeProfileLocal(profile_content, serverUpdatedAt, uid);
       return;
     }
 
     if (localRaw && (localUpdatedAt > serverUpdatedAt || !profile_content)) {
-      void syncProfileToServer(localRaw);
+      maybeSyncOwnBucket('local_newer_or_server_empty');
       if (localUpdatedAt > serverUpdatedAt) {
         void syncCareerToServer(readCareerPath());
       }
     }
   } catch (e) {
     console.warn('[profileHelper] load from server failed:', e);
-    if (localRaw) void syncProfileToServer(localRaw);
+    maybeSyncOwnBucket('fetch_exception');
   }
 }
 
 export function saveUserErrorLedger(ledger: string | Record<string, unknown>) {
   const value = typeof ledger === 'string' ? ledger : JSON.stringify(ledger);
-  localStorage.setItem(ERROR_LEDGER_KEY, value);
+  setLearnItem(getAppUserId(), ERROR_LEDGER_KEY, value);
   void syncProfileToServer();
 }
 
@@ -738,20 +756,21 @@ export interface MemoryIngestPayload {
 
 export async function ingestUserMemory(payload: MemoryIngestPayload): Promise<void> {
   try {
+    const uid = getAppUserId();
     const res = await fetch('/api/user/memory/ingest', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: getAppUserId(), ...payload }),
+      body: JSON.stringify({ userId: uid, ...payload }),
     });
     if (!res.ok) return;
 
     const json = await res.json();
     const { profile_content, updated_at, memory_layers } = json?.data || {};
     if (profile_content) {
-      writeProfileLocal(profile_content, Number(updated_at || Date.now()));
+      writeProfileLocal(profile_content, Number(updated_at || Date.now()), uid);
     }
     if (memory_layers && typeof memory_layers === 'object') {
-      localStorage.setItem(MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
+      setLearnItem(uid, MEMORY_LAYERS_KEY, JSON.stringify(memory_layers));
     }
   } catch (e) {
     console.warn('[profileHelper] memory ingest failed:', e);
@@ -823,7 +842,7 @@ export async function fetchMemoryProvenance(
 /** 读取本地缓存的 L2 关系图谱摘要（最多 8 条关系） */
 export function getGraphSummaryLocal(): string {
   try {
-    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    const raw = getLearnItem(getAppUserId(), MEMORY_LAYERS_KEY);
     if (!raw) return '';
     const layers = JSON.parse(raw) as {
       l2_graph?: { relations?: { from?: string; rel?: string; to?: string; evidence?: string }[] };
@@ -842,7 +861,7 @@ export function getGraphSummaryLocal(): string {
 /** 读取本地缓存的 L2 情景记忆（最多 5 条摘要行） */
 export function getRecentEpisodesSummaryLocal(): string {
   try {
-    const raw = localStorage.getItem(MEMORY_LAYERS_KEY);
+    const raw = getLearnItem(getAppUserId(), MEMORY_LAYERS_KEY);
     if (!raw) return '';
     const layers = JSON.parse(raw) as { l2_episodes?: Record<string, unknown>[] };
     const episodes = layers.l2_episodes || [];

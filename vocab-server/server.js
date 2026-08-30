@@ -477,6 +477,13 @@ try {
   /* column may already exist */
 }
 
+try {
+  db.prepare('ALTER TABLE user_memories ADD COLUMN learning_ui_json TEXT').run();
+  console.log('Migration: Added learning_ui_json column to user_memories.');
+} catch (e) {
+  /* column may already exist */
+}
+
 // 邀请制访问名单：空表即无人可登录，账号只能由 scripts/invite-account.js 手动写入
 db.prepare(`
   CREATE TABLE IF NOT EXISTS invited_accounts (
@@ -486,6 +493,8 @@ db.prepare(`
 `).run();
 
 const dailyPackService = require('./services/dailyPackService');
+const learningUiService = require('./services/learningUiService');
+learningUiService.ensureLearningUiColumn(db);
 
 /** 客户端未传完整画像时，从 SQLite 拼职业+短板+L3+账本+图谱 */
 function resolveProfileForDify(userId, incoming, recallQuery) {
@@ -2928,15 +2937,22 @@ app.use('/api/long_audio', express.static(path.join(__dirname, 'public', 'long_a
 app.get('/api/user/profile/:userId', (req, res) => {
   try {
     const uid = normalizeMemoryUserId(req.params.userId);
-    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    // 工作台可含 learning_ui；显式列，避免未来 SELECT * 把无关列打进其它读路径
+    const row = db.prepare(`
+      SELECT user_id, profile_content, error_ledger, memory_layers, updated_at, learning_ui_json
+      FROM user_memories WHERE user_id = ?
+    `).get(uid);
     const memoryCtx = buildMemoryContextForUser(uid);
     res.json({
       success: true,
       data: row
         ? {
-            ...row,
-            memory_layers: parseJsonObject(row.memory_layers, {}),
+            user_id: row.user_id,
+            profile_content: row.profile_content,
             error_ledger: parseJsonObject(row.error_ledger, {}),
+            memory_layers: parseJsonObject(row.memory_layers, {}),
+            updated_at: row.updated_at,
+            learning_ui: learningUiService.parseLearningUi(row.learning_ui_json),
             recent_episodes_summary: memoryCtx.recentEpisodesSummary,
             error_ledger_summary: memoryCtx.errorLedgerSummary,
             graph_summary: memoryCtx.graphSummary,
@@ -2946,12 +2962,34 @@ app.get('/api/user/profile/:userId', (req, res) => {
             profile_content: '',
             error_ledger: {},
             memory_layers: {},
+            learning_ui: learningUiService.parseLearningUi(null),
             recent_episodes_summary: memoryCtx.recentEpisodesSummary,
             error_ledger_summary: memoryCtx.errorLedgerSummary,
             graph_summary: memoryCtx.graphSummary,
             updated_at: 0,
           },
     });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.get('/api/user/learning-ui/:userId', (req, res) => {
+  try {
+    const uid = normalizeMemoryUserId(req.params.userId);
+    res.json({ success: true, data: { userId: uid, learning_ui: learningUiService.getLearningUi(db, uid) } });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.put('/api/user/learning-ui', (req, res) => {
+  try {
+    const userId = req.body?.userId;
+    const learningUi = req.body?.learningUi ?? req.body?.learning_ui;
+    if (!userId) return res.status(400).json({ success: false, error: 'userId required' });
+    const result = learningUiService.persistLearningUi(db, normalizeMemoryUserId(userId), learningUi || {});
+    res.json({ success: true, data: result });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

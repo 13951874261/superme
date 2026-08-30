@@ -1,39 +1,29 @@
-﻿# Brief: 收录分区选择 + Cambridge/Dify 数据源分工
+﻿# Brief: 账号学习数据隔离（Option A′）
 
-> Deep-interview crystallized spec. Requirements source of truth for handoff. Do not re-interview by default.
-
-- Spec: `.omx/specs/deep-interview-vocab-zone-cambridge-collect.md`
-- Context: `.omx/context/vocab-zone-cambridge-collect-20260830T085200Z.md`
-- Transcript: `.omx/interviews/vocab-zone-cambridge-collect-20260830T090000Z.md`
+> Requirements source: `.omx/specs/deep-interview-account-data-isolation.md`  
+> Plan: `.omx/plans/prd-account-data-isolation.md`  
+> Test: `.omx/plans/test-spec-account-data-isolation.md`  
+> Consensus: Architect R2 APPROVE → Critic APPROVE
 
 ## Intent
 
-1. 分区由用户决定，不再硬编码或按主题自动推断。
-2. 单词入库与词典面板一致：英汉双向 Cambridge 优先，Dify 补缺。
-3. 短语/句型收录时走 `en_zh_bidirectional` dict-query 纯 Dify 同步路径。
+同机换号后，康奈尔/生词/长文/唤醒/破绽及模块学习界面只显示当前账号数据；换回可恢复复盘/夜话；不得把上一账号本地画像写脏到新账号服务端。
 
 ## In-Scope
 
-- 全部收录入口双按钮：「+ 政商务」「+ 全场景」
-- `useVocabCollect` 传 `category`；3 秒竞速 / 任务中心同样传 category
-- 单词：`buildVocabPayloadFromDict` + Cam merge
-- 短语/句型：dict-query `en_zh_bidirectional`（不走 Cambridge）
-- migrate-on-click：已收录点另一分区 = 改 `category`，不新建行
-- 收录中：被点按钮 collecting+disabled；另一按钮 idle，点击仅提示稍候
+1. localStorage 按账号分桶；禁止无前缀画像/复盘回退
+2. `learning_ui_json` sidecar（独立 persist，不进 upsert，不 bump 画像 `updated_at`）
+3. `switchAccountSession`：flush(旧)→改 ID→load→App `key={userId}` 重挂
+4. 模块学习键分桶；embed 换号清空
+5. `parseVocabUserId` 缺省 400；前端 400 ≠ 空表
 
 ## Out-of-Scope
 
-- 卡片整体布局/配色 redesign
-- 数据库表结构变更
-- 额度逻辑、矩阵/SOP/记忆节点逻辑
-- 历史词条批量迁移
-- Dify 工作流 prompt 调优
+- session token / 全站 API 中间件
+- `getHistoryExclude` 全站扫词、`clear-today` 跨用户
+- 历史脏数据回滚、视觉改版
+- 界面偏好（背景/音效等）按账号拆
 
-## Acceptance (must hold)
+## Acceptance
 
-- AC-1 全入口双按钮
-- AC-2 Grid 单词 Cam 对齐词典页
-- AC-3 短语/句型纯 Dify
-- AC-4 直接迁移无确认框
-- AC-6 收录中另一按钮仅提示稍候
-- AC-5 3 秒 handoff / 额度 / 历史不批量改写
+对照 test-spec：U1–U13、I1–I8、E1–E7、O1–O3。

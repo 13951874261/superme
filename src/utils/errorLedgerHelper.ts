@@ -1,4 +1,5 @@
 import { getAppUserId } from './profileHelper';
+import { getLearnItem, setLearnItem } from './accountStorage';
 
 export const ERROR_LEDGER_KEY = 'user_error_ledger';
 export type ErrorLedgerCategory = 'listening' | 'oral' | 'vocab';
@@ -8,7 +9,7 @@ const MAX_PER_CATEGORY = 30;
 export type ErrorLedger = Partial<Record<ErrorLedgerCategory, Record<string, unknown>[]>>;
 
 function readLocalLedger(): ErrorLedger {
-  const raw = localStorage.getItem(ERROR_LEDGER_KEY);
+  const raw = getLearnItem(getAppUserId(), ERROR_LEDGER_KEY);
   if (!raw) return {};
   try {
     return JSON.parse(raw) as ErrorLedger;
@@ -18,7 +19,7 @@ function readLocalLedger(): ErrorLedger {
 }
 
 function writeLocalLedger(ledger: ErrorLedger) {
-  localStorage.setItem(ERROR_LEDGER_KEY, JSON.stringify(ledger));
+  setLearnItem(getAppUserId(), ERROR_LEDGER_KEY, JSON.stringify(ledger));
 }
 
 /** 追加结构化短板记录，并同步至后端 SQLite */
