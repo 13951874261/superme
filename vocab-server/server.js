@@ -477,6 +477,14 @@ try {
   /* column may already exist */
 }
 
+// 邀请制访问名单：空表即无人可登录，账号只能由 scripts/invite-account.js 手动写入
+db.prepare(`
+  CREATE TABLE IF NOT EXISTS invited_accounts (
+    user_id TEXT PRIMARY KEY,
+    created_at INTEGER NOT NULL
+  )
+`).run();
+
 const dailyPackService = require('./services/dailyPackService');
 
 /** 客户端未传完整画像时，从 SQLite 拼职业+短板+L3+账本+图谱 */
@@ -8234,6 +8242,24 @@ app.get('/api/user/theme', (req, res) => {
   } catch (error) {
     console.error('[User Theme Read]', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/auth/verify-invite', (req, res) => {
+  try {
+    const userId = String(req.body?.userId || '').trim();
+    if (!userId) {
+      return res.json({ success: false, error: '该账号未被邀请' });
+    }
+    const row = db.prepare('SELECT user_id FROM invited_accounts WHERE user_id = ?').get(userId);
+    // 不区分“从未邀请”与“已撤销”，也不回传名单，避免被枚举
+    if (!row) {
+      return res.json({ success: false, error: '该账号未被邀请' });
+    }
+    res.json({ success: true });
+  } catch (e) {
+    console.error('[Auth VerifyInvite]', e);
+    res.status(500).json({ success: false, error: e.message });
   }
 });
 

@@ -101,7 +101,7 @@
 - [x] design / high — UI consistency scope/intensity/approach → full shell+modules, medium System Pass, token-first (see consistency spec)
 - [x] product / high — Daily listen pregenerate decisions (login/duration/cap/partial/regen/cron/task type) → locked 2026-07-24 in Source of truth
 - [ ] product / medium — Defer `rotateEmbedSessionOnRouteChange` until assistant opens (may affect cross-module Dify continuity) / product / medium
-- [ ] design / low — Login beyond token conflicts / implementer
+- [x] design / low — Login beyond token conflicts → 2026-08-30 邀请制登录首页：左右分栏（暗色理念场 + 浅色邀请门），仅受邀账号无密码，名单由 `scripts/invite-account.js` 手动写入（见 `docs/superpowers/specs/2026-08-30-invite-only-login-design.md`）
 - [ ] design / low — ReadModule multi-color track chips: keep semantic variety vs compress to status ramp (default: keep meaning, drop purple decorative primary) / implementer
 - [ ] Whether non-english modules need the same shell density audit / product / low
 - [ ] product / low — After `listen_backfill` completes, auto-reload Listen vs require user to re-open filter / default: auto-reload if same filters still selected

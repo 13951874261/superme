@@ -38,13 +38,6 @@ export default function GlobalSettingsPanel() {
   );
   const [isBgSectionOpen, setIsBgSectionOpen] = useState(false);
 
-  const [isPasswordSectionOpen, setIsPasswordSectionOpen] = useState(false);
-  const [oldPassword, setOldPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [pwdError, setPwdError] = useState('');
-  const [pwdSuccess, setPwdSuccess] = useState('');
-
   const [soundEnabled, setSoundEnabled] = useState<boolean>(
     localStorage.getItem('super_agent_sound_enabled') !== 'false'
   );
@@ -56,36 +49,6 @@ export default function GlobalSettingsPanel() {
   const careerPreview = readCareerPath();
   const careerPreviewLine = `${careerNodeLabel(careerPreview.current)}→${careerNodeLabel(careerPreview.target)} · ${careerPreview.progress}%`;
   const weaknessPreview = getUserWeaknessProfile() || '暂无短板';
-
-  const handleSavePassword = () => {
-    const currentPassword = localStorage.getItem('super_agent_lock_password') || '1';
-    if (oldPassword !== currentPassword) {
-      setPwdError('原密码输入不正确');
-      setPwdSuccess('');
-      playValidateFail();
-      return;
-    }
-    if (!newPassword) {
-      setPwdError('新密码不能为空');
-      setPwdSuccess('');
-      playValidateFail();
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setPwdError('两次输入的新密码不一致');
-      setPwdSuccess('');
-      playValidateFail();
-      return;
-    }
-    localStorage.setItem('super_agent_lock_password', newPassword);
-    setPwdSuccess('密码修改成功');
-    setPwdError('');
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    playValidatePass();
-    setTimeout(() => setPwdSuccess(''), 3000);
-  };
 
   const handleSaveUserId = async () => {
     const next = userIdDraft.trim();
@@ -448,58 +411,6 @@ export default function GlobalSettingsPanel() {
                 </div>
               </div>
 
-              {/* 修改系统解锁密码折叠项 */}
-              <div className="border-t border-gray-800 pt-4">
-                <button
-                  type="button"
-                  onClick={() => { setIsPasswordSectionOpen(!isPasswordSectionOpen); playReveal(); }}
-                  className="w-full flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-white transition-colors py-1 cursor-pointer"
-                >
-                  <span>修改系统密码</span>
-                  <span className="text-xs">{isPasswordSectionOpen ? '▲' : '▼'}</span>
-                </button>
-                
-                {isPasswordSectionOpen && (
-                  <div className="mt-3 space-y-3 animate-[fadeIn_0.2s_ease-out]">
-                    <input
-                      type="password"
-                      placeholder="请输入原密码"
-                      value={oldPassword}
-                      onChange={(e) => { setOldPassword(e.target.value); setPwdError(''); }}
-                      className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 outline-none focus:border-[#FF5722]"
-                    />
-                    <input
-                      type="password"
-                      placeholder="请输入新密码"
-                      value={newPassword}
-                      onChange={(e) => { setNewPassword(e.target.value); setPwdError(''); }}
-                      className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 outline-none focus:border-[#FF5722]"
-                    />
-                    <input
-                      type="password"
-                      placeholder="请确认新密码"
-                      value={confirmPassword}
-                      onChange={(e) => { setConfirmPassword(e.target.value); setPwdError(''); }}
-                      className="w-full px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-xs text-white placeholder-gray-500 outline-none focus:border-[#FF5722]"
-                    />
-                    
-                    {pwdError && (
-                      <div className="text-[10px] text-red-500 font-bold">{pwdError}</div>
-                    )}
-                    {pwdSuccess && (
-                      <div className="text-[10px] text-green-500 font-bold">{pwdSuccess}</div>
-                    )}
-                    
-                    <button
-                      type="button"
-                      onClick={() => { handleSavePassword(); }}
-                      className="w-full py-2 bg-[#FF5722] hover:bg-[#ff6a3c] text-[10px] font-black uppercase tracking-widest text-white rounded-lg transition-colors cursor-pointer"
-                    >
-                      保存密码
-                    </button>
-                  </div>
-                )}
-              </div>
           </div>
         </div>
       )}
