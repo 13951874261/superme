@@ -23,6 +23,55 @@ export function isVocabPlaceholder(text: string): boolean {
   return PLACEHOLDER_FRAGMENTS.some((frag) => value.includes(frag));
 }
 
+/** 文本是否含汉字（用于区分中/英释义） */
+export function hasChineseText(text: string): boolean {
+  return /[\u3400-\u9fff]/.test(String(text || ''));
+}
+
+/**
+ * 中文释义：只取含汉字的字段；纯英文 meaning 不进释义区。
+ */
+export function getChineseDefinition(payload: Record<string, any> | null | undefined): string {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  const candidates = [
+    p.meaning_zh,
+    p.translation_zh,
+    p.zh_meaning,
+    p.translation_main,
+    p.meaning,
+    p.translation,
+    p.definition,
+    p.explain,
+  ];
+  for (const raw of candidates) {
+    const text = String(raw || '').trim();
+    if (!text || isVocabPlaceholder(text)) continue;
+    if (hasChineseText(text)) return text;
+  }
+  return '';
+}
+
+/**
+ * 英文定义：优先 definition_en / definitions_en；若 meaning 等为纯英文也可作英文定义。
+ */
+export function getEnglishDefinition(payload: Record<string, any> | null | undefined): string {
+  const p = payload && typeof payload === 'object' ? payload : {};
+  if (typeof p.definition_en === 'string' && p.definition_en.trim() && !isVocabPlaceholder(p.definition_en)) {
+    return p.definition_en.trim();
+  }
+  if (Array.isArray(p.definitions_en) && p.definitions_en[0]) {
+    const joined = p.definitions_en.map((x: unknown) => String(x || '').trim()).filter(Boolean).join('; ');
+    if (joined && !isVocabPlaceholder(joined)) return joined;
+  }
+  const enCandidates = [p.definition, p.meaning, p.translation_main, p.translation, p.explain];
+  for (const raw of enCandidates) {
+    const text = String(raw || '').trim();
+    if (!text || isVocabPlaceholder(text)) continue;
+    if (!hasChineseText(text) && /[A-Za-z]/.test(text)) return text;
+  }
+  return '';
+}
+
 export function shouldAutoEnrichVocab(word: string, payload: any = {}): boolean {
   if (!/[A-Za-z]/.test(word || '')) return false;
   const translation = getWordTranslation({ payload } as VocabEntry);

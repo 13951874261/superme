@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { VocabEntry } from '../services/vocabAPI';
-import { buildVocabCsv, toVocabPresentation, shouldAutoEnrichVocab } from './vocabCsvExport';
+import {
+  buildVocabCsv,
+  toVocabPresentation,
+  shouldAutoEnrichVocab,
+  getChineseDefinition,
+  getEnglishDefinition,
+} from './vocabCsvExport';
 
 const CSV_HEADERS = [
   'word',
@@ -204,4 +210,24 @@ test('中文词条或已有释义时不应触发英文补全', () => {
     }),
     true
   );
+});
+
+test('释义分区：中文进释义，英文进英文定义，互不顶替', () => {
+  const both = {
+    meaning: '瞧；好了',
+    definition_en: 'An exclamation used to draw attention to something.',
+  };
+  assert.equal(getChineseDefinition(both), '瞧；好了');
+  assert.equal(getEnglishDefinition(both), 'An exclamation used to draw attention to something.');
+
+  const enOnly = {
+    meaning: 'An exclamation used to draw attention to something, especially when it has been produced or revealed.',
+    definition_en: 'An exclamation used to draw attention to something.; Used to indicate success.',
+  };
+  assert.equal(getChineseDefinition(enOnly), '');
+  assert.match(getEnglishDefinition(enOnly), /exclamation/i);
+
+  const zhOnly = { meaning_zh: '放弃；遗弃', definition_en: '' };
+  assert.equal(getChineseDefinition(zhOnly), '放弃；遗弃');
+  assert.equal(getEnglishDefinition(zhOnly), '');
 });

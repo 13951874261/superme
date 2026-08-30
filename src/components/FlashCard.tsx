@@ -5,7 +5,7 @@ import SpeakButton from './SpeakButton';
 import { getReviewPage, submitReview, VocabEntry, updateWordPayload, getVocabItem, needsReviewPayloadHydrate } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
-import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
+import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations, getChineseDefinition, getEnglishDefinition } from '../utils/vocabCsvExport';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 import MemoryAidPanel from './MemoryAidPanel';
 
@@ -133,9 +133,9 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   };
 
   const currentPayload = localPayload || current?.payload || null;
-  const currentDefinitionRaw = currentPayload?.definition_en || current?.payload?.definition_en || '';
+  const chineseDefinition = getChineseDefinition(currentPayload);
+  const englishDefinition = getEnglishDefinition(currentPayload);
   const currentBusinessNoteRaw = currentPayload?.business_note || current?.payload?.business_note || '';
-  const currentDefinition = isVocabPlaceholder(currentDefinitionRaw) ? '' : currentDefinitionRaw;
   const currentBusinessNote = isVocabPlaceholder(currentBusinessNoteRaw) ? '' : currentBusinessNoteRaw;
   const card = current
     ? toVocabPresentation({ ...current, payload: currentPayload || current.payload })
@@ -348,7 +348,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                       释义
                     </div>
                     <div className="text-sm text-gray-700 leading-relaxed">
-                      {card.translation || '暂无释义'}
+                      {chineseDefinition || '暂无中文释义'}
                     </div>
                   </div>
 
@@ -376,14 +376,14 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                     </div>
                   )}
 
-                  {currentDefinition && (
+                  {englishDefinition && (
                     <div>
                       <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
                         <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> English Definition / 英文定义</span>
-                        <SpeakButton text={currentDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                        <SpeakButton text={englishDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
                       </div>
                       <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        {currentDefinition}
+                        {englishDefinition}
                       </div>
                     </div>
                   )}
