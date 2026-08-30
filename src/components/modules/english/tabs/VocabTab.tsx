@@ -312,13 +312,13 @@ export default function VocabTab() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-3">
       {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
 
       {/* 战术使用指南 Banner */}
-      <div className="bg-slate-50 border border-[var(--color-border)] rounded-r-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm animate-[fadeIn_0.3s_ease-out]">
-        <div className="bg-[var(--color-brand)] text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-md">
-           <BookOpen aria-hidden="true" className="w-5 h-5" />
+      <div className="bg-slate-50 border border-[var(--color-border)] rounded-r-xl p-3 flex items-start gap-3 shrink-0 shadow-sm animate-[fadeIn_0.3s_ease-out]">
+        <div className="bg-[var(--color-brand)] text-white p-2 rounded-lg shrink-0 mt-0.5 shadow-md">
+           <BookOpen aria-hidden="true" className="w-4 h-4" />
         </div>
         <div className="flex-1">
           <h5 className="text-[11px] font-black uppercase tracking-widest text-[var(--color-brand)] mb-1">使用说明</h5>
@@ -426,14 +426,14 @@ export default function VocabTab() {
           <p className="text-sm text-gray-500 mt-2">请到「进度总控」生成并整理长文，或休息一下。</p>
         </div>
       ) : (
-        <div className="w-full max-w-[96rem] mx-auto space-y-6">
+        <div className="w-full max-w-[96rem] mx-auto space-y-3">
 
           {/* ================= 上方区域：词汇情报捕获与记忆辅助 ================= */}
-          <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
-            <div className="bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6">
+          <div className="bg-slate-100/80 border border-slate-200/70 p-1.5 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className="bg-white border border-slate-100/90 rounded-[calc(1rem-2px)] p-3 md:p-4 space-y-3">
 
               {/* 情报卡片标题 */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   {!isFlipped ? (
                     <>
@@ -504,19 +504,19 @@ export default function VocabTab() {
                   </div>
                 </div>
               ) : (
-                <div className="animate-[fadeIn_0.4s_ease-out] space-y-6">
+                <div className="animate-[fadeIn_0.4s_ease-out] space-y-3">
                   {/* =================【第 1 行：核心情报 + 记忆辅助工具卡 强水平对齐】================= */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
                     {/* 左 7 栏：核心词典主卡 */}
-                    <div className="lg:col-span-7 flex flex-col">
+                    <div className="lg:col-span-7 flex flex-col min-h-0 rounded-xl border border-slate-100 bg-slate-50/40 p-2.5 md:p-3">
                       {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
                       {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
                       {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
                     </div>
 
                     {/* 右 5 栏：1. 生词记忆辅助 */}
-                    <div className="lg:col-span-5 bg-slate-50/60 border border-slate-200/80 rounded-2xl p-4 shadow-sm flex flex-col">
-                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-3 flex items-center gap-1.5 select-none">
+                    <div className="lg:col-span-5 bg-slate-50/80 border border-slate-200/70 rounded-xl p-2.5 shadow-sm flex flex-col min-h-0">
+                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5 select-none">
                         <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
                         1. 生词记忆辅助 (Memory Aids)
                       </h4>
@@ -524,10 +524,12 @@ export default function VocabTab() {
                     </div>
                   </div>
 
-                  {/* =================【第 2 行：圆形记忆矩阵主舞台 + 算法/SOP 仪表盘 强水平对齐】================= */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                  {/* =================【第 2 行：圆形记忆矩阵主舞台 + 算法/SOP 仪表盘】================= */}
+                  {/* 浅→深衔接：上沿浅灰带，避免硬切到深色矩阵 */}
+                  <div className="rounded-xl border border-slate-200/80 bg-gradient-to-b from-slate-100 via-slate-200/40 to-slate-800/30 p-1.5">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
                     {/* 左 7 栏：圆形记忆矩阵主舞台 */}
-                    <div className="lg:col-span-7 flex flex-col">
+                    <div className="lg:col-span-7 flex flex-col min-h-0">
                       <MemoryMatrixStage
                         word={currentWord.word}
                         payload={adaptedWord.payload}
@@ -536,10 +538,10 @@ export default function VocabTab() {
                     </div>
 
                     {/* 右 5 栏：2. SM-2 算法健康度仪表盘 + 3. 高管商务 SOP */}
-                    <div className="lg:col-span-5 flex flex-col justify-between gap-4">
+                    <div className="lg:col-span-5 flex flex-col justify-between gap-2.5 min-h-0">
                       {/* 2. SM-2 记忆健康度与衰退曲线仪表盘 */}
-                      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-5 border border-slate-800 shadow-md space-y-4 flex-1">
-                        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                      <div className="bg-gradient-to-br from-slate-800 to-indigo-950 text-white rounded-xl p-3 border border-slate-700/80 shadow-md space-y-2.5 flex-1">
+                        <div className="flex items-center justify-between border-b border-slate-700/80 pb-2">
                           <div className="flex items-center gap-2">
                             <Activity className="w-4 h-4 text-emerald-400" />
                             <span className="text-xs font-black uppercase tracking-wider text-slate-200">2. 记忆健康度</span>
@@ -551,13 +553,13 @@ export default function VocabTab() {
 
                         {/* 记忆留存率进度条 */}
                         <div>
-                          <div className="flex justify-between text-[11px] font-bold mb-1.5 text-slate-300">
+                          <div className="flex justify-between text-[11px] font-bold mb-1 text-slate-300">
                             <span>记忆留存率</span>
-                            <span className="text-emerald-400 font-mono">
+                            <span className="text-emerald-400 font-mono tabular-nums">
                               {Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%
                             </span>
                           </div>
-                          <div className="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                          <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
                             <div
                               className="h-full bg-gradient-to-r from-amber-400 via-emerald-400 to-teal-300 rounded-full transition-[width] duration-500"
                               style={{ width: `${Math.min(99, Math.max(30, 100 - (currentWord.interval_days || 0) * 5 + (currentWord.repetitions || 0) * 10))}%` }}
@@ -566,22 +568,22 @@ export default function VocabTab() {
                         </div>
 
                         {/* 算法三要素卡片 */}
-                        <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase">复习轮次</div>
-                            <div className="text-sm font-black text-amber-400 mt-0.5">{currentWord.repetitions || 0} 次</div>
+                        <div className="grid grid-cols-3 gap-1.5 text-center text-xs">
+                          <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/60">
+                            <div className="text-[9px] text-slate-400 font-bold uppercase">复习轮次</div>
+                            <div className="text-sm font-black text-amber-400 mt-0.5 tabular-nums">{currentWord.repetitions || 0} 次</div>
                           </div>
-                          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase">衰退间隔</div>
-                            <div className="text-sm font-black text-cyan-400 mt-0.5">{currentWord.interval_days || 0} 天</div>
+                          <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/60">
+                            <div className="text-[9px] text-slate-400 font-bold uppercase">衰退间隔</div>
+                            <div className="text-sm font-black text-cyan-400 mt-0.5 tabular-nums">{currentWord.interval_days || 0} 天</div>
                           </div>
-                          <div className="bg-slate-800/80 p-2.5 rounded-xl border border-slate-700/60">
-                            <div className="text-[10px] text-slate-400 font-bold uppercase">难易因子</div>
-                            <div className="text-sm font-black text-emerald-400 mt-0.5">{((currentWord.ease_factor || 2500) / 1000).toFixed(2)}</div>
+                          <div className="bg-slate-800/80 p-2 rounded-lg border border-slate-700/60">
+                            <div className="text-[9px] text-slate-400 font-bold uppercase">难易因子</div>
+                            <div className="text-sm font-black text-emerald-400 mt-0.5 tabular-nums">{((currentWord.ease_factor || 2500) / 1000).toFixed(2)}</div>
                           </div>
                         </div>
 
-                        <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 font-mono">
+                        <div className="text-[10px] text-slate-400 flex items-center justify-between pt-0.5 font-mono">
                           <span>下次智能排期:</span>
                           <span className="text-slate-200 font-bold">
                             {new Date(currentWord.next_review_date || Date.now()).toLocaleDateString('zh-CN')}
@@ -590,28 +592,29 @@ export default function VocabTab() {
                       </div>
 
                       {/* 3. 高管商务语态与实战 SOP */}
-                      <div className="bg-amber-50/40 border border-amber-200/70 rounded-2xl p-4 shadow-sm space-y-3">
-                        <div className="flex items-center gap-2 text-amber-900 border-b border-amber-200/50 pb-2">
+                      <div className="bg-amber-50/50 border border-amber-200/70 rounded-xl p-2.5 shadow-sm space-y-2">
+                        <div className="flex items-center gap-2 text-amber-900 border-b border-amber-200/50 pb-1.5">
                           <ShieldAlert className="w-4 h-4 text-amber-600" />
                           <span className="text-xs font-black uppercase tracking-wider">3. 高管商务语态与分寸 SOP</span>
                         </div>
-                        <div className="text-xs text-amber-950/80 leading-relaxed font-medium space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-amber-800 uppercase">语态分寸:</span>
+                        <div className="text-xs text-amber-950/80 leading-relaxed font-medium space-y-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase shrink-0">语态分寸:</span>
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
                               High Power / 决策级
                             </span>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-amber-800 uppercase">推荐应用场景:</span>
-                            <span className="text-[10px] text-slate-700 font-semibold">QBR 汇报 · 高层谈判 · 战略方案</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase shrink-0">推荐应用场景:</span>
+                            <span className="text-[10px] text-slate-700 font-semibold text-right">QBR 汇报 · 高层谈判 · 战略方案</span>
                           </div>
-                          <p className="text-[11px] text-slate-600 italic bg-white/70 p-2.5 rounded-xl border border-amber-100/80 mt-1">
+                          <p className="text-[11px] text-slate-600 italic bg-white/70 p-2 rounded-lg border border-amber-100/80 mt-0.5">
                             💡 提示：在商务汇报中使用此词可显著提升句式的掌控力与专业气场，建议配合下方强制造句提交评估。
                           </p>
                         </div>
                       </div>
                     </div>
+                  </div>
                   </div>
                 </div>
               )}
@@ -619,10 +622,10 @@ export default function VocabTab() {
           </div>
 
           {/* ================= 下方区域：强制闭环造句与评估 ================= */}
-          <div className="bg-slate-50 border border-slate-200/60 p-2.5 rounded-[2.5rem] shadow-sm relative overflow-hidden">
-            <div className={`bg-white border border-slate-100 rounded-[calc(2.5rem-0.625rem)] p-6 md:p-8 space-y-6 transition-[opacity,filter,border-color,background-color] ${!isFlipped ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''} ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
+          <div className="bg-slate-100/80 border border-slate-200/70 p-1.5 rounded-2xl shadow-sm relative overflow-hidden">
+            <div className={`bg-white border border-slate-100/90 rounded-[calc(1rem-2px)] p-3 md:p-4 space-y-3 transition-[opacity,filter,border-color,background-color] ${!isFlipped ? 'opacity-50 pointer-events-none filter blur-[1px]' : ''} ${evalResult ? (evalResult.quality >= 3 ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-red-50/50') : ''}`}>
 
-              <div className="flex flex-col gap-3 border-b border-slate-100 pb-4">
+              <div className="flex flex-col gap-2 border-b border-slate-100 pb-2.5">
                 <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
                   快捷评分（免造句，直接记入复习进度）
                 </div>
