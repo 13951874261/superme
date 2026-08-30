@@ -138,12 +138,42 @@ function Export-Cookies {
 function Upload-Config {
   Write-Step 'Upload config to server'
   $proxy = "http://127.0.0.1:$RemoteProxyPort"
-  $form = @{
-    proxy   = $proxy
-    cookies = Get-Item -Path $CookiesOut
-  }
   $uri = "$SiteUrl/api/materials/youtube-config"
-  $resp = Invoke-RestMethod -Uri $uri -Method Post -Form $form
+
+  $curlExe = Get-Command curl.exe -ErrorAction SilentlyContinue
+  if ($curlExe) {
+    $raw = & curl.exe -sS -X POST $uri -F "proxy=$proxy" -F "cookies=@$CookiesOut;type=text/plain"
+    if ($LASTEXITCODE -ne 0) {
+      throw ('upload failed (curl exit {0})' -f $LASTEXITCODE)
+    }
+    $resp = $raw | ConvertFrom-Json
+  } else {
+    Add-Type -AssemblyName System.Net.Http
+    $client = New-Object System.Net.Http.HttpClient
+    try {
+      $content = New-Object System.Net.Http.MultipartFormDataContent
+      $null = $content.Add([System.Net.Http.StringContent]::new($proxy), 'proxy')
+      $fileStream = [System.IO.File]::OpenRead($CookiesOut)
+      try {
+        $fileContent = New-Object System.Net.Http.StreamContent($fileStream)
+        $fileContent.Headers.ContentType = [System.Net.Http.Headers.MediaTypeHeaderValue]::Parse('text/plain')
+        $null = $content.Add($fileContent, 'cookies', [IO.Path]::GetFileName($CookiesOut))
+        $task = $client.PostAsync($uri, $content)
+        $task.Wait() | Out-Null
+        $response = $task.Result
+        $body = $response.Content.ReadAsStringAsync().Result
+        if (-not $response.IsSuccessStatusCode) {
+          throw ('upload failed HTTP {0}: {1}' -f [int]$response.StatusCode, $body)
+        }
+        $resp = $body | ConvertFrom-Json
+      } finally {
+        $fileStream.Close()
+      }
+    } finally {
+      $client.Dispose()
+    }
+  }
+
   if (-not $resp.success) { throw 'server config failed' }
   Write-Host "  Proxy: $proxy" -ForegroundColor Green
   Write-Host '  Cookies uploaded' -ForegroundColor Green
