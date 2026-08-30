@@ -79,8 +79,9 @@ export default function FlashCardExampleMemoryAlign({
             top,
             left: 0,
             width: '100%',
-            maxHeight: h,
+            maxHeight: `${h}px`,
             overflowY: 'auto',
+            overflowX: 'hidden',
           });
           maxBottom = Math.max(maxBottom, top + h);
         }

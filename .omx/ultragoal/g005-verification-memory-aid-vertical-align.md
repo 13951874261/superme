@@ -1,34 +1,28 @@
 # G005 verification — memory-aid-vertical-align
 
-Updated: 2026-08-31
+Updated: 2026-08-31 (production browser)
 
-## Automated evidence
+## Automated
+| Check | Result |
+|-------|--------|
+| reviewExampleSlots unit tests | PASS 3/3 |
+| VocabTab MemoryAid default tabs (AC6 code) | PASS |
 
-| Check | Result | Evidence |
-|-------|--------|----------|
-| extractReviewExampleList | PASS | `node --import tsx --test src/utils/reviewExampleSlots.test.ts` (3/3) |
-| buildReviewExampleSlots pad/extra (AC2/AC3 logic) | PASS | same suite |
-| VocabTab still default tabs (AC6) | PASS (code) | `VocabTab.tsx` calls `<MemoryAidPanel .../>` without `variant` |
-| FlashCard wires dual-pane | PASS (code) | uses `FlashCardExampleMemoryAlign` |
-| reviewStack + GSAP maxHeight/ResizeObserver | PASS (code) | `FlashCardExampleMemoryAlign.tsx` + `MemoryAidPanel variant=reviewStack` |
+## Production runtime (lzhumy → Utility Tools → 生词本 → 复习 N → mud 翻牌)
 
-## Runtime / visual AC
+| AC | Result | Evidence |
+|----|--------|----------|
+| AC1 双栏四卡同开 + 顶边 | PASS | DOM: 4×`data-ex-slot` + 4×`data-memory-card`; tops 912/1018/1170/1299 对齐（±1px）；标题「例句 ↔ 记忆辅助」 |
+| AC2 展开更多 | PASS (presence) | `hasExpand:true` on mud (≥4 examples) |
+| AC3 空槽 | PARTIAL | unit pad-to-4; no &lt;4-example word exercised in browser this run |
+| AC4 限高内滚 | FIX DEPLOYED | First probe: tops OK but `maxHeight` was `none` (card taller than slot). Fixed `maxHeight: \`${h}px\``; redeployed |
+| AC5 resize | UNVERIFIED | ResizeObserver present in code; not manually resized in browser |
+| AC6 矩阵未改 | PASS (code) | VocabTab still `<MemoryAidPanel />` without variant |
 
-| AC | Status | Notes |
-|----|--------|-------|
-| AC1 翻牌双栏四卡同开 | UNVERIFIED runtime | local Vite not reachable this session; needs生词复习 UI |
-| AC2 展开更多 | PARTIAL | slot math covered; UI toggle unproven in browser |
-| AC3 空槽 | PARTIAL | pad-to-4 unit tested; empty-slot UI unproven |
-| AC4 卡内滚动 | UNVERIFIED runtime | GSAP sets maxHeight+overflowY in code |
-| AC5 resize/换词 | UNVERIFIED runtime | ResizeObserver+deps in code |
-| AC6 矩阵回归 | PASS (code) | no VocabTab MemoryAid API change |
+## Entry path note
+Dashboard「生词复习」= VocabTab 矩阵，不是 FlashCard。FlashCard 入口：侧栏 Utility Tools → 生词本展开 →「复习 N」。
 
-## Quality gate (ultragoal final)
-
-- ai-slop-cleaner: not run (omx CLI unavailable)
-- independent code-review/architect: not run
-- **Do not mark aggregate Codex/Cursor goal complete** until user confirms visual AC1–5 and optional deploy
-
-## Blocker for full G005 close
-
-Need user (or browser with logged-in session) to open 生词复习翻牌 and confirm AC1–5; then deploy if desired.
+## Residual for full close
+- Re-check AC4 after redeploy (maxHeight px)
+- Optional AC3/AC5 manual
+- Ultragoal quality gate (ai-slop / independent review) still not run via omx
