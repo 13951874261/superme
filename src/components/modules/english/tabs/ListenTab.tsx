@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, BookPlus, FileAudio } from 'lucide-react';
+import { Headphones, Loader2, PlayCircle, PauseCircle, FastForward, EyeOff, Eye, Target, Zap, AlertTriangle, FileAudio } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import { runListeningEngine, uploadLocalListeningAudio } from '../../../../services/listeningAPI';
@@ -10,7 +10,13 @@ import {
   type PregenStatus,
 } from '../../../../services/listenPregeneratedAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
-import { submitReview, addWord } from '../../../../services/vocabAPI';
+import { submitReview } from '../../../../services/vocabAPI';
+import { useVocabCollect } from '../../../../hooks/useVocabCollect';
+import VocabZoneCollectButtons from '../../../VocabZoneCollectButtons';
+import {
+  VOCAB_ZONE_LABEL,
+  classifyCollectKind,
+} from '../../../../utils/vocabZoneLabels';
 import { useTask } from '../../../../components/TaskContext';
 import { ListenVoicePicker } from './ListenVoicePicker';
 import { fetchListenPrefs, saveListenPrefs } from '../../../../services/listenPrefsAPI';
@@ -33,6 +39,15 @@ export default function ListenTab() {
     listenInput, setListenInput,
     inlineNotice, noticeAnchor, showNotice
   } = useEnglishContext();
+  const {
+    collect: collectVocab,
+    hydrateTexts,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+  } = useVocabCollect({
+    notify: (message, type) => showNotice('listen', message, type),
+  });
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const pendingCanPlayRef = useRef<(() => void) | null>(null);
@@ -46,7 +61,6 @@ export default function ListenTab() {
   const [listenCefr, setListenCefr] = useState<'A2' | 'B1' | 'B2' | 'C1'>('B1');
   const [listenDuration, setListenDuration] = useState<number>(1);
   const [isFullscreenText, setIsFullscreenText] = useState(false);
-  const [isAddingHighlight, setIsAddingHighlight] = useState(false);
   const [curTtsTaskId, setCurTtsTaskId] = useState<string | null>(null);
   const [curListenTaskId, setCurListenTaskId] = useState<string | null>(null);
   const [isAudioGenerating, setIsAudioGenerating] = useState(false);
@@ -97,6 +111,16 @@ export default function ListenTab() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isFullscreenText]);
+
+  useEffect(() => {
+    const jargonWords = listenResult?.subtext_analysis?.key_jargons?.map((item) => item.word) || [];
+    const texts = [highlightedWord, ...jargonWords].filter(Boolean);
+    if (texts.length === 0) return;
+    const sync = () => hydrateTexts(texts);
+    sync();
+    window.addEventListener('vocab-updated', sync);
+    return () => window.removeEventListener('vocab-updated', sync);
+  }, [highlightedWord, listenResult, hydrateTexts]);
 
   const handleVoiceChange = (voiceId: string) => {
     setListenVoiceId(voiceId);
@@ -982,30 +1006,30 @@ export default function ListenTab() {
               {highlightedWord && (
                 <div className="mt-2 flex items-center gap-2 bg-white/10 rounded-xl px-4 py-2 animate-[fadeIn_0.2s_ease-out]">
                   <span className="text-xs text-[#FF5722] font-black">"{highlightedWord}"</span>
-                  <button
-                    disabled={isAddingHighlight}
-                    onClick={async () => {
-                      setIsAddingHighlight(true);
-                      try {
-                        await addWord({
-                          word: highlightedWord,
-                          dictType: 'listen-highlight',
-                          category: 'general',   // 听力划线词归入「全场景区」
-                          payload: { source: 'listen', theme },
-                        });
-                        showNotice('listen', `"${highlightedWord}" 已加入生词本`, 'success');
-                        window.dispatchEvent(new Event('vocab-updated'));
-                      } catch { showNotice('listen', '加入生词本失败，请稍后重试', 'error'); }
-                      finally {
-                        setIsAddingHighlight(false);
-                        setHighlightedWord('');
-                      }
+                  <VocabZoneCollectButtons
+                    text={highlightedWord}
+                    storedCategory={getStoredCategory(highlightedWord)}
+                    matrixReady={!!getStoredCategory(highlightedWord)}
+                    collectingZone={getCollectingZone(highlightedWord)}
+                    queuedZone={getQueuedZone(highlightedWord)}
+                    onCollect={async (zone, anchor) => {
+                      const kind = classifyCollectKind(highlightedWord);
+                      const stored = getStoredCategory(highlightedWord);
+                      await collectVocab({
+                        text: highlightedWord,
+                        category: zone,
+                        ...kind,
+                        migrateOnly: !!stored && stored !== zone,
+                        source: 'listen',
+                        topic: theme,
+                        payload: { source: 'listen', theme },
+                        anchor,
+                      });
                     }}
-                    className="flex items-center gap-1 px-3 py-1 bg-[#FF5722] text-white text-[10px] font-black uppercase rounded-lg hover:bg-[#e64a19] transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {isAddingHighlight ? <Loader2 className="w-3 h-3 animate-spin" /> : <BookPlus className="w-3 h-3" />}
-                    {isAddingHighlight ? '加入中…' : '加入生词本'}
-                  </button>
+                    onBlockedWhileCollecting={(activeZone) => {
+                      showNotice('listen', `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, 'info');
+                    }}
+                  />
                   <button
                     type="button"
                     aria-label="取消划线"
@@ -1135,26 +1159,31 @@ export default function ListenTab() {
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <div className="text-xs font-black text-[#FF5722]">{item.word}</div>
                             <div className="flex items-center gap-1">
-                              <button
-                                type="button"
-                                title="加入生词本"
-                                aria-label={`加入生词本：${item.word}`}
-                                onClick={async () => {
-                                  try {
-                                    await addWord({
-                                      word: item.word,
-                                      dictType: 'listen-jargon',
-                                      category: 'general',   // 听力黑话归入「全场景区」
-                                      payload: { meaning: item.meaning, source: 'listen_jargon', theme },
-                                    });
-                                    showNotice('listen', `"${item.word}" 已加入生词本`, 'success');
-                                    window.dispatchEvent(new Event('vocab-updated'));
-                                  } catch { /* ignore */ }
+                              <VocabZoneCollectButtons
+                                text={item.word}
+                                storedCategory={getStoredCategory(item.word)}
+                                matrixReady={!!getStoredCategory(item.word)}
+                                collectingZone={getCollectingZone(item.word)}
+                                queuedZone={getQueuedZone(item.word)}
+                                compact
+                                onCollect={async (zone, anchor) => {
+                                  const kind = classifyCollectKind(item.word);
+                                  const stored = getStoredCategory(item.word);
+                                  await collectVocab({
+                                    text: item.word,
+                                    category: zone,
+                                    ...kind,
+                                    migrateOnly: !!stored && stored !== zone,
+                                    source: 'listen_jargon',
+                                    topic: theme,
+                                    payload: { source: 'listen_jargon', theme },
+                                    anchor,
+                                  });
                                 }}
-                                className="w-7 h-7 flex items-center justify-center bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-white rounded-full transition-colors cursor-pointer ripple"
-                              >
-                                <BookPlus className="w-3.5 h-3.5" aria-hidden="true" />
-                              </button>
+                                onBlockedWhileCollecting={(activeZone) => {
+                                  showNotice('listen', `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, 'info');
+                                }}
+                              />
                               <SpeakButton text={item.word} title={`播放 ${item.word}`} className="w-7 h-7 bg-white/10 text-white hover:bg-[#FF5722]" iconClassName="w-3.5 h-3.5" />
                             </div>
                           </div>

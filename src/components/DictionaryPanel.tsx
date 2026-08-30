@@ -17,6 +17,12 @@ import {
 } from './DictionaryUtilityViews';
 import { useVocabCollect } from '../hooks/useVocabCollect';
 import { VOCAB_COLLECT_LABEL } from '../utils/backgroundHandoff';
+import {
+  VOCAB_ZONE_LABEL,
+  VOCAB_ZONE_COLLECT_BTN,
+  classifyCollectKind,
+  type VocabCategory,
+} from '../utils/vocabZoneLabels';
 import { showToast } from './Toast';
 
 function examplesFingerprint(list: EditableExample[]): string {
@@ -817,7 +823,13 @@ export default function DictionaryPanel() {
   const [examplesSeedFp, setExamplesSeedFp] = useState('');
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [updatingVocab, setUpdatingVocab] = useState(false);
-  const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
+  const {
+    collect,
+    hydrateFromEntries,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+  } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
   const searchAbortRef = useRef<AbortController | null>(null);
@@ -831,9 +843,12 @@ export default function DictionaryPanel() {
   const searchAligned =
     !!searchedWord
     && wordKey.toLowerCase() === searchedWord.toLowerCase();
-  const collecting = wordKey ? isCollecting(wordKey) : false;
-  const queued = wordKey ? isQueued(wordKey) : false;
-  const collected = searchAligned && (markedSaved || (wordKey ? isCollected(wordKey) : false));
+  const collectingZone = wordKey ? getCollectingZone(wordKey) : null;
+  const queuedZone = wordKey ? getQueuedZone(wordKey) : null;
+  const storedZone = searchAligned && wordKey ? getStoredCategory(wordKey) : null;
+  const collecting = !!collectingZone;
+  const queued = !!queuedZone;
+  const collected = searchAligned && (markedSaved || !!storedZone);
   const examplesDirty = examplesSeedFp !== '' && examplesFingerprint(editableExamples) !== examplesSeedFp;
 
   const resultMatchesQuery = (payload: any, text: string) => {
@@ -917,7 +932,7 @@ export default function DictionaryPanel() {
     const syncCollected = () => {
       void lookupVocabWords([text]).then((items) => {
         if (cancelled || !items.length) return;
-        hydrateCollected(items.map((item) => item.word));
+        hydrateFromEntries(items);
         setMarkedSaved(true);
         if (items[0]?.id) vocabIdRef.current = items[0].id;
       }).catch(() => {});
@@ -928,7 +943,7 @@ export default function DictionaryPanel() {
       cancelled = true;
       window.removeEventListener('vocab-updated', syncCollected);
     };
-  }, [query, result?.ok, result?.payload, hydrateCollected, searchAligned]);
+  }, [query, result?.ok, result?.payload, hydrateFromEntries, searchAligned]);
 
   // 查询结果变化时：重置可编辑 Cambridge 例句（本地已改则保留）
   useEffect(() => {
@@ -951,7 +966,7 @@ export default function DictionaryPanel() {
     const text = query.trim();
     if (!text || !result?.ok || !result.payload || !searchAligned) return;
     if (!resultMatchesQuery(result.payload, text)) return;
-    const inBook = !!(result.inVocabulary || markedSaved || (wordKey ? isCollected(wordKey) : false));
+    const inBook = !!(result.inVocabulary || markedSaved || storedZone);
     if (!inBook) return;
 
     let cancelled = false;
@@ -991,7 +1006,7 @@ export default function DictionaryPanel() {
     };
     void syncPayload();
     return () => { cancelled = true; };
-  }, [query, result, markedSaved, wordKey, isCollected, searchAligned]);
+  }, [query, result, markedSaved, wordKey, storedZone, searchAligned]);
 
   const handleToggle = (type: DictType, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1065,7 +1080,7 @@ export default function DictionaryPanel() {
     }
   };
 
-  const handleSave = async (type: DictType, anchor?: HTMLElement | null) => {
+  const handleSave = async (type: DictType, category: VocabCategory, anchor?: HTMLElement | null) => {
     if (!result?.payload || !query.trim()) return;
     setSaveError(false);
     const text = query.trim();
@@ -1075,13 +1090,17 @@ export default function DictionaryPanel() {
     }
     // 收录先写 Cambridge（当前卡片可见核心 + 例句），Dify 字段有则一并带上
     const camFirstPayload = buildSavePayload(text);
+    const kind = classifyCollectKind(text);
     const outcome = await collect({
       text,
+      category,
       dictType: type,
-      isPhrase: /\s/.test(text),
+      ...kind,
+      migrateOnly: !!storedZone && storedZone !== category,
       source: 'Dictionary Panel',
       topic: '词典收录',
       payload: camFirstPayload,
+      skipDictFetch: true,
       anchor,
     });
     if (outcome === 'failed') {
@@ -1221,59 +1240,71 @@ export default function DictionaryPanel() {
                         </div>
                       )}
 
-                      {/* 收录操作：与全站收录同 FSM（收录中 → 后台处理中 → 已收录） */}
-                      <div className="flex justify-end pt-3 border-t border-stone-100">
-                        <button
-                          type="button"
-                          title={
-                            collected && examplesDirty
-                              ? '例句已修改，点击更新生词本'
-                              : collected
-                              ? VOCAB_COLLECT_LABEL.done
-                              : queued
-                                ? VOCAB_COLLECT_LABEL.queued
-                                : collecting
-                                  ? VOCAB_COLLECT_LABEL.collecting
-                                  : '加入生词本并补齐释义等信息'
-                          }
-                          disabled={
-                            collecting || queued || updatingVocab
-                            || (collected && !examplesDirty)
-                          }
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (collected && examplesDirty) {
-                              setShowUpdatePrompt(true);
-                              return;
-                            }
-                            void handleSave(type, e.currentTarget);
-                          }}
-                          className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold disabled:cursor-default ${
-                            collected && examplesDirty
-                              ? 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
-                              : collected
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
-                              : saveError
-                                ? 'bg-red-50 text-red-500 border border-red-100'
-                                : queued
-                                  ? 'bg-blue-50 text-blue-700 border border-blue-100'
-                                  : collecting
-                                    ? 'bg-orange-50 text-[#FF5722] border border-orange-100'
-                                    : 'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white border border-[#FF5722]/25 hover:border-[#FF5722]'
-                          }`}
-                        >
-                          {collected && examplesDirty ? (
-                            <><BookmarkPlus className="w-3.5 h-3.5" />更新生词本</>
-                          ) : collected ? (
-                            <><CheckCircle2 className="w-3.5 h-3.5" />{VOCAB_COLLECT_LABEL.done}</>
-                          ) : saveError ? (
-                            <>失败</>
-                          ) : collecting || queued ? (
-                            <><Loader2 className="w-3.5 h-3.5 animate-spin" />{collecting ? VOCAB_COLLECT_LABEL.collecting : VOCAB_COLLECT_LABEL.queued}</>
-                          ) : (
-                            <><BookmarkPlus className="w-3.5 h-3.5" />收录至生词本</>
-                          )}
-                        </button>
+                      {/* 收录操作：分区二选一，与全站收录同 FSM（收录中 → 后台处理中 → 已收录） */}
+                      <div className="flex justify-end items-center gap-2 pt-3 border-t border-stone-100">
+                        {collected && examplesDirty && (
+                          <button
+                            type="button"
+                            title="例句已修改，点击更新生词本"
+                            disabled={updatingVocab}
+                            onClick={(e) => { e.stopPropagation(); setShowUpdatePrompt(true); }}
+                            className="px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 disabled:cursor-default"
+                          >
+                            <BookmarkPlus className="w-3.5 h-3.5" />更新生词本
+                          </button>
+                        )}
+                        {(['business', 'general'] as VocabCategory[]).map((zone) => {
+                          const isStoredHere = collected && storedZone === zone;
+                          const isCollectingHere = collectingZone === zone;
+                          const isQueuedHere = queuedZone === zone;
+                          const isOtherCollecting = !!collectingZone && collectingZone !== zone;
+
+                          return (
+                            <button
+                              key={zone}
+                              type="button"
+                              title={
+                                isStoredHere
+                                  ? `已在${VOCAB_ZONE_LABEL[zone]}`
+                                  : isQueuedHere
+                                    ? VOCAB_COLLECT_LABEL.queued
+                                    : isCollectingHere
+                                      ? VOCAB_COLLECT_LABEL.collecting
+                                      : collected
+                                        ? `移至${VOCAB_ZONE_LABEL[zone]}`
+                                        : `收录至${VOCAB_ZONE_LABEL[zone]}`
+                              }
+                              disabled={isCollectingHere || isQueuedHere || updatingVocab || isStoredHere}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isOtherCollecting) {
+                                  showToast({ message: `正在收录至${VOCAB_ZONE_LABEL[collectingZone!]}，请稍候`, type: 'info' });
+                                  return;
+                                }
+                                void handleSave(type, zone, e.currentTarget);
+                              }}
+                              className={`px-3 py-1.5 rounded-xl transition-all flex items-center gap-1.5 text-xs font-bold disabled:cursor-default ${
+                                isStoredHere
+                                  ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                                  : saveError
+                                    ? 'bg-red-50 text-red-500 border border-red-100'
+                                    : isQueuedHere
+                                      ? 'bg-blue-50 text-blue-700 border border-blue-100'
+                                      : isCollectingHere
+                                        ? 'bg-orange-50 text-[#FF5722] border border-orange-100'
+                                        : 'bg-[#FF5722]/10 hover:bg-[#FF5722] text-[#FF5722] hover:text-white border border-[#FF5722]/25 hover:border-[#FF5722]'
+                              }`}
+                            >
+                              {isStoredHere ? (
+                                <><CheckCircle2 className="w-3.5 h-3.5" />{VOCAB_ZONE_LABEL[zone]}{VOCAB_COLLECT_LABEL.done}</>
+                              ) : isCollectingHere || isQueuedHere ? (
+                                <><Loader2 className="w-3.5 h-3.5 animate-spin" />{isCollectingHere ? VOCAB_COLLECT_LABEL.collecting : VOCAB_COLLECT_LABEL.queued}</>
+                              ) : (
+                                <><BookmarkPlus className="w-3.5 h-3.5" />{VOCAB_ZONE_COLLECT_BTN[zone]}</>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

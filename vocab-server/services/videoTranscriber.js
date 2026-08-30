@@ -405,7 +405,7 @@ async function startTranscribeTask(taskId, {
     taskQueue.updateTask(taskId, {
       logs: [
         totalCandidates > 0
-          ? `提纯提取成功：生词 ${classified.words.length} / 短语 ${classified.phrases.length} / 句型 ${classified.sentences.length}。不写入生词本，请逐条点「+ 收录」。`
+          ? `提纯提取成功：生词 ${classified.words.length} / 短语 ${classified.phrases.length} / 句型 ${classified.sentences.length}。不写入生词本，请逐条点「+ 政商务」或「+ 全场景」。`
           : '提纯完成，未抽出词句。不写入生词本。',
       ],
     });

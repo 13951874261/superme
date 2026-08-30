@@ -3,6 +3,7 @@ import { BookOpen, FileText, RefreshCw } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
 import { VocabularyGrid } from './VocabularyGrid';
 import { playSuccess } from '../../../../../utils/soundEffects';
+import type { VocabCategory } from '../../../../../utils/vocabZoneLabels';
 
 export interface IntelBriefingProps {
   generatedArticle: string;
@@ -42,14 +43,15 @@ export interface IntelBriefingProps {
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
   handleAddWordToVocab: (
     text: string,
+    category: VocabCategory,
     isPhrase?: boolean,
     isSentence?: boolean,
     anchor?: HTMLElement | null
   ) => Promise<void>;
   fetchBilingualTranslation: (text: string) => Promise<void>;
-  isVocabCollecting?: (text: string) => boolean;
-  isVocabQueued?: (text: string) => boolean;
-  isVocabCollectedLocal?: (text: string) => boolean;
+  getVocabCollectingZone?: (text: string) => VocabCategory | null;
+  getVocabQueuedZone?: (text: string) => VocabCategory | null;
+  onVocabBlockedWhileCollecting?: (text: string, activeZone: VocabCategory) => void;
 }
 
 export function IntelBriefing({
@@ -90,9 +92,9 @@ export function IntelBriefing({
   asyncMeanings,
   handleAddWordToVocab,
   fetchBilingualTranslation,
-  isVocabCollecting,
-  isVocabQueued,
-  isVocabCollectedLocal,
+  getVocabCollectingZone,
+  getVocabQueuedZone,
+  onVocabBlockedWhileCollecting,
 }: IntelBriefingProps) {
   const isMaterialTab = briefingTab === 'material';
   const activeArticle = isMaterialTab ? materialArticle : generatedArticle;
@@ -168,7 +170,7 @@ export function IntelBriefing({
           </h4>
           <p className="text-xs text-gray-400 font-medium">
             {isMaterialTab
-              ? `上传/转写提炼结果【${materialSource}】，与今日长文分开展示。请逐条点「+ 收录」。`
+              ? `上传/转写提炼结果【${materialSource}】，与今日长文分开展示。请逐条点「+ 政商务」或「+ 全场景」。`
               : `基于当前主题【${theme}】生成的高阶商业实战材料，支持 ${currentVoiceName} 语音收听与沉浸式阅读。`}
           </p>
         </div>
@@ -293,9 +295,9 @@ export function IntelBriefing({
             asyncMeanings={asyncMeanings}
             handleAddWordToVocab={handleAddWordToVocab}
             fetchBilingualTranslation={fetchBilingualTranslation}
-            isCollecting={isVocabCollecting}
-            isQueued={isVocabQueued}
-            isCollectedLocal={isVocabCollectedLocal}
+            getCollectingZone={getVocabCollectingZone}
+            getQueuedZone={getVocabQueuedZone}
+            onBlockedWhileCollecting={onVocabBlockedWhileCollecting}
           />
           {!hasVocab && (
             <p className="text-xs text-slate-400 font-medium">未抽出词句。不写入生词本，可换一份材料后重试。</p>

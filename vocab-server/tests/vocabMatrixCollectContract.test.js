@@ -52,7 +52,8 @@ for (const banned of ['一键全量收录', '批量收录生词', '批量收录�
   assert.ok(!briefingSource.includes(banned), `情报简报不得转发批量入口: ${banned}`);
   assert.ok(!dashboardSource.includes(banned), `进度总控不得保留批量入口: ${banned}`);
 }
-assert.strictEqual((gridSource.match(/\+ 收录/g) || []).length, 3, '生词/短语/句式三区必须各有一个逐条收录按钮');
+assert.match(gridSource, /VocabZoneCollectButtons/, '生词/短语/句式三区必须复用分区双按钮');
+assert.strictEqual((gridSource.match(/renderZoneButtons\(/g) || []).length, 3, '生词/短语/句式三区必须各有逐条分区收录');
 
 // 5. 三条生成链路都不得自动入库，入库只能由用户逐条点击触发
 assert.ok(!/batchAddWords\(/.test(dashboardSource), '长文提纯不得批量自动落库');
@@ -65,10 +66,6 @@ assert.match(flawSource, /collect\(\{/, '破绽模块必须走统一收录入口
 // 6. 自动翻译缓存写入的历史词条不得被当作已收录，否则矩阵永远无法补齐
 assert.match(dashboardSource, /isVocabMatrixReady/, '缺少矩阵完整性判定');
 assert.match(dashboardSource, /matrixReady: isVocabMatrixReady\(payload\)/, '词条详情需暴露矩阵完整性');
-assert.strictEqual(
-  (gridSource.match(/vocabDetailsMap\[cleanKey\]\?\.matrixReady/g) || []).length,
-  3,
-  '三区的已收录状态都必须依据矩阵是否齐备'
-);
+assert.match(gridSource, /matrixReady=\{\!\!details\?\.matrixReady\}/, '已收录状态必须依据矩阵是否齐备');
 
 console.log('vocab matrix collect contract tests passed');

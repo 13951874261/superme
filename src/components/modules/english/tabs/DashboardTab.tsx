@@ -18,6 +18,7 @@ import { checkThemeMastery, setThemeFocus } from '../../../../services/trainingA
 import { getAppUserId } from '../../../../utils/profileHelper';
 import { lookupVocabWords, getVocabItem, queryDictionaryWithCache, createConcurrencyLimiter } from '../../../../services/vocabAPI';
 import { useVocabCollect } from '../../../../hooks/useVocabCollect';
+import { VOCAB_ZONE_LABEL, type VocabCategory } from '../../../../utils/vocabZoneLabels';
 import { notifyBackgroundHandoff } from '../../../../utils/backgroundHandoff';
 import SpeakButton, { speakEnglish } from '../../../SpeakButton';
 import { useTask } from '../../../TaskContext';
@@ -58,9 +59,8 @@ export default function DashboardTab() {
   } = useEnglishContext();
   const {
     collect: collectVocab,
-    isCollecting: isVocabCollecting,
-    isQueued: isVocabQueued,
-    isCollected: isVocabCollectedLocal,
+    getCollectingZone: getVocabCollectingZone,
+    getQueuedZone: getVocabQueuedZone,
   } = useVocabCollect({
     notify: (message, type) => showNotice('dashboard', message, type),
   });
@@ -379,7 +379,7 @@ export default function DashboardTab() {
         const phone = payload.phonetic || '';
 
         if (mainTrans) {
-          // 仅缓存到界面展示，不落生词本：入库只能由用户逐条点击「+ 收录」触发
+          // 仅缓存到界面展示，不落生词本：入库只能由用户逐条点击分区按钮触发
           setAsyncMeanings(prev => ({
             ...prev,
             [keyStr]: { meaning: mainTrans, phonetic: phone }
@@ -451,6 +451,7 @@ export default function DashboardTab() {
             meaning: payload?.meaning || '',
             definition_en: payload?.definition_en || '',
             business_note: payload?.business_note || '',
+            category: (item.category === 'general' ? 'general' : 'business') as VocabCategory,
             matrixReady: isVocabMatrixReady(payload),
           };
         }
@@ -543,6 +544,7 @@ export default function DashboardTab() {
   // 逐条收录生词/短语/句式，收录即补齐词汇矩阵（带 3 秒竞速超时，超时解耦转后台任务中心）
   const handleAddWordToVocab = async (
     text: string,
+    category: VocabCategory,
     isPhrase: boolean = false,
     isSentence: boolean = false,
     anchor: HTMLElement | null = null
@@ -551,22 +553,23 @@ export default function DashboardTab() {
     if (!cleanText) return;
     const cleanKey = cleanText.toLowerCase().trim();
 
-    // 已收录且矩阵齐备则跳过；仅有自动翻译缓存的词条仍需补齐矩阵
-    if (vocabDetailsMap[cleanKey]?.matrixReady) {
-      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '…' : ''}” 已在生词本中，信息已齐全`, 'info');
+    const details = vocabDetailsMap[cleanKey];
+    // 矩阵齐备时：同分区无需重复收录，跨分区仅迁移 category
+    const isMigrate = !!details?.matrixReady;
+    if (isMigrate && details.category === category) {
+      showNotice('dashboard', `“${cleanText.slice(0, 20)}${cleanText.length > 20 ? '…' : ''}” 已在${VOCAB_ZONE_LABEL[category]}`, 'info');
       return;
     }
 
     const result = await collectVocab({
       text: cleanText,
+      category,
       isPhrase,
       isSentence,
+      migrateOnly: isMigrate,
       topic: theme,
       source: 'Material Upload',
-      payload: {
-        meaning: asyncMeanings[cleanKey]?.meaning || '',
-        phonetic: asyncMeanings[cleanKey]?.phonetic || '',
-      },
+      payload: { source: 'Material Upload', topic: theme },
       anchor,
     });
 
@@ -733,7 +736,7 @@ export default function DashboardTab() {
         } else {
           showNotice(
             'dashboard',
-            `长文和生词已显示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），请逐条点「+ 收录」加入生词本`,
+            `长文和生词已显示（${displayWordCount} 词 / ${displayPhraseCount} 短语 / ${displaySentenceCount} 句型），请逐条点「+ 政商务」或「+ 全场景」加入生词本`,
             'success'
           );
         }
@@ -1015,9 +1018,11 @@ export default function DashboardTab() {
           asyncMeanings={asyncMeanings}
           handleAddWordToVocab={handleAddWordToVocab}
           fetchBilingualTranslation={fetchBilingualTranslation}
-          isVocabCollecting={isVocabCollecting}
-          isVocabQueued={isVocabQueued}
-          isVocabCollectedLocal={isVocabCollectedLocal}
+          getVocabCollectingZone={getVocabCollectingZone}
+          getVocabQueuedZone={getVocabQueuedZone}
+          onVocabBlockedWhileCollecting={(_text, activeZone) => {
+            showNotice('dashboard', `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, 'info');
+          }}
         />
 
         <MaterialUploader 
@@ -1037,7 +1042,7 @@ export default function DashboardTab() {
               localStorage.setItem('super_agent_material_sentences', JSON.stringify(sentences));
               localStorage.setItem('super_agent_material_source', '上传材料');
 
-              showNotice('dashboard', '整理完成！请到「上传材料」标签查看生词、短语和句型，再逐条点「+ 收录」', 'success');
+              showNotice('dashboard', '整理完成！请到「上传材料」标签查看生词、短语和句型，再逐条点「+ 政商务」或「+ 全场景」', 'success');
               playSuccess();
               
               const preferReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;

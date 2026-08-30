@@ -1,7 +1,8 @@
 import React from 'react';
 import SpeakButton from '../../../../SpeakButton';
-import { Eye, CheckCircle2, Loader2 } from 'lucide-react';
-import { VOCAB_COLLECT_LABEL } from '../../../../../utils/backgroundHandoff';
+import { Eye } from 'lucide-react';
+import VocabZoneCollectButtons from '../../../../VocabZoneCollectButtons';
+import type { VocabCategory } from '../../../../../utils/vocabZoneLabels';
 
 export interface VocabularyGridProps {
   extractedWords: string[];
@@ -11,14 +12,15 @@ export interface VocabularyGridProps {
   asyncMeanings: Record<string, { meaning: string; phonetic?: string }>;
   handleAddWordToVocab: (
     text: string,
+    category: VocabCategory,
     isPhrase?: boolean,
     isSentence?: boolean,
     anchor?: HTMLElement | null
   ) => Promise<void>;
   fetchBilingualTranslation: (text: string) => Promise<void>;
-  isCollecting?: (text: string) => boolean;
-  isQueued?: (text: string) => boolean;
-  isCollectedLocal?: (text: string) => boolean;
+  getCollectingZone?: (text: string) => VocabCategory | null;
+  getQueuedZone?: (text: string) => VocabCategory | null;
+  onBlockedWhileCollecting?: (text: string, activeZone: VocabCategory) => void;
 }
 
 export function VocabularyGrid({
@@ -29,51 +31,34 @@ export function VocabularyGrid({
   asyncMeanings,
   handleAddWordToVocab,
   fetchBilingualTranslation,
-  isCollecting,
-  isQueued,
-  isCollectedLocal,
+  getCollectingZone,
+  getQueuedZone,
+  onBlockedWhileCollecting,
 }: VocabularyGridProps) {
-  
+
   if (extractedWords.length === 0 && extractedPhrases.length === 0 && extractedSentences.length === 0) {
     return null;
   }
 
   const safeStr = (v: any) => (typeof v === 'string' ? v : (v?.word || v?.phrase || v?.text || String(v || ''))).trim();
 
-  const renderCollectButton = (text: string, isPhrase: boolean, isSentence: boolean, matrixReady: boolean) => {
-    const collecting = !!isCollecting?.(text);
-    const queued = !!isQueued?.(text);
-    const localDone = !!isCollectedLocal?.(text) || matrixReady;
-
-    if (localDone && !collecting) {
-      return (
-        <span className="text-[9px] font-bold text-green-700 bg-green-50 border border-green-200/50 px-2 py-0.5 rounded-lg flex items-center gap-0.5 shrink-0">
-          <CheckCircle2 aria-hidden="true" className="w-2.5 h-2.5" /> {VOCAB_COLLECT_LABEL.done}
-        </span>
-      );
-    }
-
-    const label = collecting
-      ? VOCAB_COLLECT_LABEL.collecting
-      : queued
-        ? VOCAB_COLLECT_LABEL.queued
-        : VOCAB_COLLECT_LABEL.idle;
-
+  const renderZoneButtons = (text: string, isPhrase: boolean, isSentence: boolean) => {
+    const cleanKey = text.toLowerCase().trim();
+    const details = vocabDetailsMap[cleanKey];
     return (
-      <button
-        type="button"
-        disabled={collecting || queued}
-        aria-label={`${label}：${text}`}
-        onClick={(e) => {
-          e.stopPropagation();
-          handleAddWordToVocab(text, isPhrase, isSentence, e.currentTarget);
+      <VocabZoneCollectButtons
+        text={text}
+        storedCategory={details?.category}
+        matrixReady={!!details?.matrixReady}
+        collectingZone={getCollectingZone?.(text) ?? null}
+        queuedZone={getQueuedZone?.(text) ?? null}
+        onCollect={(category, anchor) => {
+          void handleAddWordToVocab(text, category, isPhrase, isSentence, anchor);
         }}
-        className="text-[9px] font-bold text-[var(--color-brand)] bg-slate-50 hover:bg-[var(--color-brand)] hover:text-white px-2 py-0.5 rounded-lg border border-[var(--color-border)] transition-colors cursor-pointer shrink-0 btn-press disabled:opacity-70 disabled:cursor-wait flex items-center gap-0.5"
-        title="加入生词本并补齐释义等信息"
-      >
-        {(collecting || queued) && <Loader2 aria-hidden="true" className="w-2.5 h-2.5 animate-spin" />}
-        {label}
-      </button>
+        onBlockedWhileCollecting={(activeZone) => {
+          onBlockedWhileCollecting?.(text, activeZone);
+        }}
+      />
     );
   };
 
@@ -88,7 +73,6 @@ export function VocabularyGrid({
   return (
     <div className="flex flex-col gap-4 pt-4">
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* 词汇专区 - 权重 5 */}
         {extractedWords.length > 0 && (
           <div className="flex flex-col max-h-[700px] lg:col-span-4">
             <div className="flex items-center justify-between shrink-0 mb-3">
@@ -118,8 +102,6 @@ export function VocabularyGrid({
                   }
 
                   const finalPhonetic = phonetic || asyncMeanings[cleanKey]?.phonetic || '';
-                  // 仅矩阵齐备才算已收录：自动翻译缓存写入的词条仍需逐条补齐矩阵
-                  const isStored = !!vocabDetailsMap[cleanKey]?.matrixReady;
 
                   return (
                     <div
@@ -137,8 +119,8 @@ export function VocabularyGrid({
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {renderCollectButton(word, false, false, isStored)}
+                        <div className="flex items-center gap-1.5 shrink-0 flex-col sm:flex-row">
+                          {renderZoneButtons(word, false, false)}
                           <SpeakButton
                             text={word}
                             iconClassName="w-3.5 h-3.5"
@@ -165,7 +147,6 @@ export function VocabularyGrid({
           </div>
         )}
 
-        {/* 短语专区 - 权重 4 */}
         {extractedPhrases.length > 0 && (
           <div className="flex flex-col max-h-[700px] lg:col-span-4">
             <div className="flex items-center justify-between shrink-0 mb-3">
@@ -182,7 +163,6 @@ export function VocabularyGrid({
                   const cleanKey = phrase.toLowerCase();
                   const details = vocabDetailsMap[cleanKey];
                   let rawMeaning = getDisplayMeaning(details?.meaning);
-                  const isPhraseStored = !!vocabDetailsMap[cleanKey]?.matrixReady;
 
                   if (!rawMeaning) {
                     if (asyncMeanings[cleanKey]?.meaning) {
@@ -213,8 +193,8 @@ export function VocabularyGrid({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {renderCollectButton(phrase, true, false, isPhraseStored)}
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 shrink-0">
+                          {renderZoneButtons(phrase, true, false)}
                           <SpeakButton
                             text={phrase}
                             iconClassName="w-3.5 h-3.5"
@@ -238,7 +218,6 @@ export function VocabularyGrid({
           </div>
         )}
 
-        {/* 句型专区 - 权重 3 */}
         {extractedSentences.length > 0 && (
           <div className="flex flex-col max-h-[700px] lg:col-span-4">
             <div className="flex items-center justify-between shrink-0 mb-3">
@@ -255,7 +234,6 @@ export function VocabularyGrid({
                   const cleanKey = phrase.toLowerCase();
                   const details = vocabDetailsMap[cleanKey];
                   let rawMeaning = getDisplayMeaning(details?.meaning);
-                  const isSentenceStored = !!vocabDetailsMap[cleanKey]?.matrixReady;
 
                   if (!rawMeaning) {
                     if (asyncMeanings[cleanKey]?.meaning) {
@@ -286,8 +264,8 @@ export function VocabularyGrid({
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {renderCollectButton(phrase, false, true, isSentenceStored)}
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 shrink-0">
+                          {renderZoneButtons(phrase, false, true)}
                           <SpeakButton
                             text={phrase}
                             iconClassName="w-3.5 h-3.5"
@@ -314,4 +292,3 @@ export function VocabularyGrid({
     </div>
   );
 }
-

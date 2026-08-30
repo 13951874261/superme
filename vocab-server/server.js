@@ -3508,8 +3508,8 @@ async function runVocabEntryEnrichment({ userId, item = {}, topic = '', source =
   const kind = vocabMatrixEnricher.classifyKind({ isPhrase, isSentence, text: word });
   const dictType = item.dictType || item.dict_type
     || (kind === 'sentence' ? 'ai_sentence' : (kind === 'phrase' ? 'ai_phrase' : 'ai_extracted'));
-  const sceneType = item.scene_type || 'business';
-  const category = item.category || (sceneType === 'general' ? 'general' : 'business');
+  const category = item.category || (item.scene_type === 'general' ? 'general' : 'business');
+  const sceneType = item.scene_type || category;
   const now = Date.now();
 
   // 1) 先落库并初始化 SM-2 基线，保证矩阵留存率仪表盘有数据来源
@@ -6861,7 +6861,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
 
       taskQueue.updateTask(task.id, {
         progress: 85,
-        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，不写入生词本，请逐条点「+ 收录」`]
+        logs: [`[进度] 提取到 ${vocabToInsert.length} 个词汇和 ${sentencesToReturn.length} 个句子，不写入生词本，请逐条点「+ 政商务」或「+ 全场景」`]
       });
 
       /**
@@ -6973,7 +6973,7 @@ app.post('/api/material/process-and-extract', async (req, res) => {
           ]
         },
         logs: [
-          `[完成] Dify 提纯分析完成（不写入生词本，请逐条点「+ 收录」）。已写入资料抽屉理论草稿 ${vaultImport.createdCount} 条（未同步），跳过 ${vaultImport.skippedCount} 条。`
+          `[完成] Dify 提纯分析完成（不写入生词本，请逐条点「+ 政商务」或「+ 全场景」）。已写入资料抽屉理论草稿 ${vaultImport.createdCount} 条（未同步），跳过 ${vaultImport.skippedCount} 条。`
         ]
       });
 

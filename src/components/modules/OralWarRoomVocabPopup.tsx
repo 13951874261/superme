@@ -2,14 +2,19 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { BookPlus } from 'lucide-react';
 import { playPageTurn } from '../../utils/soundEffects';
+import { VOCAB_ZONE_COLLECT_BTN, type VocabCategory } from '../../utils/vocabZoneLabels';
 
 interface Props {
   word: string;
   context: string;
   position: { x: number; y: number };
   isAdding: boolean;
+  collectingZone?: VocabCategory | null;
+  queuedZone?: VocabCategory | null;
+  storedCategory?: VocabCategory | null;
   addResult: { ok: boolean; msg: string } | null;
-  onAdd: () => void;
+  onCollect: (category: VocabCategory) => void;
+  onBlockedWhileCollecting?: (activeZone: VocabCategory) => void;
   onClose: () => void;
   difficulty?: 'easy' | 'medium' | 'hard';
 }
@@ -25,8 +30,12 @@ export default function OralWarRoomVocabPopup({
   context,
   position,
   isAdding,
+  collectingZone = null,
+  queuedZone = null,
+  storedCategory = null,
   addResult,
-  onAdd,
+  onCollect,
+  onBlockedWhileCollecting,
   onClose,
   difficulty = 'medium',
 }: Props) {
@@ -59,19 +68,35 @@ export default function OralWarRoomVocabPopup({
             {context && (
               <p className="text-[10px] text-[var(--color-ink-secondary)] italic leading-relaxed line-clamp-2">{context}</p>
             )}
-            <button
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                playPageTurn();
-                onAdd();
-              }}
-              disabled={isAdding}
-              className="w-full flex items-center justify-center gap-2 py-2 rounded-xl bg-[var(--color-brand)] text-white text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-accent)] transition-colors cursor-pointer disabled:opacity-50"
-            >
-              <BookPlus className="w-3.5 h-3.5" />
-              {isAdding ? '加入中…' : '加入生词库'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              {(['business', 'general'] as VocabCategory[]).map((zone) => {
+                const isCollectingHere = collectingZone === zone;
+                const isQueuedHere = queuedZone === zone;
+                const lockZone = collectingZone ?? queuedZone;
+                const isOtherCollecting = lockZone != null && lockZone !== zone;
+                const isStoredHere = storedCategory === zone;
+                return (
+                  <button
+                    key={zone}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      if (isOtherCollecting) {
+                        onBlockedWhileCollecting?.(lockZone!);
+                        return;
+                      }
+                      playPageTurn();
+                      onCollect(zone);
+                    }}
+                    disabled={isCollectingHere || isQueuedHere || isStoredHere}
+                    className="flex items-center justify-center gap-1 py-2 rounded-xl bg-[var(--color-brand)] text-white text-[10px] font-black tracking-widest hover:bg-[var(--color-accent)] transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <BookPlus className="w-3.5 h-3.5" />
+                    {isCollectingHere ? '收录中…' : isQueuedHere ? '后台处理中' : isStoredHere ? '已收录' : VOCAB_ZONE_COLLECT_BTN[zone]}
+                  </button>
+                );
+              })}
+            </div>
             <button
               type="button"
               onMouseDown={(e) => { e.preventDefault(); onClose(); }}

@@ -11,6 +11,11 @@ import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, WakeupWord, buil
 import { lookupVocabWords } from '../../services/vocabAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
+import {
+  VOCAB_ZONE_LABEL,
+  VOCAB_ZONE_COLLECT_BTN,
+  type VocabCategory,
+} from '../../utils/vocabZoneLabels';
 
 interface WakeupResult extends WakeupPayload {}
 
@@ -41,7 +46,13 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
-  const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
+  const {
+    collect,
+    hydrateFromEntries,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+  } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
   
@@ -197,16 +208,21 @@ export default function DailyWakeupModule() {
   };
 
   // 逐条收录唤醒高频词：收录即补齐词汇矩阵，3 秒未完成转入任务中心
-  const handleCollectWord = async (item: WakeupWord, anchor?: HTMLElement | null) => {
+  const handleCollectWord = async (
+    item: WakeupWord,
+    category: VocabCategory,
+    anchor?: HTMLElement | null,
+  ) => {
+    const stored = getStoredCategory(item.word);
     await collect({
       text: item.word,
+      category,
+      migrateOnly: !!stored && stored !== category,
       topic: result?.theme || theme,
       source: 'Daily Wakeup',
       payload: {
-        phonetic: item.ipa,
-        meaning: item.meaning_zh,
-        business_note: item.pronunciation_note,
-        examples: [item.example],
+        source: 'Daily Wakeup',
+        topic: result?.theme || theme,
       },
       anchor,
     });
@@ -221,7 +237,7 @@ export default function DailyWakeupModule() {
     const syncCollected = () => {
       void lookupVocabWords(words).then((items) => {
         if (cancelled || !items.length) return;
-        hydrateCollected(items.map((item) => item.word));
+        hydrateFromEntries(items);
       }).catch(() => {});
     };
     syncCollected();
@@ -230,7 +246,7 @@ export default function DailyWakeupModule() {
       cancelled = true;
       window.removeEventListener('vocab-updated', syncCollected);
     };
-  }, [result, hydrateCollected]);
+  }, [result, hydrateFromEntries]);
 
   // 动态徽章
   const stickerBadge = useMemo(() => {
@@ -436,33 +452,51 @@ export default function DailyWakeupModule() {
                         <div className="text-base font-black text-[#202124]">{item.word}</div>
                         <SpeakButton text={item.word} title={`播放 ${item.word}`} />
                       </div>
-                      <button
-                        onClick={(e) => handleCollectWord(item, e.currentTarget)}
-                        disabled={isCollecting(item.word) || isQueued(item.word) || isCollected(item.word)}
-                        title="加入生词本并补齐释义等信息"
-                        className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 disabled:cursor-default ${
-                          isCollected(item.word)
-                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                            : isQueued(item.word)
-                              ? 'text-blue-700 bg-blue-50 border-blue-200'
-                              : 'text-[#FF5722] bg-orange-50 border-orange-200 hover:bg-[#FF5722] hover:text-white'
-                        }`}
-                      >
-                        {isCollecting(item.word) || isQueued(item.word) ? (
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        ) : isCollected(item.word) ? (
-                          <CheckCircle2 className="w-3 h-3" />
-                        ) : (
-                          <BookmarkPlus className="w-3 h-3" />
-                        )}
-                        {isCollecting(item.word)
-                          ? '收录中'
-                          : isQueued(item.word)
-                            ? '后台处理中'
-                            : isCollected(item.word)
-                              ? '已收录'
-                              : '收录'}
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {(['business', 'general'] as VocabCategory[]).map((zone) => {
+                          const activeZone = getCollectingZone(item.word);
+                          const isCollectingHere = activeZone === zone;
+                          const isQueuedHere = getQueuedZone(item.word) === zone;
+                          const isStoredHere = getStoredCategory(item.word) === zone;
+
+                          return (
+                            <button
+                              key={zone}
+                              onClick={(e) => {
+                                if (activeZone && activeZone !== zone) {
+                                  showToast({ message: `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, type: 'info' });
+                                  return;
+                                }
+                                void handleCollectWord(item, zone, e.currentTarget);
+                              }}
+                              disabled={isCollectingHere || isQueuedHere || isStoredHere}
+                              title={isStoredHere ? `已在${VOCAB_ZONE_LABEL[zone]}` : `收录至${VOCAB_ZONE_LABEL[zone]}`}
+                              className={`shrink-0 text-[9px] font-bold px-2 py-1 rounded-lg border transition-all cursor-pointer flex items-center gap-1 disabled:cursor-default ${
+                                isStoredHere
+                                  ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                                  : isQueuedHere
+                                    ? 'text-blue-700 bg-blue-50 border-blue-200'
+                                    : 'text-[#FF5722] bg-orange-50 border-orange-200 hover:bg-[#FF5722] hover:text-white'
+                              }`}
+                            >
+                              {isCollectingHere || isQueuedHere ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : isStoredHere ? (
+                                <CheckCircle2 className="w-3 h-3" />
+                              ) : (
+                                <BookmarkPlus className="w-3 h-3" />
+                              )}
+                              {isCollectingHere
+                                ? '收录中'
+                                : isQueuedHere
+                                  ? '后台处理中'
+                                  : isStoredHere
+                                    ? '已收录'
+                                    : VOCAB_ZONE_COLLECT_BTN[zone]}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     <div className="text-xs text-blue-600 font-mono mt-0.5">{item.ipa}</div>
                     <div className="text-sm text-gray-600 mt-1.5">{item.meaning_zh}</div>

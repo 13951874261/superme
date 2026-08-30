@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { addWord } from '../../../services/vocabAPI';
+import { useVocabCollect } from '../../../hooks/useVocabCollect';
 import type { SceneEntry } from './types';
-import { getVocabZoneFromScene } from './utils';
+import { classifyCollectKind, type VocabCategory, VOCAB_ZONE_LABEL } from '../../../utils/vocabZoneLabels';
 
 export function useOralTextSelection(
   activeScene: SceneEntry,
@@ -18,6 +18,12 @@ export function useOralTextSelection(
   const [isAddingWord, setIsAddingWord] = useState(false);
   const [addWordResult, setAddWordResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
+  const { collect: collectVocab, hydrateTexts, getCollectingZone, getQueuedZone, getStoredCategory } = useVocabCollect({
+    notify: (message, type) => {
+      setAddWordResult({ ok: type !== 'error', msg: message });
+      setTimeout(() => setAddWordResult(null), 2200);
+    },
+  });
   const sceneThemeRef = useRef(sceneTheme);
   useEffect(() => { sceneThemeRef.current = sceneTheme; }, [sceneTheme]);
 
@@ -90,25 +96,41 @@ export function useOralTextSelection(
     return () => document.removeEventListener('mousedown', dismiss);
   }, [highlightedWord, breakthroughMenu]);
 
-  const handleAddHighlightedWord = async () => {
+  useEffect(() => {
+    if (!highlightedWord) return;
+    const sync = () => hydrateTexts([highlightedWord]);
+    sync();
+    window.addEventListener('vocab-updated', sync);
+    return () => window.removeEventListener('vocab-updated', sync);
+  }, [highlightedWord, hydrateTexts]);
+
+  const handleAddHighlightedWord = async (category: VocabCategory) => {
     if (!highlightedWord || isAddingWord) return;
     setIsAddingWord(true);
     try {
-      const zone = getVocabZoneFromScene(activeScene.title);
-      await addWord({
-        word: highlightedWord,
-        dictType: 'oral-highlight',
-        category: zone,
+      const kind = classifyCollectKind(highlightedWord);
+      const stored = getStoredCategory(highlightedWord);
+      const outcome = await collectVocab({
+        text: highlightedWord,
+        category,
+        ...kind,
+        migrateOnly: !!stored && stored !== category,
+        source: 'oral_warroom',
+        topic: sceneThemeRef.current,
         payload: {
           source: 'oral_warroom',
           theme: sceneThemeRef.current,
           scene_id: activeSceneId,
           scene_title: activeScene.title,
-          auto_zone: zone,
         },
       });
-      window.dispatchEvent(new Event('vocab-updated'));
-      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已加入生词本[${zone === 'business' ? '政商务区' : '全场景区'}]` });
+      if (outcome === 'failed') {
+        setAddWordResult({ ok: false, msg: '加入失败，请重试' });
+        setTimeout(() => { setAddWordResult(null); }, 2000);
+        return;
+      }
+      if (outcome === 'blocked') return;
+      setAddWordResult({ ok: true, msg: `"${highlightedWord}" 已加入${VOCAB_ZONE_LABEL[category]}` });
       setTimeout(() => { setHighlightedWord(''); setHighlightPos(null); setAddWordResult(null); }, 2500);
     } catch {
       setAddWordResult({ ok: false, msg: '加入失败，请重试' });
@@ -132,6 +154,13 @@ export function useOralTextSelection(
     addWordResult,
     handleDialogueMouseUp,
     handleAddHighlightedWord,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+    notifyBlocked: (activeZone: VocabCategory) => {
+      setAddWordResult({ ok: true, msg: `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候` });
+      setTimeout(() => setAddWordResult(null), 2200);
+    },
     dismissVocabPopup,
   };
 }

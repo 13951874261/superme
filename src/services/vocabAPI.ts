@@ -299,6 +299,56 @@ export function buildVocabPayloadFromDict(
   };
 }
 
+/** 收录前拉取词典数据：单词 Cam-first（与词典面板一致）；短语/句型走 en_zh 纯 Dify 同步路径 */
+export async function buildVocabCollectPayload(
+  text: string,
+  options: {
+    isPhrase?: boolean;
+    isSentence?: boolean;
+    source?: string;
+  } = {}
+): Promise<Record<string, any>> {
+  const clean = String(text || '').trim();
+  if (!clean) return {};
+  const source = options.source || 'Manual Select';
+  const isWord = !options.isPhrase && !options.isSentence;
+
+  const dictResult = await queryDictionary({
+    word: clean,
+    dictType: 'en_zh_bidirectional',
+    direction: 'auto',
+    locale: 'zh-CN',
+    userContext: '',
+  });
+
+  if (!dictResult?.ok || !dictResult.payload) return {};
+
+  if (isWord) {
+    return buildVocabPayloadFromDict(dictResult.payload, null, {
+      word: clean,
+      source,
+    });
+  }
+
+  const p = dictResult.payload as Record<string, any>;
+  const meaning = p.translation_main || p.meaning_zh || p.meaning || '';
+  return {
+    word: clean,
+    meaning,
+    translation_main: meaning,
+    meaning_zh: meaning,
+    phonetic: p.phonetic || '',
+    partOfSpeech: options.isSentence ? 'sentence' : 'phrase',
+    definition_en: Array.isArray(p.definitions_en) ? p.definitions_en[0] : (p.definition_en || ''),
+    examples: p.example_sentences || [],
+    example_sentences: p.example_sentences || [],
+    synonyms: Array.isArray(p.synonyms) ? p.synonyms : [],
+    antonyms: Array.isArray(p.antonyms) ? p.antonyms : [],
+    collocations: Array.isArray(p.collocations) ? p.collocations : [],
+    source,
+  };
+}
+
 /** 用于判断生词本是否需要再次回写（避免轮询重复 PATCH） */
 export function vocabSyncFingerprint(payload: Record<string, any> | null | undefined): string {
   const p = payload || {};

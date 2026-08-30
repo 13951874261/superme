@@ -131,7 +131,7 @@ export default function MaterialUploader({
     setCurrentStep(`已加载网页提取材料：${virtualFile.name}`);
     setLogs([
       `${nowLabel()} 网页数据抓取并过滤成功`,
-      `${nowLabel()} 正在自动整理，完成后请到「上传材料」逐条点「+ 收录」…`,
+      `${nowLabel()} 正在自动整理，完成后请到「上传材料」逐条点「+ 政商务」或「+ 全场景」…`,
     ]);
     // 自动触发提纯（与视频转写"导入并提纯"路径对齐）
     runExtractionForFiles([file]);
@@ -242,7 +242,7 @@ export default function MaterialUploader({
         <p className={compact ? 'text-[9px] text-zinc-400 font-medium' : 'text-xs text-gray-400 font-medium leading-relaxed mt-2'}>
           {compact
             ? '上传后进入任务中心；完成后写入理论草稿与导图，请勾选模块同步到听/说/博弈。'
-            : '上传本地文档、网页内容或音视频转写文字后，系统会自动整理；生词、短语和句型需在「上传材料」中手动点「+ 收录」。'}
+            : '上传本地文档、网页内容或音视频转写文字后，系统会自动整理；生词、短语和句型需在「上传材料」中手动点「+ 政商务」或「+ 全场景」。'}
         </p>
       </div>
 
@@ -428,7 +428,7 @@ export default function MaterialUploader({
                 // 默认提示
                 <div className="flex-grow flex flex-col items-center justify-center text-center p-2">
                   <p className="text-[11px] text-zinc-400 leading-relaxed font-medium">
-                    系统将自动执行：清空旧材料 → 载入材料 → 整理材料 → 抽取生词/短语/句型。完成后请手动点「+ 收录」。
+                    系统将自动执行：清空旧材料 → 载入材料 → 整理材料 → 抽取生词/短语/句型。完成后请手动点「+ 政商务」或「+ 全场景」。
                   </p>
                 </div>
               )}

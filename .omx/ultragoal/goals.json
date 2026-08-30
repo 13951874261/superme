@@ -1,33 +1,40 @@
 ﻿{
-    "version":  1,
-    "mode":  "aggregate",
-    "briefPath":  ".omx/ultragoal/brief.md",
-    "specPath":  ".omx/specs/deep-interview-en-en-cambridge-single.md",
-    "aggregateObjective":  "Align en_en_business single-word lookups with Cambridge English dictionary Cam-first UX and limited Dify enrichment (syn/ant/col only); pure English UI; phrases/en_zh/collect unchanged.",
-    "goals":  [
-                  {
-                      "id":  "G001",
-                      "title":  "Cambridge EN fetch+parse",
-                      "status":  "complete",
-                      "objective":  "Support fetch/parse for https://dictionary.cambridge.org/dictionary/english/{word} without breaking english-chinese-simplified path."
-                  },
-                  {
-                      "id":  "G002",
-                      "title":  "dict-query en_en single-word Cam path",
-                      "status":  "complete",
-                      "objective":  "Wire en_en_business+isSingleEnglishWord to Cam-first+Dify enrichment merge (syn/ant/col only); phrases stay Dify."
-                  },
-                  {
-                      "id":  "G003",
-                      "title":  "Pure-EN UtilityEnEnBusinessView",
-                      "status":  "complete",
-                      "objective":  "Redesign single-word en_en display from Cam fields + syn/ant/col; hide Chinese gloss and business_notes for Cam-backed payloads."
-                  },
-                  {
-                      "id":  "G004",
-                      "title":  "Verify bug + regression",
-                      "status":  "complete",
-                      "objective":  "Add/adjust tests; verify bug Cam URL/display; en_zh and phrase paths unchanged."
-                  }
-              ]
+  "version": 1,
+  "mode": "aggregate",
+  "briefPath": ".omx/ultragoal/brief.md",
+  "specPath": ".omx/specs/deep-interview-vocab-zone-cambridge-collect.md",
+  "slug": "vocab-zone-cambridge-collect",
+  "aggregateObjective": "Execute .omx/ultragoal/goals.json stories for vocab-zone-cambridge-collect under .omx/ultragoal/brief.md constraints; progress in .omx/ultragoal/ledger.jsonl.",
+  "goals": [
+    {
+      "id": "G001",
+      "title": "category 参数 + 迁移 API",
+      "status": "complete",
+      "objective": "useVocabCollect / add-enriched / batch-add-async 接收 category；已存在词条点另一分区只更新 category，不新建行。不改表结构。"
+    },
+    {
+      "id": "G002",
+      "title": "双按钮 + Grid 收录中态",
+      "status": "complete",
+      "objective": "VocabularyGrid 每条显示「+ 政商务」「+ 全场景」；被点按钮 collecting+disabled；另一按钮 idle，点击仅提示稍候；已收录分区显示已收录，另一分区可点并直接迁移。"
+    },
+    {
+      "id": "G003",
+      "title": "单词 Cam / 短语句型 Dify",
+      "status": "complete",
+      "objective": "Grid 收录单词走词典面板同路径（dict-query + buildVocabPayloadFromDict）；短语/句型走 en_zh_bidirectional 纯 Dify 同步路径。不得只写悬浮薄缓存。"
+    },
+    {
+      "id": "G004",
+      "title": "其余收录入口去硬编码",
+      "status": "complete",
+      "objective": "DictionaryPanel、ListenTab、FlashCard、TextHighlighter、ImmersiveReader、DailyWakeup、DailyError 等入口改为用户点选分区；CustomCardModal 保持 Segment 即可，category 语义一致。"
+    },
+    {
+      "id": "G005",
+      "title": "验收与回归",
+      "status": "complete",
+      "objective": "补齐/调整契约测试覆盖 AC-1～AC-6；确认 3 秒 handoff、额度、矩阵补齐、历史不批量改写无回归。"
+    }
+  ]
 }

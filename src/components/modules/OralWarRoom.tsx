@@ -156,8 +156,12 @@ export default function OralWarRoom(props: OralWarRoomProps) {
             context={session.latestExchange.aiDialogue}
             position={session.highlightPos}
             isAdding={session.isAddingWord}
+            collectingZone={session.getCollectingZone(session.highlightedWord)}
+            queuedZone={session.getQueuedZone(session.highlightedWord)}
+            storedCategory={session.getStoredCategory(session.highlightedWord)}
             addResult={session.addWordResult}
-            onAdd={() => { void session.handleAddHighlightedWord(); }}
+            onCollect={(category) => { void session.handleAddHighlightedWord(category); }}
+            onBlockedWhileCollecting={session.notifyBlocked}
             onClose={session.dismissVocabPopup}
             difficulty="medium"
           />

@@ -270,6 +270,10 @@ export function useOralWarRoomSession({
     addWordResult,
     handleDialogueMouseUp,
     handleAddHighlightedWord,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+    notifyBlocked,
     dismissVocabPopup,
   } = useOralTextSelection(activeScene, activeSceneId, sceneTheme);
 
@@ -680,6 +684,10 @@ export function useOralWarRoomSession({
     isAddingWord,
     addWordResult,
     handleAddHighlightedWord,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+    notifyBlocked,
     breakthroughMenu,
     setBreakthroughMenu,
     handleBreakthroughSubmit,

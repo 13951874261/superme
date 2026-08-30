@@ -6,6 +6,11 @@ import { lookupVocabWords } from '../../services/vocabAPI';
 import { showToast } from '../Toast';
 import SpeakButton from '../SpeakButton';
 import { useEnglishContext } from './english/context/EnglishContext';
+import {
+  VOCAB_ZONE_LABEL,
+  VOCAB_ZONE_COLLECT_BTN,
+  type VocabCategory,
+} from '../../utils/vocabZoneLabels';
 
 interface FlawVocabWord {
   word: string;
@@ -21,7 +26,13 @@ export default function DailyErrorVocabularyModule() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staleHint, setStaleHint] = useState<string | null>(null);
-  const { collect, hydrateCollected, isCollecting, isQueued, isCollected } = useVocabCollect({
+  const {
+    collect,
+    hydrateFromEntries,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+  } = useVocabCollect({
     notify: (message, type) => showToast({ message, type }),
   });
 
@@ -75,7 +86,7 @@ export default function DailyErrorVocabularyModule() {
     const syncCollected = () => {
       void lookupVocabWords(texts).then((items) => {
         if (cancelled || !items.length) return;
-        hydrateCollected(items.map((item) => item.word));
+        hydrateFromEntries(items);
       }).catch(() => {});
     };
     syncCollected();
@@ -84,19 +95,23 @@ export default function DailyErrorVocabularyModule() {
       cancelled = true;
       window.removeEventListener('vocab-updated', syncCollected);
     };
-  }, [words, hydrateCollected]);
+  }, [words, hydrateFromEntries]);
 
   // 逐条收录：收录即补齐词汇矩阵，3 秒未完成转入任务中心
-  const handleAddWord = async (word: FlawVocabWord, anchor?: HTMLElement | null) => {
+  const handleAddWord = async (
+    word: FlawVocabWord,
+    category: VocabCategory,
+    anchor?: HTMLElement | null,
+  ) => {
     await collect({
       text: word.word,
+      category,
+      migrateOnly: !!getStoredCategory(word.word) && getStoredCategory(word.word) !== category,
       topic: theme,
       source: 'Daily Flaw Vocab',
       payload: {
-        phonetic: word.ipa,
-        meaning: word.meaning_zh,
-        business_note: word.pronunciation_note,
-        examples: [word.example],
+        source: 'Daily Flaw Vocab',
+        topic: theme,
       },
       anchor,
     });
@@ -175,31 +190,49 @@ export default function DailyErrorVocabularyModule() {
                 </div>
               </div>
 
-              <button
-                onClick={(e) => handleAddWord(item, e.currentTarget)}
-                disabled={isCollecting(item.word) || isQueued(item.word) || isCollected(item.word)}
-                title="加入生词本并补齐释义等信息"
-                className={`w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                  isCollected(item.word)
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : isQueued(item.word)
-                      ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                      : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white shadow-md hover:shadow-[var(--color-brand)]/20'
-                }`}
-              >
-                {isCollecting(item.word) || isQueued(item.word) ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : isCollected(item.word) ? (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                ) : null}
-                {isCollecting(item.word)
-                  ? '收录中'
-                  : isQueued(item.word)
-                    ? '后台处理中'
-                    : isCollected(item.word)
-                      ? '已收录'
-                      : '收录生词本'}
-              </button>
+              <div className="grid grid-cols-2 gap-2">
+                {(['business', 'general'] as VocabCategory[]).map((zone) => {
+                  const activeZone = getCollectingZone(item.word);
+                  const isCollectingHere = activeZone === zone;
+                  const isQueuedHere = getQueuedZone(item.word) === zone;
+                  const isStoredHere = getStoredCategory(item.word) === zone;
+
+                  return (
+                    <button
+                      key={zone}
+                      onClick={(e) => {
+                        if (activeZone && activeZone !== zone) {
+                          showToast({ message: `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, type: 'info' });
+                          return;
+                        }
+                        void handleAddWord(item, zone, e.currentTarget);
+                      }}
+                      disabled={isCollectingHere || isQueuedHere || isStoredHere}
+                      title={isStoredHere ? `已在${VOCAB_ZONE_LABEL[zone]}` : `收录至${VOCAB_ZONE_LABEL[zone]}`}
+                      className={`py-2.5 rounded-xl text-[11px] font-black tracking-widest flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        isStoredHere
+                          ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                          : isQueuedHere
+                            ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                            : 'bg-[var(--color-brand)] hover:bg-[var(--color-brand-hover)] text-white shadow-md hover:shadow-[var(--color-brand)]/20'
+                      }`}
+                    >
+                      {isCollectingHere || isQueuedHere ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : isStoredHere ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : null}
+                      {isCollectingHere
+                        ? '收录中'
+                        : isQueuedHere
+                          ? '后台处理中'
+                          : isStoredHere
+                            ? '已收录'
+                            : VOCAB_ZONE_COLLECT_BTN[zone]}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>

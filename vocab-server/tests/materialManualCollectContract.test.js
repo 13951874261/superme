@@ -22,7 +22,7 @@ assert.doesNotMatch(vtSrc, /共新增 \$\{addedCount\} 个词汇到生词本/);
 assert.doesNotMatch(vtSrc, /INSERT INTO vocabulary/);
 assert.match(vtSrc, /phrases/);
 assert.match(vtSrc, /sentences/);
-assert.match(vtSrc, /请逐条点「\+ 收录」|请手动收录/);
+assert.match(vtSrc, /请逐条点「\+ 政商务」或「\+ 全场景」|请逐条点「\+ 收录」|请手动收录/);
 
 // 材料整理流水线提纯后不得排重写入生词本，但仍返回三类
 assert.doesNotMatch(serverSrc, /正在排重写入 SQLite 生词本/);
@@ -45,7 +45,7 @@ assert.match(intel, /今日长文/);
 assert.match(intel, /上传材料/);
 assert.match(intel, /VocabularyGrid/);
 assert.match(intel, /未抽出词句/);
-assert.match(grid, /已整理出的商战生词/);
+assert.match(grid, /已整理出的商[战务]生词/);
 assert.match(grid, /已整理出的高频短语/);
 assert.match(grid, /已整理出的高频句型/);
 

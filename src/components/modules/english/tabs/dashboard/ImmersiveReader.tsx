@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpen, X, Loader2 } from 'lucide-react';
+import { BookOpen, X } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
-import { addWord, updateWordPayload, queryDictionaryWithCache } from '../../../../../services/vocabAPI';
-import { runWordEnrichment, toVocabEnrichmentPayload } from '../../../../../services/difyAPI';
-import { playSuccess, playError, playPageTurn } from '../../../../../utils/soundEffects';
+import { useVocabCollect } from '../../../../../hooks/useVocabCollect';
+import VocabZoneCollectButtons from '../../../../VocabZoneCollectButtons';
+import { playPageTurn } from '../../../../../utils/soundEffects';
+import {
+  VOCAB_ZONE_LABEL,
+  classifyCollectKind,
+} from '../../../../../utils/vocabZoneLabels';
 /** 与 App RightPanel 宽度一致，沉浸层需让出右侧以免 z-[9999] 挡住情报解密仓 */
 const RIGHT_PANEL_WIDTH_PX = 400;
 
@@ -45,8 +49,25 @@ export function ImmersiveReader({
   setIsAddingSelected,
   showNotice
 }: ImmersiveReaderProps) {
+  const {
+    collect: collectVocab,
+    hydrateTexts,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+  } = useVocabCollect({
+    notify: (message, type) => showNotice('dashboard', message, type),
+  });
   // 情报解密仓打开时，沉浸层让出右侧，避免全屏遮罩盖住 RightPanel
   const [leaveRoomForPanel, setLeaveRoomForPanel] = useState(false);
+
+  useEffect(() => {
+    if (!selectedWord) return;
+    const sync = () => hydrateTexts([selectedWord]);
+    sync();
+    window.addEventListener('vocab-updated', sync);
+    return () => window.removeEventListener('vocab-updated', sync);
+  }, [selectedWord, hydrateTexts]);
 
   // Esc 快捷键支持
   useEffect(() => {
@@ -244,119 +265,44 @@ export function ImmersiveReader({
           immersiveTheme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-800'
         }`}>
           <span className="text-xs font-black text-[var(--color-brand)]">“{selectedWord}”</span>
-          <button
-            type="button"
-            disabled={isAddingSelected}
-            onClick={async () => {
+          <VocabZoneCollectButtons
+            text={selectedWord}
+            storedCategory={getStoredCategory(selectedWord)}
+            matrixReady={!!getStoredCategory(selectedWord)}
+            collectingZone={getCollectingZone(selectedWord)}
+            queuedZone={getQueuedZone(selectedWord)}
+            onCollect={async (zone, anchor) => {
               playPageTurn();
               setIsAddingSelected(true);
               const targetWord = selectedWord;
-              let payload: Record<string, unknown> = {
-                word: targetWord,
-                source: 'immersive_reading',
-                theme,
-              };
+              const stored = getStoredCategory(targetWord);
+              window.dispatchEvent(new CustomEvent('toggle-right-panel', {
+                detail: {
+                  open: true,
+                  tab: 'context',
+                  wordData: { word: targetWord, source: 'immersive_reading' },
+                },
+              }));
               try {
-                // 1) 立即打开解密仓（仅 word），RightPanel 开始拉词典
-                window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-                  detail: {
-                    open: true,
-                    tab: 'context',
-                    wordData: { word: targetWord, source: 'immersive_reading' },
-                  },
-                }));
-
-                // 2) 主动拉取与完整解密仓相同的商业词典（优先），结果经 dictPreload 注入
-                let dictPreload: Awaited<ReturnType<typeof queryDictionaryWithCache>> | null = null;
-                try {
-                  dictPreload = await queryDictionaryWithCache({
-                    word: targetWord,
-                    dictType: 'en_en_business',
-                  });
-                  if (!dictPreload?.ok) {
-                    dictPreload = await queryDictionaryWithCache({
-                      word: targetWord,
-                      dictType: 'en_zh_bidirectional',
-                    });
-                  }
-                  if (dictPreload?.ok) {
-                    window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-                      detail: {
-                        open: true,
-                        tab: 'context',
-                        wordData: {
-                          word: targetWord,
-                          source: 'immersive_reading',
-                          dictPreload,
-                        },
-                      },
-                    }));
-                  }
-                } catch (dictErr) {
-                  console.error('沉浸式阅读词典查询失败:', dictErr);
-                }
-
-                // 3) enrichment 仅用于入库 payload，不再当作解密仓主展示
-                try {
-                  const enriched = await runWordEnrichment(targetWord, theme);
-                  payload = { ...toVocabEnrichmentPayload(enriched), source: 'immersive_reading', theme };
-                } catch (enrichError) {
-                  console.error('沉浸式阅读词汇补全失败，使用占位 payload 继续入库:', enrichError);
-                  payload = {
-                    word: targetWord,
-                    phonetic: '',
-                    partOfSpeech: '',
-                    meaning: '',
-                    definition_en: '',
-                    business_note: '',
-                    examples: [],
-                    source: 'immersive_reading',
-                    theme,
-                  };
-                }
-
-                const category = theme === '日常场景' || theme.includes('日常') ? 'general' : 'business';
-                const created = await addWord({
-                  word: targetWord,
-                  dictType: 'immersive-highlight',
-                  scene_type: category,
-                  category,
-                  payload,
+                const kind = classifyCollectKind(targetWord);
+                await collectVocab({
+                  text: targetWord,
+                  category: zone,
+                  ...kind,
+                  migrateOnly: !!stored && stored !== zone,
+                  source: 'immersive_reading',
+                  topic: theme,
+                  payload: { source: 'immersive_reading', theme },
+                  anchor,
                 });
-
-                const wordId = created?.id;
-                if (wordId) {
-                  await updateWordPayload(wordId, payload);
-                }
-
-                window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-                  detail: {
-                    open: true,
-                    tab: 'context',
-                    wordData: {
-                      ...payload,
-                      id: wordId,
-                      word: targetWord,
-                      ...(dictPreload?.ok ? { dictPreload } : {}),
-                    },
-                  },
-                }));
-
-                showNotice('dashboard', `“${targetWord}” 已加入生词本，可查看释义`, 'success');
-                window.dispatchEvent(new Event('vocab-updated'));
-                playSuccess();
-              } catch (e) {
-                playError();
-                showNotice('dashboard', `“${targetWord}” 加入生词本失败，请检查网络后重试`, 'error');
               } finally {
                 setIsAddingSelected(false);
-                setSelectedWord('');
               }
             }}
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-[10px] font-black uppercase rounded-xl transition-colors cursor-pointer disabled:opacity-50 btn-press"
-          >
-            {isAddingSelected ? <Loader2 aria-hidden="true" className="w-3.5 h-3.5 animate-spin" /> : '加入词库'}
-          </button>
+            onBlockedWhileCollecting={(activeZone) => {
+              showNotice('dashboard', `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, 'info');
+            }}
+          />
           <button
             type="button"
             aria-label="取消选词"

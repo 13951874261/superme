@@ -1,0 +1,32 @@
+{
+  "mode": "ralplan",
+  "slug": "account-data-isolation",
+  "deliberate": true,
+  "current_phase": "complete",
+  "iteration": 2,
+  "planning_artifacts": {
+    "prd": ".omx/plans/prd-account-data-isolation.md",
+    "test_spec": ".omx/plans/test-spec-account-data-isolation.md",
+    "architect_archive": ".omx/plans/architect-review-account-data-isolation.md",
+    "critic_archive": ".omx/plans/critic-review-account-data-isolation.md",
+    "requirements_spec": ".omx/specs/deep-interview-account-data-isolation.md",
+    "context": ".omx/context/account-data-isolation-20260830T090530Z.md"
+  },
+  "ralplan_architect_review": {
+    "round": 2,
+    "verdict": "APPROVE",
+    "order": "before_critic"
+  },
+  "ralplan_critic_review": {
+    "round": 1,
+    "verdict": "APPROVE",
+    "order": "after_architect",
+    "improvements_merged": true
+  },
+  "ralplan_consensus_gate": {
+    "complete": true,
+    "architect_then_critic": true
+  },
+  "execution_status": "complete",
+  "recommended_lane": "ultragoal"
+}

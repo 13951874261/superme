@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase } from 'lucide-react';
 import SpeakButton from './SpeakButton';
-import { getReviewPage, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
+import { getReviewPage, submitReview, VocabEntry, updateWordPayload } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
@@ -151,14 +151,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     try {
       const result = await runEnglishSentenceEvaluation(targetWord, sentenceInput, theme);
       setEvalResult(result);
-      if (result.isPass) {
-        await addWord({
-          word: targetWord,
-          dictType: 'manual_capture',
-          category: 'general',  // 闪卡造句属于日常场景，存入全场景区
-          payload: { meaning: '句子考核通过', source: '闪卡造句评估' },
-        });
-      } else {
+      if (!result.isPass) {
         void appendErrorLedgerEntries('vocab', [{
           word: targetWord,
           score: result.score,
