@@ -42,7 +42,7 @@ export function YoutubeSetupGuideContent({ compact = false }: { compact?: boolea
           </li>
           <li>解压到任意文件夹（例如桌面）</li>
           <li>
-            双击运行 <code className="bg-gray-100 px-1 rounded">一键配置YouTube.bat</code>
+            双击运行 <code className="bg-gray-100 px-1 rounded">setup-youtube.bat</code>
           </li>
           <li>
             首次运行会提示输入<strong>服务器 SSH 密码</strong>（仅保存在本机，不会上传别处）
@@ -58,10 +58,10 @@ export function YoutubeSetupGuideContent({ compact = false }: { compact?: boolea
       <GuideSection title="日常使用">
         <ul className="list-disc list-inside space-y-1">
           <li>
-            <strong>电脑重启后</strong>：运行解压包里的 <code className="bg-gray-100 px-1 rounded">保持YouTube隧道.bat</code>（窗口可最小化，不要关）
+            <strong>电脑重启后</strong>：运行解压包里的 <code className="bg-gray-100 px-1 rounded">keep-youtube-tunnel.bat</code>（窗口可最小化，不要关）
           </li>
           <li>
-            <strong>约 2 周后</strong> cookies 可能过期：重新运行 <code className="bg-gray-100 px-1 rounded">一键配置YouTube.bat</code>
+            <strong>约 2 周后</strong> cookies 可能过期：重新运行 <code className="bg-gray-100 px-1 rounded">setup-youtube.bat</code>
           </li>
           <li>Clash 关闭或隧道窗口关闭后，YouTube 转写会失败，需重新运行隧道脚本</li>
         </ul>
@@ -71,7 +71,7 @@ export function YoutubeSetupGuideContent({ compact = false }: { compact?: boolea
         <div className="space-y-3">
           <div>
             <p className="font-bold text-gray-800">Q：检测显示「代理未连通」？</p>
-            <p>A：确认 Clash 已开启，并运行「保持YouTube隧道.bat」。</p>
+            <p>A：确认 Clash 已开启，并运行 <code className="bg-gray-100 px-1 rounded">keep-youtube-tunnel.bat</code>。</p>
           </div>
           <div>
             <p className="font-bold text-gray-800">Q：检测显示「cookies 无效」？</p>

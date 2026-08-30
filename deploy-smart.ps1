@@ -288,6 +288,12 @@ try {
         if (Test-Path "$ProjectRoot\dist\images") {
             Send-File "$ProjectRoot\dist\images" "$RemoteWebRoot/dist/"
         }
+        Get-ChildItem "$ProjectRoot\dist" -File | ForEach-Object {
+            if ($_.Name -ne 'index.html') {
+                Write-Host "  -> Uploading dist/$($_.Name)" -ForegroundColor DarkCyan
+                Send-File $_.FullName "$RemoteWebRoot/dist/$($_.Name)"
+            }
+        }
         
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo nginx -t && sudo systemctl reload nginx"
@@ -357,7 +363,17 @@ try {
             if ($file -match "^vocab-server/") {
                 $relativePath = $file -replace '^vocab-server/', ''
                 $localFile = "$ProjectRoot\vocab-server\$relativePath".Replace('/', '\')
-                if (Test-Path $localFile -PathType Leaf) {
+                if (Test-Path $localFile -PathType Container) {
+                    Get-ChildItem $localFile -Recurse -File | ForEach-Object {
+                        $subRelative = $_.FullName.Substring("$ProjectRoot\vocab-server\".Length).Replace('\', '/')
+                        $parentDir = Split-Path $subRelative -Parent
+                        if ($parentDir) {
+                            Invoke-RemoteCommand "mkdir -p $RemoteApiRoot/$($parentDir.Replace('\','/'))"
+                        }
+                        Write-Host "     Uploading: $subRelative"
+                        Send-File $_.FullName "$RemoteApiRoot/$subRelative"
+                    }
+                } elseif (Test-Path $localFile -PathType Leaf) {
                     if ($relativePath.Contains('/')) {
                         $parts = $relativePath.Split('/')
                         $dirParts = $parts[0..($parts.Length - 2)]

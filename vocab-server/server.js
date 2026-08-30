@@ -11251,12 +11251,12 @@ app.get('/api/materials/youtube-preflight', async (req, res) => {
 });
 
 const YOUTUBE_SETUP_KIT_FILES = [
-  '一键配置YouTube.bat',
-  '保持YouTube隧道.bat',
+  'setup-youtube.bat',
+  'keep-youtube-tunnel.bat',
   'setup-youtube-oneclick.ps1',
   'export-chrome-cookies-cdp.py',
   'youtube-setup.config.example.json',
-  '使用说明.txt',
+  'README.txt',
 ];
 
 app.get('/api/materials/youtube-setup-kit.zip', (req, res) => {

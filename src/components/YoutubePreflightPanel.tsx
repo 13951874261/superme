@@ -167,7 +167,7 @@ export default function YoutubePreflightPanel({ onReadyChange, onOpenGuide }: Yo
         <div className="rounded-lg border border-amber-300 bg-white p-3 space-y-2">
           <p className="text-xs font-black text-amber-900">快速配置指引</p>
           <ol className="text-[11px] text-gray-700 space-y-1 list-decimal list-inside">
-            <li>点击链接框右侧 <strong>「下载配置」</strong>，解压后双击 <code className="bg-gray-100 px-1 rounded">一键配置YouTube.bat</code></li>
+            <li>点击链接框右侧 <strong>「下载配置」</strong>，解压后双击 <code className="bg-gray-100 px-1 rounded">setup-youtube.bat</code></li>
             <li>首次输入 SSH 密码，等待脚本完成</li>
             <li>回到本页点击 <strong>「检测就绪」</strong></li>
           </ol>
@@ -202,7 +202,7 @@ export default function YoutubePreflightPanel({ onReadyChange, onOpenGuide }: Yo
             )}
           </div>
           <p className="text-[10px] text-gray-500">
-            电脑重启后运行包内「保持YouTube隧道.bat」；cookies 约 2 周需重新配置。
+            电脑重启后运行包内 <code className="bg-gray-100 px-1 rounded">keep-youtube-tunnel.bat</code>；cookies 约 2 周需重新配置。
           </p>
         </div>
       )}
