@@ -726,16 +726,15 @@ export async function loadUserProfileFromServer(userId?: string): Promise<void> 
       }
     }
 
-    if (profile_content && serverUpdatedAt >= localUpdatedAt) {
-      writeProfileLocal(profile_content, serverUpdatedAt, uid);
+    // 服务端时钟不落后时，以服务端为准（含主动清空：空字符串覆盖本地桶，禁止再 sync 脏数据回去）
+    if (serverUpdatedAt >= localUpdatedAt) {
+      writeProfileLocal(String(profile_content ?? ''), serverUpdatedAt, uid);
       return;
     }
 
-    if (localRaw && (localUpdatedAt > serverUpdatedAt || !profile_content)) {
-      maybeSyncOwnBucket('local_newer_or_server_empty');
-      if (localUpdatedAt > serverUpdatedAt) {
-        void syncCareerToServer(readCareerPath());
-      }
+    if (localRaw && localUpdatedAt > serverUpdatedAt) {
+      maybeSyncOwnBucket('local_newer');
+      void syncCareerToServer(readCareerPath());
     }
   } catch (e) {
     console.warn('[profileHelper] load from server failed:', e);
