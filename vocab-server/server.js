@@ -6304,12 +6304,11 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
   try {
     const userId = requireVocabUserId(req, res);
     if (!userId) return;
-        const { user_current_profile } = req.body;
-    const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
+    const { user_current_profile } = req.body;
+    const row = db.prepare('SELECT * FROM vocabulary WHERE id = ? AND user_id = ?').get(req.params.id, userId);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
     }
-    const userId = req.body?.userId || row.user_id || 'default-user';
 
     const payload = await checkAndEnrichPlaceholderPayload(row);
     const word = row.word;
