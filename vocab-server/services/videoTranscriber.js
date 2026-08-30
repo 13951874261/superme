@@ -9,7 +9,11 @@ const {
   cleanupPlatformArtifacts,
 } = require('./platformVideoDownloader');
 const taskQueue = require('./taskQueue');
-const { chatCompletions, extractJsonObject, getLlmModels, DEFAULT_LLM_KEY } = require('./openaiCompatLlm');
+const {
+  extractVocabFallback,
+  classifyFallbackResult,
+  heuristicExtractVocab,
+} = require('./vocabExtractFallback');
 
 // 临时目录初始化
 const TMP_VIDEO_DIR = process.env.TMP_VIDEO_DIR || path.join(__dirname, '../public/temp_videos');
@@ -365,13 +369,31 @@ async function startTranscribeTask(taskId, {
 
     let totalCandidates = classified.words.length + classified.phrases.length + classified.sentences.length;
     if (totalCandidates === 0 && transcript) {
+      console.warn(`[Video Transcribe - ${taskId}] Dify empty outputs keys:`, Object.keys(wfOutputs));
       taskQueue.updateTask(taskId, { logs: ['Dify 提纯未抽出词句，启用本地 LLM 兜底提取…'] });
       try {
-        classified = await extractVideoVocabFallback(transcript, subtitle || '英语学习');
+        const fallbackRes = await extractVocabFallback(
+          transcript,
+          'B1',
+          'podcast',
+          '30',
+          subtitle || '英语学习',
+        );
+        classified = classifyFallbackResult(fallbackRes);
         totalCandidates = classified.words.length + classified.phrases.length + classified.sentences.length;
       } catch (fallbackErr) {
         console.warn(`[Video Transcribe - ${taskId}] vocab fallback failed:`, fallbackErr.message);
-        taskQueue.updateTask(taskId, { logs: [`本地词句兜底失败: ${fallbackErr.message}`] });
+        taskQueue.updateTask(taskId, { logs: [`本地 LLM 兜底失败: ${fallbackErr.message}`] });
+      }
+    }
+
+    if (totalCandidates === 0 && transcript) {
+      classified = heuristicExtractVocab(transcript);
+      totalCandidates = classified.words.length + classified.phrases.length + classified.sentences.length;
+      if (totalCandidates > 0) {
+        taskQueue.updateTask(taskId, {
+          logs: [`规则提取兜底：生词 ${classified.words.length} / 短语 ${classified.phrases.length} / 句型 ${classified.sentences.length}`],
+        });
       }
     }
 
@@ -458,6 +480,9 @@ function itemText(item) {
 
 function countWords(str) {
   if (!str || typeof str !== 'string') return 0;
+  if (/[\u4e00-\u9fff]/.test(str)) {
+    return Math.ceil(str.replace(/[.!?,;'":()[]{}.!?，、]/g, '').length / 2);
+  }
   return str
     .trim()
     .replace(/[.!?,;:'"()[\]{}]/g, '')
@@ -494,6 +519,9 @@ function classifyExtractedItems(rawExtracted) {
           typeof s === 'string' ? { word: s, is_sentence: true } : s
         )));
       }
+      if (Array.isArray(parsed.vocabulary)) extractedItems.push(...parsed.vocabulary);
+      if (Array.isArray(parsed.terms)) extractedItems.push(...parsed.terms);
+      if (Array.isArray(parsed.new_words)) extractedItems.push(...parsed.new_words);
       if (extractedItems.length === 0 && Array.isArray(parsed)) extractedItems = parsed;
     } catch (_) {
       extractedItems = cleanJson.split(/[,，\n]+/).map((s) => s.trim()).filter((s) => s.length > 0 && s.length < 200);
@@ -512,51 +540,6 @@ function classifyExtractedItems(rawExtracted) {
     else words.push(text);
   }
   return { words, phrases, sentences };
-}
-
-async function extractVideoVocabFallback(articleText, topic = '英语学习') {
-  const apiKey = process.env.LISTEN_LLM_API_KEY || process.env.VOCAB_PURIFY_LLM_API_KEY || DEFAULT_LLM_KEY;
-  const systemPrompt = `你是资深英语学习教练。请从用户提供的英文转写文本中，提取与主题「${topic || '英语学习'}」相关的：
-1. 生词 words（8-15 个，排除 the/is/are 等基础词）
-2. 短语 phrases（3-8 个地道表达）
-3. 句型 sentences（2-5 个完整例句，必须来自原文）
-
-只输出合法 JSON，不要 markdown 代码块：
-{"words":["word1"],"phrases":["phrase one"],"sentences":["Full sentence from transcript."]}`;
-
-  const models = getLlmModels();
-  let lastError = null;
-  for (const model of models) {
-    try {
-      const data = await chatCompletions({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: `转写文本：\n"""\n${String(articleText || '').slice(0, 12000)}\n"""` },
-        ],
-        temperature: 0.2,
-        timeoutMs: 90000,
-        apiKey,
-        models: [model],
-      });
-      const raw = extractJsonObject(data?.choices?.[0]?.message?.content || '');
-      const words = (Array.isArray(raw?.words) ? raw.words : []).map((w) => (
-        typeof w === 'string' ? w : String(w?.word || w?.text || '')
-      )).filter(Boolean);
-      const phrases = (Array.isArray(raw?.phrases) ? raw.phrases : []).map((p) => (
-        typeof p === 'string' ? p : String(p?.phrase || p?.text || '')
-      )).filter(Boolean);
-      const sentences = (Array.isArray(raw?.sentences) ? raw.sentences : []).map((s) => (
-        typeof s === 'string' ? s : String(s?.sentence || s?.text || s?.word || '')
-      )).filter(Boolean);
-      if (words.length + phrases.length + sentences.length > 0) {
-        return { words, phrases, sentences };
-      }
-      lastError = new Error('fallback returned empty vocab');
-    } catch (err) {
-      lastError = err;
-    }
-  }
-  throw lastError || new Error('fallback LLM failed');
 }
 
 module.exports = { startTranscribeTask, extractTranscriptFromLocalVideo };
