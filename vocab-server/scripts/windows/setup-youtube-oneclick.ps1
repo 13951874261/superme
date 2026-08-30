@@ -49,7 +49,7 @@ function Ensure-Config {
   }
   if ($LocalProxyPort -eq 0) { $script:LocalProxyPort = 7897 }
   if (-not $SSHPassword) {
-    Write-Host '[提示] 首次使用请输入服务器 SSH 密码（仅保存在本机）' -ForegroundColor Yellow
+    Write-Host '[Info] First run: enter server SSH password (saved locally only)' -ForegroundColor Yellow
     $secure = Read-Host 'SSH password'
     $script:SSHPassword = [string]$secure
   }
@@ -119,7 +119,15 @@ function Export-Cookies {
   if (-not $pythonCmd) { throw 'Python 3 not found' }
   $env:OUT = $CookiesOut
   & $pythonCmd.Source $ExportPy
-  if (-not (Test-Path $CookiesOut)) { throw 'cookie export failed' }
+  if (-not (Test-Path $CookiesOut)) {
+    $legacyPath = Join-Path (Split-Path $ScriptRoot -Parent) 'secrets\youtube.cookies.txt'
+    if (Test-Path $legacyPath) {
+      Copy-Item -Path $legacyPath -Destination $CookiesOut -Force
+    }
+  }
+  if (-not (Test-Path $CookiesOut)) {
+    throw ('cookie export failed; expected file: {0}' -f $CookiesOut)
+  }
   $hasLogin = Select-String -Path $CookiesOut -Pattern "`tLOGIN_INFO`t" -Quiet
   if (-not $hasLogin) {
     throw 'cookies missing LOGIN_INFO. Login YouTube in Chrome first.'

@@ -11,7 +11,12 @@ from pathlib import Path
 CHROME = Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Google/Chrome/Application/chrome.exe"
 REAL_USER_DATA = Path(os.environ["LOCALAPPDATA"]) / r"Google\Chrome\User Data"
 JUNCTION = Path(os.environ["TEMP"]) / "chrome-cdp-profile"
-OUT = Path(__file__).resolve().parent.parent / "secrets" / "youtube.cookies.txt"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if _SCRIPT_DIR.name == "windows":
+    _DEFAULT_OUT = _SCRIPT_DIR / "youtube.cookies.txt"
+else:
+    _DEFAULT_OUT = _SCRIPT_DIR.parent / "secrets" / "youtube.cookies.txt"
+OUT = Path(os.environ.get("OUT") or _DEFAULT_OUT)
 DEBUG_PORT = 9333
 URL = "https://www.youtube.com/watch?v=YoBc3zII7lg"
 
