@@ -87,6 +87,7 @@ export function getLastReviewDate(): number {
 export function setLastReviewDate(timestamp: number) {
   setLearnItem(uid(), LAST_REVIEW_DATE_KEY, String(timestamp));
   window.dispatchEvent(new Event('superme-review-date-changed'));
+  void import('../services/learningUiAPI').then((m) => m.schedulePersistLearningUi(uid()));
 }
 
 export function getReviewRoundNumber(): number {
@@ -110,6 +111,7 @@ export function saveReviewRecord(record: BiweeklyReviewRecord) {
   history.unshift(record);
   if (history.length > 20) history.pop();
   setLearnItem(uid(), BIWEEKLY_REVIEW_KEY, JSON.stringify(history));
+  void import('../services/learningUiAPI').then((m) => m.schedulePersistLearningUi(uid()));
 }
 
 /** 兼容旧 API */
@@ -137,6 +139,7 @@ export function saveNextWeekPushPlan(plan: TrainingRebalancePlan) {
   setLearnItem(uid(), NEXT_WEEK_PUSH_KEY, JSON.stringify(plan));
   window.dispatchEvent(new CustomEvent('global-training-rebalance', { detail: plan }));
   window.dispatchEvent(new Event('dify-context-refresh-needed'));
+  void import('../services/learningUiAPI').then((m) => m.schedulePersistLearningUi(uid()));
 }
 
 export function getNextWeekPushPlan(): TrainingRebalancePlan | null {
@@ -197,6 +200,7 @@ export function getPausedModules(): string[] {
 export function setPausedModules(modules: string[]) {
   setLearnItem(uid(), PAUSED_MODULES_KEY, JSON.stringify(modules));
   window.dispatchEvent(new CustomEvent('global-modules-paused', { detail: modules }));
+  void import('../services/learningUiAPI').then((m) => m.schedulePersistLearningUi(uid()));
 }
 
 export function isModulePaused(moduleId: string): boolean {
@@ -359,6 +363,7 @@ export function appendWeeklyChatHistory(item: WeeklyHistoryItem) {
   list.unshift(item);
   setLearnItem(uid(), WEEKLY_CHAT_HISTORY_KEY, JSON.stringify(list));
   window.dispatchEvent(new Event('superme-weekly-history-updated'));
+  void import('../services/learningUiAPI').then((m) => m.schedulePersistLearningUi(uid()));
 }
 
 export function generateScenarioMapping(

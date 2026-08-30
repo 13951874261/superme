@@ -80,7 +80,14 @@ function buildTodayInflightKey(userId: string, input: DailyPackQueryInput) {
 
 export async function buildDailyPackQueryInput(theme: string): Promise<DailyPackQueryInput> {
   // 设置 500ms 极速超时，防止生词库网络波动/卡死导致首页唤醒包无法呈现
-  const wordsPromise = getAllWords({ limit: 50 }).catch(() => []);
+  // I6：userId 缺失的 400 不当成「词表为空」；超时/网络仍回退空 exclude（非隔离路径软降级）
+  const wordsPromise = getAllWords({ limit: 50 }).catch((err: unknown) => {
+    const msg = String((err as Error)?.message || err || '');
+    if (/userId required|HTTP 400/i.test(msg)) {
+      console.warn('[dailyPackAPI] vocab request rejected (not empty list):', msg);
+    }
+    return [] as VocabEntry[];
+  });
   const timeoutPromise = new Promise<VocabEntry[]>((r) => setTimeout(() => r([]), 500));
   const words = await Promise.race([wordsPromise, timeoutPromise]);
 

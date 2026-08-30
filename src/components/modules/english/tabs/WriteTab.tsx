@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { learnGet, learnSet } from '../../../../utils/learnLocal';
 import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
@@ -97,12 +98,12 @@ export default function WriteTab({ variant = 'en' }: { variant?: WriteVariant })
   const setReviewResult = isZh ? setZhReviewResult : setEnReviewResult;
 
   const [activeModule, setActiveModule] = useState<string>(() => defaultWriteModuleId(variant));
-  const [benchmarkText, setBenchmarkText] = useState<string>(() => localStorage.getItem('write_benchmark_text') || '');
+  const [benchmarkText, setBenchmarkText] = useState<string>(() => learnGet('write_benchmark_text') || '');
   const [limitChallengeType, setLimitChallengeType] = useState<'compress_200' | 'compress_100' | 'compress_50' | 'expand'>('compress_100');
   
   // 每日复盘数据
   const [dailyFeedback, setDailyFeedback] = useState<{ coreIssues: string[]; nextFocus: string[] }>(() => {
-    const cached = localStorage.getItem('write_daily_feedback');
+    const cached = learnGet('write_daily_feedback');
     return cached ? JSON.parse(cached) : { coreIssues: [], nextFocus: [] };
   });
 
@@ -185,7 +186,8 @@ export default function WriteTab({ variant = 'en' }: { variant?: WriteVariant })
   // 对标文本自动保存
   const handleBenchmarkChange = (val: string) => {
     setBenchmarkText(val);
-    localStorage.setItem('write_benchmark_text', val);
+    learnSet('write_benchmark_text', val);
+    void import('../../../../services/learningUiAPI').then((m) => m.schedulePersistLearningUi());
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -342,7 +344,8 @@ ${benchmarkText
         ]
       };
       setDailyFeedback(feedbackData);
-      localStorage.setItem('write_daily_feedback', JSON.stringify(feedbackData));
+      learnSet('write_daily_feedback', JSON.stringify(feedbackData));
+      void import('../../../../services/learningUiAPI').then((m) => m.schedulePersistLearningUi());
 
       const l3Score = isZh ? 0 : deriveL3MasteryScore({ ...raw, ...normalized });
       if (sessionId && !isZh) {

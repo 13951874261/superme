@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Zap, ZapOff, Activity, Lock, Unlock, Image } from 'lucide-react';
 import { playClick, playSwitch, playReveal, playDrag, playValidatePass, playValidateFail, setGlobalVolume } from '../utils/soundEffects';
-import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, getAppUserId, setAppUserId, loadUserProfileFromServer, getUserWeaknessProfile } from '../utils/profileHelper';
+import { getAccentPref, saveAccentPref, ACCENT_CHANGED_EVENT, getAppUserId, switchAccountSession, getUserWeaknessProfile } from '../utils/profileHelper';
 import { readCareerPath, careerNodeLabel } from '../utils/careerProgression';
 import { reloadDifyChatbotEmbed } from '../utils/difyChatbot';
 import UserProfileOverlay from './UserProfileOverlay';
@@ -64,8 +64,7 @@ export default function GlobalSettingsPanel() {
       return;
     }
     try {
-      setAppUserId(next);
-      await loadUserProfileFromServer(next);
+      await switchAccountSession(next);
       const saved = getAppUserId();
       setAppUserIdState(saved);
       setUserIdDraft(saved);

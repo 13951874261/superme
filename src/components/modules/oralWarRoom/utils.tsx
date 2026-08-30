@@ -1,4 +1,5 @@
 import React from 'react';
+import { learnGet, learnSet, learnRemove } from '../../../utils/learnLocal';
 import { Star } from 'lucide-react';
 import type { ParsedAiResponse } from '../../../services/difyAPI';
 import type { SceneEntry, SessionMemory } from './types';
@@ -134,12 +135,12 @@ export interface WriteContextPayload {
 }
 
 export function saveWriteContext(payload: WriteContextPayload) {
-  localStorage.setItem('superme_write_context', JSON.stringify(payload));
+  learnSet('superme_write_context', JSON.stringify(payload));
 }
 
 export function peekWriteContext(): WriteContextPayload | null {
   try {
-    const raw = localStorage.getItem('superme_write_context');
+    const raw = learnGet('superme_write_context');
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
@@ -162,6 +163,6 @@ export function formatSessionMemoryProfile(memory: SessionMemory): string {
 
 export function consumeWriteContext(): WriteContextPayload | null {
   const ctx = peekWriteContext();
-  if (ctx) localStorage.removeItem('superme_write_context');
+  if (ctx) learnRemove('superme_write_context');
   return ctx;
 }

@@ -399,7 +399,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
       let hasMore = true;
 
       while (hasMore) {
-        const res = await fetch(`/api/vocab/list?light=1&limit=${pageSize}&offset=${offset}`);
+        const res = await fetch(`/api/vocab/list?light=1&limit=${pageSize}&offset=${offset}&userId=${encodeURIComponent(getAppUserId())}`);
         if (!res.ok) {
           throw new Error(`获取生词列表失败: HTTP ${res.status}`);
         }

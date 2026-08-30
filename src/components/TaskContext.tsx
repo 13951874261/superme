@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { learnSet } from '../utils/learnLocal';
 import { fetchDailyCronRuns, DailyCronRunSummary, deleteDailyCronRun, clearFinishedDailyCronRuns } from '../services/dailyCronAPI';
 import { getAppUserId } from '../utils/profileHelper';
 
@@ -291,11 +292,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const taskName = data.name || data.taskName || '未命名材料';
                 const article = result.article || result.transcript || result.content || '';
 
-                localStorage.setItem('super_agent_material_article', article);
-                localStorage.setItem('super_agent_material_words', JSON.stringify(result.words || []));
-                localStorage.setItem('super_agent_material_phrases', JSON.stringify(result.phrases || []));
-                localStorage.setItem('super_agent_material_sentences', JSON.stringify(result.sentences || []));
-                localStorage.setItem('super_agent_material_source', `材料整理: ${taskName}`);
+                learnSet('super_agent_material_article', article);
+                learnSet('super_agent_material_words', JSON.stringify(result.words || []));
+                learnSet('super_agent_material_phrases', JSON.stringify(result.phrases || []));
+                learnSet('super_agent_material_sentences', JSON.stringify(result.sentences || []));
+                learnSet('super_agent_material_source', `材料整理: ${taskName}`);
 
                 window.dispatchEvent(new CustomEvent('material-data-refreshed'));
                 window.dispatchEvent(new CustomEvent('extraction-success', {
@@ -311,11 +312,11 @@ export const TaskProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const result = data.result;
                 const taskName = data.name || data.taskName || '未命名材料';
 
-                localStorage.setItem('super_agent_last_generated_article', result.article || '');
-                localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words || []));
-                localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases || []));
-                localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences || []));
-                localStorage.setItem('super_agent_intel_source', `材料整理: ${taskName}`);
+                learnSet('super_agent_last_generated_article', result.article || '');
+                learnSet('super_agent_last_generated_words', JSON.stringify(result.words || []));
+                learnSet('super_agent_last_generated_phrases', JSON.stringify(result.phrases || []));
+                learnSet('super_agent_last_generated_sentences', JSON.stringify(result.sentences || []));
+                learnSet('super_agent_intel_source', `材料整理: ${taskName}`);
 
                 window.dispatchEvent(new CustomEvent('intel-data-refreshed'));
                 window.dispatchEvent(new CustomEvent('extraction-success', {

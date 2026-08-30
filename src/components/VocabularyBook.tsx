@@ -210,10 +210,13 @@ function VocabularyBookComponent() {
         setDueWords(review);
         writeReviewLightCache(category, review);
       }
+      setError('');
       // 翻页后滚动回顶部
       if (listRef.current) listRef.current.scrollTop = 0;
-    } catch {
-      // ignore
+    } catch (err) {
+      // I6：HTTP 400/失败不当成「空词表」静默成功
+      console.warn('[VocabularyBook] loadWords failed:', err);
+      setError('生词本加载失败，请稍后重试');
     } finally {
       setIsLoading(false);
     }

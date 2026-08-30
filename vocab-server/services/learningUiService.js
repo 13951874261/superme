@@ -86,7 +86,11 @@ function getLearningUi(db, userId) {
   const row = db.prepare(
     'SELECT learning_ui_json FROM user_memories WHERE user_id = ?',
   ).get(uid);
-  return parseLearningUi(row?.learning_ui_json);
+  // null = 从未 persist；勿当成空壳去覆盖客户端本地桶
+  if (!row || row.learning_ui_json == null || row.learning_ui_json === '') {
+    return null;
+  }
+  return parseLearningUi(row.learning_ui_json);
 }
 
 function ensureLearningUiColumn(db) {

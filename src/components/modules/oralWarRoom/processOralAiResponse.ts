@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react';
+import { learnGet, learnSet } from '../../../utils/learnLocal';
 import type { ParsedAiResponse } from '../../../services/difyAPI';
 import { playSuccess, playError } from '../../../utils/soundEffects';
 import type { WeaknessLogEntry } from './types';
@@ -27,12 +28,13 @@ export interface ProcessOralAiResponseCtx {
 }
 
 function logWeakness(sceneTitle: string, flawText: string, setWeaknessLog: ProcessOralAiResponseCtx['setWeaknessLog']) {
-  const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
+  const existingWeaknesses = JSON.parse(learnGet('user_weakness_log') || '[]');
   existingWeaknesses.push({ scene: sceneTitle, flaw: flawText, timestamp: Date.now() });
-  localStorage.setItem('user_weakness_log', JSON.stringify(existingWeaknesses));
+  learnSet('user_weakness_log', JSON.stringify(existingWeaknesses));
   setWeaknessLog(existingWeaknesses);
   window.dispatchEvent(new Event('weakness-updated'));
   void appendErrorLedgerEntries('oral', [{ scene: sceneTitle, flaw: flawText }]);
+  void import('../../../services/learningUiAPI').then((m) => m.schedulePersistLearningUi());
 }
 
 export function processOralAiResponse(
@@ -108,7 +110,7 @@ export function processOralAiResponse(
       return evaluatedSuccess;
     }
     try {
-      const existingWeaknesses = JSON.parse(localStorage.getItem('user_weakness_log') || '[]');
+      const existingWeaknesses = JSON.parse(learnGet('user_weakness_log') || '[]');
       const alreadyLogged = existingWeaknesses.some((w: { flaw: string }) => w.flaw === flawText);
       if (!alreadyLogged) {
         ctx.appendWeaknessToMemory(flawText);

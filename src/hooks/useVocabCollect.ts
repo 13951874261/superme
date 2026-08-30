@@ -141,9 +141,17 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
 
     // 单词走 Cambridge 优先（英汉双向），短语/句型走纯 Dify；
     // 迁移分区只改 category，不重取词典也不回写 payload，避免覆盖已补齐的矩阵。
-    // 词典拉取纳入 3 秒竞速：超时仍转任务中心，不让用户先干等 dict-query。
+    // 词典拉取纳入 3 秒竞速：超时仍转任务中心，不让用户先干等 dict-query；
+    // handoff 时复用同一 in-flight dict 请求，避免慢网丢 Cambridge 种子。
     let collectPayload = request.migrateOnly ? undefined : request.payload;
     let resolvedPrev = storedCategory[key] as VocabCategory | undefined;
+    const dictFetchPromise = !request.migrateOnly && !request.skipDictFetch
+      ? buildVocabCollectPayload(text, {
+          isPhrase,
+          isSentence,
+          source: request.source,
+        }).catch(() => null)
+      : null;
     const toBatchItem = () => ({
       word: text,
       category,
@@ -153,6 +161,20 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       dictType,
       payload: collectPayload,
     });
+    const resolveHandoffPayload = async () => {
+      if (hasDictBody(collectPayload)) return collectPayload;
+      if (dictFetchPromise) {
+        try {
+          const dictPayload = await dictFetchPromise;
+          if (dictPayload && Object.keys(dictPayload).length > 0) {
+            return { ...(request.payload || {}), ...dictPayload };
+          }
+        } catch {
+          // 词典失败不阻断 handoff
+        }
+      }
+      return stripThinHoverSeed(collectPayload);
+    };
 
     try {
       const action = (async () => {
@@ -172,13 +194,9 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
         }
         const migrateOnly = request.migrateOnly || (!!resolvedPrev && resolvedPrev !== category);
         collectPayload = migrateOnly ? undefined : request.payload;
-        if (!migrateOnly && !request.skipDictFetch) {
+        if (!migrateOnly && dictFetchPromise) {
           try {
-            const dictPayload = await buildVocabCollectPayload(text, {
-              isPhrase,
-              isSentence,
-              source: request.source,
-            });
+            const dictPayload = await dictFetchPromise;
             if (dictPayload && Object.keys(dictPayload).length > 0) {
               collectPayload = { ...(request.payload || {}), ...dictPayload };
             } else {
@@ -206,9 +224,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       const race = await addVocabWithTimeout(action, VOCAB_COLLECT_RACE_MS);
 
       if (race.isTimeout) {
-        if (!hasDictBody(collectPayload)) {
-          collectPayload = stripThinHoverSeed(collectPayload);
-        }
+        collectPayload = await resolveHandoffPayload();
         const queuedRes = await batchAddWordsAsync(
           [toBatchItem()],
           request.topic || '逐条收录',
@@ -272,6 +288,7 @@ export function useVocabCollect(options: UseVocabCollectOptions = {}) {
       return 'collected';
     } catch (error: any) {
       try {
+        collectPayload = await resolveHandoffPayload();
         const queuedRes = await batchAddWordsAsync(
           [toBatchItem()],
           request.topic || '逐条收录',

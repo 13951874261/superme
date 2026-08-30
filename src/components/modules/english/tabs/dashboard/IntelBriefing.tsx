@@ -1,4 +1,5 @@
 import React from 'react';
+import { learnSet, learnRemove } from '../../../../../utils/learnLocal';
 import { BookOpen, FileText, RefreshCw } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
 import { VocabularyGrid } from './VocabularyGrid';
@@ -124,7 +125,7 @@ export function IntelBriefing({
           <button 
             type="button"
             onClick={async () => {
-              localStorage.setItem('super_agent_intel_source', '每日系统生成');
+              learnSet('super_agent_intel_source', '每日系统生成');
               setIntelSource('每日系统生成');
               await handleAutoGenerate();
             }}
@@ -221,10 +222,10 @@ export function IntelBriefing({
                           setMaterialWords?.([]);
                           setMaterialPhrases?.([]);
                           setMaterialSentences?.([]);
-                          localStorage.removeItem('super_agent_material_article');
-                          localStorage.removeItem('super_agent_material_words');
-                          localStorage.removeItem('super_agent_material_phrases');
-                          localStorage.removeItem('super_agent_material_sentences');
+                          learnRemove('super_agent_material_article');
+                          learnRemove('super_agent_material_words');
+                          learnRemove('super_agent_material_phrases');
+                          learnRemove('super_agent_material_sentences');
                           showNotice('dashboard', '已清空当前上传材料', 'success');
                         } else {
                           setGeneratedArticle('');
@@ -232,10 +233,10 @@ export function IntelBriefing({
                           setExtractedPhrases([]);
                           setExtractedSentences([]);
                           setIsArticleExpanded(false);
-                          localStorage.removeItem('super_agent_last_generated_article');
-                          localStorage.removeItem('super_agent_last_generated_words');
-                          localStorage.removeItem('super_agent_last_generated_phrases');
-                          localStorage.removeItem('super_agent_last_generated_sentences');
+                          learnRemove('super_agent_last_generated_article');
+                          learnRemove('super_agent_last_generated_words');
+                          learnRemove('super_agent_last_generated_phrases');
+                          learnRemove('super_agent_last_generated_sentences');
                           showNotice('dashboard', '已清空当前长文，可以重新生成', 'success');
                         }
                         playSuccess();
@@ -433,7 +434,7 @@ export function IntelBriefing({
                     type="button"
                     onClick={() => {
                       setGeneratedArticle(customText);
-                      localStorage.setItem('super_agent_last_generated_article', customText);
+                      learnSet('super_agent_last_generated_article', customText);
                       setIsImmersiveOpen(true);
                       showNotice('dashboard', '已加载自定义文本进入沉浸式阅读空间', 'success');
                       playSuccess();

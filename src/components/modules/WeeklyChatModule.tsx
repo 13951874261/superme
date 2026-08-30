@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { learnRemove } from '../../utils/learnLocal';
 import { Lock, Zap, Loader2, Calendar, Trash2 } from 'lucide-react';
 import ModuleWrapper from './ModuleWrapper';
 import { playClick, playPageTurn, playWaterDrop } from '../../utils/soundEffects';
@@ -113,7 +114,7 @@ export default function WeeklyChatModule() {
     if (confirm('确定清空全部树洞记录吗？清空后无法恢复')) {
       playClick();
       setHistoryList([]);
-      localStorage.removeItem('superme_weekly_history_enhanced');
+      learnRemove('superme_weekly_history_enhanced');
       localStorage.removeItem('super_agent_weekly_history');
     }
   };

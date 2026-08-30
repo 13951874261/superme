@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { learnGet, learnSet } from '../../../../utils/learnLocal';
 import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy, ArrowRight, Sparkles } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
@@ -468,9 +469,9 @@ export default function ImpromptuSpeechTab() {
         showNotice('oral', '即兴演讲达标！本关已通过', 'success');
 
         // 【I-3 新增】联动 XP 积分
-        const currentXp = parseInt(localStorage.getItem('oral_sandbox_xp') || '0', 10);
+        const currentXp = parseInt(learnGet('oral_sandbox_xp') || '0', 10);
         const newXp = currentXp + 20;
-        localStorage.setItem('oral_sandbox_xp', String(newXp));
+        learnSet('oral_sandbox_xp', String(newXp));
         // 派发全局事件，通知 OralWarRoom 刷新 XP
         window.dispatchEvent(new CustomEvent('xp-updated', { detail: { xp: newXp } }));
       } else {

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { learnGet, learnSet } from '../../../utils/learnLocal';
 import { submitBreakthrough, type ParsedAiResponse } from '../../../services/difyAPI';
 import { checkThemeMastery } from '../../../services/trainingAPI';
 import {
@@ -73,7 +74,7 @@ export function useOralWarRoomSession({
   const [lastNotice, setLastNotice] = useState('练习已就绪，AI 角色即将开场。');
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const [combatPoints, setCombatPoints] = useState(() => Number(localStorage.getItem('oral_combat_points') || '0'));
+  const [combatPoints, setCombatPoints] = useState(() => Number(learnGet('oral_combat_points') || '0'));
   const [showGoldGlow, setShowGoldGlow] = useState(false);
   const [isLoopholePlanted, setIsLoopholePlanted] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
@@ -110,7 +111,7 @@ export function useOralWarRoomSession({
   const [customBackgroundEnabled, setCustomBackgroundEnabled] = useState(false);
   const [sessionMemory, setSessionMemory] = useState<SessionMemory>(() => {
     try {
-      const saved = localStorage.getItem('superme_session_memory');
+      const saved = learnGet('superme_session_memory');
       return saved ? JSON.parse(saved) : {
         weaknesses: [],
         lastSceneId: '',
@@ -124,7 +125,7 @@ export function useOralWarRoomSession({
   });
 
   useEffect(() => {
-    localStorage.setItem('superme_session_memory', JSON.stringify(sessionMemory));
+    learnSet('superme_session_memory', JSON.stringify(sessionMemory));
   }, [sessionMemory]);
 
   useEffect(() => {
@@ -148,12 +149,12 @@ export function useOralWarRoomSession({
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('oral_combat_points', String(combatPoints));
+    learnSet('oral_combat_points', String(combatPoints));
   }, [combatPoints]);
 
   const [weaknessLog, setWeaknessLog] = useState<WeaknessLogEntry[]>(() => {
     try {
-      const logs = localStorage.getItem('user_weakness_log');
+      const logs = learnGet('user_weakness_log');
       return logs ? JSON.parse(logs) : [];
     } catch {
       return [];
@@ -174,7 +175,7 @@ export function useOralWarRoomSession({
   useEffect(() => {
     const handleWeaknessUpdated = () => {
       try {
-        const logs = localStorage.getItem('user_weakness_log');
+        const logs = learnGet('user_weakness_log');
         if (logs) setWeaknessLog(JSON.parse(logs));
       } catch { /* ignore */ }
     };

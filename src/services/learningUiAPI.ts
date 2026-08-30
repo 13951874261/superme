@@ -1,6 +1,7 @@
 import { getAppUserId } from '../utils/profileHelper';
 import {
   getLearnItem,
+  removeLearnItem,
   setLearnItem,
 } from '../utils/accountStorage';
 
@@ -62,12 +63,7 @@ export function applyLearningUiToLocal(userId: string, state: Partial<LearningUi
   setLearnItem(userId, 'superme_biweekly_review_history', JSON.stringify(s.biweeklyReviewHistory || []));
   if (s.lastReviewDate == null) {
     // 空账号不伪造 Date.now（U6）——删键表示未知
-    try {
-      const { removeLearnItem } = require('../utils/accountStorage') as typeof import('../utils/accountStorage');
-      removeLearnItem(userId, 'superme_last_review_date');
-    } catch {
-      /* ignore */
-    }
+    removeLearnItem(userId, 'superme_last_review_date');
   } else {
     setLearnItem(userId, 'superme_last_review_date', String(s.lastReviewDate));
   }
@@ -95,14 +91,20 @@ export async function persistLearningUiToServer(
   }
 }
 
+/**
+ * 拉取 sidecar。服务端从未 persist（null）时不覆盖本地桶。
+ * 有 JSON 则水合到该 userId 桶（含刻意空壳，用于换号恢复）。
+ */
 export async function loadLearningUiFromServer(userId = getAppUserId()): Promise<LearningUiState> {
   const res = await fetch(`/api/user/learning-ui/${encodeURIComponent(userId)}`);
   if (!res.ok) {
-    return { ...EMPTY };
+    return collectLearningUiFromLocal(userId);
   }
   const json = await res.json().catch(() => ({}));
   const data = json?.data?.learning_ui;
-  if (!data || typeof data !== 'object') return { ...EMPTY };
+  if (data == null || typeof data !== 'object') {
+    return collectLearningUiFromLocal(userId);
+  }
   applyLearningUiToLocal(userId, data);
   return { ...EMPTY, ...data };
 }
@@ -114,4 +116,16 @@ export async function flushLearningUi(userId = getAppUserId()): Promise<void> {
   } catch (e) {
     console.warn('[learningUiAPI] flush failed:', e);
   }
+}
+
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** 复盘/夜话等本地写入后防抖上云，闭合车道 2 */
+export function schedulePersistLearningUi(userId = getAppUserId()): void {
+  if (typeof window === 'undefined') return;
+  if (persistTimer) clearTimeout(persistTimer);
+  persistTimer = setTimeout(() => {
+    persistTimer = null;
+    void flushLearningUi(userId);
+  }, 400);
 }

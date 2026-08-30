@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { learnGet, learnSet, learnRemove } from '../../../../utils/learnLocal';
 import { createPortal } from 'react-dom';
 import { Target, AlertTriangle, CheckCircle2, Loader2, Zap, Volume2, BookOpen, RefreshCw, FileText, Trash2, Plus, ChevronUp, ChevronDown, AlertCircle } from 'lucide-react';
 import { useEnglishContext, getThemeOptions, StageTrack } from '../context/EnglishContext';
@@ -118,25 +119,25 @@ export default function DashboardTab() {
   } | null>(null);
 
   const [generatedArticle, setGeneratedArticle] = useState<string>(() => {
-    return localStorage.getItem('super_agent_last_generated_article') || '';
+    return learnGet('super_agent_last_generated_article') || '';
   });
   const [extractedWords, setExtractedWords] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]');
+      return JSON.parse(learnGet('super_agent_last_generated_words') || '[]');
     } catch {
       return [];
     }
   });
   const [extractedPhrases, setExtractedPhrases] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]');
+      return JSON.parse(learnGet('super_agent_last_generated_phrases') || '[]');
     } catch {
       return [];
     }
   });
   const [extractedSentences, setExtractedSentences] = useState<string[]>(() => {
     try {
-      return JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]');
+      return JSON.parse(learnGet('super_agent_last_generated_sentences') || '[]');
     } catch {
       return [];
     }
@@ -144,7 +145,7 @@ export default function DashboardTab() {
 
   const readStoredArray = (key: string): string[] => {
     try {
-      const parsed = JSON.parse(localStorage.getItem(key) || '[]');
+      const parsed = JSON.parse(learnGet(key) || '[]');
       return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
@@ -152,14 +153,14 @@ export default function DashboardTab() {
   };
 
   const [briefingTab, setBriefingTab] = useState<'longform' | 'material'>('longform');
-  const [materialArticle, setMaterialArticle] = useState<string>(() => localStorage.getItem('super_agent_material_article') || '');
+  const [materialArticle, setMaterialArticle] = useState<string>(() => learnGet('super_agent_material_article') || '');
   const [materialWords, setMaterialWords] = useState<string[]>(() => readStoredArray('super_agent_material_words'));
   const [materialPhrases, setMaterialPhrases] = useState<string[]>(() => readStoredArray('super_agent_material_phrases'));
   const [materialSentences, setMaterialSentences] = useState<string[]>(() => readStoredArray('super_agent_material_sentences'));
-  const [materialSource, setMaterialSource] = useState<string>(() => localStorage.getItem('super_agent_material_source') || '上传材料');
+  const [materialSource, setMaterialSource] = useState<string>(() => learnGet('super_agent_material_source') || '上传材料');
 
   const [intelSource, setIntelSource] = useState<string>(() => {
-    return localStorage.getItem('super_agent_intel_source') || '每日系统生成';
+    return learnGet('super_agent_intel_source') || '每日系统生成';
   });
 
   const [isArticleExpanded, setIsArticleExpanded] = useState(false);
@@ -238,12 +239,12 @@ export default function DashboardTab() {
   // 监听 intel-data-refreshed 事件，触发情报面板即时更新
   useEffect(() => {
     const handleIntelRefresh = () => {
-      const article = localStorage.getItem('super_agent_last_generated_article') || '';
+      const article = learnGet('super_agent_last_generated_article') || '';
       setGeneratedArticle(article);
-      setExtractedWords(JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]'));
-      setExtractedPhrases(JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]'));
-      setExtractedSentences(JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]'));
-      setIntelSource(localStorage.getItem('super_agent_intel_source') || '每日系统生成');
+      setExtractedWords(JSON.parse(learnGet('super_agent_last_generated_words') || '[]'));
+      setExtractedPhrases(JSON.parse(learnGet('super_agent_last_generated_phrases') || '[]'));
+      setExtractedSentences(JSON.parse(learnGet('super_agent_last_generated_sentences') || '[]'));
+      setIntelSource(learnGet('super_agent_intel_source') || '每日系统生成');
       if (article) setBriefingTab('longform');
     };
 
@@ -253,11 +254,11 @@ export default function DashboardTab() {
 
   useEffect(() => {
     const applyMaterial = () => {
-      setMaterialArticle(localStorage.getItem('super_agent_material_article') || '');
+      setMaterialArticle(learnGet('super_agent_material_article') || '');
       setMaterialWords(readStoredArray('super_agent_material_words'));
       setMaterialPhrases(readStoredArray('super_agent_material_phrases'));
       setMaterialSentences(readStoredArray('super_agent_material_sentences'));
-      setMaterialSource(localStorage.getItem('super_agent_material_source') || '上传材料');
+      setMaterialSource(learnGet('super_agent_material_source') || '上传材料');
       setBriefingTab('material');
     };
     window.addEventListener('material-data-refreshed', applyMaterial);
@@ -275,11 +276,11 @@ export default function DashboardTab() {
   }, []);
 
   const refreshIntelData = useCallback(() => {
-    setGeneratedArticle(localStorage.getItem('super_agent_last_generated_article') || '');
-    setExtractedWords(JSON.parse(localStorage.getItem('super_agent_last_generated_words') || '[]'));
-    setExtractedPhrases(JSON.parse(localStorage.getItem('super_agent_last_generated_phrases') || '[]'));
-    setExtractedSentences(JSON.parse(localStorage.getItem('super_agent_last_generated_sentences') || '[]'));
-    setIntelSource(localStorage.getItem('super_agent_intel_source') || '每日系统生成');
+    setGeneratedArticle(learnGet('super_agent_last_generated_article') || '');
+    setExtractedWords(JSON.parse(learnGet('super_agent_last_generated_words') || '[]'));
+    setExtractedPhrases(JSON.parse(learnGet('super_agent_last_generated_phrases') || '[]'));
+    setExtractedSentences(JSON.parse(learnGet('super_agent_last_generated_sentences') || '[]'));
+    setIntelSource(learnGet('super_agent_intel_source') || '每日系统生成');
   }, []);
 
   // 监听 extraction-success 事件，触发提纯完成后的即时 UI 更新（toast + 音效）
@@ -615,11 +616,11 @@ export default function DashboardTab() {
           setIntelSource('每日系统生成');
           setBriefingTab('longform');
 
-          localStorage.setItem('super_agent_intel_source', '每日系统生成');
-          localStorage.setItem('super_agent_last_generated_article', res.data.article);
-          localStorage.setItem('super_agent_last_generated_words', JSON.stringify(res.data.words || []));
-          localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(res.data.phrases || []));
-          localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(res.data.sentences || []));
+          learnSet('super_agent_intel_source', '每日系统生成');
+          learnSet('super_agent_last_generated_article', res.data.article);
+          learnSet('super_agent_last_generated_words', JSON.stringify(res.data.words || []));
+          learnSet('super_agent_last_generated_phrases', JSON.stringify(res.data.phrases || []));
+          learnSet('super_agent_last_generated_sentences', JSON.stringify(res.data.sentences || []));
         } else {
           setGeneratedArticle('');
           setExtractedWords([]);
@@ -675,10 +676,10 @@ export default function DashboardTab() {
         setExtractedWords(exactRes.data.words || []);
         setExtractedPhrases(exactRes.data.phrases || []);
         setExtractedSentences(exactRes.data.sentences || []);
-        localStorage.setItem('super_agent_last_generated_article', exactRes.data.article);
-        localStorage.setItem('super_agent_last_generated_words', JSON.stringify(exactRes.data.words || []));
-        localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(exactRes.data.phrases || []));
-        localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(exactRes.data.sentences || []));
+        learnSet('super_agent_last_generated_article', exactRes.data.article);
+        learnSet('super_agent_last_generated_words', JSON.stringify(exactRes.data.words || []));
+        learnSet('super_agent_last_generated_phrases', JSON.stringify(exactRes.data.phrases || []));
+        learnSet('super_agent_last_generated_sentences', JSON.stringify(exactRes.data.sentences || []));
         playSuccess();
         setIsAutoGenerating(false);
         return;
@@ -707,19 +708,19 @@ export default function DashboardTab() {
         if (result.article) {
           setGeneratedArticle(result.article);
           setIsArticleExpanded(false);
-          localStorage.setItem('super_agent_last_generated_article', result.article);
+          learnSet('super_agent_last_generated_article', result.article);
         }
         if (result.words) {
           setExtractedWords(result.words);
-          localStorage.setItem('super_agent_last_generated_words', JSON.stringify(result.words));
+          learnSet('super_agent_last_generated_words', JSON.stringify(result.words));
         }
         if (result.phrases) {
           setExtractedPhrases(result.phrases);
-          localStorage.setItem('super_agent_last_generated_phrases', JSON.stringify(result.phrases));
+          learnSet('super_agent_last_generated_phrases', JSON.stringify(result.phrases));
         }
         if (result.sentences) {
           setExtractedSentences(result.sentences);
-          localStorage.setItem('super_agent_last_generated_sentences', JSON.stringify(result.sentences));
+          learnSet('super_agent_last_generated_sentences', JSON.stringify(result.sentences));
         }
 
         const vocabSource = result.vocabSource as 'dify' | 'fallback' | 'empty' | undefined;
@@ -838,10 +839,10 @@ export default function DashboardTab() {
       setExtractedPhrases([]);
       setExtractedSentences([]);
       setIsArticleExpanded(false);
-      localStorage.removeItem('super_agent_last_generated_article');
-      localStorage.removeItem('super_agent_last_generated_words');
-      localStorage.removeItem('super_agent_last_generated_phrases');
-      localStorage.removeItem('super_agent_last_generated_sentences');
+      learnRemove('super_agent_last_generated_article');
+      learnRemove('super_agent_last_generated_words');
+      learnRemove('super_agent_last_generated_phrases');
+      learnRemove('super_agent_last_generated_sentences');
       
       // 重新拉取最新的配额状态
       await loadQuotaStatus();
@@ -1036,11 +1037,11 @@ export default function DashboardTab() {
               setMaterialSentences(sentences);
               setMaterialSource('上传材料');
               setBriefingTab('material');
-              localStorage.setItem('super_agent_material_article', data.article || '');
-              localStorage.setItem('super_agent_material_words', JSON.stringify(data.words || []));
-              localStorage.setItem('super_agent_material_phrases', JSON.stringify(data.phrases || []));
-              localStorage.setItem('super_agent_material_sentences', JSON.stringify(sentences));
-              localStorage.setItem('super_agent_material_source', '上传材料');
+              learnSet('super_agent_material_article', data.article || '');
+              learnSet('super_agent_material_words', JSON.stringify(data.words || []));
+              learnSet('super_agent_material_phrases', JSON.stringify(data.phrases || []));
+              learnSet('super_agent_material_sentences', JSON.stringify(sentences));
+              learnSet('super_agent_material_source', '上传材料');
 
               showNotice('dashboard', '整理完成！请到「上传材料」标签查看生词、短语和句型，再逐条点「+ 政商务」或「+ 全场景」', 'success');
               playSuccess();

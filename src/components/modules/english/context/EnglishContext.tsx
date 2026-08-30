@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
+import { learnGet, learnSet, learnRemove } from '../../../../utils/learnLocal';
 import { checkThemeMastery, getTrainingSessionByDate, upsertTrainingSession, setThemeFocus, markEmailComplete, listCustomThemes, getMasteredThemes, getThemeStayStats, CustomTheme, ThemeStayStats } from '../../../../services/trainingAPI';
 import { runWordEnrichment } from '../../../../services/difyAPI';
 import { syncUserTheme, fetchUserTheme } from '../../../../services/dailyPackAPI';
@@ -245,10 +246,10 @@ const MediaCtx = createContext<MediaCtxType | undefined>(undefined);
 export function EnglishProvider({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<EnglishTab>('dashboard');
   const [stage, setStage] = useState<StageTrack>(() => {
-    return (localStorage.getItem('english_stage') as StageTrack) || 'business';
+    return (learnGet('english_stage') as StageTrack) || 'business';
   });
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('english_theme') || BUSINESS_THEMES[0].value;
+    return learnGet('english_theme') || BUSINESS_THEMES[0].value;
   });
   const themeHydratedRef = useRef(false);
   const [masteryData, setMasteryData] = useState({ isMastered: false, oralCount: 0, maxWriteScore: 0, emailCompleted: false, _isInitial: true });
@@ -282,14 +283,14 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const [pendingSentenceDebt, setPendingSentenceDebt] = useState<string | null>(() => {
-    return localStorage.getItem('super_agent_pending_debt') || null;
+    return learnGet('super_agent_pending_debt') || null;
   });
 
   useEffect(() => {
     if (pendingSentenceDebt) {
-      localStorage.setItem('super_agent_pending_debt', pendingSentenceDebt);
+      learnSet('super_agent_pending_debt', pendingSentenceDebt);
     } else {
-      localStorage.removeItem('super_agent_pending_debt');
+      learnRemove('super_agent_pending_debt');
     }
   }, [pendingSentenceDebt]);
 
@@ -336,11 +337,11 @@ export function EnglishProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('english_stage', stage);
+    learnSet('english_stage', stage);
   }, [stage]);
 
   useEffect(() => {
-    localStorage.setItem('english_theme', theme);
+    learnSet('english_theme', theme);
     if (!themeHydratedRef.current) return;
     if (themeSyncTimerRef.current) window.clearTimeout(themeSyncTimerRef.current);
     themeSyncTimerRef.current = window.setTimeout(() => {

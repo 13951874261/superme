@@ -5,6 +5,7 @@ import {
   buildStaticDifyProfilePreview,
   getInjectedUserCurrentProfile,
 } from './profileHelper';
+import { setLearnItem, writeProfileLocalForUser } from './accountStorage';
 
 test('buildCareerAwareProfileString 用新职业覆盖旧职业行', () => {
   const out = buildCareerAwareProfileString(
@@ -58,7 +59,6 @@ test('getInjectedUserCurrentProfile 含职业路径与短板 L3 Graph', () => {
       progress: 41,
     }));
     // 经 accountStorage API 写入分桶键，避免手写前缀漂移
-    const { setLearnItem, writeProfileLocalForUser } = require('./accountStorage') as typeof import('./accountStorage');
     writeProfileLocalForUser('lzhmy', '英国听辨断层');
     setLearnItem('lzhmy', 'user_memory_layers', JSON.stringify({
       l3_vars: { accent: 'UK', training_goal: '即兴表达' },

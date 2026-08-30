@@ -17,49 +17,49 @@
     {
       "id": "G002",
       "title": "画像分桶 + 停无前缀回退 + 修写脏",
-      "status": "pending",
+      "status": "complete",
       "objective": "profileHelper 画像/账本/记忆层分桶；删除无前缀回退；loadUserProfileFromServer 三条写脏改只回写当前 uid 桶；UserProfileOverlay 改 helper；单测 U3–U5。"
     },
     {
       "id": "G003",
       "title": "learning_ui_json sidecar API",
-      "status": "pending",
+      "status": "complete",
       "objective": "ALTER + persistLearningUi（无行 INSERT 占位；有行只 UPDATE JSON，不碰 updated_at/upsert）；GET 工作台可带、Dify 读路径裁剪；profile SAVE 不碰该列；测 U8–U11/I1/I2/I7。"
     },
     {
       "id": "G004",
       "title": "reviewHelper 分桶 + flush",
-      "status": "pending",
+      "status": "complete",
       "objective": "复盘/夜话/计划键走 accountStorage；空账号不写 Date.now()（U6）；提供 flushLearningUi 供换号。"
     },
     {
       "id": "G005",
       "title": "switchAccountSession + App key",
-      "status": "pending",
+      "status": "complete",
       "objective": "flush→setId→load→dispatch；App 订阅 userId 重挂；LoginPage 与 GlobalSettingsPanel 共用；E5/E7。"
     },
     {
       "id": "G006",
       "title": "模块学习键分桶",
-      "status": "pending",
+      "status": "complete",
       "objective": "Dashboard 长文+材料、EnglishContext 主题/债务、口语会话/弱点、WriteTab、read summary 按清单分桶或换号清空；U13。"
     },
     {
       "id": "G007",
       "title": "embed 缓存换号清空",
-      "status": "pending",
+      "status": "complete",
       "objective": "dify_embed_input_overrides 及会话缓存在换号时清空，不重做 passport。"
     },
     {
       "id": "G008",
       "title": "parseVocabUserId 400",
-      "status": "pending",
+      "status": "complete",
       "objective": "无 userId helper 空 + 各 vocab 路由 400；前端不当空表；I6/I8。"
     },
     {
       "id": "G009",
       "title": "对照 test-spec 验收 + quality gate",
-      "status": "pending",
+      "status": "complete",
       "objective": "跑齐可自动化用例；对照 E1–E7 清单；最终 cleanup/review gate。"
     }
   ]

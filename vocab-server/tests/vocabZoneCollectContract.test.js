@@ -82,9 +82,11 @@ assert.match(customCard, /setCategory/, '制卡保留分区 Segment');
 assert.match(hook, /VOCAB_COLLECT_RACE_MS = 3000/, '保留 3 秒竞速');
 assert.match(
   hook,
-  /const action = \(async \(\) => \{[\s\S]*buildVocabCollectPayload[\s\S]*addWordEnriched/,
+  /const action = \(async \(\) => \{[\s\S]*dictFetchPromise[\s\S]*addWordEnriched/,
   '词典拉取纳入 3 秒竞速，超时仍转任务中心',
 );
+assert.match(hook, /dictFetchPromise/, 'handoff 复用 in-flight dict-query');
+assert.match(hook, /resolveHandoffPayload/, '超时 handoff 等待词典种子后再入队');
 assert.match(labels, /classifyCollectKind/, '词/短语/句型分类可复用');
 
 console.log('✅ vocabZoneCollectContract.test.js 通过');

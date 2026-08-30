@@ -1739,7 +1739,7 @@ function collectFrequentLedgerPatterns(ledger) {
 
 function runRuleBasedDreamingForUser(userId) {
   const uid = normalizeMemoryUserId(userId);
-  const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+  const row = db.prepare('SELECT user_id, profile_content, error_ledger, memory_layers, updated_at FROM user_memories WHERE user_id = ?').get(uid);
   if (!row) return { userId: uid, changed: false, skipped: true };
 
   const ledger = parseJsonObject(row.error_ledger, {});
@@ -1801,7 +1801,7 @@ async function runLlmMemoryDreamingForUser(userId, options = {}) {
   }
 
   const uid = normalizeMemoryUserId(userId);
-  const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+  const row = db.prepare('SELECT user_id, profile_content, error_ledger, memory_layers, updated_at FROM user_memories WHERE user_id = ?').get(uid);
   if (!row) return { skipped: true, reason: 'no_user' };
 
   const memoryLayers = parseJsonObject(row.memory_layers, {});
@@ -1997,7 +1997,7 @@ async function runMemoryDreamingForUser(userId, options = {}) {
   const ruleResult = runRuleBasedDreamingForUser(uid);
   let llmResult = { skipped: true, reason: 'not_attempted' };
 
-  const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+  const row = db.prepare('SELECT user_id, profile_content, error_ledger, memory_layers, updated_at FROM user_memories WHERE user_id = ?').get(uid);
   const layers = parseJsonObject(row?.memory_layers, {});
 
   if (row) {
@@ -3091,7 +3091,7 @@ app.post('/api/user/profile/compress', async (req, res) => {
   const now = Date.now();
 
   try {
-    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    const row = db.prepare('SELECT user_id, profile_content, error_ledger, memory_layers, updated_at FROM user_memories WHERE user_id = ?').get(uid);
     const input = String(profileContent ?? row?.profile_content ?? '').trim();
     if (!input) {
       return res.status(400).json({ success: false, error: '画像内容为空，无法压缩。' });
@@ -3149,7 +3149,7 @@ app.post('/api/user/memory/ingest', async (req, res) => {
   const now = Date.now();
 
   try {
-    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    const row = db.prepare('SELECT user_id, profile_content, error_ledger, memory_layers, updated_at FROM user_memories WHERE user_id = ?').get(uid);
     let profileContent = row?.profile_content || '';
     let memoryLayers = parseJsonObject(row?.memory_layers, {});
 
@@ -3275,7 +3275,7 @@ app.post('/api/user/error-ledger/append', (req, res) => {
   }
 
   try {
-    const row = db.prepare('SELECT * FROM user_memories WHERE user_id = ?').get(uid);
+    const row = db.prepare('SELECT user_id, profile_content, error_ledger, memory_layers, updated_at FROM user_memories WHERE user_id = ?').get(uid);
     const ledger = parseJsonObject(row?.error_ledger, {});
     const bucket = Array.isArray(ledger[category]) ? ledger[category] : [];
 
@@ -3309,13 +3309,25 @@ function parseVocabUserId(req) {
   if (typeof id === 'string' && id.trim()) {
     return id.trim().slice(0, 64);
   }
-  return 'lzhmy';
+  return null;
 }
+
+/** vocab 路由强制要求 userId；缺失则 400，不回落默认账号 */
+function requireVocabUserId(req, res) {
+  const userId = parseVocabUserId(req);
+  if (!userId) {
+    res.status(400).json({ error: 'userId required' });
+    return null;
+  }
+  return userId;
+}
+
 
 // 统计：按当前登录账号隔离
 app.get('/api/vocab/stats', (req, res) => {
   try {
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ?').get(userId)?.count || 0;
     const now = Date.now();
     const dueToday = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND next_review_date <= ? AND repetitions < 999').get(userId, now)?.count || 0;
@@ -3360,7 +3372,8 @@ app.get('/api/vocab/list', (req, res) => {
     if (String(req.query.light || '') === '0') {
       return res.status(400).json({ error: 'light=0 is deprecated. Please use pagination or /api/vocab/item/:id' });
     }
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const rawLimit = Number(req.query.limit);
     const pageSize = Math.min(Math.max(Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100);
     const offset = Math.max(0, Number(req.query.offset) || 0);
@@ -3424,7 +3437,8 @@ app.get('/api/vocab/review', (req, res) => {
     if (String(req.query.light || '') === '0') {
       return res.status(400).json({ error: 'light=0 is deprecated. Please use pagination or /api/vocab/item/:id' });
     }
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const now = Date.now();
     const rawLimit = Number(req.query.limit);
     const pageSize = Math.min(Math.max(Number.isInteger(rawLimit) && rawLimit > 0 ? rawLimit : 50, 1), 100);
@@ -3460,7 +3474,8 @@ app.get('/api/vocab/review', (req, res) => {
 // 批量点查生词条目（按账号 user_id 隔离）
 app.post('/api/vocab/lookup', (req, res) => {
   try {
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const rawWords = Array.isArray(req.body?.words) ? req.body.words : [];
     const words = Array.from(
       new Set(rawWords.map(w => (typeof w === 'string' ? w.trim() : '')).filter(Boolean))
@@ -3490,7 +3505,9 @@ app.post('/api/vocab/lookup', (req, res) => {
 // 单条完整词条（轻量列表按需补全 payload）
 app.get('/api/vocab/item/:id', (req, res) => {
   try {
-    const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Word not found' });
     res.json({
       ...row,
@@ -3505,7 +3522,8 @@ app.get('/api/vocab/item/:id', (req, res) => {
 // 单条词汇存入生词本（绑定 userId）
 app.post('/api/vocab/add', (req, res) => {
   try {
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const { word, dictType, category, scene_type = 'business', payload } = req.body;
 
     const actualCategory = category || (scene_type === 'general' ? 'general' : 'business');
@@ -3702,7 +3720,8 @@ async function enrichAndPersistVocabEntry(args) {
 // 单条收录并同步补齐词汇矩阵（前端 3 秒竞速，超时由任务中心接管）
 app.post('/api/vocab/add-enriched', async (req, res) => {
   try {
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const {
       word,
       dictType,
@@ -3738,7 +3757,8 @@ app.post('/api/vocab/add-enriched', async (req, res) => {
 // 批量生成/推送词条存入（绑定 userId）
 app.post('/api/vocab/batch-add', (req, res) => {
   try {
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const rawBody = req.body;
     const items = Array.isArray(rawBody) ? rawBody : (Array.isArray(rawBody?.items) ? rawBody.items : []);
     if (!Array.isArray(items)) {
@@ -3794,7 +3814,8 @@ app.post('/api/vocab/batch-add', (req, res) => {
 // 异步批量写入生词本（支持前端 3 秒超时解耦托管至 TaskQueue 任务中心）
 app.post('/api/vocab/batch-add-async', async (req, res) => {
   try {
-    const userId = parseVocabUserId(req);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
     const { items = [], topic = '通用主题', source = 'User Manual Selection' } = req.body || {};
     const itemList = Array.isArray(items) ? items : [];
 
@@ -3962,7 +3983,9 @@ async function queryDifyDictOnBackend(word, dictType) {
 
 app.post('/api/vocab/export-background', async (req, res) => {
   try {
-    const { scope = 'all', currentTab = 'business' } = req.body || {};
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const { scope = 'all', currentTab = 'business' } = req.body || {};
     const taskQueue = require('./services/taskQueue');
     let scopeLabel = '\u5168\u90e8\u8bcd\u6761';
     if (scope === 'current_tab') scopeLabel = `\u5f53\u524d\u5206\u533a (${currentTab})`;
@@ -4347,7 +4370,9 @@ app.post('/api/vocab/export-background', async (req, res) => {
 // ???????????
 app.put('/api/vocab/move/:id', (req, res) => {
   try {
-    const id = req.params.id;
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const id = req.params.id;
     const { category } = req.body;
     db.prepare('UPDATE vocabulary SET category = ? WHERE id = ?').run(category, id);
     res.json({ success: true, message: '迁移成功' });
@@ -4359,7 +4384,9 @@ app.put('/api/vocab/move/:id', (req, res) => {
 // ????????
 app.patch('/api/vocab/update_payload/:id', (req, res) => {
   try {
-    db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(req.body.payload), req.params.id);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        db.prepare('UPDATE vocabulary SET payload = ? WHERE id = ?').run(JSON.stringify(req.body.payload), req.params.id);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });
@@ -4369,7 +4396,9 @@ app.patch('/api/vocab/update_payload/:id', (req, res) => {
 // ????????????????????????????????????? payload????
 app.put('/api/vocab/update/:id', (req, res) => {
   try {
-    const id = req.params.id;
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const id = req.params.id;
     const { word, category, payload } = req.body;
     db.prepare('UPDATE vocabulary SET word = ?, category = ?, payload = ? WHERE id = ?')
       .run(word, category, JSON.stringify(payload || {}), id);
@@ -4383,7 +4412,9 @@ app.put('/api/vocab/update/:id', (req, res) => {
 // ?????????
 app.put('/api/vocab/review/:id', (req, res) => {
   try {
-    const id = req.params.id;
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const id = req.params.id;
     const { quality } = req.body;
 
     const word = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(id);
@@ -4411,7 +4442,9 @@ app.put('/api/vocab/review/:id', (req, res) => {
 // ?????
 app.put('/api/vocab/manual-intervention/:id', (req, res) => {
   try {
-    const id = req.params.id;
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const id = req.params.id;
     const { action } = req.body;
     const now = Date.now();
     let stmt;
@@ -4440,7 +4473,9 @@ app.put('/api/vocab/manual-intervention/:id', (req, res) => {
 // ????????
 app.delete('/api/vocab/:id', (req, res) => {
   try {
-    db.prepare('DELETE FROM vocabulary WHERE id = ?').run(req.params.id);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        db.prepare('DELETE FROM vocabulary WHERE id = ?').run(req.params.id);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });
@@ -6151,7 +6186,9 @@ app.get('/api/dify/dict-coverage', (req, res) => {
 // ????????????????????????????
 app.get('/api/vocab/memory/:id', (req, res) => {
   try {
-    const row = db.prepare('SELECT memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const row = db.prepare('SELECT memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
     }
@@ -6265,7 +6302,9 @@ async function checkAndEnrichPlaceholderPayload(row) {
 // ????? Dify ?????????????????????????????????
 app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
   try {
-    const { user_current_profile } = req.body;
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const { user_current_profile } = req.body;
     const row = db.prepare('SELECT * FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
@@ -6381,7 +6420,9 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
 // ????????????????????????????????
 app.get('/api/vocab/ebbinghaus/:id', (req, res) => {
   try {
-    const row = db.prepare('SELECT id, word, repetitions, interval_days, next_review_date, added_at, review_history FROM vocabulary WHERE id = ?').get(req.params.id);
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const row = db.prepare('SELECT id, word, repetitions, interval_days, next_review_date, added_at, review_history FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
     }
@@ -6444,7 +6485,9 @@ app.get('/api/vocab/ebbinghaus/:id', (req, res) => {
 // ?????????????????????? text2image ??????
 app.post('/api/vocab/generate-image/:id', async (req, res) => {
   try {
-    const { user_current_profile } = req.body;
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const { user_current_profile } = req.body;
     const row = db.prepare('SELECT id, word, memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
@@ -10026,7 +10069,9 @@ async function handleWriteGovernanceWorkflow(req, res) {
 app.post('/api/vocab/purify', async (req, res) => {
   const { articleText, article_text, topic = '' } = req.body || {};
   try {
-    const result = await purifyVocabulary(
+    const userId = requireVocabUserId(req, res);
+    if (!userId) return;
+        const result = await purifyVocabulary(
       { articleText: String(articleText || article_text || ''), topic: String(topic || '') },
       process.env.VOCAB_PURIFY_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY || '',
     );

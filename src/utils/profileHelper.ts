@@ -7,6 +7,7 @@ import {
   type CareerPath,
 } from './careerProgression';
 import {
+  clearSessionKeysOnSwitch,
   getLearnItem,
   getStoredProfileRawForUser,
   setLearnItem,
@@ -73,8 +74,14 @@ export function ensureAppUserId(customId?: string): string {
 }
 
 /** 手动设置用户 ID（如全局设置中修改），会写入 localStorage */
-export function setAppUserId(userId: string) {
+export function setAppUserId(userId: string, options?: { dispatch?: boolean }) {
   localStorage.setItem(USER_ID_KEY, sanitizeUserId(userId));
+  if (options?.dispatch === false) return;
+  window.dispatchEvent(new Event('global-user-id-changed'));
+}
+
+/** 换号水合完成后再广播，避免 App key remount 抢在 load 之前 */
+export function dispatchUserIdChanged() {
   window.dispatchEvent(new Event('global-user-id-changed'));
 }
 
@@ -890,16 +897,65 @@ export async function recordUserLoginPing(userId: string): Promise<void> {
   }
 }
 
-export async function initializeUserSession(customUserId?: string): Promise<string> {
-  const userId = ensureAppUserId(customUserId);
+/**
+ * 换号会话：flush(old) → 静默改 ID → load 画像+sidecar → 再 dispatch 重挂。
+ * 禁止：dispatch/remount 发生在 load 之前；禁止先改 ID 再 flush。
+ */
+export async function switchAccountSession(nextUserId: string): Promise<string> {
+  const next = sanitizeUserId(nextUserId);
+  const prevRaw = localStorage.getItem(USER_ID_KEY);
+  const old =
+    prevRaw && prevRaw !== 'default-user' && prevRaw.trim() ? prevRaw.trim() : null;
+
+  if (old && old !== next) {
+    const { flushLearningUi } = await import('../services/learningUiAPI');
+    await flushLearningUi(old);
+  }
+
+  console.info('[profileHelper] switchAccountSession', { from: old, to: next });
+  // 静默写入，等水合完成后再 dispatch，保证 remount 读已水合桶
+  setAppUserId(next, { dispatch: false });
+  clearSessionKeysOnSwitch(next);
+
+  const { loadLearningUiFromServer } = await import('../services/learningUiAPI');
   const results = await Promise.allSettled([
-    recordUserLoginPing(userId),
-    loadUserProfileFromServer(userId),
+    loadUserProfileFromServer(next),
+    loadLearningUiFromServer(next),
   ]);
   for (const result of results) {
     if (result.status === 'rejected') {
-      console.warn('[profileHelper] session init step failed:', result.reason);
+      console.warn('[profileHelper] switchAccountSession step failed:', result.reason);
     }
+  }
+
+  dispatchUserIdChanged();
+  return next;
+}
+
+export async function initializeUserSession(customUserId?: string): Promise<string> {
+  const userId = customUserId?.trim()
+    ? await switchAccountSession(customUserId)
+    : ensureAppUserId();
+
+  if (!customUserId?.trim()) {
+    const { loadLearningUiFromServer } = await import('../services/learningUiAPI');
+    const results = await Promise.allSettled([
+      recordUserLoginPing(userId),
+      loadUserProfileFromServer(userId),
+      loadLearningUiFromServer(userId),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.warn('[profileHelper] session init step failed:', result.reason);
+      }
+    }
+    return userId;
+  }
+
+  try {
+    await recordUserLoginPing(userId);
+  } catch (err) {
+    console.warn('[profileHelper] login ping failed:', err);
   }
   return userId;
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { learnGet, learnSet } from '../../utils/learnLocal';
 import { 
   BookOpen, FileText, BarChart3, Mail, LibraryBig, Loader2, Sparkles,
   Compass, Building, Globe, Send, ShieldAlert, Award, RefreshCw, MessageSquare, ChevronRight,
@@ -123,7 +124,7 @@ export default function ReadModule() {
 
   // 日终复盘初始化
   useEffect(() => {
-    const saved = localStorage.getItem('read_module_today_summary');
+    const saved = learnGet('read_module_today_summary');
     if (saved) {
       try {
         setTodaySummary(JSON.parse(saved));
@@ -133,7 +134,7 @@ export default function ReadModule() {
 
   const saveSummary = (summary: typeof todaySummary) => {
     setTodaySummary(summary);
-    localStorage.setItem('read_module_today_summary', JSON.stringify(summary));
+    learnSet('read_module_today_summary', JSON.stringify(summary));
   };
 
   // 智能点击空白处关闭右侧 Drawer 的 handler

@@ -1,4 +1,5 @@
 import { getUserWeaknessProfile, getInjectedUserCurrentProfile, injectUserProfileAndTime, interceptOutputText, getAppUserId, getCurrentFormattedTime } from '../utils/profileHelper';
+import { learnSet } from '../utils/learnLocal';
 import { recordL3Response, recordL4TaskEnqueue } from '../utils/perfSlaTelemetry';
 import {
   extractKeywordsFromText,
@@ -1009,7 +1010,7 @@ export async function sendOralChatMessage(
   interceptOutputText(data);
 
   if (data.conversation_id) {
-    localStorage.setItem('oral_conversation_context', JSON.stringify({
+    learnSet('oral_conversation_context', JSON.stringify({
       last_conversation_id: data.conversation_id,
       last_round_at: Date.now(),
     }));
@@ -1121,7 +1122,7 @@ export async function sendOralChatMessageStream(
   interceptOutputText(result);
 
   if (finalConversationId) {
-    localStorage.setItem('oral_conversation_context', JSON.stringify({
+    learnSet('oral_conversation_context', JSON.stringify({
       last_conversation_id: finalConversationId,
       last_round_at: Date.now(),
     }));

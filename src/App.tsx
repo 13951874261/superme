@@ -388,13 +388,20 @@ function AppContent() {
 
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userId, setUserId] = useState(() => getAppUserId());
+
+  useEffect(() => {
+    const syncUserId = () => setUserId(getAppUserId());
+    window.addEventListener('global-user-id-changed', syncUserId);
+    return () => window.removeEventListener('global-user-id-changed', syncUserId);
+  }, []);
 
   // One-shot login ping when authenticated (covers paths that skip LoginPage / initializeUserSession)
   useEffect(() => {
     if (!isAuthenticated) return;
-    const userId = getAppUserId();
-    void recordUserLoginPing(userId).catch((error) => {
-      console.warn(`[App] login ping failed for userId=${userId}:`, error);
+    const uid = getAppUserId();
+    void recordUserLoginPing(uid).catch((error) => {
+      console.warn(`[App] login ping failed for userId=${uid}:`, error);
     });
   }, [isAuthenticated]);
 
@@ -403,7 +410,7 @@ export default function App() {
       {!isAuthenticated ? (
         <LoginPage key="login-page" onUnlock={() => setIsAuthenticated(true)} />
       ) : (
-        <React.Fragment key="app-shell">
+        <React.Fragment key={`app-shell-${userId}`}>
           <EnglishProvider>
             <TaskProvider>
               <AppContent />
