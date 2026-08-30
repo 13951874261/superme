@@ -5395,6 +5395,25 @@ function hasCambridgeDisplayPayload(payload) {
   return false;
 }
 
+/** 生词本种子是否足以秒开展示（释义/音标/例句/近反义等任一有内容） */
+function hasVocabBookDisplayPayload(payload) {
+  if (!payload || typeof payload !== 'object') return false;
+  const text = (v) => typeof v === 'string' && v.trim().length > 0;
+  const list = (v) => Array.isArray(v) && v.length > 0;
+  return (
+    text(payload.translation_main)
+    || text(payload.meaning_zh)
+    || text(payload.phonetic)
+    || text(payload.definition)
+    || list(payload.definitions_en)
+    || list(payload.example_sentences)
+    || list(payload.synonyms)
+    || list(payload.antonyms)
+    || list(payload.collocations)
+    || list(payload.business_examples)
+  );
+}
+
 /** 从生词本 payload 提取可并入的种子（仅作补缺，不作展示主数据） */
 function buildVocabSeedPayload(cleanWord, vocabPayload) {
   const p = vocabPayload && typeof vocabPayload === 'object' ? vocabPayload : {};
@@ -5456,6 +5475,18 @@ function sanitizeDictPayloadForDisplay(payload) {
   const next = { ...payload };
   if (Array.isArray(next.example_sentences)) {
     next.example_sentences = sanitizeExampleSentences(next.example_sentences);
+  }
+  if (Array.isArray(next.examples)) {
+    next.examples = sanitizeExampleSentences(next.examples);
+  }
+  if (Array.isArray(next.business_examples)) {
+    next.business_examples = sanitizeExampleSentences(next.business_examples);
+  }
+  if (Array.isArray(next.senses)) {
+    next.senses = next.senses.map((sense) => ({
+      ...sense,
+      examples: sanitizeExampleSentences(sense?.examples || []),
+    }));
   }
   if (Array.isArray(next.collocations)) {
     next.collocations = next.collocations.filter(
@@ -5813,7 +5844,7 @@ app.post('/api/dify/dict-query', async (req, res) => {
     });
   }
 
-  // 生词本：单词路径可作字段种子；短语/中文仅标记 inVocabulary，不并入种子
+  // 生词本：有可展示内容则构建种子（单词/短语/中文均可秒开）；单词路径还可补缺 Cam 缓存
   let vocabSeedPayload = null;
   let inVocabulary = false;
   try {
@@ -5825,14 +5856,15 @@ app.post('/api/dify/dict-query', async (req, res) => {
     if (vocabRow?.payload) {
       try {
         const parsedVocab = JSON.parse(vocabRow.payload);
-        if (parsedVocab && (parsedVocab.meaning || parsedVocab.meaning_zh || parsedVocab.definition_en || parsedVocab.phonetic || parsedVocab.translation_main)) {
+        if (parsedVocab && (parsedVocab.meaning || parsedVocab.meaning_zh || parsedVocab.definition_en || parsedVocab.phonetic || parsedVocab.translation_main
+          || (Array.isArray(parsedVocab.examples) && parsedVocab.examples.length)
+          || (Array.isArray(parsedVocab.example_sentences) && parsedVocab.example_sentences.length)
+          || (Array.isArray(parsedVocab.synonyms) && parsedVocab.synonyms.length))) {
           inVocabulary = true;
-          if (useCambridgeWordPath) {
-            vocabSeedPayload = scrubMismatchedVocabEnrichment(
-              cleanWord,
-              buildVocabSeedPayload(cleanWord, parsedVocab)
-            );
-          }
+          vocabSeedPayload = scrubMismatchedVocabEnrichment(
+            cleanWord,
+            buildVocabSeedPayload(cleanWord, parsedVocab)
+          );
         }
       } catch (_) {}
     }
@@ -5892,6 +5924,34 @@ app.post('/api/dify/dict-query', async (req, res) => {
       }
     } catch (cacheErr) {
       console.warn('[Dict Query] 非单词路径读缓存警告:', cacheErr.message);
+    }
+
+    // C1：无可用缓存时，已收录 → 立刻展示生词本，后台异步拉 Dify 更新
+    if (inVocabulary && hasVocabBookDisplayPayload(vocabSeedPayload)) {
+      console.log(`[Dict Query] 生词本秒开（非单词路径）: "${cleanWord}"`);
+      runBackgroundDifyDictEnrichment({
+        cleanWord,
+        dictType,
+        direction: resolvedDirection,
+        userContext,
+        locale,
+        user_current_profile,
+        userId: cleanUserId,
+        cambridgePromise: null,
+      });
+      const payload = sanitizeDictPayloadForDisplay({
+        ...vocabSeedPayload,
+        direction_resolved: resolvedDirection,
+      });
+      return res.json({
+        ok: true,
+        type: dictType,
+        fromCache: false,
+        fromVocabBook: true,
+        backgroundEnriching: true,
+        payload,
+        inVocabulary: true,
+      });
     }
 
     console.log(`[Dict Query] 英汉双向非单词，同步等待 Dify: "${cleanWord}" (${resolvedDirection})`);
@@ -5998,6 +6058,35 @@ app.post('/api/dify/dict-query', async (req, res) => {
     }
   } catch (cacheErr) {
     console.warn('[Dict Query] 读取本地历史缓存警告:', cacheErr.message);
+  }
+
+  // C1：缓存未命中/过瘦时，已收录则立刻用生词本秒开，再后台拉 Cam + Dify（勿阻塞在 8s）
+  if (inVocabulary && hasVocabBookDisplayPayload(vocabSeedPayload)) {
+    const resolvedDirection = resolveDictDirection(dictType, direction, cleanWord);
+    console.log(`[Dict Query] 生词本秒开（单词路径）: "${cleanWord}" (${dictType})`);
+    runBackgroundDifyDictEnrichment({
+      cleanWord,
+      dictType,
+      direction: resolvedDirection,
+      userContext,
+      locale,
+      user_current_profile,
+      userId: cleanUserId,
+      cambridgePromise,
+    });
+    const payload = sanitizeDictPayloadForDisplay({
+      ...vocabSeedPayload,
+      direction_resolved: resolvedDirection,
+    });
+    return res.json({
+      ok: true,
+      type: dictType,
+      fromCache: false,
+      fromVocabBook: true,
+      backgroundEnriching: true,
+      payload,
+      inVocabulary: true,
+    });
   }
 
   // 2. 单词首查 / 其它词典：Cambridge 秒开 + 生词本种子补缺（短语/中文不会进入此分支）
@@ -6188,7 +6277,7 @@ app.get('/api/vocab/memory/:id', (req, res) => {
   try {
     const userId = requireVocabUserId(req, res);
     if (!userId) return;
-        const row = db.prepare('SELECT memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
+        const row = db.prepare('SELECT memory_aids FROM vocabulary WHERE id = ? AND user_id = ?').get(req.params.id, userId);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
     }
@@ -6407,7 +6496,11 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
       generated_at: Date.now()
     };
 
-    db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?').run(JSON.stringify(mergedMemoryAids), row.id);
+    db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ? AND user_id = ?').run(
+      JSON.stringify(mergedMemoryAids),
+      row.id,
+      userId,
+    );
 
     res.json(mergedMemoryAids);
   } catch (error) {
@@ -6487,7 +6580,7 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
     const userId = requireVocabUserId(req, res);
     if (!userId) return;
         const { user_current_profile } = req.body;
-    const row = db.prepare('SELECT id, word, memory_aids FROM vocabulary WHERE id = ?').get(req.params.id);
+    const row = db.prepare('SELECT id, word, memory_aids FROM vocabulary WHERE id = ? AND user_id = ?').get(req.params.id, userId);
     if (!row) {
       return res.status(404).json({ error: 'Word not found' });
     }
@@ -6570,8 +6663,8 @@ app.post('/api/vocab/generate-image/:id', async (req, res) => {
         memoryAids.download_url = downloadUrl;
         memoryAids.image_generated_at = Date.now();
 
-        db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ?')
-          .run(JSON.stringify(memoryAids), row.id);
+        db.prepare('UPDATE vocabulary SET memory_aids = ? WHERE id = ? AND user_id = ?')
+          .run(JSON.stringify(memoryAids), row.id, userId);
 
         taskQueue.updateTask(task.id, {
           status: 'completed',

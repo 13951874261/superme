@@ -4,6 +4,7 @@ const {
   parseCambridgeMarkdown,
   mergeCambridgeWithDify,
   isMetadataResidueLine,
+  isAdmissibleExampleEnglish,
   sanitizeExampleSentences,
   isInstantTemplateCollocation,
 } = require('../services/cambridgeDictionary');
@@ -127,8 +128,10 @@ assert.strictEqual(cambridge.senses[0].register, 'informal');
 assert.deepStrictEqual(cambridge.senses[0].grammar, ['C']);
 assert.strictEqual(cambridge.senses[0].translation_zh, '（某地的）气氛，氛围');
 assert.strictEqual(cambridge.senses[1].headword, 'vibes');
-assert.ok(cambridge.example_sentences.some((item) => item.zh === '这种音乐能让人放松。'));
-assert.ok(cambridge.example_sentences.some((item) => item.en === 'Good vibes'));
+assert.ok(cambridge.example_sentences.some((item) => item.en === 'The city is famous for its laid-back vibe.'));
+assert.ok(cambridge.example_sentences.some((item) => item.en === 'He would often play the vibes in their recording sessions.'));
+assert.ok(!cambridge.example_sentences.some((item) => item.en === 'Good vibes'), 'short phrase must not enter examples');
+assert.ok(!cambridge.example_sentences.some((item) => item.en === 'The music has a soothing vibe.'), '<=25 letters must not enter examples');
 assert.ok(!cambridge.example_sentences.some((item) => item.en.includes('Wikipedia')));
 assert.ok(!cambridge.example_sentences.some((item) => item.en.includes('Translation of')));
 assert.strictEqual(cambridge.source, 'Cambridge English-Chinese (Simplified) Dictionary');
@@ -471,12 +474,50 @@ assert.strictEqual(isInstantTemplateCollocation('apply demonstrate', 'demonstrat
 assert.strictEqual(isInstantTemplateCollocation('demonstrate strategy', 'demonstrate'), true);
 assert.strictEqual(isInstantTemplateCollocation('clearly demonstrate', 'demonstrate'), false);
 
+assert.strictEqual(isAdmissibleExampleEnglish('About this'), false);
+assert.strictEqual(isAdmissibleExampleEnglish('More new words'), false);
+assert.strictEqual(isAdmissibleExampleEnglish('abcdefghijklmnopqrstuvwxy'), false);
+assert.strictEqual(isAdmissibleExampleEnglish('abcdefghijklmnopqrstuvwxyz'), true);
+assert.strictEqual(isAdmissibleExampleEnglish('/vwaːˈlɑː/'), false);
+assert.strictEqual(
+  isAdmissibleExampleEnglish('The host said /vwaːˈlɑː/ after the demonstration was complete enough to share.'),
+  false,
+);
+assert.strictEqual(
+  isAdmissibleExampleEnglish('The host said voila after the demonstration was complete enough to share.'),
+  true,
+);
+
 const dirtySanitized = sanitizeExampleSentences([
   { en: 'B2,C1,C2,B2', zh: '' },
-  { en: 'She demonstrated the product.', zh: '她演示了产品。' },
+  { en: 'She demonstrated the product to the entire leadership team.', zh: '她向整个领导团队演示了产品。' },
 ]);
 assert.strictEqual(dirtySanitized.length, 1);
-assert.strictEqual(dirtySanitized[0].en, 'She demonstrated the product.');
+assert.strictEqual(dirtySanitized[0].en, 'She demonstrated the product to the entire leadership team.');
+
+const letterBoundary = sanitizeExampleSentences([
+  { en: 'About this', zh: '' },
+  { en: 'Read More', zh: '' },
+  { en: 'More new words', zh: '' },
+  { en: 'abcdefghijklmnopqrstuvwxy', zh: '' },
+  { en: 'abcdefghijklmnopqrstuvwxyz', zh: '' },
+  { en: 'Used to draw attention to something that has been done or presented', zh: '' },
+]);
+assert.deepStrictEqual(letterBoundary.map((item) => item.en), [
+  'abcdefghijklmnopqrstuvwxyz',
+  'Used to draw attention to something that has been done or presented',
+]);
+
+const inlinePhoneticDropped = sanitizeExampleSentences([
+  { en: '/vwaːˈlɑː/', zh: '' },
+  { en: 'The host said /vwaːˈlɑː/ after the demonstration was complete enough to share.', zh: '' },
+  { en: 'The host said voila after the demonstration was complete enough to share.', zh: '' },
+]);
+assert.strictEqual(inlinePhoneticDropped.length, 1);
+assert.strictEqual(
+  inlinePhoneticDropped[0].en,
+  'The host said voila after the demonstration was complete enough to share.',
+);
 
 const mergedClean = mergeCambridgeWithDify(corpusLevelList, {
   headword: 'demonstrate',

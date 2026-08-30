@@ -99,10 +99,27 @@ function isMetadataResidueLine(value) {
   return false;
 }
 
+function englishLetterCount(value) {
+  return (String(value || '').match(/[A-Za-z]/g) || []).length;
+}
+
+/** Sentence contains an IPA-like /.../ span (not a full-line phonetic). */
+function containsInlinePhonetic(value) {
+  return /\/[^/\s\n]{2,80}\//.test(String(value || ''));
+}
+
+function isAdmissibleExampleEnglish(value) {
+  const en = String(value || '').trim();
+  if (!en) return false;
+  if (isMetadataResidueLine(en)) return false;
+  if (isPhoneticLine(en) || containsInlinePhonetic(en)) return false;
+  return englishLetterCount(en) > 25;
+}
+
 function sanitizeExampleSentences(examples) {
   return (Array.isArray(examples) ? examples : []).filter((item) => {
     const en = typeof item === 'string' ? item : (item?.en || '');
-    return en && !isMetadataResidueLine(en) && !isPhoneticLine(en);
+    return isAdmissibleExampleEnglish(en);
   });
 }
 
@@ -141,7 +158,7 @@ function extractCambridgeExamplesSection(markdown, word) {
           && !/^from the cambridge english corpus$/i.test(en)
           && !/^these examples are from corpora and from sources on the web/i.test(en)
           && !/\bwikipedia\b/i.test(en)
-          && !isMetadataResidueLine(en);
+          && isAdmissibleExampleEnglish(en);
       }),
     ({ en }) => normalizeComparable(en)
   );
@@ -361,7 +378,7 @@ function parseSense(block, fallbackWord, edition = 'english-chinese-simplified')
       const bullet = line.replace(/^-+\s*/, '').trim();
       if (!bullet || isJunkEnglishExampleLine(bullet)) continue;
       const item = splitEnglishChinese(bullet);
-      if (item.en) examples.push({ en: item.en, zh: '' });
+      if (item.en && isAdmissibleExampleEnglish(item.en)) examples.push({ en: item.en, zh: '' });
       continue;
     }
     // Skip corpus attribution lines
@@ -371,7 +388,9 @@ function parseSense(block, fallbackWord, edition = 'english-chinese-simplified')
     if (!/[A-Za-z]/.test(line)) continue;
     if (isEnglishEdition && isJunkEnglishExampleLine(line)) continue;
     const item = splitEnglishChinese(line);
-    if (item.en) examples.push(isEnglishEdition ? { en: item.en, zh: '' } : item);
+    if (item.en && isAdmissibleExampleEnglish(item.en)) {
+      examples.push(isEnglishEdition ? { en: item.en, zh: '' } : item);
+    }
   }
 
   // Extract inflected headwords
@@ -484,10 +503,12 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl, edition } = {}) {
   }
 
   const idiomKeys = new Set(idioms.map((item) => normalizeComparable(item)));
-  if (idiomKeys.size) {
-    for (const sense of senses) {
-      sense.examples = (sense.examples || []).filter((item) => !idiomKeys.has(normalizeComparable(item.en)));
+  for (const sense of senses) {
+    let examples = sense.examples || [];
+    if (idiomKeys.size) {
+      examples = examples.filter((item) => !idiomKeys.has(normalizeComparable(item.en)));
     }
+    sense.examples = sanitizeExampleSentences(examples);
   }
 
   // Extract collocations from ## Collocations section (kept on cambridge object;
@@ -661,6 +682,7 @@ async function fetchCambridgeEntry(word, options = {}) {
 module.exports = {
   isSingleEnglishWord,
   isMetadataResidueLine,
+  isAdmissibleExampleEnglish,
   sanitizeExampleSentences,
   isInstantTemplateCollocation,
   parseCambridgeMarkdown,

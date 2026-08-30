@@ -22,11 +22,14 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
       if (data && (data.root_memory || data.association_memory || data.mnemonic_phrase)) {
         setMemoryAids(data);
       } else {
+        // 无缓存：空态 +「生成 AI 记忆脑图」，不报加载失败
         setMemoryAids(null);
       }
     } catch (e: any) {
+      // 加载失败（含鉴权/网络）也不弹粉框，引导用户重新生成并写入生词本
       console.error(e);
-      setError('加载记忆辅助失败，请重试');
+      setMemoryAids(null);
+      setError(null);
     } finally {
       setIsLoading(false);
     }
@@ -236,7 +239,7 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
           <Sparkles className="w-8 h-8 text-amber-500 animate-pulse mb-2.5" />
           <div className="text-xs font-bold text-slate-700">暂无 AI 记忆辅助内容</div>
           <div className="text-[10px] text-slate-400 mt-1 max-w-[240px]">
-            点击下方按钮，我们将为您深度提取此单词的词根词缀、趣味联想与助记画面。
+            点击下方按钮生成词根词缀、联想与助记；生成结果会缓存到生词本，下次打开直接读取。
           </div>
           <button
             onClick={handleEnrich}

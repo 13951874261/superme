@@ -5,7 +5,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 
 gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
-import { lookupVocabWords, queryDictionaryWithEnrichmentPoll, getVocabItem, updateWordPayload, buildVocabPayloadFromDict, vocabSyncFingerprint, hasDifyEnrichmentFields } from '../services/vocabAPI';
+import { lookupVocabWords, queryDictionaryWithEnrichmentPoll, getVocabItem, updateWordPayload, buildVocabPayloadFromDict, buildDictDisplayPayloadFromVocab, vocabSyncFingerprint, hasDifyEnrichmentFields } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
@@ -857,20 +857,27 @@ export default function DictionaryPanel() {
     return head.toLowerCase() === text.toLowerCase();
   };
 
-  const runDictSearch = async (type: DictType, wordOverride?: string) => {
+  const runDictSearch = async (
+    type: DictType,
+    wordOverride?: string,
+    opts?: { seedFromVocab?: boolean },
+  ) => {
     const text = String(wordOverride ?? query).trim();
     if (!text) return;
     setQuery(text);
     setSearchedWord(text);
     setOpenDict(type);
     setIsLoading(true);
-    setResult(null);
-    setActiveTab('');
+    // C1：生词本已秒开时保留当前结果，等轮询 onUpdate 渐进覆盖
+    if (!opts?.seedFromVocab) {
+      setResult(null);
+      setActiveTab('');
+      setEditableExamples([]);
+      setExamplesSeedFp('');
+      setShowUpdatePrompt(false);
+      examplesDirtyRef.current = false;
+    }
     setSaveError(false);
-    setEditableExamples([]);
-    setExamplesSeedFp('');
-    setShowUpdatePrompt(false);
-    examplesDirtyRef.current = false;
     searchAbortRef.current?.abort();
     const ac = new AbortController();
     searchAbortRef.current = ac;
@@ -915,10 +922,30 @@ export default function DictionaryPanel() {
       const word = String(entry.word || '').trim();
       if (!word) return;
       const dictType = (entry.dict_type as DictType) || 'en_zh_bidirectional';
-      // 生词本点开：不直接展示瘦 payload，强制走完整词典查询（Cambridge 秒开 + Dify 轮询）
+      // C1：生词本点开 → 立刻展示生词本；后台仍走 Cam + Dify 轮询更新并可写回
       setMarkedSaved(true);
       setSaveError(false);
-      void runDictSearch(dictType, word);
+      setQuery(word);
+      setSearchedWord(word);
+      setOpenDict(dictType);
+      if (entry.id) vocabIdRef.current = entry.id;
+      if (entry.payload && typeof entry.payload === 'object') {
+        const display = buildDictDisplayPayloadFromVocab(word, entry.payload);
+        setResult({
+          ok: true,
+          type: dictType,
+          fromVocabBook: true,
+          backgroundEnriching: true,
+          inVocabulary: true,
+          payload: display as any,
+        });
+        setIsLoading(false);
+        const firstKey = Object.keys(display)[0];
+        if (firstKey) setActiveTab(firstKey);
+        void runDictSearch(dictType, word, { seedFromVocab: true });
+      } else {
+        void runDictSearch(dictType, word);
+      }
     };
     window.addEventListener('vocab-view', handleView);
     return () => window.removeEventListener('vocab-view', handleView);

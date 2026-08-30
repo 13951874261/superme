@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { getReviewPage, getVocabPage, getAllWords, getVocabByWord, lookupVocabWords } from './vocabAPI';
+import { getReviewPage, getVocabPage, getAllWords, getVocabByWord, lookupVocabWords, getMemoryAids, enrichMemory } from './vocabAPI';
 
 const host = globalThis as typeof globalThis & { window: Window & typeof globalThis };
 host.window = globalThis as unknown as Window & typeof globalThis;
+
+const lsStore: Record<string, string> = { super_agent_user_id: 'test-user' };
+Object.defineProperty(globalThis, 'localStorage', {
+  value: {
+    getItem: (k: string) => lsStore[k] ?? null,
+    setItem: (k: string, v: string) => { lsStore[k] = v; },
+    removeItem: (k: string) => { delete lsStore[k]; },
+  },
+  configurable: true,
+});
 
 test('分页请求携带分区与 offset，避免不同分区重复首批数据', async () => {
   const urls: string[] = [];
@@ -20,8 +30,8 @@ test('分页请求携带分区与 offset，避免不同分区重复首批数据'
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(urls[0], '/api/vocab/list?light=1&category=general&limit=100&offset=50');
-  assert.equal(urls[1], '/api/vocab/review?light=1&category=business&limit=50&offset=100');
+  assert.equal(urls[0], '/api/vocab/list?light=1&category=general&limit=100&offset=50&userId=test-user');
+  assert.equal(urls[1], '/api/vocab/review?light=1&category=business&limit=50&offset=100&userId=test-user');
 });
 
 test('getAllWords 强制带 limit 分页且禁止全量裸请求', async () => {
@@ -41,8 +51,8 @@ test('getAllWords 强制带 limit 分页且禁止全量裸请求', async () => {
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(urls[0], '/api/vocab/list?light=1&limit=50');
-  assert.equal(urls[1], '/api/vocab/list?light=1&limit=20');
+  assert.equal(urls[0], '/api/vocab/list?light=1&limit=50&userId=test-user');
+  assert.equal(urls[1], '/api/vocab/list?light=1&limit=20&userId=test-user');
 });
 
 test('getVocabByWord 按词点查构造单条轻量请求', async () => {
@@ -60,7 +70,7 @@ test('getVocabByWord 按词点查构造单条轻量请求', async () => {
     globalThis.fetch = originalFetch;
   }
 
-  assert.equal(urls[0], '/api/vocab/list?light=1&limit=1&word=strategy');
+  assert.equal(urls[0], '/api/vocab/list?light=1&limit=1&word=strategy&userId=test-user');
 });
 
 test('lookupVocabWords 发起 POST /lookup 批量检索', async () => {
@@ -84,7 +94,7 @@ test('lookupVocabWords 发起 POST /lookup 批量检索', async () => {
 
   assert.equal(calls[0].url, '/api/vocab/lookup');
   assert.equal(calls[0].method, 'POST');
-  assert.deepEqual(calls[0].body, { words: ['apple', 'banana'] });
+  assert.deepEqual(calls[0].body, { words: ['apple', 'banana'], userId: 'test-user' });
 });
 
 test('buildVocabPayloadFromDict 写入 {en,zh} 例句且不带 senses', async () => {
@@ -128,4 +138,60 @@ test('buildVocabPayloadFromDict 写入 {en,zh} 例句且不带 senses', async ()
   const fp1 = vocabSyncFingerprint(payload);
   const fp2 = vocabSyncFingerprint({ ...payload, examples: [{ en: 'changed', zh: '' }] });
   assert.notEqual(fp1, fp2);
+});
+
+test('buildDictDisplayPayloadFromVocab 将生词本字段映射为词典展示结构', async () => {
+  const { buildDictDisplayPayloadFromVocab } = await import('./vocabAPI');
+  const display = buildDictDisplayPayloadFromVocab('voila', {
+    meaning: '瞧；好了',
+    phonetic: '/vwaːˈlɑː/',
+    partOfSpeech: 'interjection',
+    examples: [{ en: 'The host said voila after the demonstration was complete enough to share.', zh: '演示完后主持人说瞧。' }],
+    synonyms: ['behold'],
+    antonyms: [],
+    collocations: ['voila moment'],
+  });
+  assert.equal(display.headword, 'voila');
+  assert.equal(display.translation_main, '瞧；好了');
+  assert.equal(display.phonetic, '/vwaːˈlɑː/');
+  assert.equal(display.pos, 'interjection');
+  assert.equal(display.example_sentences.length, 1);
+  assert.deepEqual(display.synonyms, ['behold']);
+});
+
+test('getMemoryAids 与 enrichMemory 必须携带 userId（query/body + x-user-id）', async () => {
+  const store: Record<string, string> = { super_agent_user_id: 'test-user-memory' };
+  const prev = (globalThis as any).localStorage;
+  Object.defineProperty(globalThis, 'localStorage', {
+    value: {
+      getItem: (k: string) => store[k] ?? null,
+      setItem: (k: string, v: string) => { store[k] = v; },
+      removeItem: (k: string) => { delete store[k]; },
+    },
+    configurable: true,
+  });
+
+  const calls: { url: string; headerUserId: string; body?: any }[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input, init) => {
+    const h = new Headers(init?.headers);
+    calls.push({
+      url: String(input),
+      headerUserId: h.get('x-user-id') || '',
+      body: init?.body ? JSON.parse(String(init.body)) : undefined,
+    });
+    return new Response(JSON.stringify({ root_memory: 'ok' }), { status: 200 });
+  };
+
+  try {
+    await getMemoryAids('word-1');
+    await enrichMemory('word-1');
+    assert.equal(calls[0].headerUserId, 'test-user-memory');
+    assert.match(calls[0].url, /[?&]userId=test-user-memory/);
+    assert.equal(calls[1].headerUserId, 'test-user-memory');
+    assert.equal(calls[1].body?.userId, 'test-user-memory');
+  } finally {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(globalThis, 'localStorage', { value: prev, configurable: true });
+  }
 });

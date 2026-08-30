@@ -174,8 +174,41 @@ export interface DictResult {
   message?: string;
   fromCache?: boolean;
   backgroundEnriching?: boolean;
+  /** 首响来自生词本秒开（后台仍拉 Cam/Dify 更新） */
+  fromVocabBook?: boolean;
   /** 该词是否已在当前用户生词本中（后端 dict-query 返回） */
   inVocabulary?: boolean;
+}
+
+/**
+ * 将生词本存储 payload 转为词典面板可展示结构（C1 秒开用）。
+ */
+export function buildDictDisplayPayloadFromVocab(
+  word: string,
+  vocabPayload: Record<string, any> | null | undefined,
+): Record<string, any> {
+  const p = vocabPayload && typeof vocabPayload === 'object' ? vocabPayload : {};
+  const meaningZh = String(p.meaning || p.meaning_zh || p.translation_main || '').trim();
+  const definitionEn = String(p.definition_en || '').trim();
+  const examples = normalizeExampleList(p.examples?.length ? p.examples : p.example_sentences);
+  const list = (v: unknown) => (Array.isArray(v) ? v.filter(Boolean) : []);
+  return {
+    headword: String(word || p.word || '').trim(),
+    phonetic: p.phonetic || '',
+    pos: p.partOfSpeech || p.pos || '',
+    level: p.level || '',
+    meaning_zh: meaningZh,
+    translation_main: meaningZh,
+    definitions_en: definitionEn ? [definitionEn] : [],
+    definition: meaningZh || definitionEn,
+    business_notes: p.business_note || p.business_notes || '',
+    example_sentences: examples,
+    synonyms: list(p.synonyms),
+    antonyms: list(p.antonyms),
+    collocations: list(p.collocations),
+    business_examples: list(p.business_examples),
+    etymology: typeof p.etymology === 'string' ? p.etymology : '',
+  };
 }
 
 /** Dify enrichment fields (synonyms / antonyms / collocations / etymology / business_examples) */
@@ -375,7 +408,7 @@ export function vocabSyncFingerprint(payload: Record<string, any> | null | undef
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number; silent?: boolean }): Promise<T> {
   const timeoutMs = options?.timeoutMs ?? 15000;
   const silent = options?.silent === true;
-  const { timeoutMs: _t, silent: _s, ...fetchOpts } = options || {};
+  const { timeoutMs: _t, silent: _s, headers: optHeaders, ...fetchOpts } = options || {};
   const controller = new AbortController();
   let timer: number | null = null;
 
@@ -386,8 +419,12 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   try {
     const res = await fetch(`${API_BASE}${path}`, {
-      headers: { 'Content-Type': 'application/json' },
       ...fetchOpts,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': getAppUserId(),
+        ...(optHeaders as Record<string, string> | undefined),
+      },
       ...(timer ? { signal: controller.signal } : {}),
     });
     const durationMs = Math.round((typeof performance !== 'undefined' ? performance.now() : Date.now()) - t0);
@@ -679,8 +716,9 @@ export async function queryDictionary(params: DictQueryParams): Promise<DictResu
 }
 
 /**
- * 首响可能是 Cambridge 秒开（backgroundEnriching=true），Dify 同义/搭配等在后台写入。
- * 轮询直到 enrichment 字段出现或超时；每次成功结果都会 callback，便于 UI 渐进刷新。
+ * 首响可能是生词本秒开 / Cambridge 秒开（backgroundEnriching=true）。
+ * - fromVocabBook：继续轮询直到 Cam/Dify 缓存回写（即使生词本已有近反义）
+ * - 其它：轮询直到 Dify enrichment 字段出现或超时
  */
 export async function queryDictionaryWithEnrichmentPoll(
   params: DictQueryParams,
@@ -697,8 +735,14 @@ export async function queryDictionaryWithEnrichmentPoll(
   let latest = await queryDictionary(params);
   options?.onUpdate?.(latest);
 
-  // 仅当首响明确标记后台增强中，才轮询等待 Dify 字段
-  if (!latest?.ok || !latest.backgroundEnriching || hasDifyEnrichmentFields(latest.payload)) {
+  const shouldKeepPolling = (r: DictResult) => {
+    if (!r?.ok || !r.backgroundEnriching) return false;
+    // 生词本秒开：即使已有 Dify 字段，也继续等 Cam/Dify 更新结果
+    if (r.fromVocabBook) return true;
+    return !hasDifyEnrichmentFields(r.payload);
+  };
+
+  if (!shouldKeepPolling(latest)) {
     return latest;
   }
 
@@ -711,8 +755,7 @@ export async function queryDictionaryWithEnrichmentPoll(
       if (!next?.ok) continue;
       latest = next;
       options?.onUpdate?.(next);
-      // 只要 enrichment 字段出现就结束；缓存命中但字段仍空则继续等 Dify 写入
-      if (hasDifyEnrichmentFields(next.payload)) {
+      if (!shouldKeepPolling(next)) {
         return next;
       }
     } catch {
@@ -761,14 +804,22 @@ export interface DictCoverageData {
 
 /** 获取缓存的记忆辅助 */
 export async function getMemoryAids(id: string): Promise<MemoryAids> {
-  return request<MemoryAids>(`/memory/${id}`, { timeoutMs: 0, silent: true });
+  const uid = getAppUserId();
+  return request<MemoryAids>(`/memory/${encodeURIComponent(id)}?userId=${encodeURIComponent(uid)}`, {
+    timeoutMs: 0,
+    silent: true,
+  });
 }
 
-/** 生成/更新记忆辅助（无时长限制） */
+/** 生成/更新记忆辅助（无时长限制）；成功后后端写入生词本 memory_aids */
 export async function enrichMemory(id: string): Promise<MemoryAids> {
-  return request<MemoryAids>(`/enrich-memory/${id}`, {
+  const uid = getAppUserId();
+  return request<MemoryAids>(`/enrich-memory/${encodeURIComponent(id)}`, {
     method: 'POST',
-    body: JSON.stringify({ user_current_profile: getInjectedUserCurrentProfile() }),
+    body: JSON.stringify({
+      userId: uid,
+      user_current_profile: getInjectedUserCurrentProfile(),
+    }),
     timeoutMs: 0,
   });
 }
@@ -780,11 +831,18 @@ export async function getEbbinghausData(id: string): Promise<EbbinghausData> {
 
 /** 生成记忆配图（无时长限制） */
 export async function generateMemoryImage(id: string): Promise<{ success: boolean; id: string; image_url: string; download_url: string }> {
-  const initialRes = await request<{ success: boolean; taskId?: string; id?: string; image_url?: string; download_url?: string }>(`/generate-image/${id}`, {
-    method: 'POST',
-    body: JSON.stringify({ user_current_profile: getInjectedUserCurrentProfile() }),
-    timeoutMs: 0,
-  });
+  const uid = getAppUserId();
+  const initialRes = await request<{ success: boolean; taskId?: string; id?: string; image_url?: string; download_url?: string }>(
+    `/generate-image/${encodeURIComponent(id)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: uid,
+        user_current_profile: getInjectedUserCurrentProfile(),
+      }),
+      timeoutMs: 0,
+    },
+  );
 
   if (initialRes.taskId) {
     let attempts = 0;

@@ -22,6 +22,11 @@ assert.match(server, /\/api\/vocab\/review[\s\S]{0,400}?requireVocabUserId/);
 assert.match(server, /\/api\/vocab\/item\/:id[\s\S]{0,400}?requireVocabUserId/);
 assert.match(server, /\/api\/vocab\/update\/:id[\s\S]{0,400}?requireVocabUserId/);
 assert.match(server, /app\.delete\('\/api\/vocab\/:id'[\s\S]{0,400}?requireVocabUserId/);
+assert.match(server, /\/api\/vocab\/memory\/:id[\s\S]{0,400}?requireVocabUserId/);
+assert.match(
+  server,
+  /SELECT memory_aids FROM vocabulary WHERE id = \? AND user_id = \?/,
+);
 
 // O3: dreaming/compress 读路径不用 SELECT *
 assert.doesNotMatch(
