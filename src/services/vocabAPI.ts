@@ -577,7 +577,22 @@ export async function getReviewWords(
 
 /** 按 id 取完整词条（补全 payload） */
 export async function getVocabItem(id: string): Promise<VocabEntry> {
-  return request<VocabEntry>(`/item/${encodeURIComponent(id)}`, { timeoutMs: 8000, silent: true });
+  const uid = getAppUserId();
+  return request<VocabEntry>(
+    `/item/${encodeURIComponent(id)}?userId=${encodeURIComponent(uid)}`,
+    { timeoutMs: 8000, silent: true },
+  );
+}
+
+/** 复习 light 列表条目是否需要 getVocabItem 补全 payload（F1） */
+export function needsReviewPayloadHydrate(
+  entry: (Pick<VocabEntry, 'id' | 'payload'> & { _light?: boolean }) | null | undefined,
+): boolean {
+  if (!entry?.id) return false;
+  if (entry._light) return true;
+  const p = entry.payload;
+  if (!p || typeof p !== 'object') return true;
+  return Object.keys(p).length === 0;
 }
 
 /** 收录词条（自动绑定当前登录账号） */

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase } from 'lucide-react';
 import SpeakButton from './SpeakButton';
-import { getReviewPage, submitReview, VocabEntry, updateWordPayload } from '../services/vocabAPI';
+import { getReviewPage, submitReview, VocabEntry, updateWordPayload, getVocabItem, needsReviewPayloadHydrate } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
@@ -63,11 +63,41 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   }, [loadWords]);
 
   useEffect(() => {
-    setLocalPayload(current?.payload || null);
     setSentenceInput('');
     setEvalResult(null);
     setIsFlipped(false);
     setEnrichError('');
+
+    if (!current?.id) {
+      setLocalPayload(null);
+      return;
+    }
+
+    // 已有完整 payload：直接用；light/空 payload：先展示空，再异步补全本库
+    const existing = current.payload && typeof current.payload === 'object' ? current.payload : null;
+    setLocalPayload(existing && Object.keys(existing).length > 0 ? existing : null);
+
+    if (!needsReviewPayloadHydrate(current)) return;
+
+    let cancelled = false;
+    const wordId = current.id;
+    void (async () => {
+      try {
+        const full = await getVocabItem(wordId);
+        if (cancelled) return;
+        const payload = full?.payload && typeof full.payload === 'object' ? full.payload : {};
+        setLocalPayload(payload);
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? { ...w, ...full, payload, _light: false } : w)),
+        );
+      } catch (err) {
+        console.warn('[FlashCard] 补全生词本 payload 失败:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [current?.id]);
 
   const handleQuality = async (quality: number) => {
@@ -120,7 +150,22 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       return;
     }
 
-    if (!shouldAutoEnrichVocab(current.word, localPayload || current.payload)) {
+    // F1：翻卡前确保已拉本库完整 payload，避免 light 空壳误触发弱补全覆盖真释义
+    let payload = localPayload || current.payload || {};
+    if (needsReviewPayloadHydrate({ id: current.id, payload, _light: current._light })) {
+      try {
+        const full = await getVocabItem(current.id);
+        payload = full?.payload && typeof full.payload === 'object' ? full.payload : {};
+        setLocalPayload(payload);
+        setWords((prev) =>
+          prev.map((w) => (w.id === current.id ? { ...w, ...full, payload, _light: false } : w)),
+        );
+      } catch (err) {
+        console.warn('[FlashCard] 翻卡前补全 payload 失败:', err);
+      }
+    }
+
+    if (!shouldAutoEnrichVocab(current.word, payload)) {
       setIsFlipped(true);
       return;
     }

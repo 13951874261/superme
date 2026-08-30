@@ -159,6 +159,21 @@ test('buildDictDisplayPayloadFromVocab 将生词本字段映射为词典展示�
   assert.deepEqual(display.synonyms, ['behold']);
 });
 
+test('needsReviewPayloadHydrate：light 或空 payload 需补全；已有完整 payload 则否', async () => {
+  const { needsReviewPayloadHydrate } = await import('./vocabAPI');
+  assert.equal(needsReviewPayloadHydrate(null), false);
+  assert.equal(needsReviewPayloadHydrate({ id: '1', word: 'a', _light: true, payload: {} } as any), true);
+  assert.equal(needsReviewPayloadHydrate({ id: '1', word: 'a', payload: {} } as any), true);
+  assert.equal(
+    needsReviewPayloadHydrate({
+      id: '1',
+      word: 'voila',
+      payload: { meaning: '瞧', phonetic: '/x/' },
+    } as any),
+    false,
+  );
+});
+
 test('getMemoryAids 与 enrichMemory 必须携带 userId（query/body + x-user-id）', async () => {
   const store: Record<string, string> = { super_agent_user_id: 'test-user-memory' };
   const prev = (globalThis as any).localStorage;
