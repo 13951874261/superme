@@ -5,14 +5,26 @@ import { Sparkles, Image, RefreshCw, Download, ExternalLink, HelpCircle, FileTex
 interface MemoryAidPanelProps {
   wordId: string;
   wordText: string;
+  /** tabs=默认横向；reviewStack=生词复习四卡同时展开 */
+  variant?: 'tabs' | 'reviewStack';
+  /** reviewStack：把第 i 张卡 DOM 交给父级做 GSAP 顶边贴合 */
+  assignCardRef?: (index: number) => (el: HTMLDivElement | null) => void;
+  stackClassName?: string;
 }
 
-export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps) {
+export default function MemoryAidPanel({
+  wordId,
+  wordText,
+  variant = 'tabs',
+  assignCardRef,
+  stackClassName,
+}: MemoryAidPanelProps) {
   const [memoryAids, setMemoryAids] = useState<MemoryAids | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [activeTab, setActiveTab] = useState<'root' | 'assoc' | 'phrase' | 'image'>('root');
   const [error, setError] = useState<string | null>(null);
+  const [imageLightbox, setImageLightbox] = useState(false);
 
   const fetchMemoryAids = async () => {
     setIsLoading(true);
@@ -171,18 +183,22 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
 
     return (
       <div className="space-y-3">
-        <div className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner group">
+        <button
+          type="button"
+          onClick={() => setImageLightbox(true)}
+          className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner group block text-left"
+        >
           <img
             src={memoryAids.image_url}
             alt={`记忆助手插图: ${wordText}`}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end justify-between p-3 pointer-events-none">
             <span className="text-[10px] text-white/90 font-mono truncate max-w-[70%] bg-black/30 backdrop-blur-sm px-2 py-1 rounded">
               {memoryAids.image_prompt}
             </span>
           </div>
-        </div>
+        </button>
 
         <div className="flex items-center justify-end gap-2 pt-1">
           <button
@@ -213,11 +229,124 @@ export default function MemoryAidPanel({ wordId, wordText }: MemoryAidPanelProps
             下载
           </a>
         </div>
+
+        {imageLightbox && memoryAids.image_url && (
+          <div
+            className="fixed inset-0 z-[10000] bg-black/70 flex items-center justify-center p-4"
+            onClick={() => setImageLightbox(false)}
+            role="dialog"
+            aria-modal="true"
+          >
+            <img
+              src={memoryAids.image_url}
+              alt={`记忆助手大图: ${wordText}`}
+              className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </div>
     );
   };
 
-  // 主框架渲染
+  const renderReviewStackCard = (
+    index: number,
+    title: string,
+    icon: React.ReactNode,
+    body: React.ReactNode,
+  ) => (
+    <div
+      key={title}
+      ref={assignCardRef?.(index)}
+      data-memory-card={index}
+      className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-left"
+    >
+      <div className="text-[10px] font-bold text-orange-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
+        {icon}
+        {title}
+      </div>
+      <div className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap">{body}</div>
+    </div>
+  );
+
+  if (variant === 'reviewStack') {
+    return (
+      <div className={`text-left select-text ${stackClassName || 'flex flex-col gap-2'}`}>
+        {isLoading && (
+          <div className="flex flex-col items-center justify-center z-10 min-h-[80px] py-4">
+            <Loader2 className="w-7 h-7 text-[#FF5722] animate-spin mb-2" />
+            <span className="text-[11px] font-bold text-slate-500">AI 正在梳理记忆法...</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-1 flex items-start gap-2 bg-red-50 border border-red-100 text-red-600 text-[11px] p-2 rounded-xl">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+            <div>{error}</div>
+          </div>
+        )}
+
+        {!memoryAids ? (
+          <>
+            {renderReviewStackCard(0, '词根词缀', <Compass className="w-3.5 h-3.5" />, '生成后显示词根剖析')}
+            {renderReviewStackCard(1, '联想记忆', <Sparkles className="w-3.5 h-3.5" />, '生成后显示联想网络')}
+            {renderReviewStackCard(2, '助记短语', <FileText className="w-3.5 h-3.5" />, '生成后显示助记短语')}
+            {renderReviewStackCard(3, '图片记忆', <Image className="w-3.5 h-3.5" />, '生成后显示记忆配图')}
+            <button
+              onClick={handleEnrich}
+              className="memory-stack-footer mt-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-white bg-gradient-to-r from-orange-500 to-[#FF5722] hover:opacity-95 shadow-sm transition-all active:scale-95 select-none"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              生成 AI 记忆脑图
+            </button>
+          </>
+        ) : (
+          <>
+            {renderReviewStackCard(
+              0,
+              '词根词缀',
+              <Compass className="w-3.5 h-3.5" />,
+              memoryAids.root_memory || '暂无词根解析',
+            )}
+            {renderReviewStackCard(
+              1,
+              '联想记忆',
+              <Sparkles className="w-3.5 h-3.5" />,
+              memoryAids.association_memory || '暂无联想逻辑',
+            )}
+            {renderReviewStackCard(
+              2,
+              '助记短语',
+              <FileText className="w-3.5 h-3.5" />,
+              memoryAids.mnemonic_phrase || '暂无助记短语',
+            )}
+            <div ref={assignCardRef?.(3)} data-memory-card={3} className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-left">
+              <div className="text-[10px] font-bold text-orange-500 tracking-wider uppercase mb-1 select-none flex items-center gap-1">
+                <Image className="w-3.5 h-3.5" />
+                图片记忆
+              </div>
+              {renderImageTab()}
+            </div>
+            <div className="memory-stack-footer flex items-center justify-between border-t border-slate-100 pt-2 select-none">
+              <span className="text-[9px] text-slate-400 font-medium">
+                {memoryAids.generated_at ? `上次生成: ${new Date(memoryAids.generated_at).toLocaleString()}` : ''}
+              </span>
+              <button
+                onClick={handleEnrich}
+                disabled={isGeneratingImage}
+                className="flex items-center gap-1 text-[10px] font-bold text-[#FF5722] hover:text-orange-700 bg-orange-50 hover:bg-orange-100/80 disabled:opacity-50 px-2.5 py-1.5 rounded-lg transition"
+              >
+                <RefreshCw className="w-3 h-3" />
+                重新生成 AI 记忆
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // 主框架渲染（tabs）
   return (
     <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm text-left select-text relative">
       {isLoading && (

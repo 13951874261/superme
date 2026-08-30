@@ -1,29 +1,38 @@
-﻿# Brief: 账号学习数据隔离（Option A′）
+﻿# Brief: 生词复习 — 例句↔记忆辅助 4↔4 GSAP 顶边动态对齐
 
-> Requirements source: `.omx/specs/deep-interview-account-data-isolation.md`  
-> Plan: `.omx/plans/prd-account-data-isolation.md`  
-> Test: `.omx/plans/test-spec-account-data-isolation.md`  
-> Consensus: Architect R2 APPROVE → Critic APPROVE
+> Requirements source: `.omx/specs/deep-interview-memory-aid-vertical-align.md`  
+> Interview: `.omx/interviews/memory-aid-vertical-align-20260830T170310Z.md`  
+> Context: `.omx/context/memory-aid-vertical-align-20260831T045000Z.md`
 
 ## Intent
 
-同机换号后，康奈尔/生词/长文/唤醒/破绽及模块学习界面只显示当前账号数据；换回可恢复复盘/夜话；不得把上一账号本地画像写脏到新账号服务端。
+生词复习翻牌后，右侧四块记忆辅助与左侧前四条例句顶边一一对齐、纵向排列；对齐随布局/内容变化由 GSAP 测距动态更新。
 
 ## In-Scope
 
-1. localStorage 按账号分桶；禁止无前缀画像/复盘回退
-2. `learning_ui_json` sidecar（独立 persist，不进 upsert，不 bump 画像 `updated_at`）
-3. `switchAccountSession`：flush(旧)→改 ID→load→App `key={userId}` 重挂
-4. 模块学习键分桶；embed 换号清空
-5. `parseVocabUserId` 缺省 400；前端 400 ≠ 空表
+1. 重构 `FlashCard` 翻牌背面为双栏（左例句槽 | 右记忆卡）
+2. 左：最多 4 条；不足垫空槽；超出折叠 +「展开更多」
+3. 右：词根/联想/助记/图片四卡同时展开；限高跟左槽；超出卡内滚动
+4. **必须**用 `@gsap/react` / `useGSAP` 测 DOM 顶边动态贴合（含 resize/内容变化）
+5. `prefers-reduced-motion`：可取消位移动画，静态顶对齐仍成立
 
-## Out-of-Scope
+## Out-of-Scope / Non-goals
 
-- session token / 全站 API 中间件
-- `getHistoryExclude` 全站扫词、`clear-today` 跨用户
-- 历史脏数据回滚、视觉改版
-- 界面偏好（背景/音效等）按账号拆
+- 不改词汇矩阵 `VocabTab` 词典/记忆辅助双栏
+- 不改记忆辅助后端/Dify 契约（除非前端取多例句必需）
+- 不改 `MemoryMatrixStage`
+- 不做全站 DictionaryPanel 重设计
+
+## Decision Boundaries
+
+- 对齐手段：GSAP 测距贴顶（已裁定，不可改成「仅 CSS 网格当对齐」）
+- 空槽/展开更多/滚动条视觉、例句字段优先级：实现前用最小默认示意确认（见 G001）
+
+## Residual confirmations (G001)
+
+1. 「展开更多」后：默认左栏变完整列表、右栏暂冻结对前四槽或暂停严格 4↔4——需用户一句话确认
+2. 图片卡限高内：默认缩略+可点开
 
 ## Acceptance
 
-对照 test-spec：U1–U13、I1–I8、E1–E7、O1–O3。
+对照 spec acceptance criteria 1–6；矩阵双栏回归未改。

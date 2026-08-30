@@ -9,50 +9,14 @@ import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } f
 
 export type EditableExample = { en: string; zh: string };
 
-/** 只数 a-z；与后端例句收录规则一致：字母数必须 >25 */
-function englishLetterCount(value: string): number {
-  return (String(value || '').match(/[A-Za-z]/g) || []).length;
-}
-
-/** 整行音标，或句中夹带 /.../ —— 均不得进入例句 */
-function isPhoneticBlockedExample(value: string): boolean {
-  const en = String(value || '').trim();
-  if (!en) return true;
-  if (/^\/[^/\n]+\/(?:\s*(?:us|uk))?$/i.test(en)) return true;
-  if (/\/[^/\s\n]{2,80}\//.test(en)) return true;
-  return false;
-}
-
-function isAdmissibleDisplayExample(en: string): boolean {
-  const text = String(en || '').trim();
-  if (!text) return false;
-  if (isPhoneticBlockedExample(text)) return false;
-  return englishLetterCount(text) > 25;
-}
-
-/** 英汉双向「可编辑例句」列表：单词优先 senses；短语/中文回退 example_sentences */
-export function extractCambridgeDisplayExamples(payload: Record<string, any> | null | undefined): EditableExample[] {
-  const p = payload && typeof payload === 'object' ? payload : {};
-  const senseExamples = Array.isArray(p.senses)
-    ? p.senses.flatMap((s: any) => (Array.isArray(s?.examples) ? s.examples : []))
-    : [];
-  const fromSenses = senseExamples
-    .map((ex: any) => (typeof ex === 'string'
-      ? { en: ex.trim(), zh: '' }
-      : { en: String(ex?.en || '').trim(), zh: String(ex?.zh || '').trim() }))
-    .filter((ex: EditableExample) => ex.en && isAdmissibleDisplayExample(ex.en));
-  if (fromSenses.length > 0) return fromSenses;
-
-  const top = Array.isArray(p.example_sentences) ? p.example_sentences : [];
-  return top
-    .map((sent: any) => (typeof sent === 'string'
-      ? { en: sent.trim(), zh: '' }
-      : { en: String(sent?.en || '').trim(), zh: String(sent?.zh || '').trim() }))
-    .filter((ex: EditableExample) => ex.en && isAdmissibleDisplayExample(ex.en));
-}
+export {
+  extractCambridgeDisplayExamples,
+  extractReviewExampleList,
+  isAdmissibleDisplayExample,
+} from '../utils/reviewExampleSlots';
 
 /** @deprecated 使用 extractCambridgeDisplayExamples（已覆盖 Dify 短语/中文例句） */
-export const extractEditableDisplayExamples = extractCambridgeDisplayExamples;
+export { extractCambridgeDisplayExamples as extractEditableDisplayExamples } from '../utils/reviewExampleSlots';
 
 function hasEnglishText(value: string) {
   return /[A-Za-z]{2,}/.test(value || '');

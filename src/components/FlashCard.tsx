@@ -7,7 +7,7 @@ import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPaylo
 import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations, getChineseDefinition, getEnglishDefinition } from '../utils/vocabCsvExport';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
-import MemoryAidPanel from './MemoryAidPanel';
+import FlashCardExampleMemoryAlign from './FlashCardExampleMemoryAlign';
 
 interface FlashCardProps {
   onClose: () => void;
@@ -220,7 +220,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* 顶部栏 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
@@ -359,23 +359,6 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                     </div>
                   )}
 
-                  {card.itemType !== '句子 (Sentence)' && (card.primaryExampleEn || card.primaryExampleZh) && (
-                    <div>
-                      <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
-                        <span>例句</span>
-                        {card.primaryExampleEn && (
-                          <SpeakButton text={card.primaryExampleEn} title="播放例句" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
-                        )}
-                      </div>
-                      {card.primaryExampleEn && (
-                        <div className="text-sm font-medium text-slate-800 leading-relaxed">{card.primaryExampleEn}</div>
-                      )}
-                      {card.primaryExampleZh && (
-                        <div className="text-xs text-slate-500 mt-0.5 leading-relaxed">{card.primaryExampleZh}</div>
-                      )}
-                    </div>
-                  )}
-
                   {englishDefinition && (
                     <div>
                       <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
@@ -452,10 +435,12 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                     </div>
                   )}
 
-                  {/* 记忆辅助面板 */}
-                  <div className="border-t border-slate-100 pt-3 mt-3">
-                    <MemoryAidPanel wordId={current.id} wordText={current.word} />
-                  </div>
+                  <FlashCardExampleMemoryAlign
+                    wordId={current.id}
+                    wordText={current.word}
+                    payload={currentPayload}
+                    hideExamples={card.itemType === '句子 (Sentence)'}
+                  />
 
                   <div className="text-[10px] text-gray-300 text-right mt-2">
                     已复习 {current.repetitions} 次 · 间隔 {current.interval_days} 天
