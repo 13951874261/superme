@@ -62,7 +62,6 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
 
           gsap.from('.login-node', {
             autoAlpha: 0,
-            scale: 0.2,
             duration: 0.7,
             ease: 'power2.out',
             stagger: 0.06,
@@ -95,6 +94,7 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
             ease: 'sine.inOut',
             repeat: -1,
             yoyo: true,
+            delay: 0.9,
           });
 
           gsap.to('.login-link', {
@@ -104,6 +104,7 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
             repeat: -1,
             yoyo: true,
             stagger: 0.2,
+            delay: 1.4,
           });
         }
       );
@@ -187,7 +188,7 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
           <svg
             aria-hidden="true"
             viewBox="0 0 100 100"
-            className="login-graph mt-8 w-40 h-40 lg:w-52 lg:h-52 [&_*]:[transform-box:fill-box] [&_*]:[transform-origin:center]"
+            className="login-graph mt-8 w-40 h-40 lg:w-52 lg:h-52"
           >
             {SATELLITES.map((node) => (
               <line
