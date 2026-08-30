@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, XCircle, RefreshCw, Upload, Copy, AlertTriangle } from 'lucide-react';
-
-const API_BASE = process.env.NODE_ENV === 'production' ? '' : 'http://localhost:3001';
+import { CheckCircle2, XCircle, RefreshCw, Upload, Copy, AlertTriangle, Download, ChevronDown, ChevronUp, BookOpen } from 'lucide-react';
+import { API_BASE, YOUTUBE_SETUP_GUIDE_URL, YOUTUBE_SETUP_KIT_FILENAME, YOUTUBE_SETUP_KIT_URL } from '../constants/youtubeSetup';
 
 export function isYoutubeUrl(url: string): boolean {
   const value = String(url || '').trim();
@@ -40,15 +39,17 @@ type PreflightResponse = {
 
 interface YoutubePreflightPanelProps {
   onReadyChange?: (ready: boolean) => void;
+  onOpenGuide?: () => void;
 }
 
-export default function YoutubePreflightPanel({ onReadyChange }: YoutubePreflightPanelProps) {
+export default function YoutubePreflightPanel({ onReadyChange, onOpenGuide }: YoutubePreflightPanelProps) {
   const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [proxyDraft, setProxyDraft] = useState('http://127.0.0.1:17897');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const runPreflight = useCallback(async (probe = false) => {
     setLoading(true);
@@ -140,7 +141,7 @@ export default function YoutubePreflightPanel({ onReadyChange }: YoutubePrefligh
         <div>
           <p className="text-xs font-black text-amber-900 uppercase tracking-wider">YouTube 运行前提</p>
           <p className="text-[10px] text-amber-800/80 mt-0.5">
-            服务器需经反向隧道访问本机代理，并配置有效登录 cookies
+            {ready ? '已就绪，可直接提交 YouTube 链接' : 'Windows 用户推荐一键配置，无需手动敲命令'}
           </p>
         </div>
         <button
@@ -163,65 +164,122 @@ export default function YoutubePreflightPanel({ onReadyChange }: YoutubePrefligh
       </div>
 
       {!ready && (
-        <div className="text-[10px] text-amber-900 bg-amber-100/80 border border-amber-200 rounded-md p-2 space-y-1">
-          <p className="font-bold">配置步骤</p>
-          {(preflight?.tunnel?.steps || []).map((step, i) => (
-            <p key={step}>{i + 1}. {step}</p>
-          ))}
+        <div className="rounded-lg border border-amber-300 bg-white p-3 space-y-2">
+          <p className="text-xs font-black text-amber-900">快速配置指引</p>
+          <ol className="text-[11px] text-gray-700 space-y-1 list-decimal list-inside">
+            <li>点击链接框右侧 <strong>「下载配置」</strong>，解压后双击 <code className="bg-gray-100 px-1 rounded">一键配置YouTube.bat</code></li>
+            <li>首次输入 SSH 密码，等待脚本完成</li>
+            <li>回到本页点击 <strong>「检测就绪」</strong></li>
+          </ol>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <a
+              href={YOUTUBE_SETUP_KIT_URL}
+              download={YOUTUBE_SETUP_KIT_FILENAME}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase bg-amber-600 text-white rounded-md hover:bg-amber-700"
+            >
+              <Download className="w-3 h-3" />
+              下载配置包
+            </a>
+            {onOpenGuide ? (
+              <button
+                type="button"
+                onClick={onOpenGuide}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase bg-white border border-amber-200 text-amber-900 rounded-md hover:bg-amber-50"
+              >
+                <BookOpen className="w-3 h-3" />
+                查看新手手册
+              </button>
+            ) : (
+              <a
+                href={YOUTUBE_SETUP_GUIDE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase bg-white border border-amber-200 text-amber-900 rounded-md hover:bg-amber-50"
+              >
+                <BookOpen className="w-3 h-3" />
+                查看新手手册
+              </a>
+            )}
+          </div>
+          <p className="text-[10px] text-gray-500">
+            电脑重启后运行包内「保持YouTube隧道.bat」；cookies 约 2 周需重新配置。
+          </p>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-2">
-        <label className="text-[10px] font-bold text-gray-600 uppercase">服务器代理地址 (YTDLP_PROXY)</label>
-        <div className="flex gap-2">
-          <input
-            value={proxyDraft}
-            onChange={(e) => setProxyDraft(e.target.value)}
-            placeholder="http://127.0.0.1:17897"
-            className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-md bg-white"
-            disabled={saving}
-          />
-          <button
-            type="button"
-            onClick={saveProxy}
-            disabled={saving || !proxyDraft.trim()}
-            className="px-3 py-1.5 text-[10px] font-bold uppercase bg-amber-600 text-white rounded-md disabled:opacity-50"
-          >
-            保存
-          </button>
-        </div>
-      </div>
+      <button
+        type="button"
+        onClick={() => setShowAdvanced((v) => !v)}
+        className="flex items-center gap-1 text-[10px] font-bold text-amber-900 uppercase tracking-wide"
+      >
+        {showAdvanced ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        {showAdvanced ? '收起高级配置' : '展开高级配置（手动上传 cookies / 改代理）'}
+      </button>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase bg-white border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
-          <Upload className="w-3 h-3" />
-          上传 cookies.txt
-          <input
-            type="file"
-            accept=".txt,text/plain"
-            className="hidden"
-            disabled={saving}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) uploadCookies(file);
-              e.target.value = '';
-            }}
-          />
-        </label>
-        <button
-          type="button"
-          onClick={copyTunnel}
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase bg-white border border-gray-200 rounded-md hover:bg-gray-50"
-        >
-          <Copy className="w-3 h-3" />
-          {copied ? '已复制隧道命令' : '复制 plink 隧道命令'}
-        </button>
-      </div>
+      {showAdvanced && (
+        <>
+          {!ready && preflight?.tunnel?.steps && preflight.tunnel.steps.length > 0 && (
+            <div className="text-[10px] text-amber-900 bg-amber-100/80 border border-amber-200 rounded-md p-2 space-y-1">
+              <p className="font-bold">手动配置步骤</p>
+              {preflight.tunnel.steps.map((step, i) => (
+                <p key={step}>{i + 1}. {step}</p>
+              ))}
+            </div>
+          )}
 
-      {preflight?.tunnel?.command && (
-        <pre className="text-[10px] text-gray-600 bg-gray-900 text-gray-100 p-2 rounded-md overflow-x-auto whitespace-pre-wrap break-all">
-          {preflight.tunnel.command}
-        </pre>
+          <div className="grid grid-cols-1 gap-2">
+            <label className="text-[10px] font-bold text-gray-600 uppercase">服务器代理地址 (YTDLP_PROXY)</label>
+            <div className="flex gap-2">
+              <input
+                value={proxyDraft}
+                onChange={(e) => setProxyDraft(e.target.value)}
+                placeholder="http://127.0.0.1:17897"
+                className="flex-1 px-2 py-1.5 text-xs border border-gray-200 rounded-md bg-white"
+                disabled={saving}
+              />
+              <button
+                type="button"
+                onClick={saveProxy}
+                disabled={saving || !proxyDraft.trim()}
+                className="px-3 py-1.5 text-[10px] font-bold uppercase bg-amber-600 text-white rounded-md disabled:opacity-50"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase bg-white border border-gray-200 rounded-md cursor-pointer hover:bg-gray-50">
+              <Upload className="w-3 h-3" />
+              上传 cookies.txt
+              <input
+                type="file"
+                accept=".txt,text/plain"
+                className="hidden"
+                disabled={saving}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadCookies(file);
+                  e.target.value = '';
+                }}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={copyTunnel}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-[10px] font-bold uppercase bg-white border border-gray-200 rounded-md hover:bg-gray-50"
+            >
+              <Copy className="w-3 h-3" />
+              {copied ? '已复制隧道命令' : '复制 plink 隧道命令'}
+            </button>
+          </div>
+
+          {preflight?.tunnel?.command && (
+            <pre className="text-[10px] text-gray-600 bg-gray-900 text-gray-100 p-2 rounded-md overflow-x-auto whitespace-pre-wrap break-all">
+              {preflight.tunnel.command}
+            </pre>
+          )}
+        </>
       )}
 
       {error && (
@@ -238,7 +296,7 @@ export default function YoutubePreflightPanel({ onReadyChange }: YoutubePrefligh
       ) : (
         <p className="text-xs text-amber-800 flex items-center gap-1">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          请先完成配置并通过检测，再提交 YouTube 链接
+          请先完成一键配置并通过检测，再提交 YouTube 链接
         </p>
       )}
     </div>

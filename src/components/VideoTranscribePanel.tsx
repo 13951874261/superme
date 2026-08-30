@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Video, Link, Languages, UploadCloud, FileVideo, AlertTriangle, Play, Sparkles } from 'lucide-react';
+import { Video, Link, Languages, UploadCloud, FileVideo, AlertTriangle, Play, Sparkles, Download, BookOpen } from 'lucide-react';
 import YoutubePreflightPanel, { isYoutubeUrl } from './YoutubePreflightPanel';
+import YoutubeSetupGuideModal from './YoutubeSetupGuideModal';
+import { YOUTUBE_SETUP_KIT_FILENAME, YOUTUBE_SETUP_KIT_URL } from '../constants/youtubeSetup';
 
 interface VideoTranscribePanelProps {
   topicHint?: string;
@@ -23,6 +25,7 @@ export default function VideoTranscribePanel({
   const [error, setError] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [youtubeReady, setYoutubeReady] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const showYoutubePreflight = isYoutubeUrl(videoUrl);
   const youtubeBlocked = showYoutubePreflight && !youtubeReady;
@@ -342,19 +345,43 @@ export default function VideoTranscribePanel({
             <Link className="w-3.5 h-3.5" />
             粘贴视频链接
           </label>
-          <input
-            type="text"
-            value={videoUrl}
-            onChange={(e) => {
-              setVideoUrl(e.target.value);
-              setSelectedFile(null); // 清理拖拽文件以保持互斥
-            }}
-            placeholder="支持 YouTube / 哔哩哔哩页面链接，或 MP4 直链 (如 https://www.bilibili.com/video/BV...)"
-            className="w-full px-4 py-3 bg-[var(--color-surface-mid)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-xs transition-all focus:border-[var(--color-primary)] focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_var(--color-primary-light)]"
-            disabled={isSubmitting}
-          />
+          <div className="flex gap-2 items-stretch">
+            <input
+              type="text"
+              value={videoUrl}
+              onChange={(e) => {
+                setVideoUrl(e.target.value);
+                setSelectedFile(null); // 清理拖拽文件以保持互斥
+              }}
+              placeholder="支持 YouTube / 哔哩哔哩页面链接，或 MP4 直链 (如 https://www.bilibili.com/video/BV...)"
+              className="flex-1 min-w-0 px-4 py-3 bg-[var(--color-surface-mid)] border border-[var(--color-border)] rounded-[var(--radius-md)] text-xs transition-all focus:border-[var(--color-primary)] focus:bg-white focus:outline-none focus:shadow-[0_0_0_3px_var(--color-primary-light)]"
+              disabled={isSubmitting}
+            />
+            {showYoutubePreflight && (
+              <>
+                <a
+                  href={YOUTUBE_SETUP_KIT_URL}
+                  download={YOUTUBE_SETUP_KIT_FILENAME}
+                  title="下载 Windows 一键配置包"
+                  className="shrink-0 inline-flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[4.5rem] bg-amber-600 hover:bg-amber-700 text-white rounded-[var(--radius-md)] text-[10px] font-bold uppercase tracking-wide transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>下载配置</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setGuideOpen(true)}
+                  title="查看新手操作手册"
+                  className="shrink-0 inline-flex flex-col items-center justify-center gap-0.5 px-3 py-2 min-w-[4.5rem] bg-white border border-amber-200 hover:bg-amber-50 text-amber-900 rounded-[var(--radius-md)] text-[10px] font-bold uppercase tracking-wide transition-colors"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>新手手册</span>
+                </button>
+              </>
+            )}
+          </div>
           {showYoutubePreflight && (
-            <YoutubePreflightPanel onReadyChange={setYoutubeReady} />
+            <YoutubePreflightPanel onReadyChange={setYoutubeReady} onOpenGuide={() => setGuideOpen(true)} />
           )}
         </div>
 
@@ -431,6 +458,8 @@ export default function VideoTranscribePanel({
         <Play className="w-4 h-4 fill-current" />
         开始转写并提炼
       </button>
+
+      <YoutubeSetupGuideModal isOpen={guideOpen} onClose={() => setGuideOpen(false)} />
     </div>
   );
 }

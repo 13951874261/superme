@@ -1,0 +1,5 @@
+{
+  "localProxyPort": 7897,
+  "sshPassword": "在此填写服务器SSH密码",
+  "siteUrl": "https://app.liujingzhuwo.site"
+}

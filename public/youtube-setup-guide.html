@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube 转写 · 新手操作手册 | Super-Agent</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #fffbeb 0%, #ffffff 240px);
+      color: #374151;
+      line-height: 1.65;
+    }
+    .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 48px; }
+    h1 { font-size: 1.5rem; color: #92400e; margin: 0 0 8px; }
+    .sub { color: #b45309; font-size: 0.9rem; margin-bottom: 28px; }
+    h2 { font-size: 1.05rem; color: #92400e; margin: 28px 0 10px; border-left: 4px solid #f59e0b; padding-left: 10px; }
+    p, li { font-size: 0.95rem; }
+    ul, ol { padding-left: 1.25rem; }
+    li { margin: 6px 0; }
+    code { background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.88em; }
+    .card {
+      background: #fff;
+      border: 1px solid #fde68a;
+      border-radius: 14px;
+      padding: 18px 20px;
+      margin: 16px 0;
+      box-shadow: 0 8px 24px rgba(245, 158, 11, 0.08);
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 16px; border-radius: 10px; text-decoration: none;
+      font-weight: 700; font-size: 0.9rem;
+    }
+    .btn-primary { background: #d97706; color: #fff; }
+    .btn-primary:hover { background: #b45309; }
+    .btn-secondary { background: #fff; color: #92400e; border: 1px solid #fcd34d; }
+    .btn-secondary:hover { background: #fffbeb; }
+    .faq-q { font-weight: 700; color: #1f2937; margin-bottom: 4px; }
+    .faq { margin-bottom: 14px; }
+    .tip { background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 12px 14px; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>YouTube 转写 · 新手操作手册</h1>
+    <p class="sub">按本手册操作一次，即可在网页粘贴 YouTube 链接自动转写。B 站链接无需配置。</p>
+
+    <div class="card tip">
+      <strong>一句话说明：</strong>服务器需要借用你电脑上的 Clash 代理和 Chrome 登录状态，才能下载 YouTube 音频。配置一次约 2 分钟。
+    </div>
+
+    <h2>开始前请确认</h2>
+    <ul>
+      <li>使用 <strong>Windows</strong> 电脑</li>
+      <li><strong>Clash / Clash Verge</strong> 已打开，浏览器能访问 YouTube</li>
+      <li><strong>Chrome</strong> 已登录 YouTube 账号</li>
+      <li>本机有 <strong>Python 3</strong>（没有可到 <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a> 安装）</li>
+    </ul>
+
+    <h2>第一次配置（5 步）</h2>
+    <ol>
+      <li>打开应用 → <strong>视频字幕</strong> → 在链接框右侧点击 <strong>「下载配置」</strong></li>
+      <li>解压 zip 到桌面或任意文件夹</li>
+      <li>双击 <code>一键配置YouTube.bat</code></li>
+      <li>首次按提示输入 SSH 密码（仅保存在本机）</li>
+      <li>脚本完成后，回到网页点 <strong>「检测就绪」</strong>，变绿即可提交链接</li>
+    </ol>
+
+    <h2>日常使用</h2>
+    <ul>
+      <li><strong>电脑重启后</strong>：运行 <code>保持YouTube隧道.bat</code>（窗口可最小化）</li>
+      <li><strong>约 2 周后</strong>：重新运行 <code>一键配置YouTube.bat</code> 刷新 cookies</li>
+      <li>Clash 关闭或隧道窗口关闭 → YouTube 转写会失败</li>
+    </ul>
+
+    <h2>常见问题</h2>
+    <div class="card">
+      <div class="faq">
+        <p class="faq-q">Q：检测显示「代理未连通」？</p>
+        <p>A：打开 Clash，运行「保持YouTube隧道.bat」。</p>
+      </div>
+      <div class="faq">
+        <p class="faq-q">Q：检测显示「cookies 无效」？</p>
+        <p>A：Chrome 登录 YouTube，关闭所有 Chrome 窗口后重新运行一键配置。</p>
+      </div>
+      <div class="faq">
+        <p class="faq-q">Q：B 站需要配置吗？</p>
+        <p>A：不需要，直接粘贴 B 站链接即可。</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <a class="btn btn-primary" href="/api/materials/youtube-setup-kit.zip" download="SuperAgent-YouTube一键配置.zip">⬇ 下载一键配置包</a>
+      <a class="btn btn-secondary" href="/">↩ 返回应用</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -177,6 +177,68 @@ if ($UsePuTTY) {
     Write-Host "Using system ssh/scp. You may need to enter password or use local SSH keys." -ForegroundColor Yellow
 }
 
+function Merge-EnvPreserveYoutube {
+    param(
+        [string]$LocalEnvPath,
+        [string]$RemoteEnvPath
+    )
+    if (-not (Test-Path $LocalEnvPath -PathType Leaf)) { return $null }
+
+    $preserveKeys = @('YTDLP_PROXY', 'YTDLP_COOKIES_FILE')
+    $localLines = Get-Content $LocalEnvPath -ErrorAction SilentlyContinue
+    $localMap = @{}
+    foreach ($line in $localLines) {
+        if ($line -match '^\s*#' -or $line -notmatch '=') { continue }
+        $parts = $line -split '=', 2
+        if ($parts.Count -eq 2) { $localMap[$parts[0].Trim()] = $parts[1] }
+    }
+
+    $remoteText = ''
+    try {
+        $remoteText = Invoke-RemoteCommand "cat $RemoteEnvPath 2>/dev/null || true"
+    } catch {
+        Write-Host "  -> Could not read remote .env; uploading local as-is." -ForegroundColor Yellow
+        return $LocalEnvPath
+    }
+
+    $remoteMap = @{}
+    foreach ($line in ($remoteText -split "`n")) {
+        $trimmed = $line.Trim()
+        if ($trimmed -match '^\s*#' -or $trimmed -notmatch '=') { continue }
+        $parts = $trimmed -split '=', 2
+        if ($parts.Count -eq 2) { $remoteMap[$parts[0].Trim()] = $parts[1] }
+    }
+
+    $merged = @()
+    $seen = @{}
+    foreach ($line in $localLines) {
+        if ($line -match '^\s*#' -or $line -notmatch '=') {
+            $merged += $line
+            continue
+        }
+        $key = ($line -split '=', 2)[0].Trim()
+        $seen[$key] = $true
+        $val = $localMap[$key]
+        if ($preserveKeys -contains $key -and [string]::IsNullOrWhiteSpace($val) -and $remoteMap.ContainsKey($key)) {
+            $merged += "$key=$($remoteMap[$key])"
+            Write-Host "  -> Preserved remote $key from server .env" -ForegroundColor DarkYellow
+        } else {
+            $merged += $line
+        }
+    }
+    foreach ($key in $preserveKeys) {
+        if ($seen.ContainsKey($key)) { continue }
+        if ($remoteMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($remoteMap[$key])) {
+            $merged += "$key=$($remoteMap[$key])"
+            Write-Host "  -> Appended remote $key from server .env" -ForegroundColor DarkYellow
+        }
+    }
+
+    $tmp = [System.IO.Path]::GetTempFileName()
+    $merged | Set-Content -Path $tmp -Encoding UTF8
+    return $tmp
+}
+
 function Invoke-RemoteCommand {
     param([string]$Command)
     if ($UsePuTTY) {
@@ -311,7 +373,12 @@ try {
         $envFile = "$ProjectRoot\vocab-server\.env"
         if (Test-Path $envFile -PathType Leaf) {
             Write-Host "  -> Uploading vocab-server/.env -> $RemoteApiRoot/.env" -ForegroundColor DarkCyan
-            Send-File $envFile "$RemoteApiRoot/.env"
+            $envToUpload = Merge-EnvPreserveYoutube -LocalEnvPath $envFile -RemoteEnvPath "$RemoteApiRoot/.env"
+            if (-not $envToUpload) { $envToUpload = $envFile }
+            Send-File $envToUpload "$RemoteApiRoot/.env"
+            if ($envToUpload -ne $envFile -and (Test-Path $envToUpload)) {
+                Remove-Item $envToUpload -Force -ErrorAction SilentlyContinue
+            }
         } else {
             Write-Host "  -> Skip .env (local vocab-server/.env not found)" -ForegroundColor Yellow
         }

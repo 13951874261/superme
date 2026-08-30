@@ -11250,6 +11250,35 @@ app.get('/api/materials/youtube-preflight', async (req, res) => {
   }
 });
 
+const YOUTUBE_SETUP_KIT_FILES = [
+  '一键配置YouTube.bat',
+  '保持YouTube隧道.bat',
+  'setup-youtube-oneclick.ps1',
+  'export-chrome-cookies-cdp.py',
+  'youtube-setup.config.example.json',
+  '使用说明.txt',
+];
+
+app.get('/api/materials/youtube-setup-kit.zip', (req, res) => {
+  const { execFileSync } = require('child_process');
+  const os = require('os');
+  const kitDir = path.join(__dirname, 'scripts/windows');
+  const missing = YOUTUBE_SETUP_KIT_FILES.filter((f) => !fs.existsSync(path.join(kitDir, f)));
+  if (missing.length > 0) {
+    return res.status(500).json({ success: false, error: `配置包缺少文件: ${missing.join(', ')}` });
+  }
+  const tmpZip = path.join(os.tmpdir(), `youtube-setup-kit-${Date.now()}.zip`);
+  try {
+    execFileSync('zip', ['-j', tmpZip, ...YOUTUBE_SETUP_KIT_FILES], { cwd: kitDir });
+    res.download(tmpZip, 'SuperAgent-YouTube一键配置.zip', () => {
+      try { fs.unlinkSync(tmpZip); } catch (_) {}
+    });
+  } catch (error) {
+    console.error('[YouTube Setup Kit Error]:', error);
+    res.status(500).json({ success: false, error: '打包配置包失败，请联系管理员' });
+  }
+});
+
 app.post('/api/materials/youtube-config', upload.single('cookies'), async (req, res) => {
   try {
     const {
