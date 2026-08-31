@@ -53,10 +53,10 @@ function buildWakeupFlawInputSources({ theme, historyExclude, userCurrentProfile
       value: historyExclude,
       sensitive: true,
       valuePreview: String(historyExclude || '').split(', ').slice(0, 3).join(', ') + (historyExclude ? '…' : ''),
-      friendlyDescription: '从生词库按最近添加时间取最多50个词，逗号拼接',
+      friendlyDescription: '缓存签名用：当前用户生词本最近 50 词。LLM 避重另用近 30 天已推送词 + 当日长文/精听提纯词',
       sourceType: 'database',
-      sourceRef: 'vocabulary.word via getHistoryExclude()',
-      queryRule: 'ORDER BY added_at DESC（当前实现未按 user_id 过滤）',
+      sourceRef: 'vocabulary.word via getHistoryExclude(db, userId)',
+      queryRule: 'WHERE user_id = 当前用户 ORDER BY added_at DESC LIMIT 50（仅签名；不按全库）',
       transform: 'slice(0,50).join(", ")',
       fallback: "''",
     }),
@@ -142,7 +142,7 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
   console.log('[DailyPack Cron] tick=%s packDate=%s users=%s', cronTickId, packDate, users.length);
 
   for (const row of users) {
-    const historyExclude = dailyPackService.getHistoryExclude(db);
+    const historyExclude = dailyPackService.getHistoryExclude(db, row.user_id);
     const userCurrentProfile = dailyCronRunService.sanitizeCronLogPayload(
       dailyPackService.getUserCurrentProfile(db, row.user_id),
     );

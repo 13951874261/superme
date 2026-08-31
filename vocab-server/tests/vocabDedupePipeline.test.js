@@ -218,6 +218,94 @@ async function testStemBlocksRefresh() {
   console.log('  通过');
 }
 
+function seedVocabAndSiblings(db) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS vocabulary (
+      id TEXT, user_id TEXT, word TEXT, added_at INTEGER
+    );
+    CREATE TABLE IF NOT EXISTS daily_extracted_articles (
+      id TEXT, user_id TEXT, quota_date TEXT, words_json TEXT, phrases_json TEXT
+    );
+    CREATE TABLE IF NOT EXISTS daily_listen_articles (
+      id TEXT, user_id TEXT, pack_date TEXT, vocab_json TEXT, phrases_json TEXT
+    );
+  `);
+}
+
+async function testHistoryExcludeFiltersByUser() {
+  console.log('=== 用例 10：排重按用户过滤，不含他人生词 ===');
+  const db = createDb();
+  seedVocabAndSiblings(db);
+  const now = Date.now();
+  db.prepare('INSERT INTO vocabulary VALUES (?,?,?,?)').run('v1', 'u1', 'alpha-mine', now);
+  db.prepare('INSERT INTO vocabulary VALUES (?,?,?,?)').run('v2', 'u2', 'other-secret', now);
+  const mine = dailyPackService.getHistoryExclude(db, 'u1');
+  assert.ok(mine.includes('alpha-mine'), '本用户生词应进入签名用 exclude');
+  assert.ok(!mine.includes('other-secret'), '他人生词不得进入本用户 exclude');
+  db.close();
+  console.log('  通过');
+}
+
+async function testLlmExcludeIsPushedAndSameDayOnly() {
+  console.log('=== 用例 11：LLM 排除 = 近30天已推送 + 当日长文/精听，不含整本生词与他人词 ===');
+  const db = createDb();
+  seedVocabAndSiblings(db);
+  const day = dailyPackService.getPackDate();
+  const now = Date.now();
+  db.prepare('INSERT INTO vocabulary VALUES (?,?,?,?)').run('v1', 'u1', 'book-only', now);
+  db.prepare('INSERT INTO vocabulary VALUES (?,?,?,?)').run('v2', 'u2', 'other-book', now);
+  dailyPackService.recordPushedWords(db, 'u1', 'wakeup', words('pushed-mine'));
+  dailyPackService.recordPushedWords(db, 'u2', 'wakeup', words('pushed-other'));
+  db.prepare('INSERT INTO daily_extracted_articles VALUES (?,?,?,?,?)')
+    .run('a1', 'u1', day, JSON.stringify([{ word: 'sibling-article' }]), '[]');
+  db.prepare('INSERT INTO daily_listen_articles VALUES (?,?,?,?,?)')
+    .run('l1', 'u1', day, JSON.stringify(['sibling-listen']), '[]');
+  db.prepare('INSERT INTO daily_extracted_articles VALUES (?,?,?,?,?)')
+    .run('a2', 'u2', day, JSON.stringify([{ word: 'other-sibling' }]), '[]');
+
+  let excludeCsv = '';
+  await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
+    theme: 't',
+    historyExclude: 'book-only, other-book',
+    callLlm: async (csv) => {
+      excludeCsv = csv;
+      return { vocab: words('BATNA', 'anchoring', 'reservation price', "prisoner's dilemma", 'Nash equilibrium') };
+    },
+  });
+  assert.ok(excludeCsv.includes('pushed-mine'), '须含本用户近30天已推送词');
+  assert.ok(excludeCsv.includes('sibling-article'), '须含当日长文提纯词');
+  assert.ok(excludeCsv.includes('sibling-listen'), '须含当日精听提纯词');
+  assert.ok(!excludeCsv.includes('book-only'), '不得把整本生词塞进 Dify history_exclude');
+  assert.ok(!excludeCsv.includes('other-book'), '不得含他人生词');
+  assert.ok(!excludeCsv.includes('pushed-other'), '不得含他人已推送词');
+  assert.ok(!excludeCsv.includes('other-sibling'), '不得含他人当日长文词');
+  assert.ok(excludeCsv.length < 65535, '发给 Dify 的 history_exclude 必须小于 65535');
+  db.close();
+  console.log('  通过');
+}
+
+async function testLlmExcludeCappedUnderDifyLimit() {
+  console.log('=== 用例 12：当日提纯词极多时截断，避免 Dify 65535 拒收 ===');
+  const db = createDb();
+  seedVocabAndSiblings(db);
+  const day = dailyPackService.getPackDate();
+  const huge = Array.from({ length: 8000 }, (_, i) => `term${String(i).padStart(4, '0')}xxxxx`);
+  db.prepare('INSERT INTO daily_extracted_articles VALUES (?,?,?,?,?)')
+    .run('a1', 'u1', day, JSON.stringify(huge.map((word) => ({ word }))), '[]');
+  let excludeCsv = '';
+  await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
+    theme: 't',
+    callLlm: async (csv) => {
+      excludeCsv = csv;
+      return { vocab: words('BATNA', 'anchoring', 'reservation price', "prisoner's dilemma", 'Nash equilibrium') };
+    },
+  });
+  assert.ok(excludeCsv.length < 65535, `超长 exclude 必须截断，实际 ${excludeCsv.length}`);
+  assert.ok(excludeCsv.includes('term0000xxxxx') || excludeCsv.includes('term'), '截断后仍应保留部分当日提纯词');
+  db.close();
+  console.log('  通过');
+}
+
 async function testWakeupSlotsAndBan() {
   console.log('=== 用例 9：唤醒 3+2 且拒绝 modeling ===');
   const db = createDb();
@@ -251,6 +339,9 @@ async function run() {
   await testRecordsAfterSuccess();
   await testStemBlocksRefresh();
   await testWakeupSlotsAndBan();
+  await testHistoryExcludeFiltersByUser();
+  await testLlmExcludeIsPushedAndSameDayOnly();
+  await testLlmExcludeCappedUnderDifyLimit();
   console.log('\n✅ vocabDedupePipeline.test.js 全部用例通过！');
 }
 

@@ -22,6 +22,8 @@ const FLAW_VOCAB_TARGET = 6;
 // 命中重复后最多再调 LLM 一次
 const DEDUPE_RETRY_COUNT = 1;
 const DEDUPE_BACKFILL_NOTICE = '本主题近期新词不足，已用较早推送词补齐至满额';
+/** Dify paragraph 要求 history_exclude < 65535 */
+const DIFY_HISTORY_EXCLUDE_MAX = 65534;
 
 function normalizeUserId(raw) {
   if (!raw) return 'default-user';
@@ -250,9 +252,13 @@ function getFallbackFlawVocab() {
   ];
 }
 
-function getUserVocabWords(db) {
+function getUserVocabWords(db, userId) {
+  if (userId == null || String(userId).trim() === '') return [];
+  const uid = normalizeUserId(userId);
   try {
-    const rows = db.prepare('SELECT word FROM vocabulary ORDER BY added_at DESC').all();
+    const rows = db.prepare(
+      'SELECT word FROM vocabulary WHERE user_id = ? ORDER BY added_at DESC'
+    ).all(uid);
     return rows.map((r) => String(r.word || '').toLowerCase().trim()).filter(Boolean);
   } catch {
     return [];
@@ -309,9 +315,18 @@ function getUserCurrentProfile(db, userId, opts = {}) {
   return buildInjectedUserCurrentProfile(db, userId, opts);
 }
 
-function getHistoryExclude(db) {
-  const dbWords = getUserVocabWords(db);
+function getHistoryExclude(db, userId) {
+  const dbWords = getUserVocabWords(db, userId);
   return dbWords.slice(0, 50).join(', ');
+}
+
+function capHistoryExcludeForDify(csv, maxLen = DIFY_HISTORY_EXCLUDE_MAX) {
+  const s = String(csv || '');
+  const limit = Math.max(0, Number(maxLen) || DIFY_HISTORY_EXCLUDE_MAX);
+  if (s.length <= limit) return s;
+  const cut = s.slice(0, limit);
+  const lastComma = cut.lastIndexOf(',');
+  return (lastComma > 0 ? cut.slice(0, lastComma) : cut).trim();
 }
 
 function normalizePushedWord(raw) {
@@ -579,11 +594,15 @@ function mergeExcludeLists(...parts) {
 }
 
 /**
- * LLM 实际使用的 history_exclude = 原生词本排除 + 近窗口已推送词。
+ * LLM 实际使用的 history_exclude = 近 30 天已推送 + 当日长文/精听提纯词（按用户）。
  * 注意：不得用此结果参与 input_signature，否则会破坏 daily_packs 缓存键稳定性。
  */
 function buildEffectiveHistoryExclude(db, userId, baseExclude = '') {
-  return mergeExcludeLists(baseExclude, getRecentPushedWords(db, userId)).join(', ');
+  return mergeExcludeLists(
+    getRecentPushedWords(db, userId),
+    getSameDaySiblingWords(db, userId),
+    baseExclude,
+  ).join(', ');
 }
 
 function filterVocabAgainstExclude(items, excludeList) {
@@ -653,16 +672,15 @@ async function generateVocabWithDedupe(db, userId, {
   skipRecord = false,
 }) {
   const uid = normalizeUserId(userId);
-  const dbWords = getUserVocabWords(db);
   const recent = getRecentPushedWords(db, uid);
-  let excludeList = mergeExcludeLists(baseExclude, recent, dbWords, extraExclude);
+  let excludeList = mergeExcludeLists(recent, extraExclude);
   let allKept = [];
   let lastParsed = null;
   let lastError = null;
 
   for (let attempt = 0; attempt <= DEDUPE_RETRY_COUNT; attempt++) {
     try {
-      lastParsed = await callLlm(excludeList.join(', '));
+      lastParsed = await callLlm(capHistoryExcludeForDify(excludeList.join(', ')));
       lastError = null;
     } catch (err) {
       lastError = err;
@@ -828,9 +846,7 @@ async function generateWakeupVocabForUser(db, userId, {
 /** 破绽 6 词：与唤醒共用推送历史池 */
 async function generateFlawVocabForUser(db, userId, themeOverride, { callLlm } = {}) {
   const uid = normalizeUserId(userId);
-  const dbWords = getUserVocabWords(db);
-  // 缓存签名仍用生词本排除；LLM 侧额外合并推送历史（在 generateVocabWithDedupe 内完成）
-  const baseExclude = dbWords.slice(0, 50).join(', ');
+  const dbWords = getUserVocabWords(db, uid);
   const todayStr = getPackDate();
   const randomSalt = Math.floor(Math.random() * 10000);
   const randomFocus = FLAW_SUB_THEMES[Math.floor(Math.random() * FLAW_SUB_THEMES.length)];
@@ -852,7 +868,6 @@ async function generateFlawVocabForUser(db, userId, themeOverride, { callLlm } =
   const result = await generateVocabWithDedupe(db, uid, {
     moduleName: 'flaw',
     targetCount: FLAW_VOCAB_TARGET,
-    baseExclude,
     callLlm: runner,
     extraFallback: getFallbackFlawVocab(),
     extraExclude: getSameDaySiblingWords(db, uid),
@@ -931,7 +946,7 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
   const packDate = getPackDate();
   const uid = normalizeUserId(userId);
   // 生成前先计算稳定输入签名，后续所有 upsert 都使用同一个签名
-  const historyExclude = getHistoryExclude(db);
+  const historyExclude = getHistoryExclude(db, uid);
   const profile = getUserCurrentProfile(db, uid);
   const inputSignature = computeInputSignature(theme, historyExclude, profile);
   upsertDailyPack(db, {
@@ -1190,6 +1205,8 @@ module.exports = {
   buildInjectedUserCurrentProfile,
   resolveUserCurrentProfileForDify,
   getHistoryExclude,
+  capHistoryExcludeForDify,
+  DIFY_HISTORY_EXCLUDE_MAX,
   DEDUPE_WINDOW_DAYS,
   DEDUPE_RETENTION_DAYS,
   DEDUPE_BACKFILL_NOTICE,

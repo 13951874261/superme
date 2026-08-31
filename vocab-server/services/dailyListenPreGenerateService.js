@@ -894,7 +894,7 @@ async function generateOneCombo(db, raw, { source = 'cron', only = 'both' } = {}
   const packDate = raw.packDate || dailyPackService.getPackDate();
   const historyExclude = raw.historyExclude !== undefined
     ? String(raw.historyExclude || '').trim()
-    : dailyPackService.getHistoryExclude(db);
+    : dailyPackService.getHistoryExclude(db, raw.userId);
   const userFlaws = String(raw.userFlaws || '').trim();
   const userCurrentProfile = raw.userCurrentProfile !== undefined
     ? String(raw.userCurrentProfile || '').trim()

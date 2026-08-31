@@ -36,7 +36,7 @@ async function runManualFlawGeneration() {
   const themeRow = db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id = ?').get(userId);
   const userTheme = themeRow ? themeRow.theme : '商务谈判攻防与条款谈判';
 
-  const historyExclude = dailyPackService.getHistoryExclude(db);
+  const historyExclude = dailyPackService.getHistoryExclude(db, userId);
   const userCurrentProfile = dailyPackService.getUserCurrentProfile(db, userId);
 
   console.log('>>> 1. 提取到的用户真实上下文参数:');

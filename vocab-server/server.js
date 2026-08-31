@@ -2736,7 +2736,7 @@ app.get('/api/listen/pregenerated', (req, res) => {
     if (!userId || !theme || !genre || !(cefrLevel || cefr) || !duration) {
       return res.status(400).json({ success: false, error: 'userId, theme, genre, cefrLevel, duration required' });
     }
-    const historyExclude = String(req.query.historyExclude ?? dailyPackService.getHistoryExclude(db) ?? '').trim();
+    const historyExclude = String(req.query.historyExclude ?? dailyPackService.getHistoryExclude(db, userId) ?? '').trim();
     const userFlaws = String(req.query.userFlaws || '').trim();
     const userCurrentProfile = String(
       resolveProfileForDify(userId, req.query.userCurrentProfile),
@@ -8483,7 +8483,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
       return res.status(400).json({ success: false, error: '请先选择并同步学习主题' });
     }
 
-    const resolvedHistoryExclude = String(historyExclude || dailyPackService.getHistoryExclude(db) || '').trim();
+    const resolvedHistoryExclude = String(historyExclude || dailyPackService.getHistoryExclude(db, uid) || '').trim();
     const resolvedUserCurrentProfile = String(
       resolveProfileForDify(uid, userCurrentProfile)
     ).trim();
