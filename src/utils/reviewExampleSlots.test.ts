@@ -29,6 +29,18 @@ test('extractReviewExampleList falls back to example_sentences chain', () => {
   assert.equal(list[0].zh, '一');
 });
 
+test('extractReviewExampleList splits bilingual example strings and reads examples[]', () => {
+  const list = extractReviewExampleList({
+    examples: [
+      'We completed the vocabzone-e2e-probe ahead of schedule. 词汇库端到端探测已提前完成。',
+      'The probe results indicate 98% coverage across all vocabulary zones. 探测结果显示词汇库各区域覆盖率达98%。',
+    ],
+  });
+  assert.equal(list.length, 2);
+  assert.equal(list[0].zh, '词汇库端到端探测已提前完成。');
+  assert.match(list[0].en, /ahead of schedule/);
+});
+
 test('buildReviewExampleSlots pads to 4 and keeps extras (AC2/AC3)', () => {
   const mk = (n: number) =>
     Array.from({ length: n }, (_, i) => ({

@@ -3,7 +3,7 @@ import { BookOpen, Loader2, CheckCircle2, Zap, Briefcase, Globe, CalendarCheck, 
 import { useEnglishContext } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { submitReview, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache, getMemoryAids, type MemoryAids } from '../../../../services/vocabAPI';
+import { submitReview, getReviewWords, getVocabItem, readReviewLightCache, writeReviewLightCache, clearReviewLightCache, getMemoryAids, needsReviewPayloadHydrate, type MemoryAids } from '../../../../services/vocabAPI';
 import { runEnglishSentenceEvaluation } from '../../../../services/difyAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
@@ -14,7 +14,7 @@ import VocabExportControl from '../../../VocabExportControl';
 import { EnZhBidirectionalView } from '../../../DictionaryPanel';
 import { showError, showSuccess } from '../../../Toast';
 import MemoryMatrixStage from './vocab/MemoryMatrixStage';
-import { extractSynonymsAntonymsCollocations } from '../../../../utils/vocabCsvExport';
+import { getChineseDefinition, getEnglishDefinition } from '../../../../utils/vocabCsvExport';
 
 function asList(value: unknown): any[] {
   return Array.isArray(value) ? value : [];
@@ -24,16 +24,15 @@ function asList(value: unknown): any[] {
 function adaptWordPayload(word: any) {
   if (!word) return { type: '', payload: null };
   const payload = word.payload || {};
-  const extracted = extractSynonymsAntonymsCollocations(word.word || '', payload);
-  const translation_main = String(
-    payload.translation_main
-    || payload.meaning_zh
-    || payload.meaning
-    || payload.definition
-    || (asList(payload.definitions_en)[0] || '')
-    || payload.definition_en
-    || '',
-  ).trim();
+  const translation_main = getChineseDefinition(payload)
+    || String(
+      payload.translation_main
+      || payload.meaning_zh
+      || payload.meaning
+      || payload.definition
+      || '',
+    ).trim();
+  const definition_en = getEnglishDefinition(payload) || String(payload.definition_en || '').trim();
   const example_sentences = asList(payload.example_sentences).length
     ? payload.example_sentences
     : asList(payload.examples);
@@ -48,12 +47,13 @@ function adaptWordPayload(word: any) {
       phonetic: payload.phonetic || '',
       pos: payload.pos || payload.partOfSpeech || '',
       translation_main,
+      definition_en,
       other_meanings: asList(payload.other_meanings),
       business_examples,
       example_sentences,
-      synonyms: asList(payload.synonyms).length ? payload.synonyms : extracted.synonyms,
-      antonyms: asList(payload.antonyms).length ? payload.antonyms : extracted.antonyms,
-      collocations: asList(payload.collocations).length ? payload.collocations : extracted.collocations,
+      synonyms: asList(payload.synonyms),
+      antonyms: asList(payload.antonyms),
+      collocations: asList(payload.collocations),
       idioms: asList(payload.idioms),
     },
   };
@@ -181,7 +181,7 @@ export default function VocabTab() {
   // 轻量条目按需补全完整 payload
   useEffect(() => {
     const id = currentWord?.id;
-    const needsHydrate = Boolean(currentWord?._light);
+    const needsHydrate = needsReviewPayloadHydrate(currentWord);
     if (!id || !needsHydrate) return;
     let cancelled = false;
     getVocabItem(id)
@@ -191,13 +191,12 @@ export default function VocabTab() {
       })
       .catch(() => {
         if (cancelled) return;
-        setDueWords((prev) => prev.map((word) => (word.id === id ? { ...word, _light: false } : word)));
         showError('词条释义加载失败，可直接翻转查看或稍后重试');
       });
     return () => {
       cancelled = true;
     };
-  }, [currentWord?.id, currentWord?._light, setDueWords]);
+  }, [currentWord?.id, currentWord?._light, currentWord?.payload && Object.keys(currentWord.payload).length, setDueWords]);
 
   const [memoryAidsData, setMemoryAidsData] = useState<MemoryAids | null>(null);
 

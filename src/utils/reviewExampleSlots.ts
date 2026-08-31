@@ -21,16 +21,29 @@ export function isAdmissibleDisplayExample(en: string): boolean {
   return englishLetterCount(text) > 25;
 }
 
+function splitTrailingChinese(text: string): { en: string; zh: string } {
+  const value = String(text || '').trim();
+  const idx = value.search(/[\u3400-\u9fff]/);
+  if (idx >= 8) {
+    return { en: value.slice(0, idx).trim(), zh: value.slice(idx).trim() };
+  }
+  return { en: value, zh: '' };
+}
+
 function normalizeExamplePair(ex: any): ReviewExample | null {
   if (typeof ex === 'string') {
     const en = ex.trim();
     if (!en) return null;
-    return { en, zh: '' };
+    return splitTrailingChinese(en);
   }
   if (ex && typeof ex === 'object') {
     const en = String(ex.en || ex.example_en || ex.sentence || ex.example || '').trim();
     const zh = String(ex.zh || ex.translation || ex.example_zh || '').trim();
     if (!en && !zh) return null;
+    if (en && !zh) {
+      const split = splitTrailingChinese(en);
+      return { en: split.en, zh: split.zh };
+    }
     return { en, zh };
   }
   return null;
@@ -62,7 +75,7 @@ export function extractReviewExampleList(payload: Record<string, any> | null | u
 
   const p = payload && typeof payload === 'object' ? payload : {};
   const sources = [p.example_sentences, p.scenarios, p.business_examples, p.examples, p.example];
-  const raw = sources.find((s) => Array.isArray(s) && s.length > 0) || [];
+  const raw = sources.flatMap((s) => (Array.isArray(s) ? s : []));
   const out: ReviewExample[] = [];
   const seen = new Set<string>();
 

@@ -683,7 +683,7 @@ export function UtilityEnZhBidirectionalView({
     collocations: collocations.length,
     hasEtymology: Boolean(etymology?.trim()),
   });
-  const [showExt, setShowExt] = useState(() => splitPlan.useSplit);
+  const [showExt, setShowExt] = useState(false);
   const [showOther, setShowOther] = useState(false);
   const [showCambridge, setShowCambridge] = useState(false);
   const [showIdioms, setShowIdioms] = useState(() => splitPlan.useSplit);
@@ -905,28 +905,24 @@ export function UtilityEnZhBidirectionalView({
 
   return (
     <div className={`${splitPlan.gridClass} text-left select-text selection:bg-[#FF5722]/15`}>
-      <div className={`min-w-0 ${fill ? splitPlan.leftInnerClass : 'contents'}`}>
+      <div className={`min-w-0 ${fill ? 'flex flex-col gap-1.5 min-h-0' : 'contents'}`}>
         {fill ? (
           <>
-            <EqualCell className={splitPlan.leftFillCellClass}>
-              <div className="h-full min-h-0 flex flex-col gap-1.5 overflow-auto">
-                <div className="shrink-0 space-y-1.5">
-                  <CompactHead
-                    word={query}
-                    phonetic={phonetic}
-                    pos={pos}
-                    level={payload.level}
-                    meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
-                    speakText={query}
-                  />
-                  <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
-                </div>
-                <div className="shrink-0">{cambridgeBlock}</div>
-                {examplesBlock}
-                {businessBlock}
-                {otherBlock}
-              </div>
-            </EqualCell>
+            <div className="shrink-0 space-y-1.5">
+              <CompactHead
+                word={query}
+                phonetic={phonetic}
+                pos={pos}
+                level={payload.level}
+                meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
+                speakText={query}
+              />
+              <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || payload.definition_en || ''} />
+            </div>
+            <div className="shrink-0">{cambridgeBlock}</div>
+            {examplesBlock}
+            {businessBlock}
+            {otherBlock}
             {leftFill}
           </>
         ) : (
@@ -939,7 +935,7 @@ export function UtilityEnZhBidirectionalView({
               meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
               speakText={query}
             />
-            <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
+            <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || payload.definition_en || ''} />
             {cambridgeBlock}
             {examplesBlock}
             {businessBlock}
