@@ -16,6 +16,7 @@ import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import {
   VOCAB_ZONE_LABEL,
   VOCAB_ZONE_COLLECT_BTN,
+  classifyCollectKind,
   type VocabCategory,
 } from '../../utils/vocabZoneLabels';
 
@@ -241,9 +242,12 @@ export default function DailyWakeupModule() {
     anchor?: HTMLElement | null,
   ) => {
     const stored = getStoredCategory(item.word);
+    const { isPhrase, isSentence } = classifyCollectKind(item.word);
     await collect({
       text: item.word,
       category,
+      isPhrase,
+      isSentence,
       migrateOnly: !!stored && stored !== category,
       topic: result?.theme || theme,
       source: 'Daily Wakeup',

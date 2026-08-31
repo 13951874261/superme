@@ -68,4 +68,11 @@ assert.match(dashboardSource, /isVocabMatrixReady/, '缺少矩阵完整性判定
 assert.match(dashboardSource, /matrixReady: isVocabMatrixReady\(payload\)/, '词条详情需暴露矩阵完整性');
 assert.match(gridSource, /matrixReady=\{\!\!details\?\.matrixReady\}/, '已收录状态必须依据矩阵是否齐备');
 
+// 7. 唤醒/破绽加入生词本必须与字典查询一致：按 classifyCollectKind 分流单词/短语/句子
+for (const [name, source] of [['每日唤醒', wakeupSource], ['每日破绽', flawSource]]) {
+  assert.match(source, /classifyCollectKind\(/, `${name} 收录必须按词数规则判定单词/短语/句子`);
+  assert.match(source, /isPhrase,/, `${name} 必须把短语标记传给 collect`);
+  assert.match(source, /isSentence,/, `${name} 必须把句式标记传给 collect`);
+}
+
 console.log('vocab matrix collect contract tests passed');

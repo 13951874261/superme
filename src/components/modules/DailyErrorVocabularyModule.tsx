@@ -11,6 +11,7 @@ import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import {
   VOCAB_ZONE_LABEL,
   VOCAB_ZONE_COLLECT_BTN,
+  classifyCollectKind,
   type VocabCategory,
 } from '../../utils/vocabZoneLabels';
 
@@ -139,9 +140,12 @@ export default function DailyErrorVocabularyModule() {
     category: VocabCategory,
     anchor?: HTMLElement | null,
   ) => {
+    const { isPhrase, isSentence } = classifyCollectKind(word.word);
     await collect({
       text: word.word,
       category,
+      isPhrase,
+      isSentence,
       migrateOnly: !!getStoredCategory(word.word) && getStoredCategory(word.word) !== category,
       topic: theme,
       source: 'Daily Flaw Vocab',
