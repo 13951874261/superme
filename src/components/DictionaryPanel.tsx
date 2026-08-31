@@ -548,11 +548,12 @@ interface EnZhBidirectionalViewProps {
   payload: EnZhBidirectionalPayload;
   query: string;
   hideExamples?: boolean;
+  splitLexicon?: boolean;
 }
 
-export function EnZhBidirectionalView({ payload, query, hideExamples }: EnZhBidirectionalViewProps) {
+export function EnZhBidirectionalView({ payload, query, hideExamples, splitLexicon }: EnZhBidirectionalViewProps) {
   return payload.senses?.length
-    ? <UtilityEnZhBidirectionalView payload={payload} query={query} hideExamples={hideExamples} />
+    ? <UtilityEnZhBidirectionalView payload={payload} query={query} hideExamples={hideExamples} splitLexicon={splitLexicon} />
     : <LegacyEnZhBidirectionalView payload={payload} query={query} hideExamples={hideExamples} />;
 }
 

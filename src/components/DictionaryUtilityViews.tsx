@@ -6,6 +6,7 @@ import React, { useState } from 'react';
 import { BookOpen, ChevronRight, AlertOctagon, Pencil, Trash2, Plus, Check, X } from 'lucide-react';
 import SpeakButton from './SpeakButton';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
+import { planLexiconSplit } from '../utils/lexiconSplitLayout';
 
 export type EditableExample = { en: string; zh: string };
 
@@ -109,30 +110,65 @@ function FoldBlock({
   open,
   onToggle,
   children,
+  fill,
 }: {
   title: string;
   count: number;
   open: boolean;
   onToggle: () => void;
   children: React.ReactNode;
+  fill?: boolean;
 }) {
   if (count <= 0) return null;
   return (
-    <div className="border border-stone-200/90 rounded-xl overflow-hidden bg-white">
+    <div className={`border border-stone-200/90 rounded-xl overflow-hidden bg-white ${fill ? 'h-full min-h-0 flex flex-col' : ''}`}>
       <button
         type="button"
         onClick={(e) => {
           e.stopPropagation();
           onToggle();
         }}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-stone-50 transition text-xs font-semibold text-stone-700 select-none"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-stone-50 transition text-xs font-semibold text-stone-700 select-none shrink-0"
       >
         <span>
           {title} ({count})
         </span>
         <ChevronRight className={`w-4 h-4 text-stone-400 transition-transform duration-200 ${open ? 'rotate-90 text-[#FF5722]' : ''}`} />
       </button>
-      {open && <div className="px-3 pb-3 pt-1 border-t border-stone-100 bg-stone-50/40 space-y-2">{children}</div>}
+      {open && (
+        <div className={`px-3 pb-3 pt-1 border-t border-stone-100 bg-stone-50/40 space-y-2 ${fill ? 'flex-1 min-h-0 overflow-auto' : ''}`}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function EqualCell({ className, children }: { className?: string; children: React.ReactNode }) {
+  return <div className={className || 'min-h-0 h-full overflow-hidden'}>{children}</div>;
+}
+
+function PillPanel({
+  label,
+  children,
+  fill,
+}: {
+  label: string;
+  children: React.ReactNode;
+  fill?: boolean;
+}) {
+  if (!fill) {
+    return (
+      <div>
+        <SectionLabel>{label}</SectionLabel>
+        {children}
+      </div>
+    );
+  }
+  return (
+    <div className="h-full min-h-0 flex flex-col overflow-hidden border border-stone-200/90 rounded-xl bg-white px-3 py-2.5">
+      <SectionLabel>{label}</SectionLabel>
+      <div className="flex-1 min-h-0 overflow-auto">{children}</div>
     </div>
   );
 }
@@ -585,6 +621,7 @@ export function UtilityEnZhBidirectionalView({
   editableExamples,
   onExamplesChange,
   hideExamples,
+  splitLexicon,
 }: {
   payload: EnZhBidirectionalPayload;
   query: string;
@@ -592,6 +629,8 @@ export function UtilityEnZhBidirectionalView({
   editableExamples?: EditableExample[];
   onExamplesChange?: (next: EditableExample[]) => void;
   hideExamples?: boolean;
+  /** 生词复习宽卡：左释义、右 2-5 均分等高 */
+  splitLexicon?: boolean;
 }) {
   const {
     direction_resolved,
@@ -635,14 +674,22 @@ export function UtilityEnZhBidirectionalView({
   const displayExamples = editableExamples ?? fallbackExamples;
   const examplesEditable = typeof onExamplesChange === 'function';
 
-  const [showExt, setShowExt] = useState(false);
+  const extCount = collocations.length + (etymology?.trim() ? 1 : 0);
+  const splitPlan = planLexiconSplit({
+    splitLexicon,
+    idioms: idioms.length,
+    synonyms: synonyms.length,
+    antonyms: antonyms.length,
+    collocations: collocations.length,
+    hasEtymology: Boolean(etymology?.trim()),
+  });
+  const [showExt, setShowExt] = useState(() => splitPlan.useSplit);
   const [showOther, setShowOther] = useState(false);
   const [showCambridge, setShowCambridge] = useState(false);
-  const [showIdioms, setShowIdioms] = useState(false);
+  const [showIdioms, setShowIdioms] = useState(() => splitPlan.useSplit);
   const [adding, setAdding] = useState(false);
   const [newEn, setNewEn] = useState('');
   const [newZh, setNewZh] = useState('');
-  const extCount = collocations.length + (etymology?.trim() ? 1 : 0);
 
   const commitAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -654,20 +701,10 @@ export function UtilityEnZhBidirectionalView({
     setAdding(false);
   };
 
-  return (
-    <div className="space-y-3 text-left select-text selection:bg-[#FF5722]/15">
-      <CompactHead
-        word={query}
-        phonetic={phonetic}
-        pos={pos}
-        level={payload.level}
-        meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
-        speakText={query}
-      />
-      <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
+  const fill = splitPlan.useSplit;
 
-      {senses.length > 0 && (
-        <FoldBlock title="Cambridge 词典详情" count={senses.length} open={showCambridge} onToggle={() => setShowCambridge((v) => !v)}>
+  const cambridgeBlock = senses.length > 0 && (
+        <FoldBlock fill={fill && showCambridge} title="Cambridge 词典详情" count={senses.length} open={showCambridge} onToggle={() => setShowCambridge((v) => !v)}>
           {(phonetics?.uk || phonetics?.us) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-600">
               {phonetics.uk && <span><b className="text-stone-800">UK</b> {phonetics.uk}</span>}
@@ -710,9 +747,9 @@ export function UtilityEnZhBidirectionalView({
             </div>
           )}
         </FoldBlock>
-      )}
+  );
 
-      {(displayExamples.length > 0 || examplesEditable) && !hideExamples && (
+  const examplesBlock = (displayExamples.length > 0 || examplesEditable) && !hideExamples && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <SectionLabel>{senses.length > 0 ? 'Cambridge 例句' : '例句'}</SectionLabel>
@@ -769,19 +806,19 @@ export function UtilityEnZhBidirectionalView({
             )}
           </div>
         </div>
-      )}
+  );
 
-      {idioms.length > 0 && (
-        <FoldBlock title="习语" count={idioms.length} open={showIdioms} onToggle={() => setShowIdioms((v) => !v)}>
+  const idiomsBlock = idioms.length > 0 && (
+        <FoldBlock fill={fill} title="习语" count={idioms.length} open={showIdioms} onToggle={() => setShowIdioms((v) => !v)}>
           <div className="space-y-1.5">
             {idioms.map((item, idx) => (
               <div key={idx} className="text-xs text-stone-800 leading-relaxed">{item}</div>
             ))}
           </div>
         </FoldBlock>
-      )}
+  );
 
-      {validBusiness.length > 0 && !hideExamples && (
+  const businessBlock = validBusiness.length > 0 && !hideExamples && (
         <div>
           <SectionLabel>商务例句</SectionLabel>
           <div className="space-y-2">
@@ -796,9 +833,9 @@ export function UtilityEnZhBidirectionalView({
             ))}
           </div>
         </div>
-      )}
+  );
 
-      {other_meanings.length > 0 && (
+  const otherBlock = other_meanings.length > 0 && (
         <FoldBlock title="其他释义" count={other_meanings.length} open={showOther} onToggle={() => setShowOther((v) => !v)}>
           {other_meanings.map((item, idx) => (
             <div key={idx} className="text-xs">
@@ -810,27 +847,22 @@ export function UtilityEnZhBidirectionalView({
             </div>
           ))}
         </FoldBlock>
-      )}
+  );
 
-      {(synonyms.length > 0 || antonyms.length > 0) && (
-        <div className="grid grid-cols-1 gap-2">
-          {synonyms.length > 0 && (
-            <div>
-              <SectionLabel>近义词</SectionLabel>
-              <TagCloud items={synonyms} tone="pos" />
-            </div>
-          )}
-          {antonyms.length > 0 && (
-            <div>
-              <SectionLabel>反义词</SectionLabel>
-              <TagCloud items={antonyms} tone="neg" />
-            </div>
-          )}
-        </div>
-      )}
+  const synonymsBlock = synonyms.length > 0 && (
+    <PillPanel fill={fill} label="近义词">
+      <TagCloud items={synonyms} tone="pos" />
+    </PillPanel>
+  );
 
-      {extCount > 0 && (
-        <FoldBlock title="搭配与词源" count={extCount} open={showExt} onToggle={() => setShowExt((v) => !v)}>
+  const antonymsBlock = antonyms.length > 0 && (
+    <PillPanel fill={fill} label="反义词">
+      <TagCloud items={antonyms} tone="neg" />
+    </PillPanel>
+  );
+
+  const collocationsBlock = extCount > 0 && (
+        <FoldBlock fill={fill} title="搭配与词源" count={extCount} open={showExt} onToggle={() => setShowExt((v) => !v)}>
           {collocations.length > 0 && (
             <div>
               <div className="text-[10px] font-semibold text-stone-500 mb-1">常用搭配</div>
@@ -844,7 +876,71 @@ export function UtilityEnZhBidirectionalView({
             </div>
           )}
         </FoldBlock>
+  );
+
+  const stackedExtras = (
+    <>
+      {idiomsBlock}
+      {(synonyms.length > 0 || antonyms.length > 0) && (
+        <div className="grid grid-cols-1 gap-2">
+          {synonymsBlock}
+          {antonymsBlock}
+        </div>
       )}
+      {collocationsBlock}
+    </>
+  );
+
+  const splitExtras = (
+    <aside className={splitPlan.rightRailClass}>
+      {idiomsBlock ? <EqualCell className={splitPlan.rightCellClass}>{idiomsBlock}</EqualCell> : null}
+      {synonymsBlock ? <EqualCell className={splitPlan.rightCellClass}>{synonymsBlock}</EqualCell> : null}
+      {antonymsBlock ? <EqualCell className={splitPlan.rightCellClass}>{antonymsBlock}</EqualCell> : null}
+      {collocationsBlock ? <EqualCell className={splitPlan.rightCellClass}>{collocationsBlock}</EqualCell> : null}
+    </aside>
+  );
+
+  return (
+    <div className={`${splitPlan.gridClass} text-left select-text selection:bg-[#FF5722]/15`}>
+      <div className={`min-w-0 ${fill ? 'h-full flex flex-col gap-3' : 'contents'}`}>
+        {fill ? (
+          <>
+            <div className="shrink-0 space-y-3">
+              <CompactHead
+                word={query}
+                phonetic={phonetic}
+                pos={pos}
+                level={payload.level}
+                meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
+                speakText={query}
+              />
+              <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
+            </div>
+            <div className={showCambridge ? 'flex-1 min-h-0' : 'shrink-0'}>{cambridgeBlock}</div>
+            {examplesBlock}
+            {businessBlock}
+            {otherBlock}
+          </>
+        ) : (
+          <>
+            <CompactHead
+              word={query}
+              phonetic={phonetic}
+              pos={pos}
+              level={payload.level}
+              meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
+              speakText={query}
+            />
+            <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
+            {cambridgeBlock}
+            {examplesBlock}
+            {businessBlock}
+            {otherBlock}
+            {stackedExtras}
+          </>
+        )}
+      </div>
+      {fill ? splitExtras : null}
     </div>
   );
 }

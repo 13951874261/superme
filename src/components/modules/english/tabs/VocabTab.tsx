@@ -510,7 +510,7 @@ export default function VocabTab() {
                   <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-2.5 md:p-3">
                     {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
                     {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
-                    {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
+                    {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} hideExamples splitLexicon />}
                   </div>
 
                   <FlashCardExampleMemoryAlign
