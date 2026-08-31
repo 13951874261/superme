@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getMemoryAids, enrichMemory, generateMemoryImage, MemoryAids } from '../services/vocabAPI';
 import { Sparkles, Image, RefreshCw, Download, ExternalLink, HelpCircle, FileText, Compass, AlertCircle, Loader2 } from 'lucide-react';
 
@@ -48,6 +49,7 @@ export default function MemoryAidPanel({
   };
 
   useEffect(() => {
+    setImageLightbox(false);
     fetchMemoryAids();
   }, [wordId]);
 
@@ -186,7 +188,7 @@ export default function MemoryAidPanel({
         <button
           type="button"
           onClick={() => setImageLightbox(true)}
-          className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner group block text-left"
+          className="relative aspect-[16/9] w-full rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-inner group block text-left cursor-zoom-in"
         >
           <img
             src={memoryAids.image_url}
@@ -230,21 +232,24 @@ export default function MemoryAidPanel({
           </a>
         </div>
 
-        {imageLightbox && memoryAids.image_url && (
-          <div
-            className="fixed inset-0 z-[10000] bg-black/70 flex items-center justify-center p-4"
-            onClick={() => setImageLightbox(false)}
-            role="dialog"
-            aria-modal="true"
-          >
-            <img
-              src={memoryAids.image_url}
-              alt={`记忆助手大图: ${wordText}`}
-              className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain"
-              onClick={(e) => e.stopPropagation()}
-            />
-          </div>
-        )}
+        {imageLightbox && memoryAids.image_url && typeof document !== 'undefined'
+          ? createPortal(
+              <div
+                className="fixed inset-0 z-[10000] bg-black/70 flex items-center justify-center p-4 cursor-zoom-out"
+                onClick={() => setImageLightbox(false)}
+                role="dialog"
+                aria-modal="true"
+                aria-label="点击还原图片"
+              >
+                <img
+                  src={memoryAids.image_url}
+                  alt={`记忆助手大图: ${wordText}`}
+                  className="max-w-full max-h-[85vh] rounded-xl shadow-2xl object-contain"
+                />
+              </div>,
+              document.body,
+            )
+          : null}
       </div>
     );
   };

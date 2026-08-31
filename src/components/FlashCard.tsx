@@ -335,41 +335,51 @@ export default function FlashCard({ onClose }: FlashCardProps) {
               {/* 背面：按词条类型分层（原词 / 释义 / 短语 / 例句） */}
               {isFlipped && card && (
                 <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
-                  {((card.phonetic && card.phonetic !== '/') || (card.pos && card.pos !== 'phrase' && card.pos !== 'sentence')) && (
-                    <div className="text-xs text-slate-400 font-mono">
-                      {card.phonetic && card.phonetic !== '/' ? `[${card.phonetic}]` : ''}
-                      {card.pos && card.pos !== 'phrase' && card.pos !== 'sentence' ? `  ${card.pos}` : ''}
-                    </div>
-                  )}
+                  <div
+                    className={
+                      englishDefinition
+                        ? 'grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch'
+                        : 'space-y-3'
+                    }
+                  >
+                    <div className="min-w-0 space-y-3">
+                      {((card.phonetic && card.phonetic !== '/') || (card.pos && card.pos !== 'phrase' && card.pos !== 'sentence')) && (
+                        <div className="text-xs text-slate-400 font-mono">
+                          {card.phonetic && card.phonetic !== '/' ? `[${card.phonetic}]` : ''}
+                          {card.pos && card.pos !== 'phrase' && card.pos !== 'sentence' ? `  ${card.pos}` : ''}
+                        </div>
+                      )}
 
-                  <div>
-                    <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
-                      释义
+                      <div>
+                        <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
+                          释义
+                        </div>
+                        <div className="text-sm text-gray-700 leading-relaxed text-pretty">
+                          {chineseDefinition || '暂无中文释义'}
+                        </div>
+                      </div>
+
+                      {card.itemType === '单词 (Word)' && card.relatedPhrase && (
+                        <div>
+                          <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">短语</div>
+                          <div className="text-sm text-gray-700">{card.relatedPhrase}</div>
+                        </div>
+                      )}
                     </div>
-                    <div className="text-sm text-gray-700 leading-relaxed">
-                      {chineseDefinition || '暂无中文释义'}
-                    </div>
+
+                    {englishDefinition && (
+                      <div className="min-w-0 flex flex-col">
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" /> English Definition / 英文定义</span>
+                          <SpeakButton text={englishDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 text-pretty">
+                          {englishDefinition}
+                        </div>
+                      </div>
+                    )}
                   </div>
-
-                  {card.itemType === '单词 (Word)' && card.relatedPhrase && (
-                    <div>
-                      <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">短语</div>
-                      <div className="text-sm text-gray-700">{card.relatedPhrase}</div>
-                    </div>
-                  )}
-
-                  {englishDefinition && (
-                    <div>
-                      <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> English Definition / 英文定义</span>
-                        <SpeakButton text={englishDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
-                      </div>
-                      <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                        {englishDefinition}
-                      </div>
-                    </div>
-                  )}
 
                   {currentBusinessNote && (
                     <div>
