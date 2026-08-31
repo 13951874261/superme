@@ -11,53 +11,51 @@ import CustomCardModal from '../../../CustomCardModal';
 import MemoryAidPanel from '../../../MemoryAidPanel';
 import FlashCardExampleMemoryAlign from '../../../FlashCardExampleMemoryAlign';
 import VocabExportControl from '../../../VocabExportControl';
-import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
+import { EnZhBidirectionalView } from '../../../DictionaryPanel';
 import { showError, showSuccess } from '../../../Toast';
 import MemoryMatrixStage from './vocab/MemoryMatrixStage';
+import { extractSynonymsAntonymsCollocations } from '../../../../utils/vocabCsvExport';
 
-// --- Payload Adapter ---
+function asList(value: unknown): any[] {
+  return Array.isArray(value) ? value : [];
+}
+
+/** 生词复习统一成英汉宽卡骨架（政商务 / 全场景同一套布局） */
 function adaptWordPayload(word: any) {
   if (!word) return { type: '', payload: null };
   const payload = word.payload || {};
-  const dictType = word.dict_type || '';
-
-  // 如果 payload 已经是标准词典结构之一，直接返回
-  if (payload.translation_main || payload.definitions_en || payload.definition) {
-    let resolvedType = dictType;
-    if (dictType === 'manual_capture' || dictType === 'ai_extracted' || dictType === 'ai_phrase') {
-      if (payload.translation_main) resolvedType = 'en_zh_bidirectional';
-      else if (payload.definitions_en) resolvedType = 'en_en_business';
-      else if (payload.definition) resolvedType = 'zh_modern';
-    }
-    return { type: resolvedType, payload };
-  }
-
-  // 否则，它是 Dify 划线提纯/自动补全的扁平格式，适配为 en_en_business（商务英英）格式
-  const adaptedPayload: any = {
-    headword: word.word,
-    pos: payload.partOfSpeech || payload.pos || '',
-    phonetic: payload.phonetic || '',
-    meaning_zh: payload.meaning || payload.meaning_zh || '',
-    definitions_en: payload.definition_en ? [payload.definition_en] : [],
-    business_notes: payload.business_note || payload.businessNote || '',
-    scenarios: Array.isArray(payload.examples)
-      ? payload.examples.map((ex: any) => ({
-          scene: '商务场景',
-          example_en: typeof ex === 'string' ? ex : (ex.en || ex.example || '')
-        }))
-      : [],
-    other_meanings: [],
-    example_sentences: Array.isArray(payload.examples)
-      ? payload.examples.filter((ex: any) => typeof ex === 'string' ? ex.trim() : (ex.en || ex.zh || ''))
-      : [],
-    synonyms: Array.isArray(payload.synonyms) ? payload.synonyms : [],
-    antonyms: Array.isArray(payload.antonyms) ? payload.antonyms : [],
-    collocations: Array.isArray(payload.collocations) ? payload.collocations : [],
-  };
+  const extracted = extractSynonymsAntonymsCollocations(word.word || '', payload);
+  const translation_main = String(
+    payload.translation_main
+    || payload.meaning_zh
+    || payload.meaning
+    || payload.definition
+    || (asList(payload.definitions_en)[0] || '')
+    || payload.definition_en
+    || '',
+  ).trim();
+  const example_sentences = asList(payload.example_sentences).length
+    ? payload.example_sentences
+    : asList(payload.examples);
+  const business_examples = asList(payload.business_examples).length
+    ? payload.business_examples
+    : asList(payload.scenarios);
 
   return {
-    type: 'en_en_business',
-    payload: adaptedPayload
+    type: 'en_zh_bidirectional',
+    payload: {
+      ...payload,
+      phonetic: payload.phonetic || '',
+      pos: payload.pos || payload.partOfSpeech || '',
+      translation_main,
+      other_meanings: asList(payload.other_meanings),
+      business_examples,
+      example_sentences,
+      synonyms: asList(payload.synonyms).length ? payload.synonyms : extracted.synonyms,
+      antonyms: asList(payload.antonyms).length ? payload.antonyms : extracted.antonyms,
+      collocations: asList(payload.collocations).length ? payload.collocations : extracted.collocations,
+      idioms: asList(payload.idioms),
+    },
   };
 }
 
@@ -508,9 +506,9 @@ export default function VocabTab() {
                 <div className="animate-[fadeIn_0.4s_ease-out] space-y-3">
                   {/* 通栏：词头 + 核心释义 + 词典详情（例句改到下方 4 槽对齐） */}
                   <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-2">
-                    {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
-                    {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
-                    {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} hideExamples splitLexicon />}
+                    {adaptedWord.payload && (
+                      <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} hideExamples splitLexicon />
+                    )}
                   </div>
 
                   <FlashCardExampleMemoryAlign
@@ -586,25 +584,31 @@ export default function VocabTab() {
                         </div>
                       </div>
 
-                      {/* 3. 高管商务语态与实战 SOP */}
+                      {/* 3. 语态 SOP：政商务 / 全场景同一卡片骨架，文案分区 */}
                       <div className="bg-amber-50/50 border border-amber-200/70 rounded-xl p-2.5 shadow-sm space-y-2">
                         <div className="flex items-center gap-2 text-amber-900 border-b border-amber-200/50 pb-1.5">
                           <ShieldAlert className="w-4 h-4 text-amber-600" />
-                          <span className="text-xs font-black uppercase tracking-wider">3. 高管商务语态与分寸 SOP</span>
+                          <span className="text-xs font-black uppercase tracking-wider">
+                            {vocabZone === 'general' ? '3. 全场景语态与分寸 SOP' : '3. 高管商务语态与分寸 SOP'}
+                          </span>
                         </div>
                         <div className="text-xs text-amber-950/80 leading-relaxed font-medium space-y-1">
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[10px] font-bold text-amber-800 uppercase shrink-0">语态分寸:</span>
                             <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded border border-amber-200">
-                              High Power / 决策级
+                              {vocabZone === 'general' ? 'Natural / 日常沟通' : 'High Power / 决策级'}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-[10px] font-bold text-amber-800 uppercase shrink-0">推荐应用场景:</span>
-                            <span className="text-[10px] text-slate-700 font-semibold text-right">QBR 汇报 · 高层谈判 · 战略方案</span>
+                            <span className="text-[10px] text-slate-700 font-semibold text-right">
+                              {vocabZone === 'general' ? '社交破冰 · 精听划线 · 口语应急' : 'QBR 汇报 · 高层谈判 · 战略方案'}
+                            </span>
                           </div>
                           <p className="text-[11px] text-slate-600 italic bg-white/70 p-2 rounded-lg border border-amber-100/80 mt-0.5">
-                            💡 提示：在商务汇报中使用此词可显著提升句式的掌控力与专业气场，建议配合下方强制造句提交评估。
+                            {vocabZone === 'general'
+                              ? '💡 提示：在日常对话与精听场景中使用此词，建议配合下方强制造句提交评估。'
+                              : '💡 提示：在商务汇报中使用此词可显著提升句式的掌控力与专业气场，建议配合下方强制造句提交评估。'}
                           </p>
                         </div>
                       </div>
