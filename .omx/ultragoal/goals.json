@@ -34,7 +34,7 @@
     {
       "id": "G005",
       "title": "验收 + quality gate",
-      "status": "pending",
+      "status": "complete",
       "objective": "对照 spec AC1–6 做手工/可自动化验收；矩阵双栏回归；最终 cleanup/review gate。"
     }
   ]
