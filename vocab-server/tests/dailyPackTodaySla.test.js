@@ -24,7 +24,8 @@ async function testDailyPackTodayContract() {
   if (fs.existsSync(modulePath)) {
     const moduleContent = fs.readFileSync(modulePath, 'utf8');
     assert.ok(moduleContent.includes('正在为您智能定制今日专属唤醒训练...'), '必须包含业务化生成提示');
-    assert.ok(moduleContent.includes('今日唤醒包正在后台加速准备，您可先在生词本或听力模块进行热身'), '必须包含防白屏兜底引导文案');
+    assert.ok(moduleContent.includes('已转入【任务中心】'), '超过 3 秒未命中缓存必须提醒任务中心');
+    assert.ok(moduleContent.includes('DAILY_PACK_RACE_MS'), '必须走 3 秒竞速');
     assert.ok(!moduleContent.includes('10 个高频词发音注意点'), '唤醒标题不得再写 10 个高频词');
     assert.ok(moduleContent.includes('今日主题专业词（3+2）'), '唤醒标题必须改为 3+2');
   }

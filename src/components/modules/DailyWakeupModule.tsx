@@ -7,10 +7,12 @@ import { showToast } from '../Toast';
 import PronunciationTrainer from './PronunciationTrainer';
 import GrammarPolishTrainer from './GrammarPolishTrainer';
 import { useEnglishContext } from './english/context/EnglishContext';
-import { getTodayDailyPack, regenerateDailyPack, WakeupPayload, WakeupWord, buildDailyPackQueryInput } from '../../services/dailyPackAPI';
+import { getTodayDailyPack, regenerateDailyPack, raceDailyPackReady, DAILY_PACK_RACE_MS, WakeupPayload, WakeupWord, buildDailyPackQueryInput, friendlyDailyPackError } from '../../services/dailyPackAPI';
 import { lookupVocabWords } from '../../services/vocabAPI';
 import { upsertTrainingSession } from '../../services/trainingAPI';
 import { getAppUserId } from '../../utils/profileHelper';
+import { useTask } from '../TaskContext';
+import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import {
   VOCAB_ZONE_LABEL,
   VOCAB_ZONE_COLLECT_BTN,
@@ -46,6 +48,8 @@ export default function DailyWakeupModule() {
   const [seconds, setSeconds] = useState(0);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string>('等待开始今日唤醒');
+  const { addTask } = useTask();
+  const regenBtnRef = useRef<HTMLButtonElement | null>(null);
   const {
     collect,
     hydrateFromEntries,
@@ -94,7 +98,7 @@ export default function DailyWakeupModule() {
     }
     setResult(null);
     if (pack.status === 'failed') {
-      setNotice(pack.errorMessage || '今日唤醒生成失败，可立即生成');
+      setNotice(friendlyDailyPackError(pack.errorMessage) || '今日唤醒生成失败，可立即生成');
     } else if (pack.status === 'generating') {
       setNotice('暂无可用缓存，请点击「刷新今日包」手动生成');
     } else {
@@ -111,7 +115,7 @@ export default function DailyWakeupModule() {
       applyPack(pack);
       return pack;
     } catch (error) {
-      const msg = error instanceof Error ? error.message : '加载失败';
+      const msg = friendlyDailyPackError(error instanceof Error ? error.message : '加载失败');
       setNotice(`读取今日包失败：${msg}`);
       return null;
     }
@@ -152,18 +156,39 @@ export default function DailyWakeupModule() {
     if (loading) return;
     setLoading(true);
     setNotice(result ? '正在重新为您定制今日专属唤醒训练…' : '正在为您智能定制今日专属唤醒训练...');
+    const handoffMsg = '生成超过 3 秒未命中缓存，已转入【任务中心】，您可先在生词本或听力模块热身';
+    const applyWhenReady = (pack: Awaited<ReturnType<typeof getTodayDailyPack>>) => {
+      if (applyPack(pack) && pack.wakeup) startTimer();
+    };
     try {
       void refreshStayStats(true);
       void refreshTodaySession();
       const queryInput = await buildDailyPackQueryInput(theme);
-      const pack = await regenerateDailyPack('wakeup', queryInput);
-      if (pack.status !== 'ready' || !pack.wakeup) {
-        const cached = await getTodayDailyPack(queryInput).catch(() => null);
-        if (cached && applyPack(cached)) return;
-        throw new Error(pack.errorMessage || '今日专属唤醒内容定制中');
+      const first = await regenerateDailyPack('wakeup', queryInput);
+      const raced = await raceDailyPackReady(first, 'wakeup', queryInput);
+      if (raced.kind === 'ready') {
+        applyWhenReady(raced.pack);
+        return;
       }
-      applyPack(pack);
-      startTimer();
+      if (first.taskId) {
+        addTask({
+          id: first.taskId,
+          type: 'daily_pack',
+          name: `每日唤醒｜${queryInput.theme || theme}`,
+          status: 'running',
+          progress: 20,
+          logs: [`超过 ${DAILY_PACK_RACE_MS / 1000} 秒未命中缓存，已转入后台继续生成`],
+        });
+      }
+      notifyBackgroundHandoff({
+        anchor: regenBtnRef.current,
+        message: handoffMsg,
+        tone: 'info',
+        toast: true,
+      });
+      setPackStatus('generating');
+      setNotice(handoffMsg);
+      raced.wait.then(applyWhenReady).catch(() => {});
     } catch (error) {
       const queryInput = await buildDailyPackQueryInput(theme).catch(() => null);
       const cached = queryInput ? await getTodayDailyPack(queryInput).catch(() => null) : null;
@@ -172,12 +197,13 @@ export default function DailyWakeupModule() {
         return;
       }
       setPackStatus('failed');
-      const fallbackMsg = '今日唤醒包正在后台加速准备，您可先在生词本或听力模块进行热身';
-      setNotice(fallbackMsg);
-      try {
-        const { showToast } = await import('../Toast');
-        showToast({ message: fallbackMsg, type: 'info' });
-      } catch (err) {}
+      setNotice(handoffMsg);
+      notifyBackgroundHandoff({
+        anchor: regenBtnRef.current,
+        message: handoffMsg,
+        tone: 'info',
+        toast: true,
+      });
     } finally {
       setLoading(false);
     }
@@ -383,6 +409,7 @@ export default function DailyWakeupModule() {
                       开始练习
                     </button>
                     <button
+                      ref={regenBtnRef}
                       onClick={handleRegenerate}
                       disabled={loading}
                       className="px-4 py-2 rounded-xl border border-white/20 bg-white/5 text-white font-black text-xs tracking-wide hover:bg-white/10 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"
@@ -393,6 +420,7 @@ export default function DailyWakeupModule() {
                   </>
                 ) : (
                   <button
+                    ref={regenBtnRef}
                     onClick={handleRegenerate}
                     disabled={loading}
                     className="px-4 py-2 rounded-xl bg-white text-[#202124] font-black text-xs tracking-wide hover:bg-[#FF5722] hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-50 flex items-center justify-center gap-1.5 cursor-pointer"

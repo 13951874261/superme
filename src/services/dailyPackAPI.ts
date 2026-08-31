@@ -41,6 +41,38 @@ export interface DailyPackResponse {
   errorMessage?: string | null;
   wakeup?: WakeupPayload | null;
   flawVocab?: FlawVocabWord[] | null;
+  taskId?: string;
+}
+
+/** 禁止把 Node/浏览器网络原文展示给用户 */
+export function friendlyDailyPackError(raw: unknown): string {
+  const msg = raw instanceof Error ? raw.message : String(raw ?? '').trim();
+  if (/唤醒服务暂时连不上/.test(msg)) return msg;
+  if (/fetch failed|Failed to fetch|NetworkError|Load failed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|ENOTFOUND/i.test(msg)) {
+    return '唤醒服务暂时连不上，请稍后点「立即生成」重试';
+  }
+  return msg;
+}
+
+/** 缓存未命中后前台最多等 3 秒，超时转入任务中心 */
+export const DAILY_PACK_RACE_MS = 3000;
+
+export async function withDailyPackRace<T>(
+  actionPromise: Promise<T>,
+  timeoutMs: number = DAILY_PACK_RACE_MS,
+): Promise<{ isTimeout: false; result: T } | { isTimeout: true }> {
+  let timerId: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<{ isTimeout: true }>((resolve) => {
+    timerId = setTimeout(() => resolve({ isTimeout: true }), timeoutMs);
+  });
+  try {
+    return await Promise.race([
+      actionPromise.then((result) => ({ isTimeout: false as const, result })),
+      timeoutPromise,
+    ]);
+  } finally {
+    if (timerId) clearTimeout(timerId);
+  }
 }
 
 async function request<T>(path: string, options?: RequestInit & { timeoutMs?: number }): Promise<T> {
@@ -62,7 +94,7 @@ async function request<T>(path: string, options?: RequestInit & { timeoutMs?: nu
     if (name === 'AbortError' || controller.signal.aborted) {
       throw new Error(`请求超时（>${Math.round(timeoutMs / 1000)}s）`);
     }
-    throw err;
+    throw new Error(friendlyDailyPackError(err));
   } finally {
     window.clearTimeout(timer);
   }
@@ -194,13 +226,27 @@ async function pollTodayUntilSettled(
   return last || { success: false, status: 'failed', errorMessage: '等待生成超时' };
 }
 
+export async function waitDailyPackUntilReady(
+  type: 'wakeup' | 'flaw' | 'both',
+  input?: Partial<DailyPackQueryInput>,
+  userId = getAppUserId(),
+  timeoutMs = 180_000,
+) {
+  return pollTodayUntilSettled(
+    userId,
+    normalizeDailyPackInput(input),
+    type === 'flaw' ? 'flaw' : type === 'wakeup' ? 'wakeup' : 'both',
+    timeoutMs,
+  );
+}
+
 export async function regenerateDailyPack(
   type: 'wakeup' | 'flaw' | 'both' = 'both',
   input?: Partial<DailyPackQueryInput>,
   userId = getAppUserId(),
 ) {
   const normalizedInput = normalizeDailyPackInput(input);
-  const first = await request<DailyPackResponse>('/api/daily-pack/regenerate', {
+  return request<DailyPackResponse>('/api/daily-pack/regenerate', {
     method: 'POST',
     body: JSON.stringify({
       userId,
@@ -209,14 +255,35 @@ export async function regenerateDailyPack(
       historyExclude: normalizedInput.historyExclude,
       userCurrentProfile: normalizedInput.userCurrentProfile,
     }),
-    timeoutMs: 20_000,
+    timeoutMs: 8_000,
   });
-  if (first.status === 'generating') {
-    return pollTodayUntilSettled(
-      userId,
-      normalizedInput,
-      type === 'flaw' ? 'flaw' : type === 'wakeup' ? 'wakeup' : 'both',
-    );
+}
+
+function packSatisfiesNeed(pack: DailyPackResponse, need: 'wakeup' | 'flaw' | 'both') {
+  if (pack.status === 'failed') return true;
+  if (pack.status !== 'ready') return false;
+  if (need === 'wakeup') return Boolean(pack.wakeup);
+  if (need === 'flaw') return Boolean(pack.flawVocab?.length);
+  return Boolean(pack.wakeup);
+}
+
+export async function raceDailyPackReady(
+  first: DailyPackResponse,
+  type: 'wakeup' | 'flaw' | 'both',
+  input?: Partial<DailyPackQueryInput>,
+  userId = getAppUserId(),
+): Promise<
+  | { kind: 'ready'; pack: DailyPackResponse }
+  | { kind: 'handoff'; pack: DailyPackResponse; wait: Promise<DailyPackResponse> }
+> {
+  const need = type === 'flaw' ? 'flaw' : type === 'wakeup' ? 'wakeup' : 'both';
+  if (packSatisfiesNeed(first, need)) {
+    return { kind: 'ready', pack: first };
   }
-  return first;
+  const wait = waitDailyPackUntilReady(type, input, userId);
+  const raced = await withDailyPackRace(wait);
+  if (!raced.isTimeout) {
+    return { kind: 'ready', pack: raced.result };
+  }
+  return { kind: 'handoff', pack: first, wait };
 }

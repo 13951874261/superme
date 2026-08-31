@@ -723,6 +723,32 @@ async function generateVocabWithDedupe(db, userId, {
   };
 }
 
+const WAKEUP_DIFY_FETCH_ATTEMPTS = 2;
+
+function wakeupDifyRetryDelayMs() {
+  const n = Number(process.env.WAKEUP_DIFY_RETRY_MS);
+  return Number.isFinite(n) && n >= 0 ? n : 1500;
+}
+
+function isTransientDifyFetchError(err) {
+  const msg = String(err?.message || err || '');
+  const code = String(err?.cause?.code || err?.code || '');
+  return /fetch failed|Failed to fetch|NetworkError|Load failed|ECONNRESET|ETIMEDOUT|ECONNREFUSED|ENOTFOUND|UND_ERR|socket hang up/i.test(`${msg} ${code}`);
+}
+
+/** 禁止把 Node/undici 的 fetch failed 原文写入 daily_packs.error_message */
+function formatWakeupDifyFetchError(err) {
+  if (err == null || err === '') return null;
+  const raw = String(err instanceof Error ? err.message : err).trim() || '未知错误';
+  if (/唤醒服务暂时连不上/.test(raw)) return raw;
+  if (isTransientDifyFetchError(err) || isTransientDifyFetchError(raw)) {
+    const code = (err && err.cause && err.cause.code) || (err && err.code) || '';
+    const suffix = code ? `（${code}）` : '';
+    return `唤醒服务暂时连不上${suffix}，请稍后点「立即生成」重试`;
+  }
+  return raw;
+}
+
 async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurrentProfile = '' }) {
   const apiKey = process.env.DIFY_WAKEUP_API_KEY || process.env.VITE_DIFY_WAKEUP_API_KEY;
   if (!apiKey) throw new Error('DIFY_WAKEUP_API_KEY not configured');
@@ -734,20 +760,34 @@ async function callWakeupWorkflow({ theme, userId, historyExclude = '', userCurr
     _system_time: getSystemFormattedTime(),
     _system_timestamp_ms: Date.now(),
   };
-  const res = await fetch(`${baseUrl}/workflows/run`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      inputs,
-      response_mode: 'blocking',
-      user: normalizeUserId(userId),
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
-  const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? '';
-  const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
-  return JSON.parse(clean);
+  let lastErr;
+  for (let attempt = 1; attempt <= WAKEUP_DIFY_FETCH_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(`${baseUrl}/workflows/run`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          inputs,
+          response_mode: 'blocking',
+          user: normalizeUserId(userId),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.message || data?.error || `Dify HTTP ${res.status}`);
+      const raw = data?.data?.outputs?.wakeup_json ?? data?.data?.outputs?.result ?? data?.answer ?? '';
+      const clean = String(raw).replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(clean);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < WAKEUP_DIFY_FETCH_ATTEMPTS && isTransientDifyFetchError(err)) {
+        const delay = wakeupDifyRetryDelayMs();
+        if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay));
+        continue;
+      }
+      throw new Error(formatWakeupDifyFetchError(err) || '唤醒服务请求失败');
+    }
+  }
+  throw new Error(formatWakeupDifyFetchError(lastErr) || '唤醒服务请求失败');
 }
 
 function normalizeWakeupPayload(value, fallbackTheme = '') {
@@ -988,7 +1028,7 @@ async function generateDailyPackForUser(db, userId, theme, source = 'cron') {
       flawVocab: null,
       source,
       status: 'failed',
-      errorMessage: err.message || String(err),
+      errorMessage: formatWakeupDifyFetchError(err) || err.message || String(err),
     });
     throw err;
   }
@@ -1014,7 +1054,7 @@ function serializeDailyPack(row, currentTheme) {
     stale: Boolean(current && packTheme && current !== packTheme),
     status: row.status,
     source: row.source,
-    errorMessage: row.error_message || null,
+    errorMessage: formatWakeupDifyFetchError(row.error_message) || row.error_message || null,
     wakeup: row.wakeup_json ? normalizeWakeupPayload(JSON.parse(row.wakeup_json), row.theme) : null,
     flawVocab: row.flaw_vocab_json ? JSON.parse(row.flaw_vocab_json) : null,
   };
@@ -1241,5 +1281,6 @@ module.exports = {
   waitForExtractTask,
   serializeDailyPack,
   upsertDailyPack,
+  formatWakeupDifyFetchError,
   callWakeupWorkflow,
 };

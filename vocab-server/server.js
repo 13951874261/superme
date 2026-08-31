@@ -8497,6 +8497,16 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
     const existingWakeup = existing?.wakeup_json ? JSON.parse(existing.wakeup_json) : null;
     const existingFlaw = existing?.flaw_vocab_json ? JSON.parse(existing.flaw_vocab_json) : null;
 
+    const taskQueue = require('./services/taskQueue');
+    const typeLabel = type === 'flaw' ? '每日破绽词汇' : type === 'wakeup' ? '每日唤醒' : '今日训练包';
+    const tq = taskQueue.createTask('daily_pack', `${typeLabel}｜${resolvedTheme}`);
+    const taskId = tq.id;
+    taskQueue.updateTask(taskId, {
+      status: 'running',
+      progress: 10,
+      logs: ['已受理，正在后台生成今日包'],
+    });
+
     // 立刻落 generating 并返回，Dify 在后台跑，避免长连接占满浏览器/Nginx
     const pending = dailyPackService.upsertDailyPack(db, {
       userId: uid,
@@ -8509,7 +8519,24 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
       status: 'generating',
       errorMessage: null,
     });
-    res.json(dailyPackService.serializeDailyPack(pending, resolvedTheme));
+    res.json({ ...dailyPackService.serializeDailyPack(pending, resolvedTheme), taskId });
+
+    const finishTask = (ok, errMsg) => {
+      if (ok) {
+        taskQueue.updateTask(taskId, {
+          status: 'completed',
+          progress: 100,
+          logs: ['今日包已写入缓存，可刷新查看'],
+        });
+      } else {
+        taskQueue.updateTask(taskId, {
+          status: 'failed',
+          progress: 100,
+          error: errMsg || '生成失败',
+          logs: [`生成失败: ${errMsg || '未知错误'}`],
+        });
+      }
+    };
 
     setImmediate(() => {
       (async () => {
@@ -8527,6 +8554,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
               status: 'ready',
               errorMessage: null,
             });
+            finishTask(true);
             return;
           }
           if (type === 'wakeup') {
@@ -8546,6 +8574,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
               status: 'ready',
               errorMessage: null,
             });
+            finishTask(true);
             return;
           }
 
@@ -8566,6 +8595,7 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
             status: 'ready',
             errorMessage: null,
           });
+          finishTask(true);
         } catch (err) {
           console.error('[Daily Pack Regenerate bg]', err);
           dailyPackService.upsertDailyPack(db, {
@@ -8577,8 +8607,9 @@ app.post('/api/daily-pack/regenerate', async (req, res) => {
             flawVocab: type === 'wakeup' ? existingFlaw : null,
             source: 'manual',
             status: 'failed',
-            errorMessage: err.message || String(err),
+            errorMessage: dailyPackService.formatWakeupDifyFetchError(err) || err.message || String(err),
           });
+          finishTask(false, dailyPackService.formatWakeupDifyFetchError(err) || err.message || String(err));
         }
       })();
     });

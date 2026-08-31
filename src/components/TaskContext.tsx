@@ -5,7 +5,7 @@ import { getAppUserId } from '../utils/profileHelper';
 
 export interface TaskItem {
   id: string;
-  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'oral_opening_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'insight_case_backfill' | 'insight_daily_cron' | 'speak' | 'vocab_add' | 'theme_delete' | 'daily_extract';
+  type: 'url' | 'video' | 'material' | 'tts' | 'game_theory' | 'listen_backfill' | 'oral_opening_backfill' | 'vocab_export' | 'tactics_export' | 'vault_export' | 'vault_refine' | 'tactics_ingest' | 'insight_listen' | 'insight_case_backfill' | 'insight_daily_cron' | 'speak' | 'vocab_add' | 'theme_delete' | 'daily_extract' | 'daily_pack';
   name: string;
   generationConditions?: {
     topic: string;

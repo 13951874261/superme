@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack } from '../../services/dailyPackAPI';
+import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack, raceDailyPackReady, DAILY_PACK_RACE_MS, friendlyDailyPackError } from '../../services/dailyPackAPI';
 import { useVocabCollect } from '../../hooks/useVocabCollect';
 import { lookupVocabWords } from '../../services/vocabAPI';
 import { showToast } from '../Toast';
 import SpeakButton from '../SpeakButton';
 import { useEnglishContext } from './english/context/EnglishContext';
+import { useTask } from '../TaskContext';
+import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import {
   VOCAB_ZONE_LABEL,
   VOCAB_ZONE_COLLECT_BTN,
@@ -26,6 +28,8 @@ export default function DailyErrorVocabularyModule() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staleHint, setStaleHint] = useState<string | null>(null);
+  const { addTask } = useTask();
+  const regenBtnRef = useRef<HTMLButtonElement | null>(null);
   const {
     collect,
     hydrateFromEntries,
@@ -36,40 +40,72 @@ export default function DailyErrorVocabularyModule() {
     notify: (message, type) => showToast({ message, type }),
   });
 
+  const applyFlawPack = (pack: Awaited<ReturnType<typeof getTodayDailyPack>>) => {
+    if (pack.status === 'ready' && Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
+      setWords(pack.flawVocab.slice(0, 6));
+      setStaleHint(
+        pack.stale
+          ? `这份材料还是按「${pack.theme}」生成的，点刷新按「${pack.currentTheme || theme}」重做。`
+          : null,
+      );
+      setError(null);
+      return true;
+    }
+    setStaleHint(null);
+    return false;
+  };
+
   const fetchFlawVocab = async (regenerate = false) => {
     setIsLoading(true);
     setError(null);
+    const handoffMsg = '生成超过 3 秒未命中缓存，已转入【任务中心】';
     try {
       const queryInput = await buildDailyPackQueryInput(theme);
-      const pack = regenerate
-        ? await regenerateDailyPack('flaw', queryInput)
-        : await getTodayDailyPack(queryInput);
-
-      if (pack.status === 'ready' && Array.isArray(pack.flawVocab) && pack.flawVocab.length > 0) {
-        setWords(pack.flawVocab.slice(0, 6));
-        setStaleHint(
-          pack.stale
-            ? `这份材料还是按「${pack.theme}」生成的，点刷新按「${pack.currentTheme || theme}」重做。`
-            : null,
-        );
-        return;
-      }
-      setStaleHint(null);
-
-      if (pack.status === 'missing' || pack.status === 'failed') {
+      if (!regenerate) {
+        const pack = await getTodayDailyPack(queryInput);
+        if (applyFlawPack(pack)) return;
         setWords([]);
         setError(
           pack.status === 'failed'
-            ? (pack.errorMessage || '今日易错词生成失败，请点击刷新重试')
+            ? (friendlyDailyPackError(pack.errorMessage) || '今日易错词生成失败，请点击刷新重试')
             : '暂无缓存，请点击「刷新词汇」手动生成',
         );
         return;
       }
 
+      const first = await regenerateDailyPack('flaw', queryInput);
+      const raced = await raceDailyPackReady(first, 'flaw', queryInput);
+      if (raced.kind === 'ready') {
+        if (applyFlawPack(raced.pack)) return;
+        setWords([]);
+        setError(
+          raced.pack.status === 'failed'
+            ? (friendlyDailyPackError(raced.pack.errorMessage) || '今日易错词生成失败，请点击刷新重试')
+            : '暂无缓存，请点击「刷新词汇」手动生成',
+        );
+        return;
+      }
+      if (first.taskId) {
+        addTask({
+          id: first.taskId,
+          type: 'daily_pack',
+          name: `每日破绽词汇｜${queryInput.theme || theme}`,
+          status: 'running',
+          progress: 20,
+          logs: [`超过 ${DAILY_PACK_RACE_MS / 1000} 秒未命中缓存，已转入后台继续生成`],
+        });
+      }
+      notifyBackgroundHandoff({
+        anchor: regenBtnRef.current,
+        message: handoffMsg,
+        tone: 'info',
+        toast: true,
+      });
       setWords([]);
-      setError('暂无缓存，请点击「刷新词汇」手动生成');
+      setError(handoffMsg);
+      raced.wait.then((pack) => { applyFlawPack(pack); }).catch(() => {});
     } catch (e: any) {
-      setError(e.message || '获取每日破绽词汇失败，请重试');
+      setError(friendlyDailyPackError(e.message) || '获取每日破绽词汇失败，请重试');
     } finally {
       setIsLoading(false);
     }
@@ -136,6 +172,7 @@ export default function DailyErrorVocabularyModule() {
           </div>
         </div>
         <button
+          ref={regenBtnRef}
           onClick={() => void fetchFlawVocab(true)}
           disabled={isLoading}
           className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-slate-700/50 cursor-pointer self-start sm:self-auto"
@@ -155,6 +192,7 @@ export default function DailyErrorVocabularyModule() {
           <AlertTriangle className="w-10 h-10 text-red-500 mb-2" />
           <p className="text-sm text-red-400 font-semibold mb-4">{error}</p>
           <button
+            ref={regenBtnRef}
             onClick={() => void fetchFlawVocab(true)}
             className="px-5 py-2.5 bg-[var(--color-brand)] text-white text-xs font-black rounded-xl uppercase tracking-widest hover:bg-[var(--color-brand-hover)] transition-colors"
           >
