@@ -17,7 +17,9 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEDUPE_WINDOW_DAYS = Number(process.env.DAILY_PACK_DEDUPE_WINDOW_DAYS || 30);
 // 历史保留期：超期记录物理删除，避免表无限增长
 const DEDUPE_RETENTION_DAYS = Number(process.env.DAILY_PACK_DEDUPE_RETENTION_DAYS || 90);
-const WAKEUP_VOCAB_TARGET = 5;
+const WAKEUP_THEME_SLOTS = 3;
+const WAKEUP_THEORY_SLOTS = 3;
+const WAKEUP_VOCAB_TARGET = WAKEUP_THEME_SLOTS + WAKEUP_THEORY_SLOTS;
 const FLAW_VOCAB_TARGET = 6;
 // 命中重复后最多再调 LLM 一次
 const DEDUPE_RETRY_COUNT = 1;
@@ -454,10 +456,10 @@ function pickWakeupSlots(items) {
     const key = stemWordKey(word);
     if (!key || seen.has(key)) return;
     if (slot === 'theory') {
-      if (theory.length >= 2) return;
+      if (theory.length >= WAKEUP_THEORY_SLOTS) return;
       theory.push(item);
     } else {
-      if (theme.length >= 3) return;
+      if (theme.length >= WAKEUP_THEME_SLOTS) return;
       theme.push(item);
     }
     seen.add(key);
@@ -473,8 +475,8 @@ function pickWakeupSlots(items) {
     const key = stemWordKey(word);
     if (!key || seen.has(key)) continue;
     const inferred = isTheoryLexiconWord(item?.word) ? 'theory' : 'theme';
-    if (inferred === 'theory' && theory.length < 2) tryTake(item, 'theory');
-    else if (theme.length < 3) tryTake(item, 'theme');
+    if (inferred === 'theory' && theory.length < WAKEUP_THEORY_SLOTS) tryTake(item, 'theory');
+    else if (theme.length < WAKEUP_THEME_SLOTS) tryTake(item, 'theme');
   }
   return [...theme, ...theory];
 }
@@ -812,7 +814,7 @@ function normalizeWakeupPayload(value, fallbackTheme = '') {
   };
 }
 
-/** 唤醒最多 5 词：候选池收集后 3+2 挑选；普通词拒绝；博弈槽不足则带 hint 重试 */
+/** 唤醒最多 6 词：候选池收集后 3+3 挑选；普通词拒绝；博弈槽不足则带 hint 重试 */
 async function generateWakeupVocabForUser(db, userId, {
   theme,
   historyExclude = '',
@@ -826,7 +828,7 @@ async function generateWakeupVocabForUser(db, userId, {
     ? callLlm
     : (excludeCsv, theoryHint) => callWakeupWorkflow({
       theme: theoryHint
-        ? `${theme} | fill 2 theory slots with: ${theoryHint}`
+        ? `${theme} | fill ${WAKEUP_THEORY_SLOTS} theory slots with: ${theoryHint}`
         : theme,
       userId: uid,
       historyExclude: excludeCsv,
@@ -853,7 +855,7 @@ async function generateWakeupVocabForUser(db, userId, {
 
   let picked = pickWakeupSlots(result.words);
   const theoryCount = picked.filter((i) => resolveWakeupSlot(i) === 'theory').length;
-  if (theoryCount < 2) {
+  if (theoryCount < WAKEUP_THEORY_SLOTS) {
     const hint = unusedTheoryHints(picked).join(', ');
     const retry = await generateVocabWithDedupe(db, uid, {
       moduleName: 'wakeup',

@@ -19,7 +19,7 @@ function testBan() {
   console.log('  ban ok');
 }
 
-function testPick32() {
+function testPick33() {
   const picked = pickWakeupSlots([
     w('modeling'),
     w('BATNA', 'theme'),
@@ -27,14 +27,15 @@ function testPick32() {
     w('anchoring', 'theme'),
     w("prisoner's dilemma", 'theory'),
     w('Nash equilibrium', 'theory'),
+    w('butterfly effect', 'theory'),
     w('agenda'),
   ]);
   const names = picked.map((x) => x.word);
-  assert.strictEqual(picked.length, 5);
+  assert.strictEqual(picked.length, 6);
   assert.deepStrictEqual(names.slice(0, 3), ['BATNA', 'reservation price', 'anchoring']);
-  assert.deepStrictEqual(names.slice(3), ["prisoner's dilemma", 'Nash equilibrium']);
+  assert.deepStrictEqual(names.slice(3), ["prisoner's dilemma", 'Nash equilibrium', 'butterfly effect']);
   assert.ok(!names.includes('modeling') && !names.includes('agenda'));
-  console.log('  pick 3+2 ok');
+  console.log('  pick 3+3 ok');
 }
 
 function testLexiconFallbackSlot() {
@@ -65,7 +66,7 @@ function testNoDoubleSlot() {
 }
 
 testBan();
-testPick32();
+testPick33();
 testLexiconFallbackSlot();
 testNoDoubleSlot();
 console.log('PASS wakeupSlotPick');

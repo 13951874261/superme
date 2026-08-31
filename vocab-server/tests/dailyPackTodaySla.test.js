@@ -27,7 +27,7 @@ async function testDailyPackTodayContract() {
     assert.ok(moduleContent.includes('已转入【任务中心】'), '超过 3 秒未命中缓存必须提醒任务中心');
     assert.ok(moduleContent.includes('DAILY_PACK_RACE_MS'), '必须走 3 秒竞速');
     assert.ok(!moduleContent.includes('10 个高频词发音注意点'), '唤醒标题不得再写 10 个高频词');
-    assert.ok(moduleContent.includes('今日主题专业词（3+2）'), '唤醒标题必须改为 3+2');
+    assert.ok(moduleContent.includes('今日主题专业词（3+3）'), '唤醒标题必须改为 3+3');
   }
 
   console.log('✅ dailyPackTodaySla.test.js 所有今日包读缓存与业务日志契约测试通过！');

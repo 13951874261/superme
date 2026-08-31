@@ -113,7 +113,7 @@ async function testWakeupDoesNotBackfill() {
     theme: 't',
     callLlm: async () => ({ vocab: words('recentX', 'onlyOne') }),
   });
-  assert.ok(wakeup.vocab.length <= 5);
+  assert.ok(wakeup.vocab.length <= dailyPackService.WAKEUP_VOCAB_TARGET);
   assert.ok(!wakeup.vocab.some((v) => String(v.word).startsWith('ancient')));
   assert.ok(wakeup.vocab.every((v) => v.word !== 'recentX'));
   assert.strictEqual(wakeup._dedupeNotice, dailyPackService.DEDUPE_SHORT_NOTICE);
@@ -131,7 +131,7 @@ async function testSharedPoolWakeupBlocksFlaw() {
       vocab: words('w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10'),
     }),
   });
-  assert.ok(wakeup.vocab.length <= 5, '唤醒结果不得超过 5 词');
+  assert.ok(wakeup.vocab.length <= dailyPackService.WAKEUP_VOCAB_TARGET, '唤醒结果不得超过 6 词');
 
   const flaw = await dailyPackService.generateFlawVocabForUser(db, 'u1', 't', {
     callLlm: async (excludeCsv) => {
@@ -307,7 +307,7 @@ async function testLlmExcludeCappedUnderDifyLimit() {
 }
 
 async function testWakeupSlotsAndBan() {
-  console.log('=== 用例 9：唤醒 3+2 且拒绝 modeling ===');
+  console.log('=== 用例 9：唤醒 3+3 且拒绝 modeling ===');
   const db = createDb();
   const wakeup = await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
     theme: '商务谈判',
@@ -316,14 +316,16 @@ async function testWakeupSlotsAndBan() {
         ...words('modeling', 'agenda', 'BATNA', 'reservation price', 'anchoring'),
         { word: "prisoner's dilemma", slot: 'theory', ipa: '/p/', meaning_zh: '囚徒困境', pronunciation_note: 't', example: 'x' },
         { word: 'Nash equilibrium', slot: 'theory', ipa: '/n/', meaning_zh: '纳什', pronunciation_note: 't', example: 'x' },
+        { word: 'butterfly effect', slot: 'theory', ipa: '/b/', meaning_zh: '蝴蝶效应', pronunciation_note: 't', example: 'x' },
       ],
     }),
   });
   const names = wakeup.vocab.map((v) => v.word);
-  assert.ok(names.length <= 5);
+  assert.strictEqual(names.length, 6);
   assert.ok(!names.includes('modeling') && !names.includes('agenda'));
   assert.ok(names.includes('BATNA'));
   assert.ok(names.includes("prisoner's dilemma"));
+  assert.ok(names.includes('butterfly effect'));
   db.close();
   console.log('  通过');
 }
