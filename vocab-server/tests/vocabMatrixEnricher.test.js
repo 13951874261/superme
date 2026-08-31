@@ -118,9 +118,10 @@ assert.ok(buildSystemPrompt('word').includes('只返回合法 JSON'));
   assert.ok(isMatrixComplete(generated, 'word'));
 
   // 7. 记忆辅助兜底：工作流不可用时仍产出记忆钩子
-  const fallback = buildFallbackMemoryAids(wordMatrix);
+  const fallback = buildFallbackMemoryAids(wordMatrix, 'leverage');
   assert.strictEqual(fallback.root_memory, '杠杆撬动订单');
   assert.ok(fallback.association_memory.includes('capitalize on'));
+  assert.ok(fallback.image_prompt.includes('leverage'), '兜底须带可用 image_prompt');
 
   // 8. 记忆辅助工作流解析：兼容 markdown 围栏包裹的 JSON
   const aids = await runMemoryAidWorkflow({
@@ -138,6 +139,33 @@ assert.ok(buildSystemPrompt('word').includes('只返回合法 JSON'));
   assert.strictEqual(aids.mnemonic_phrase, 'leverage the lever');
 
   await assert.rejects(() => runMemoryAidWorkflow({ word: 'x', apiKey: '' }), /DIFY_MEMORY_AID_API_KEY/);
+
+  let sentInputs = null;
+  await runMemoryAidWorkflow({
+    word: 'mud',
+    phonetic: '',
+    pos: '',
+    definition: '',
+    examples: '',
+    userProfile: '',
+    apiKey: 'memory-key',
+    fetchImpl: async (_url, opts) => {
+      sentInputs = JSON.parse(opts.body).inputs;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: { outputs: { result: 'Missing input. Provide: word, phonetic, pos, definition, examples, user_current_profile.' } },
+        }),
+      };
+    },
+  }).then(
+    () => { throw new Error('Missing input 应视为无 JSON'); },
+    (err) => { assert.match(String(err.message), /no JSON/i); },
+  );
+  assert.equal(sentInputs.word, 'mud');
+  assert.notEqual(sentInputs.phonetic, '');
+  assert.notEqual(sentInputs.user_current_profile, '');
 
   // 9. 词典 payload 可种子化矩阵（month 场景：LLM 失败时仍可补齐）
   const monthDict = {

@@ -110,6 +110,12 @@ workflow:
           required: false
           type: paragraph
           variable: examples
+        - label: 学习者画像
+          max_length: 800
+          options: []
+          required: false
+          type: paragraph
+          variable: user_current_profile
       height: 130
       id: start_node
       position:
@@ -148,6 +154,7 @@ workflow:
             - 词性: {{#start_node.pos#}}
             - 释义: {{#start_node.definition#}}
             - 例句: {{#start_node.examples#}}
+            - 学习者画像: {{#start_node.user_current_profile#}}
 
             ## 核心定位
             你是陪伴个人成长的专属 AI 智能体，风格清冷稳重、理性克制、专业干练。所有记忆辅助内容必须专业、有学术依据，不卖萌、不幼稚。

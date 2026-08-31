@@ -836,6 +836,7 @@ export async function enrichMemory(id: string): Promise<MemoryAids> {
       user_current_profile: getInjectedUserCurrentProfile(),
     }),
     timeoutMs: 0,
+    silent: true,
   });
 }
 
@@ -856,6 +857,7 @@ export async function generateMemoryImage(id: string): Promise<{ success: boolea
         user_current_profile: getInjectedUserCurrentProfile(),
       }),
       timeoutMs: 0,
+      silent: true,
     },
   );
 

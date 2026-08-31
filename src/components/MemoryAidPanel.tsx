@@ -25,11 +25,13 @@ export default function MemoryAidPanel({
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [activeTab, setActiveTab] = useState<'root' | 'assoc' | 'phrase' | 'image'>('root');
   const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
   const [imageLightbox, setImageLightbox] = useState(false);
 
   const fetchMemoryAids = async () => {
     setIsLoading(true);
     setError(null);
+    setImageError(null);
     try {
       const data = await getMemoryAids(wordId);
       if (data && (data.root_memory || data.association_memory || data.mnemonic_phrase)) {
@@ -56,6 +58,7 @@ export default function MemoryAidPanel({
   const handleEnrich = async () => {
     setIsLoading(true);
     setError(null);
+    setImageError(null);
     try {
       const data = await enrichMemory(wordId);
       setMemoryAids(data);
@@ -77,7 +80,7 @@ export default function MemoryAidPanel({
   const handleGenerateImage = async () => {
     if (!memoryAids?.image_prompt) return;
     setIsGeneratingImage(true);
-    setError(null);
+    setImageError(null);
     try {
       const res = await generateMemoryImage(wordId);
       if (res.success) {
@@ -87,11 +90,11 @@ export default function MemoryAidPanel({
           download_url: res.download_url
         } : null);
       } else {
-        setError('图片生成失败');
+        setImageError('图片生成失败');
       }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || '绘制记忆图片失败，请检查网络或重试');
+      setImageError(e.message || '绘制记忆图片失败，请检查网络或重试');
     } finally {
       setIsGeneratingImage(false);
     }
@@ -100,20 +103,20 @@ export default function MemoryAidPanel({
   // 渲染图片 Tab 的特定状态
   const renderImageTab = () => {
     // 图片 Tab 专属错误展示（拦截 "Failed to fetch" 并给用户友好提示）
-    if (error) {
-      const isNetError = error === 'Failed to fetch' || error.includes('Failed to fetch');
+    if (imageError) {
+      const isNetError = imageError === 'Failed to fetch' || imageError.includes('Failed to fetch');
       return (
         <div className="space-y-4">
           <div className="flex items-start gap-2.5 bg-red-50 border border-red-100 text-red-600 text-xs p-3.5 rounded-xl animate-fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <div>
               <div className="font-black text-red-700 mb-0.5">
-                {isNetError ? '网络请求失败' : '生成失败'}
+                {isNetError ? '网络请求失败' : '配图生成失败'}
               </div>
               <div className="font-medium">
                 {isNetError
                   ? '无法连接到后端服务，请确认 vocab-server 已启动且网络正常。'
-                  : error}
+                  : imageError}
               </div>
             </div>
           </div>
@@ -131,7 +134,7 @@ export default function MemoryAidPanel({
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-black tracking-wider uppercase text-white bg-gradient-to-r from-orange-500 via-rose-500 to-pink-500 hover:opacity-95 shadow-md active:scale-95 transition-all select-none"
             >
               <Sparkles className="w-4 h-4" />
-              重新生成 AI 记忆
+              重新生成配图
             </button>
           </div>
         </div>

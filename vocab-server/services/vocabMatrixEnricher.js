@@ -234,6 +234,7 @@ function parseWorkflowJson(resultStr) {
   if (!resultStr) return null;
   if (typeof resultStr !== 'string') return resultStr;
   let text = resultStr.trim();
+  if (/^missing input/i.test(text)) return null;
   if (text.startsWith('```')) {
     const lines = text.split('\n');
     if (lines[0].startsWith('```')) lines.shift();
@@ -245,6 +246,13 @@ function parseWorkflowJson(resultStr) {
   } catch {
     return null;
   }
+}
+
+/** Dify 开始节点把空串当成缺参，超长字段会整包拒绝。 */
+function clipDifyInput(value, maxLen, fallback) {
+  const text = String(value == null ? '' : value).trim();
+  const filled = text || String(fallback || '-');
+  return filled.length > maxLen ? filled.slice(0, maxLen) : filled;
 }
 
 /** 调用既有 Dify 记忆辅助工作流，生成记忆节点所需的词根/联想/助记内容 */
@@ -265,12 +273,12 @@ async function runMemoryAidWorkflow({
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
       inputs: {
-        word: String(word || '').trim(),
-        phonetic: phonetic || '',
-        pos: pos || '',
-        definition: definition || '',
-        examples: examples || '',
-        user_current_profile: userProfile || '',
+        word: clipDifyInput(word, 200, 'word'),
+        phonetic: clipDifyInput(phonetic, 200, '-'),
+        pos: clipDifyInput(pos, 50, '-'),
+        definition: clipDifyInput(definition, 500, String(word || '').trim() || '-'),
+        examples: clipDifyInput(examples, 2000, '-'),
+        user_current_profile: clipDifyInput(userProfile, 800, '（未设置学习者画像）'),
       },
       response_mode: 'blocking',
       user: 'vocab-matrix-enricher',
@@ -331,15 +339,20 @@ function seedMatrixFromDictPayload(payload = {}, { text = '', kind = 'word' } = 
 }
 
 /** 矩阵内容自带的记忆钩子兜底，确保记忆辅助与记忆节点不空缺 */
-function buildFallbackMemoryAids(matrix = {}) {
-  const hook = cleanText(matrix.memory_hook);
+function buildFallbackMemoryAids(matrix = {}, word = '') {
+  const hook = cleanText(matrix.memory_hook) || cleanText(matrix.etymology);
   const synonym = Array.isArray(matrix.synonyms) ? matrix.synonyms[0] : '';
   const collocation = Array.isArray(matrix.collocations) ? matrix.collocations[0] : '';
+  const meaning = cleanText(matrix.meaning)
+    || cleanText(matrix.translation_main)
+    || cleanText(matrix.meaning_zh)
+    || cleanText(matrix.definition);
+  const promptWord = cleanText(word) || cleanText(matrix.headword) || 'the target word';
   return {
-    root_memory: hook,
-    association_memory: synonym ? `联想替换：${synonym}` : '',
+    root_memory: hook || (meaning ? `核心义：${meaning}` : ''),
+    association_memory: synonym ? `联想替换：${synonym}` : (meaning ? `画面联想：${meaning}` : ''),
     mnemonic_phrase: collocation || '',
-    image_prompt: '',
+    image_prompt: `A clear realistic illustration of "${promptWord}"${meaning ? `: ${meaning}` : ''}. Educational, high detail, no letters or watermarks.`,
   };
 }
 
@@ -354,5 +367,6 @@ module.exports = {
   runMemoryAidWorkflow,
   buildFallbackMemoryAids,
   parseWorkflowJson,
+  clipDifyInput,
   isPlaceholder,
 };

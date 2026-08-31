@@ -6420,65 +6420,38 @@ app.post('/api/vocab/enrich-memory/:id', async (req, res) => {
     }
 
     const memoryApiKey = process.env.DIFY_MEMORY_AID_API_KEY;
-    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+    const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     console.log(`[Memory Aid] Generating memory aid for "${word}" (ID: ${row.id})`);
 
-    const response = await fetch(`${baseUrl}/workflows/run`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${memoryApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        inputs: {
-          word: word.trim(),
-          phonetic: phonetic || '',
-          pos: pos || '',
-          definition: definition || '',
-          examples: examples || '',
-          user_current_profile: resolveProfileForDify(userId, user_current_profile)
-        },
-        response_mode: 'blocking',
-        user: 'system-agent'
-      })
-    });
-
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`[Memory Aid] Dify response error (${response.status}):`, errText);
-      return res.status(response.status).json({ error: `Dify workflow error: ${response.status}` });
-    }
-
-    const data = await response.json();
-    const resultStr = data?.data?.outputs?.result;
-
-    if (!resultStr) {
-      console.warn('[Memory Aid] Workflow did not return result:', data);
-      return res.status(500).json({ error: 'Dify workflow failed to return memory aids.' });
-    }
-
-    let parsedResult;
+    let parsedResult = null;
     try {
-      parsedResult = typeof resultStr === 'string' ? JSON.parse(resultStr.trim()) : resultStr;
-    } catch (e) {
-      let cleanStr = resultStr.trim();
-      if (cleanStr.startsWith('```')) {
-        const lines = cleanStr.split('\n');
-        if (lines[0].startsWith('```')) {
-          lines.shift();
-        }
-        if (lines[lines.length - 1].startsWith('```')) {
-          lines.pop();
-        }
-        cleanStr = lines.join('\n').trim();
-      }
-      try {
-        parsedResult = JSON.parse(cleanStr);
-      } catch (innerErr) {
-        console.error('[Memory Aid] Parsing Dify result failed:', innerErr, resultStr);
-        return res.status(500).json({ error: 'Memory Aid result is not valid JSON.' });
-      }
+      parsedResult = await vocabMatrixEnricher.runMemoryAidWorkflow({
+        word,
+        phonetic,
+        pos,
+        definition,
+        examples,
+        userProfile: resolveProfileForDify(userId, user_current_profile),
+        apiKey: memoryApiKey,
+        baseUrl,
+      });
+    } catch (wfErr) {
+      console.warn(`[Memory Aid] workflow failed for "${word}":`, wfErr.message);
+    }
+
+    if (!parsedResult || !(parsedResult.root_memory || parsedResult.association_memory || parsedResult.image_prompt)) {
+      const fallback = vocabMatrixEnricher.buildFallbackMemoryAids(payload, word);
+      parsedResult = {
+        root_memory: parsedResult?.root_memory || fallback.root_memory,
+        association_memory: parsedResult?.association_memory || fallback.association_memory,
+        mnemonic_phrase: parsedResult?.mnemonic_phrase || fallback.mnemonic_phrase,
+        image_prompt: parsedResult?.image_prompt || fallback.image_prompt,
+      };
+    }
+
+    if (!parsedResult.root_memory && !parsedResult.association_memory && !parsedResult.image_prompt) {
+      return res.status(500).json({ error: '记忆辅助生成失败，请稍后重试' });
     }
 
     let existingMemoryAids = {};
