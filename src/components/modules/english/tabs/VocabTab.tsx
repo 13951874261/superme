@@ -517,7 +517,6 @@ export default function VocabTab() {
                     wordId={currentWord.id}
                     wordText={currentWord.word}
                     payload={adaptedWord.payload}
-                    extraMode="scroll"
                   />
 
                   {/* =================【第 2 行：圆形记忆矩阵主舞台 + 算法/SOP 仪表盘】================= */}

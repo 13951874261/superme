@@ -300,7 +300,7 @@ export default function FlashCardExampleMemoryAlign({
               onClick={() => setExpanded((v) => !v)}
               className="text-[11px] font-bold text-[#FF5722] hover:text-orange-700 py-1.5 self-start shrink-0"
             >
-              {expanded ? '收起为 4 槽对齐' : `展开更多（${extra.length}）`}
+              {expanded ? '收起为 4 槽对齐' : `查看更多（${extra.length}）`}
             </button>
           )}
         </div>
