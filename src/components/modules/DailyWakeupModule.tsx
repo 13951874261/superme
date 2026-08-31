@@ -84,10 +84,11 @@ export default function DailyWakeupModule() {
     setPackStatus(pack.status);
     if (pack.status === 'ready' && pack.wakeup) {
       setResult(pack.wakeup);
+      const dedupeNotice = pack.wakeup._dedupeNotice;
       setNotice(
         pack.stale
           ? `这份材料还是按「${pack.theme}」生成的，点刷新按「${pack.currentTheme || theme}」重做。`
-          : `已加载今日唤醒：${pack.currentTheme || theme}`,
+          : (dedupeNotice || `已加载今日唤醒：${pack.currentTheme || theme}`),
       );
       return true;
     }
@@ -439,7 +440,7 @@ export default function DailyWakeupModule() {
             <div className="bg-white rounded-xl border border-slate-100 p-3.5">
               <div className="flex items-center gap-2 mb-3">
                 <Volume2 className="w-4 h-4 text-[#FF5722]" />
-                <h4 className="text-xs font-black uppercase tracking-widest text-[#202124]">10 个高频词发音注意点</h4>
+                <h4 className="text-xs font-black uppercase tracking-widest text-[#202124]">今日主题专业词（3+2）</h4>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 {result.vocab.map((item) => (

@@ -53,7 +53,7 @@ async function testHardFilterRejectsRecent() {
       assert.ok(excludeCsv.includes('alpha'), '传给 LLM 的排除名单必须含历史推送词');
       assert.ok(excludeCsv.includes('beta'), '传给 LLM 的排除名单必须含历史推送词');
       if (calls === 1) {
-        // 首轮故意混入重复词，只贡献 9 个新词 → 触发重试
+        // 首轮混入重复词；目标改为 5 后，9 个新词已够，不必再断言重试
         return { theme: '商务谈判', vocab: words('alpha', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa', 'lambda') };
       }
       return { theme: '商务谈判', vocab: words('gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta', 'iota', 'kappa', 'lambda', 'mu') };
@@ -63,8 +63,7 @@ async function testHardFilterRejectsRecent() {
   const names = wakeup.vocab.map((v) => v.word);
   assert.ok(!names.includes('alpha'), '硬过滤后不得再出现近窗口词 alpha');
   assert.ok(!names.includes('beta'), '硬过滤后不得再出现近窗口词 beta');
-  assert.strictEqual(names.length, 10, '最终必须凑满 10 词');
-  assert.strictEqual(calls, 2, '首轮不足时应重试一次');
+  assert.ok(names.length <= 5, '唤醒最终不得超过 5 词');
   console.log('  通过');
   db.close();
 }
@@ -90,10 +89,10 @@ async function testRetryOnceOnShortage() {
     },
   });
 
-  assert.strictEqual(calls, 2, '不足满额时应恰好重试 1 次（共 2 次调用）');
+  assert.ok(calls >= 2, '不足满额或博弈槽不足时应至少重试（≥2 次调用）');
   assert.ok(excludesSeen[1].includes('old1'), '第二次排除名单应包含首轮拒收词');
   const names = wakeup.vocab.map((v) => v.word);
-  assert.strictEqual(names.length, 10);
+  assert.ok(names.length <= 5);
   for (const n of ['old1', 'old2', 'old3', 'old4', 'old5', 'old6', 'old7', 'old8']) {
     assert.ok(!names.includes(n), `最终结果不得含近窗口词 ${n}`);
   }
@@ -101,44 +100,38 @@ async function testRetryOnceOnShortage() {
   db.close();
 }
 
-async function testBackfillOldestWhenStillShort() {
-  console.log('=== 用例 3：重试后仍不足则用最久未出现词补齐并带提示 ===');
+async function testWakeupDoesNotBackfill() {
+  console.log('=== 用例 3：唤醒数量不足时不拿旧词凑数 ===');
   const db = createDb();
-  // 写入一批历史；把 ancient* 回拨到窗口外，作为「最久未出现」候选
-  const ancients = ['ancient1', 'ancient2', 'ancient3', 'ancient4', 'ancient5',
-    'ancient6', 'ancient7', 'ancient8', 'ancient9', 'ancient10', 'ancient11', 'ancient12'];
+  const ancients = ['ancient1', 'ancient2', 'ancient3', 'ancient4', 'ancient5'];
   dailyPackService.recordPushedWords(db, 'u1', 'wakeup', words(...ancients, 'recentX'));
   ancients.forEach((w, i) => {
     db.prepare('UPDATE pushed_vocab_history SET pushed_at = ? WHERE word = ?')
       .run(Date.now() - (50 + i) * DAY_MS, w);
   });
-
   const wakeup = await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
     theme: 't',
     callLlm: async () => ({ vocab: words('recentX', 'onlyOne') }),
   });
-
-  assert.strictEqual(wakeup.vocab.length, 10, '必须补齐到 10');
-  assert.ok(wakeup._dedupeNotice, '补齐时必须带提示文案');
-  assert.strictEqual(wakeup._dedupeNotice, dailyPackService.DEDUPE_BACKFILL_NOTICE);
-  const names = wakeup.vocab.map((v) => v.word);
-  assert.ok(names.includes('onlyOne'));
-  assert.ok(names.some((n) => n.startsWith('ancient')), '应包含窗口外最久词');
-  assert.ok(!names.includes('recentX'), '窗口内 recentX 不应被优先补齐（有更旧候选时）');
-  console.log('  通过');
+  assert.ok(wakeup.vocab.length <= 5);
+  assert.ok(!wakeup.vocab.some((v) => String(v.word).startsWith('ancient')));
+  assert.ok(wakeup.vocab.every((v) => v.word !== 'recentX'));
+  assert.strictEqual(wakeup._dedupeNotice, dailyPackService.DEDUPE_SHORT_NOTICE);
   db.close();
+  console.log('  通过');
 }
 
 async function testSharedPoolWakeupBlocksFlaw() {
   console.log('=== 用例 4：唤醒推过的词，破绽模块不得再推（共享池） ===');
   const db = createDb();
 
-  await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
+  const wakeup = await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
     theme: 't',
     callLlm: async () => ({
       vocab: words('w1', 'w2', 'w3', 'w4', 'w5', 'w6', 'w7', 'w8', 'w9', 'w10'),
     }),
   });
+  assert.ok(wakeup.vocab.length <= 5, '唤醒结果不得超过 5 词');
 
   const flaw = await dailyPackService.generateFlawVocabForUser(db, 'u1', 't', {
     callLlm: async (excludeCsv) => {
@@ -162,7 +155,7 @@ async function testConsecutiveWakeupNoOverlap() {
   for (let i = 0; i < 40; i++) pool.push(`term${i}`);
 
   for (let round = 0; round < 3; round++) {
-    const slice = pool.slice(round * 10, round * 10 + 10);
+    const slice = pool.slice(round * 5, round * 5 + 5);
     const wakeup = await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
       theme: 't',
       callLlm: async () => ({ vocab: words(...slice) }),
@@ -170,9 +163,9 @@ async function testConsecutiveWakeupNoOverlap() {
     batches.push(wakeup.vocab.map((v) => v.word));
   }
 
-  assert.strictEqual(new Set(batches[0]).size, 10);
-  assert.strictEqual(new Set(batches[1]).size, 10);
-  assert.strictEqual(new Set(batches[2]).size, 10);
+  assert.ok(batches[0].length <= 5);
+  assert.ok(batches[1].length <= 5);
+  assert.ok(batches[2].length <= 5);
   const overlap01 = batches[0].filter((w) => batches[1].includes(w));
   const overlap12 = batches[1].filter((w) => batches[2].includes(w));
   const overlap02 = batches[0].filter((w) => batches[2].includes(w));
@@ -211,15 +204,53 @@ async function testRecordsAfterSuccess() {
   db.close();
 }
 
+async function testStemBlocksRefresh() {
+  console.log('=== 用例 8：negotiate 已推则 negotiation 不得再入唤醒 ===');
+  const db = createDb();
+  dailyPackService.recordPushedWords(db, 'u1', 'wakeup', words('negotiate'));
+  const { kept, rejected } = dailyPackService.filterVocabAgainstExclude(
+    words('negotiation', 'BATNA'),
+    dailyPackService.getRecentPushedWords(db, 'u1'),
+  );
+  assert.strictEqual(kept.map((x) => x.word).join(','), 'BATNA');
+  assert.ok(rejected.some((x) => dailyPackService.stemsMatch(x, 'negotiation')));
+  db.close();
+  console.log('  通过');
+}
+
+async function testWakeupSlotsAndBan() {
+  console.log('=== 用例 9：唤醒 3+2 且拒绝 modeling ===');
+  const db = createDb();
+  const wakeup = await dailyPackService.generateWakeupVocabForUser(db, 'u1', {
+    theme: '商务谈判',
+    callLlm: async () => ({
+      vocab: [
+        ...words('modeling', 'agenda', 'BATNA', 'reservation price', 'anchoring'),
+        { word: "prisoner's dilemma", slot: 'theory', ipa: '/p/', meaning_zh: '囚徒困境', pronunciation_note: 't', example: 'x' },
+        { word: 'Nash equilibrium', slot: 'theory', ipa: '/n/', meaning_zh: '纳什', pronunciation_note: 't', example: 'x' },
+      ],
+    }),
+  });
+  const names = wakeup.vocab.map((v) => v.word);
+  assert.ok(names.length <= 5);
+  assert.ok(!names.includes('modeling') && !names.includes('agenda'));
+  assert.ok(names.includes('BATNA'));
+  assert.ok(names.includes("prisoner's dilemma"));
+  db.close();
+  console.log('  通过');
+}
+
 async function run() {
   console.log('=== 测试：生成链路去重接入 ===\n');
   await testHardFilterRejectsRecent();
   await testRetryOnceOnShortage();
-  await testBackfillOldestWhenStillShort();
+  await testWakeupDoesNotBackfill();
   await testSharedPoolWakeupBlocksFlaw();
   await testConsecutiveWakeupNoOverlap();
   await testSignatureUnchangedByPushedHistory();
   await testRecordsAfterSuccess();
+  await testStemBlocksRefresh();
+  await testWakeupSlotsAndBan();
   console.log('\n✅ vocabDedupePipeline.test.js 全部用例通过！');
 }
 

@@ -17,7 +17,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DEDUPE_WINDOW_DAYS = Number(process.env.DAILY_PACK_DEDUPE_WINDOW_DAYS || 30);
 // 历史保留期：超期记录物理删除，避免表无限增长
 const DEDUPE_RETENTION_DAYS = Number(process.env.DAILY_PACK_DEDUPE_RETENTION_DAYS || 90);
-const WAKEUP_VOCAB_TARGET = 10;
+const WAKEUP_VOCAB_TARGET = 5;
 const FLAW_VOCAB_TARGET = 6;
 // 命中重复后最多再调 LLM 一次
 const DEDUPE_RETRY_COUNT = 1;
@@ -318,6 +318,157 @@ function normalizePushedWord(raw) {
   return String(raw || '').toLowerCase().trim();
 }
 
+function normalizeWordSurface(raw) {
+  return String(raw || '')
+    .toLowerCase()
+    .trim()
+    .replace(/['’]/g, '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+function stemToken(token) {
+  let t = String(token || '').toLowerCase();
+  if (t.length <= 3) return t;
+  if (t.endsWith('lling')) return `${t.slice(0, -5)}l`;
+  if (t.endsWith('ssion')) return t.slice(0, -3);
+  const suffixes = [
+    'ational', 'tional', 'ation', 'ition', 'ings', 'ating', 'ated', 'ate',
+    'tion', 'sion', 'ing', 'ies', 'es', 'ed', 's',
+  ];
+  for (const suf of suffixes) {
+    if (t.length - suf.length >= 3 && t.endsWith(suf)) {
+      if (suf === 's' && t.endsWith('ss')) continue;
+      return t.slice(0, -suf.length);
+    }
+  }
+  return t;
+}
+
+function stemWordKey(raw) {
+  const surface = normalizeWordSurface(raw);
+  if (!surface) return '';
+  return surface.split(' ').map(stemToken).filter(Boolean).join(' ');
+}
+
+function stemsMatch(a, b) {
+  const sa = stemWordKey(a);
+  const sb = stemWordKey(b);
+  return Boolean(sa && sb && sa === sb);
+}
+
+function extractItemText(item) {
+  if (typeof item === 'string') return item.trim();
+  if (!item || typeof item !== 'object') return '';
+  return String(item.word || item.text || item.term || item.phrase || '').trim();
+}
+
+function parseWordListJson(raw) {
+  if (!raw) return [];
+  let parsed = raw;
+  if (typeof raw === 'string') {
+    try { parsed = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed.map(extractItemText).filter(Boolean);
+}
+
+function getSameDaySiblingWords(db, userId) {
+  const uid = normalizeUserId(userId);
+  const day = getPackDate();
+  const out = [];
+  try {
+    const rows = db.prepare(
+      'SELECT words_json, phrases_json FROM daily_extracted_articles WHERE user_id = ? AND quota_date = ?'
+    ).all(uid, day);
+    for (const row of rows) {
+      out.push(...parseWordListJson(row.words_json));
+      out.push(...parseWordListJson(row.phrases_json));
+    }
+  } catch { /* 单测或旧库可能无表 */ }
+  try {
+    const rows = db.prepare(
+      'SELECT vocab_json, phrases_json FROM daily_listen_articles WHERE user_id = ? AND pack_date = ?'
+    ).all(uid, day);
+    for (const row of rows) {
+      out.push(...parseWordListJson(row.vocab_json));
+      out.push(...parseWordListJson(row.phrases_json));
+    }
+  } catch { /* 单测或旧库可能无表 */ }
+  return out;
+}
+
+const GENERIC_BAN_WORDS = [
+  'model', 'modeling', 'modelling', 'agenda', 'deadline',
+  'meeting', 'email', 'discuss', 'discussion',
+];
+
+const THEORY_LEXICON = [
+  "prisoner's dilemma", 'Nash equilibrium', 'zero-sum', 'butterfly effect',
+  'information asymmetry', 'moral hazard', 'BATNA', 'coordination game',
+  'dominant strategy', 'Pareto', 'anchoring', 'cobweb theorem',
+  'zero-sum game', 'mixed strategy', 'cheap talk', 'signaling',
+  'screening', 'tragedy of the commons', 'principal-agent',
+  'bounded rationality', 'confirmation bias', 'false dilemma', 'slippery slope',
+];
+
+const DEDUPE_SHORT_NOTICE = '今日合格新词不足，已按不重复原则少推，未用旧词凑数。';
+
+function isBannedGenericWord(word) {
+  return GENERIC_BAN_WORDS.some((ban) => stemsMatch(word, ban));
+}
+
+function isTheoryLexiconWord(word) {
+  return THEORY_LEXICON.some((term) => stemsMatch(word, term));
+}
+
+function resolveWakeupSlot(item) {
+  const slot = String(item?.slot || '').trim();
+  if (slot === 'theme' || slot === 'theory') return slot;
+  return isTheoryLexiconWord(item?.word) ? 'theory' : 'theme';
+}
+
+function pickWakeupSlots(items) {
+  const theme = [];
+  const theory = [];
+  const seen = new Set();
+
+  const tryTake = (item, slot) => {
+    const word = String(item?.word || '').trim();
+    if (!word || isBannedGenericWord(word)) return;
+    const key = stemWordKey(word);
+    if (!key || seen.has(key)) return;
+    if (slot === 'theory') {
+      if (theory.length >= 2) return;
+      theory.push(item);
+    } else {
+      if (theme.length >= 3) return;
+      theme.push(item);
+    }
+    seen.add(key);
+  };
+
+  for (const item of items || []) {
+    const slot = String(item?.slot || '').trim();
+    if (slot === 'theme' || slot === 'theory') tryTake(item, slot);
+  }
+  for (const item of items || []) {
+    const word = String(item?.word || '').trim();
+    if (!word || isBannedGenericWord(word)) continue;
+    const key = stemWordKey(word);
+    if (!key || seen.has(key)) continue;
+    const inferred = isTheoryLexiconWord(item?.word) ? 'theory' : 'theme';
+    if (inferred === 'theory' && theory.length < 2) tryTake(item, 'theory');
+    else if (theme.length < 3) tryTake(item, 'theme');
+  }
+  return [...theme, ...theory];
+}
+
+function unusedTheoryHints(picked, limit = 6) {
+  const have = new Set((picked || []).map((i) => stemWordKey(i.word)));
+  return THEORY_LEXICON.filter((term) => !have.has(stemWordKey(term))).slice(0, limit);
+}
+
 /** 窗口内已推送过的词（小写归一化），唤醒与破绽共用 */
 function getRecentPushedWords(db, userId, windowDays = DEDUPE_WINDOW_DAYS) {
   const uid = normalizeUserId(userId);
@@ -349,13 +500,16 @@ function recordPushedWords(db, userId, moduleName, items) {
   `);
   let saved = 0;
   const seen = new Set();
+  const recentStems = new Set(getRecentPushedWords(db, uid).map(stemWordKey).filter(Boolean));
   const runAll = db.transaction((entries) => {
     for (const entry of entries) {
       const item = typeof entry === 'string' ? { word: entry } : (entry || {});
-      const key = normalizePushedWord(item.word);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      stmt.run(crypto.randomUUID(), uid, key, JSON.stringify(item), mod, now, now);
+      const surface = normalizePushedWord(item.word);
+      const stem = stemWordKey(item.word);
+      if (!surface || !stem || seen.has(stem) || recentStems.has(stem)) continue;
+      seen.add(stem);
+      recentStems.add(stem);
+      stmt.run(crypto.randomUUID(), uid, surface, JSON.stringify(item), mod, now, now);
       saved += 1;
     }
   });
@@ -433,26 +587,26 @@ function buildEffectiveHistoryExclude(db, userId, baseExclude = '') {
 }
 
 function filterVocabAgainstExclude(items, excludeList) {
-  const exclude = new Set(mergeExcludeLists(excludeList));
+  const exclude = mergeExcludeLists(excludeList);
+  const excludeStems = new Set(exclude.map(stemWordKey).filter(Boolean));
   const kept = [];
   const rejected = [];
   for (const item of items || []) {
-    const key = normalizePushedWord(item?.word);
+    const key = stemWordKey(item?.word);
     if (!key) continue;
-    if (exclude.has(key)) {
-      rejected.push(key);
+    if (excludeStems.has(key) || kept.some((k) => stemWordKey(k.word) === key)) {
+      rejected.push(normalizePushedWord(item.word));
       continue;
     }
-    if (kept.some((k) => normalizePushedWord(k.word) === key)) continue;
     kept.push(item);
-    exclude.add(key);
+    excludeStems.add(key);
   }
   return { kept, rejected };
 }
 
 function fillVocabToTarget(db, userId, kept, targetCount, extraFallback = []) {
   const result = [...(kept || [])];
-  const have = new Set(result.map((i) => normalizePushedWord(i.word)).filter(Boolean));
+  const have = new Set(result.map((i) => stemWordKey(i.word)).filter(Boolean));
   let usedBackfill = false;
 
   if (result.length < targetCount) {
@@ -462,7 +616,7 @@ function fillVocabToTarget(db, userId, kept, targetCount, extraFallback = []) {
     });
     for (const item of oldest) {
       if (result.length >= targetCount) break;
-      const key = normalizePushedWord(item.word);
+      const key = stemWordKey(item.word);
       if (!key || have.has(key)) continue;
       result.push(item);
       have.add(key);
@@ -473,7 +627,7 @@ function fillVocabToTarget(db, userId, kept, targetCount, extraFallback = []) {
   if (result.length < targetCount) {
     for (const fb of extraFallback || []) {
       if (result.length >= targetCount) break;
-      const key = normalizePushedWord(fb.word);
+      const key = stemWordKey(fb.word);
       if (!key || have.has(key)) continue;
       result.push(fb);
       have.add(key);
@@ -494,11 +648,14 @@ async function generateVocabWithDedupe(db, userId, {
   baseExclude = '',
   callLlm,
   extraFallback = [],
+  extraExclude = [],
+  allowBackfill = true,
+  skipRecord = false,
 }) {
   const uid = normalizeUserId(userId);
   const dbWords = getUserVocabWords(db);
   const recent = getRecentPushedWords(db, uid);
-  let excludeList = mergeExcludeLists(baseExclude, recent, dbWords);
+  let excludeList = mergeExcludeLists(baseExclude, recent, dbWords, extraExclude);
   let allKept = [];
   let lastParsed = null;
   let lastError = null;
@@ -531,14 +688,18 @@ async function generateVocabWithDedupe(db, userId, {
     break;
   }
 
-  const filled = fillVocabToTarget(db, uid, allKept, targetCount, extraFallback);
-  recordPushedWords(db, uid, moduleName, filled.words);
+  const filled = allowBackfill
+    ? fillVocabToTarget(db, uid, allKept, targetCount, extraFallback)
+    : { words: allKept.slice(0, targetCount), usedBackfill: false };
+  if (!skipRecord) recordPushedWords(db, uid, moduleName, filled.words);
   try { purgeExpiredPushedWords(db); } catch { /* ignore */ }
-
+  const short = !allowBackfill && filled.words.length < targetCount;
   return {
     words: filled.words,
     usedBackfill: filled.usedBackfill,
-    notice: filled.usedBackfill ? DEDUPE_BACKFILL_NOTICE : null,
+    notice: filled.usedBackfill
+      ? DEDUPE_BACKFILL_NOTICE
+      : (short ? DEDUPE_SHORT_NOTICE : null),
     raw: lastParsed,
     error: lastError,
   };
@@ -593,7 +754,7 @@ function normalizeWakeupPayload(value, fallbackTheme = '') {
   };
 }
 
-/** 唤醒 10 词：排除推送历史 + 硬过滤 + 重试 1 次 + 补齐 + 写历史 */
+/** 唤醒最多 5 词：候选池收集后 3+2 挑选；普通词拒绝；博弈槽不足则带 hint 重试 */
 async function generateWakeupVocabForUser(db, userId, {
   theme,
   historyExclude = '',
@@ -605,8 +766,10 @@ async function generateWakeupVocabForUser(db, userId, {
   const baseExclude = String(historyExclude || '').trim();
   const runner = typeof callLlm === 'function'
     ? callLlm
-    : (excludeCsv) => callWakeupWorkflow({
-      theme,
+    : (excludeCsv, theoryHint) => callWakeupWorkflow({
+      theme: theoryHint
+        ? `${theme} | fill 2 theory slots with: ${theoryHint}`
+        : theme,
       userId: uid,
       historyExclude: excludeCsv,
       userCurrentProfile: profile,
@@ -614,25 +777,51 @@ async function generateWakeupVocabForUser(db, userId, {
 
   const result = await generateVocabWithDedupe(db, uid, {
     moduleName: 'wakeup',
-    targetCount: WAKEUP_VOCAB_TARGET,
+    targetCount: 20,
     baseExclude,
-    callLlm: runner,
+    extraExclude: [
+      ...getSameDaySiblingWords(db, uid),
+      ...GENERIC_BAN_WORDS,
+    ],
+    callLlm: (csv) => runner(csv),
     extraFallback: [],
+    allowBackfill: false,
+    skipRecord: true,
   });
 
   if (result.error && result.words.length === 0) {
     throw result.error;
   }
 
-  const base = (result.raw && typeof result.raw === 'object' && !Array.isArray(result.raw))
-    ? result.raw
-    : {};
+  let picked = pickWakeupSlots(result.words);
+  const theoryCount = picked.filter((i) => resolveWakeupSlot(i) === 'theory').length;
+  if (theoryCount < 2) {
+    const hint = unusedTheoryHints(picked).join(', ');
+    const retry = await generateVocabWithDedupe(db, uid, {
+      moduleName: 'wakeup',
+      targetCount: 20,
+      baseExclude,
+      extraExclude: [
+        ...getSameDaySiblingWords(db, uid),
+        ...GENERIC_BAN_WORDS,
+        ...picked.map((i) => i.word),
+      ],
+      callLlm: (csv) => runner(csv, hint),
+      allowBackfill: false,
+      skipRecord: true,
+    });
+    picked = pickWakeupSlots([...picked, ...retry.words]);
+  }
+
+  recordPushedWords(db, uid, 'wakeup', picked);
+  try { purgeExpiredPushedWords(db); } catch { /* ignore */ }
+
   const wakeup = normalizeWakeupPayload({
-    ...base,
-    theme: base.theme || theme,
-    vocab: result.words,
+    ...((result.raw && typeof result.raw === 'object' && !Array.isArray(result.raw)) ? result.raw : {}),
+    theme: (result.raw && result.raw.theme) || theme,
+    vocab: picked,
   }, theme);
-  if (result.notice) wakeup._dedupeNotice = result.notice;
+  if (picked.length < WAKEUP_VOCAB_TARGET) wakeup._dedupeNotice = DEDUPE_SHORT_NOTICE;
   return wakeup;
 }
 
@@ -666,6 +855,7 @@ async function generateFlawVocabForUser(db, userId, themeOverride, { callLlm } =
     baseExclude,
     callLlm: runner,
     extraFallback: getFallbackFlawVocab(),
+    extraExclude: getSameDaySiblingWords(db, uid),
   });
 
   // 保持返回值为纯数组，兼容前端 Array.isArray(pack.flawVocab)
@@ -1006,6 +1196,18 @@ module.exports = {
   WAKEUP_VOCAB_TARGET,
   FLAW_VOCAB_TARGET,
   normalizePushedWord,
+  normalizeWordSurface,
+  stemWordKey,
+  stemsMatch,
+  getSameDaySiblingWords,
+  GENERIC_BAN_WORDS,
+  THEORY_LEXICON,
+  DEDUPE_SHORT_NOTICE,
+  isBannedGenericWord,
+  isTheoryLexiconWord,
+  resolveWakeupSlot,
+  pickWakeupSlots,
+  unusedTheoryHints,
   getRecentPushedWords,
   recordPushedWords,
   getOldestPushedWords,

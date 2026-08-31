@@ -8,10 +8,12 @@ export interface WakeupWord {
   pronunciation_note: string;
   meaning_zh: string;
   example: string;
+  slot?: 'theme' | 'theory';
 }
 
 export interface WakeupPayload {
   theme: string;
+  _dedupeNotice?: string | null;
   vocab: WakeupWord[];
   grammar: {
     point: string;

@@ -327,15 +327,14 @@ workflow:
             \ 中提供英音的独有发音特征与口腔阻尼要领提示（例如：指出无卷舌音特征、元音开口度偏深、或注意辅音 /t/ 的清晰爆破，不可像美式闪音那样过度浊化等）。\n\
             \   - 如果为其他地区，则提供对应的美音发音（如卷舌音 /r/、T-flapping 浊化等）规律点评。\n\n注意：\n- vocab\
             \ 里的 word 必须是英文单词或英文短语，禁止输出中文词作为 word。\n- meaning_zh 只能输出中文释义。\n- example\
-            \ 必须是英文句子，并且与主题高度相关。\n- 词条应优先选择适合 TTS 朗读的商务高频词；若检索到 1-3 天内的新错词，必须优先纳入\
-            \ vocab 列表。\n\n输出结构必须完全符合以下 JSON 格式：\n{\n  \"theme\": \"主题名\",\n  \"vocab\"\
-            : [\n    {\n      \"word\": \"英文单词或短语\",\n      \"ipa\": \"音标（对齐画像国际音标）\"\
+            \ 必须是英文句子，并且与主题高度相关。\n- 词条必须采用 3+2：前 3 个为当前主题的 C1/C2 专业术语，后 2 个必须来自博弈论/逻辑学/系统论（如 prisoner's dilemma、Nash equilibrium、butterfly effect），并尽量能解释当前主题。禁止 modeling、agenda、deadline、meeting 等普通高频词。若检索到 1-3 天内的新错词且不属于禁止词、也不在避重列表，可纳入主题专业槽。每个 vocab 项增加可选 slot：theme 或 theory。\n\n输出结构必须完全符合以下 JSON 格式：\n{\n  \"theme\": \"主题名\",\n  \"vocab\"\
+            : [\n    {\n      \"word\": \"英文单词或短语\",\n      \"slot\": \"theme 或 theory\",\n      \"ipa\": \"音标（对齐画像国际音标）\"\
             ,\n      \"pronunciation_note\": \"发音注意点与口音提示（使用画像习惯拼写）\",\n      \"meaning_zh\"\
             : \"中文释义\",\n      \"example\": \"英文例句（拼写对齐画像）\"\n    }\n  ],\n  \"grammar\"\
             : {\n    \"point\": \"1 个关联语法点\",\n    \"explanation\": \"简要说明与解析（使用画像习惯拼写）\"\
             ,\n    \"examples\": [\n      {\n        \"correct\": \"正确英文用法（拼写对齐画像）\"\
             ,\n        \"incorrect\": \"错误英文用法\"\n      }\n    ]\n  }\n}\n\n约束：\n-\
-            \ vocab 必须恰好 10 个词。\n- 仅输出 JSON，不要 Markdown，不要解释文字。\n- 语法点只保留 1 个，例子至少\
+            \ vocab 最多 5 个词（3 个 theme + 2 个 theory），宁缺毋滥，禁止用普通词凑数。\n- 仅输出 JSON，不要 Markdown，不要解释文字。\n- 语法点只保留 1 个，例子至少\
             \ 1 组。"
         - id: a4ace364-eeb4-4f07-b8cd-ea3b8c68e3ef
           role: user
