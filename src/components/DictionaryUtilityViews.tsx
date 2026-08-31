@@ -704,7 +704,7 @@ export function UtilityEnZhBidirectionalView({
   const fill = splitPlan.useSplit;
 
   const cambridgeBlock = senses.length > 0 && (
-        <FoldBlock fill={fill && showCambridge} title="Cambridge 词典详情" count={senses.length} open={showCambridge} onToggle={() => setShowCambridge((v) => !v)}>
+        <FoldBlock title="Cambridge 词典详情" count={senses.length} open={showCambridge} onToggle={() => setShowCambridge((v) => !v)}>
           {(phonetics?.uk || phonetics?.us) && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-stone-600">
               {phonetics.uk && <span><b className="text-stone-800">UK</b> {phonetics.uk}</span>}
@@ -896,8 +896,13 @@ export function UtilityEnZhBidirectionalView({
       {idiomsBlock ? <EqualCell className={splitPlan.rightCellClass}>{idiomsBlock}</EqualCell> : null}
       {synonymsBlock ? <EqualCell className={splitPlan.rightCellClass}>{synonymsBlock}</EqualCell> : null}
       {antonymsBlock ? <EqualCell className={splitPlan.rightCellClass}>{antonymsBlock}</EqualCell> : null}
-      {collocationsBlock ? <EqualCell className={splitPlan.rightCellClass}>{collocationsBlock}</EqualCell> : null}
     </aside>
+  );
+
+  const leftFill = collocationsBlock && (
+    <div className={splitPlan.leftFillClass}>
+      <EqualCell className={splitPlan.leftFillCellClass}>{collocationsBlock}</EqualCell>
+    </div>
   );
 
   return (
@@ -916,10 +921,11 @@ export function UtilityEnZhBidirectionalView({
               />
               <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
             </div>
-            <div className={showCambridge ? 'flex-1 min-h-0' : 'shrink-0'}>{cambridgeBlock}</div>
+            <div className="shrink-0">{cambridgeBlock}</div>
             {examplesBlock}
             {businessBlock}
             {otherBlock}
+            {leftFill}
           </>
         ) : (
           <>
@@ -940,7 +946,7 @@ export function UtilityEnZhBidirectionalView({
           </>
         )}
       </div>
-      {fill ? splitExtras : null}
+      {fill && splitPlan.rightBlocks.length > 0 ? splitExtras : null}
     </div>
   );
 }
