@@ -145,9 +145,10 @@ function renderLevelBadge(level?: string) {
 interface ZhModernViewProps {
   payload: ZhModernPayload;
   query: string;
+  hideExamples?: boolean;
 }
 
-export function ZhModernView({ payload, query }: ZhModernViewProps) {
+export function ZhModernView({ payload, query, hideExamples }: ZhModernViewProps) {
   const { pos, definition, phonetic, usage_notes, other_meanings = [], example_sentences = [], collocations = [], synonyms = [], antonyms = [], confusable_pairs = [] } = payload;
   
   const validExampleSentences = example_sentences.filter(sent => typeof sent === 'string' ? sent.trim() : false);
@@ -226,7 +227,7 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
       )}
 
       {/* 例句区 */}
-      {validExampleSentences.length > 0 && (
+      {validExampleSentences.length > 0 && !hideExamples && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">例句支撑</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
@@ -327,10 +328,11 @@ export function ZhModernView({ payload, query }: ZhModernViewProps) {
 // ==========================================
 interface EnEnBusinessViewProps {
   payload: EnEnBusinessPayload;
- query: string;
+  query: string;
+  hideExamples?: boolean;
 }
 
-export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
+export function EnEnBusinessView({ payload, query, hideExamples }: EnEnBusinessViewProps) {
   const { headword, pos, phonetic, definitions_en = [], business_notes, scenarios = [], other_meanings = [], example_sentences = [], meaning_zh } = payload;
   const wordDisplay = headword || query;
   const extracted = extractSynonymsAntonymsCollocations(wordDisplay, payload);
@@ -454,7 +456,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
       )}
 
       {/* 商务场景用例 (Scenarios) */}
-      {validScenarios.length > 0 && (
+      {validScenarios.length > 0 && !hideExamples && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Workplace Scenarios</div>
           <div className="space-y-2.5">
@@ -475,7 +477,7 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
       )}
 
       {/* 真实例句支撑 */}
-      {validEnExampleSentences.length > 0 && (
+      {validEnExampleSentences.length > 0 && !hideExamples && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">Example Sentences</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">
@@ -545,15 +547,16 @@ export function EnEnBusinessView({ payload, query }: EnEnBusinessViewProps) {
 interface EnZhBidirectionalViewProps {
   payload: EnZhBidirectionalPayload;
   query: string;
+  hideExamples?: boolean;
 }
 
-export function EnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
+export function EnZhBidirectionalView({ payload, query, hideExamples }: EnZhBidirectionalViewProps) {
   return payload.senses?.length
-    ? <UtilityEnZhBidirectionalView payload={payload} query={query} />
-    : <LegacyEnZhBidirectionalView payload={payload} query={query} />;
+    ? <UtilityEnZhBidirectionalView payload={payload} query={query} hideExamples={hideExamples} />
+    : <LegacyEnZhBidirectionalView payload={payload} query={query} hideExamples={hideExamples} />;
 }
 
-function LegacyEnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewProps) {
+function LegacyEnZhBidirectionalView({ payload, query, hideExamples }: EnZhBidirectionalViewProps) {
   const { direction_resolved, phonetic, pos, translation_main, other_meanings = [], business_examples = [], example_sentences = [], etymology } = payload;
   const extracted = extractSynonymsAntonymsCollocations(query, payload);
   const synonymsList = extracted.synonyms;
@@ -647,7 +650,7 @@ function LegacyEnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewPr
       )}
 
       {/* 商务场景例句 (Business Examples) */}
-      {validBusinessExamples.length > 0 && (
+      {validBusinessExamples.length > 0 && !hideExamples && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">商务语境场景</div>
           <div className="space-y-2.5">
@@ -669,7 +672,7 @@ function LegacyEnZhBidirectionalView({ payload, query }: EnZhBidirectionalViewPr
       )}
 
       {/* 真实中英双语例句 */}
-      {validExampleSentences.length > 0 && (
+      {validExampleSentences.length > 0 && !hideExamples && (
         <div className="space-y-2">
           <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest pl-1 select-none">中英对照例句</div>
           <div className="space-y-2 bg-gray-50/40 border border-gray-100 rounded-2xl p-3 shadow-inner">

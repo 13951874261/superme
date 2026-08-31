@@ -584,12 +584,14 @@ export function UtilityEnZhBidirectionalView({
   query,
   editableExamples,
   onExamplesChange,
+  hideExamples,
 }: {
   payload: EnZhBidirectionalPayload;
   query: string;
   /** 受控：当前可见例句（单词 Cambridge / 短语与中文 Dify 均支持编辑） */
   editableExamples?: EditableExample[];
   onExamplesChange?: (next: EditableExample[]) => void;
+  hideExamples?: boolean;
 }) {
   const {
     direction_resolved,
@@ -710,7 +712,7 @@ export function UtilityEnZhBidirectionalView({
         </FoldBlock>
       )}
 
-      {(displayExamples.length > 0 || examplesEditable) && (
+      {(displayExamples.length > 0 || examplesEditable) && !hideExamples && (
         <div>
           <div className="flex items-center justify-between gap-2 mb-1.5">
             <SectionLabel>{senses.length > 0 ? 'Cambridge 例句' : '例句'}</SectionLabel>
@@ -779,7 +781,7 @@ export function UtilityEnZhBidirectionalView({
         </FoldBlock>
       )}
 
-      {validBusiness.length > 0 && (
+      {validBusiness.length > 0 && !hideExamples && (
         <div>
           <SectionLabel>商务例句</SectionLabel>
           <div className="space-y-2">

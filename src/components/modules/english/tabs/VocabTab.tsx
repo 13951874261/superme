@@ -9,6 +9,7 @@ import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
 import { playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
 import CustomCardModal from '../../../CustomCardModal';
 import MemoryAidPanel from '../../../MemoryAidPanel';
+import FlashCardExampleMemoryAlign from '../../../FlashCardExampleMemoryAlign';
 import VocabExportControl from '../../../VocabExportControl';
 import { ZhModernView, EnEnBusinessView, EnZhBidirectionalView } from '../../../DictionaryPanel';
 import { showError, showSuccess } from '../../../Toast';
@@ -505,24 +506,19 @@ export default function VocabTab() {
                 </div>
               ) : (
                 <div className="animate-[fadeIn_0.4s_ease-out] space-y-3">
-                  {/* =================【第 1 行：核心情报 + 记忆辅助工具卡 强水平对齐】================= */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
-                    {/* 左 7 栏：核心词典主卡 */}
-                    <div className="lg:col-span-7 flex flex-col min-h-0 rounded-xl border border-slate-100 bg-slate-50/40 p-2.5 md:p-3">
-                      {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} />}
-                      {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} />}
-                      {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} />}
-                    </div>
-
-                    {/* 右 5 栏：1. 生词记忆辅助 */}
-                    <div className="lg:col-span-5 bg-slate-50/80 border border-slate-200/70 rounded-xl p-2.5 shadow-sm flex flex-col min-h-0">
-                      <h4 className="text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 flex items-center gap-1.5 select-none">
-                        <BrainCircuit className="w-4 h-4 text-emerald-500 animate-pulse" />
-                        1. 生词记忆辅助 (Memory Aids)
-                      </h4>
-                      <MemoryAidPanel wordId={currentWord.id} wordText={currentWord.word} />
-                    </div>
+                  {/* 通栏：词头 + 核心释义 + 词典详情（例句改到下方 4 槽对齐） */}
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-2.5 md:p-3">
+                    {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
+                    {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
+                    {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
                   </div>
+
+                  <FlashCardExampleMemoryAlign
+                    wordId={currentWord.id}
+                    wordText={currentWord.word}
+                    payload={adaptedWord.payload}
+                    extraMode="scroll"
+                  />
 
                   {/* =================【第 2 行：圆形记忆矩阵主舞台 + 算法/SOP 仪表盘】================= */}
                   {/* 浅→深衔接：上沿浅灰带，避免硬切到深色矩阵 */}
