@@ -507,7 +507,7 @@ export default function VocabTab() {
               ) : (
                 <div className="animate-[fadeIn_0.4s_ease-out] space-y-3">
                   {/* 通栏：词头 + 核心释义 + 词典详情（例句改到下方 4 槽对齐） */}
-                  <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-2.5 md:p-3">
+                  <div className="rounded-xl border border-slate-100 bg-slate-50/40 p-2">
                     {adaptedWord.type === 'zh_modern' && <ZhModernView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
                     {adaptedWord.type === 'en_en_business' && <EnEnBusinessView payload={adaptedWord.payload} query={currentWord.word} hideExamples />}
                     {adaptedWord.type === 'en_zh_bidirectional' && <EnZhBidirectionalView payload={adaptedWord.payload} query={currentWord.word} hideExamples splitLexicon />}

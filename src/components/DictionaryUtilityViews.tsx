@@ -128,7 +128,7 @@ function FoldBlock({
           e.stopPropagation();
           onToggle();
         }}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-stone-50 transition text-xs font-semibold text-stone-700 select-none shrink-0"
+        className={`w-full flex items-center justify-between text-left hover:bg-stone-50 transition text-xs font-semibold text-stone-700 select-none shrink-0 ${fill ? 'px-2.5 py-2' : 'px-3 py-2.5'}`}
       >
         <span>
           {title} ({count})
@@ -136,7 +136,7 @@ function FoldBlock({
         <ChevronRight className={`w-4 h-4 text-stone-400 transition-transform duration-200 ${open ? 'rotate-90 text-[#FF5722]' : ''}`} />
       </button>
       {open && (
-        <div className={`px-3 pb-3 pt-1 border-t border-stone-100 bg-stone-50/40 space-y-2 ${fill ? 'flex-1 min-h-0 overflow-auto' : ''}`}>
+        <div className={`border-t border-stone-100 bg-stone-50/40 ${fill ? 'px-2.5 pb-2 pt-1 space-y-1.5 flex-1 min-h-0 overflow-auto' : 'px-3 pb-3 pt-1 space-y-2'}`}>
           {children}
         </div>
       )}
@@ -166,7 +166,7 @@ function PillPanel({
     );
   }
   return (
-    <div className="h-full min-h-0 flex flex-col overflow-hidden border border-stone-200/90 rounded-xl bg-white px-3 py-2.5">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden border border-stone-200/90 rounded-xl bg-white px-2.5 py-2">
       <SectionLabel>{label}</SectionLabel>
       <div className="flex-1 min-h-0 overflow-auto">{children}</div>
     </div>
@@ -900,31 +900,33 @@ export function UtilityEnZhBidirectionalView({
   );
 
   const leftFill = collocationsBlock && (
-    <div className={splitPlan.leftFillClass}>
-      <EqualCell className={splitPlan.leftFillCellClass}>{collocationsBlock}</EqualCell>
-    </div>
+    <EqualCell className={splitPlan.leftFillCellClass}>{collocationsBlock}</EqualCell>
   );
 
   return (
     <div className={`${splitPlan.gridClass} text-left select-text selection:bg-[#FF5722]/15`}>
-      <div className={`min-w-0 ${fill ? 'h-full flex flex-col gap-3' : 'contents'}`}>
+      <div className={`min-w-0 ${fill ? splitPlan.leftInnerClass : 'contents'}`}>
         {fill ? (
           <>
-            <div className="shrink-0 space-y-3">
-              <CompactHead
-                word={query}
-                phonetic={phonetic}
-                pos={pos}
-                level={payload.level}
-                meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
-                speakText={query}
-              />
-              <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
-            </div>
-            <div className="shrink-0">{cambridgeBlock}</div>
-            {examplesBlock}
-            {businessBlock}
-            {otherBlock}
+            <EqualCell className={splitPlan.leftFillCellClass}>
+              <div className="h-full min-h-0 flex flex-col gap-1.5 overflow-auto">
+                <div className="shrink-0 space-y-1.5">
+                  <CompactHead
+                    word={query}
+                    phonetic={phonetic}
+                    pos={pos}
+                    level={payload.level}
+                    meta={isEnToZh ? '英 → 汉' : '汉 → 英'}
+                    speakText={query}
+                  />
+                  <CoreGloss text={translation_main || ''} en={senses[0]?.definition_en || ''} />
+                </div>
+                <div className="shrink-0">{cambridgeBlock}</div>
+                {examplesBlock}
+                {businessBlock}
+                {otherBlock}
+              </div>
+            </EqualCell>
             {leftFill}
           </>
         ) : (
