@@ -11534,8 +11534,10 @@ app.post('/api/materials/fetch-url', async (req, res) => {
     }
 
     const { fetchUrlContent } = require('./services/webFetcher');
+    const { cleanWebArticleMarkdown } = require('./services/webArticleCleaner');
     const result = await fetchUrlContent(url);
-    res.json(result);
+    const cleaned = await cleanWebArticleMarkdown(result.markdown);
+    res.json({ ...result, markdown: cleaned, rawLength: result.length, length: cleaned.length });
   } catch (error) {
     console.error('[Fetch URL Error]:', error);
     res.status(500).json({ success: false, error: error.message });
