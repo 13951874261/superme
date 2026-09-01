@@ -2872,6 +2872,66 @@ app.post('/api/listen/pregenerated/cron-run', async (req, res) => {
   }
 });
 
+app.post('/api/listen/sync-long-article-to-listen', async (req, res) => {
+  try {
+    const { userId, theme, genre, cefrLevel, duration } = req.body || {};
+    if (!userId || !theme || !genre || !cefrLevel || !duration) {
+      return res.status(400).json({ success: false, error: 'missing fields: userId, theme, genre, cefrLevel, duration required' });
+    }
+    if (!dailyListenPreGenerateService.isCacheableDuration(duration)) {
+      return res.status(400).json({ success: false, error: 'duration not cacheable' });
+    }
+
+    const today = dailyPackService.getPackDate();
+    const uid = dailyPackService.normalizeUserId(userId);
+    const articleRow = db.prepare(`
+      SELECT * FROM daily_extracted_articles
+      WHERE user_id = ? AND quota_date = ? AND theme = ? AND genre = ? AND cefr_level = ? AND duration = ?
+      ORDER BY updated_at DESC LIMIT 1
+    `).get(uid, today, theme, genre, cefrLevel, String(Number(duration)));
+    const scriptText = String(articleRow?.article || articleRow?.article_text || articleRow?.body_text || '').trim();
+    if (!articleRow || !scriptText) {
+      return res.status(404).json({ success: false, error: '当天当前主题、题材、难度和时长下无可用长文，请先生成对应长文' });
+    }
+
+    const taskQueue = require('./services/taskQueue');
+    const taskName = `盲听音频重生(今日长文): ${theme} / ${genre} / ${cefrLevel} / ${duration}m`;
+    const task = taskQueue.createTask('listen_backfill', taskName);
+    res.json({ success: true, taskId: task.id, status: task.status });
+
+    (async () => {
+      try {
+        taskQueue.updateTask(task.id, { status: 'running', progress: 5, logs: ['[盲听生成] 正在使用当天长文重新合成音频…'] });
+        const syncRes = await dailyListenPreGenerateService.syncAudioFromLongArticleRow(
+          db,
+          articleRow,
+          'manual-sync',
+          { force: true },
+        );
+        if (!syncRes?.success) throw new Error(syncRes?.error || '音频合成失败');
+        taskQueue.updateTask(task.id, {
+          status: 'completed',
+          progress: 100,
+          logs: ['[盲听生成] 当天长文音频已重新生成'],
+          result: {
+            audioUrl: `${syncRes.audioUrl}?v=${Date.now()}`,
+            content: scriptText,
+            articleId: articleRow.id,
+          },
+        });
+      } catch (e) {
+        taskQueue.updateTask(task.id, {
+          status: 'failed',
+          error: `音频合成异常: ${e.message}`,
+          logs: [`[盲听生成] 中断: ${e.message}`],
+        });
+      }
+    })();
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 // ==========================================
 // 听力材料上传接口（保存文件并返回URL）
 // ==========================================

@@ -32,6 +32,7 @@ export interface TaskItem {
     audioId?: string;
     historyId?: string;
     article?: string;
+    articleId?: string;
     words?: unknown[];
     phrases?: unknown[];
     sentences?: unknown[];

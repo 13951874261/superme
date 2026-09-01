@@ -7,6 +7,7 @@ import {
   fetchPregenerated,
   submitPregeneratedBackfill,
   writebackPregenerated,
+  submitSyncLongArticleToListen,
   type PregenStatus,
 } from '../../../../services/listenPregeneratedAPI';
 import { appendErrorLedgerEntries } from '../../../../utils/errorLedgerHelper';
@@ -69,6 +70,7 @@ export default function ListenTab() {
   const [pregenArticleStatus, setPregenArticleStatus] = useState<string | null>(null);
   const [pregenAudioStatus, setPregenAudioStatus] = useState<string | null>(null);
   const [isBackfillSubmitting, setIsBackfillSubmitting] = useState(false);
+  const [longArticleTaskId, setLongArticleTaskId] = useState<string | null>(null);
   const [listenMode, setListenMode] = useState<'auto' | 'upload'>('auto');
   const [listenVoiceId, setListenVoiceId] = useState('en-US-BrianNeural');
   const [listenInterruptions, setListenInterruptions] = useState(false);
@@ -241,6 +243,34 @@ export default function ListenTab() {
     }
   };
 
+  const regenerateFromTodayLongArticle = async (anchor: HTMLElement | null) => {
+    if (!theme || longArticleTaskId) return;
+    try {
+      const data = await submitSyncLongArticleToListen({
+        theme,
+        genre: listenGenre,
+        cefrLevel: listenCefr,
+        duration: listenDuration,
+      });
+      addTask({
+        id: data.taskId,
+        type: 'listen_backfill',
+        name: `盲听音频重生(今日长文): ${theme} / ${listenGenre} / ${listenCefr} / ${listenDuration}分钟`,
+        status: 'pending',
+        progress: 0,
+        logs: ['[盲听生成] 已提交后台任务…'],
+      });
+      setLongArticleTaskId(data.taskId);
+      notifyBackgroundHandoff({
+        anchor,
+        message: '当天长文音频正在后台重新生成，完成后会自动更新',
+        tone: 'info',
+      });
+    } catch (e) {
+      showNotice('listen', e instanceof Error ? e.message : '提交音频重生失败', 'error');
+    }
+  };
+
   const applyPregenResult = (data: Awaited<ReturnType<typeof fetchPregenerated>>) => {
     setPregenStatus(data.status);
     setPregenArticleStatus(data.articleStatus || null);
@@ -360,6 +390,32 @@ export default function ListenTab() {
       showNotice('listen', '高级语音暂时不可用，已改用浏览器朗读，可继续练习', 'error');
     }
   }, [tasks, curTtsTaskId, listenMaterial, writebackCache]);
+
+  useEffect(() => {
+    if (!longArticleTaskId) return;
+    const task = tasks.find((item) => item.id === longArticleTaskId);
+    if (!task) return;
+    if (task.status === 'completed' && task.result?.audioUrl && task.result?.content) {
+      audioRef.current?.pause();
+      setListenMaterial(task.result.content);
+      setListenAudioUrl(task.result.audioUrl);
+      setListenMaterialTheme(theme);
+      setListenResult(null);
+      setListenInput('');
+      setIsTextVisible(false);
+      setHasPlayed(false);
+      setCurrentTime(0);
+      setDuration(0);
+      setPregenStatus('ready');
+      setPregenArticleStatus('ready');
+      setPregenAudioStatus('ready');
+      setLongArticleTaskId(null);
+      showNotice('listen', '当天长文盲听音频已重新生成', 'success');
+    } else if (task.status === 'failed') {
+      setLongArticleTaskId(null);
+      showNotice('listen', task.error || '当天长文音频生成失败', 'error');
+    }
+  }, [tasks, longArticleTaskId, theme]);
 
   // 监听剧本生成任务 (长音频后台机制)
   useEffect(() => {
@@ -746,18 +802,33 @@ export default function ListenTab() {
                   )}
                 </div>
                 {listenMode !== 'upload' && (
-                  <button
-                    type="button"
-                    onClick={() => generateListenMaterial(theme)}
-                    disabled={isListenMaterialLoading}
-                    className="whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-[box-shadow,opacity,filter] disabled:opacity-50 disabled:grayscale flex items-center gap-1.5"
-                  >
-                    {isListenMaterialLoading ? (
-                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 正在生成…</>
-                    ) : (
-                      <><Zap className="w-3.5 h-3.5 text-amber-300" /> 生成今日精听</>
-                    )}
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={(e) => void regenerateFromTodayLongArticle(e.currentTarget)}
+                      disabled={!!longArticleTaskId || !isCacheableDuration}
+                      className="whitespace-nowrap bg-white/10 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest border border-white/15 hover:bg-white/20 transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                      title="仅使用当天当前主题、题材、难度和时长匹配的长文重新配音"
+                    >
+                      {longArticleTaskId ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 后台生成中…</>
+                      ) : (
+                        <><Headphones className="w-3.5 h-3.5" /> 重新生成音频</>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => generateListenMaterial(theme)}
+                      disabled={isListenMaterialLoading}
+                      className="whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-[box-shadow,opacity,filter] disabled:opacity-50 disabled:grayscale flex items-center gap-1.5"
+                    >
+                      {isListenMaterialLoading ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 正在生成…</>
+                      ) : (
+                        <><Zap className="w-3.5 h-3.5 text-amber-300" /> 生成今日精听</>
+                      )}
+                    </button>
+                  </>
                 )}
               </div>
               {/* 压力因素选择器：仅自动生成模式生效 */}

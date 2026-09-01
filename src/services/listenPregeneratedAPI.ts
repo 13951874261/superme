@@ -111,3 +111,20 @@ export async function writebackPregenerated(body: {
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
+
+export async function submitSyncLongArticleToListen(body: {
+  theme: string;
+  genre: string;
+  cefrLevel: string;
+  duration: number;
+  userId?: string;
+}): Promise<{ success: boolean; taskId: string }> {
+  const res = await fetch('/api/listen/sync-long-article-to-listen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, userId: body.userId || getAppUserId() }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data as { success: boolean; taskId: string };
+}

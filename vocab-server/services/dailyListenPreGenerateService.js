@@ -1698,7 +1698,7 @@ async function resumeInterruptedListenJobs(db) {
 /**
  * 从单条每日长文记录直接复用文本，合成精听音频并同步写入 daily_listen_audios 与 daily_listen_articles
  */
-async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
+async function syncAudioFromLongArticleRow(db, row, source = 'cron', { force = false } = {}) {
   if (!row || !row.user_id) return null;
   const uid = dailyPackService.normalizeUserId(row.user_id);
   const packDate = row.quota_date || dailyPackService.getPackDate();
@@ -1735,7 +1735,7 @@ async function syncAudioFromLongArticleRow(db, row, source = 'cron') {
 
   const audioPath = path.join(userDirAu, `${baseName}.mp3`);
   const audioUrl = `/api/daily_listen_audio/${parts.userId}/${baseName}.mp3`;
-  if (fileOk(audioPath)) {
+  if (!force && fileOk(audioPath)) {
     upsertAudio(db, parts, {
       status: 'ready',
       source,
