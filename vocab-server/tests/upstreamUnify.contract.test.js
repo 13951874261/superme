@@ -23,7 +23,8 @@ assert.ok(!serverSrc.includes('https://23.95.214.232/v1/chat/completions'), 'ser
 
 assert.ok(webSrc.includes("FETCH_ENDPOINT_BASE || 'https://fetch.234124123.xyz/v1'"), 'web fetch default must use the confirmed upstream');
 assert.ok(webSrc.includes("model: 'firecrawl'"), 'web fetch model must be firecrawl');
-assert.ok(webSrc.includes('sk-d2c5fb65e9516bbc-rd1lv9-762292df'), 'web fetch default key must match new gateway');
+assert.ok(webSrc.includes('process.env.DIFY_FETCH_API_KEY'), 'web fetch key must come from the environment');
+assert.ok(!webSrc.includes("DIFY_FETCH_API_KEY || '"), 'web fetch must not contain a default API key');
 assert.ok(webSrc.includes("parsed.protocol === 'https:'"), 'web fetch must pick http/https by protocol');
 assert.ok(webSrc.includes('postJsonWithRetry('), 'web fetch must retry transient upstream errors');
 

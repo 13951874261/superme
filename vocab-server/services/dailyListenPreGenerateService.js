@@ -21,7 +21,9 @@ function resolveListenDurations(options = {}) {
   if (Array.isArray(options.durations) && options.durations.length > 0) {
     return options.durations.map((d) => Number(d)).filter((d) => Number.isFinite(d) && d > 0);
   }
-  if (options.source === 'login-catchup') return [...LOGIN_CATCHUP_DURATIONS];
+  if (options.source === 'login-catchup' || options.source === 'cron') {
+    return [...LOGIN_CATCHUP_DURATIONS];
+  }
   return [...DURATIONS];
 }
 

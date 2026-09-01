@@ -606,4 +606,38 @@ assert.deepStrictEqual(mergedEn.synonyms, ['glitch']);
 assert.deepStrictEqual(mergedEn.collocations, ['software bug']);
 assert.ok(mergedEn.example_sentences.some((ex) => /Hang on/i.test(ex.en)));
 
+// AOW emits flat Cambridge Markdown with combined register/region metadata.
+const aowMagnanimousMarkdown = `# Meaning of **magnanimous** in English
+magnanimous
+adjective
+formal uk
+Your browser doesn't support HTML5 audio
+/mæɡˈnæn.ɪ.məs/ us
+Your browser doesn't support HTML5 audio
+/mæɡˈnæn.ə.məs/
+Add to word list Add to word list
+very kind and generous towards an enemy or someone you have defeated
+The team's manager was magnanimous in victory, and praised the losing team.
+(Definition of **magnanimous** from the Cambridge Advanced Learner's Dictionary & Thesaurus © Cambridge University Press)
+## Examples of magnanimous
+Example from the Hansard archive. Contains Parliamentary information licensed under the Open Parliament Licence v3.0
+This apparently magnanimous offer is not quite as good as it sounds.
+From the Hansard archive
+These examples are from corpora and from sources on the web. Any opinions in the examples do not represent the opinion of the Cambridge Dictionary editors or of Cambridge University Press or its licensors.
+C1
+## Translations of magnanimous
+`;
+const aowMagnanimous = parseCambridgeMarkdown(aowMagnanimousMarkdown, {
+  word: 'magnanimous',
+  sourceUrl: 'https://dictionary.cambridge.org/dictionary/english/magnanimous',
+  edition: 'english',
+});
+assert.strictEqual(aowMagnanimous.senses[0].register, 'formal');
+assert.strictEqual(aowMagnanimous.level, 'C1');
+assert.strictEqual(aowMagnanimous.definitions_en[0], 'very kind and generous towards an enemy or someone you have defeated');
+assert.deepStrictEqual(aowMagnanimous.phonetics, { uk: '/mæɡˈnæn.ɪ.məs/', us: '/mæɡˈnæn.ə.məs/' });
+assert.ok(aowMagnanimous.example_sentences.some((ex) => ex.en.startsWith("The team's manager")));
+assert.ok(aowMagnanimous.example_sentences.some((ex) => ex.en.startsWith('This apparently magnanimous offer')));
+assert.ok(!aowMagnanimous.example_sentences.some((ex) => /Hansard archive|Parliamentary information|examples are from corpora|Definition of/i.test(ex.en)));
+
 console.log('cambridge dictionary tests passed');

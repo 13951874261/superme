@@ -8033,132 +8033,69 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
     const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY;
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
-    let wfResponse;
-    const fetchController = new AbortController();
-    const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000); // 10分钟超时
+    const requestInputs = injectOralSystemTime({
+      theme: topic || "General Business",
+      cefr_level: cefrLevel,
+      genre,
+      duration: String(duration),
+      history_exclude: historyExclude,
+      user_flaws: userFlaws,
+      user_current_profile: resolveProfileForDify(userId, user_current_profile),
+      _system_time,
+      _system_timestamp_ms,
+    });
+    const configuredAttempts = Number(process.env.DIFY_LONG_ARTICLE_MAX_ATTEMPTS || 2);
+    const maxAttempts = Number.isInteger(configuredAttempts)
+      ? Math.min(3, Math.max(1, configuredAttempts))
+      : 2;
+    let answer = '';
 
-    try {
-      wfResponse = await fetch(`${baseUrl}/chat-messages`, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${difyApiKey}`,
-          "Content-Type": "application/json",
-        },
-        signal: fetchController.signal,
-        body: JSON.stringify({
-          inputs: injectOralSystemTime({
-            theme: topic || "General Business",
-            cefr_level: cefrLevel,
-            genre: genre,
-            duration: String(duration),
-            history_exclude: historyExclude,
-            user_flaws: userFlaws,
-            user_current_profile: resolveProfileForDify(userId, user_current_profile),
-            _system_time,
-            _system_timestamp_ms,
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      const fetchController = new AbortController();
+      const fetchTimeout = setTimeout(() => fetchController.abort(), 10 * 60 * 1000);
+      try {
+        const wfResponse = await fetch(`${baseUrl}/chat-messages`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${difyApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          signal: fetchController.signal,
+          body: JSON.stringify({
+            inputs: requestInputs,
+            query: 'generate',
+            response_mode: 'streaming',
+            user: userId,
           }),
-          query: "generate",
-          response_mode: "streaming",
-          user: userId,
-        }),
-      });
-      clearTimeout(fetchTimeout);
-    } catch (fetchErr) {
-      clearTimeout(fetchTimeout);
-      console.error("[Daily Extract] Dify fetch 请求发起失败:", fetchErr);
-      syncFail(`Dify 服务请求失败: ${fetchErr.message}`);
-      return;
-    }
+        });
+        clearTimeout(fetchTimeout);
 
-    if (!wfResponse.ok) {
-      const errText = await wfResponse.text();
-      console.error("[Daily Extract] Dify HTTP error:", errText);
-      syncFail(formatDifyModelError(errText || `HTTP ${wfResponse.status}`));
-      return;
-    }
-
-    let answer = "";
-    let streamError = "";
-    const decoder = new TextDecoder();
-    let sseBuffer = "";
-
-    const parseSSELines = (text) => {
-      sseBuffer += text;
-      let lineEnd = sseBuffer.indexOf('\n');
-      while (lineEnd !== -1) {
-        const line = sseBuffer.substring(0, lineEnd).trim();
-        sseBuffer = sseBuffer.substring(lineEnd + 1);
-        if (line.startsWith("data: ")) {
-          const dataStr = line.slice(6).trim();
-          if (dataStr === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.event === 'error' || parsed.status === 'error') {
-              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
-            }
-            if (parsed.message && /Server Unavailable|ConnectTimeout|\[models\]/i.test(String(parsed.message))) {
-              streamError = String(parsed.message);
-            }
-            if (typeof parsed.answer === 'string' && parsed.answer) {
-              answer = mergeStreamAnswer(answer, parsed.answer);
-            }
-          } catch (e) {}
+        if (!wfResponse.ok) {
+          const errText = await wfResponse.text().catch(() => '');
+          const formatted = formatDifyModelError(errText || `HTTP ${wfResponse.status}`);
+          const error = new Error(formatted);
+          error.retryable = [408, 429, 502, 503, 504].includes(wfResponse.status);
+          throw error;
         }
-        lineEnd = sseBuffer.indexOf('\n');
-      }
-    };
-
-    if (wfResponse.body) {
-      if (typeof wfResponse.body.getReader === 'function') {
-        const reader = wfResponse.body.getReader();
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            parseSSELines(chunk);
-          }
-        } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          syncFail(`数据流读取异常: ${readErr.message}`);
+        answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
+        break;
+      } catch (error) {
+        clearTimeout(fetchTimeout);
+        const message = String(error?.message || error);
+        const retryable = error?.retryable === true
+          || /terminated|UND_ERR_BODY_TIMEOUT|Body Timeout|stream idle timeout|fetch failed|ECONNRESET|ETIMEDOUT/i.test(message);
+        if (!retryable || attempt === maxAttempts) {
+          console.error('[Daily Extract] Dify 生成失败:', error);
+          syncFail(`Dify 服务请求失败: ${message}`);
           return;
         }
-      } else {
-        try {
-          for await (const chunk of wfResponse.body) {
-            const chunkText = decoder.decode(chunk, { stream: true });
-            parseSSELines(chunkText);
-          }
-        } catch (readErr) {
-          console.error("[Daily Extract] 强行读取流失败:", readErr);
-          syncFail(`数据流读取异常: ${readErr.message}`);
-          return;
-        }
+        console.warn(`[Daily Extract] Dify 流中断，重试 ${attempt}/${maxAttempts}: ${message}`);
+        taskQueue.updateTask(taskId, {
+          status: 'running',
+          progress: 15,
+          logs: [`Dify 数据流中断，正在重试（${attempt}/${maxAttempts}）…`],
+        });
       }
-
-      if (sseBuffer.trim().startsWith("data: ")) {
-        const line = sseBuffer.trim();
-        const dataStr = line.slice(6).trim();
-        if (dataStr !== "[DONE]") {
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.event === 'error' || parsed.status === 'error') {
-              streamError = parsed.message || parsed.error || JSON.stringify(parsed);
-            }
-            if (typeof parsed.answer === 'string' && parsed.answer) {
-              answer = mergeStreamAnswer(answer, parsed.answer);
-            }
-          } catch (e) {}
-        }
-      }
-    } else {
-      syncFail("Streaming not supported by Dify backend");
-      return;
-    }
-
-    if (streamError) {
-      syncFail(formatDifyModelError(streamError));
-      return;
     }
 
     // 正文与词表分离：先剥 <think>，思考链不得进入长文缓存

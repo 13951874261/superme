@@ -27,6 +27,8 @@ function isJunkEnglishExampleLine(line) {
   if (/^you can also find related/i.test(text)) return true;
   if (/^add to word list/i.test(text)) return true;
   if (/^smart vocabulary:/i.test(text)) return true;
+  if (/^definition of\b/i.test(text)) return true;
+  if (/^translation of\b/i.test(text)) return true;
   if (/^browse\b/i.test(text)) return true;
   if (/^from the cambridge english corpus$/i.test(text)) return true;
   // Topic labels / nav crumbs without sentence punctuation
@@ -155,9 +157,10 @@ function extractCambridgeExamplesSection(markdown, word) {
         return en
           && /[a-z]/i.test(en)
           && normalized !== normalizedWord
-          && !/^from the cambridge english corpus$/i.test(en)
+          && !/^from the (?:cambridge english corpus|hansard archive|europarl parallel corpus)/i.test(en)
+          && !/^example from the hansard archive/i.test(en)
           && !/^these examples are from corpora and from sources on the web/i.test(en)
-          && !/\bwikipedia\b/i.test(en)
+          && !/\b(?:parliamentary information licensed|wikipedia)\b/i.test(en)
           && isAdmissibleExampleEnglish(en);
       }),
     ({ en }) => normalizeComparable(en)
@@ -250,7 +253,7 @@ function parseSense(block, fallbackWord, edition = 'english-chinese-simplified')
 
   // Extract register (formal, informal, etc.)
   const registerPattern = '(formal|informal|literary|slang|old-fashioned|approving|disapproving)';
-  const registerLinePattern = new RegExp(`(?:^|[\\s\\[\\]])(${registerPattern})\\s*$`, 'i');
+  const registerLinePattern = new RegExp(`(?:^|[\\s\\[\\]])(${registerPattern})(?:\\s+(?:uk|us))?\\s*$`, 'i');
   const registerLine = lines.find((line) => {
     const match = line.match(registerLinePattern);
     return !!match;
@@ -273,6 +276,7 @@ function parseSense(block, fallbackWord, edition = 'english-chinese-simplified')
   const isNonDefinitionLine = (line) => {
     const l = line.toLowerCase();
     return /^(uk|us|add to word list|idioms?|noun|verb|adjective|adverb|pronoun|preposition|conjunction|exclamation|determiner|modal verb|phrasal verb)(?:\s*\/.+\/)?$/i.test(line)
+      || new RegExp(`^${registerPattern}(?:\\s+(?:uk|us))?$`, 'i').test(line)
       || isPhoneticLine(line)
       || l.startsWith('your browser')
       || l === 'add to word listadd to word list';
@@ -296,7 +300,7 @@ function parseSense(block, fallbackWord, edition = 'english-chinese-simplified')
       definitionEn = defLine.slice(0, zhMatch.index).trim();
       translationZh = defLine.slice(zhMatch.index).trim();
     } else {
-      definitionEn = defLine;
+      definitionEn = defLine.replace(/\s*:\s*$/, '');
       // Look for Chinese translation in subsequent lines
       const translationIndex = lines.findIndex((line, index) => 
         index > definitionIndex && /[\u3400-\u9fff]/.test(line)
@@ -384,7 +388,7 @@ function parseSense(block, fallbackWord, edition = 'english-chinese-simplified')
     // Skip corpus attribution lines
     if (/^From the Cambridge English Corpus$/i.test(line)) continue;
     // Skip copyright/translation notices
-    if (/^\(Translation of\b/i.test(line)) continue;
+    if (/^\((?:Definition|Translation) of\b/i.test(line)) continue;
     if (!/[A-Za-z]/.test(line)) continue;
     if (isEnglishEdition && isJunkEnglishExampleLine(line)) continue;
     const item = splitEnglishChinese(line);
@@ -473,10 +477,20 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl, edition } = {}) {
     );
   }
 
+  // AOW's fit Markdown can place CEFR after the corpus examples section.
+  if (!senses.some((sense) => sense.level)) {
+    const globalLevel = String(markdown || '').split(/^##\s+Translations\b/im)[0]
+      .split(/\r?\n/).map(cleanMarkdown)
+      .find((line) => /^(A1|A2|B1|B2|C1|C2)$/i.test(line));
+    if (globalLevel) senses[0].level = globalLevel;
+  }
+
   // Extract phonetics
   const phonetics = {};
-  const pronunciationBlock = sourceText.match(/\buk\b([\s\S]*?)(?=^###\s+)/im)?.[1] || '';
-  const pronunciationMatches = Array.from(pronunciationBlock.matchAll(/(\/[^/\n]+\/)(?:us\b)?/gi), (match) => match[1]);
+  const pronunciationBlock = sourceText.match(/\buk\b([\s\S]*?)(?=^###\s+)/im)?.[1]
+    || sourceText.match(/\buk\b([\s\S]*?)(?=^Add to word list|^[A-Z][A-Za-z -]+$)/im)?.[1]
+    || '';
+  const pronunciationMatches = Array.from(pronunciationBlock.matchAll(/(\/[^/\n]+\/)(?:\s*(?:us|uk)\b)?/gi), (match) => match[1]);
   if (pronunciationMatches[0]) phonetics.uk = pronunciationMatches[0];
   if (pronunciationMatches[1]) phonetics.us = pronunciationMatches[1];
   

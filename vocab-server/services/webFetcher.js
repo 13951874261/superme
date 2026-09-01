@@ -79,13 +79,16 @@ async function postJsonWithRetry(urlString, headers, body, insecureTls) {
  * @param {string} urlString
  * @returns {Promise<{success: boolean, title: string, markdown: string, length: number}>}
  */
-async function fetchUrlContent(urlString) {
-  const isValid = await validateUrl(urlString);
+async function fetchUrlContent(urlString, deps = {}) {
+  const validate = deps.validateUrl || validateUrl;
+  const post = deps.postJsonWithRetry || postJsonWithRetry;
+  const isValid = await validate(urlString);
   if (!isValid) {
     throw new Error('Web fetch failed: invalid URL or restricted network address');
   }
 
-  const apiKey = process.env.DIFY_FETCH_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
+  const apiKey = process.env.DIFY_FETCH_API_KEY;
+  if (!apiKey) throw new Error('Server missing DIFY_FETCH_API_KEY');
   const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://fetch.234124123.xyz/v1').replace(/\/$/, '');
   const fetchUrl = `${endpointBase}/web/fetch`;
   const hostname = new URL(fetchUrl).hostname;
@@ -100,25 +103,43 @@ async function fetchUrlContent(urlString) {
     max_characters: 0,
   });
 
-  const { status, text } = await postJsonWithRetry(
-    fetchUrl,
-    {
+  let primaryError = null;
+  let response;
+  try {
+    response = await post(fetchUrl, {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',
-    },
-    body,
-    insecureTls
-  );
-
-  if (status < 200 || status >= 300) {
-    throw new Error(`Remote web fetch failed: ${status} - ${text}`);
+    }, body, insecureTls);
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`Remote web fetch failed: ${response.status} - ${response.text}`);
+    }
+  } catch (error) {
+    primaryError = error;
+    const aowKey = process.env.AOW_CRAWL_API_KEY;
+    const aowUrl = process.env.AOW_CRAWL_ENDPOINT || 'https://aow2.234124123.xyz/aow/crawl';
+    if (!aowKey) throw primaryError;
+    const aowHostname = new URL(aowUrl).hostname;
+    const aowInsecureTls = process.env.AOW_CRAWL_INSECURE_TLS === '1'
+      || process.env.AOW_CRAWL_INSECURE_TLS === 'true'
+      || isIpHostname(aowHostname);
+    try {
+      response = await post(aowUrl, {
+        Authorization: `Bearer ${aowKey}`,
+        'Content-Type': 'application/json',
+      }, JSON.stringify({ url: urlString }), aowInsecureTls);
+      if (response.status < 200 || response.status >= 300) {
+        throw new Error(`AOW crawl failed: ${response.status} - ${response.text}`);
+      }
+    } catch (fallbackError) {
+      throw new Error(`${primaryError.message}; AOW fallback failed: ${fallbackError.message}`);
+    }
   }
 
   let data = {};
   try {
-    data = text ? JSON.parse(text) : {};
+    data = response.text ? JSON.parse(response.text) : {};
   } catch (err) {
-    throw new Error(`Remote web fetch returned non-JSON: ${text.substring(0, 200)}`);
+    throw new Error(`Remote web fetch returned non-JSON: ${response.text.substring(0, 200)}`);
   }
 
   let markdown = '';

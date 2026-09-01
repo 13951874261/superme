@@ -269,10 +269,10 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
       }
     }
 
-    // Step 3: 长文预生成（4体裁 x 4等级 x 4时长 = 64）。默认 3 路并行，上限 4。
+    // Step 3: 每日仅预生成 4体裁 x 4等级 x 1分钟 = 16 组；长时材料由用户按需生成。
     const GENRES = dailyCronRunService.LONG_GENRES;
     const CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
-    const DURATIONS = dailyCronRunService.LONG_DURATIONS;
+    const DURATIONS = [1];
     const combos = [];
     for (const genre of GENRES) {
       if (filterOptions?.genre && genre !== filterOptions.genre) continue;

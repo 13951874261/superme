@@ -11,8 +11,8 @@ function testResolveListenDurations() {
   );
   assert.deepStrictEqual(
     dailyListenService.resolveListenDurations({ source: 'cron' }),
-    [1, 15, 25, 35],
-    'cron 仍跑全量时长',
+    [1],
+    'cron 默认只跑 1 分钟',
   );
   assert.deepStrictEqual(
     dailyListenService.resolveListenDurations({ source: 'login-catchup', durations: [1, 15] }),
@@ -48,7 +48,7 @@ async function testLoginCatchupOnlyGeneratesDurationOne() {
   }
 }
 
-async function testCronStillUsesFullDurations() {
+async function testCronOnlyGeneratesDurationOne() {
   const originalGenerate = dailyListenService.generateOneCombo;
   const originalGetCombo = dailyListenService.getPregeneratedCombo;
   const durationSet = new Set();
@@ -65,7 +65,7 @@ async function testCronStillUsesFullDurations() {
       { user_id: 'cron-scope-user', theme: '主题' },
       { source: 'cron', packDate: '2026-08-03' },
     );
-    assert.deepStrictEqual([...durationSet].sort((a, b) => a - b), [1, 15, 25, 35]);
+    assert.deepStrictEqual([...durationSet], [1]);
   } finally {
     dailyListenService.generateOneCombo = originalGenerate;
     dailyListenService.getPregeneratedCombo = originalGetCombo;
@@ -110,8 +110,8 @@ async function main() {
   console.log('PASS resolveListenDurations');
   await testLoginCatchupOnlyGeneratesDurationOne();
   console.log('PASS login catchup only duration=1');
-  await testCronStillUsesFullDurations();
-  console.log('PASS cron full durations');
+  await testCronOnlyGeneratesDurationOne();
+  console.log('PASS cron only duration=1');
   await testStreamIdleTimeout();
   console.log('PASS stream idle timeout');
   await testStreamIdleTimeoutResetsOnChunk();
