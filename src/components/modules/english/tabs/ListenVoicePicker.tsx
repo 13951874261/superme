@@ -59,18 +59,18 @@ export function ListenVoicePicker({ value, onChange }: ListenVoicePickerProps) {
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative flex flex-wrap items-center gap-2">
+    <div ref={rootRef} className="relative flex flex-[1_1_13rem] flex-wrap items-center gap-2">
       <button
         type="button"
         aria-expanded={open}
         aria-haspopup="listbox"
         aria-label={`选择 Voice，当前 ${selected?.name || value}`}
         onClick={() => setOpen((v) => !v)}
-        className="bg-black/30 text-white/90 text-[10px] px-2.5 py-1 rounded-lg border border-white/10 hover:border-white/20 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5722]/60"
+        className="min-h-8 rounded-lg border border-white/10 bg-black/30 px-3 text-[11px] text-white/90 transition-colors hover:border-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5722]/60 cursor-pointer"
       >
         Voice: {selected?.name || value}
       </button>
-      <span data-country-label className="text-[10px] text-white/60">
+      <span data-country-label className="text-[10px] text-white/50">
         国家: {selected?.country || '—'}
       </span>
       {open && (

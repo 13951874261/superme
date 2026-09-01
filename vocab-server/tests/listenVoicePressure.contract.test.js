@@ -34,8 +34,18 @@ assert.ok(serverSource.includes('/api/english/listen-prefs'), 'listen-prefs API 
 const listenTabPath = path.join(__dirname, '../../src/components/modules/english/tabs/ListenTab.tsx');
 const listenTabSource = fs.readFileSync(listenTabPath, 'utf8');
 assert.ok(listenTabSource.includes('ListenVoicePicker'), 'ListenTab must use ListenVoicePicker');
+assert.ok(listenTabSource.includes('背景白噪'), 'information_gap label must describe the implemented background-noise effect');
 assert.ok(!/印度口音 \(India\)/.test(listenTabSource), 'old accent select labels must be removed from ListenTab');
 assert.ok(!/accent:\s*\(s\.listenAccent/.test(listenTabSource), 'buildListenTtsEffects must not send accent');
+
+assert.ok(
+  serverSource.includes("between(t\\\\,0.5\\\\,0.72)"),
+  'packet_loss must mute an audible time range instead of one exact sample'
+);
+assert.ok(
+  !serverSource.includes("if(eq(t\\\\,0.5)"),
+  'packet_loss must not rely on exact floating-point timestamp equality'
+);
 
 const pickerPath = path.join(__dirname, '../../src/components/modules/english/tabs/ListenVoicePicker.tsx');
 assert.ok(fs.existsSync(pickerPath), 'ListenVoicePicker.tsx must exist');

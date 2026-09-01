@@ -705,61 +705,22 @@ export default function ListenTab() {
         <div className="lg:col-span-5 flex flex-col gap-6">
           <div className="bg-[#1a1a1a] rounded-2xl p-6 text-white shadow-[0_10px_30px_rgba(0,0,0,0.15)] relative overflow-hidden shrink-0">
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-[#FF5722]/20 rounded-full blur-3xl"></div>
-            <div className="flex flex-col gap-4 mb-6 relative z-10 border-b border-white/10 pb-5">
-              <h4 className="text-[13px] font-black uppercase tracking-widest text-[#FF5722] leading-relaxed">
-                今日听力 <br/> 
-                <span className="text-[10px] text-white/50">// 听力片段</span>
-              </h4>
-              <div className="flex flex-wrap items-center gap-2">
-                <select
-                  value={listenGenre}
-                  onChange={(e) => setListenGenre(e.target.value as any)}
-                  aria-label="听力题材"
-                  className="bg-black/20 text-white/90 text-[10px] px-3 py-1.5 rounded-lg border border-white/10 outline-none focus-visible:border-[#FF5722] focus-visible:bg-black/40 focus-visible:ring-2 focus-visible:ring-[#FF5722]/60 transition-[border-color,background-color,box-shadow] cursor-pointer hover:border-white/20"
-                >
-                  <option value="meeting" className="text-black">高管会议 (Meeting)</option>
-                  <option value="news" className="text-black">财经新闻 (News)</option>
-                  <option value="podcast" className="text-black">深度播客 (Podcast)</option>
-                </select>
-                <select
-                  value={listenCefr}
-                  onChange={(e) => setListenCefr(e.target.value as any)}
-                  aria-label="听力难度"
-                  className="bg-black/20 text-white/90 text-[10px] px-3 py-1.5 rounded-lg border border-white/10 outline-none focus-visible:border-[#FF5722] focus-visible:bg-black/40 focus-visible:ring-2 focus-visible:ring-[#FF5722]/60 transition-[border-color,background-color,box-shadow] cursor-pointer hover:border-white/20"
-                >
-                  <option value="A2" className="text-black">A2 初阶</option>
-                  <option value="B1" className="text-black">B1 进阶</option>
-                  <option value="B2" className="text-black">B2 高阶</option>
-                  <option value="C1" className="text-black">C1 母语级</option>
-                </select>
-                <div className="flex items-center gap-1 bg-black/20 p-1 rounded-lg border border-white/10">
-                  <span className="text-[10px] text-gray-400 font-black px-1.5">时长:</span>
-                  {[1, 15, 25, 35].map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      aria-pressed={listenDuration === d}
-                      aria-label={`时长 ${d} 分钟`}
-                      onClick={() => setListenDuration(d)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-black transition-colors cursor-pointer ${
-                        listenDuration === d
-                          ? 'bg-[#FF5722] text-white shadow-sm'
-                          : 'text-gray-400 hover:text-white hover:bg-white/10'
-                      }`}
-                    >
-                      {d}m
-                    </button>
-                  ))}
-                </div>
-<div className="flex items-center gap-2 ml-auto shrink-0">
+            <div data-testid="listen-control-panel" className="relative z-10 mb-6 border-b border-white/10 pb-5">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h4 className="text-[13px] font-black uppercase tracking-widest text-[#FF5722] leading-tight">
+                  今日听力
+                  <span className="mt-1 block text-[10px] text-white/50">// 听力片段</span>
+                </h4>
+
+                <div className="flex shrink-0 items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
                   <button
                     type="button"
                     aria-pressed={listenMode === 'auto'}
                     onClick={() => setListenMode('auto')}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-lg font-black transition-colors cursor-pointer ${
+                    className={`min-h-8 rounded-lg px-3 text-[11px] font-black transition-colors cursor-pointer ${
                       listenMode === 'auto'
                         ? 'bg-[#FF5722] text-white shadow-sm'
-                        : 'bg-black/20 text-gray-400 hover:text-white hover:bg-black/40 border border-white/10'
+                        : 'text-white/55 hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     自动生成
@@ -770,100 +731,173 @@ export default function ListenTab() {
                     accept="audio/*,video/*"
                     onChange={handleUploadAudio}
                     className="hidden"
-                    id="listen-audio-upload"
                     disabled={isUploading || isTranscribing}
                   />
-                  <label
-                    htmlFor="listen-audio-upload"
-                    onClick={() => setListenMode('upload')}
-                    aria-label={listenMode === 'upload' ? '上传音频（当前模式）' : '上传音频'}
-                    className={`text-[10px] px-2.5 py-1.5 rounded-lg font-black transition-colors flex items-center gap-1.5 ${
+                  <button
+                    type="button"
+                    aria-pressed={listenMode === 'upload'}
+                    onClick={() => {
+                      setListenMode('upload');
+                      fileInputRef.current?.click();
+                    }}
+                    disabled={isUploading || isTranscribing}
+                    className={`flex min-h-8 items-center gap-1.5 rounded-lg px-3 text-[11px] font-black transition-colors ${
                       isUploading || isTranscribing
-                        ? 'bg-[#FF5722] text-white shadow-sm pointer-events-none opacity-70 cursor-wait'
+                        ? 'cursor-wait bg-[#FF5722] text-white opacity-70'
                         : listenMode === 'upload'
-                          ? 'bg-[#FF5722] text-white shadow-sm cursor-pointer'
-                          : 'bg-black/20 text-gray-400 hover:text-white hover:bg-black/40 border border-white/10 cursor-pointer'
+                          ? 'cursor-pointer bg-[#FF5722] text-white shadow-sm'
+                          : 'cursor-pointer text-white/55 hover:bg-white/10 hover:text-white'
                     }`}
                   >
                     {isUploading ? (
-                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 上传中…</>
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 上传中…</>
                     ) : isTranscribing ? (
-                      <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 转写中…</>
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 转写中…</>
                     ) : (
                       <>上传音频</>
                     )}
-                  </label>
-                  {listenMode === 'upload' && uploadedFileName && (
-                    <span className="text-[10px] text-white/60 max-w-[180px] truncate" title={uploadedFileName}>
-                      {uploadedFileName}
-                      {listenAudioUrl ? ' · 已上传' : ''}
-                      {uploadedTranscript ? ' · 已转写' : (uploadProgress === 100 ? ' · 转写失败' : '')}
-                    </span>
-                  )}
+                  </button>
                 </div>
-                {listenMode !== 'upload' && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={(e) => void regenerateFromTodayLongArticle(e.currentTarget)}
-                      disabled={!!longArticleTaskId || !isCacheableDuration}
-                      className="whitespace-nowrap bg-white/10 text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest border border-white/15 hover:bg-white/20 transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                      title="仅使用当天当前主题、题材、难度和时长匹配的长文重新配音"
-                    >
-                      {longArticleTaskId ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 后台生成中…</>
-                      ) : (
-                        <><Headphones className="w-3.5 h-3.5" /> 重新生成音频</>
-                      )}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => generateListenMaterial(theme)}
-                      disabled={isListenMaterialLoading}
-                      className="whitespace-nowrap bg-gradient-to-r from-[#FF5722] to-[#f44336] text-white text-[10px] px-3.5 py-1.5 rounded-lg font-black tracking-widest shadow-md hover:shadow-lg hover:from-[#e64a19] hover:to-[#d32f2f] transition-[box-shadow,opacity,filter] disabled:opacity-50 disabled:grayscale flex items-center gap-1.5"
-                    >
-                      {isListenMaterialLoading ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> 正在生成…</>
-                      ) : (
-                        <><Zap className="w-3.5 h-3.5 text-amber-300" /> 生成今日精听</>
-                      )}
-                    </button>
-                  </>
-                )}
               </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <select
+                  value={listenGenre}
+                  onChange={(e) => setListenGenre(e.target.value as any)}
+                  aria-label="听力题材"
+                  className="min-h-9 flex-[1_1_13rem] cursor-pointer rounded-xl border border-white/10 bg-black/20 px-3 text-[11px] text-white/90 outline-none transition-[border-color,background-color,box-shadow] hover:border-white/20 focus-visible:border-[#FF5722] focus-visible:bg-black/40 focus-visible:ring-2 focus-visible:ring-[#FF5722]/60"
+                >
+                  <option value="meeting" className="text-black">高管会议 (Meeting)</option>
+                  <option value="news" className="text-black">财经新闻 (News)</option>
+                  <option value="podcast" className="text-black">深度播客 (Podcast)</option>
+                </select>
+                <select
+                  value={listenCefr}
+                  onChange={(e) => setListenCefr(e.target.value as any)}
+                  aria-label="听力难度"
+                  className="min-h-9 flex-[1_1_7rem] cursor-pointer rounded-xl border border-white/10 bg-black/20 px-3 text-[11px] text-white/90 outline-none transition-[border-color,background-color,box-shadow] hover:border-white/20 focus-visible:border-[#FF5722] focus-visible:bg-black/40 focus-visible:ring-2 focus-visible:ring-[#FF5722]/60"
+                >
+                  <option value="A2" className="text-black">A2 初阶</option>
+                  <option value="B1" className="text-black">B1 进阶</option>
+                  <option value="B2" className="text-black">B2 高阶</option>
+                  <option value="C1" className="text-black">C1 母语级</option>
+                </select>
+                <div className="flex min-h-9 flex-[1_1_17rem] items-center gap-1 rounded-xl border border-white/10 bg-black/20 p-1">
+                  <span className="shrink-0 px-1.5 text-[10px] font-black text-white/45">时长</span>
+                  <div className="grid min-w-0 flex-1 grid-cols-4 gap-1">
+                    {CACHEABLE_DURATIONS.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        aria-pressed={listenDuration === d}
+                        aria-label={`时长 ${d} 分钟`}
+                        onClick={() => setListenDuration(d)}
+                        className={`min-h-7 rounded-lg px-1.5 text-[10px] font-black transition-colors cursor-pointer ${
+                          listenDuration === d
+                            ? 'bg-[#FF5722] text-white shadow-sm'
+                            : 'text-white/50 hover:bg-white/10 hover:text-white'
+                        }`}
+                      >
+                        {d}m
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {listenMode === 'upload' && uploadedFileName && (
+                <p className="mt-2 truncate text-[10px] text-white/55" title={uploadedFileName}>
+                  {uploadedFileName}
+                  {listenAudioUrl ? ' · 已上传' : ''}
+                  {uploadedTranscript ? ' · 已转写' : (uploadProgress === 100 ? ' · 转写失败' : '')}
+                </p>
+              )}
+
+              {listenMode !== 'upload' && (
+                <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => void regenerateFromTodayLongArticle(e.currentTarget)}
+                    disabled={!!longArticleTaskId || !isCacheableDuration}
+                    className="flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-xl border border-white/15 bg-white/10 px-4 text-[11px] font-black tracking-wide text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 disabled:cursor-not-allowed disabled:opacity-45"
+                    title="仅使用当天当前主题、题材、难度和时长匹配的长文重新配音"
+                  >
+                    {longArticleTaskId ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 后台生成中…</>
+                    ) : (
+                      <><Headphones className="h-3.5 w-3.5" /> 重新生成音频</>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => generateListenMaterial(theme)}
+                    disabled={isListenMaterialLoading}
+                    className="flex min-h-9 items-center gap-1.5 whitespace-nowrap rounded-xl bg-[#FF5722] px-4 text-[11px] font-black tracking-wide text-white shadow-md transition-[background-color,box-shadow,opacity] hover:bg-[#E64A19] hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF8A65] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isListenMaterialLoading ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> 正在生成…</>
+                    ) : (
+                      <><Zap className="h-3.5 w-3.5 text-amber-200" /> 生成今日精听</>
+                    )}
+                  </button>
+                </div>
+              )}
+
               {/* 压力因素选择器：仅自动生成模式生效 */}
               {listenMode === 'auto' && (
-              <div className="flex flex-wrap items-center gap-3 mt-3 relative z-10 border-t border-white/5 pt-3 w-full">
-                <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">压力因素:</span>
-                <ListenVoicePicker value={listenVoiceId} onChange={handleVoiceChange} />
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={listenInterruptions}
-                    onChange={(e) => setListenInterruptions(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-white/10 bg-black/20 text-[#FF5722] focus:ring-0 focus:ring-offset-0"
-                  />
-                  故意打断
-                </label>
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={listenPacketLoss}
-                    onChange={(e) => setListenPacketLoss(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-white/10 bg-black/20 text-[#FF5722] focus:ring-0 focus:ring-offset-0"
-                  />
-                  网络卡顿
-                </label>
-                <label className="flex items-center gap-1.5 text-[10px] text-gray-400 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={listenInfoGap}
-                    onChange={(e) => setListenInfoGap(e.target.checked)}
-                    className="w-3.5 h-3.5 rounded border-white/10 bg-black/20 text-[#FF5722] focus:ring-0 focus:ring-offset-0"
-                  />
-                  白噪丢包
-                </label>
-              </div>
+                <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <div className="mr-1 shrink-0">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-white/65">压力因素</p>
+                      <p className="mt-0.5 text-[9px] text-white/35">生成时生效</p>
+                    </div>
+                    <ListenVoicePicker value={listenVoiceId} onChange={handleVoiceChange} />
+                    <div className="flex flex-[1_1_16rem] flex-wrap items-center justify-start gap-2 sm:justify-end">
+                      <button
+                        type="button"
+                        aria-pressed={listenInterruptions}
+                        onClick={() => setListenInterruptions((value) => !value)}
+                        title="在音频中加入打断声"
+                        className={`inline-flex min-h-8 items-center gap-2 rounded-lg border px-2.5 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5722]/60 ${
+                          listenInterruptions
+                            ? 'border-[#FF5722]/60 bg-[#FF5722]/15 text-white'
+                            : 'border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
+                        }`}
+                      >
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${listenInterruptions ? 'bg-[#FF5722]' : 'bg-white/25'}`} />
+                        故意打断
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={listenPacketLoss}
+                        onClick={() => setListenPacketLoss((value) => !value)}
+                        title="插入短暂静音模拟网络卡顿"
+                        className={`inline-flex min-h-8 items-center gap-2 rounded-lg border px-2.5 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5722]/60 ${
+                          listenPacketLoss
+                            ? 'border-[#FF5722]/60 bg-[#FF5722]/15 text-white'
+                            : 'border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
+                        }`}
+                      >
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${listenPacketLoss ? 'bg-[#FF5722]' : 'bg-white/25'}`} />
+                        网络卡顿
+                      </button>
+                      <button
+                        type="button"
+                        aria-pressed={listenInfoGap}
+                        onClick={() => setListenInfoGap((value) => !value)}
+                        title="全程叠加低音量白噪"
+                        className={`inline-flex min-h-8 items-center gap-2 rounded-lg border px-2.5 text-[10px] font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5722]/60 ${
+                          listenInfoGap
+                            ? 'border-[#FF5722]/60 bg-[#FF5722]/15 text-white'
+                            : 'border-white/10 bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80'
+                        }`}
+                      >
+                        <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${listenInfoGap ? 'bg-[#FF5722]' : 'bg-white/25'}`} />
+                        背景白噪
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {isCacheableDuration && pregenStatus === 'generating' && (

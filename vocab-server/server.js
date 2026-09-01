@@ -11035,9 +11035,9 @@ async function applyAudioEffects(audioPath, effects) {
 
   // 口音由 Edge TTS Voice 决定；不再用 rubberband 变调伪装
 
-  // 1. 卡顿效果（随机插入短暂静音模拟网络丢包）
+  // 1. 卡顿效果：插入三个可感知、可复现的短暂静音区间
   if (effects.packet_loss) {
-    filterParts.push("aevald='if(eq(t\\,0.5)\\,0.001\\,1)*if(eq(t\\,2.0)\\,0.001\\,1)*if(eq(t\\,4.0)\\,0.001\\,1)'");
+    filterParts.push("volume=eval=frame:volume='if(between(t\\,0.5\\,0.72)+between(t\\,2.0\\,2.18)+between(t\\,4.0\\,4.24)\\,0.001\\,1)'");
   }
 
   // 判断是否需要混音（打断或信息缺失）
