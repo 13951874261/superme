@@ -11533,16 +11533,17 @@ app.post('/api/materials/fetch-url', async (req, res) => {
       return res.status(400).json({ success: false, error: '缺少必要参数: url' });
     }
 
-    const { fetchAndExtractWebArticle } = require('./services/webArticleExtractor');
+    const { fetchAndExtractWebArticle, extractArticleFromMarkdown } = require('./services/webArticleExtractor');
     let result;
     try {
       result = await fetchAndExtractWebArticle(url);
     } catch (htmlError) {
       console.warn('[Fetch URL] HTML extraction failed, falling back to Markdown:', htmlError.message);
       const { fetchUrlContent } = require('./services/webFetcher');
-      result = await fetchUrlContent(url);
+      const fallback = await fetchUrlContent(url);
+      result = extractArticleFromMarkdown(fallback.markdown, fallback.title);
     }
-    res.json(result);
+    res.json({ title: result.title, markdown: result.markdown });
   } catch (error) {
     console.error('[Fetch URL Error]:', error);
     res.status(500).json({ success: false, error: error.message });
