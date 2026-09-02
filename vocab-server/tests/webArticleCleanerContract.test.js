@@ -4,8 +4,8 @@ const path = require('node:path');
 
 const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
 const route = server.slice(server.indexOf("app.post('/api/materials/fetch-url'"), server.indexOf("app.post('/api/materials/upload-chunk'"));
-assert.match(route, /cleanWebArticleMarkdown/);
+assert.match(route, /fetchAndExtractWebArticle\(url\)/);
 assert.match(route, /fetchUrlContent\(url\)/);
-assert.match(route, /rawLength/);
-assert.match(route, /markdown:\s*cleaned/);
-console.log('web article cleaner contract passed');
+assert.match(route, /catch \(htmlError\)/);
+assert.doesNotMatch(route, /cleanWebArticleMarkdown/);
+console.log('web article extractor contract passed');
