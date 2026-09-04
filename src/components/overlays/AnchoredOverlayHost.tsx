@@ -19,7 +19,7 @@ export function AnchoredPopover({ anchor, open, onClose, children, className = '
   restoreFocus?: boolean;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, placement: 'bottom' as AnchorPlacement, maxHeight: 0, ready: false });
+  const [position, setPosition] = useState({ top: 0, left: 0, placement: 'bottom' as AnchorPlacement, maxHeight: undefined as number | undefined, ready: false });
 
   const updatePosition = useCallback(() => {
     const panel = panelRef.current;
@@ -73,7 +73,7 @@ export function AnchoredPopover({ anchor, open, onClose, children, className = '
 
   if (!open || !anchor || typeof document === 'undefined') return null;
   return createPortal(
-    <div ref={panelRef} role={role} className={`fixed z-[var(--overlay-z-popover)] overflow-y-auto ${className}`} style={{ top: position.top, left: position.left, maxHeight: position.maxHeight, visibility: position.ready ? 'visible' : 'hidden' }}>
+    <div ref={panelRef} role={role} className={`fixed z-[var(--overlay-z-popover)] overflow-y-auto ${className}`} style={{ top: position.top, left: position.left, maxHeight: position.ready ? position.maxHeight : undefined, visibility: position.ready ? 'visible' : 'hidden' }}>
       {children}
     </div>,
     document.body,
@@ -133,7 +133,7 @@ export function showAnchoredConfirm(options: {
 function AnchoredConfirm({ request, close }: { request: Request; close: (id: number, confirmed: boolean) => void }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
-  const [position, setPosition] = useState({ top: 0, left: 0, placement: 'bottom' as AnchorPlacement, maxHeight: 0, ready: false });
+  const [position, setPosition] = useState({ top: 0, left: 0, placement: 'bottom' as AnchorPlacement, maxHeight: undefined as number | undefined, ready: false });
   const titleId = useId();
   const descriptionId = useId();
 
@@ -200,7 +200,7 @@ function AnchoredConfirm({ request, close }: { request: Request; close: (id: num
         aria-labelledby={titleId}
         aria-describedby={descriptionId}
         className="fixed z-[var(--overlay-z-confirm)] w-[min(22rem,calc(100vw-1.5rem))] overflow-y-auto rounded-xl border border-[var(--color-border)] bg-white p-4 text-left shadow-[var(--shadow-modal)]"
-        style={{ top: position.top, left: position.left, maxHeight: position.maxHeight, visibility: position.ready ? 'visible' : 'hidden' }}
+        style={{ top: position.top, left: position.left, maxHeight: position.ready ? position.maxHeight : undefined, visibility: position.ready ? 'visible' : 'hidden' }}
       >
         <div className="flex items-start gap-3">
           <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg ${request.tone === 'danger' ? 'bg-red-50 text-[var(--color-danger)]' : 'bg-blue-50 text-[var(--color-info)]'}`}>

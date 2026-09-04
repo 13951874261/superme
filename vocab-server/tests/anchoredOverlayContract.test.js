@@ -8,6 +8,8 @@ const css = read('src/index.css');
 const rightPanel = read('src/components/RightPanel.tsx');
 
 assert.match(host, /requestAnimationFrame/, 'scroll/resize 定位必须按帧合并');
+assert.match(host, /maxHeight: undefined/, '首次测量必须保留浮层自然高度');
+assert.match(host, /maxHeight: position\.ready \? position\.maxHeight : undefined/, '定位完成前不得用零高度裁切确认框');
 assert.match(host, /aria-modal="true"/);
 assert.match(host, /event\.key !== 'Tab'/, '确认框必须实现 Tab 焦点循环');
 assert.match(host, /--overlay-z-confirm/);
