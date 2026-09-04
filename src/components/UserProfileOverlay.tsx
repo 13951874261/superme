@@ -17,6 +17,7 @@ import { getStoredProfileRawForUser } from '../utils/accountStorage';
 import { getErrorLedgerSummary } from '../utils/errorLedgerHelper';
 import { readCareerPath, type CareerPath } from '../utils/careerProgression';
 import { playClick, playWaterDrop } from '../utils/soundEffects';
+import { showAnchoredConfirm } from './overlays/AnchoredOverlayHost';
 
 type Phase = 'compressing' | 'ready';
 
@@ -152,7 +153,7 @@ export default function UserProfileOverlay({
   const handleRecompress = async () => {
     const text = draftProfile.trim();
     if (!text) {
-      alert('画像内容为空，无法精简');
+      setError('画像内容为空，无法精简');
       return;
     }
     setRecompressing(true);
@@ -173,8 +174,13 @@ export default function UserProfileOverlay({
     }
   };
 
-  const handleClear = () => {
-    if (!window.confirm('确定清空能力短板画像吗？清空后无法自动恢复（职业路径不受影响）')) return;
+  const handleClear = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!await showAnchoredConfirm({
+      anchor: event.currentTarget,
+      message: '确定清空能力短板画像吗？清空后无法自动恢复（职业路径不受影响）',
+      tone: 'danger',
+      confirmLabel: '清空画像',
+    })) return;
     playClick();
     saveUserCurrentProfile('');
     setDraftProfile('');

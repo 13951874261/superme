@@ -1,12 +1,13 @@
 ﻿import React, { useState, useEffect, memo, useRef } from 'react';
 import { Target, TrendingUp, Volume2, Globe, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { VOICE_OPTIONS } from '../config/voices';
 import { speakEnglish } from './SpeakButton';
 import { useTask } from './TaskContext';
 import { TASK_CENTER_PULSE_EVENT } from '../utils/backgroundHandoff';
+import { AnchoredPopover } from './overlays/AnchoredOverlayHost';
 import {
   CAREER_CHANGED_EVENT,
   careerNodeLabel,
@@ -28,6 +29,7 @@ function HeaderComponent() {
   const [previewErrorVoiceId, setPreviewErrorVoiceId] = useState<string | null>(null);
   const { pendingCount, setIsOpen } = useTask();
   const taskCenterBtnRef = useRef<HTMLButtonElement>(null);
+  const voiceButtonRef = useRef<HTMLButtonElement>(null);
   const [careerPath, setCareerPath] = useState(readCareerPath);
 
   useGSAP(
@@ -163,6 +165,7 @@ function HeaderComponent() {
           {/* 全局声线 (Voice Center) */}
           <div className="relative inline-block text-left flex-shrink-0">
             <button
+              ref={voiceButtonRef}
               type="button"
               onClick={() => setShowVoiceDropdown(!showVoiceDropdown)}
               className="h-8 px-3 rounded-full border border-slate-100 bg-white shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:border-blue-200 cursor-pointer whitespace-nowrap"
@@ -178,15 +181,7 @@ function HeaderComponent() {
               </span>
             </button>
 
-            <AnimatePresence>
-              {showVoiceDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.97 }}
-                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                  className="absolute left-1/2 -translate-x-1/2 xl:left-auto xl:translate-x-0 xl:right-0 top-full mt-2.5 z-50 w-96 bg-white/90 backdrop-blur-2xl border border-[var(--color-border)] rounded-2xl shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] overflow-hidden text-left"
-                >
+            <AnchoredPopover anchor={voiceButtonRef.current} open={showVoiceDropdown} onClose={() => setShowVoiceDropdown(false)} className="w-[min(24rem,calc(100vw-1.5rem))] bg-white/90 backdrop-blur-2xl border border-[var(--color-border)] rounded-2xl shadow-[0_20px_40px_-10px_rgba(0,0,0,0.06)] overflow-hidden text-left">
                   {/* Dropdown Header */}
                   <div className="p-4 bg-gray-50/40 border-b border-gray-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -276,9 +271,7 @@ function HeaderComponent() {
                       );
                     })}
                   </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            </AnchoredPopover>
           </div>
 
           {/* 后台任务中心 */}

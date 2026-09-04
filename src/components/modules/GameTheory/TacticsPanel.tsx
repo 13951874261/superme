@@ -12,6 +12,7 @@ import {
 import { getAppUserId } from '../../../utils/profileHelper';
 import { useTask } from '../../TaskContext';
 import { notifyBackgroundHandoff } from '../../../utils/backgroundHandoff';
+import { showAnchoredConfirm } from '../../overlays/AnchoredOverlayHost';
 
 interface TacticsPanelProps {
   selectedTactics: string[];
@@ -137,8 +138,13 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`确定要删除手段「${name}」吗？`)) return;
+  const handleDelete = async (id: string, name: string, anchor: HTMLElement) => {
+    if (!await showAnchoredConfirm({
+      anchor,
+      message: `确定要删除手段「${name}」吗？`,
+      tone: 'danger',
+      confirmLabel: '删除手段',
+    })) return;
     playClick();
     try {
       await deleteTactic(id);
@@ -197,7 +203,7 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
           )}
           {t.is_custom === 1 && (
             <button
-              onClick={(e) => { e.stopPropagation(); handleDelete(t.id, t.name); }}
+              onClick={(e) => { e.stopPropagation(); void handleDelete(t.id, t.name, e.currentTarget); }}
               className="text-zinc-400 hover:text-red-500 transition-colors"
             >
               <Trash2 className="w-3 h-3" />
@@ -252,8 +258,8 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       </div>
 
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl">
+        <div role="dialog" aria-modal="true" aria-label="上传博弈策略资料" className="overlay-backdrop fixed inset-0 flex items-center justify-center p-4">
+          <div className="overlay-surface overlay-enter bg-white p-6 max-w-md w-full">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-sm font-bold text-zinc-900">上传博弈策略资料</h3>
               <button onClick={() => { setShowUploadModal(false); setUploadFile(null); setUploadStatus(''); }} className="text-zinc-400 hover:text-zinc-600">
@@ -295,8 +301,8 @@ export default function TacticsPanel({ selectedTactics, onToggleTactic }: Tactic
       )}
 
       {(mediaView || mediaLoading) && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
-          <div className="bg-white rounded-2xl p-5 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div role="dialog" aria-modal="true" aria-label="策略媒体详情" className="overlay-backdrop fixed inset-0 flex items-center justify-center p-4">
+          <div className="overlay-surface overlay-enter bg-white p-5 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-sm font-bold text-zinc-900">{mediaView?.title || '加载中…'}</h3>
               <button onClick={() => setMediaView(null)} className="text-zinc-400 hover:text-zinc-600">

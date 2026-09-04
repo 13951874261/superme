@@ -8,6 +8,7 @@ import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
 import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations, getChineseDefinition, getEnglishDefinition } from '../utils/vocabCsvExport';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 import FlashCardExampleMemoryAlign from './FlashCardExampleMemoryAlign';
+import { showError } from './Toast';
 
 interface FlashCardProps {
   onClose: () => void;
@@ -209,7 +210,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       console.error('强制应用考核失败:', error);
       const message = error instanceof Error ? error.message : '请按 F12 查看控制台详情';
       console.error('评分失败:', message);
-      alert('评分失败，请稍后重试');
+      showError('评分失败，请稍后重试');
     } finally {
       setIsEvalLoading(false);
     }
@@ -217,10 +218,13 @@ export default function FlashCard({ onClose }: FlashCardProps) {
 
   const content = (
     <div
-      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="记忆复习"
+      className="overlay-backdrop fixed inset-0 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="overlay-surface overlay-enter bg-white w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* 顶部栏 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">

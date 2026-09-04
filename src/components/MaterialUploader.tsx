@@ -6,6 +6,7 @@ import UrlFetchPanel from './UrlFetchPanel';
 import VideoTranscribePanel from './VideoTranscribePanel';
 import { useTask } from './TaskContext';
 import { notifyBackgroundHandoff } from '../utils/backgroundHandoff';
+import { showWarning } from './Toast';
 
 interface MaterialUploaderProps {
   topicHint?: string;
@@ -57,7 +58,7 @@ export default function MaterialUploader({
     const MAX_FILE_SIZE = 50 * 1024 * 1024;
     const oversized = files.filter(f => f.size > MAX_FILE_SIZE);
     if (oversized.length > 0) {
-      alert(`文件 "${oversized[0].name}" 超过50MB限制，请选择更小的文件！`);
+      showWarning(`文件 "${oversized[0].name}" 超过50MB限制，请选择更小的文件！`);
       return;
     }
 

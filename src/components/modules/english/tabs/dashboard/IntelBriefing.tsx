@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { AnchoredPopover } from '../../../../overlays/AnchoredOverlayHost';
 import { learnSet, learnRemove } from '../../../../../utils/learnLocal';
 import { BookOpen, FileText, RefreshCw } from 'lucide-react';
 import SpeakButton from '../../../../SpeakButton';
@@ -97,6 +98,7 @@ export function IntelBriefing({
   getVocabQueuedZone,
   onVocabBlockedWhileCollecting,
 }: IntelBriefingProps) {
+  const resetButtonRef = useRef<HTMLButtonElement>(null);
   const isMaterialTab = briefingTab === 'material';
   const activeArticle = isMaterialTab ? materialArticle : generatedArticle;
   const activeWords = isMaterialTab ? materialWords : extractedWords;
@@ -179,6 +181,7 @@ export function IntelBriefing({
           <div className="flex items-center gap-3 shrink-0">
             <div className="relative inline-block">
               <button
+                ref={resetButtonRef}
                 type="button"
                 onClick={() => setShowResetConfirm(!showResetConfirm)}
                 aria-expanded={showResetConfirm}
@@ -188,12 +191,7 @@ export function IntelBriefing({
                 <RefreshCw aria-hidden="true" className="w-4 h-4" /> 重新开始
               </button>
 
-              {showResetConfirm && (
-                <div
-                  role="dialog"
-                  aria-label="确认重新开始"
-                  className="absolute right-0 top-full mt-2.5 z-50 w-72 bg-white border border-indigo-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-5 text-left border-t-4 border-t-[var(--color-brand)] overscroll-contain animate-[fadeIn_0.15s_ease-out]"
-                >
+              <AnchoredPopover anchor={resetButtonRef.current} open={showResetConfirm} onClose={() => setShowResetConfirm(false)} className="w-72 bg-white border border-indigo-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-5 text-left border-t-4 border-t-[var(--color-brand)] overscroll-contain" role="dialog">
                   <div className="flex items-start gap-3">
                     <div className="bg-indigo-50 p-2 rounded-xl text-[var(--color-brand)] shrink-0">
                       <RefreshCw aria-hidden="true" className="w-5 h-5 animate-spin-slow" />
@@ -246,8 +244,7 @@ export function IntelBriefing({
                       确定重新开始
                     </button>
                   </div>
-                </div>
-              )}
+              </AnchoredPopover>
             </div>
             <button
               type="button"

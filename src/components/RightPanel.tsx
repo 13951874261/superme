@@ -1,4 +1,5 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef } from 'react';
+import { AnchoredPopover } from './overlays/AnchoredOverlayHost';
 import { X, BrainCircuit, Globe, BookOpen, Volume2, ShieldCheck, HelpCircle, Check, Loader2, Clock, SlidersHorizontal } from 'lucide-react';
 import { getVocabByWord, getVocabItem, queryDictionaryWithCache, type VocabEntry } from '../services/vocabAPI';
 import { EnEnBusinessView, EnZhBidirectionalView, ZhModernView } from './DictionaryPanel';
@@ -26,6 +27,8 @@ interface RightPanelProps {
 
 function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordData }: RightPanelProps) {
 
+  const profileButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const [profile, setProfile] = useState(() => getAccentPref());
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEmbedSettings, setShowEmbedSettings] = useState(false);
@@ -198,7 +201,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
         initial={false}
         animate={{ x: 0 }}
         transition={GLOBAL_SPRING}
-        className={`motion-layer fixed top-0 right-0 h-screen w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[10050]' : 'invisible pointer-events-none z-0'}`}
+        className={`motion-layer fixed top-0 right-0 h-screen w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[var(--overlay-z-panel)]' : 'invisible pointer-events-none z-0'}`}
         aria-hidden={!isOpen}
       >
 
@@ -232,7 +235,10 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
             <div className="flex items-center gap-1.5 shrink-0">
               <div className="relative flex items-center max-w-[120px]">
                 <button
+                  ref={profileButtonRef}
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  aria-expanded={showProfileMenu}
+                  aria-haspopup="dialog"
                   title={profile ? `画像: ${profile}` : '画像: 默认'}
                   className="h-8 max-w-full px-3 rounded-full border border-gray-150 bg-white/70 backdrop-blur-md shadow-sm hover:shadow-md transition-all flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-gray-650 cursor-pointer min-w-0"
                 >
@@ -240,13 +246,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                   <span className="truncate">画像: {profileLabel}</span>
                 </button>
 
-                {showProfileMenu && (
-                  <>
-                    <div 
-                      className="fixed inset-0 z-[998]" 
-                      onClick={() => setShowProfileMenu(false)}
-                    />
-                    <div className="absolute right-0 top-full mt-2 z-[999] w-48 bg-white/90 backdrop-blur-lg border border-gray-100 rounded-2xl shadow-xl p-1.5 animate-[fadeIn_0.1s_ease-out]">
+                <AnchoredPopover anchor={profileButtonRef.current} open={showProfileMenu} onClose={() => setShowProfileMenu(false)} className="w-48 bg-white/90 backdrop-blur-lg border border-gray-100 rounded-2xl shadow-xl p-1.5">
                       {[
                         { label: '英国 (UK)', value: '英国 (UK)', desc: '英式拼写及口音标准' },
                         { label: '美国 (US)', value: '美国 (US)', desc: '美式拼写及口音标准' },
@@ -271,14 +271,13 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                           </span>
                         </button>
                       ))}
-                    </div>
-                  </>
-                )}
+                </AnchoredPopover>
               </div>
 
               {activeTab === 'assistant' && (
                 <>
                   <button
+                    ref={settingsButtonRef}
                     type="button"
                     onClick={() => {
                       playClick();
@@ -490,9 +489,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
             )}
           </div>
         </motion.aside>
-      {showEmbedSettings && isOpen && (
-        <div className="fixed inset-0 z-[10060] flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+      <AnchoredPopover anchor={settingsButtonRef.current} open={showEmbedSettings && isOpen} onClose={() => setShowEmbedSettings(false)} className="w-[min(24rem,calc(100vw-1.5rem))] rounded-2xl bg-white p-5 shadow-xl">
             <div className="mb-4 flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm font-black text-gray-800">
                 <SlidersHorizontal className="h-4 w-4 text-[#1C64F2]" />
@@ -546,9 +543,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                 保存并重新打开
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </AnchoredPopover>
     </>
   );
 }

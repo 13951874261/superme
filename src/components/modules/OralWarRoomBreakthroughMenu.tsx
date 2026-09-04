@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { AnchoredPopover } from '../overlays/AnchoredOverlayHost';
 import { AlertTriangle, Scale, Eye } from 'lucide-react';
 import { playBreakthrough } from '../../utils/soundEffects';
 import type { BreakthroughType } from './oralWarRoom/types';
@@ -45,17 +45,10 @@ const BREAKTHROUGH_TYPES = [
 ];
 
 export default function OralWarRoomBreakthroughMenu({ position, selectedText, onBreakthrough, onClose }: Props) {
+  const anchor = new DOMRect(position.x, position.y, 0, 0);
   return (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -8, scale: 0.95 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: -8, scale: 0.95 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-        style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 10000, transform: 'translateX(-50%)' }}
-        className="w-72"
-        data-breakthrough-menu
-      >
+    <AnchoredPopover anchor={anchor} open onClose={onClose} restoreFocus={false} className="w-72">
+      <div data-breakthrough-menu>
         <div className="bg-white/95 backdrop-blur-xl border border-[var(--color-border)] rounded-2xl shadow-[var(--shadow-modal)] overflow-hidden">
           <div className="px-4 py-2.5 border-b border-[var(--color-border)] bg-[var(--color-canvas)]/50 flex items-center justify-between">
             <span className="text-[9px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">漏洞识别</span>
@@ -95,7 +88,7 @@ export default function OralWarRoomBreakthroughMenu({ position, selectedText, on
             ))}
           </div>
         </div>
-      </motion.div>
-    </AnimatePresence>
+      </div>
+    </AnchoredPopover>
   );
 }

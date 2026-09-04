@@ -12,6 +12,7 @@ import {
   saveNextWeekPushPlan,
   type TrainingRebalancePlan,
 } from '../../utils/reviewHelper';
+import { showError, showWarning } from '../Toast';
 
 interface BiweeklyReviewModalProps {
   isOpen: boolean;
@@ -66,7 +67,7 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
 
   const handleSubmit = async () => {
     if (!answers.practicalTest || !answers.goalAlignment || !answers.weaknessScan || !answers.tacticalDispatch) {
-      alert('请完整填写四个维度的自省指标。');
+      showWarning('请完整填写四个维度的自省指标。');
       return;
     }
     setLoading(true);
@@ -131,7 +132,7 @@ export default function BiweeklyReviewModal({ isOpen, onClose, isForce = false }
     } catch (e) {
       console.error(e);
       setLoading(false);
-      alert('提交失败，请重试');
+      showError('提交失败，请重试');
     }
   };
 

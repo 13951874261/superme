@@ -1309,7 +1309,7 @@ export default function ListenTab() {
           role="dialog"
           aria-modal="true"
           aria-label="目标原文全屏"
-          className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm overscroll-contain animate-[fadeIn_0.2s_ease-out]"
+          className="overlay-fullscreen fixed inset-0 flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm overscroll-contain animate-[fadeIn_0.2s_ease-out]"
         >
           <div className="bg-[#1a1b1e] w-full max-w-4xl max-h-[85vh] rounded-3xl shadow-2xl flex flex-col border border-white/10">
             <div className="flex justify-between items-center p-6 border-b border-white/10">

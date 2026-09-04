@@ -11,6 +11,7 @@ import { playClick, playPageTurn } from '../utils/soundEffects';
 import { isModulePaused } from '../utils/reviewHelper';
 import ModuleSkeleton from './modules/ModuleSkeleton';
 import { startL0Timer } from '../utils/perfSlaTelemetry';
+import { showWarning } from './Toast';
 
 const ListenModule = React.lazy(() => import('./modules/ListenModule'));
 const SpeakModule = React.lazy(() => import('./modules/SpeakModule'));
@@ -67,7 +68,7 @@ function MainContentComponent({
     const endTimer = startL0Timer(`TopTab Switch -> ${tabId}`);
     if (isModulePaused(tabId)) {
       playClick();
-      alert('该模块暂时不可用。请先完成当前主攻方向的训练');
+      showWarning('该模块暂时不可用。请先完成当前主攻方向的训练');
       endTimer();
       return;
     }

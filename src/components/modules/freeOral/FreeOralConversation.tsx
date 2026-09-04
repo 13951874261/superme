@@ -17,6 +17,7 @@ import { callVocabPurify } from '../../../services/difyAPI';
 import { useVocabCollect } from '../../../hooks/useVocabCollect';
 import type { VocabCategory } from '../../../utils/vocabZoneLabels';
 import { normalizeCollectCandidates, parseFocusCommand, type CollectCandidate } from './freeOralModel';
+import { showAnchoredConfirm } from '../../overlays/AnchoredOverlayHost';
 
 type FreeOralMessage = {
   id: string;
@@ -358,8 +359,13 @@ export default function FreeOralConversation({ userId, active = true }: FreeOral
     }
   };
 
-  const handleDelete = async (session: FreeOralSession) => {
-    if (!globalThis.confirm?.(`删除会话“${session.title}”？此操作不可恢复。`)) return;
+  const handleDelete = async (session: FreeOralSession, anchor: HTMLElement) => {
+    if (!await showAnchoredConfirm({
+      anchor,
+      message: `删除会话“${session.title}”？此操作不可恢复。`,
+      tone: 'danger',
+      confirmLabel: '删除会话',
+    })) return;
     try {
       await api(`${sessionUrl}/${encodeURIComponent(session.id)}?userId=${encodeURIComponent(userId)}`, { method: 'DELETE' });
       const remaining = sessions.filter((item) => item.id !== session.id);
@@ -392,7 +398,7 @@ export default function FreeOralConversation({ userId, active = true }: FreeOral
                 <span className="mt-1 block truncate text-[11px] text-gray-500">{session.lastMessage || session.focusTopic || '自由话题'}</span>
                 <span className="mt-1 block text-[10px] text-gray-400">{session.messageCount || 0} 条消息 · {formatSessionTime(session.lastMessageAt || session.updatedAt)}</span>
               </button>
-              <button type="button" aria-label={`删除 ${session.title}`} onClick={() => void handleDelete(session)} disabled={loading || sending} className="rounded-lg p-2 text-gray-400 opacity-60 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus-visible:opacity-100">
+              <button type="button" aria-label={`删除 ${session.title}`} onClick={(event) => void handleDelete(session, event.currentTarget)} disabled={loading || sending} className="rounded-lg p-2 text-gray-400 opacity-60 hover:bg-red-50 hover:text-red-600 group-hover:opacity-100 focus-visible:opacity-100">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>

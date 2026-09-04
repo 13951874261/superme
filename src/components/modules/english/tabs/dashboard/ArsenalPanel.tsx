@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import { AnchoredPopover } from '../../../../overlays/AnchoredOverlayHost';
 import { Target, Loader2, Zap, Trash2, AlertTriangle } from 'lucide-react';
 
 export type GenreType = 'news' | 'meeting' | 'podcast' | 'reading' | 'email' | 'report' | 'negotiation' | 'presentation';
@@ -46,6 +47,7 @@ export function ArsenalPanel({
   quotaStatus,
   compact = false
 }: ArsenalPanelProps) {
+  const clearButtonRef = useRef<HTMLButtonElement>(null);
   return (
     <div className={`relative animate-[fadeIn_0.3s_ease-out] bg-white border border-slate-100 shadow-[0_4px_14px_rgba(0,0,0,0.012)] ${
       compact
@@ -120,6 +122,7 @@ export function ArsenalPanel({
 
           <div className="relative inline-block">
             <button
+              ref={clearButtonRef}
               type="button"
               onClick={() => setShowClearConfirm(!showClearConfirm)}
               disabled={(isAutoGenerating || isBackgroundGenerating) || isClearingAndReGenerating}
@@ -134,12 +137,7 @@ export function ArsenalPanel({
               )}
             </button>
 
-            {showClearConfirm && (
-              <div
-                role="dialog"
-                aria-label="确定清空今日内容"
-                className="absolute right-0 top-full mt-2 z-50 w-72 bg-white border border-red-100 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-3.5 text-left border-t-4 border-t-red-500 overscroll-contain animate-[fadeIn_0.15s_ease-out]"
-              >
+            <AnchoredPopover anchor={clearButtonRef.current} open={showClearConfirm} onClose={() => setShowClearConfirm(false)} className="w-72 bg-white border border-red-100 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.08)] p-3.5 text-left border-t-4 border-t-red-500 overscroll-contain" role="dialog">
                 <div className="flex items-start gap-2.5">
                   <div className="bg-red-50 p-1.5 rounded-lg text-red-500 shrink-0">
                     <AlertTriangle aria-hidden="true" className="w-4 h-4" />
@@ -170,8 +168,7 @@ export function ArsenalPanel({
                     <Trash2 aria-hidden="true" className="w-3 h-3" /> 确认
                   </button>
                 </div>
-              </div>
-            )}
+            </AnchoredPopover>
           </div>
 
           {quotaStatus && (

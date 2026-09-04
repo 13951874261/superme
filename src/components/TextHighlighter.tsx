@@ -5,6 +5,7 @@ import CustomCardModal from './CustomCardModal';
 import { useEnglishContext } from './modules/english/context/EnglishContext';
 import { useVocabCollect } from '../hooks/useVocabCollect';
 import VocabZoneCollectButtons from './VocabZoneCollectButtons';
+import { AnchoredPopover } from './overlays/AnchoredOverlayHost';
 import {
   VOCAB_ZONE_LABEL,
   classifyCollectKind,
@@ -20,7 +21,7 @@ export default function TextHighlighter() {
     getQueuedZone,
     getStoredCategory,
   } = useVocabCollect();
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<DOMRect | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ message: string; isError: boolean } | null>(null);
@@ -61,10 +62,7 @@ export default function TextHighlighter() {
         if (isWord || text.length > 40) {
           const range = selection.getRangeAt(0);
           const rect = range.getBoundingClientRect();
-          setPosition({
-            x: rect.left + rect.width / 2,
-            y: rect.top - 45,
-          });
+          setPosition(rect);
           setSelectedText(text);
           setIsParaSelection(!isWord);
         }
@@ -132,7 +130,7 @@ export default function TextHighlighter() {
           scalar: 0.7,
           origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
           colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
-          zIndex: 10000,
+          zIndex: 5000, // mirrors --overlay-z-popover; canvas-confetti requires a number
         });
       }
 
@@ -170,17 +168,23 @@ export default function TextHighlighter() {
 
   return (
     <>
-      <div
-        id="text-highlighter-saving"
-        data-saving={isSaving || saveResult !== null ? 'true' : 'false'}
-        onMouseDown={isParaSelection ? handleSave : undefined}
-        style={{ left: position.x, top: position.y, position: 'fixed' }}
-        className={`z-[9999] transform -translate-x-1/2 px-4 py-2.5 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] text-xs font-black tracking-widest flex items-center gap-2 transition-all ${
-          saveResult 
+      <AnchoredPopover
+        anchor={position}
+        open={!!position}
+        onClose={() => setPosition(null)}
+        restoreFocus={false}
+        className={`px-4 py-2.5 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] text-xs font-black tracking-widest flex items-center gap-2 ${
+          saveResult
             ? (saveResult.isError ? 'bg-red-500 text-white border border-red-600' : 'bg-emerald-500 text-white border border-emerald-600')
-            : 'bg-[#202124] uppercase text-white border border-gray-700 animate-[bounce_0.2s_ease-out]'
+            : 'bg-[#202124] uppercase text-white border border-gray-700'
         } ${isParaSelection && !saveResult ? 'cursor-pointer hover:bg-[#FF5722]' : ''}`}
       >
+        <div
+          id="text-highlighter-saving"
+          data-saving={isSaving || saveResult !== null ? 'true' : 'false'}
+          onMouseDown={isParaSelection ? handleSave : undefined}
+          className="flex items-center gap-2"
+        >
         {saveResult ? (
           <span>{saveResult.message}</span>
         ) : isParaSelection ? (
@@ -200,8 +204,8 @@ export default function TextHighlighter() {
                 preventDefault() {},
                 stopPropagation() {},
                 currentTarget: anchor,
-                clientX: position?.x || 0,
-                clientY: position?.y || 0,
+                clientX: position ? position.left + position.width / 2 : 0,
+                clientY: position?.top || 0,
               } as unknown as React.MouseEvent;
               void handleSave(fakeEvent, zone);
             }}
@@ -211,7 +215,8 @@ export default function TextHighlighter() {
             }}
           />
         )}
-      </div>
+        </div>
+      </AnchoredPopover>
 
       {showModal && (
         <CustomCardModal

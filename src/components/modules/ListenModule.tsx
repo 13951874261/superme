@@ -51,6 +51,7 @@ import {
 import { downloadInsightDocx } from '../../utils/insightWordExport';
 import { useTask } from '../TaskContext';
 import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
+import { showError } from '../Toast';
 import type { InsightScenarioResult } from '../../utils/insightScript';
 import type { ScriptWorkshopDraft } from './GameTheory/ScriptWorkshopTypes';
 import {
@@ -206,7 +207,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
       playSuccess();
     } catch (err) {
       console.error('导出理论框架 Word 失败:', err);
-      alert('导出 Word 失败，请重试');
+      showError('导出 Word 失败，请重试');
     } finally {
       setIsExportingTheoryDocx(false);
     }

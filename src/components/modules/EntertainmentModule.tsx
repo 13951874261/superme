@@ -20,6 +20,7 @@ import { getAppUserId, injectUserProfileAndTime } from '../../utils/profileHelpe
 
 import { AESTHETICS_RULES_MIN, evaluateRulesTipQuality, ensureMinRules, nextSelectedAfterDailyPush } from '../../utils/aestheticsRulesTips';
 import { ensureAestheticsResult } from '../../utils/aestheticsResultGuard';
+import { showError, showWarning } from '../Toast';
 
 
 
@@ -496,7 +497,7 @@ export default function EntertainmentModule() {
 
       triggerWarning();
 
-      alert("分析失败，请检查网络后重试；若仍失败，请联系管理员");
+      showError("分析失败，请检查网络后重试；若仍失败，请联系管理员");
 
     } finally {
 
@@ -582,7 +583,7 @@ export default function EntertainmentModule() {
 
       triggerWarning();
 
-      alert("余额不足，系统已为您自动重置筹码。");
+      showWarning("余额不足，系统已为您自动重置筹码。");
 
       setChips(10000);
 

@@ -33,6 +33,7 @@ import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import { consumeGameTheorySessionFocus, GT_NAV_SESSION_EVENT } from '../../utils/gtFocusTab';
 import { evaluateCasePushQuality } from '../../utils/gtCaseQuality';
 import { buildGameTheoryKnowledgeHint } from '../../utils/knowledgeAdapter';
+import { showError, showWarning } from '../Toast';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
   return reminder
@@ -206,7 +207,7 @@ export default function GameTheoryModule() {
         ultimate_law: '',
         suggestion: sysMsg,
       });
-      alert(sysMsg);
+      showError(sysMsg);
       playGentleWarning();
     } finally {
       setAscLoading(false);
@@ -621,7 +622,7 @@ export default function GameTheoryModule() {
         }
         if (!isAuto) {
           playGentleWarning();
-          alert('新案例质量未达标，已保留当前可用案例，请再点「换一条」');
+          showWarning('新案例质量未达标，已保留当前可用案例，请再点「换一条」');
         }
       }
     } catch (e) {
@@ -635,7 +636,7 @@ export default function GameTheoryModule() {
       }
       if (!isAuto) {
         playGentleWarning();
-        alert('获取案例失败，请再点「换一条」');
+        showError('获取案例失败，请再点「换一条」');
       }
     } finally {
       casePushLoadingRef.current = false;
@@ -673,7 +674,7 @@ export default function GameTheoryModule() {
       console.error('录入人性档案失败:', err);
       playGentleWarning();
       console.error('录入失败:', err);
-      alert('录入失败，请稍后重试');
+      showError('录入失败，请稍后重试');
     }
   };
 
@@ -703,7 +704,7 @@ export default function GameTheoryModule() {
     if (!caseText.trim() || casePushQuality?.quality !== 'ok' || !stakeholderInterests.trim() || !motivesAnalysis.trim() || !weaknesses.trim() || !keyPoints.trim()) {
       if (casePushQuality?.quality !== 'ok') {
         playGentleWarning();
-        alert('当前案例质量未达标，请先点「换一条」后再提交');
+        showWarning('当前案例质量未达标，请先点「换一条」后再提交');
       }
       return;
     }

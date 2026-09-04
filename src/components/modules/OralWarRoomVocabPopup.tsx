@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { AnchoredPopover } from '../overlays/AnchoredOverlayHost';
 import { BookPlus } from 'lucide-react';
 import { playPageTurn } from '../../utils/soundEffects';
 import { VOCAB_ZONE_COLLECT_BTN, type VocabCategory } from '../../utils/vocabZoneLabels';
@@ -39,16 +39,10 @@ export default function OralWarRoomVocabPopup({
   onClose,
   difficulty = 'medium',
 }: Props) {
+  const anchor = new DOMRect(position.x, position.y, 0, 0);
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 4, scale: 0.96 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 4, scale: 0.96 }}
-      transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-      data-vocab-popup
-      style={{ position: 'fixed', left: position.x, top: position.y, zIndex: 9999, transform: 'translateX(-50%)' }}
-      className="w-64"
-    >
+    <AnchoredPopover anchor={anchor} open onClose={onClose} restoreFocus={false} className="w-64" role="dialog">
+      <div data-vocab-popup>
       {addResult ? (
         <span className={`text-xs font-black tracking-widest px-4 py-2.5 rounded-xl border shadow-[var(--shadow-card)] block text-center ${
           addResult.ok ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-red-700 bg-red-50 border-red-200'
@@ -107,6 +101,7 @@ export default function OralWarRoomVocabPopup({
           </div>
         </div>
       )}
-    </motion.div>
+      </div>
+    </AnchoredPopover>
   );
 }

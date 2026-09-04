@@ -10,6 +10,7 @@ import MaterialUploader from "../MaterialUploader";
 import { useTask } from "../TaskContext";
 import { playClick, playGentleWarning } from "../../utils/soundEffects";
 import { getVocabItem } from "../../services/vocabAPI";
+import { showAnchoredConfirm } from "../overlays/AnchoredOverlayHost";
 
 type MindmapView = { center?: string; branches?: Array<{ title?: string; children?: string[] }> };
 
@@ -108,8 +109,13 @@ function KnowledgeSyncPanel({
     setTargets((prev) => prev.includes(value) ? prev.filter((mod) => mod !== value) : [...prev, value]);
   };
 
-  const confirmSync = async () => {
-    if (!window.confirm("同步后可用于听力、口语或博弈练习。确定同步吗？")) return;
+  const confirmSync = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!await showAnchoredConfirm({
+      anchor: event.currentTarget,
+      message: "同步后可用于听力、口语或博弈练习。确定同步吗？",
+      tone: "info",
+      confirmLabel: "同步",
+    })) return;
     setBusy(true);
     try {
       await onSync(item.id, targets);
@@ -510,7 +516,7 @@ export default function KnowledgeVaultDrawer({ isOpen, onClose }: KnowledgeVault
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end">
+    <div role="dialog" aria-modal="true" aria-label="资料管理中心" className="overlay-drawer fixed inset-0 flex justify-end">
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
       <div className="relative w-[40rem] max-w-full bg-[#1b1c1e] text-[#f3f4f6] h-full flex flex-col shadow-2xl border-l border-zinc-800">
 

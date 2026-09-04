@@ -14,6 +14,7 @@ import {
   type WeeklyHistoryItem,
 } from '../../utils/reviewHelper';
 import { getUserWeaknessProfile, ingestUserMemory, getRecentEpisodesSummaryLocal, runMemoryDreaming } from '../../utils/profileHelper';
+import { showAnchoredConfirm } from '../overlays/AnchoredOverlayHost';
 
 export default function WeeklyChatModule() {
   const [content, setContent] = useState('');
@@ -110,13 +111,17 @@ export default function WeeklyChatModule() {
     }
   };
 
-  const clearHistory = () => {
-    if (confirm('确定清空全部树洞记录吗？清空后无法恢复')) {
-      playClick();
-      setHistoryList([]);
-      learnRemove('superme_weekly_history_enhanced');
-      localStorage.removeItem('super_agent_weekly_history');
-    }
+  const clearHistory = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!await showAnchoredConfirm({
+      anchor: event.currentTarget,
+      message: '确定清空全部树洞记录吗？清空后无法恢复',
+      tone: 'danger',
+      confirmLabel: '清空记录',
+    })) return;
+    playClick();
+    setHistoryList([]);
+    learnRemove('superme_weekly_history_enhanced');
+    localStorage.removeItem('super_agent_weekly_history');
   };
 
   return (

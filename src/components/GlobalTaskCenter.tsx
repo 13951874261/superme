@@ -12,6 +12,7 @@ import {
   ChevronDown, ChevronUp, Download, Import, Brain, ExternalLink, Headphones, CalendarClock, Mic,
   Trash2,
 } from 'lucide-react';
+import { showAnchoredConfirm } from './overlays/AnchoredOverlayHost';
 
 type FeedItem =
   | { kind: 'cron'; sortAt: number; run: DailyCronRunSummary }
@@ -172,11 +173,16 @@ function DailyCronCard({
     }
   };
 
-  const handleRerun = async (mode: 'all_current' | 'failed_snapshot') => {
+  const handleRerun = async (mode: 'all_current' | 'failed_snapshot', anchor: HTMLElement) => {
     const label = mode === 'all_current'
       ? '将使用当前入参重新执行本用户的四模块，确认？'
       : '将使用原始入参快照仅重跑失败项，确认？';
-    if (!window.confirm(label)) return;
+    if (!await showAnchoredConfirm({
+      anchor,
+      message: label,
+      tone: 'info',
+      confirmLabel: mode === 'all_current' ? '重新执行' : '重跑失败项',
+    })) return;
     setBusy(true);
     setErr(null);
     try {
@@ -290,7 +296,7 @@ function DailyCronCard({
         <button
           type="button"
           disabled={busy}
-          onClick={() => handleRerun('all_current')}
+          onClick={(event) => void handleRerun('all_current', event.currentTarget)}
           className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           整次重新执行
@@ -299,7 +305,7 @@ function DailyCronCard({
           <button
             type="button"
             disabled={busy}
-            onClick={() => handleRerun('failed_snapshot')}
+            onClick={(event) => void handleRerun('failed_snapshot', event.currentTarget)}
             className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-amber-300 text-amber-800 bg-amber-50 disabled:opacity-50"
           >
             重跑失败项
@@ -399,9 +405,14 @@ export default function GlobalTaskCenter() {
     }));
   };
 
-  const handleClearFinished = async () => {
+  const handleClearFinished = async (event: React.MouseEvent<HTMLButtonElement>) => {
     const n = finishedCount;
-    if (!window.confirm(`将删除 ${n} 条已结束记录，不可恢复。确定？`)) return;
+    if (!await showAnchoredConfirm({
+      anchor: event.currentTarget,
+      message: `将删除 ${n} 条已结束记录，不可恢复。确定？`,
+      tone: 'danger',
+      confirmLabel: '清空记录',
+    })) return;
     setClearing(true);
     setClearError(null);
     setClearSuccess(null);

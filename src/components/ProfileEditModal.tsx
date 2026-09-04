@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { X, Save, Trash2, Sparkles, Loader2 } from 'lucide-react';
 import { compressUserProfile, saveUserCurrentProfile } from '../utils/profileHelper';
 import { playClick, playWaterDrop } from '../utils/soundEffects';
+import { showAnchoredConfirm } from './overlays/AnchoredOverlayHost';
+import { showError } from './Toast';
 
 interface ProfileEditModalProps {
   isOpen: boolean;
@@ -38,8 +40,13 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
     }
   };
 
-  const handleClear = () => {
-    if (!window.confirm('确定清空能力短板画像吗？清空后无法自动恢复')) return;
+  const handleClear = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (!await showAnchoredConfirm({
+      anchor: event.currentTarget,
+      message: '确定清空能力短板画像吗？清空后无法自动恢复',
+      tone: 'danger',
+      confirmLabel: '清空画像',
+    })) return;
     playClick();
     saveUserCurrentProfile('');
     onSaved();
@@ -49,7 +56,7 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
   const handleCompress = async () => {
     const text = draft.trim();
     if (!text) {
-      alert('画像内容为空，无法精简');
+      setCompressHint('画像内容为空，无法精简');
       return;
     }
     setCompressing(true);
@@ -65,14 +72,14 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
       onSaved();
     } catch (e) {
       console.error('画像精简失败:', e);
-      alert('画像精简失败，请稍后重试');
+      showError('画像精简失败，请稍后重试');
     } finally {
       setCompressing(false);
     }
   };
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+    <div className="overlay-backdrop fixed inset-0 flex items-center justify-center p-4">
       <button
         type="button"
         aria-label="关闭"
@@ -80,12 +87,15 @@ export default function ProfileEditModal({ isOpen, profile, onClose, onSaved }: 
         onClick={onClose}
       />
       <div
-        className="relative w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="profile-edit-title"
+        className="overlay-surface overlay-enter relative w-full max-w-2xl bg-white border border-slate-100 overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <div>
-            <h3 className="text-sm font-black text-zinc-900 tracking-wide">全局短板画像</h3>
+            <h3 id="profile-edit-title" className="text-sm font-black text-zinc-900 tracking-wide">全局短板画像</h3>
             <p className="text-[10px] text-zinc-400 mt-0.5">查看、编辑、精简或清空当前画像全文</p>
           </div>
           <button

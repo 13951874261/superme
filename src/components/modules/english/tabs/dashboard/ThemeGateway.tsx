@@ -10,6 +10,7 @@ import {
   THEME_DELETE_RACE_MS,
   CustomTheme,
 } from '../../../../../services/trainingAPI';
+import { showAnchoredConfirm } from '../../../../overlays/AnchoredOverlayHost';
 
 export interface ThemeGatewayProps {
   theme: string;
@@ -66,10 +67,15 @@ export function ThemeGateway({
 }: ThemeGatewayProps) {
   const { addTask, startPolling } = useTask();
 
-  const handleDeleteCustomTheme = async (e?: React.MouseEvent<HTMLButtonElement>) => {
+  const handleDeleteCustomTheme = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (!currentCustomTheme) return;
-    if (!confirm(`确定删除练习场景「${theme}」吗？删除后，这个场景里的学习材料和练习记录也会一起清掉，且无法恢复。`)) return;
-    const handoffAnchor = (e?.currentTarget as HTMLElement) || null;
+    const handoffAnchor = e.currentTarget;
+    if (!await showAnchoredConfirm({
+      anchor: handoffAnchor,
+      message: `确定删除练习场景「${theme}」吗？删除后，这个场景里的学习材料和练习记录也会一起清掉，且无法恢复。`,
+      tone: 'danger',
+      confirmLabel: '删除场景',
+    })) return;
 
     const snapshot = currentCustomTheme;
     const options = getThemeOptions(stage as 'business' | 'all');
