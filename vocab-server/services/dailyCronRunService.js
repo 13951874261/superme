@@ -2,7 +2,7 @@ const crypto = require('crypto');
 
 const PACK_TZ = process.env.DAILY_PACK_CRON_TZ || 'Asia/Shanghai';
 const RETENTION_DAYS = 7;
-const STANDARD_UNIT_TOTAL = 67; // wakeup + flaw + 64 long + listen
+const STANDARD_UNIT_TOTAL = 68; // all-current rerun: wakeup + flaw + 64 long + listen + speaking scenes
 const LISTEN_ONLY_UNIT_TOTAL = 1;
 const MAX_EVENTS_PER_STEP = 200;
 
@@ -12,8 +12,8 @@ const APP_KEY_RE = /\bapp-[A-Za-z0-9]{8,}\b/g;
 
 function normalizeUserId(raw) {
   if (!raw) return 'default-user';
-  const base = String(raw).split('@')[0].trim();
-  return base || 'default-user';
+  const value = String(raw).trim();
+  return value || 'default-user';
 }
 
 function getPackDate(now = new Date()) {
@@ -534,16 +534,24 @@ function upsertStep(db, {
   return db.prepare('SELECT * FROM daily_cron_steps WHERE id = ?').get(stepId);
 }
 
-function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = {}) {
+function getRunUnitTotal(run, fallback = STANDARD_UNIT_TOTAL) {
+  const summary = parseJsonSafe(run?.summary_json, {}) || {};
+  const value = Number(summary.unitTotal);
+  return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function refreshRunAggregation(db, runId, { unitTotal } = {}) {
+  const run = db.prepare('SELECT summary_json FROM daily_cron_runs WHERE id = ?').get(runId);
+  const resolvedUnitTotal = unitTotal || getRunUnitTotal(run);
   const statuses = db.prepare(
     'SELECT status FROM daily_cron_steps WHERE run_id = ?',
   ).all(runId).map((r) => r.status);
   let executionStatus = aggregateExecutionStatus(statuses);
-  if (statuses.length < unitTotal && executionStatus === 'completed') {
+  if (statuses.length < resolvedUnitTotal && executionStatus === 'completed') {
     executionStatus = 'running';
   }
   const finishedUnits = countFinishedUnits(db, runId);
-  const progress = computeRunProgress({ finishedUnits, totalUnits: unitTotal });
+  const progress = computeRunProgress({ finishedUnits, totalUnits: resolvedUnitTotal });
   const now = Date.now();
   const finishedAt = (executionStatus === 'running' || executionStatus === 'pending')
     ? null
@@ -571,7 +579,7 @@ function refreshRunAggregation(db, runId, { unitTotal = STANDARD_UNIT_TOTAL } = 
       finishedAt,
       finishedAt,
       now,
-      JSON.stringify({ unitTotal, finishedUnits, stepCount: statuses.length }),
+      JSON.stringify({ unitTotal: resolvedUnitTotal, finishedUnits, stepCount: statuses.length }),
       runId,
     );
   } catch (err) {
@@ -786,6 +794,7 @@ module.exports = {
   appendLogEvent,
   upsertStep,
   refreshRunAggregation,
+  getRunUnitTotal,
   buildInputSource,
   listLongArticleComboKeys,
   writeShortCircuitSkippedTree,

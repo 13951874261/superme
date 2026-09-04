@@ -282,7 +282,7 @@ export async function raceDailyPackReady(
   }
   const wait = waitDailyPackUntilReady(type, input, userId);
   const raced = await withDailyPackRace(wait);
-  if (!raced.isTimeout) {
+  if ('result' in raced) {
     return { kind: 'ready', pack: raced.result };
   }
   return { kind: 'handoff', pack: first, wait };

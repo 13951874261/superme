@@ -1,6 +1,10 @@
 const dailyPackService = require('./dailyPackService');
 const dailyListenPreGenerateService = require('./dailyListenPreGenerateService');
+const crypto = require('node:crypto');
 const dailyCronRunService = require('./dailyCronRunService');
+const speakingSceneService = require('./personalizedSpeakingSceneService');
+
+const speakingSceneGenerator = speakingSceneService.createSpeakingSceneGenerator();
 
 const LONG_ARTICLE_CONCURRENCY_DEFAULT = 3;
 const LONG_ARTICLE_CONCURRENCY_CAP = 4;
@@ -141,7 +145,7 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
 
   console.log('[DailyPack Cron] tick=%s packDate=%s users=%s', cronTickId, packDate, users.length);
 
-  for (const row of users) {
+  await mapPool(users, 2, async (row) => {
     const historyExclude = dailyPackService.getHistoryExclude(db, row.user_id);
     const userCurrentProfile = dailyCronRunService.sanitizeCronLogPayload(
       dailyPackService.getUserCurrentProfile(db, row.user_id),
@@ -160,17 +164,30 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
     const inputsSnapshot = {
       theme: row.theme,
       history_exclude: historyExclude,
-      user_current_profile: userCurrentProfile,
+      profile_present: Boolean(userCurrentProfile),
+      profile_length: String(userCurrentProfile || '').length,
+      profile_hash: crypto.createHash('sha256').update(String(userCurrentProfile || '')).digest('hex'),
       input_signature: inputSignature,
       response_mode: 'blocking',
       user: dailyCronRunService.normalizeUserId(row.user_id),
     };
 
+    const combos = [];
+    for (const genre of dailyCronRunService.LONG_GENRES) {
+      if (filterOptions?.genre && genre !== filterOptions.genre) continue;
+      for (const cefrLevel of dailyCronRunService.LONG_CEFR) {
+        if (filterOptions?.cefrLevel && cefrLevel !== filterOptions.cefrLevel) continue;
+        if (filterOptions?.duration && String(filterOptions.duration) !== '1') continue;
+        combos.push({ genre, cefrLevel, duration: 1 });
+      }
+    }
+    const unitTotal = combos.length + 4;
     const run = dailyCronRunService.createPerUserRun(db, {
       cronTickId,
       userId: row.user_id,
       packDate,
       triggerSource: 'cron',
+      unitTotal: combos.length + 4,
     });
     dailyCronRunService.appendLogEvent(db, {
       runId: run.id,
@@ -270,21 +287,6 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
     }
 
     // Step 3: 每日仅预生成 4体裁 x 4等级 x 1分钟 = 16 组；长时材料由用户按需生成。
-    const GENRES = dailyCronRunService.LONG_GENRES;
-    const CEFR_LEVELS = dailyCronRunService.LONG_CEFR;
-    const DURATIONS = [1];
-    const combos = [];
-    for (const genre of GENRES) {
-      if (filterOptions?.genre && genre !== filterOptions.genre) continue;
-      for (const cefrLevel of CEFR_LEVELS) {
-        if (filterOptions?.cefrLevel && cefrLevel !== filterOptions.cefrLevel) continue;
-        for (const duration of DURATIONS) {
-          if (filterOptions?.duration && String(duration) !== String(filterOptions.duration)) continue;
-          combos.push({ genre, cefrLevel, duration });
-        }
-      }
-    }
-
     const concurrency = resolveLongArticleConcurrency();
     console.log(
       `[DailyPack Cron] long_article pool user=%s combos=%s concurrency=%s`,
@@ -351,8 +353,48 @@ async function runDailyPackCronJob(db, targetUserId = null, filterOptions = null
       }
     });
 
-    dailyCronRunService.refreshRunAggregation(db, run.id);
-  }
+    const speakingStep = dailyCronRunService.upsertStep(db, {
+      runId: run.id,
+      userId: row.user_id,
+      module: 'speaking_scene',
+      status: 'running',
+      progress: 0,
+      inputs: { scene_date: packDate },
+    });
+    try {
+      const speakingResult = await speakingSceneService.runSpeakingSceneCronForUser({
+        db,
+        userId: row.user_id,
+        sceneDate: packDate,
+        generate: speakingSceneGenerator,
+      });
+      const outcome = speakingSceneService.determineSpeakingSceneStepOutcome(speakingResult);
+      dailyCronRunService.upsertStep(db, {
+        id: speakingStep.id,
+        runId: run.id,
+        userId: row.user_id,
+        module: 'speaking_scene',
+        status: outcome.status,
+        progress: 100,
+        finishedAt: Date.now(),
+        resultSummary: speakingResult,
+        errorMessage: outcome.errorMessage,
+      });
+    } catch (error) {
+      dailyCronRunService.upsertStep(db, {
+        id: speakingStep.id,
+        runId: run.id,
+        userId: row.user_id,
+        module: 'speaking_scene',
+        status: 'failed',
+        progress: 100,
+        finishedAt: Date.now(),
+        errorMessage: error.message || String(error),
+      });
+    }
+
+    dailyCronRunService.refreshRunAggregation(db, run.id, { unitTotal });
+  });
 
   console.log('[DailyPack Cron] done', summary);
   return summary;

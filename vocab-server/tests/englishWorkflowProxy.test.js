@@ -13,10 +13,12 @@ const { createWorkflowRunner } = require('../services/englishWorkflowProxy');
   });
 
   await assert.rejects(() => createWorkflowRunner({ apiKey: '', baseUrl: 'x', fetchImpl: async () => ({}) })({ inputs: {} }), /服务端未配置/);
-  const payload = await run({ inputs: { theme: '谈判', user_current_profile: '偏好' }, userId: 'u1' });
+  const controller = new AbortController();
+  const payload = await run({ inputs: { theme: '谈判', user_current_profile: '偏好' }, userId: 'u1', signal: controller.signal });
   assert.deepStrictEqual(payload, { data: { outputs: { result: '{"ok":true}' } } });
   assert.strictEqual(requests[0].url, 'https://dify.example/v1/workflows/run');
   assert.strictEqual(requests[0].options.headers.Authorization, 'Bearer server-only-key');
+  assert.strictEqual(requests[0].options.signal, controller.signal);
   const body = JSON.parse(requests[0].options.body);
   assert.strictEqual(body.user, 'u1');
   assert.strictEqual(body.inputs.theme, '谈判');

@@ -50,16 +50,32 @@ function testDeleteMissing404() {
   assert.strictEqual(r.code, 404);
 }
 
-function testClearFinishedKeepsRunning() {
+function testClearFinishedKeepsRunningAndSpeakingScenes() {
   wipeAll();
   const a = taskQueue.createTask('url', 'done');
   taskQueue.updateTask(a.id, { status: 'failed', error: 'x' });
   const b = taskQueue.createTask('url', 'run');
   taskQueue.updateTask(b.id, { status: 'running', progress: 1 });
+  const scene = taskQueue.createTask('speaking_scene', 'private');
+  taskQueue.updateTask(scene.id, { status: 'completed', userId: 'alice' });
   const r = taskQueue.clearFinishedTasks();
   assert.strictEqual(r.deleted, 1);
   assert.strictEqual(taskQueue.getTask(a.id), undefined);
   assert.ok(taskQueue.getTask(b.id));
+  assert.ok(taskQueue.getTask(scene.id));
+}
+
+function testGlobalVisibilityHidesSpeakingScenesWithoutMatchingUser() {
+  wipeAll();
+  const scene = taskQueue.createTask('speaking_scene', 'private');
+  taskQueue.updateTask(scene.id, { status: 'completed', userId: 'alice' });
+  assert.deepStrictEqual(taskQueue.getPublicTasks().map((t) => t.id), []);
+  assert.strictEqual(taskQueue.getPublicTask(scene.id), undefined);
+  assert.strictEqual(taskQueue.getPublicTask(scene.id, 'bob'), undefined);
+  assert.strictEqual(taskQueue.getPublicTask(scene.id, 'alice').id, scene.id);
+  assert.strictEqual(taskQueue.deletePublicTask(scene.id).code, 404);
+  assert.strictEqual(taskQueue.deletePublicTask(scene.id, 'bob').code, 404);
+  assert.strictEqual(taskQueue.deletePublicTask(scene.id, 'alice').ok, true);
 }
 
 try {
@@ -67,7 +83,8 @@ try {
   testDeleteRunningConflict();
   testDeletePendingConflict();
   testDeleteMissing404();
-  testClearFinishedKeepsRunning();
+  testClearFinishedKeepsRunningAndSpeakingScenes();
+  testGlobalVisibilityHidesSpeakingScenesWithoutMatchingUser();
   wipeAll();
   console.log('✅ taskQueueDelete.test.js 通过');
 } catch (e) {

@@ -162,6 +162,22 @@ class InMemoryTaskQueue {
     return status === 'completed' || status === 'failed';
   }
 
+  getPublicTasks() {
+    return this.getAllTasks().filter((task) => task.type !== 'speaking_scene');
+  }
+
+  getPublicTask(id, userId) {
+    const task = this.getTask(id);
+    if (task?.type === 'speaking_scene' && (!userId || task.userId !== userId)) return undefined;
+    return task;
+  }
+
+  deletePublicTask(id, userId) {
+    const task = this.getPublicTask(id, userId);
+    if (!task) return { ok: false, code: 404 };
+    return this.deleteTask(id);
+  }
+
   deleteTask(id) {
     const task = this.tasks.get(id);
     if (!task) return { ok: false, code: 404 };
@@ -174,7 +190,7 @@ class InMemoryTaskQueue {
   clearFinishedTasks() {
     let deleted = 0;
     for (const [id, task] of this.tasks.entries()) {
-      if (this.isFinishedStatus(task.status)) {
+      if (this.isFinishedStatus(task.status) && task.type !== 'speaking_scene') {
         this.tasks.delete(id);
         deleted += 1;
       }

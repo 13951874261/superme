@@ -1,10 +1,21 @@
-﻿const express = require('express');
+const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 const crypto = require('crypto');
+const {
+  addFreeOralMessage,
+  createFreeOralSession,
+  deleteFreeOralSession,
+  getFreeOralSession,
+  initFreeOralTables,
+  listFreeOralSessions,
+  updateFreeOralSession,
+} = require('./services/freeOralSessions');
+const { executeFreeOralTurn } = require('./services/freeOralTurn');
+const { createFreeOralRateLimiter } = require('./services/freeOralRateLimit');
 const {
   isSingleEnglishWord,
   fetchCambridgeEntry,
@@ -147,6 +158,7 @@ if (isProd && !fs.existsSync('/var/www/super-agent')) {
 
 const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');
+initFreeOralTables(db);
 
 // ????????vocabulary ???
 db.prepare(`
@@ -503,6 +515,16 @@ function resolveProfileForDify(userId, incoming, recallQuery) {
   });
 }
 const dailyPackCron = require('./services/dailyPackCron');
+const taskQueue = require('./services/taskQueue');
+const speakingSceneService = require('./services/personalizedSpeakingSceneService');
+const speakingSceneGenerator = speakingSceneService.createSpeakingSceneGenerator();
+speakingSceneService.initPersonalizedSpeakingSceneTable(db);
+app.use('/api/english/speaking-scenes', speakingSceneService.createSpeakingSceneApiRouter({
+  db,
+  taskQueue,
+  generate: speakingSceneGenerator,
+  getSceneDate: () => dailyPackService.getPackDate(),
+}));
 dailyPackService.initDailyPackTables(db);
 const dailyCronRunService = require('./services/dailyCronRunService');
 dailyCronRunService.initDailyCronRunTables(db);
@@ -7357,6 +7379,147 @@ function injectOralSystemTime(inputs = {}) {
 }
 
 // ==========================================
+// 自由即兴口语：本地历史事实源；AI 上下文继续由 Dify conversation_id 管理
+// ==========================================
+function normalizeFreeOralUserId(value) {
+  const userId = String(value || '').trim();
+  return userId ? userId.slice(0, 120) : null;
+}
+
+app.get('/api/english/free-oral/sessions', (req, res) => {
+  const userId = normalizeFreeOralUserId(req.query.userId);
+  if (!userId) return res.status(400).json({ success: false, message: '缺少 userId' });
+  return res.json({ success: true, sessions: listFreeOralSessions(db, { userId }) });
+});
+
+app.post('/api/english/free-oral/sessions', (req, res) => {
+  const userId = normalizeFreeOralUserId(req.body?.userId);
+  if (!userId) return res.status(400).json({ success: false, message: '缺少 userId' });
+  const session = createFreeOralSession(db, {
+    id: crypto.randomUUID(),
+    userId,
+    title: req.body?.title,
+  });
+  return res.status(201).json({ success: true, session });
+});
+
+app.get('/api/english/free-oral/sessions/:sessionId', (req, res) => {
+  const userId = normalizeFreeOralUserId(req.query.userId);
+  if (!userId) return res.status(400).json({ success: false, message: '缺少 userId' });
+  const session = getFreeOralSession(db, { sessionId: req.params.sessionId, userId });
+  return session
+    ? res.json({ success: true, session })
+    : res.status(404).json({ success: false, message: '会话不存在' });
+});
+
+app.patch('/api/english/free-oral/sessions/:sessionId', (req, res) => {
+  const userId = normalizeFreeOralUserId(req.body?.userId);
+  if (!userId) return res.status(400).json({ success: false, message: '缺少 userId' });
+  const session = updateFreeOralSession(db, {
+    sessionId: req.params.sessionId,
+    userId,
+    ...(req.body?.title !== undefined ? { title: req.body.title } : {}),
+    ...(req.body?.focusTopic !== undefined ? { focusTopic: req.body.focusTopic } : {}),
+    ...(req.body?.conversationId !== undefined ? { conversationId: req.body.conversationId } : {}),
+  });
+  return session
+    ? res.json({ success: true, session })
+    : res.status(404).json({ success: false, message: '会话不存在' });
+});
+
+app.post('/api/english/free-oral/sessions/:sessionId/messages', (req, res) => {
+  const userId = normalizeFreeOralUserId(req.body?.userId);
+  if (!userId) return res.status(400).json({ success: false, message: '缺少 userId' });
+  try {
+    const message = addFreeOralMessage(db, {
+      id: String(req.body?.id || crypto.randomUUID()),
+      sessionId: req.params.sessionId,
+      userId,
+      role: req.body?.role,
+      content: req.body?.content,
+    });
+    return res.status(201).json({ success: true, message });
+  } catch (error) {
+    return res.status(/不存在|无权/.test(error.message) ? 404 : 400)
+      .json({ success: false, message: error.message });
+  }
+});
+
+app.delete('/api/english/free-oral/sessions/:sessionId', (req, res) => {
+  const userId = normalizeFreeOralUserId(req.query.userId);
+  if (!userId) return res.status(400).json({ success: false, message: '缺少 userId' });
+  const deleted = deleteFreeOralSession(db, { sessionId: req.params.sessionId, userId });
+  return deleted
+    ? res.json({ success: true })
+    : res.status(404).json({ success: false, message: '会话不存在' });
+});
+
+const checkFreeOralRateLimit = createFreeOralRateLimiter({
+  windowMs: Number(process.env.FREE_ORAL_RATE_WINDOW_MS || 60_000),
+  max: Number(process.env.FREE_ORAL_RATE_MAX || 12),
+});
+
+app.post('/api/english/oral/free-sessions/:sessionId/messages', async (req, res) => {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+  res.setHeader('X-Request-Id', requestId);
+  const userId = normalizeFreeOralUserId(req.body?.userId);
+  const clientMessageId = String(req.body?.clientMessageId || '').trim();
+  const content = String(req.body?.content || '').trim();
+  if (!userId || !clientMessageId || !content) {
+    return res.status(400).json({ success: false, message: '缺少 userId、clientMessageId 或 content', requestId });
+  }
+  if (content.length > 4000) return res.status(400).json({ success: false, message: '消息内容不能超过 4000 个字符', requestId });
+  const rateLimit = checkFreeOralRateLimit(userId);
+  if (!rateLimit.allowed) {
+    res.setHeader('Retry-After', String(rateLimit.retryAfterSeconds));
+    console.warn('[自由口语][turn]', { requestId, userId, sessionId: req.params.sessionId, outcome: 'rate_limited', durationMs: Date.now() - startedAt });
+    return res.status(429).json({ success: false, code: 'FREE_ORAL_RATE_LIMITED', message: '发送过于频繁，请稍后再试', requestId });
+  }
+  try {
+    const result = await executeFreeOralTurn(db, {
+      sessionId: req.params.sessionId,
+      userId,
+      clientMessageId,
+      content,
+      userCurrentProfile: req.body?.userCurrentProfile,
+      sendToDify: async ({ query, conversationId, inputs, userId: difyUserId }) => {
+        const apiKey = process.env.DIFY_FREE_ORAL_API_KEY;
+        if (!apiKey) throw new Error('自由口语服务未配置 API Key。');
+        const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
+        const response = await fetch(`${baseUrl}/chat-messages`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ inputs, query, response_mode: 'blocking', user: difyUserId, ...(conversationId ? { conversation_id: conversationId } : {}) }),
+          signal: AbortSignal.timeout(30000),
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const { mapOralUpstreamError } = require('./services/oralChatUpstreamError');
+          const mapped = mapOralUpstreamError(response.status, data);
+          const error = new Error(mapped.body.message || data.message || '自由口语请求失败');
+          error.status = mapped.status;
+          error.code = data.code || data.error_code || '';
+          throw error;
+        }
+        return data;
+      },
+    });
+    console.info('[自由口语][turn]', {
+      requestId, userId, sessionId: req.params.sessionId, outcome: 'success',
+      durationMs: Date.now() - startedAt, recovered: Boolean(result.recovered),
+    });
+    return res.json({ success: true, ...result, requestId });
+  } catch (error) {
+    const status = Number(error.status) || (/不存在|无权/.test(error.message) ? 404 : /缺少|不能为空|超过|幂等键/.test(error.message) ? 400 : 503);
+    console.warn('[自由口语][turn]', {
+      requestId, userId, sessionId: req.params.sessionId, outcome: error.name === 'TimeoutError' ? 'timeout' : 'failed',
+      status, code: error.code || '', durationMs: Date.now() - startedAt, recovered: false,
+    });
+    return res.status(status).json({ success: false, message: error.message, requestId });
+  }
+});
+// ==========================================
 // 多角色沙盘：主对话代理（English_Oral_Sandbox Chatflow）
 // API Key 仅保存在服务端 DIFY_ORAL_API_KEY
 // 支持 response_mode: 'streaming' (SSE) 与 'blocking' (JSON)
@@ -7368,6 +7531,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
     userId = 'default-user',
     inputs = {},
     stream = false,
+    appMode = 'sandbox',
   } = req.body || {};
 
   if (!query || typeof query !== 'string') {
@@ -7375,12 +7539,23 @@ app.post('/api/english/oral/chat', async (req, res) => {
   }
 
   const isStream = Boolean(stream === true || stream === 'true');
-  const apiKey = process.env.DIFY_ORAL_API_KEY;
+  const isFreeOral = appMode === 'free-oral';
+  const apiKey = isFreeOral ? process.env.DIFY_FREE_ORAL_API_KEY : process.env.DIFY_ORAL_API_KEY;
   const baseUrl = process.env.DIFY_API_BASE_URL
     || process.env.VITE_DIFY_API_BASE_URL
     || 'https://dify.234124123.xyz/v1';
+  const safeInputs = inputs && typeof inputs === 'object' ? inputs : {};
+  const requestInputs = isFreeOral ? {
+    focus_topic: String(safeInputs.focus_topic || '').trim().slice(0, 500),
+    user_current_profile: String(safeInputs.user_current_profile || '').trim().slice(0, 4000),
+  } : injectOralSystemTime(safeInputs);
+  const logLabel = isFreeOral ? '自由口语' : '沙盘推演';
 
-  console.log(`[沙盘推演] 正在启动多角色谈判沙盘对话推演 (${isStream ? '实时流式通道' : '标准响应通道'})...`);
+  if (!apiKey) {
+    return res.status(500).json({ message: `${logLabel}服务未配置 API Key。` });
+  }
+
+  console.log(`[${logLabel}] 正在启动 Dify 对话 (${isStream ? '实时流式通道' : '标准响应通道'})...`);
 
   try {
     const response = await fetch(`${baseUrl}/chat-messages`, {
@@ -7390,7 +7565,7 @@ app.post('/api/english/oral/chat', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        inputs: injectOralSystemTime(inputs),
+        inputs: requestInputs,
         query,
         response_mode: isStream ? 'streaming' : 'blocking',
         user: userId,
@@ -8803,6 +8978,29 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
             }
 
             dailyCronRunService.upsertStep(db, {
+              runId: newRun.id, userId, module: 'speaking_scene', status: 'running',
+            });
+            try {
+              const result = await speakingSceneService.runSpeakingSceneCronForUser({
+                db,
+                userId,
+                sceneDate: dailyCronRunService.getPackDate(),
+                generate: speakingSceneGenerator,
+              });
+              const outcome = speakingSceneService.determineSpeakingSceneStepOutcome(result);
+              dailyCronRunService.upsertStep(db, {
+                runId: newRun.id, userId, module: 'speaking_scene', status: outcome.status,
+                progress: 100, finishedAt: Date.now(), resultSummary: result,
+                errorMessage: outcome.errorMessage,
+              });
+            } catch (e) {
+              dailyCronRunService.upsertStep(db, {
+                runId: newRun.id, userId, module: 'speaking_scene', status: 'failed',
+                progress: 100, finishedAt: Date.now(), errorMessage: e.message,
+              });
+            }
+
+            dailyCronRunService.upsertStep(db, {
               runId: newRun.id, userId, module: 'listen', status: 'running',
             });
             try {
@@ -8885,6 +9083,19 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
                   await dailyPackService.generateLongArticleForUser(
                     db, userId, snap.theme || theme, 'user_rerun', g, c, d,
                   );
+                } else if (fs.module === 'speaking_scene') {
+                  const result = await speakingSceneService.runSpeakingSceneCronForUser({
+                    db,
+                    userId,
+                    sceneDate: snap.scene_date || dailyCronRunService.getPackDate(),
+                    generate: speakingSceneGenerator,
+                  });
+                  const outcome = speakingSceneService.determineSpeakingSceneStepOutcome(result);
+                  dailyCronRunService.upsertStep(db, {
+                    runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
+                    status: outcome.status, progress: 100, finishedAt: Date.now(),
+                    resultSummary: result, errorMessage: outcome.errorMessage,
+                  });
                 } else if (fs.module === 'listen') {
                   const listenJob = await dailyListenPreGenerateService.runDailyListenCronJob(db, {
                     cronTickId: tick,
@@ -8904,8 +9115,10 @@ app.post('/api/daily-cron/runs/:runId/rerun', async (req, res) => {
                       ? (listenStep?.error_message || `combosFail=${listenJob?.summary?.combosFail || 0}`)
                       : null,
                   });
+                } else {
+                  throw new Error(`unknown cron module: ${fs.module}`);
                 }
-                if (fs.module !== 'listen') {
+                if (fs.module !== 'listen' && fs.module !== 'speaking_scene') {
                   dailyCronRunService.upsertStep(db, {
                     runId: newRun.id, userId, module: fs.module, comboKey: fs.combo_key,
                     status: 'completed', progress: 100, finishedAt: Date.now(),
@@ -11723,7 +11936,7 @@ app.post('/api/materials/fetch-video', upload.single('video'), async (req, res) 
 app.get('/api/tasks', (req, res) => {
   try {
     const taskQueue = require('./services/taskQueue');
-    res.json({ success: true, tasks: taskQueue.getAllTasks() });
+    res.json({ success: true, tasks: taskQueue.getPublicTasks() });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -11733,7 +11946,9 @@ app.get('/api/tasks', (req, res) => {
 app.get('/api/tasks/:taskId', (req, res) => {
   try {
     const taskQueue = require('./services/taskQueue');
-    const task = taskQueue.getTask(req.params.taskId);
+    const userId = speakingSceneService.normalizeUserId(req.query.userId || req.body?.userId);
+    const hasUserId = Boolean(req.query.userId || req.body?.userId);
+    const task = taskQueue.getPublicTask(req.params.taskId, hasUserId ? userId : undefined);
     if (!task) {
       return res.status(404).json({ success: false, error: '任务不存在或已过期' });
     }
@@ -11746,7 +11961,11 @@ app.get('/api/tasks/:taskId', (req, res) => {
 app.delete('/api/tasks/:taskId', (req, res) => {
   try {
     const taskQueue = require('./services/taskQueue');
-    const result = taskQueue.deleteTask(req.params.taskId);
+    const rawUserId = req.query.userId || req.body?.userId;
+    const result = taskQueue.deletePublicTask(
+      req.params.taskId,
+      rawUserId ? speakingSceneService.normalizeUserId(rawUserId) : undefined,
+    );
     if (!result.ok) {
       return res.status(result.code).json({
         success: false,

@@ -21,7 +21,14 @@ function sortKey(createdAt?: number, updatedAt?: number, completedAt?: number) {
   return Number(createdAt ?? updatedAt ?? completedAt ?? 0);
 }
 
-function StatusBadge({ status, progress }: { status: string; progress?: number }) {
+function StatusBadge({ status, progress, interrupted = false }: { status: string; progress?: number; interrupted?: boolean }) {
+  if (interrupted) {
+    return (
+      <span className="text-[9px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+        <XCircle className="w-3 h-3" /> 执行中断
+      </span>
+    );
+  }
   if (status === 'pending') {
     return (
       <span className="text-[9px] font-bold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full flex items-center gap-1">
@@ -193,6 +200,7 @@ function DailyCronCard({
 
   const long = run.modules.long_article;
   const failedLong = detail?.steps.filter((s) => s.module === 'long_article' && s.status === 'failed') || [];
+  const interrupted = run.status === 'failed' && run.error === 'interrupted: server restart';
 
   return (
     <div className="p-5 rounded-2xl border border-indigo-100 bg-indigo-50/20 space-y-3.5">
@@ -210,7 +218,7 @@ function DailyCronCard({
           </div>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <StatusBadge status={run.status} progress={run.progress} />
+          <StatusBadge status={run.status} progress={run.progress} interrupted={interrupted} />
           <button
             type="button"
             disabled={!canDelete || !!deleting}
@@ -262,7 +270,9 @@ function DailyCronCard({
       )}
 
       {run.error && (
-        <p className="text-[11px] text-red-500 bg-red-50/50 p-2 rounded-xl border border-red-50">{run.error}</p>
+        <p className={`text-[11px] p-2 rounded-xl border ${interrupted ? 'text-amber-700 bg-amber-50/50 border-amber-100' : 'text-red-500 bg-red-50/50 border-red-50'}`}>
+          {interrupted ? '服务器重启导致任务未正常收尾，已生成内容仍可使用' : run.error}
+        </p>
       )}
       {err && (
         <p className="text-[11px] text-red-500 bg-red-50/50 p-2 rounded-xl border border-red-50">{err}</p>

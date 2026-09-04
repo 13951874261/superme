@@ -279,8 +279,8 @@ function OralWarRoomChatComponent({
   onRetryOpening,
 }: OralWarRoomChatProps) {
   return (
-    <section className={`flex flex-col bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-[var(--color-border)] shadow-[var(--shadow-sm)] overflow-hidden min-h-[520px] h-[min(820px,calc(100dvh-7rem))] 2xl:h-[min(860px,calc(100dvh-6rem))] relative ${
-      isContextPanelOpen ? '2xl:col-span-6' : '2xl:col-span-9'
+    <section className={`relative flex min-h-[520px] flex-col overflow-hidden rounded-[1.5rem] border border-[var(--color-border)] bg-white shadow-[var(--shadow-sm)] xl:h-[min(820px,calc(100dvh-7rem))] xl:rounded-[2rem] ${
+      isContextPanelOpen ? 'xl:col-span-6' : 'xl:col-span-9'
     }`}>
       {isSending && messages.length === 0 && (
         <div className="absolute inset-0 z-20 bg-white/70 backdrop-blur-[2px] flex items-center justify-center pointer-events-none animate-fade-in">

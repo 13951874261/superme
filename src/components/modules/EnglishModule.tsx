@@ -18,7 +18,7 @@ const SUB_TABS = [
   { id: 'dashboard', label: '进度总控', icon: <Target className="w-4 h-4" /> },
   { id: 'vocab',     label: '生词复习',   icon: <BookOpen className="w-4 h-4" /> },
   { id: 'listen',    label: '精听盲听',   icon: <Volume2 className="w-4 h-4" /> },
-  { id: 'oral',      label: '多角色练习', icon: <Mic className="w-4 h-4" /> },
+  { id: 'oral',      label: '口语练习',   icon: <Mic className="w-4 h-4" /> },
   { id: 'write',     label: '纵深书面',   icon: <PenTool className="w-4 h-4" /> },
   { id: 'impromptu', label: '即兴演讲', icon: <Radio className="w-4 h-4" /> },
 ] as const;

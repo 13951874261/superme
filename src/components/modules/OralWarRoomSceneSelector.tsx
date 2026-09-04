@@ -1,5 +1,5 @@
-import React from 'react';
-import { Globe, Star, Users } from 'lucide-react';
+import React, { useState } from 'react';
+import { ChevronDown, Globe, Star, Users } from 'lucide-react';
 import type { SceneEntry } from './oralWarRoom/types';
 import type { SandboxMode } from './oralWarRoom/sandboxMode';
 
@@ -50,18 +50,22 @@ export default function OralWarRoomSceneSelector({
   customBackgroundEnabled,
   onCustomBackgroundEnabledChange,
 }: Props) {
+  const [expanded, setExpanded] = useState(false);
   const showBackgroundInput = sandboxMode === 'daily' || customBackgroundEnabled;
+  const selectedScene = filteredScenes.find((scene) => scene.id === selectedSceneId);
 
   return (
-    <div className="mb-4 bg-white px-5 py-4 rounded-2xl border border-[var(--color-border)] shadow-[var(--shadow-sm)]">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
-        <div className="flex items-center gap-2 text-xs font-black text-[var(--color-accent)] tracking-widest uppercase">
-          <Globe className="w-4 h-4" /> 场景库 SCENE LIBRARY
+    <div className="mb-3 rounded-xl border border-[var(--color-border)] bg-white px-3 py-2 shadow-[var(--shadow-sm)] sm:px-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 text-xs font-black text-[var(--color-accent)]">
+          <Globe className="h-4 w-4 shrink-0" />
+          <span>场景菜单</span>
+          {selectedScene && <span className="truncate font-semibold text-[var(--color-ink-secondary)]">· {selectedScene.shortTitle}</span>}
         </div>
         <div
           role="tablist"
           aria-label="练习模式"
-          className="flex items-center p-0.5 rounded-full bg-[var(--color-canvas)] border border-[var(--color-border)] self-start sm:self-auto"
+          className="ml-auto flex items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-canvas)] p-0.5"
         >
           {([
             { id: 'negotiation', label: '谈判练习' },
@@ -75,10 +79,10 @@ export default function OralWarRoomSceneSelector({
                 role="tab"
                 aria-selected={selected}
                 onClick={() => onSandboxModeChange(item.id)}
-                className={`px-3 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase transition-all cursor-pointer ${
+                className={`min-h-8 rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors ${
                   selected
-                    ? 'bg-[var(--color-accent)] text-white shadow-[var(--shadow-sm)]'
-                    : 'text-[var(--color-ink-secondary)] hover:text-[var(--color-ink-primary)]'
+                    ? 'bg-[var(--color-brand)] text-white'
+                    : 'text-[var(--color-ink-secondary)] hover:bg-white hover:text-[var(--color-ink-primary)]'
                 }`}
               >
                 {item.label}
@@ -86,7 +90,18 @@ export default function OralWarRoomSceneSelector({
             );
           })}
         </div>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="oral-scene-menu-details"
+          onClick={() => setExpanded((value) => !value)}
+          className="inline-flex min-h-8 items-center gap-1 rounded-lg border border-[var(--color-border)] px-2.5 text-xs font-bold text-[var(--color-ink-secondary)] transition-colors hover:border-[var(--color-accent)] hover:text-[var(--color-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]"
+        >
+          {expanded ? '收起' : '选择场景'}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+        </button>
       </div>
+      <div id="oral-scene-menu-details" hidden={!expanded} className="pt-3">
       {sandboxMode === 'negotiation' && (
         <div className="flex items-center gap-1.5 flex-wrap justify-end mb-3">
           {(['全部', '初阶', '高阶', '跨文化', '定制'] as const).map((tier) => {
@@ -233,6 +248,7 @@ export default function OralWarRoomSceneSelector({
       </div>
         </>
       )}
+      </div>
     </div>
   );
 }

@@ -30,6 +30,16 @@ function testConcurrencyCappedAtFour() {
   console.log('OK concurrency cap = 4');
 }
 
+async function testSecondUserStartsBeforeSlowFirstFinishes() {
+  const events = [];
+  await mapPool(['slow', 'fast'], 2, async (user) => {
+    events.push(`start:${user}`);
+    await new Promise((resolve) => setTimeout(resolve, user === 'slow' ? 30 : 5));
+    events.push(`end:${user}`);
+  });
+  assert.ok(events.indexOf('start:fast') < events.indexOf('end:slow'), events.join(','));
+}
+
 async function testMapPoolHonorsConcurrency() {
   const seen = [];
   let inFlight = 0;
@@ -67,6 +77,7 @@ function testCronUsesPoolNotSerialSleep() {
   testDefaultConcurrencyIsThree();
   testConcurrencyCappedAtFour();
   await testMapPoolHonorsConcurrency();
+  await testSecondUserStartsBeforeSlowFirstFinishes();
   testCronUsesPoolNotSerialSleep();
   console.log('✅ longArticleConcurrency.test.js 通过');
 })().catch((err) => {

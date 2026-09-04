@@ -146,6 +146,7 @@ export interface EnZhBidirectionalPayload {
   phonetic: string;
   pos: string;
   translation_main: string;
+  definition_en?: string;
   other_meanings: OtherMeaningEnZh[];
   business_examples: (string | BusinessExampleEnZh)[];
   example_sentences: (string | ExampleSentenceEnZh)[];

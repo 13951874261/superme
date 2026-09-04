@@ -3,6 +3,15 @@ import { learnGet, learnSet } from '../../../utils/learnLocal';
 import { submitBreakthrough, type ParsedAiResponse } from '../../../services/difyAPI';
 import { checkThemeMastery } from '../../../services/trainingAPI';
 import {
+  getSpeakingScenes,
+  getSpeakingSceneTask,
+  regenerateSpeakingScene,
+  recordSpeakingSceneUse,
+  resolveSpeakingSceneTask,
+  switchSpeakingScene,
+  type SpeakingScene,
+} from '../../../services/speakingScenesAPI';
+import {
   playSuccess,
   playError,
   playSceneSwitch,
@@ -23,6 +32,7 @@ import type {
   SessionMemory,
   WeaknessLogEntry,
 } from './types';
+import { adaptMultiRoleScene } from './types';
 import { SCENE_DATABASE, THEME_TO_SCENE_MAP } from './scenes';
 import {
   applyCustomBackground,
@@ -47,7 +57,6 @@ import { useOralTextSelection } from './useOralTextSelection';
 import { useOralRecording } from './useOralRecording';
 import { processOralAiResponse } from './processOralAiResponse';
 import { useOralDialogue } from './useOralDialogue';
-
 export interface UseOralWarRoomSessionOptions {
   embedded?: boolean;
   active?: boolean;
@@ -92,6 +101,16 @@ export function useOralWarRoomSession({
   const [currentDifficulty, setCurrentDifficulty] = useState<number | null>(null);
   const sceneInitRef = useRef<string | null>(null);
   const openingAbortRef = useRef<AbortController | null>(null);
+  const sceneRequestAbortRef = useRef<AbortController | null>(null);
+  const sceneRequestTokenRef = useRef(0);
+  const sceneRequestLockRef = useRef(false);
+  const sceneCacheLoadKeyRef = useRef('');
+  const recordedSpeakingSceneIdsRef = useRef(new Set<string>());
+  const [speakingScene, setSpeakingScene] = useState<SpeakingScene | null>(null);
+  const [dynamicRoleScene, setDynamicRoleScene] = useState<SceneEntry | null>(null);
+  const [isSceneChanging, setIsSceneChanging] = useState(false);
+  const [sceneChangeStatus, setSceneChangeStatus] = useState('');
+  const [sceneChangeError, setSceneChangeError] = useState('');
   const [showControlCard, setShowControlCard] = useState(false);
   const [isInputLocked, setIsInputLocked] = useState(false);
   const [writeCompleted, setWriteCompleted] = useState(false);
@@ -220,6 +239,9 @@ export function useOralWarRoomSession({
     }
     const pushScene = rebalancePush?.oralSandbox;
     let base: SceneEntry | undefined;
+    if (dynamicRoleScene && activeSceneId === dynamicRoleScene.id) {
+      base = dynamicRoleScene;
+    } else
     if (activeSceneId === 'rebalance-scene' && pushScene?.scenario) {
       const baseLevel = pushScene.difficulty || 5;
       base = {
@@ -260,7 +282,7 @@ export function useOralWarRoomSession({
     return customBackgroundEnabled
       ? applyCustomBackground(scene, customBackground, 'negotiation')
       : scene;
-  }, [activeSceneId, sceneTheme, rebalancePush, sandboxMode, customBackground, customBackgroundEnabled]);
+  }, [activeSceneId, sceneTheme, rebalancePush, sandboxMode, customBackground, customBackgroundEnabled, dynamicRoleScene]);
 
   const {
     breakthroughMenu,
@@ -397,6 +419,121 @@ export function useOralWarRoomSession({
     sceneInitRef.current = sceneId;
   }, [setBreakthroughMenu]);
 
+  const activateSpeakingScene = useCallback((scene: SpeakingScene, token: number) => {
+    if (token !== sceneRequestTokenRef.current) return false;
+    const nextScene = adaptMultiRoleScene(scene);
+    openingAbortRef.current?.abort();
+    setInputText('');
+    clearPendingText();
+    setDynamicRoleScene(nextScene);
+    setSpeakingScene(scene);
+    if (!recordedSpeakingSceneIdsRef.current.has(scene.id)) {
+      recordedSpeakingSceneIdsRef.current.add(scene.id);
+      void recordSpeakingSceneUse(scene.id, userId).catch(() => {});
+    }
+    resetBattleState(nextScene.id);
+    setSceneChangeError('');
+    setSceneChangeStatus(`已切换：${nextScene.shortTitle}`);
+    void initiateSceneDialogue(nextScene, 'negotiation');
+    return true;
+  }, [clearPendingText, initiateSceneDialogue, resetBattleState, userId]);
+  const activateSpeakingSceneRef = useRef(activateSpeakingScene);
+  activateSpeakingSceneRef.current = activateSpeakingScene;
+
+  useEffect(() => {
+    if (active === false) {
+      sceneRequestAbortRef.current?.abort();
+      sceneRequestTokenRef.current += 1;
+      sceneRequestLockRef.current = false;
+      setIsSceneChanging(false);
+      setSceneChangeStatus('');
+      setSceneChangeError('');
+      return;
+    }
+    const loadKey = `${userId}:${new Date().toISOString().slice(0, 10)}`;
+    if (sceneCacheLoadKeyRef.current === loadKey) return;
+    const token = ++sceneRequestTokenRef.current;
+    const controller = new AbortController();
+    sceneRequestAbortRef.current?.abort();
+    sceneRequestAbortRef.current = controller;
+    void getSpeakingScenes({ userId, sceneType: 'multi_role', signal: controller.signal })
+      .then((scenes) => {
+        if (token !== sceneRequestTokenRef.current || !scenes[0]) return;
+        if (activateSpeakingSceneRef.current(scenes[0], token)) sceneCacheLoadKeyRef.current = loadKey;
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+        // 无缓存或读取失败时保留静态场景。
+      });
+    return () => {
+      controller.abort();
+      sceneRequestTokenRef.current += 1;
+      sceneRequestLockRef.current = false;
+      setIsSceneChanging(false);
+      setSceneChangeStatus('');
+      setSceneChangeError('');
+    };
+  }, [active, userId]);
+
+  const beginSceneRequest = useCallback(() => {
+    if (sceneRequestLockRef.current) return null;
+    sceneRequestLockRef.current = true;
+    sceneRequestAbortRef.current?.abort();
+    openingAbortRef.current?.abort();
+    const controller = new AbortController();
+    sceneRequestAbortRef.current = controller;
+    const token = ++sceneRequestTokenRef.current;
+    setIsSceneChanging(true);
+    setSceneChangeError('');
+    return { controller, token };
+  }, []);
+
+  const handleSpeakingSceneSwitch = useCallback(async () => {
+    const request = beginSceneRequest();
+    if (!request) return;
+    setSceneChangeStatus('正在换题…');
+    try {
+      let nextScene: SpeakingScene | undefined;
+      const result = await switchSpeakingScene({
+        userId, sceneType: 'multi_role', currentSceneId: speakingScene?.id,
+        signal: request.controller.signal,
+        onEvent: (event) => { if (event.type === 'scene') nextScene = event.scene; },
+      });
+      if (result.type === 'scene') nextScene = result.scene;
+      if (result.type === 'task') nextScene = await resolveSpeakingSceneTask(result.taskId, userId, request.controller.signal, getSpeakingSceneTask);
+      if (result.type === 'error') throw new Error(result.error);
+      if (!nextScene) throw new Error('换题未返回完整场景');
+      activateSpeakingScene(nextScene, request.token);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError') && request.token === sceneRequestTokenRef.current) {
+        setSceneChangeError(error instanceof Error ? error.message : '换题失败');
+        setSceneChangeStatus('');
+      }
+    } finally {
+      sceneRequestLockRef.current = false;
+      if (request.token === sceneRequestTokenRef.current) setIsSceneChanging(false);
+    }
+  }, [activateSpeakingScene, beginSceneRequest, speakingScene?.id, userId]);
+
+  const handleSpeakingSceneRegenerate = useCallback(async () => {
+    const request = beginSceneRequest();
+    if (!request) return;
+    setSceneChangeStatus('正在重新生成…');
+    try {
+      const started = await regenerateSpeakingScene({ userId, sceneType: 'multi_role', currentSceneId: speakingScene?.id, signal: request.controller.signal });
+      const nextScene = await resolveSpeakingSceneTask(started.taskId, userId, request.controller.signal, getSpeakingSceneTask);
+      activateSpeakingScene(nextScene, request.token);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError') && request.token === sceneRequestTokenRef.current) {
+        setSceneChangeError(error instanceof Error ? error.message : '重新生成失败');
+        setSceneChangeStatus('');
+      }
+    } finally {
+      sceneRequestLockRef.current = false;
+      if (request.token === sceneRequestTokenRef.current) setIsSceneChanging(false);
+    }
+  }, [activateSpeakingScene, beginSceneRequest, speakingScene?.id, userId]);
+
   const handleEndDailyExpressionReview = useCallback(async () => {
     const prepared = prepareDailyExpressionReviewRequest(sandboxMode, messages);
     if (!prepared) return;
@@ -430,6 +567,10 @@ export function useOralWarRoomSession({
     const scene = SCENE_DATABASE.find(s => s.id === sceneId);
     if (!scene) return;
     if (sandboxMode === 'daily') setSandboxMode('negotiation');
+    setSpeakingScene(null);
+    setDynamicRoleScene(null);
+    setSceneChangeStatus('');
+    setSceneChangeError('');
     resetBattleState(sceneId);
     setLastNotice(`已重置练习场景。进入：${scene.shortTitle}`);
     void initiateSceneDialogue(scene, 'negotiation');
@@ -618,6 +759,12 @@ export function useOralWarRoomSession({
     setIsContextPanelOpen,
     activeScene,
     activeSceneId,
+    speakingScene,
+    isSceneChanging,
+    sceneChangeStatus,
+    sceneChangeError,
+    handleSpeakingSceneSwitch,
+    handleSpeakingSceneRegenerate,
     currentDifficulty,
     latestExchange,
     latestFeedback,

@@ -1,12 +1,28 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { learnGet, learnSet } from '../../../../utils/learnLocal';
 import { Mic, MicOff, Clock, CheckCircle2, Loader2, Star, Play, Pause, RotateCcw, Lightbulb, ChevronDown, ChevronUp, Copy, ArrowRight, Sparkles } from 'lucide-react';
 import { useEnglishContext } from '../context/EnglishContext';
 import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
 import Confetti from '../../../Confetti';
-import SpeakButton from '../../../SpeakButton';
-import { getUserWeaknessProfile } from '../../../../utils/profileHelper';
+import SpeakButton, { stopSpeaking } from '../../../SpeakButton';
+import { getAppUserId, getUserWeaknessProfile } from '../../../../utils/profileHelper';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../../../utils/reviewHelper';
+import SpeakingSceneBrief from '../../SpeakingSceneBrief';
+import {
+  getSpeakingScenes,
+  regenerateSpeakingScene,
+  recordSpeakingSceneUse,
+  resolveSpeakingSceneTask,
+  switchSpeakingScene,
+  type SpeakingScene,
+} from '../../../../services/speakingScenesAPI';
+import {
+  buildFallbackImpromptuScene,
+  buildImpromptuThemeContext,
+  canApplySpeechGeneration,
+  isFallbackImpromptuScene,
+  selectInitialImpromptuScene,
+} from './impromptuSpeechIntegration';
 
 const MAX_SECONDS = 1800; // 30分钟上限
 
@@ -46,7 +62,23 @@ export default function ImpromptuSpeechTab() {
     return plan?.impromptuSpeech?.topic || null;
   });
 
-  const effectiveTheme = rebalanceTopic || theme;
+  const [speakingScene, setSpeakingScene] = useState<SpeakingScene | null>(null);
+  const [isSceneChanging, setIsSceneChanging] = useState(false);
+  const [sceneChangeMode, setSceneChangeMode] = useState<'switch' | 'regenerate' | null>(null);
+  const [sceneChangeStatus, setSceneChangeStatus] = useState('');
+  const [sceneChangeError, setSceneChangeError] = useState('');
+  const sceneRequestAbortRef = useRef<AbortController | null>(null);
+  const sceneRequestLockRef = useRef(false);
+  const sceneGenerationRef = useRef(0);
+  const sceneCacheLoadKeyRef = useRef('');
+  const recordedSpeakingSceneIdsRef = useRef(new Set<string>());
+  const fallbackRegenerateKeyRef = useRef('');
+  const streamRef = useRef<MediaStream | null>(null);
+  const baseTheme = rebalanceTopic || theme;
+
+  const effectiveTheme = speakingScene?.sceneType === 'impromptu'
+    ? speakingScene.content.topic
+    : baseTheme;
 
   useEffect(() => {
     setUserProfile(getUserWeaknessProfile());
@@ -152,58 +184,183 @@ export default function ImpromptuSpeechTab() {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioPlaybackRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      recognitionRef.current?.stop();
-      if (audioUrl) URL.revokeObjectURL(audioUrl);
-    };
-  }, []);
-
-  // 当 theme 改变时，重置即兴演讲状态并停止任何正在进行的录音或播放
-  useEffect(() => {
-    // 1. 停止录音
+  const resetSpeechSession = useCallback(() => {
     manualStopRef.current = true;
-    recognitionRef.current?.stop();
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      try {
-        mediaRecorderRef.current.stop();
-      } catch (e) {
-        console.warn('停止 MediaRecorder 失败:', e);
+    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+    recognitionRef.current = null;
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onstop = null;
+      if (mediaRecorderRef.current.state !== 'inactive') {
+        try { mediaRecorderRef.current.stop(); } catch { /* already stopped */ }
       }
     }
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    mediaRecorderRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = null;
+    audioPlaybackRef.current?.pause();
+    audioPlaybackRef.current = null;
+    stopSpeaking();
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
+    audioChunksRef.current = [];
+    accumulatedTranscriptRef.current = '';
     setIsRecording(false);
     setIsEngineReady(false);
-
-    // 2. 停止回放与重置音频
-    if (audioPlaybackRef.current) {
-      try {
-        audioPlaybackRef.current.pause();
-      } catch (e) {
-        console.warn('暂停音频播放失败:', e);
-      }
-      audioPlaybackRef.current = null;
-    }
-    setIsPlaying(false);
-    setAudioUrl(null);
-    setAudioBlob(null);
-
-    // 3. 重置提示与评估状态
     setElapsed(0);
     setTranscript('');
-    accumulatedTranscriptRef.current = '';
-    setEvalResult(null);
-    setExemplarText('');
+    setAudioBlob(null);
+    setAudioUrl(null);
+    setIsPlaying(false);
     setPrompterResult(null);
     setShowPrompter(false);
     setIsLoadingPrompter(false);
+    setEvalResult(null);
+    setExemplarText('');
+    setActiveExemplarIdx(null);
     setEvaluatingStage('idle');
-  }, [effectiveTheme]);
+  }, []);
+
+  useEffect(() => () => {
+    sceneRequestAbortRef.current?.abort();
+    sceneGenerationRef.current += 1;
+    sceneRequestLockRef.current = false;
+    resetSpeechSession();
+  }, [resetSpeechSession]);
+
+  const activateImpromptuScene = useCallback((scene: SpeakingScene, token: number) => {
+    if (scene.sceneType !== 'impromptu' || token !== sceneGenerationRef.current) return false;
+    resetSpeechSession();
+    setSpeakingScene(scene);
+    const userId = getAppUserId();
+    if (!recordedSpeakingSceneIdsRef.current.has(scene.id)) {
+      recordedSpeakingSceneIdsRef.current.add(scene.id);
+      void recordSpeakingSceneUse(scene.id, userId).catch(() => {});
+    }
+    setSceneChangeError('');
+    setSceneChangeStatus(`已切换：${scene.content.topic}`);
+    return true;
+  }, [resetSpeechSession]);
+
+  useEffect(() => {
+    if (speakingScene && !isFallbackImpromptuScene(speakingScene)) return;
+    const fallback = buildFallbackImpromptuScene(getAppUserId(), baseTheme);
+    if (speakingScene?.id === fallback.id) return;
+    sceneGenerationRef.current += 1;
+    resetSpeechSession();
+    setSpeakingScene(fallback);
+    setSceneChangeStatus('');
+    setSceneChangeError('');
+  }, [baseTheme, resetSpeechSession, speakingScene]);
+
+  useEffect(() => {
+    const userId = getAppUserId();
+    const loadKey = `${userId}:${new Date().toISOString().slice(0, 10)}`;
+    if (sceneCacheLoadKeyRef.current === loadKey) return;
+    const token = ++sceneGenerationRef.current;
+    const controller = new AbortController();
+    sceneRequestAbortRef.current?.abort();
+    sceneRequestAbortRef.current = controller;
+    void getSpeakingScenes({ userId, sceneType: 'impromptu', signal: controller.signal })
+      .then(async (scenes) => {
+        const cached = selectInitialImpromptuScene(scenes);
+        if (cached) {
+          if (activateImpromptuScene(cached, token)) sceneCacheLoadKeyRef.current = loadKey;
+          return;
+        }
+        const fallback = buildFallbackImpromptuScene(userId, baseTheme);
+        if (token === sceneGenerationRef.current) setSpeakingScene(fallback);
+        if (fallbackRegenerateKeyRef.current === loadKey) return;
+        fallbackRegenerateKeyRef.current = loadKey;
+        const started = await regenerateSpeakingScene({ userId, sceneType: 'impromptu', currentSceneId: fallback.id, signal: controller.signal });
+        const generated = await resolveSpeakingSceneTask(started.taskId, userId, controller.signal);
+        activateImpromptuScene(generated, token);
+      })
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          // 无缓存时保留 rebalanceTopic/theme。
+        }
+      });
+    return () => {
+      controller.abort();
+      sceneGenerationRef.current += 1;
+      sceneRequestLockRef.current = false;
+      setIsSceneChanging(false);
+      setSceneChangeMode(null);
+      setSceneChangeStatus('');
+      setSceneChangeError('');
+    };
+  }, [activateImpromptuScene]);
+
+  const beginSceneRequest = useCallback((mode: 'switch' | 'regenerate') => {
+    if (sceneRequestLockRef.current) return null;
+    sceneRequestLockRef.current = true;
+    sceneRequestAbortRef.current?.abort();
+    const controller = new AbortController();
+    sceneRequestAbortRef.current = controller;
+    const token = ++sceneGenerationRef.current;
+    setIsSceneChanging(true);
+    setSceneChangeMode(mode);
+    setSceneChangeError('');
+    setSceneChangeStatus(mode === 'switch' ? '正在换题…' : '正在重新生成…');
+    return { controller, token };
+  }, []);
+
+  const handleSceneSwitch = useCallback(async () => {
+    const request = beginSceneRequest('switch');
+    if (!request) return;
+    const userId = getAppUserId();
+    try {
+      let nextScene: SpeakingScene | undefined;
+      const result = await switchSpeakingScene({
+        userId, sceneType: 'impromptu', currentSceneId: speakingScene?.id,
+        signal: request.controller.signal,
+        onEvent: (event) => { if (event.type === 'scene') nextScene = event.scene; },
+      });
+      if (result.type === 'scene') nextScene = result.scene;
+      if (result.type === 'task') nextScene = await resolveSpeakingSceneTask(result.taskId, userId, request.controller.signal);
+      if (result.type === 'error') throw new Error(result.error);
+      if (!nextScene) throw new Error('换题未返回完整场景');
+      activateImpromptuScene(nextScene, request.token);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError') && request.token === sceneGenerationRef.current) {
+        setSceneChangeError(error instanceof Error ? error.message : '换题失败');
+        setSceneChangeStatus('');
+      }
+    } finally {
+      sceneRequestLockRef.current = false;
+      if (request.token === sceneGenerationRef.current) {
+        setIsSceneChanging(false);
+        setSceneChangeMode(null);
+      }
+    }
+  }, [activateImpromptuScene, beginSceneRequest, speakingScene?.id]);
+
+  const handleSceneRegenerate = useCallback(async () => {
+    const request = beginSceneRequest('regenerate');
+    if (!request) return;
+    const userId = getAppUserId();
+    try {
+      const started = await regenerateSpeakingScene({ userId, sceneType: 'impromptu', currentSceneId: speakingScene?.id, signal: request.controller.signal });
+      const nextScene = await resolveSpeakingSceneTask(started.taskId, userId, request.controller.signal);
+      activateImpromptuScene(nextScene, request.token);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === 'AbortError') && request.token === sceneGenerationRef.current) {
+        setSceneChangeError(error instanceof Error ? error.message : '重新生成失败');
+        setSceneChangeStatus('');
+      }
+    } finally {
+      sceneRequestLockRef.current = false;
+      if (request.token === sceneGenerationRef.current) {
+        setIsSceneChanging(false);
+        setSceneChangeMode(null);
+      }
+    }
+  }, [activateImpromptuScene, beginSceneRequest, speakingScene?.id]);
 
   // 自动向下滚动锚定
   useEffect(() => {
@@ -218,21 +375,26 @@ export default function ImpromptuSpeechTab() {
       setShowPrompter(!showPrompter);
       return;
     }
+    const token = sceneGenerationRef.current;
+    const sceneId = speakingScene?.id || effectiveTheme;
     setIsLoadingPrompter(true);
     try {
       const { runSpeechPrompter } = await import('../../../../services/difyAPI');
       const userProfile = getUserWeaknessProfile();
-      const targetTheme = userProfile 
-        ? `${effectiveTheme} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)` 
-        : effectiveTheme;
+      const sceneContext = buildImpromptuThemeContext(speakingScene, effectiveTheme);
+      const targetTheme = userProfile
+        ? `${sceneContext} (针对弱点定向狙击: ${userProfile}，请设置相关表达阻碍以训练抗压应对)`
+        : sceneContext;
       const result = await runSpeechPrompter(targetTheme, '中等');
+      if (!canApplySpeechGeneration(token, sceneGenerationRef.current, sceneId, speakingScene?.id || effectiveTheme)) return;
       setPrompterResult(result);
       setShowPrompter(true);
     } catch (err: any) {
+      if (token !== sceneGenerationRef.current) return;
       console.error('演讲提示加载失败:', err);
       showNotice('oral', '演讲提示加载失败，请稍后重试', 'error');
     } finally {
-      setIsLoadingPrompter(false);
+      if (token === sceneGenerationRef.current) setIsLoadingPrompter(false);
     }
   };
 
@@ -240,6 +402,7 @@ export default function ImpromptuSpeechTab() {
     try {
       const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       mediaRecorderRef.current = mediaRecorder;
+      streamRef.current = stream;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (e) => {
@@ -252,12 +415,16 @@ export default function ImpromptuSpeechTab() {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         setAudioBlob(blob);
         const url = URL.createObjectURL(blob);
+        if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = url;
         setAudioUrl(url);
         stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorder.start();
     } catch (err: any) {
+      stream.getTracks().forEach(track => track.stop());
+      if (streamRef.current === stream) streamRef.current = null;
       console.warn('录音准备失败:', err);
       showNotice('oral', '录音准备失败，请刷新页面后重试', 'error');
     }
@@ -289,6 +456,8 @@ export default function ImpromptuSpeechTab() {
       audioPlaybackRef.current = null;
     }
     setIsPlaying(false);
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
     setAudioUrl(null);
     setAudioBlob(null);
   };
@@ -304,6 +473,7 @@ export default function ImpromptuSpeechTab() {
     if (!isContinue) {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        streamRef.current = stream;
       } catch (err: any) {
         console.warn('音频录制初始化失败:', err);
         const errName = err.name || '';
@@ -405,6 +575,8 @@ export default function ImpromptuSpeechTab() {
     }
 
     let finalTranscript = transcript;
+    const token = sceneGenerationRef.current;
+    const sceneId = speakingScene?.id || effectiveTheme;
     playScan();
 
     try {
@@ -417,6 +589,7 @@ export default function ImpromptuSpeechTab() {
           const whisperText = await transcribeAudioWithWhisper(audioBlob);
           if (whisperText) {
             finalTranscript = whisperText;
+            if (!canApplySpeechGeneration(token, sceneGenerationRef.current, sceneId, speakingScene?.id || effectiveTheme)) return;
             setTranscript(whisperText);
           }
         } catch (whisperErr: any) {
@@ -441,6 +614,7 @@ export default function ImpromptuSpeechTab() {
         enrichedThemeForEval = `${effectiveTheme} (针对画像短板进行挑战判定: ${profileStrForEval})`;
       }
       const res = await runImpromptuSpeechEvaluation(enrichedThemeForEval, durationStr, finalTranscript);
+      if (!canApplySpeechGeneration(token, sceneGenerationRef.current, sceneId, speakingScene?.id || effectiveTheme)) return;
 
       const score = Number(res.total_score || 0);
       setEvalResult({
@@ -456,6 +630,7 @@ export default function ImpromptuSpeechTab() {
       setEvaluatingStage('generating');
       try {
         const exemplar = await runSpeechExemplar(enrichedThemeForEval, finalTranscript);
+        if (!canApplySpeechGeneration(token, sceneGenerationRef.current, sceneId, speakingScene?.id || effectiveTheme)) return;
         setExemplarText(exemplar);
       } catch (exemplarErr: any) {
         console.error('生成演讲范文失败:', exemplarErr);
@@ -483,19 +658,14 @@ export default function ImpromptuSpeechTab() {
       console.error('评分失败:', err);
       showNotice('oral', '评分失败，请稍后重试', 'error');
     } finally {
-      setEvaluatingStage('idle');
+      if (token === sceneGenerationRef.current) setEvaluatingStage('idle');
     }
   };
 
   const handleReset = () => {
-    setElapsed(0);
-    setTranscript('');
-    accumulatedTranscriptRef.current = '';
-    setEvalResult(null);
-    setExemplarText('');
-    setIsEngineReady(false);
+    sceneGenerationRef.current += 1;
+    resetSpeechSession();
     manualStopRef.current = false;
-    resetAudio();
   };
 
   const handleCopyExemplar = async () => {
@@ -579,6 +749,18 @@ export default function ImpromptuSpeechTab() {
           </div>
           <Star className="w-5 h-5 text-amber-400 ml-auto" />
         </div>
+      )}
+
+      {speakingScene?.sceneType === 'impromptu' && (
+        <SpeakingSceneBrief
+          scene={speakingScene}
+          onSwitch={handleSceneSwitch}
+          onRegenerate={handleSceneRegenerate}
+          switching={isSceneChanging && sceneChangeMode === 'switch'}
+          regenerating={isSceneChanging && sceneChangeMode === 'regenerate'}
+          status={sceneChangeStatus}
+          error={sceneChangeError}
+        />
       )}
 
       {/* 录音主控区 */}

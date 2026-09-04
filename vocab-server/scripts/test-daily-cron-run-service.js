@@ -98,9 +98,9 @@ function testLongComboKeys() {
   const keys = svc.listLongArticleComboKeys();
   assert.strictEqual(keys.length, 64);
   assert.ok(keys.includes('meeting|B1|1'));
-  assert.strictEqual(svc.STANDARD_UNIT_TOTAL, 67);
+  assert.strictEqual(svc.STANDARD_UNIT_TOTAL, 68);
   assert.strictEqual(svc.LISTEN_ONLY_UNIT_TOTAL, 1);
-  console.log('OK long combo keys=64 unitTotal=67');
+  console.log('OK long combo keys=64 default compatibility unitTotal=68');
 }
 
 function testRerunLock() {

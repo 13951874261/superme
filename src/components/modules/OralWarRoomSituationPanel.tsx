@@ -25,7 +25,7 @@ export default function OralWarRoomSituationPanel({
   const [culturalCollapsed, setCulturalCollapsed] = useState(true);
 
   return (
-    <aside className={`flex flex-col gap-2 h-full overflow-y-auto ${isContextPanelOpen ? '2xl:col-span-3' : '2xl:col-span-3'}`}>
+    <aside className="flex h-full flex-col gap-2 overflow-y-auto xl:col-span-3">
           <div className="bg-[#202124] text-white rounded-[1.5rem] xl:rounded-[2rem] p-3 xl:p-4 shadow-lg relative overflow-hidden">
             <div className="absolute -right-10 -top-10 w-36 h-36 bg-[#FF5722]/15 rounded-full blur-3xl" />
             <div className="relative z-10">
@@ -93,7 +93,7 @@ export default function OralWarRoomSituationPanel({
             )}
           </div>
 
-          <div className="bg-white rounded-[1.5rem] xl:rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden flex-1 flex flex-col min-h-[200px]">
+          <div className="flex flex-col overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm">
             <button
               onClick={() => setStakeholdersCollapsed(!stakeholdersCollapsed)}
               className="w-full p-3 xl:p-4 flex items-center justify-between hover:bg-gray-50 transition-colors shrink-0"

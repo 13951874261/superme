@@ -211,3 +211,97 @@ GET  /api/user/profile/lzhmy → 200  {"success":true,"data":{"user_id":"lzhmy",
 2. 即兴演讲改为「先渲染、再按需请求 / 读日池」，禁止进页签自动 `oral/chat`。
 3. `cases/push` 纳入 cron，前端只查缓存。
 4. 「刷新词汇」改任务中心，停止页内 generating 轮询。
+
+---
+
+# 自由即兴口语对话验收报告
+
+- **执行日期**：2026-09-02
+- **环境**：`http://127.0.0.1:3002/`（Vite `127.0.0.1:3000` + 本地 Mock 反向代理）
+- **测试账号**：`e2e-free-oral`
+- **代码范围**：自由口语前端、Dify SSE 适配、SQLite 会话 API、现有字典收录复用
+- **截图**：
+  - `artifacts/free-oral-e2e/conversation-restored.png`
+  - `artifacts/free-oral-e2e/dify-expression-candidates.png`
+
+## 结论摘要
+
+| 项目 | 结果 |
+|---|---|
+| 顶级入口与模式隔离 | **通过**。`英语学习 → 口语练习 → 自由即兴对话`；角色练习保持挂载但隐藏、停用，切回后状态不丢失 |
+| `/focus` 指令 | **通过**。主题 UI、系统消息、会话 PATCH 均更新为 `sustainable urban development` |
+| Dify 连续对话 | **通过**。SSE JSON 信封未泄露；第二轮携带 `conversationId=mock-dify-conversation-1` |
+| Dify 表达提取 | **通过**。提取单词、短语、句型共 3 条 |
+| 字典收录复用 | **通过**。逐条调用 `/api/vocab/lookup` 与 `/api/vocab/add-enriched`，全场景区写入 `category=general` |
+| 历史恢复与切换 | **通过**。重新登录后恢复主题、两轮消息；新建空会话后可切回历史会话 |
+| 浏览器异常 | **通过**。稳定加载后的验收窗口内新增 `error/warn` 为 0 |
+| 自动化验证 | **通过**。模型 4/4；会话服务 4/4；API/前端/Dify Workflow 契约、语法、diff、构建均通过 |
+
+## 功能测试矩阵
+
+| 编号 | 菜单路径 / 页面 | 测试输入与操作 | 预期结果 | 实际结果 | 对应需求 |
+|---|---|---|---|---|---|
+| FO-01 | 英语学习 → 口语练习 → 自由即兴对话 | 点击入口 | 显示独立自由对话、历史栏、输入框；不触发角色开场 | **通过** | 独立板块、原功能隔离 |
+| FO-02 | 自由即兴对话 | `/focus sustainable urban development` | 聚焦状态、系统消息、后端持久化同步 | **通过**。PATCH 与系统消息 POST 均命中 | 指令控制 |
+| FO-03 | 自由即兴对话 | `Hello! What makes a city sustainable?`；随后 `How can public transport help?` | 流式输出友好正文；上下文连续 | **通过**。显示 `That is a strong point. Could you give a concrete example?`；第二轮携带 Dify conversation ID | Dify 流式对话、上下文连续 |
+| FO-04 | AI 回复 → 一键收入 | 打开候选；切换全场景区；收入生词本 | Dify 提取 3 条；复用字典补全与收录 | **通过**。`concrete`、`a strong point`、`Could you give a concrete example?` 均写入 | 一键收入、现有字典逻辑复用 |
+| FO-05 | 刷新登录 → 口语练习 → 自由即兴对话 | 重新输入账号登录；新建会话；切回历史会话 | 历史、主题、消息恢复；会话可切换 | **通过** | 会话持久化、新建、切换、刷新恢复 |
+| FO-06 | Node 自动测试 | CRUD、跨用户访问、重复消息 ID、4000/10000 字符边界、删除会话 | 数据过滤、幂等、长度限制、删除级联正确 | **通过**。4/4 | 会话安全、删除 |
+| FO-07 | 生产构建 | `npm run build` | 构建退出码 0 | **通过**。仅既有动态导入与大 chunk 警告 | 可交付性 |
+
+## Dify 平台优势落点
+
+1. **Chatflow 连续上下文**：前端只持久化并回传 Dify `conversation_id`，不在本地重复实现上下文编排。
+2. **结构化变量编排**：复用现有 Workflow 已声明的 `intent_judgement=daily`、`custom_background`、`scene_title`、`roles`、`role_switch_instruction`；本地 `focus_topic` 映射到 `custom_background`，不改线上输入契约。
+3. **Workflow 表达提取**：AI 回复复用现有 `/api/vocab/purify` Dify 流程，前端只负责候选确认。
+4. **流式体验**：复用现有口语 SSE 通道；兼容 `dialogue`、`answer`、`message`、Markdown JSON fence 与纯文本。
+5. **职责边界**：Dify 负责生成与提取；现有字典模块负责释义补齐、分类、生词本持久化。
+
+## 自动化命令与结果
+
+```text
+npx tsx --test src/components/modules/freeOral/freeOralModel.test.ts  → 4/4 pass
+node vocab-server/tests/freeOralSessions.test.js                     → 4/4 pass
+node vocab-server/tests/freeOralApiContract.test.js                  → pass
+node vocab-server/tests/freeOralFrontendContract.test.js             → pass
+node --check vocab-server/server.js                                  → pass
+node --check vocab-server/services/freeOralSessions.js               → pass
+git diff --check                                                     → pass（仅行尾转换警告）
+npm run build                                                        → pass
+```
+
+## 失败案例与风险
+
+- 本轮目标功能无失败用例。
+- 浏览器日志中的旧 `StayAnalysisPanel` 报错发生于 Mock 修复前；稳定加载后的验收窗口无新增错误。
+- 已核对 `yml/English_Oral_Sandbox (9).yml`：现有 `daily` 分支消费 `custom_background`；契约测试防止误传未声明变量。
+- `npm run lint` 仍有 3 个既有 TypeScript 错误：`DictionaryUtilityViews.tsx` 两处、`dailyPackAPI.ts` 一处；与本功能无关。
+- 大 chunk 与动态导入警告为既有构建债务，未在本次范围扩改。
+
+---
+
+## 真实 Dify 链路复验（2026-09-04）
+
+- **页面环境**：`http://localhost:3000/`，最新本地 Vite 前端通过代理连接生产后端 `https://app.liujingzhuwo.site/`
+- **Dify 环境**：生产独立应用 `English_Free_Oral_Conversation`
+- **测试账号**：`lzhumy`
+- **测试主题**：`sustainable travel`
+- **测试消息**：`I want to visit London sustainably. What should I prepare first?`
+
+| 编号 | 菜单路径 / 页面 | 测试输入与操作 | 预期结果 | 实际结果 | 对应需求 |
+|---|---|---|---|---|---|
+| FO-08 | 英语学习 → 口语练习 | 点击「自由即兴对话」 | 显示历史栏、主题状态和消息输入框 | **通过**。入口正常；此前缺失误判由旧 Vite 进程占用 `3000` 端口导致 | 自由口语入口 |
+| FO-09 | 自由即兴对话 | `/focus sustainable travel` | 更新标题、主题状态并持久化 | **通过**。显示「当前主题：sustainable travel」及更新成功状态 | `/focus` 指令 |
+| FO-10 | 自由即兴对话 | 发送 `I want to visit London sustainably. What should I prepare first?` | 真实 Dify 返回围绕主题的英文回复 | **通过**。返回伦敦可持续出行准备建议，非 Mock 数据 | 独立 Dify 主链路 |
+| FO-11 | 会话详情 API | 刷新后读取当前会话 | 标题、主题、消息及 Dify 会话 ID 恢复 | **通过**。`title=sustainable travel`、`focus=sustainable travel`、`messages=3`、`conversationId=true` | 消息落库、刷新恢复 |
+| FO-12 | 自动契约 | `node vocab-server/tests/freeOralFrontendContract.test.js` | 自由口语入口与前后端契约通过 | **通过** | 发布门禁 |
+
+### 复验结论
+
+真实 Dify 主链路通过：入口、主题更新、AI 回复、SQLite 落库、`conversationId` 持久化均符合预期。未发现需要新增代码的缺口。
+
+### 现存风险
+
+- 生产服务器 `150.158.34.217:443` 曾出现一次 `ETIMEDOUT`；重试后链路成功，判断为网络可用性波动，不是自由口语代码错误。
+- 生产前端静态资源尚未包含本地最新自由口语 UI；本轮通过最新本地前端连接生产后端完成验收。正式上线前仍需部署前端静态包并在生产域名复验。
+- 当前实现使用阻塞响应；30 秒超时与失败重发已覆盖。若真实响应长期接近超时，再评估 SSE，不在本轮提前扩展。

@@ -1,0 +1,252 @@
+app:
+  description: 根据服务端用户画像生成个性化多角色或即兴口语场景
+  icon: 🗣️
+  icon_background: '#E0F2FE'
+  icon_type: emoji
+  mode: workflow
+  name: Personalized_Speaking_Scene_Generator
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: llm-to-code
+      source: llm
+      sourceHandle: source
+      target: code
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: code-to-end
+      source: code
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 接收场景类型、数量、训练目标及服务端用户画像
+        selected: false
+        title: Start
+        type: start
+        variables:
+        - { label: scene_type, max_length: 32, required: true, type: text-input, variable: scene_type }
+        - { label: count, required: true, type: number, variable: count }
+        - { label: current_theme, max_length: 200, required: false, type: text-input, variable: current_theme }
+        - { label: cefr_level, max_length: 16, required: false, type: text-input, variable: cefr_level }
+        - { label: training_goal, max_length: 1000, required: false, type: paragraph, variable: training_goal }
+        - { label: recent_weaknesses, max_length: 4000, required: false, type: paragraph, variable: recent_weaknesses }
+        - { label: user_current_profile, max_length: 8000, required: false, type: paragraph, variable: user_current_profile }
+        - { label: history_exclude, max_length: 8000, required: false, type: paragraph, variable: history_exclude }
+      height: 300
+      id: start
+      position: { x: 80, y: 260 }
+      positionAbsolute: { x: 80, y: 260 }
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '112'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system-prompt
+          role: system
+          text: |
+            你是英语口语训练场景设计师。只能返回符合 JSON Schema 的 scenes 数组，不得输出解释。
+            scene_type=multi_role 时，每项严格包含 title,background,roles,conflict,objective,tasks,opening；roles 为 2..6 个仅含 name,identity,stance,roleType 的对象，roleType 只能是 ally、blocker、neutral，且至少一个角色必须为 blocker；用户角色可标为 ally。tasks 为 1..8 个字符串。
+            scene_type=impromptu 时，每项严格包含 topic,background,identity,audience,objective,conflict,structure,points,keywords,opening；structure 2..8 项，points 1..10 项，keywords 1..15 项。
+            所有文本必须非空；根据画像、目标和薄弱项个性化；避开 history_exclude；不得在输出中复述画像隐私。
+        - id: user-prompt
+          role: user
+          text: |
+            scene_type={{#start.scene_type#}}
+            count={{#start.count#}}
+            current_theme={{#start.current_theme#}}
+            cefr_level={{#start.cefr_level#}}
+            training_goal={{#start.training_goal#}}
+            recent_weaknesses={{#start.recent_weaknesses#}}
+            user_current_profile={{#start.user_current_profile#}}
+            history_exclude={{#start.history_exclude#}}
+        desc: 生成严格 JSON 文本，后续由 Code 节点校验
+        selected: false
+        structured_output_enabled: false
+        title: LLM结构化JSON
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 100
+      id: llm
+      position: { x: 390, y: 260 }
+      positionAbsolute: { x: 390, y: 260 }
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |
+          def main(llm_text, scene_type, count):
+              import json, re
+              raw = llm_text.strip()
+              if raw.startswith("```"):
+                  raw = re.sub(r"^```(?:json)?\s*|\s*```$", "", raw, flags=re.IGNORECASE)
+              parsed = json.loads(raw)
+              scenes = parsed if isinstance(parsed, list) else parsed.get("scenes") if isinstance(parsed, dict) else None
+              schemas = {
+                  "multi_role": ({"title", "background", "roles", "conflict", "objective", "tasks", "opening"}, {"tasks": (1, 8)}),
+                  "impromptu": ({"topic", "background", "identity", "audience", "objective", "conflict", "structure", "points", "keywords", "opening"}, {"structure": (2, 8), "points": (1, 10), "keywords": (1, 15)}),
+              }
+              limits = {"title": 120, "topic": 200, "opening": 1000}
+              html = re.compile(r"</?[A-Za-z][^>]*>")
+              control = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+              def text(value, field, limit=None):
+                  limit = limit or limits.get(field, 1000)
+                  if not isinstance(value, str) or not value.strip() or len(value) > limit:
+                      raise ValueError(field + " invalid text")
+                  if html.search(value) or control.search(value):
+                      raise ValueError(field + " unsafe text")
+              if scene_type not in schemas or not isinstance(count, int) or isinstance(count, bool) or count < 1 or count > 10:
+                  raise ValueError("invalid scene_type or count")
+              if not isinstance(scenes, list) or len(scenes) != count:
+                  raise ValueError("scene count mismatch")
+              if len(json.dumps(scenes, ensure_ascii=False).encode("utf-8")) > 65536:
+                  raise ValueError("scenes exceed 64KiB")
+              required, arrays = schemas[scene_type]
+              for scene in scenes:
+                  if not isinstance(scene, dict) or set(scene) != required:
+                      raise ValueError(scene_type + " fields mismatch")
+                  for field, value in scene.items():
+                      if field == "roles":
+                          if not isinstance(value, list) or not 2 <= len(value) <= 6:
+                              raise ValueError("roles invalid")
+                          for role in value:
+                              if not isinstance(role, dict) or set(role) != {"name", "identity", "stance", "roleType"}:
+                                  raise ValueError("role fields mismatch")
+                              text(role["name"], "roles.name", 100)
+                              text(role["identity"], "roles.identity", 300)
+                              text(role["stance"], "roles.stance", 300)
+                              if role["roleType"] not in ("ally", "blocker", "neutral"):
+                                  raise ValueError("roleType invalid")
+                          if not any(role["roleType"] == "blocker" for role in value):
+                              raise ValueError("blocker required")
+                      elif field in arrays:
+                          minimum, maximum = arrays[field]
+                          if not isinstance(value, list) or not minimum <= len(value) <= maximum:
+                              raise ValueError(field + " invalid array")
+                          for item in value:
+                              text(item, field, 300)
+                      else:
+                          text(value, field)
+              return {"result": json.dumps(scenes, ensure_ascii=False)}
+        code_language: python3
+        outputs:
+          result:
+            children: null
+            type: string
+        desc: 解析并严格校验两类场景 JSON
+        selected: false
+        title: Code/Output
+        type: code
+        variables:
+        - value_selector:
+          - llm
+          - text
+          value_type: string
+          variable: llm_text
+        - value_selector:
+          - start
+          - scene_type
+          value_type: string
+          variable: scene_type
+        - value_selector:
+          - start
+          - count
+          value_type: number
+          variable: count
+      height: 100
+      id: code
+      position: { x: 700, y: 260 }
+      positionAbsolute: { x: 700, y: 260 }
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - code
+          - result
+          value_type: string
+          variable: result
+        selected: false
+        title: Output
+        type: end
+      height: 90
+      id: end
+      position: { x: 1010, y: 260 }
+      positionAbsolute: { x: 1010, y: 260 }
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport: { x: 0, y: 0, zoom: 0.8 }
+  rag_pipeline_variables: []

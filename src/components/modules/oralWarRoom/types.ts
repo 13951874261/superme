@@ -1,4 +1,5 @@
 import type { ParsedAiResponse } from '../../../services/difyAPI';
+import type { SpeakingScene } from '../../../services/speakingScenesAPI';
 
 export interface SceneRole {
   name: string;
@@ -20,6 +21,33 @@ export interface SceneEntry {
   conflicts: string[];
   culturalContext: string;
   openingLine: string;
+  goal?: string;
+  mission?: string[];
+  source?: 'multi_role';
+}
+
+export function adaptMultiRoleScene(scene: SpeakingScene): SceneEntry {
+  if (scene.sceneType !== 'multi_role') throw new Error('仅支持 multi_role 场景');
+  const { content } = scene;
+  const roleEntry = (role: typeof content.roles[number]) => ({ name: role.name, label: role.identity, desc: role.stance });
+  return {
+    id: `speaking-scene-${scene.id}`,
+    title: content.title,
+    shortTitle: content.title.slice(0, 24),
+    tier: '定制',
+    level: 5,
+    desc: content.background,
+    roleList: ['我', ...content.roles.map((role) => `${role.name}（${role.identity}）`)].join(' + '),
+    allies: content.roles.filter((role) => role.roleType === 'ally').map(roleEntry),
+    blockers: content.roles.filter((role) => role.roleType === 'blocker').map(roleEntry),
+    neutrals: content.roles.filter((role) => role.roleType === 'neutral').map(roleEntry),
+    conflicts: [content.conflict],
+    culturalContext: content.background,
+    openingLine: content.opening,
+    goal: content.objective,
+    mission: content.tasks,
+    source: 'multi_role',
+  };
 }
 
 export interface MessageItem {

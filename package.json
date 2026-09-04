@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "verify:free-oral": "node --test vocab-server/tests/freeOralSessions.test.js vocab-server/tests/freeOralTurn.test.js vocab-server/tests/freeOralRateLimit.test.js vocab-server/tests/freeOralApiContract.test.js vocab-server/tests/freeOralFrontendContract.test.js && npm run lint && npm run build"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

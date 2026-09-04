@@ -1628,9 +1628,10 @@ async function runDailyListenCronJob(db, options = {}) {
             : null,
           resultSummary: userSummary,
         });
-        const unitTotal = summary.listenOnly
-          ? dailyCronRunService.LISTEN_ONLY_UNIT_TOTAL
-          : dailyCronRunService.STANDARD_UNIT_TOTAL;
+        const unitTotal = dailyCronRunService.getRunUnitTotal(
+          run,
+          summary.listenOnly ? dailyCronRunService.LISTEN_ONLY_UNIT_TOTAL : dailyCronRunService.STANDARD_UNIT_TOTAL,
+        );
         dailyCronRunService.refreshRunAggregation(db, run.id, { unitTotal });
       }
     } catch (err) {
@@ -1646,7 +1647,9 @@ async function runDailyListenCronJob(db, options = {}) {
           attempt: currentListenAttempt(db, dailyCronRunService, run.id),
           errorMessage: err.message || String(err),
         });
-        dailyCronRunService.refreshRunAggregation(db, run.id);
+        dailyCronRunService.refreshRunAggregation(db, run.id, {
+          unitTotal: dailyCronRunService.getRunUnitTotal(run),
+        });
       }
     }
   }

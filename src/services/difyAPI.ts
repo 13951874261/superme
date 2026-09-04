@@ -103,6 +103,8 @@ export interface OralChatContext {
   scene_type?: string;
   role_judgement?: string;
   intent_judgement?: string;
+  /** 独立自由口语 Chatflow 的主题输入 */
+  focus_topic?: string;
   /** 与 Dify start 节点 user_current_profile 对齐 */
   user_current_profile?: string;
   User_Current_Profile?: string;
@@ -1020,8 +1022,7 @@ export async function sendOralChatMessage(
 }
 
 /**
- * 多角色口语沙盘：实时流式对话（SSE 逐字打字机通道）
- * 首包 <= 1.5s，实时通知 onChunk，完成后返回最终完整数据
+ * 多角色口语沙盘及自由口语：实时流式对话（SSE 逐字打字机通道）
  */
 export async function sendOralChatMessageStream(
   query: string,
@@ -1029,31 +1030,40 @@ export async function sendOralChatMessageStream(
     conversationId?: string | null;
     userId?: string;
     oralContext?: OralChatContext;
+    appMode?: 'sandbox' | 'free-oral';
     onChunk?: (delta: string, accumulated: string) => void;
     onStatus?: (statusText: string) => void;
+    statusLabel?: string;
   } = {}
 ): Promise<{ answer?: string; message?: string; conversation_id?: string }> {
   const userId = options.userId ?? getAppUserId();
   const oralContext = options.oralContext;
+  const inputs = options.appMode === 'free-oral'
+    ? {
+        focus_topic: oralContext?.focus_topic || '',
+        user_current_profile: oralContext?.user_current_profile
+          || oralContext?.User_Current_Profile
+          || getUserWeaknessProfile()
+          || '',
+      }
+    : injectUserProfileAndTime({
+        user_weakness_profile: getUserWeaknessProfile() || '',
+        ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
+        ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
+        ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
+        ...(oralContext?.conflicts ? { conflicts: oralContext.conflicts } : {}),
+        ...(oralContext?.role_switch_instruction ? { role_switch_instruction: oralContext.role_switch_instruction } : {}),
+        ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
+        ...(oralContext?.role_judgement ? { role_judgement: oralContext.role_judgement } : {}),
+        ...(oralContext?.intent_judgement ? { intent_judgement: oralContext.intent_judgement } : {}),
+        ...(oralContext?.custom_background ? { custom_background: oralContext.custom_background } : {}),
+        ...(oralContext?.user_current_profile ? { user_current_profile: oralContext.user_current_profile } : {}),
+        ...(oralContext?.User_Current_Profile && !oralContext?.user_current_profile
+          ? { user_current_profile: oralContext.User_Current_Profile }
+          : {}),
+      });
 
-  const inputs = injectUserProfileAndTime({
-    user_weakness_profile: getUserWeaknessProfile() || '',
-    ...(oralContext?.scene_title ? { scene_title: oralContext.scene_title } : {}),
-    ...(oralContext?.roles ? { roles: oralContext.roles } : {}),
-    ...(oralContext?.cultural_context ? { cultural_context: oralContext.cultural_context } : {}),
-    ...(oralContext?.conflicts ? { conflicts: oralContext.conflicts } : {}),
-    ...(oralContext?.role_switch_instruction ? { role_switch_instruction: oralContext.role_switch_instruction } : {}),
-    ...(oralContext?.scene_level ? { scene_level: String(oralContext.scene_level) } : {}),
-    ...(oralContext?.role_judgement ? { role_judgement: oralContext.role_judgement } : {}),
-    ...(oralContext?.intent_judgement ? { intent_judgement: oralContext.intent_judgement } : {}),
-    ...(oralContext?.custom_background ? { custom_background: oralContext.custom_background } : {}),
-    ...(oralContext?.user_current_profile ? { user_current_profile: oralContext.user_current_profile } : {}),
-    ...(oralContext?.User_Current_Profile && !oralContext?.user_current_profile
-      ? { user_current_profile: oralContext.User_Current_Profile }
-      : {}),
-  });
-
-  options.onStatus?.('正在启动多角色练习推演…');
+  options.onStatus?.(options.statusLabel || '正在启动多角色练习推演…');
 
   const res = await fetch('/api/english/oral/chat', {
     method: 'POST',
@@ -1063,6 +1073,7 @@ export async function sendOralChatMessageStream(
       conversationId: options.conversationId ?? null,
       userId,
       inputs,
+      appMode: options.appMode || 'sandbox',
       stream: true,
     }),
   });
@@ -3279,4 +3290,3 @@ export async function runWeeklyChatEnhanced(
     profileFactors,
   };
 }
-

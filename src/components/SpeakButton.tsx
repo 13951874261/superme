@@ -212,6 +212,21 @@ async function playSentenceQueue(sentences: string[], rate: number, content: str
   }
 }
 
+export function stopSpeaking() {
+  if (activeQueue) {
+    activeQueue.isCancelled = true;
+    activeQueue = null;
+  }
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
+  }
+  if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  if (currentPlayingContent) dispatchTtsState(currentPlayingContent, 'stopped');
+  currentPlayingContent = null;
+}
+
 export async function speakEnglish(text: unknown, rate = 1.0, roleType?: 'ally' | 'blocker' | 'neutral' | 'ai') {
   const content = normalizeSpeakText(text);
   if (!content) return false;

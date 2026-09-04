@@ -1,5 +1,5 @@
-import React from 'react';
-import { Mic } from 'lucide-react';
+import React, { useState } from 'react';
+import { MessagesSquare, Mic, Users } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import ModuleWrapper from './ModuleWrapper';
 import Confetti from '../Confetti';
@@ -13,6 +13,8 @@ import OralWarRoomTacticalSop from './OralWarRoomTacticalSop';
 import { SCENE_DATABASE } from './oralWarRoom/scenes';
 import { getScenePartyCount } from './oralWarRoom/utils';
 import { useOralWarRoomSession } from './oralWarRoom/useOralWarRoomSession';
+import FreeOralConversation from './freeOral/FreeOralConversation';
+import SpeakingSceneBrief from './SpeakingSceneBrief';
 
 interface OralWarRoomProps {
   embedded?: boolean;
@@ -24,7 +26,7 @@ interface OralWarRoomProps {
   onNavigateWrite?: () => void;
 }
 
-export default function OralWarRoom(props: OralWarRoomProps) {
+function RolePractice(props: OralWarRoomProps) {
   const session = useOralWarRoomSession(props);
 
   const content = (
@@ -34,34 +36,44 @@ export default function OralWarRoom(props: OralWarRoomProps) {
 
       {!session.embedded && <OralWarRoomTacticalSop />}
 
-      {!session.embedded && (
-        <OralWarRoomSceneSelector
-          scenes={SCENE_DATABASE}
-          selectedSceneId={session.activeSceneId}
-          onSelect={session.handleSceneSelect}
-          activeTierFilter={session.activeTierFilter}
-          onTierFilterChange={session.setActiveTierFilter}
-          activeLevelFilter={session.activeLevelFilter}
-          onLevelFilterChange={session.setActiveLevelFilter}
-          activeRoleCountFilter={session.activeRoleCountFilter}
-          onRoleCountFilterChange={session.setActiveRoleCountFilter}
-          filteredScenes={session.filteredScenes}
-          sceneDifficultyStats={session.sceneDifficultyStats}
-          getPartyCount={getScenePartyCount}
-          sandboxMode={session.sandboxMode}
-          onSandboxModeChange={session.handleSandboxModeChange}
-          customBackground={session.customBackground}
-          onCustomBackgroundChange={session.setCustomBackground}
-          customBackgroundEnabled={session.customBackgroundEnabled}
-          onCustomBackgroundEnabledChange={session.setCustomBackgroundEnabled}
-        />
+      {session.speakingScene && (
+        <div className="mb-4">
+          <SpeakingSceneBrief
+            scene={session.speakingScene}
+            onSwitch={session.handleSpeakingSceneSwitch}
+            onRegenerate={session.handleSpeakingSceneRegenerate}
+            switching={session.isSceneChanging && session.sceneChangeStatus.includes('换题')}
+            regenerating={session.isSceneChanging && session.sceneChangeStatus.includes('重新生成')}
+            status={session.sceneChangeStatus}
+            error={session.sceneChangeError}
+          />
+        </div>
       )}
+
+      <OralWarRoomSceneSelector
+        scenes={SCENE_DATABASE}
+        selectedSceneId={session.activeSceneId}
+        onSelect={session.handleSceneSelect}
+        activeTierFilter={session.activeTierFilter}
+        onTierFilterChange={session.setActiveTierFilter}
+        activeLevelFilter={session.activeLevelFilter}
+        onLevelFilterChange={session.setActiveLevelFilter}
+        activeRoleCountFilter={session.activeRoleCountFilter}
+        onRoleCountFilterChange={session.setActiveRoleCountFilter}
+        filteredScenes={session.filteredScenes}
+        sceneDifficultyStats={session.sceneDifficultyStats}
+        getPartyCount={getScenePartyCount}
+        sandboxMode={session.sandboxMode}
+        onSandboxModeChange={session.handleSandboxModeChange}
+        customBackground={session.customBackground}
+        onCustomBackgroundChange={session.setCustomBackground}
+        customBackgroundEnabled={session.customBackgroundEnabled}
+        onCustomBackgroundEnabledChange={session.setCustomBackgroundEnabled}
+      />
 
       <div
         key={session.sceneTransitionKey}
-        className={`grid grid-cols-1 gap-4 xl:gap-6 h-auto animate-fade-in ${
-          session.isContextPanelOpen ? '2xl:grid-cols-12' : '2xl:grid-cols-12'
-        }`}
+        className="grid h-auto grid-cols-1 gap-3 animate-fade-in xl:grid-cols-12 xl:gap-4"
       >
         <OralWarRoomSituationPanel
           isContextPanelOpen={session.isContextPanelOpen}
@@ -131,7 +143,7 @@ export default function OralWarRoom(props: OralWarRoomProps) {
 
         <AnimatePresence>
           {session.isContextPanelOpen && (
-            <div className="2xl:col-span-3 min-h-[520px] 2xl:h-[min(860px,calc(100dvh-6rem))]">
+            <div className="min-h-[520px] xl:col-span-3 xl:h-[min(820px,calc(100dvh-7rem))]">
               <OralWarRoomContextPanel
                 scene={session.activeScene}
                 breakthroughRecords={session.breakthroughRecords}
@@ -185,13 +197,51 @@ export default function OralWarRoom(props: OralWarRoomProps) {
     </div>
   );
 
-  if (session.embedded) return content;
+  return content;
+}
 
+export default function OralWarRoom(props: OralWarRoomProps) {
+  const [practiceMode, setPracticeMode] = useState<'role' | 'free'>('role');
+  const tabs = (
+    <div className="mb-3 flex w-full rounded-2xl border border-gray-200 bg-gray-100 p-1" role="tablist" aria-label="口语练习模式">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={practiceMode === 'role'}
+        onClick={() => setPracticeMode('role')}
+        className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${practiceMode === 'role' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+      >
+        <Users className="h-4 w-4" />角色练习
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={practiceMode === 'free'}
+        onClick={() => setPracticeMode('free')}
+        className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black transition ${practiceMode === 'free' ? 'bg-white text-[var(--color-brand)] shadow-sm' : 'text-gray-500 hover:text-gray-800'}`}
+      >
+        <MessagesSquare className="h-4 w-4" />自由即兴对话
+      </button>
+    </div>
+  );
+  const content = (
+    <>
+      {tabs}
+      <div hidden={practiceMode !== 'role'} role="tabpanel" aria-label="角色练习">
+        <RolePractice {...props} embedded active={props.active !== false && practiceMode === 'role'} />
+      </div>
+      <div hidden={practiceMode !== 'free'} role="tabpanel" aria-label="自由即兴对话">
+        <FreeOralConversation userId={props.userId || 'default-user'} active={props.active !== false && practiceMode === 'free'} />
+      </div>
+    </>
+  );
+
+  if (props.embedded) return content;
   return (
     <ModuleWrapper
-      title="表达 ｜ 多角色口语练习室"
+      title="表达 ｜ 口语练习室"
       icon={<Mic className="w-8 h-8" strokeWidth={2.5} />}
-      description="左侧常驻显示局势、角色与冲突点；右侧进行多角色对抗对话，并自动标出对话中的逻辑漏洞。"
+      description="既可进入多角色场景训练，也可通过 Dify 连续上下文进行无预设主题的自由对话。"
     >
       {content}
     </ModuleWrapper>
