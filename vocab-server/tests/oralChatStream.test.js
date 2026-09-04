@@ -21,8 +21,9 @@ async function testOralChatStreamContract() {
   assert.ok(content.includes("res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');"), '必须配置 text/event-stream 响应头');
   assert.ok(content.includes("res.setHeader('X-Accel-Buffering', 'no');"), '必须设置 X-Accel-Buffering: no 禁止 Nginx 缓冲');
 
-  // 4. 验证业务语言日志
-  assert.ok(content.includes('[沙盘推演] 正在启动多角色谈判沙盘对话推演'), '必须包含业务化沙盘启动日志');
+  // 4. 验证业务语言日志（logLabel 同时覆盖沙盘推演与自由口语）
+  assert.ok(content.includes("const logLabel = isFreeOral ? '自由口语' : '沙盘推演';"), '必须按应用模式设置业务日志标签');
+  assert.ok(content.includes("console.log(`[${logLabel}] 正在启动 Dify 对话 (${isStream ? '实时流式通道' : '标准响应通道'})...`);"), '必须包含动态业务标签启动日志');
   assert.ok(content.includes('[沙盘推演] 收到首段推演思维与发言，正在持续流式呈现...'), '必须包含首段流式呈现业务日志');
   assert.ok(content.includes('[沙盘推演] 本轮多角色沙盘推演流式输出完成'), '必须包含推演完成业务日志');
 
