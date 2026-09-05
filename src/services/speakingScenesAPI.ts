@@ -42,9 +42,9 @@ export function validateSpeakingSceneTask(value: unknown): SpeakingSceneTask {
   if (value.type !== 'speaking_scene') throw new Error('任务 type 无效');
   if (typeof value.status !== 'string' || !TASK_STATUSES.has(value.status as SpeakingSceneTask['status'])) throw new Error('任务状态无效');
   if (value.progress !== undefined && (typeof value.progress !== 'number' || !Number.isFinite(value.progress))) throw new Error('任务 progress 无效');
-  if (value.error !== undefined && typeof value.error !== 'string') throw new Error('任务 error 无效');
+  if (value.error != null && typeof value.error !== 'string') throw new Error('任务 error 无效');
   let result: SpeakingSceneTask['result'];
-  if (value.result !== undefined) {
+  if (value.result != null) {
     if (!isRecord(value.result)) throw new Error('任务 result 无效');
     result = value.result.scene === undefined ? {} : { scene: validateSpeakingScene(value.result.scene) };
   }

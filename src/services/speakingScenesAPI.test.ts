@@ -133,6 +133,7 @@ test('fetch 注入：GET/regenerate/task/use URL、method、body、query、signa
 test('validateSpeakingSceneTask：完整校验任务及 result.scene', () => {
   const valid = { id: 'task-1', type: 'speaking_scene', status: 'completed', progress: 100, error: 'warning', result: { scene: multiRoleScene } };
   assert.equal(validateSpeakingSceneTask(valid).result?.scene?.id, 'scene-2');
+  assert.deepEqual(validateSpeakingSceneTask({ id: 'task-2', type: 'speaking_scene', status: 'running', progress: 10, error: null, result: null }), { id: 'task-2', type: 'speaking_scene', status: 'running', progress: 10 });
   for (const malformed of [
     { ...valid, id: '' },
     { ...valid, type: 'other' },
