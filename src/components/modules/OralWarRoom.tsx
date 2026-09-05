@@ -48,14 +48,24 @@ function RolePractice(props: OralWarRoomProps) {
             error={session.sceneChangeError}
           />
         </div>
-      ) : session.availableSpeakingScene ? (
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
-          <p className="text-sm font-bold text-slate-800">今日个性化场景：{session.availableSpeakingScene.content.title}</p>
-          <button type="button" onClick={session.handleActivateAvailableSpeakingScene} className="shrink-0 rounded-lg bg-[var(--color-brand)] px-3 py-2 text-xs font-bold text-white hover:bg-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
-            进入今日个性化场景
-          </button>
+      ) : (
+        <div className="mb-4 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-bold text-slate-800">
+              {session.availableSpeakingScene ? `今日个性化场景：${session.availableSpeakingScene.content.title}` : '今日个性化场景尚未生成'}
+            </p>
+            <button
+              type="button"
+              onClick={session.availableSpeakingScene ? session.handleActivateAvailableSpeakingScene : session.handleSpeakingSceneRegenerate}
+              disabled={session.isSceneChanging}
+              className="shrink-0 rounded-lg bg-[var(--color-brand)] px-3 py-2 text-xs font-bold text-white hover:bg-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {session.isSceneChanging ? '生成中…' : session.availableSpeakingScene ? '进入今日个性化场景' : '生成今日个性化场景'}
+            </button>
+          </div>
+          {session.sceneChangeError ? <p role="alert" className="mt-2 text-xs font-semibold text-red-700">{session.sceneChangeError}</p> : null}
         </div>
-      ) : null}
+      )}
 
       <OralWarRoomSceneSelector
         scenes={SCENE_DATABASE}

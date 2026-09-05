@@ -35,7 +35,10 @@ test('选择静态场景后保留明确的今日个性化场景入口', () => {
   assert.match(hook, /if \(mode === 'daily'\)[\s\S]*setSpeakingScene\(null\)/);
   assert.match(hook, /useEffect\(\(\) => \{[\s\S]*setAvailableSpeakingScene\(null\)[\s\S]*\}, \[userId\]\)/);
   assert.match(view, /进入今日个性化场景/);
+  assert.match(view, /生成今日个性化场景/);
   assert.match(view, /session\.availableSpeakingScene/);
+  assert.match(view, /session\.handleActivateAvailableSpeakingScene : session\.handleSpeakingSceneRegenerate/);
+  assert.match(view, /session\.sceneChangeError/);
   assert.match(view, /session\.handleActivateAvailableSpeakingScene/);
   assert.match(hook, /const handleSceneSelect[\s\S]*setSpeakingScene\(null\)/);
   assert.match(hook, /const handleSceneSelect[\s\S]*setDynamicRoleScene\(null\)/);
