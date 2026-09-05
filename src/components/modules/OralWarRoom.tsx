@@ -36,7 +36,7 @@ function RolePractice(props: OralWarRoomProps) {
 
       {!session.embedded && <OralWarRoomTacticalSop />}
 
-      {session.speakingScene && (
+      {session.speakingScene ? (
         <div className="mb-4">
           <SpeakingSceneBrief
             scene={session.speakingScene}
@@ -48,7 +48,14 @@ function RolePractice(props: OralWarRoomProps) {
             error={session.sceneChangeError}
           />
         </div>
-      )}
+      ) : session.availableSpeakingScene ? (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-orange-200 bg-orange-50 px-4 py-3">
+          <p className="text-sm font-bold text-slate-800">今日个性化场景：{session.availableSpeakingScene.content.title}</p>
+          <button type="button" onClick={session.handleActivateAvailableSpeakingScene} className="shrink-0 rounded-lg bg-[var(--color-brand)] px-3 py-2 text-xs font-bold text-white hover:bg-[var(--color-brand-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]">
+            进入今日个性化场景
+          </button>
+        </div>
+      ) : null}
 
       <OralWarRoomSceneSelector
         scenes={SCENE_DATABASE}

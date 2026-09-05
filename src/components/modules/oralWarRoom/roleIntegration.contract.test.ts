@@ -28,7 +28,15 @@ test('异步切换具备 abort、请求令牌、成功后原子 reset 契约', (
   assert.match(hook, /\}, \[active, userId\]\);/);
 });
 
-test('选择静态场景后清除旧个性化摘要，避免题卡与训练场景错位', () => {
+test('选择静态场景后保留明确的今日个性化场景入口', () => {
+  assert.match(hook, /const \[availableSpeakingScene, setAvailableSpeakingScene\]/);
+  assert.match(hook, /const cancelSceneRequest/);
+  assert.match(hook, /const handleActivateAvailableSpeakingScene[\s\S]*cancelSceneRequest\(\)/);
+  assert.match(hook, /if \(mode === 'daily'\)[\s\S]*setSpeakingScene\(null\)/);
+  assert.match(hook, /useEffect\(\(\) => \{[\s\S]*setAvailableSpeakingScene\(null\)[\s\S]*\}, \[userId\]\)/);
+  assert.match(view, /进入今日个性化场景/);
+  assert.match(view, /session\.availableSpeakingScene/);
+  assert.match(view, /session\.handleActivateAvailableSpeakingScene/);
   assert.match(hook, /const handleSceneSelect[\s\S]*setSpeakingScene\(null\)/);
   assert.match(hook, /const handleSceneSelect[\s\S]*setDynamicRoleScene\(null\)/);
 });
@@ -42,6 +50,6 @@ test('完整个性化场景每组件生命周期只记录一次使用', () => {
 
 test('SpeakingSceneBrief 只插入角色练习区域', () => {
   assert.match(view, /import SpeakingSceneBrief/);
-  assert.match(view, /session\.speakingScene &&[\s\S]*<SpeakingSceneBrief/);
+  assert.match(view, /session\.speakingScene \?[\s\S]*<SpeakingSceneBrief/);
   assert.doesNotMatch(view, /FreeOralConversation[^\n]*SpeakingSceneBrief/);
 });

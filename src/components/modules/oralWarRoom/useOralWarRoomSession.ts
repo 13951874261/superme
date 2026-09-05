@@ -107,6 +107,7 @@ export function useOralWarRoomSession({
   const sceneCacheLoadKeyRef = useRef('');
   const recordedSpeakingSceneIdsRef = useRef(new Set<string>());
   const [speakingScene, setSpeakingScene] = useState<SpeakingScene | null>(null);
+  const [availableSpeakingScene, setAvailableSpeakingScene] = useState<SpeakingScene | null>(null);
   const [dynamicRoleScene, setDynamicRoleScene] = useState<SceneEntry | null>(null);
   const [isSceneChanging, setIsSceneChanging] = useState(false);
   const [sceneChangeStatus, setSceneChangeStatus] = useState('');
@@ -427,6 +428,7 @@ export function useOralWarRoomSession({
     clearPendingText();
     setDynamicRoleScene(nextScene);
     setSpeakingScene(scene);
+    setAvailableSpeakingScene(scene);
     if (!recordedSpeakingSceneIdsRef.current.has(scene.id)) {
       recordedSpeakingSceneIdsRef.current.add(scene.id);
       void recordSpeakingSceneUse(scene.id, userId).catch(() => {});
@@ -439,6 +441,12 @@ export function useOralWarRoomSession({
   }, [clearPendingText, initiateSceneDialogue, resetBattleState, userId]);
   const activateSpeakingSceneRef = useRef(activateSpeakingScene);
   activateSpeakingSceneRef.current = activateSpeakingScene;
+
+  useEffect(() => {
+    setSpeakingScene(null);
+    setAvailableSpeakingScene(null);
+    setDynamicRoleScene(null);
+  }, [userId]);
 
   useEffect(() => {
     if (active === false) {
@@ -563,9 +571,24 @@ export function useOralWarRoomSession({
     }
   }, [sandboxMode, messages, userId, setIsInputLocked]);
 
+  const cancelSceneRequest = () => {
+    sceneRequestAbortRef.current?.abort();
+    openingAbortRef.current?.abort();
+    sceneRequestTokenRef.current += 1;
+    sceneRequestLockRef.current = false;
+    setIsSceneChanging(false);
+  };
+
+  const handleActivateAvailableSpeakingScene = () => {
+    if (!availableSpeakingScene) return;
+    cancelSceneRequest();
+    activateSpeakingScene(availableSpeakingScene, sceneRequestTokenRef.current);
+  };
+
   const handleSceneSelect = (sceneId: string) => {
     const scene = SCENE_DATABASE.find(s => s.id === sceneId);
     if (!scene) return;
+    cancelSceneRequest();
     if (sandboxMode === 'daily') setSandboxMode('negotiation');
     setSpeakingScene(null);
     setDynamicRoleScene(null);
@@ -578,9 +601,12 @@ export function useOralWarRoomSession({
 
   const handleSandboxModeChange = (mode: SandboxMode) => {
     if (mode === sandboxMode) return;
+    cancelSceneRequest();
     setSandboxMode(mode);
     if (mode === 'daily') setCustomBackgroundEnabled(true);
     if (mode === 'daily') {
+      setSpeakingScene(null);
+      setDynamicRoleScene(null);
       const scene = applyCustomBackground(buildDailyScene(customBackground), customBackground, 'daily');
       resetBattleState(DAILY_SCENE_ID);
       setLastNotice('已切换至日常演练。可填写自定义背景后继续对话。');
@@ -760,6 +786,8 @@ export function useOralWarRoomSession({
     activeScene,
     activeSceneId,
     speakingScene,
+    availableSpeakingScene,
+    handleActivateAvailableSpeakingScene,
     isSceneChanging,
     sceneChangeStatus,
     sceneChangeError,
