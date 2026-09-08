@@ -17,6 +17,10 @@ assert.doesNotMatch(fnBlock, /return ['"]lzhmy['"]/);
 assert.match(server, /function requireVocabUserId\(req, res\)/);
 assert.match(server, /status\(400\)\.json\(\{ error: ['"]userId required['"] \}\)/);
 assert.match(server, /\/api\/vocab\/stats[\s\S]{0,400}?requireVocabUserId/);
+assert.match(
+  server,
+  /\/api\/vocab\/stats[\s\S]{0,500}?parseVocabCategory\(req\.query\.category\)[\s\S]{0,500}?category = \?/,
+);
 assert.match(server, /\/api\/vocab\/list[\s\S]{0,400}?requireVocabUserId/);
 assert.match(server, /\/api\/vocab\/review[\s\S]{0,400}?requireVocabUserId/);
 assert.match(server, /\/api\/vocab\/item\/:id[\s\S]{0,400}?requireVocabUserId/);

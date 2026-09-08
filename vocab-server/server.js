@@ -3410,9 +3410,14 @@ app.get('/api/vocab/stats', (req, res) => {
   try {
     const userId = requireVocabUserId(req, res);
     if (!userId) return;
-    const total = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ?').get(userId)?.count || 0;
+    const category = parseVocabCategory(req.query.category);
+    const total = category
+      ? db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND category = ?').get(userId, category)?.count || 0
+      : db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ?').get(userId)?.count || 0;
     const now = Date.now();
-    const dueToday = db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND next_review_date <= ? AND repetitions < 999').get(userId, now)?.count || 0;
+    const dueToday = category
+      ? db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND category = ? AND next_review_date <= ? AND repetitions < 999').get(userId, category, now)?.count || 0
+      : db.prepare('SELECT COUNT(*) as count FROM vocabulary WHERE user_id = ? AND next_review_date <= ? AND repetitions < 999').get(userId, now)?.count || 0;
     res.json({ total, dueToday });
   } catch (error) {
     res.status(500).json({ error: 'Database error' });

@@ -183,13 +183,13 @@ function VocabularyBookComponent() {
 
   const loadStats = useCallback(async () => {
     try {
-      const s = await getStats();
+      const s = await getStats(vocabTab);
       setStats(s);
       setError(null);
     } catch {
       setError('连接失败，请稍后重试');
     }
-  }, []);
+  }, [vocabTab]);
 
   const loadWords = useCallback(async (page = 1, category = vocabTab) => {
     setIsLoading(true);

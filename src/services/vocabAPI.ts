@@ -489,11 +489,11 @@ export function clearReviewLightCache(category: VocabCategory): void {
   }
 }
 
-/** 获取统计：总词数 + 今日待复习数（按当前登录账号隔离） */
-export async function getStats(): Promise<VocabStats> {
+/** 获取统计：当前分区总词数 + 今日待复习数（按当前登录账号隔离） */
+export async function getStats(category: VocabCategory): Promise<VocabStats> {
   const uid = getAppUserId();
-  return vocabRequestDeduper.run(`stats:${uid}`, () =>
-    request<VocabStats>(`/stats?userId=${encodeURIComponent(uid)}`, { timeoutMs: 3000, silent: true })
+  return vocabRequestDeduper.run(`stats:${uid}:${category}`, () =>
+    request<VocabStats>(`/stats?category=${category}&userId=${encodeURIComponent(uid)}`, { timeoutMs: 3000, silent: true })
   );
 }
 

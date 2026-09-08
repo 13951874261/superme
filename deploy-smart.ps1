@@ -9,7 +9,7 @@ param(
     [switch]$Force,
     [switch]$FrontendOnly,
     [switch]$BackendOnly,
-    [string]$SSHPassword = '19890430@lmq'
+    [SecureString]$SSHPassword
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +18,8 @@ $ProjectRoot = 'D:\cursor\work\super-agent'
 $ServerHost = 'ubuntu@150.158.34.217'
 $RemoteWebRoot = '/var/www/super-agent'
 $RemoteApiRoot = '/var/www/super-agent/vocab-server'
+$RemoteReleaseBase = '/var/backups/super-agent/releases'
+$BookLightDeployScript = "$ProjectRoot\scripts\deploy-book-light.sh"
 $HostKey = 'ssh-ed25519 255 SHA256:bMGzO191QrmuP6o2MMi/UwtmJdzmqFpnAsVXFfoCNfE'
 $HostKeyOptions = if ($HostKey) { @("-hostkey", $HostKey) } else { @() }
 
@@ -31,6 +33,16 @@ $needBackendDeploy = $false
 $needNginxDeploy = $false
 $saveEnvHash = $null
 
+Write-Host "  -> Book MVP release gate" -ForegroundColor DarkCyan
+if ($env:BOOK_MVP_SKIP_HUMAN_GATE -eq 'true') {
+    if ([string]::IsNullOrWhiteSpace($env:BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT) -or [string]::IsNullOrWhiteSpace($env:BOOK_MVP_HUMAN_GATE_REASON)) {
+        throw 'Human gate skip requires BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT and BOOK_MVP_HUMAN_GATE_REASON'
+    }
+    Write-Warning "HUMAN REVIEW GATE SKIPPED; humanReviewSkipped=true; authorizedAt=$env:BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT; reason=$env:BOOK_MVP_HUMAN_GATE_REASON; reviewer=null"
+}
+npm run verify:book-mvp
+if ($LASTEXITCODE -ne 0) { throw 'Book MVP release gate failed' }
+
 # Always collect changed files so -BackendOnly / -Force still upload the right backend paths
 # (Previously -BackendOnly skipped this scan and defaulted to server.js only, missing e.g. services/webFetcher.js)
 $branchName = (git branch --show-current)
@@ -40,12 +52,13 @@ try {
     if ($upstreamExists) {
         $diffFiles = git diff --name-only "origin/$branchName...HEAD" 2>$null
     }
-} catch {}
+} catch { Write-Warning "Remote branch lookup failed: $($_.Exception.Message)" }
 
 $statusFiles = git status --porcelain | ForEach-Object {
     if ($_ -match '^(..)\s+(.*)$') { $matches[2] } else { $_ -replace '^...|\s+$', '' }
 }
-$changedFiles = @($diffFiles) + @($statusFiles) | Select-Object -Unique | Where-Object { $_ -ne '' }
+$untrackedFiles = @(git ls-files --others --exclude-standard)
+$changedFiles = @($diffFiles) + @($statusFiles) + $untrackedFiles | Select-Object -Unique | Where-Object { $_ -ne '' }
 
 if (@($changedFiles).Count -eq 0) {
     Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
@@ -125,31 +138,12 @@ if ($Force) {
         }
     }
 
-    $envFile = "$ProjectRoot\vocab-server\.env"
-    if (Test-Path $envFile -PathType Leaf) {
-        $envHashFile = "$ProjectRoot\.deploy_env_hash"
-        $currentHash = (Get-FileHash $envFile).Hash
-        $prevHash = ""
-        if (Test-Path $envHashFile -PathType Leaf) {
-            $prevHash = (Get-Content $envHashFile -Raw).Trim()
-        }
-        if ($currentHash -ne $prevHash) {
-            Write-Host "Detected changes in vocab-server/.env. Forcing backend deploy." -ForegroundColor Magenta
-            $needBackendDeploy = $true
-            $saveEnvHash = $currentHash
-        }
-    }
-
     if (-not $needFrontendDeploy -and -not $needBackendDeploy -and -not $needNginxDeploy) {
         Write-Host "No changes detected. Forcing full deployment!" -ForegroundColor Magenta
         $needFrontendDeploy = $true
         $needBackendDeploy = $true
         $needNginxDeploy = $true
     }
-}
-
-if ((Test-Path "$ProjectRoot\vocab-server\.env" -PathType Leaf) -and $needBackendDeploy) {
-    Write-Host "Local vocab-server/.env found; will sync to server during backend deploy." -ForegroundColor DarkGreen
 }
 
 Write-Host "[Analysis Results]" -ForegroundColor DarkCyan
@@ -167,76 +161,14 @@ if ($UsePuTTY) {
     Write-Host "PuTTY found. Enabling auto-password mode (leave empty if using SSH key/Pageant)." -ForegroundColor Green
     $PasswordPtr = [IntPtr]::Zero
     if ($SSHPassword) {
-        $PlainPassword = $SSHPassword
+        $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SSHPassword)
+        $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($PasswordPtr)
     } else {
-        $Password = Read-Host 'Enter SSH password' -AsSecureString
-        $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
-        $PlainPassword = [Runtime.InteropServices.Marshal]::PtrToStringAuto($PasswordPtr)
+        $PlainPassword = $null
+        Write-Host "No password supplied; using SSH key/Pageant." -ForegroundColor Green
     }
 } else {
     Write-Host "Using system ssh/scp. You may need to enter password or use local SSH keys." -ForegroundColor Yellow
-}
-
-function Merge-EnvPreserveYoutube {
-    param(
-        [string]$LocalEnvPath,
-        [string]$RemoteEnvPath
-    )
-    if (-not (Test-Path $LocalEnvPath -PathType Leaf)) { return $null }
-
-    $preserveKeys = @('YTDLP_PROXY', 'YTDLP_COOKIES_FILE')
-    $localLines = Get-Content $LocalEnvPath -ErrorAction SilentlyContinue
-    $localMap = @{}
-    foreach ($line in $localLines) {
-        if ($line -match '^\s*#' -or $line -notmatch '=') { continue }
-        $parts = $line -split '=', 2
-        if ($parts.Count -eq 2) { $localMap[$parts[0].Trim()] = $parts[1] }
-    }
-
-    $remoteText = ''
-    try {
-        $remoteText = Invoke-RemoteCommand "cat $RemoteEnvPath 2>/dev/null || true"
-    } catch {
-        Write-Host "  -> Could not read remote .env; uploading local as-is." -ForegroundColor Yellow
-        return $LocalEnvPath
-    }
-
-    $remoteMap = @{}
-    foreach ($line in ($remoteText -split "`n")) {
-        $trimmed = $line.Trim()
-        if ($trimmed -match '^\s*#' -or $trimmed -notmatch '=') { continue }
-        $parts = $trimmed -split '=', 2
-        if ($parts.Count -eq 2) { $remoteMap[$parts[0].Trim()] = $parts[1] }
-    }
-
-    $merged = @()
-    $seen = @{}
-    foreach ($line in $localLines) {
-        if ($line -match '^\s*#' -or $line -notmatch '=') {
-            $merged += $line
-            continue
-        }
-        $key = ($line -split '=', 2)[0].Trim()
-        $seen[$key] = $true
-        $val = $localMap[$key]
-        if ($preserveKeys -contains $key -and [string]::IsNullOrWhiteSpace($val) -and $remoteMap.ContainsKey($key)) {
-            $merged += "$key=$($remoteMap[$key])"
-            Write-Host "  -> Preserved remote $key from server .env" -ForegroundColor DarkYellow
-        } else {
-            $merged += $line
-        }
-    }
-    foreach ($key in $preserveKeys) {
-        if ($seen.ContainsKey($key)) { continue }
-        if ($remoteMap.ContainsKey($key) -and -not [string]::IsNullOrWhiteSpace($remoteMap[$key])) {
-            $merged += "$key=$($remoteMap[$key])"
-            Write-Host "  -> Appended remote $key from server .env" -ForegroundColor DarkYellow
-        }
-    }
-
-    $tmp = [System.IO.Path]::GetTempFileName()
-    $merged | Set-Content -Path $tmp -Encoding UTF8
-    return $tmp
 }
 
 function Invoke-RemoteCommand {
@@ -248,7 +180,8 @@ function Invoke-RemoteCommand {
             & $Plink @HostKeyOptions -batch $ServerHost $Command
         }
     } else {
-        ssh $ServerHost $Command
+        $EncodedCommand = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Command))
+        ssh $ServerHost "echo $EncodedCommand | base64 -d | bash"
     }
     if ($LASTEXITCODE -ne 0) { throw "Command execution failed: $Command" }
 }
@@ -267,7 +200,21 @@ function Send-File {
     if ($LASTEXITCODE -ne 0) { throw "File upload failed: $Source -> $Destination" }
 }
 
+$timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+$remoteReleaseRoot = "$RemoteReleaseBase/release-$timestamp"
+$frontendSwapped = $false
+$backendTouched = $false
+$serviceConfigTouched = $false
+$nginxConfigTouched = $false
+
 try {
+    Invoke-RemoteCommand "sudo mkdir -p $remoteReleaseRoot && sudo chown ubuntu:ubuntu $remoteReleaseRoot && test -d $remoteReleaseRoot && test -w $remoteReleaseRoot"
+    if ($env:BOOK_MVP_PROFILE -eq 'light') {
+        if (-not (Test-Path $BookLightDeployScript -PathType Leaf)) { throw 'Light deployment script missing' }
+        Write-Host "  -> Safe light profile deployment" -ForegroundColor DarkCyan
+        Send-File $BookLightDeployScript '/tmp/deploy-book-light.sh'
+        Invoke-RemoteCommand "sed -i 's/\r$//' /tmp/deploy-book-light.sh && chmod 0700 /tmp/deploy-book-light.sh && bash -n /tmp/deploy-book-light.sh && bash /tmp/deploy-book-light.sh --self-check && test -d $remoteReleaseRoot && test -w $remoteReleaseRoot"
+    }
     # 3. Frontend Deployment
     if ($needFrontendDeploy) {
         Write-Host "========== Step 2: Frontend Build and Sync ==========" -ForegroundColor Cyan
@@ -279,22 +226,12 @@ try {
         pnpm build
         if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
 
-        Write-Host "  -> Uploading frontend artifacts" -ForegroundColor DarkCyan
-        Invoke-RemoteCommand "mkdir -p $RemoteWebRoot/dist/images/backgrounds $RemoteWebRoot/dist/assets"
-        Send-File "$ProjectRoot\dist\index.html" "$RemoteWebRoot/dist/"
-        if (Test-Path "$ProjectRoot\dist\assets") {
-            Send-File "$ProjectRoot\dist\assets" "$RemoteWebRoot/dist/"
-        }
-        if (Test-Path "$ProjectRoot\dist\images") {
-            Send-File "$ProjectRoot\dist\images" "$RemoteWebRoot/dist/"
-        }
-        Get-ChildItem "$ProjectRoot\dist" -File | ForEach-Object {
-            if ($_.Name -ne 'index.html') {
-                Write-Host "  -> Uploading dist/$($_.Name)" -ForegroundColor DarkCyan
-                Send-File $_.FullName "$RemoteWebRoot/dist/$($_.Name)"
-            }
-        }
-        
+        Write-Host "  -> Uploading frontend release" -ForegroundColor DarkCyan
+        Invoke-RemoteCommand "mkdir -p $remoteReleaseRoot/dist"
+        Send-File "$ProjectRoot\dist" "$remoteReleaseRoot/"
+        Invoke-RemoteCommand "if [ -d $RemoteWebRoot/dist ]; then mv $RemoteWebRoot/dist $remoteReleaseRoot/dist.previous; fi; mv $remoteReleaseRoot/dist $RemoteWebRoot/dist"
+        $frontendSwapped = $true
+
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo nginx -t && sudo systemctl reload nginx"
     } else {
@@ -354,50 +291,36 @@ try {
             Write-Host "  -> No changed-file list; defaulting to full core backend & script set" -ForegroundColor Yellow
         }
 
-        Write-Host "  -> Backup server.js on remote" -ForegroundColor DarkCyan
-        $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-        Invoke-RemoteCommand "cp $RemoteApiRoot/server.js $RemoteApiRoot/server.js.bak-$timestamp"
+        Write-Host "  -> Backing up database and service config" -ForegroundColor DarkCyan
+        Invoke-RemoteCommand "mkdir -p $RemoteApiRoot/private/books $remoteReleaseRoot/backend && chmod 700 $RemoteApiRoot/private $RemoteApiRoot/private/books && sudo mkdir -p /var/lib/super-agent && sudo chown ubuntu:ubuntu /var/lib/super-agent && if [ ! -f /var/lib/super-agent/vocab.db ] && [ -f $RemoteWebRoot/vocab.db ]; then cp $RemoteWebRoot/vocab.db /var/lib/super-agent/vocab.db; fi && sudo systemctl stop super-agent-vocab.service && trap 'sudo systemctl start super-agent-vocab.service' EXIT && cp /var/lib/super-agent/vocab.db $remoteReleaseRoot/vocab.db && cp -a $RemoteApiRoot/. $remoteReleaseRoot/backend/ && { sudo cp /etc/systemd/system/super-agent-vocab.service $remoteReleaseRoot/super-agent-vocab.service 2>/dev/null || true; } && sudo systemctl start super-agent-vocab.service && trap - EXIT"
+        $backendTouched = $true
+        Invoke-RemoteCommand "sudo test -r /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_FRAMEWORK_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_FRAMEWORK_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_LISTEN_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_LISTEN_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_EXERCISE_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_EXERCISE_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_ALLOWED_HOSTS=.' /etc/super-agent/vocab.env && command -v ebook-convert >/dev/null && ebook-convert --version && test `$(df --output=avail -B1 /var/lib/super-agent | tail -1) -ge 12884901888 && { if sudo grep -q '^BOOK_OCR_ENABLED=true$' /etc/super-agent/vocab.env; then sudo grep -q '^UMI_OCR_URL=.' /etc/super-agent/vocab.env && curl -fsS http://127.0.0.1:1224/ >/dev/null; else echo 'OCR capability disabled'; fi; }"
         
-        Write-Host "  -> Uploading changed backend files" -ForegroundColor DarkCyan
+        Write-Host "  -> Packing changed backend files" -ForegroundColor DarkCyan
+        $backendStage = Join-Path $env:TEMP "super-agent-backend-stage-$timestamp"
+        $backendArchive = Join-Path $env:TEMP "backend-changes.tar.gz"
+        Remove-Item $backendStage, $backendArchive -Recurse -Force -ErrorAction SilentlyContinue
+        New-Item -ItemType Directory -Path $backendStage | Out-Null
         foreach ($file in $changedFiles) {
             if ($file -match "^vocab-server/") {
                 $relativePath = $file -replace '^vocab-server/', ''
                 $localFile = "$ProjectRoot\vocab-server\$relativePath".Replace('/', '\')
-                if (Test-Path $localFile -PathType Container) {
-                    Get-ChildItem $localFile -Recurse -File | ForEach-Object {
-                        $subRelative = $_.FullName.Substring("$ProjectRoot\vocab-server\".Length).Replace('\', '/')
-                        $parentDir = Split-Path $subRelative -Parent
-                        if ($parentDir) {
-                            Invoke-RemoteCommand "mkdir -p $RemoteApiRoot/$($parentDir.Replace('\','/'))"
-                        }
-                        Write-Host "     Uploading: $subRelative"
-                        Send-File $_.FullName "$RemoteApiRoot/$subRelative"
-                    }
-                } elseif (Test-Path $localFile -PathType Leaf) {
-                    if ($relativePath.Contains('/')) {
-                        $parts = $relativePath.Split('/')
-                        $dirParts = $parts[0..($parts.Length - 2)]
-                        $parentDir = [string]::Join('/', $dirParts)
-                        Invoke-RemoteCommand "mkdir -p $RemoteApiRoot/$parentDir"
-                    }
-                    Write-Host "     Uploading: $relativePath"
-                    Send-File $localFile "$RemoteApiRoot/$relativePath"
+                if (Test-Path $localFile) {
+                    $stagePath = Join-Path $backendStage $relativePath
+                    $stageParent = Split-Path $stagePath -Parent
+                    New-Item -ItemType Directory -Path $stageParent -Force | Out-Null
+                    Copy-Item $localFile $stagePath -Recurse -Force
                 }
             }
         }
+        tar -czf $backendArchive -C $backendStage .
+        if ($LASTEXITCODE -ne 0) { throw 'Backend archive creation failed' }
+        Write-Host "  -> Uploading backend archive" -ForegroundColor DarkCyan
+        Send-File $backendArchive "$remoteReleaseRoot/backend-changes.tar.gz"
+        Invoke-RemoteCommand "rm -rf $remoteReleaseRoot/backend-stage && mkdir -p $remoteReleaseRoot/backend-stage && tar -xzf $remoteReleaseRoot/backend-changes.tar.gz -C $remoteReleaseRoot/backend-stage && cp -a $remoteReleaseRoot/backend-stage/. $RemoteApiRoot/"
+        Remove-Item $backendStage, $backendArchive -Recurse -Force -ErrorAction SilentlyContinue
 
-        $envFile = "$ProjectRoot\vocab-server\.env"
-        if (Test-Path $envFile -PathType Leaf) {
-            Write-Host "  -> Uploading vocab-server/.env -> $RemoteApiRoot/.env" -ForegroundColor DarkCyan
-            $envToUpload = Merge-EnvPreserveYoutube -LocalEnvPath $envFile -RemoteEnvPath "$RemoteApiRoot/.env"
-            if (-not $envToUpload) { $envToUpload = $envFile }
-            Send-File $envToUpload "$RemoteApiRoot/.env"
-            if ($envToUpload -ne $envFile -and (Test-Path $envToUpload)) {
-                Remove-Item $envToUpload -Force -ErrorAction SilentlyContinue
-            }
-        } else {
-            Write-Host "  -> Skip .env (local vocab-server/.env not found)" -ForegroundColor Yellow
-        }
+        Write-Host "  -> Preserving server-managed /etc/super-agent/vocab.env" -ForegroundColor DarkGreen
 
         $runFixOldVocab = $false
         $runBackfillLevel = $false
@@ -416,11 +339,11 @@ try {
         }
         if ($runBackfillLevel) {
             Write-Host "  -> Running database level backfill: backfill-dict-level.js" -ForegroundColor DarkCyan
-            Invoke-RemoteCommand "node $RemoteApiRoot/scripts/backfill-dict-level.js /var/www/super-agent/vocab.db"
+            Invoke-RemoteCommand "node $RemoteApiRoot/scripts/backfill-dict-level.js /var/lib/super-agent/vocab.db"
         }
-        if ($changedFiles -match "vocab-server/package.json") {
-            Write-Host "  -> Installing backend dependencies" -ForegroundColor DarkCyan
-            Invoke-RemoteCommand "cd $RemoteApiRoot && npm install"
+        if ($changedFiles -match "vocab-server/(package.json|package-lock.json)") {
+            Write-Host "  -> Installing locked backend dependencies" -ForegroundColor DarkCyan
+            Invoke-RemoteCommand "cd $RemoteApiRoot && npm ci"
         }
 
         $edgeTtsInstall = "$ProjectRoot\scripts\install-edge-tts-server.sh"
@@ -431,8 +354,9 @@ try {
         }
         
         if ($changedFiles -match "super-agent-vocab.service") {
-            Send-File "$ProjectRoot\scratch\super-agent-vocab.service" "/tmp/super-agent-vocab.service"
-            Invoke-RemoteCommand "sudo cp /tmp/super-agent-vocab.service /etc/systemd/system/ && sudo systemctl daemon-reload"
+            Send-File "$ProjectRoot\super-agent-vocab.service" "/tmp/super-agent-vocab.service"
+            Invoke-RemoteCommand "sudo install -m 0644 /tmp/super-agent-vocab.service /etc/systemd/system/super-agent-vocab.service && sudo systemctl daemon-reload"
+            $serviceConfigTouched = $true
         }
  
         Write-Host "  -> Restarting vocab service" -ForegroundColor DarkCyan
@@ -440,7 +364,7 @@ try {
 
         Write-Host "  -> Waiting for service initialization & verifying health on remote" -ForegroundColor DarkCyan
         Start-Sleep -Seconds 2
-        Invoke-RemoteCommand "for i in 1 2 3 4 5; do if curl -fsS http://127.0.0.1:3001/api/vocab/health >/dev/null 2>&1; then curl -sS http://127.0.0.1:3001/api/vocab/health; break; fi; sleep 1; done"
+        Invoke-RemoteCommand "healthy=0; for i in 1 2 3 4 5; do if curl -fsS http://127.0.0.1:3001/api/vocab/health >/dev/null 2>&1; then curl -sS http://127.0.0.1:3001/api/vocab/health; healthy=1; break; fi; sleep 1; done; [ `"`$healthy`" = 1 ] || exit 1"
         Invoke-RemoteCommand "node /var/www/super-agent/vocab-server/tests/oralChatStream.test.js && node /var/www/super-agent/vocab-server/tests/audioTranscriptionConcurrency.test.js && node /var/www/super-agent/vocab-server/tests/listenBackfillSla.test.js && node /var/www/super-agent/vocab-server/tests/dailyPackTodaySla.test.js && node /var/www/super-agent/vocab-server/tests/writeGovernanceStreamNoFallback.test.js && node /var/www/super-agent/vocab-server/tests/gameTheoryRoundStream.test.js"
         Write-Host "  -> Remote SLA Contract Tests 100% Passed!" -ForegroundColor Green
 
@@ -457,8 +381,10 @@ try {
     if ($needNginxDeploy) {
         Write-Host ""
         Write-Host "========== Step 4: Nginx Sync and Reload ==========" -ForegroundColor Cyan
-        Send-File "$ProjectRoot\app.liujingzhuwo.site" "/tmp/app.liujingzhuwo.site"
-        Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-available/app.liujingzhuwo.site && sudo cp /tmp/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site && sudo nginx -t && sudo systemctl reload nginx"
+        Send-File "$ProjectRoot\app.liujingzhuwo.site" "/tmp/app.liujingzhuwo.site.candidate"
+        Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo cp /etc/nginx/sites-available/app.liujingzhuwo.site $remoteReleaseRoot/nginx.previous"
+        $nginxConfigTouched = $true
+        Invoke-RemoteCommand "sudo cp /tmp/app.liujingzhuwo.site.candidate /etc/nginx/sites-available/app.liujingzhuwo.site.candidate; sudo ln -sfn /etc/nginx/sites-available/app.liujingzhuwo.site.candidate /etc/nginx/sites-enabled/app.liujingzhuwo.site.candidate; sudo nginx -t; sudo mv /etc/nginx/sites-available/app.liujingzhuwo.site.candidate /etc/nginx/sites-available/app.liujingzhuwo.site; sudo ln -sfn /etc/nginx/sites-available/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site; sudo rm -f /etc/nginx/sites-enabled/app.liujingzhuwo.site.candidate; sudo systemctl reload nginx"
         Write-Host "  -> Nginx config synced and reloaded successfully!" -ForegroundColor Green
     } else {
         Write-Host ""
@@ -473,39 +399,8 @@ try {
     Write-Host "--- Nginx Error Logs (Last 20 lines) ---" -ForegroundColor DarkCyan
     Invoke-RemoteCommand "sudo mkdir -p /var/log/nginx && sudo touch /var/log/nginx/error.log && sudo tail -n 20 /var/log/nginx/error.log"
 
-    # 6. Git Commit & Push to GitHub
     Write-Host ""
-    Write-Host "========== Step 6: Git Push to GitHub ==========" -ForegroundColor Cyan
-    $branchName = (git branch --show-current)
-    Write-Host "Current branch: $branchName"
-
-    # Prefer 10808, then 7897; if neither is up, push direct (avoid stale proxy in .git/config)
-    $proxyHelper = Join-Path $ProjectRoot 'scripts\resolve-git-proxy.ps1'
-    if (Test-Path $proxyHelper -PathType Leaf) {
-        . $proxyHelper
-        Set-LocalGitProxy | Out-Null
-    }
-    
-    $gitDiffStatus = git status --porcelain
-    if ($gitDiffStatus) {
-        Write-Host "Staging and committing files..." -ForegroundColor DarkCyan
-        git add -A
-        if ([string]::IsNullOrWhiteSpace($CommitMessage)) {
-            $CommitMessage = "chore: auto deploy update"
-        }
-        $finalCommitMsg = "$CommitMessage $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')"
-        git commit -m $finalCommitMsg
-    } else {
-        Write-Host "No local changes to commit." -ForegroundColor Yellow
-    }
-
-    Write-Host "Pushing to GitHub..." -ForegroundColor DarkCyan
-    git push origin $branchName
-    if ($LASTEXITCODE -eq 0) {
-        Write-Host "Git push succeeded!" -ForegroundColor Green
-    } else {
-        Write-Host "Warning: Git push failed!" -ForegroundColor Red
-    }
+    Write-Host "Source control unchanged; commit and push remain manual." -ForegroundColor DarkGreen
 
     Write-Host ""
     Write-Host "=====================================================" -ForegroundColor Green
@@ -513,6 +408,16 @@ try {
     Write-Host " 🌐 URL: https://app.liujingzhuwo.site/" -ForegroundColor Green
     Write-Host " 💡 Please press Ctrl+Shift+R to force refresh." -ForegroundColor Green
     Write-Host "=====================================================" -ForegroundColor Green
+}
+catch {
+    Write-Host "Deployment failed; starting rollback." -ForegroundColor Red
+    $rollbackErrors = @()
+    if ($nginxConfigTouched) { try { Invoke-RemoteCommand "if [ -f $remoteReleaseRoot/nginx.previous ]; then sudo cp $remoteReleaseRoot/nginx.previous /etc/nginx/sites-available/app.liujingzhuwo.site && sudo ln -sfn /etc/nginx/sites-available/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site && sudo nginx -t && sudo systemctl reload nginx; fi" } catch { $rollbackErrors += $_.Exception.Message } }
+    if ($frontendSwapped) { try { Invoke-RemoteCommand "if [ -d $remoteReleaseRoot/dist.previous ]; then rm -rf $RemoteWebRoot/dist && mv $remoteReleaseRoot/dist.previous $RemoteWebRoot/dist; fi" } catch { $rollbackErrors += $_.Exception.Message } }
+    if ($serviceConfigTouched) { try { Invoke-RemoteCommand "if [ -f $remoteReleaseRoot/super-agent-vocab.service ]; then sudo cp $remoteReleaseRoot/super-agent-vocab.service /etc/systemd/system/super-agent-vocab.service && sudo systemctl daemon-reload; fi" } catch { $rollbackErrors += $_.Exception.Message } }
+    if ($backendTouched) { try { Invoke-RemoteCommand "sudo systemctl stop super-agent-vocab.service; rm -rf $RemoteApiRoot.failed; mv $RemoteApiRoot $RemoteApiRoot.failed; cp -a $remoteReleaseRoot/backend $RemoteApiRoot; cp $remoteReleaseRoot/vocab.db /var/lib/super-agent/vocab.db; sudo systemctl restart super-agent-vocab.service" } catch { $rollbackErrors += $_.Exception.Message } }
+    if ($rollbackErrors.Count) { throw "Deployment and rollback failed: $($rollbackErrors -join '; ')" }
+    throw
 }
 finally {
     if ($UsePuTTY -and $PasswordPtr -ne [IntPtr]::Zero) {
