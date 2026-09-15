@@ -174,6 +174,64 @@ test('needsReviewPayloadHydrate：light 或空 payload 需补全；已有完整 
   );
 });
 
+test('词典词条匹配兼容英美拼写，但拒绝无关词条', async () => {
+  const { dictionaryHeadwordMatchesQuery } = await import('./vocabAPI');
+  assert.equal(dictionaryHeadwordMatchesQuery({ headword: 'operationalisation' }, 'operationalization'), true);
+  assert.equal(dictionaryHeadwordMatchesQuery({ headword: 'Operationalization' }, 'operationalization'), true);
+  assert.equal(dictionaryHeadwordMatchesQuery({ headword: 'operation' }, 'operationalization'), false);
+});
+
+test('词典首个空壳响应即使未标记后台增强，也自动轮询到完整释义', async () => {
+  const { queryDictionaryWithEnrichmentPoll } = await import('./vocabAPI');
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    const result = calls === 1
+      ? { ok: true, type: 'en_zh_bidirectional', payload: { headword: 'operationalization' } }
+      : { ok: true, type: 'en_zh_bidirectional', payload: { headword: 'operationalization', translation_main: '操作化' } };
+    return new Response(JSON.stringify(result), { status: 200 });
+  };
+
+  try {
+    const result = await queryDictionaryWithEnrichmentPoll(
+      { word: 'operationalization', dictType: 'en_zh_bidirectional' },
+      { maxAttempts: 1, intervalMs: 0 },
+    );
+    assert.equal(calls, 2);
+    assert.equal((result.payload as any)?.translation_main, '操作化');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test('词典默认轮询覆盖后台增强的 180 秒超时窗口', async () => {
+  const { queryDictionaryWithEnrichmentPoll } = await import('./vocabAPI');
+  const originalFetch = globalThis.fetch;
+  const originalSetTimeout = globalThis.setTimeout;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    const payload = calls < 61
+      ? { headword: 'observability' }
+      : { headword: 'observability', translation_main: '可观测性', synonyms: ['monitorability'] };
+    return new Response(JSON.stringify({ ok: true, type: 'en_zh_bidirectional', backgroundEnriching: calls < 61, payload }), { status: 200 });
+  };
+  globalThis.setTimeout = ((callback: (...args: any[]) => void) => {
+    callback();
+    return 0 as any;
+  }) as typeof setTimeout;
+
+  try {
+    const result = await queryDictionaryWithEnrichmentPoll({ word: 'observability', dictType: 'en_zh_bidirectional' });
+    assert.equal(calls, 61);
+    assert.equal((result.payload as any)?.translation_main, '可观测性');
+  } finally {
+    globalThis.fetch = originalFetch;
+    globalThis.setTimeout = originalSetTimeout;
+  }
+});
+
 test('getMemoryAids 与 enrichMemory 必须携带 userId（query/body + x-user-id）', async () => {
   const store: Record<string, string> = { super_agent_user_id: 'test-user-memory' };
   const prev = (globalThis as any).localStorage;

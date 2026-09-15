@@ -693,6 +693,12 @@ export async function deleteWord(id: string): Promise<{ success: boolean }> {
   return request(`/${id}`, { method: 'DELETE' });
 }
 
+export function dictionaryHeadwordMatchesQuery(payload: any, query: string): boolean {
+  const normalize = (value: unknown) => String(value || '').trim().toLowerCase().replace(/isation\b/g, 'ization');
+  const headword = normalize(payload?.headword || payload?.word);
+  return !headword || headword === normalize(query);
+}
+
 /** 词典查询（由后端代理 Dify，避免前端暴露 token） */
 export async function queryDictionary(params: DictQueryParams): Promise<DictResult> {
   let resolvedDirection = params.direction || 'auto';
@@ -745,14 +751,21 @@ export async function queryDictionaryWithEnrichmentPoll(
     signal?: AbortSignal;
   }
 ): Promise<DictResult> {
-  // Dify 增强有队列+限流，常需 30–90s；过短轮询会误以为“没有返回”
-  const maxAttempts = options?.maxAttempts ?? 24;
+  // 后端增强单任务最长 180s，前端需覆盖排队与缓存落库时间。
+  const maxAttempts = options?.maxAttempts ?? 70;
   const intervalMs = options?.intervalMs ?? 3000;
   let latest = await queryDictionary(params);
   options?.onUpdate?.(latest);
 
   const shouldKeepPolling = (r: DictResult) => {
-    if (!r?.ok || !r.backgroundEnriching) return false;
+    if (!r?.ok) return false;
+    const payload = r.payload as unknown as Record<string, unknown> | undefined;
+    const hasCoreContent = !!payload && Object.entries(payload).some(([key, value]) =>
+      !['headword', 'word', 'direction_resolved'].includes(key)
+      && (Array.isArray(value) ? value.length > 0 : String(value || '').trim().length > 0)
+    );
+    if (!hasCoreContent) return true;
+    if (!r.backgroundEnriching) return false;
     // 生词本秒开：即使已有 Dify 字段，也继续等 Cam/Dify 更新结果
     if (r.fromVocabBook) return true;
     return !hasDifyEnrichmentFields(r.payload);

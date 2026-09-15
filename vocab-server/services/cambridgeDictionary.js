@@ -580,6 +580,12 @@ function parseCambridgeMarkdown(markdown, { word, sourceUrl, edition } = {}) {
   };
 }
 
+function dictionaryPayloadMatchesWord(payload, word) {
+  const normalize = (value) => String(value || '').trim().toLowerCase().replace(/isation\b/g, 'ization');
+  const headword = normalize(payload?.headword || payload?.word);
+  return !headword || headword === normalize(word);
+}
+
 function mergeCambridgeWithDify(cambridge, dify = {}, options = {}) {
   const mode = options.mode
     || (cambridge?.edition === 'english' ? 'en_en' : 'en_zh');
@@ -699,6 +705,7 @@ module.exports = {
   isAdmissibleExampleEnglish,
   sanitizeExampleSentences,
   isInstantTemplateCollocation,
+  dictionaryPayloadMatchesWord,
   parseCambridgeMarkdown,
   mergeCambridgeWithDify,
   fetchCambridgeEntry,

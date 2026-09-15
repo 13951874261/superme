@@ -7,6 +7,7 @@ const {
   isAdmissibleExampleEnglish,
   sanitizeExampleSentences,
   isInstantTemplateCollocation,
+  dictionaryPayloadMatchesWord,
 } = require('../services/cambridgeDictionary');
 
 const markdown = `# Translation of **vibe** – English–Mandarin Chinese dictionary
@@ -103,6 +104,10 @@ These mud flats are a special research value.
 
 Full of aggressive, dirty and equally tender vibes and melodies...
 `;
+
+assert.strictEqual(dictionaryPayloadMatchesWord({ headword: '{{#a1000000-0000-4000-8000-000000000001.word#}}' }, 'operationalization'), false);
+assert.strictEqual(dictionaryPayloadMatchesWord({ headword: 'operationalisation' }, 'operationalization'), true);
+assert.strictEqual(dictionaryPayloadMatchesWord({ headword: 'operation' }, 'operationalization'), false);
 
 assert.strictEqual(isSingleEnglishWord('vibe'), true);
 assert.strictEqual(isSingleEnglishWord("don't"), true);

@@ -5,7 +5,7 @@ import { ScrambleTextPlugin } from 'gsap/ScrambleTextPlugin';
 
 gsap.registerPlugin(ScrambleTextPlugin);
 import SpeakButton from './SpeakButton';
-import { lookupVocabWords, queryDictionaryWithEnrichmentPoll, getVocabItem, updateWordPayload, buildVocabPayloadFromDict, buildDictDisplayPayloadFromVocab, vocabSyncFingerprint, hasDifyEnrichmentFields } from '../services/vocabAPI';
+import { lookupVocabWords, queryDictionaryWithEnrichmentPoll, getVocabItem, updateWordPayload, buildVocabPayloadFromDict, buildDictDisplayPayloadFromVocab, vocabSyncFingerprint, hasDifyEnrichmentFields, dictionaryHeadwordMatchesQuery } from '../services/vocabAPI';
 import type { ZhModernPayload, EnEnBusinessPayload, EnZhBidirectionalPayload } from '../services/vocabAPI';
 import { extractSynonymsAntonymsCollocations } from '../utils/vocabCsvExport';
 import {
@@ -855,12 +855,6 @@ export default function DictionaryPanel() {
   const collected = searchAligned && (markedSaved || !!storedZone);
   const examplesDirty = examplesSeedFp !== '' && examplesFingerprint(editableExamples) !== examplesSeedFp;
 
-  const resultMatchesQuery = (payload: any, text: string) => {
-    const head = String(payload?.headword || payload?.word || '').trim();
-    if (!head) return true;
-    return head.toLowerCase() === text.toLowerCase();
-  };
-
   const runDictSearch = async (
     type: DictType,
     wordOverride?: string,
@@ -892,7 +886,7 @@ export default function DictionaryPanel() {
           signal: ac.signal,
           onUpdate: (partial) => {
             if (ac.signal.aborted) return;
-            if (partial?.payload && !resultMatchesQuery(partial.payload, text)) return;
+            if (partial?.payload && !dictionaryHeadwordMatchesQuery(partial.payload, text)) return;
             setResult(partial);
             if (partial?.inVocabulary) setMarkedSaved(true);
             const firstKey = Object.keys(partial?.payload || {})[0];
@@ -902,7 +896,7 @@ export default function DictionaryPanel() {
         }
       );
       if (!ac.signal.aborted) {
-        if (parsed?.payload && !resultMatchesQuery(parsed.payload, text)) {
+        if (parsed?.payload && !dictionaryHeadwordMatchesQuery(parsed.payload, text)) {
           setResult({ ok: false, message: '词典返回词条与查询不一致，请重试' });
         } else {
           setResult(parsed);
@@ -958,7 +952,7 @@ export default function DictionaryPanel() {
   useEffect(() => {
     const text = query.trim();
     if (!text || !result?.ok || !searchAligned) return;
-    if (!resultMatchesQuery(result.payload, text)) return;
+    if (!dictionaryHeadwordMatchesQuery(result.payload, text)) return;
     let cancelled = false;
     const syncCollected = () => {
       void lookupVocabWords([text]).then((items) => {
@@ -996,7 +990,7 @@ export default function DictionaryPanel() {
   useEffect(() => {
     const text = query.trim();
     if (!text || !result?.ok || !result.payload || !searchAligned) return;
-    if (!resultMatchesQuery(result.payload, text)) return;
+    if (!dictionaryHeadwordMatchesQuery(result.payload, text)) return;
     const inBook = !!(result.inVocabulary || markedSaved || storedZone);
     if (!inBook) return;
 
