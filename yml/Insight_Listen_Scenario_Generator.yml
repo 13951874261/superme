@@ -1,176 +1,327 @@
-# 洞察(听) · 动态出题长剧本生成器
-# 对应后端：POST /api/insight/listen/scenario → runDifyCompletion → /v1/completion-messages
-# 建议服务端 Key：DIFY_INSIGHT_GEN_KEY（兼容 VITE_DIFY_INSIGHT_GEN_KEY）
-# 导入：Dify 工作室 → 导入 DSL 文件 → 核对模型 → 调试 → 发布 → 复制 API Key
-# 注意：本文件是文本生成应用（mode: completion），不是工作流。
-#       yml/Insight_Listen_Engine.yml 是侧写点评工作流，不能替代本应用。
+# 洞察(听) · 四幕并行剧本生成 Workflow
+# 后端：POST /api/insight/listen/scenario → /v1/workflows/run（blocking）
+# Key：DIFY_INSIGHT_GEN_KEY（兼容 VITE_DIFY_INSIGHT_GEN_KEY）
 app:
-  description: 按体制内/外企/通用社交生成 8–10 分钟多方博弈长剧本，返回 ScriptWorkshopDraft JSON，供洞察(听)刷新案例使用
+  description: 先生成共享场景蓝图，再并行生成四幕，最后由 Code 严格校验、排序、合并为 ScriptWorkshopDraft JSON
   icon: 🎯
   icon_background: '#1E293B'
   icon_type: emoji
-  mode: completion
+  mode: workflow
   name: Insight_Listen_Scenario_Generator
   use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.65@2346ca78ef378d13850d13cbe5f5aadf269ff6be6e208684ed2bb388906dc612
+    version: null
 kind: app
-version: 0.1.1
-model_config:
-  agent_mode:
-    enabled: false
-    max_iteration: 5
-    strategy: react
-    tools: []
-  annotation_reply:
-    enabled: false
-  chat_prompt_config: {}
-  completion_prompt_config: {}
-  dataset_configs:
-    datasets:
-      datasets: []
-    retrieval_model: multiple
-  dataset_query_variable: ''
-  external_data_tools: []
-  file_upload:
-    image:
-      detail: high
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
       enabled: false
-      number_limits: 3
-      transfer_methods:
-      - remote_url
-      - local_file
-  model:
-    completion_params:
-      temperature: 0.85
-      max_tokens: 8192
-    mode: chat
-    name: '86'
-    provider: langgenius/openai_api_compatible/openai_api_compatible
-  more_like_this:
-    enabled: false
-  opening_statement: ''
-  pre_prompt: |
-    你是顶级政商博弈剧本编剧。任务：为「洞察(听)」训练生成一条全新的结构化长剧本。
-
-    【输入】
-    - 场景分类 category：{{category}}（仅允许：体制内 / 外企 / 通用社交）
-    - 重试提示 retry_hint：{{retry_hint}}
-    - 补充指令 query：{{query}}
-    若 retry_hint 或 query 非空，必须按其中的失败维度整篇重写，禁止只改标题或人名。
-
-    【分类写法】
-    - 体制内：编制、考核、公文留痕、请示汇报、纪检列席、指标分摊。合成匿名，不得指向可识别真实单位或公职人员。禁止复用《处室风云：专项编制与绩效指标暗战》及其李处长/王科长/赵科长/孙主任人设。
-    - 外企：矩阵汇报、总部/本地、OKR、预算冻结、裁员传闻、合规口径。可用公开商业结构作骨架，必须改写成新冲突。
-    - 通用社交：饭局、人情、站队、面子、信息不对等施压。禁止写成单句寒暄片段。
-
-    【每次必须全新】
-    换核心冲突、信息差来源、决策点和人物关系，不得只换地名/公司名。只写合法组织政治与程序博弈，不写违法操作指南。
-
-    【硬约束——服务端 scriptEvaluator 会打分，低于 85 或时长不在 8–12 分钟会被判定不合格并重试】
-    1. 角色 characters ≥ 3，且每人必须在四幕对白中至少发言 2 轮。
-    2. 信息差 infoMatrix ≥ 2，type 只能是 public / exclusive / misinformed / fake_trap。
-    3. phases 必须恰好 4 幕，phaseId 为 1、2、3、4。
-    4. 四幕 content 去空白后总汉字数必须落在 2100–2600（约 8–10 分钟，按 250 字/分钟）。
-    5. 配比：阶段一约 15–22%；阶段二约 25–32%；阶段三（高潮）≥ 30%；阶段四约 10–16%。
-    6. 对白轮次 ≥ 16。格式必须是：
-       **角色名**（动作或神态）：台词
-    7. 四幕结构：铺垫 → 试探摊牌 → 高潮对峙（含信息差兑现）→ 收束/未完成的交易。
-    8. 禁止：空壳阶段、用摘要冒充对白、机械降神（后半程突然出现前半程毫无伏笔的炸弹级反转词）。
-    9. sceneSummary ≥ 80 字，交代时间地点、利害、为何今晚必须摊牌。
-    10. 只输出一个 JSON 对象。不要 Markdown 围栏，不要前言后语。
-
-    【JSON 契约——字段名必须一字不差】
-    {
-      "sceneTitle": "《与分类匹配的全新标题》",
-      "sceneSummary": "≥80字",
-      "characters": [
-        {
-          "id": "c1",
-          "name": "姓名",
-          "roleTitle": "职务",
-          "surfaceGoal": "会上公开说的目标",
-          "hiddenMotive": "不说出口的底牌",
-          "redLine": "绝不能退的利益红线",
-          "winCondition": "怎样算自己赢"
-        }
-      ],
-      "infoMatrix": [
-        {
-          "id": "info-1",
-          "type": "public",
-          "title": "公开信息",
-          "content": "所有人都知道的事实"
-        },
-        {
-          "id": "info-2",
-          "type": "exclusive",
-          "owner": "持有该信息的角色名",
-          "title": "独占信息",
-          "content": "只有此人掌握、将在高潮抛出的证据"
-        }
-      ],
-      "phases": [
-        {
-          "phaseId": 1,
-          "title": "阶段一：……",
-          "targetDuration": "1.5 - 2.0 min",
-          "targetWordsRange": "380 - 480 字",
-          "targetRatio": 0.18,
-          "content": "对白正文，约 380–480 字"
-        },
-        {
-          "phaseId": 2,
-          "title": "阶段二：……",
-          "targetDuration": "2.5 - 3.0 min",
-          "targetWordsRange": "650 - 800 字",
-          "targetRatio": 0.30,
-          "content": "对白正文，约 650–800 字"
-        },
-        {
-          "phaseId": 3,
-          "title": "阶段三：……",
-          "targetDuration": "3.0 - 4.0 min",
-          "targetWordsRange": "800 - 1000 字",
-          "targetRatio": 0.38,
-          "content": "对白正文，约 800–1000 字，必须兑现至少一项独占信息"
-        },
-        {
-          "phaseId": 4,
-          "title": "阶段四：……",
-          "targetDuration": "1.0 - 1.5 min",
-          "targetWordsRange": "270 - 350 字",
-          "targetRatio": 0.14,
-          "content": "对白正文，约 270–350 字，留下未完成的交易或下次交锋口子"
-        }
-      ]
-    }
-
-    现在根据 category={{category}} 生成完整 JSON。
-  prompt_type: simple
-  retriever_resource:
-    enabled: false
-  sensitive_word_avoidance:
-    configs: []
-    enabled: false
-    type: ''
-  speech_to_text:
-    enabled: false
-  suggested_questions: []
-  suggested_questions_after_answer:
-    enabled: false
-  text_to_speech:
-    enabled: false
-    language: ''
-    voice: ''
-  user_input_form:
-  - text-input:
-      default: 体制内
-      label: 场景分类
-      max_length: 32
-      required: true
-      variable: category
-  - paragraph:
-      default: ''
-      label: 重试提示
-      max_length: 1000
-      required: false
-      variable: retry_hint
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data: {isInIteration: false, isInLoop: false, sourceType: start, targetType: llm}
+      id: start-source-blueprint-target
+      source: start
+      sourceHandle: source
+      target: blueprint
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data: {isInIteration: false, isInLoop: false, sourceType: llm, targetType: code}
+      id: blueprint-source-specs-target
+      source: blueprint
+      sourceHandle: source
+      target: specs
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data: {isInIteration: false, isInLoop: false, sourceType: code, targetType: iteration}
+      id: specs-source-phases-target
+      source: specs
+      sourceHandle: source
+      target: phases
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: true
+        isInLoop: false
+        iteration_id: phases
+        sourceType: iteration-start
+        targetType: llm
+      id: phasesstart-source-phase_writer-target
+      source: phasesstart
+      sourceHandle: source
+      target: phase_writer
+      targetHandle: target
+      type: custom
+      zIndex: 1002
+    - data: {isInIteration: false, isInLoop: false, sourceType: iteration, targetType: code}
+      id: phases-source-merge-target
+      source: phases
+      sourceHandle: source
+      target: merge
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data: {isInIteration: false, isInLoop: false, sourceType: code, targetType: end}
+      id: merge-source-end-target
+      source: merge
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - id: start
+      type: custom
+      position: {x: 40, y: 240}
+      positionAbsolute: {x: 40, y: 240}
+      width: 242
+      height: 150
+      data:
+        type: start
+        title: 用户输入
+        variables:
+        - {variable: category, label: 场景分类, type: text-input, required: true, default: 体制内, max_length: 32, options: [], hint: '仅允许：体制内 / 外企 / 通用社交', placeholder: ''}
+        - {variable: retry_hint, label: 重试提示, type: paragraph, required: false, default: '', max_length: 1000, options: [], hint: '', placeholder: ''}
+    - id: blueprint
+      type: custom
+      position: {x: 350, y: 240}
+      positionAbsolute: {x: 350, y: 240}
+      width: 242
+      height: 100
+      data:
+        type: llm
+        title: 共享场景蓝图
+        context: {enabled: false, variable_selector: []}
+        model:
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          name: '86'
+          mode: chat
+          completion_params: {temperature: 0.65, max_tokens: 2600}
+        vision: {enabled: false}
+        prompt_template:
+        - id: blueprint-system
+          role: system
+          text: |
+            你是政商博弈剧本总编剧。只设计一份供四幕共享的短蓝图，不写四幕正文。
+            category 仅允许体制内、外企、通用社交。必须换核心冲突、信息差来源、决策点、人物关系；只写合法组织政治与程序博弈。
+            输出且仅输出合法 JSON：
+            {"sceneTitle":"《标题》","sceneSummary":"至少80字，含时间地点、利害、今晚必须摊牌的原因","characters":[{"id":"c1","name":"姓名","roleTitle":"职务","surfaceGoal":"公开目标","hiddenMotive":"隐藏动机","redLine":"红线","winCondition":"胜利条件"}],"infoMatrix":[{"id":"info-1","type":"public","title":"标题","content":"内容"}],"conflictArc":"铺垫→试探摊牌→高潮兑现信息差→未完成交易","continuityRules":["四幕必须遵守的事实"]}
+            硬约束：characters 至少3人；infoMatrix 至少2项；type 只能 public/exclusive/misinformed/fake_trap；非 public 项按需提供 owner。禁止 Markdown。
+        - id: blueprint-user
+          role: user
+          text: |
+            category={{#start.category#}}
+            retry_hint={{#start.retry_hint#}}
+            retry_hint 非空时，按其失败维度重新设计整份蓝图。
+        structured_output_enabled: false
+        selected: false
+    - id: specs
+      type: custom
+      position: {x: 660, y: 240}
+      positionAbsolute: {x: 660, y: 240}
+      width: 242
+      height: 100
+      data:
+        type: code
+        title: 校验蓝图并生成四幕任务
+        code_language: python3
+        code: |
+          import json, re
+          def clean(raw):
+              text=(raw or '').strip()
+              match=re.search(r'```(?:json)?\s*([\s\S]*?)```', text, re.I)
+              if match: text=match.group(1).strip()
+              start,end=text.find('{'),text.rfind('}')
+              return text[start:end+1] if start >= 0 and end > start else text
+          def main(blueprint_text: str):
+              blueprint=json.loads(clean(blueprint_text))
+              required={'sceneTitle','sceneSummary','characters','infoMatrix','conflictArc','continuityRules'}
+              if not required.issubset(blueprint): raise ValueError('blueprint 缺少必需字段')
+              if len(blueprint['characters']) < 3: raise ValueError('characters 必须至少3项')
+              if len(blueprint['infoMatrix']) < 2: raise ValueError('infoMatrix 必须至少2项')
+              allowed={'public','exclusive','misinformed','fake_trap'}
+              if any(x.get('type') not in allowed for x in blueprint['infoMatrix']): raise ValueError('infoMatrix.type 非法')
+              specs=[
+                (1,'阶段一：铺垫','1.5 - 2.0 min','380 - 480 字',0.18,'380-480','建立关系、公开议题、伏笔；不可提前摊尽底牌'),
+                (2,'阶段二：试探摊牌','2.5 - 3.0 min','650 - 800 字',0.30,'650-800','多轮试探、施压、局部摊牌；承接第一幕事实'),
+                (3,'阶段三：高潮对峙','3.0 - 4.0 min','800 - 1000 字',0.38,'800-1000','兑现至少一项独占/误导/陷阱信息；形成最强对峙'),
+                (4,'阶段四：收束','1.0 - 1.5 min','270 - 350 字',0.14,'270-350','形成暂时结果；留下未完成交易或下次交锋口子')]
+              blueprint_json=json.dumps(blueprint,ensure_ascii=False,separators=(',',':'))
+              tasks=[]
+              for pid,title,duration,words,ratio,budget,goal in specs:
+                  tasks.append(json.dumps({'phaseId':pid,'title':title,'targetDuration':duration,'targetWordsRange':words,'targetRatio':ratio,'wordBudget':budget,'goal':goal,'blueprint':blueprint},ensure_ascii=False,separators=(',',':')))
+              return {'blueprint_json':blueprint_json,'phase_tasks':tasks}
+        variables:
+        - {variable: blueprint_text, value_selector: [blueprint, text], value_type: string}
+        outputs:
+          blueprint_json: {type: string, children: null}
+          phase_tasks: {type: 'array[string]', children: null}
+        selected: false
+    - id: phases
+      type: custom
+      position: {x: 970, y: 180}
+      positionAbsolute: {x: 970, y: 180}
+      width: 540
+      height: 260
+      zIndex: 1
+      data:
+        type: iteration
+        title: 四幕并行生成
+        error_handle_mode: terminated
+        flatten_output: true
+        is_parallel: true
+        parallel_nums: 4
+        iterator_input_type: 'array[string]'
+        iterator_selector: [specs, phase_tasks]
+        output_selector: [phase_writer, text]
+        output_type: 'array[string]'
+        start_node_id: phasesstart
+        selected: false
+    - id: phasesstart
+      type: custom-iteration-start
+      parentId: phases
+      draggable: false
+      selectable: false
+      position: {x: 60, y: 90}
+      positionAbsolute: {x: 1030, y: 270}
+      width: 44
+      height: 48
+      zIndex: 1002
+      data: {type: iteration-start, title: '', desc: '', isInIteration: true, selected: false}
+    - id: phase_writer
+      type: custom
+      parentId: phases
+      position: {x: 170, y: 70}
+      positionAbsolute: {x: 1140, y: 250}
+      width: 300
+      height: 100
+      zIndex: 1002
+      data:
+        type: llm
+        title: 逐幕短输出
+        isInIteration: true
+        isInLoop: false
+        iteration_id: phases
+        context: {enabled: false, variable_selector: []}
+        model:
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+          name: '86'
+          mode: chat
+          completion_params: {temperature: 0.72, max_tokens: 1800}
+        vision: {enabled: false}
+        prompt_template:
+        - id: phase-system
+          role: system
+          text: |
+            你只写输入指定的一幕，不得续写其他幕，不得改共享 blueprint 的角色、事实、信息矩阵或冲突。
+            输入是包含 phase spec 与完整 blueprint 的 JSON。严格按 phaseId 使用以下窄目标：phase1 430-460 字；phase2 700-750 字；phase3 880-930 字；phase4 300-330 字。接近区间中点即停止，绝不超写。
+            输出且仅输出合法 JSON：
+            {"phaseId":1,"title":"阶段一：...","targetDuration":"1.5 - 2.0 min","targetWordsRange":"380 - 480 字","targetRatio":0.18,"content":"对白正文"}
+            content 去除空白后的字数必须落入对应窄目标；必须以多轮对白为主体。每轮独占一段，且严格使用：**角色名**（动作或神态）：台词。不得用摘要冒充对白。四幕合计每个角色至少发言2轮，因此本幕尽量让每个角色至少发言2轮。禁止 Markdown 围栏、前言、后语。
+        - id: phase-user
+          role: user
+          text: '{{#phases.item#}}'
+        structured_output_enabled: false
+        selected: false
+    - id: merge
+      type: custom
+      position: {x: 1580, y: 240}
+      positionAbsolute: {x: 1580, y: 240}
+      width: 242
+      height: 110
+      data:
+        type: code
+        title: 严格校验排序合并
+        code_language: python3
+        code: |
+          import json, re
+          def parse(raw):
+              text=(raw or '').strip()
+              match=re.search(r'```(?:json)?\s*([\s\S]*?)```', text, re.I)
+              if match: text=match.group(1).strip()
+              start,end=text.find('{'),text.rfind('}')
+              return json.loads(text[start:end+1] if start >= 0 and end > start else text)
+          def compact_len(text):
+              return len(re.sub(r'\s+','',text or ''))
+          def trim_complete_turns(content, low, high):
+              if compact_len(content) <= high: return content
+              markers=list(re.finditer(r'(?m)^\s*\*\*[^*\r\n]+\*\*（[^）\r\n]+）：',content or ''))
+              if not markers: raise ValueError('超长 content 无法识别完整对白轮次')
+              turns=[]
+              for i,marker in enumerate(markers):
+                  end=markers[i+1].start() if i+1 < len(markers) else len(content)
+                  turn=content[marker.start():end].strip()
+                  if turn: turns.append(turn)
+              kept=[]
+              for turn in turns:
+                  candidate='\n'.join(kept+[turn])
+                  if compact_len(candidate) > high: break
+                  kept.append(turn)
+              trimmed='\n'.join(kept)
+              if compact_len(trimmed) < low: raise ValueError(f'安全裁剪后字数 {compact_len(trimmed)} 少于 {low}')
+              return trimmed
+          def main(blueprint_json: str, phase_outputs: list):
+              blueprint=json.loads(blueprint_json)
+              phases=sorted([parse(x) for x in phase_outputs],key=lambda x:x.get('phaseId',0))
+              if [x.get('phaseId') for x in phases] != [1,2,3,4]: raise ValueError('phases 必须恰好为 1..4')
+              required={'phaseId','title','targetDuration','targetWordsRange','targetRatio','content'}
+              if any(set(x) != required for x in phases): raise ValueError('phase 字段不完整或含额外字段')
+              ranges={1:(380,480),2:(650,800),3:(800,1000),4:(270,350)}
+              for phase in phases:
+                  low,high=ranges[phase['phaseId']]
+                  phase['content']=trim_complete_turns(phase['content'],low,high)
+                  count=compact_len(phase['content'])
+                  if count < low or count > high: raise ValueError(f"phase {phase['phaseId']} 字数 {count} 不在 {low}-{high}")
+                  if not re.search(r'\*\*[^*]+\*\*（[^）]+）：',phase['content']): raise ValueError(f"phase {phase['phaseId']} 缺少标准对白")
+              total=sum(compact_len(x['content']) for x in phases)
+              if total < 2100 or total > 2600: raise ValueError(f'总长度 {total} 不在 2100-2600')
+              if compact_len(blueprint['sceneSummary']) < 80: raise ValueError('sceneSummary 少于80字')
+              characters=blueprint['characters']
+              combined='\n'.join(x['content'] for x in phases)
+              if len(re.findall(r'\*\*[^*]+\*\*（[^）]+）：',combined)) < 16: raise ValueError('对白轮次少于16')
+              for char in characters:
+                  if combined.count('**'+char['name']+'**') < 2: raise ValueError(f"角色 {char['name']} 发言不足2轮")
+              draft={'sceneTitle':blueprint['sceneTitle'],'sceneSummary':blueprint['sceneSummary'],'characters':characters,'infoMatrix':blueprint['infoMatrix'],'phases':phases}
+              return {'answer':json.dumps(draft,ensure_ascii=False,separators=(',',':'))}
+        variables:
+        - {variable: blueprint_json, value_selector: [specs, blueprint_json], value_type: string}
+        - {variable: phase_outputs, value_selector: [phases, output], value_type: 'array[string]'}
+        outputs:
+          answer: {type: string, children: null}
+        selected: false
+    - id: end
+      type: custom
+      position: {x: 1890, y: 240}
+      positionAbsolute: {x: 1890, y: 240}
+      width: 242
+      height: 90
+      data:
+        type: end
+        title: 结束
+        outputs:
+        - {variable: answer, value_selector: [merge, answer], value_type: string}
+    viewport: {x: 0, y: 0, zoom: 0.7}
+  rag_pipeline_variables: []

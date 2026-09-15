@@ -29,8 +29,8 @@ const DIFY_HISTORY_EXCLUDE_MAX = 65534;
 
 function normalizeUserId(raw) {
   if (!raw) return 'default-user';
-  const base = String(raw).split('@')[0].trim();
-  return base || 'default-user';
+  const normalized = String(raw).trim();
+  return normalized || 'default-user';
 }
 
 // 稳定输入签名 — 仅对三个稳定字段哈希，时间类字段不参与缓存定位
@@ -199,13 +199,10 @@ function findUserDailyPackByDate(db, userId, packDate) {
 function getTodayPackForCurrentTheme(db, userId, packDate, currentTheme) {
   const uid = normalizeUserId(userId);
   const theme = String(currentTheme || '').trim();
-  if (theme) {
-    const exact = db.prepare(
-      'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND theme = ? ORDER BY created_at DESC LIMIT 1'
-    ).get(uid, packDate, theme);
-    if (exact) return exact;
-  }
-  return findUserDailyPackByDate(db, uid, packDate);
+  if (!theme) return undefined;
+  return db.prepare(
+    'SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND theme = ? ORDER BY created_at DESC LIMIT 1'
+  ).get(uid, packDate, theme);
 }
 
 function isAccentProfile(value) {
@@ -228,19 +225,9 @@ function getDailyPackRow(db, userId, packDate, inputSignature = null, theme = nu
   const uid = normalizeUserId(userId);
   // D1: 有签名则精确命中；无签名不宽回退到「任意 ready」
   if (inputSignature === null || inputSignature === undefined) return undefined;
-  const exact = db.prepare(
+  return db.prepare(
     "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND input_signature = ?"
   ).get(uid, packDate, inputSignature);
-  if (exact) return exact;
-
-  const fallback = db.prepare(
-    "SELECT * FROM daily_packs WHERE user_id = ? AND pack_date = ? AND status = 'ready' ORDER BY created_at DESC LIMIT 1"
-  ).get(uid, packDate);
-  if (fallback) {
-    console.log(`[DailyPack Row Fallback] userId=${uid} matched today's ready pack via fallback instead of exact signature.`);
-    return fallback;
-  }
-  return undefined;
 }
 
 function getFallbackFlawVocab() {

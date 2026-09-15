@@ -230,6 +230,30 @@ function testApplyAudioEffectsDoesNotUseUndefinedPathMod() {
   assert.doesNotMatch(ensureFn, /\bfsMod\b/, 'ensureSoundEffectsExist 不得使用 fsMod');
 }
 
+async function testDifferentThemeDoesNotHitPregeneratedCombo() {
+  const { db, dir } = openDb();
+  try {
+    const old = comboParts({ theme: '商务谈判' });
+    dailyListen.upsertArticle(db, old, { status: 'ready', body_text: 'old theme body' });
+    dailyListen.upsertAudio(db, old, { status: 'ready', script_text: 'old theme body', audio_url: '/old.mp3' });
+
+    const combo = dailyListen.getPregeneratedCombo(db, {
+      userId: old.userId,
+      theme: '危机公关',
+      genre: old.genre,
+      cefrLevel: old.cefrLevel,
+      duration: old.duration,
+      date: old.packDate,
+    });
+    assert.strictEqual(combo.status, 'missing', '不得跨主题命中正文或音频');
+    assert.strictEqual(combo.article, null);
+    assert.strictEqual(combo.audio, null);
+  } finally {
+    db.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   testApplyAudioEffectsDoesNotUseUndefinedPathMod();
   console.log('PASS pathMod/fsMod 契约');
@@ -241,6 +265,8 @@ async function main() {
   console.log('PASS generateOneCombo 复用已有长文');
   await testSyncAdoptsExistingMp3WithoutResynthesize();
   console.log('PASS 已有 mp3 直接回写 ready');
+  await testDifferentThemeDoesNotHitPregeneratedCombo();
+  console.log('PASS 不跨主题命中预生成缓存');
   console.log('\nlistenGenerateAnomaly.test.js 全部通过');
 }
 

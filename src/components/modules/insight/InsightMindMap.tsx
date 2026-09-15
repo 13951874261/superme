@@ -13,14 +13,12 @@ type LayoutNode = InsightMindMapNode & {
 type Props = {
   data: InsightMindMapNode;
   svgRef?: React.Ref<SVGSVGElement | null>;
+  ariaLabel?: string;
+  onNodeSelect?: (node: InsightMindMapNode) => void;
 };
 
-function cloneLayout(node: InsightMindMapNode): LayoutNode {
-  return {
-    name: node.name,
-    detail: node.detail,
-    children: node.children?.map(cloneLayout),
-  };
+export function cloneLayout<T extends InsightMindMapNode>(node: T): T & LayoutNode {
+  return { ...node, children: node.children?.map((child) => cloneLayout(child)) } as T & LayoutNode;
 }
 
 function assignRef(ref: React.Ref<SVGSVGElement | null> | undefined, value: SVGSVGElement | null) {
@@ -35,7 +33,7 @@ const TEXT_FILL = '#e2e8f0';
 const LINK_STROKE = '#475569';
 const COLLAPSED_FILL = '#fbbf24';
 
-export default function InsightMindMap({ data, svgRef }: Props) {
+export default function InsightMindMap({ data, svgRef, ariaLabel = '洞察思维导图', onNodeSelect }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,7 +49,7 @@ export default function InsightMindMap({ data, svgRef }: Props) {
       .data([null])
       .join('svg')
       .attr('role', 'img')
-      .attr('aria-label', '洞察思维导图')
+      .attr('aria-label', ariaLabel)
       .attr('width', width)
       .attr('height', height)
       .style('background', '#0f172a')
@@ -115,26 +113,25 @@ export default function InsightMindMap({ data, svgRef }: Props) {
         .selectAll<SVGGElement, HierarchyPointNode<LayoutNode>>('g.insight-node')
         .data(root.descendants(), (d) => `${d.data.name}-${d.depth}-${d.parent?.data.name || 'root'}`);
 
-      const nodeEnter = nodeSel
-        .enter()
-        .append('g')
+      const activate = (event: Event, d: HierarchyPointNode<LayoutNode>) => {
+        event.stopPropagation(); const item = d.data; onNodeSelect?.(item);
+        if (item.children) { item._children = item.children; item.children = undefined; }
+        else if (item._children) { item.children = item._children; item._children = undefined; }
+        else if (!onNodeSelect) return;
+        render(false);
+      };
+      const interactive = (d: HierarchyPointNode<LayoutNode>) => Boolean(d.data.children || d.data._children || onNodeSelect);
+      const nodeEnter = nodeSel.enter().append('g')
         .attr('class', 'insight-node')
         .attr('transform', (d) => `translate(${d.y},${d.x})`)
-        .style('cursor', (d) => (d.data.children || d.data._children ? 'pointer' : 'default'))
-        .on('click', (event, d) => {
-          event.stopPropagation();
-          const item = d.data;
-          if (item.children) {
-            item._children = item.children;
-            item.children = undefined;
-          } else if (item._children) {
-            item.children = item._children;
-            item._children = undefined;
-          } else {
-            return;
-          }
-          render(false);
-        });
+        .attr('role', (d) => interactive(d) ? 'button' : null)
+        .attr('tabindex', (d) => interactive(d) ? 0 : null)
+        .attr('aria-label', (d) => interactive(d) ? `${d.data.name}${d.data.children || d.data._children ? '，切换展开折叠' : '，选择节点'}` : null)
+        .style('cursor', (d) => interactive(d) ? 'pointer' : 'default')
+        .on('focus', function () { select(this).select('circle').attr('stroke-width', 3); })
+        .on('blur', function () { select(this).select('circle').attr('stroke-width', 1.6); })
+        .on('click', activate)
+        .on('keydown', (event, d) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); activate(event, d); } });
 
       nodeEnter
         .append('circle')
@@ -205,7 +202,7 @@ export default function InsightMindMap({ data, svgRef }: Props) {
       svg.selectAll('*').remove();
       assignRef(svgRef, null);
     };
-  }, [data, svgRef]);
+  }, [ariaLabel, data, onNodeSelect, svgRef]);
 
   return <div ref={hostRef} className="w-full h-[280px] xl:h-[360px]" />;
 }

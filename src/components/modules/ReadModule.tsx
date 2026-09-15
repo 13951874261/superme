@@ -19,6 +19,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import UrlFetchPanel from '../UrlFetchPanel';
 import { evaluateReadPushQuality, READ_PUSH_MIN_CHARS, ReadPushQualityResult } from '../../utils/readPushQuality';
+import { fetchUserTheme, fetchPregeneratedReadMaterial } from '../../services/dailyPackAPI';
 
 interface ChatMessage {
   role: 'user' | 'assistant';
@@ -168,6 +169,19 @@ export default function ReadModule() {
     playPageTurn();
 
     try {
+      const theme = await fetchUserTheme().catch(() => '');
+      const cached = theme
+        ? await fetchPregeneratedReadMaterial(theme, activeTab, sceneFramework).catch(() => null)
+        : null;
+      if (cached?.status === 'ready' && cached.body) {
+        const quality = evaluateReadPushQuality(cached.body);
+        setInputText(cached.body);
+        setPushCharCount(quality.charCount);
+        setPushQuality(quality.quality);
+        setPushQualityResult(quality);
+        return;
+      }
+
       let finalCandidateText = '';
       let finalCandidateQuality: ReadPushQualityResult | null = null;
       const maxAttempts = 3;

@@ -11,6 +11,7 @@ export function useMediaRecorder(
   setInputText: (text: string) => void,
   onTranscriptSend: (text: string) => void,
   maxDurationMs = 30_000,
+  onAudioCaptured?: (audio: Blob, durationSeconds: number) => Promise<void>,
 ) {
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -49,10 +50,12 @@ export function useMediaRecorder(
         setMicError(EMPTY_TRANSCRIPT_MESSAGE);
         return;
       }
-      const text = await transcribeAudioWithWhisper(
-        new Blob(chunks, { type: mimeType || 'audio/webm' }),
-        getAppUserId(),
-      );
+      const audio = new Blob(chunks, { type: mimeType || 'audio/webm' });
+      if (onAudioCaptured) {
+        await onAudioCaptured(audio, Math.max(1, Math.min(Math.ceil((Date.now() - startTimeRef.current) / 1000), Math.ceil(maxDurationMs / 1000))));
+        return;
+      }
+      const text = await transcribeAudioWithWhisper(audio, getAppUserId());
       if (!text) {
         setMicError(EMPTY_TRANSCRIPT_MESSAGE);
         return;
@@ -64,7 +67,7 @@ export function useMediaRecorder(
     } finally {
       setIsTranscribing(false);
     }
-  }, [onTranscriptSend, releaseResources, setInputText]);
+  }, [maxDurationMs, onAudioCaptured, onTranscriptSend, releaseResources, setInputText]);
 
   const stopRecordingAndSend = useCallback(() => {
     // 权限弹窗 / getUserMedia 尚未完成：标记松开，等 start 结束后立刻 stop

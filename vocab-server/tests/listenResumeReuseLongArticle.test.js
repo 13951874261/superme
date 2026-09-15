@@ -91,15 +91,14 @@ function installFakeSynth() {
   };
 }
 
-async function testExtractedRowIgnoresThemeMismatch() {
+async function testExtractedRowRequiresExactTheme() {
   const { db, dir } = openDb();
   try {
     const parts = comboParts();
     const body = Array.from({ length: 40 }, (_, i) => `hello${i}`).join(' ');
     insertExtracted(db, parts, body, '新人报到');
     const row = dailyListen.getExtractedArticleRow(db, parts);
-    assert.ok(row, '主题不一致时仍应取到今日同组合长文');
-    assert.ok(String(row.article).includes('hello0'));
+    assert.strictEqual(row, null, '主题不一致时不得复用长文');
   } finally {
     db.close();
     fs.rmSync(dir, { recursive: true, force: true });
@@ -151,7 +150,7 @@ async function testStartSyncFromLongArticleMarksGeneratingThenReady() {
   const fake = installFakeSynth();
   try {
     const parts = comboParts({ userId });
-    insertExtracted(db, parts, body, '新人报到');
+    insertExtracted(db, parts, body, parts.theme);
     const kick = dailyListen.startListenSyncFromLongArticleIfNeeded(db, {
       userId,
       theme: parts.theme,
@@ -321,10 +320,8 @@ async function main() {
   console.log('PASS GET 读接口会触发长文配音');
   testListenTabPollsGenerating();
   console.log('PASS 前端 generating 轮询契约');
-  await testExtractedRowIgnoresThemeMismatch();
-  console.log('PASS 长文查找忽略主题不一致');
-  await testGenerateOneComboReusesLongArticleDespiteThemeMismatch();
-  console.log('PASS generateOneCombo 主题不一致仍复用长文配音');
+  await testExtractedRowRequiresExactTheme();
+  console.log('PASS 长文查找要求主题精确匹配');
   await testStartSyncFromLongArticleMarksGeneratingThenReady();
   console.log('PASS 打开页面自动配音：先 generating 再 ready');
   await testResumeInterruptedListenJobsCallsCronWithSkipReadyAudio();

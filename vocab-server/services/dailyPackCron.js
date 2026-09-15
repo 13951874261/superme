@@ -461,6 +461,15 @@ function scheduleDailyPackCron(db) {
               cronTickId: packSummary.cronTickId,
             });
           }
+          if (process.env.DAILY_READ_MATERIAL_CRON_ENABLED !== 'false') {
+            const readMaterialCacheService = require('./readMaterialCacheService');
+            const userIds = dailyCronRunService.listUserIdsForTick(db, packSummary.cronTickId);
+            const users = userIds.map((user_id) => ({
+              user_id,
+              theme: db.prepare('SELECT theme FROM user_theme_prefs WHERE user_id=?').get(user_id)?.theme || '商务谈判：让步与施压',
+            }));
+            await readMaterialCacheService.runDailyCron(db, { users, cronTickId: packSummary.cronTickId });
+          }
         } finally {
           isExecutingCron = false;
         }

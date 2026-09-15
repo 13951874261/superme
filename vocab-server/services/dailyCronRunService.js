@@ -567,7 +567,7 @@ function refreshRunAggregation(db, runId, { unitTotal } = {}) {
           WHEN ? IN ('failed', 'partial_failed') THEN 'degraded'
           ELSE audit_health
         END,
-        finished_at = CASE WHEN ? IS NULL THEN finished_at ELSE ? END,
+        finished_at = ?,
         updated_at = ?,
         summary_json = ?
       WHERE id = ?
@@ -576,7 +576,6 @@ function refreshRunAggregation(db, runId, { unitTotal } = {}) {
       executionStatus,
       progress,
       executionStatus,
-      finishedAt,
       finishedAt,
       now,
       JSON.stringify({ unitTotal: resolvedUnitTotal, finishedUnits, stepCount: statuses.length }),

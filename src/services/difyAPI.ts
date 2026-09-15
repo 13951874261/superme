@@ -1961,12 +1961,17 @@ export interface GameTheoryAnalyzeInput {
   case_text: string;
   user_answer: string;
   applied_tactics?: string;
+  opponent_name?: string;
+  opponent_role_id?: 'opponent';
 }
 
 export interface GameTheoryPrototypeArchive {
+  subject: 'opponent';
+  subject_role_id: string;
   name: string;
   type: string;
   description: string;
+  evidence: Array<{ actor_role_id: string; quote: string }>;
 }
 
 export interface GameTheoryAnalyzeResult {
@@ -1976,7 +1981,7 @@ export interface GameTheoryAnalyzeResult {
   motives_analysis: string;
   weaknesses: string;
   causal_chain: string[];
-  prototype_archive: GameTheoryPrototypeArchive;
+  prototype_archive?: GameTheoryPrototypeArchive | null;
   suggestion: string;
   /** GT-CASE-02 研判四节 */
   interest_chain?: string;

@@ -150,3 +150,25 @@ test('fillCategory 补到 10 套且不同用户互不影响', async () => {
   const b = pool.getPool(db, { userId: 'bob', category: '通用社交', packDate: '2026-08-23' });
   assert.equal(b.readyCount, 0);
 });
+
+test('同邮箱前缀的不同完整账号保持隔离', async () => {
+  const db = openDb();
+  await pool.storeGenerated(db, {
+    userId: 'alice@example.com',
+    packDate: '2026-08-23',
+    category: '外企',
+    generateFn: async () => fakePayload('外企', 'example 专属案例'),
+  });
+
+  const other = pool.getPool(db, {
+    userId: 'alice@other.com',
+    category: '外企',
+    packDate: '2026-08-23',
+  });
+  assert.equal(other.readyCount, 0);
+});
+
+test('口语开场缓存保留完整账号 ID', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../services/oralOpeningCacheService.js'), 'utf8');
+  assert.doesNotMatch(src, /split\('@'\)/);
+});

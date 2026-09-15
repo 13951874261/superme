@@ -97,6 +97,22 @@ test('cron 全 fallback 记失败，不把空写入算成功', async () => {
   assert.equal(pool.getPool(db, { userId: 'u1', category: '体制内', packDate: summary.packDate }).readyCount, 0);
 });
 
+test('backfill 生成器上游失败时不降级为未写入', async () => {
+  const db = openDb();
+  await assert.rejects(
+    cron.runBackfill(db, {
+      userId: 'u1',
+      category: '体制内',
+      generateFn: async () => ({
+        source: 'fallback',
+        fallbackReason: 'Dify 请求失败: 400 - WEEKLY_LIMIT_EXCEEDED',
+        draft: getFallbackDraft('体制内'),
+      }),
+    }),
+    /WEEKLY_LIMIT_EXCEEDED/,
+  );
+});
+
 test('backfill 路由 0 新增标 failed', () => {
   const src = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
   assert.match(src, /未能写入新案例/);

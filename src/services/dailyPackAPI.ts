@@ -156,6 +156,14 @@ export async function syncUserTheme(theme: string, userId = getAppUserId()) {
   });
 }
 
+export async function fetchPregeneratedReadMaterial(theme: string, sceneType: string, sceneFramework: string) {
+  return request<{ success: boolean; status: string; body: string | null }>('/api/read/material-cache', {
+    method: 'POST',
+    body: JSON.stringify({ theme, sceneType, sceneFramework }),
+    timeoutMs: 370_000,
+  });
+}
+
 /** 合并同一稳定输入快照的并发 today 请求，避免进站双模块各打一次占满连接 */
 const todayInflight = new Map<string, Promise<DailyPackResponse>>();
 

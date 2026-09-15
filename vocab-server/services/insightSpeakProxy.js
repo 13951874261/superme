@@ -164,7 +164,43 @@ function buildInsightGenInputs(body) {
 }
 
 function parseInsightGenAnswer(data) {
-  return String((data && data.answer) || '').trim();
+  return String(data?.data?.outputs?.answer ?? data?.answer ?? '').trim();
+}
+
+function summarizeDifyError(status, contentType, body) {
+  const raw = String(body || '');
+  if (String(contentType || '').toLowerCase().includes('text/html') || /<html[\s>]/i.test(raw)) {
+    const title = raw.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]
+      ?.replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return `Dify 请求失败: ${status}${title ? ` - ${title.slice(0, 160)}` : ' - 上游网关返回 HTML 错误页'}`;
+  }
+  const summary = raw.replace(/\s+/g, ' ').trim().slice(0, 200);
+  return `Dify 请求失败: ${status}${summary ? ` - ${summary}` : ''}`;
+}
+
+async function runInsightScenarioWorkflow({ apiKey, baseUrl, inputs, userId }) {
+  if (!apiKey) {
+    const err = new Error('后端未配置对应 Dify 密钥');
+    err.statusCode = 503;
+    throw err;
+  }
+  const response = await fetch(`${String(baseUrl || '').replace(/\/$/, '')}/workflows/run`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ inputs, response_mode: 'blocking', user: userId })
+  });
+  if (!response.ok) {
+    const errText = await response.text();
+    const err = new Error(summarizeDifyError(response.status, response.headers?.get?.('content-type'), errText));
+    err.statusCode = response.status;
+    throw err;
+  }
+  return response.json();
 }
 
 async function runDifyCompletion({ apiKey, baseUrl, inputs, userId, query = '' }) {
@@ -259,6 +295,7 @@ module.exports = {
   resolveInsightGenApiKey,
   buildInsightGenInputs,
   parseInsightGenAnswer,
+  runInsightScenarioWorkflow,
   runDifyCompletion,
   buildCritiqueChatPrompt,
   generateMockCritiqueReply

@@ -302,7 +302,9 @@ export default function ListenTab() {
       setPregenStatus('uncached_duration');
       setPregenArticleStatus(null);
       setPregenAudioStatus(null);
-      await generateListenMaterial(targetTheme);
+      setListenMaterial('');
+      setListenAudioUrl(null);
+      setIsListenMaterialLoading(false);
       return;
     }
 
@@ -338,6 +340,8 @@ export default function ListenTab() {
       if (!data.article?.body) setListenMaterial('');
     } catch (e) {
       console.error('[ListenTab] pregenerate fetch failed', e);
+      setListenMaterial('');
+      setListenAudioUrl(null);
       setPregenStatus('missing');
       setIsListenMaterialLoading(false);
       showNotice('listen', '查找现成听力材料失败，可点击重新生成或稍后重试', 'warning');
@@ -567,6 +571,9 @@ export default function ListenTab() {
     if (activeTab !== 'listen' || !theme || !listenMaterialTheme) return;
     if (!CACHEABLE_DURATIONS.includes(listenDuration)) {
       setPregenStatus('uncached_duration');
+      setListenMaterial('');
+      setListenAudioUrl(null);
+      setIsAudioGenerating(false);
       return;
     }
     if (filterFetchTimer.current) clearTimeout(filterFetchTimer.current);

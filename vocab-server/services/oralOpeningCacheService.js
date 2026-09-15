@@ -50,9 +50,7 @@ const SCENE_CATALOG = {
 };
 
 function normalizeUserId(raw) {
-  if (!raw) return 'default-user';
-  const base = String(raw).split('@')[0].trim();
-  return base || 'default-user';
+  return dailyPackService.normalizeUserId(raw);
 }
 
 function getOralSystemFormattedTime() {

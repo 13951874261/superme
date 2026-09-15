@@ -2,7 +2,7 @@ const {
   resolveInsightGenApiKey,
   buildInsightGenInputs,
   parseInsightGenAnswer,
-  runDifyCompletion,
+  runInsightScenarioWorkflow,
 } = require('./insightSpeakProxy');
 const {
   tryParseDraft,
@@ -17,7 +17,7 @@ async function generateInsightScenario({
   category,
   userId = 'default-user',
   env = process.env,
-  runDify = runDifyCompletion,
+  runDify = runInsightScenarioWorkflow,
 } = {}) {
   const prepared = buildInsightGenInputs({ category });
   const apiKey = resolveInsightGenApiKey(env);
@@ -27,6 +27,7 @@ async function generateInsightScenario({
   let bestEval = null;
   let bestScore = -1;
   let lastAnswerText = '';
+  let lastError = null;
   let retryCount = 0;
   const maxAttempts = 3;
 
@@ -52,6 +53,7 @@ async function generateInsightScenario({
       answerText = parseInsightGenAnswer(data);
       lastAnswerText = answerText;
     } catch (difyErr) {
+      lastError = difyErr;
       console.warn(`[insight/scenario] attempt ${attempt} dify failed:`, difyErr.message);
       if (!apiKey || difyErr.statusCode === 503) {
         break;
@@ -124,6 +126,7 @@ async function generateInsightScenario({
       quality: 'ok',
     }),
     source: 'fallback',
+    fallbackReason: lastError?.message || '',
   };
 }
 

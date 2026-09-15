@@ -418,34 +418,6 @@ function getListenRowByCombo(db, tableName, parts) {
   );
 }
 
-function getListenRowByComboLoose(db, tableName, parts) {
-  const exact = getListenRowByCombo(db, tableName, parts);
-  const table = tableName === 'daily_listen_audios'
-    ? 'daily_listen_audios'
-    : 'daily_listen_articles';
-  let loose = null;
-  try {
-    loose = db.prepare(`
-      SELECT * FROM ${table}
-      WHERE user_id=? AND pack_date=? AND genre=? AND cefr_level=? AND duration=?
-      ORDER BY CASE status
-        WHEN 'ready' THEN 0
-        WHEN 'generating' THEN 1
-        WHEN 'failed' THEN 2
-        ELSE 3
-      END, created_at DESC
-      LIMIT 1
-    `).get(
-      parts.userId, parts.packDate, parts.genre, parts.cefrLevel, parts.duration,
-    );
-  } catch {
-    loose = null;
-  }
-  if (exact && exact.status === 'ready') return exact;
-  if (loose && loose.status === 'ready') return loose;
-  return exact || loose;
-}
-
 function getArticleRow(db, parts) {
   return getListenRowByCombo(db, 'daily_listen_articles', parts);
 }
@@ -475,21 +447,7 @@ function getExtractedArticleRow(db, parts) {
       String(parts.duration),
       parts.duration,
     );
-    if (extractedArticleText(exact)) return exact;
-    const loose = db.prepare(`
-      SELECT * FROM daily_extracted_articles
-      WHERE user_id=? AND quota_date=? AND genre=? AND cefr_level=?
-        AND (CAST(duration AS TEXT)=? OR duration=?)
-      ORDER BY updated_at DESC LIMIT 1
-    `).get(
-      parts.userId,
-      parts.packDate,
-      parts.genre,
-      parts.cefrLevel,
-      String(parts.duration),
-      parts.duration,
-    );
-    return extractedArticleText(loose) ? loose : null;
+    return extractedArticleText(exact) ? exact : null;
   } catch {
     return null;
   }
@@ -527,8 +485,8 @@ function getPregeneratedCombo(db, raw) {
   if (!isCacheableDuration(parts.duration)) {
     return { success: true, status: 'uncached_duration', canBackfill: false, packDate };
   }
-  const articleRow = getListenRowByComboLoose(db, 'daily_listen_articles', parts);
-  const audioRow = getListenRowByComboLoose(db, 'daily_listen_audios', parts);
+  const articleRow = getArticleRow(db, parts);
+  const audioRow = getAudioRow(db, parts);
   const articleStatus = resolveArticleStatus(articleRow);
   const audioStatus = resolveAudioStatus(audioRow);
 

@@ -119,24 +119,21 @@ async function polishTranscriptOrFallback(rawText) {
   }
 }
 
-async function transcribeAudioFile(fileObj, userId = 'default-user') {
+async function transcribeAudioFileDetailed(fileObj, userId = 'default-user') {
   if (!fileObj?.path || !fs.existsSync(fileObj.path)) {
     throw new Error('音频临时文件不存在，无法转写');
   }
-  const mimeType = fileObj.mimetype || 'audio/mp3';
-  const originalName = fileObj.originalname || 'audio.mp3';
-
-  const rawText = await inferLocalWhisperOnce(fileObj.path, {
-    originalName,
-    mimeType,
+  const rawTranscript = await inferLocalWhisperOnce(fileObj.path, {
+    originalName: fileObj.originalname || 'audio.mp3',
+    mimeType: fileObj.mimetype || 'audio/mp3',
     waitForSlot: false,
   });
+  if (!rawTranscript) return { rawTranscript: '', polishedTranscript: '' };
+  return { rawTranscript, polishedTranscript: await polishTranscriptOrFallback(rawTranscript) };
+}
 
-  if (!rawText) {
-    console.log('[语音识别] 未检测到有效发音内容，直接返回');
-    return '';
-  }
-  return polishTranscriptOrFallback(rawText);
+async function transcribeAudioFile(fileObj, userId = 'default-user') {
+  return (await transcribeAudioFileDetailed(fileObj, userId)).polishedTranscript;
 }
 
 function listChunkFiles(chunkDir, prefix) {
@@ -295,6 +292,7 @@ async function callPolishLLM(rawText) {
 
 module.exports = {
   transcribeAudioFile,
+  transcribeAudioFileDetailed,
   transcribeAudioFileSliced,
   callPolishLLM,
   SLICE_SECONDS,

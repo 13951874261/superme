@@ -8,9 +8,7 @@ const TARGET_PER_CATEGORY = 10;
 const DEDUPE_DAYS = 30;
 
 function normalizeUserId(raw) {
-  if (!raw) return 'default-user';
-  const base = String(raw).split('@')[0].trim();
-  return base || 'default-user';
+  return dailyPackService.normalizeUserId(raw);
 }
 
 function normalizeCategory(raw) {
@@ -132,12 +130,16 @@ async function storeGenerated(db, {
   const exclude = recentFingerprints(db, userId, cat, packDate);
   let payload = await generateFn({ category: cat, userId: normalizeUserId(userId) });
   if (payload && payload.source === 'fallback') {
+    if (payload.fallbackReason) throw new Error(payload.fallbackReason);
     return null;
   }
   let fp = fingerprint(payload.draft);
   if (exclude.has(fp)) {
     payload = await generateFn({ category: cat, userId: normalizeUserId(userId) });
-    if (payload && payload.source === 'fallback') return null;
+    if (payload && payload.source === 'fallback') {
+      if (payload.fallbackReason) throw new Error(payload.fallbackReason);
+      return null;
+    }
     fp = fingerprint(payload.draft);
   }
   if (exclude.has(fp)) {
