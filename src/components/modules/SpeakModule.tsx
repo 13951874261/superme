@@ -49,6 +49,10 @@ import { notifyBackgroundHandoff } from '../../utils/backgroundHandoff';
 import type { SpeakInfluenceResult, SpeakFlaw } from '../../services/difyAPI';
 import type { ModuleType } from '../../App';
 import { requestGameTheorySessionFocus } from '../../utils/gtFocusTab';
+import { getListenFramework, listBooks, type BookSummary } from '../../services/bookListenAPI';
+import type { BookTheoryNode } from '../../utils/bookTheoryTree';
+import { createBookExercise, evaluateBookExercise, listBookExercises, pollBookExercise, transcribeBookExerciseAudio, type BookExercise, type BookTrainingMode } from '../../services/bookExerciseAPI';
+import { useMediaRecorder } from './oralWarRoom/useMediaRecorder';
 
 function knowledgeTaskLogs(reminder?: string): string[] {
   return reminder
@@ -142,6 +146,25 @@ type SpeakModuleProps = {
   setActiveModule?: (m: ModuleType) => void;
 };
 
+function BookTheoryTraining() {
+  const initial = new URLSearchParams(window.location.search);
+  const [books, setBooks] = useState<BookSummary[]>([]); const [bookId, setBookId] = useState(initial.get('bookId') || ''); const [revisionId, setRevisionId] = useState(initial.get('frameworkRevisionId') || ''); const [nodes, setNodes] = useState<BookTheoryNode[]>([]); const [nodeId, setNodeId] = useState(initial.get('frameworkNodeId') || '');
+  const [mode, setMode] = useState<BookTrainingMode>((initial.get('trainingMode') as BookTrainingMode) || 'one_minute_retell'); const [exercise, setExercise] = useState<BookExercise | null>(null); const [history, setHistory] = useState<BookExercise[]>([]); const [raw, setRaw] = useState(''); const [polished, setPolished] = useState(''); const [revised, setRevised] = useState(''); const [useRevised, setUseRevised] = useState(false); const [duration, setDuration] = useState(0); const [viewedEvidence, setViewedEvidence] = useState(false); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const pollAbort = useRef<AbortController | null>(null);
+  const recorder = useMediaRecorder(busy, () => {}, () => {}, 60_000, async (audio, seconds) => { setBusy(true); setError(''); try { const result = await transcribeBookExerciseAudio(bookId, audio); setRaw(result.rawTranscript); setPolished(result.polishedTranscript); setRevised(result.rawTranscript); setDuration(seconds); } catch (e) { setError(e instanceof Error ? e.message : '转写失败'); } finally { setBusy(false); } });
+  useEffect(() => { listBooks().then(setBooks).catch((e) => setError(e.message)); }, []);
+  useEffect(() => { if (!bookId) return; getListenFramework(bookId, revisionId || undefined).then((data) => { setRevisionId(data.revision.id); setNodes(data.nodes); if (!nodeId && data.nodes[0]) setNodeId(data.nodes[0].id); }).catch((e) => setError(e.message)); listBookExercises(bookId).then(setHistory).catch(() => {}); }, [bookId]);
+  useEffect(() => { const query = new URLSearchParams(window.location.search); for (const [key, value] of Object.entries({ bookId, frameworkRevisionId: revisionId, frameworkNodeId: nodeId, trainingMode: mode })) value ? query.set(key, value) : query.delete(key); window.history.replaceState(null, '', `${window.location.pathname}?${query}`); }, [bookId, revisionId, nodeId, mode]);
+  useEffect(() => () => pollAbort.current?.abort(), [bookId, revisionId, nodeId]);
+  const begin = async () => { setBusy(true); setError(''); try { setExercise(await createBookExercise(bookId, revisionId, nodeId, mode)); setRaw(''); setPolished(''); setRevised(''); setDuration(0); } catch (e) { setError(e instanceof Error ? e.message : '创建失败'); } finally { setBusy(false); } };
+  const submit = async () => { if (!exercise) return; setBusy(true); setError(''); try { const taskId = crypto.randomUUID(); await evaluateBookExercise(bookId, revisionId, nodeId, exercise.id, { taskId, rawTranscript: raw, polishedTranscript: polished, revisedTranscript: revised, useRevisedTranscript: useRevised, durationSeconds: duration, viewedEvidence }); pollAbort.current?.abort(); pollAbort.current = new AbortController(); const result = await pollBookExercise(bookId, revisionId, nodeId, exercise.id, { signal: pollAbort.current.signal }); setExercise(result); setHistory(await listBookExercises(bookId)); } catch (e) { setError(e instanceof Error ? e.message : '评价失败'); } finally { setBusy(false); } };
+  return <div className="mb-6 rounded-3xl border border-indigo-200 bg-white p-5 space-y-4">
+    <div><h3 className="font-black text-slate-900">理论训练</h3><p className="text-xs text-slate-500">我的书籍 → 已确认框架 → 指定节点</p></div>
+    <div className="grid gap-2 sm:grid-cols-4"><select aria-label="书籍" value={bookId} onChange={(e) => { setBookId(e.target.value); setRevisionId(''); setNodeId(''); }} className="rounded-xl border p-2 text-xs"><option value="">选择书籍</option>{books.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}</select><select aria-label="理论节点" value={nodeId} onChange={(e) => setNodeId(e.target.value)} className="rounded-xl border p-2 text-xs"><option value="">选择节点</option>{nodes.map((n) => <option key={n.id} value={n.id}>{n.title}</option>)}</select><select aria-label="题型" value={mode} onChange={(e) => setMode(e.target.value as BookTrainingMode)} className="rounded-xl border p-2 text-xs"><option value="one_minute_retell">一分钟复述</option><option value="concept_explanation">概念解释</option></select><button disabled={!nodeId || busy} onClick={begin} className="rounded-xl bg-indigo-600 p-2 text-xs font-bold text-white">生成练习</button></div>
+    {exercise && <div className="space-y-3"><p className="text-sm font-bold">{exercise.prompt}</p><ul className="list-disc pl-5 text-xs text-slate-600">{exercise.goals.map((goal) => <li key={goal}>{goal}</li>)}</ul><div className="flex gap-2"><button disabled={busy} onPointerDown={() => void recorder.startRecording()} onPointerUp={recorder.stopRecordingAndSend} className="rounded-xl bg-slate-900 px-4 py-2 text-xs font-bold text-white">{recorder.isRecording ? `录音中 ${recorder.recordingTime}/60` : recorder.isTranscribing || busy ? '处理中…' : '按住录音（最多60秒）'}</button><button onClick={() => setViewedEvidence(true)} className="rounded-xl border px-4 py-2 text-xs">查看证据</button></div>{viewedEvidence && <div className="rounded-xl bg-amber-50 p-3 text-xs">{exercise.evidence.map((e) => <p key={e.id}>{e.quote}</p>)}</div>}{raw && <><label className="block text-xs font-bold">原始转写<textarea readOnly value={raw} className="mt-1 block w-full rounded-xl border p-2 font-normal" /></label><label className="block text-xs font-bold">润色展示<textarea readOnly value={polished} className="mt-1 block w-full rounded-xl border p-2 font-normal" /></label><label className="block text-xs font-bold">用户修订<textarea value={revised} onChange={(e) => setRevised(e.target.value)} className="mt-1 block w-full rounded-xl border p-2 font-normal" /></label><label className="flex gap-2 text-xs"><input type="checkbox" checked={useRevised} onChange={(e) => setUseRevised(e.target.checked)} />明确使用用户修订文本评分；否则使用原始转写</label><button disabled={busy} onClick={submit} className="rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white">提交评分</button></>}{exercise.evaluation && <div className="rounded-2xl bg-slate-50 p-4 text-xs space-y-2"><b>总分 {exercise.evaluation.totalScore}</b>{Object.entries(exercise.evaluation.dimensions as Record<string, { score: number; feedback: string }>).map(([key, item]) => <p key={key}>{key}: {item.score} — {item.feedback}</p>)}<p>遗漏：{exercise.evaluation.omissions.join('、') || '无'}</p><p>错误概念：{exercise.evaluation.misconceptions.join('、') || '无'}</p><p>建议结构：{exercise.evaluation.recommendedStructure.join(' → ')}</p><p>示范：{exercise.evaluation.exemplar}</p></div>}</div>}
+    {!!history.length && <details><summary className="cursor-pointer text-xs font-bold">历史记录（{history.length}）</summary>{history.map((item) => <button key={item.id} onClick={() => { setBookId(item.bookId); setRevisionId(item.frameworkRevisionId); setNodeId(item.frameworkNodeId); setExercise(item); }} className="block py-1 text-left text-xs">{item.trainingMode} · {item.status} · 版本 {item.frameworkRevisionId}</button>)}</details>}{error && <p role="alert" className="text-xs text-rose-600">{error}</p>}
+  </div>;
+}
+
 export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) {
   const { tasks, addTask, setIsOpen: setTaskCenterOpen } = useTask();
   const [activeTab, setActiveTab] = useState<'structural' | 'impromptu' | 'counter' | 'promotion'>('structural');
@@ -159,6 +182,20 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
 
   const [promptTopic, setPromptTopic] = useState('跨国企业年中预算会：项目预算突然被削减30%，如何在2分钟内说服美籍副总裁恢复资金？');
   const [matchedFactor, setMatchedFactor] = useState('');
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('speak_prefill');
+    if (!raw) return;
+    sessionStorage.removeItem('speak_prefill');
+    try {
+      const prefill = JSON.parse(raw);
+      if (typeof prefill.topic === 'string' && prefill.topic.trim()) setPromptTopic(prefill.topic.trim());
+      if (['mnc', 'gov', 'dinner', 'custom'].includes(prefill.scenario)) setSelectedScenario(prefill.scenario);
+      if (['structural', 'impromptu', 'counter', 'promotion'].includes(prefill.tab)) setActiveTab(prefill.tab);
+    } catch {
+      // 忽略损坏的跨模块临时数据
+    }
+  }, []);
   const [timeLimit, setTimeLimit] = useState(120);
 
   const [timeLeft, setTimeLeft] = useState(120);
@@ -830,6 +867,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
       <div className={`transition-all duration-500 ease-in-out grid grid-cols-1 lg:grid-cols-12 gap-8 shrink-0 ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
       
       <section className="lg:col-span-5 flex flex-col space-y-6">
+        <BookTheoryTraining />
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -983,9 +1021,9 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
           )}
           <div className="mb-4 rounded-2xl border border-indigo-200 bg-gradient-to-r from-indigo-50 to-slate-50 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <p className="text-sm font-black text-slate-800">进入场景博弈会话</p>
+              <p className="text-sm font-black text-slate-800">表达练怎么说；复杂局势转博弈</p>
               <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                多轮 1VS1/多人博弈，结束后再出阶层与利益全景分析
+                本页训练结构、语气与分寸；需要判断做什么、何时做、对方如何回应时，进入多轮博弈
               </p>
             </div>
             <button

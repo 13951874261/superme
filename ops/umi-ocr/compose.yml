@@ -1,0 +1,24 @@
+services:
+  umi-ocr:
+    image: ${UMI_OCR_IMAGE:-ghcr.io/hiroi-sora/umi-ocr:latest}
+    ports:
+      - "127.0.0.1:1224:1224"
+    mem_limit: 1200m
+    memswap_limit: 1400m
+    cpus: 1.5
+    pids_limit: 256
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    volumes:
+      - umi-ocr-data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:1224/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+volumes:
+  umi-ocr-data:

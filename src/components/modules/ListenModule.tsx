@@ -33,6 +33,7 @@ import { fetchInsightFeedback, fetchInsightCasePool, submitInsightCaseBackfill, 
 import { playClick, playSwitch, playUpload, playReveal, playSuccess } from '../../utils/soundEffects';
 import InsightMindMap from './insight/InsightMindMap';
 import InsightScriptReadonlyView from './insight/InsightScriptReadonlyView';
+import BookTheoryPanel from '../books/BookTheoryPanel';
 import { buildInsightMindMap, type InsightMindMapNode } from '../../utils/insightMindMapBuilder';
 import {
   DEFAULT_THEORY_DATA,
@@ -128,6 +129,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
 
   // 左右分栏状态
   const [leftTab, setLeftTab] = useState<'theory' | 'upload'>('theory');
+  const [theorySource, setTheorySource] = useState<'builtin' | 'books'>('builtin');
   const [expandedTheory, setExpandedTheory] = useState<string | null>('非形式逻辑谬误');
 
   // 理论框架导图与折叠/导出状态（LS-KNOW-01）
@@ -854,6 +856,11 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
           {/* 页签内容 1: 理论框架库 (LS-KNOW-01 体系化导图 + 要点 + 举例 + Word导出) */}
           {leftTab === 'theory' ? (
             <div className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1" role="tablist" aria-label="理论来源">
+                <button role="tab" aria-selected={theorySource === 'builtin'} onClick={() => setTheorySource('builtin')} className={`rounded-lg px-2 py-1.5 text-xs font-bold ${theorySource === 'builtin' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500'}`}>内置理论</button>
+                <button role="tab" aria-selected={theorySource === 'books'} onClick={() => setTheorySource('books')} className={`rounded-lg px-2 py-1.5 text-xs font-bold ${theorySource === 'books' ? 'bg-white text-indigo-600 shadow-xs' : 'text-slate-500'}`}>我的书籍</button>
+              </div>
+              {theorySource === 'books' ? <BookTheoryPanel /> : <>
               {/* 控制操作栏 */}
               <div className="flex items-center justify-between gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl">
                 <div className="flex items-center gap-1">
@@ -1121,6 +1128,7 @@ function ListenModuleComponent({ selectedDate }: ListenModuleProps) {
                   })}
                 </div>
               )}
+              </>}
             </div>
           ) : (
             /* 页签内容 2: 素材导入区 */

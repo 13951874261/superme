@@ -13,6 +13,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { showAnchoredConfirm } from './overlays/AnchoredOverlayHost';
+import { getBookJob, type BookJob } from '../services/bookUploadAPI';
+import { describeBookJob, shouldPollBookJob } from '../utils/bookJobPresentation';
 
 type FeedItem =
   | { kind: 'cron'; sortAt: number; run: DailyCronRunSummary }
@@ -388,6 +390,20 @@ export default function GlobalTaskCenter() {
   const [deletingCronIds, setDeletingCronIds] = useState<Record<string, boolean>>({});
   const [deletingTaskIds, setDeletingTaskIds] = useState<Record<string, boolean>>({});
   const [taskDeleteErrors, setTaskDeleteErrors] = useState<Record<string, string>>({});
+  const [bookJob, setBookJob] = useState<BookJob | null>(null);
+  const [bookJobError, setBookJobError] = useState('');
+
+  React.useEffect(() => {
+    let timer = 0; let stopped = false;
+    const open = async (event?: Event) => {
+      window.clearTimeout(timer); stopped = false; const detail = (event as CustomEvent<{ bookId: string; jobId: string }> | undefined)?.detail;
+      const query = new URLSearchParams(window.location.search); const bookId = detail?.bookId || query.get('bookId'); const jobId = detail?.jobId || query.get('jobId');
+      if (!bookId || !jobId) return; setIsOpen(true); setBookJobError('');
+      const poll = async () => { try { const job = await getBookJob(bookId, jobId); if (stopped) return; setBookJob(job); requestAnimationFrame(() => document.getElementById(`book-job-${jobId}`)?.focus()); if (shouldPollBookJob(job)) timer = window.setTimeout(poll, 2000); } catch (cause) { if (!stopped) { setBookJob(null); setBookJobError(cause instanceof Error ? cause.message : '任务不存在'); } } };
+      await poll();
+    };
+    window.addEventListener('open-book-job', open); void open(); return () => { stopped = true; window.clearTimeout(timer); window.removeEventListener('open-book-job', open); };
+  }, [setIsOpen]);
 
   const finishedCount =
     cronRuns.filter((r) => ['completed', 'failed', 'partial_failed'].includes(r.status)).length +
@@ -588,7 +604,9 @@ export default function GlobalTaskCenter() {
         )}
 
         <div className="flex-grow overflow-y-auto p-6 space-y-4">
-          {mergedEmpty ? (
+          {bookJob && (() => { const presentation = describeBookJob(bookJob); return <section id={`book-job-${bookJob.id}`} tabIndex={-1} className="rounded-2xl border-2 border-indigo-500 bg-indigo-50 p-5 shadow-lg focus:outline-none" aria-live="polite"><h4 className="text-xs font-black text-indigo-950">本次书籍解析任务</h4><p className="mt-1 break-all text-[10px] text-indigo-700">ID: {bookJob.id}</p><p className="mt-2 text-xs font-bold text-slate-700">{presentation.label}{bookJob.queuePosition ? ` · 队列第 ${bookJob.queuePosition} 位` : ''}</p>{presentation.errorMessage && <p role="alert" className="mt-2 text-[11px] text-red-700">{presentation.errorCode && <span className="font-mono">{presentation.errorCode} · </span>}{presentation.errorMessage}</p>}{presentation.action && <><p className="mt-2 text-[11px] text-slate-600">后台解析已经结束，不会继续自动更新。请进入“听力 → 理论训练 → 我的书籍”检查并确认章节。</p><button type="button" onClick={() => { window.dispatchEvent(new CustomEvent('navigate-insight-listen')); setIsOpen(false); }} className="mt-3 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">{presentation.action}</button></>}</section>; })()}
+          {bookJobError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-700">{bookJobError}。请返回“我的书籍”重新选择。</p>}
+          {mergedEmpty && !bookJob ? (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
               <FileText className="w-12 h-12 text-gray-300 stroke-[1.5]" />
               <div>
@@ -602,7 +620,7 @@ export default function GlobalTaskCenter() {
                 </p>
               </div>
             </div>
-          ) : (
+          ) : feed.length > 0 ? (
             feed.map((item) => {
               if (item.kind === 'cron') {
                 const { run } = item;
@@ -842,7 +860,7 @@ export default function GlobalTaskCenter() {
                 </div>
               );
             })
-          )}
+          ) : null}
         </div>
       </div>
     </>

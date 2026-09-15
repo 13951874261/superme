@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "verify:free-oral": "node --test vocab-server/tests/freeOralSessions.test.js vocab-server/tests/freeOralTurn.test.js vocab-server/tests/freeOralRateLimit.test.js vocab-server/tests/freeOralApiContract.test.js vocab-server/tests/freeOralFrontendContract.test.js && npm run lint && npm run build"
+    "verify:free-oral": "node --test vocab-server/tests/freeOralSessions.test.js vocab-server/tests/freeOralTurn.test.js vocab-server/tests/freeOralRateLimit.test.js vocab-server/tests/freeOralApiContract.test.js vocab-server/tests/freeOralFrontendContract.test.js && npm run lint && npm run build",
+    "verify:book-mvp": "node vocab-server/scripts/verify-book-mvp.js"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

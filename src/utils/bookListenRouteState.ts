@@ -1,0 +1,3 @@
+export type BookListenRouteState = { bookId?: string; revisionId?: string; nodeId?: string };
+export function readBookListenRoute(search: string): BookListenRouteState { const q = new URLSearchParams(search); return { bookId: q.get('bookId') || undefined, revisionId: q.get('revisionId') || undefined, nodeId: q.get('nodeId') || undefined }; }
+export function writeBookListenRoute(url: string, state: BookListenRouteState): string { const next = new URL(url, 'http://local'); for (const key of ['bookId', 'revisionId', 'nodeId'] as const) state[key] ? next.searchParams.set(key, state[key]!) : next.searchParams.delete(key); return `${next.pathname}${next.search}${next.hash}`; }
