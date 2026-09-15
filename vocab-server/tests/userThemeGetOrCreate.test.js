@@ -129,11 +129,7 @@ function testTodayPackFollowsPrefsNotRequestTheme() {
       status: 'ready',
     });
     const row = dailyPackService.getTodayPackForCurrentTheme(db, 'lzhmy', '2026-08-23', '新人报到');
-    assert.equal(row.theme, '商务谈判：让步与施压');
-    const body = dailyPackService.serializeDailyPack(row, '新人报到');
-    assert.equal(body.currentTheme, '新人报到');
-    assert.equal(body.theme, '商务谈判：让步与施压');
-    assert.equal(body.stale, true);
+    assert.equal(row, undefined, '当前主题未命中时不得回退旧主题缓存');
   } finally {
     db.close();
     fs.rmSync(dir, { recursive: true, force: true });
