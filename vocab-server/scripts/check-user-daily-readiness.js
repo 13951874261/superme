@@ -1,17 +1,32 @@
 const fs = require('fs');
 const path = require('path');
-const Database = require('better-sqlite3');
 
-const PRODUCTION_DB_PATH = '/var/www/super-agent/vocab.db';
+function isBetterSqlite3BindingError(error) {
+  return error?.code === 'MODULE_NOT_FOUND' && String(error.message).includes('better-sqlite3')
+    || String(error?.message).includes('Could not locate the bindings file');
+}
+
+function openDatabase(filePath, options) {
+  try { const Database = require('better-sqlite3'); return new Database(filePath, options); }
+  catch (error) {
+    if (!isBetterSqlite3BindingError(error)) throw error;
+    const { DatabaseSync } = require('node:sqlite');
+    return new DatabaseSync(filePath, { readOnly: options?.readonly });
+  }
+}
+
+const PRODUCTION_DB_PATH = '/var/lib/super-agent/vocab.db';
 
 function resolveDatabasePath({
   env = process.env,
   scriptDir = __dirname,
 } = {}) {
-  if (env.VOCAB_DB_PATH) return path.resolve(env.VOCAB_DB_PATH);
+  const configuredPath = env.SUPER_AGENT_DB_PATH || env.VOCAB_DB_PATH;
+  if (configuredPath) return path.resolve(configuredPath);
 
   const normalizedDir = String(scriptDir).replace(/\\/g, '/');
-  const isProduction = env.NODE_ENV === 'production' || normalizedDir.includes('/var/www/');
+  const isProduction = env.NODE_ENV === 'production'
+    || normalizedDir === '/opt' || normalizedDir.startsWith('/opt/') || normalizedDir.startsWith('/var/www/');
   if (!isProduction) return path.resolve(scriptDir, '..', 'vocab.db');
 
   return PRODUCTION_DB_PATH;
@@ -19,8 +34,6 @@ function resolveDatabasePath({
 
 function getUserIdCandidates(userId) {
   const normalized = String(userId || '').trim();
-  if (normalized === 'lzhmy') return ['lzhmy', 'lzhumy'];
-  if (normalized === 'lzhumy') return ['lzhumy', 'lzhmy'];
   return normalized ? [normalized] : [];
 }
 
@@ -182,7 +195,7 @@ function buildReport(db, userId, now = new Date()) {
   )];
   const lines = [
     `上海日期: ${shanghaiDate}`,
-    `查询候选 user_id: ${candidates.join(', ')}`,
+    `精确查询 user_id: ${candidates.join(', ')}`,
     `实际命中 user_id: ${matchedUserIds.join(', ') || '无'}`,
   ];
   sections.forEach((section, index) => {
@@ -209,7 +222,7 @@ function main(argv = process.argv.slice(2)) {
 
   let db;
   try {
-    db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
     console.log(`数据库: ${dbPath}`);
     console.log(buildReport(db, userId));
     return 0;
@@ -229,6 +242,7 @@ module.exports = {
   buildReport,
   getShanghaiDate,
   getUserIdCandidates,
+  isBetterSqlite3BindingError,
   readTable,
   resolveDatabasePath,
   summarizeStatuses,

@@ -4,13 +4,18 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
-const Database = require('better-sqlite3');
+
+function openDatabase(filePath, options) {
+  try { const Database = require('better-sqlite3'); return new Database(filePath, options); }
+  catch { const { DatabaseSync } = require('node:sqlite'); return new DatabaseSync(filePath, { readOnly: options?.readonly }); }
+}
 
 const scriptPath = path.join(__dirname, 'check-user-daily-readiness.js');
 const {
   buildReport,
   getShanghaiDate,
   getUserIdCandidates,
+  isBetterSqlite3BindingError,
   resolveDatabasePath,
 } = require(scriptPath);
 
@@ -25,7 +30,7 @@ function runScript(args, env = {}) {
 function createFixture() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'daily-readiness-'));
   const dbPath = path.join(tempDir, 'fixture.db');
-  const db = new Database(dbPath);
+  const db = openDatabase(dbPath);
   const now = Date.now();
   const today = getShanghaiDate(new Date(now));
   const nonToday = getShanghaiDate(new Date(now - (24 * 60 * 60 * 1000)));
@@ -93,43 +98,56 @@ function sha256(filePath) {
 }
 
 function testPathSelection() {
+  const superAgentPath = '/data/new.db';
+  const vocabPath = '/data/legacy.db';
   const localDefault = path.resolve(__dirname, '..', 'vocab.db');
   assert.strictEqual(
     resolveDatabasePath({
-      env: { VOCAB_DB_PATH: 'D:\\data\\custom.db' },
+      env: { SUPER_AGENT_DB_PATH: superAgentPath, VOCAB_DB_PATH: vocabPath },
       scriptDir: __dirname,
-      existsSync: () => false,
     }),
-    path.resolve('D:\\data\\custom.db'),
-    'VOCAB_DB_PATH 必须最高优先级',
+    path.resolve(superAgentPath),
+    'SUPER_AGENT_DB_PATH 必须高于 VOCAB_DB_PATH',
   );
   assert.strictEqual(
-    resolveDatabasePath({
-      env: { NODE_ENV: 'production' },
-      scriptDir: '/var/www/super-agent/vocab-server/scripts',
-      existsSync: (candidate) => candidate === '/var/www/super-agent/vocab-server/vocab.db',
-    }),
-    '/var/www/super-agent/vocab.db',
-    '生产环境必须固定使用主库，不得回退到 vocab-server 子目录',
+    resolveDatabasePath({ env: { VOCAB_DB_PATH: vocabPath }, scriptDir: __dirname }),
+    path.resolve(vocabPath),
+    'VOCAB_DB_PATH 必须作为兼容回退',
   );
   assert.strictEqual(
-    resolveDatabasePath({
-      env: {},
-      scriptDir: '/var/www/super-agent/vocab-server/scripts',
-      existsSync: () => false,
-    }),
-    '/var/www/super-agent/vocab.db',
-    '/var/www 环境必须固定使用生产主库',
+    resolveDatabasePath({ env: { NODE_ENV: 'production' }, scriptDir: __dirname }),
+    '/var/lib/super-agent/vocab.db',
+    'NODE_ENV=production 必须使用生产默认库',
+  );
+  for (const scriptDir of [
+    '/var/www/super-agent/vocab-server/scripts',
+    '/opt/super-agent/vocab-server/scripts',
+  ]) {
+    assert.strictEqual(
+      resolveDatabasePath({ env: {}, scriptDir }),
+      '/var/lib/super-agent/vocab.db',
+      `${scriptDir} 必须使用生产默认库`,
+    );
+  }
+  const windowsScriptDir = 'C:\\opt\\super-agent\\vocab-server\\scripts';
+  assert.strictEqual(
+    resolveDatabasePath({ env: {}, scriptDir: windowsScriptDir }),
+    path.resolve(windowsScriptDir, '..', 'vocab.db'),
+    'Windows C:\\opt 路径不得误判为 Linux 生产环境',
   );
   assert.strictEqual(
-    resolveDatabasePath({
-      env: {},
-      scriptDir: __dirname,
-      existsSync: () => false,
-    }),
+    resolveDatabasePath({ env: {}, scriptDir: __dirname }),
     localDefault,
     '非生产环境默认 vocab-server/vocab.db',
   );
+}
+
+function testBindingFallbackClassification() {
+  assert.strictEqual(isBetterSqlite3BindingError(new Error('Could not locate the bindings file')), true);
+  const missing = Object.assign(new Error("Cannot find module 'better-sqlite3'"), { code: 'MODULE_NOT_FOUND' });
+  assert.strictEqual(isBetterSqlite3BindingError(missing), true);
+  assert.strictEqual(isBetterSqlite3BindingError(new Error('database disk image is malformed')), false);
+  assert.strictEqual(isBetterSqlite3BindingError(Object.assign(new Error("Cannot find module 'other'"), { code: 'MODULE_NOT_FOUND' })), false);
 }
 
 function testShanghaiDateBoundary() {
@@ -145,10 +163,11 @@ function testShanghaiDateBoundary() {
   );
 }
 
-function testAliases() {
-  assert.deepStrictEqual(getUserIdCandidates('lzhmy'), ['lzhmy', 'lzhumy']);
-  assert.deepStrictEqual(getUserIdCandidates('lzhumy'), ['lzhumy', 'lzhmy']);
-  assert.deepStrictEqual(getUserIdCandidates('other'), ['other']);
+function testExactUserIds() {
+  assert.deepStrictEqual(getUserIdCandidates('lzhmy'), ['lzhmy']);
+  assert.deepStrictEqual(getUserIdCandidates('lzhumy'), ['lzhumy']);
+  assert.deepStrictEqual(getUserIdCandidates(' other '), ['other']);
+  assert.deepStrictEqual(getUserIdCandidates(''), []);
 }
 
 function testMissingArgument() {
@@ -160,7 +179,7 @@ function testMissingArgument() {
 function testMissingTablesWarnInsteadOfCrashing() {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'daily-readiness-empty-'));
   const dbPath = path.join(tempDir, 'empty.db');
-  new Database(dbPath).close();
+  openDatabase(dbPath).close();
   try {
     const result = runScript(['lzhmy'], { VOCAB_DB_PATH: dbPath });
     assert.strictEqual(result.status, 0, result.stderr);
@@ -185,11 +204,14 @@ function testReadonlyQueryAndMissingFieldWarning() {
   } = createFixture();
   try {
     const before = sha256(dbPath);
-    const db = new Database(dbPath, { readonly: true, fileMustExist: true });
-    const output = buildReport(db, 'lzhmy', now);
+    const db = openDatabase(dbPath, { readonly: true, fileMustExist: true });
+    const isolatedOutput = buildReport(db, 'lzhmy', now);
+    const output = buildReport(db, 'lzhumy', now);
     db.close();
     const after = sha256(dbPath);
     assert.strictEqual(after, before, '诊断前后数据库内容必须完全一致');
+    assert.match(isolatedOutput, /实际命中 user_id: 无/, '查询 lzhmy 不得命中仅属于 lzhumy 的数据');
+    assert.doesNotMatch(isolatedOutput, /商务谈判/);
     assert.match(output, new RegExp(`上海日期: ${today}`));
     assert.match(output, /实际命中 user_id: lzhumy/);
     assert.match(output, /user_theme_prefs[\s\S]*商务谈判/);
@@ -245,8 +267,9 @@ function testMissingDatabaseIsNotCreated() {
 function main() {
   const tests = [
     testPathSelection,
+    testBindingFallbackClassification,
     testShanghaiDateBoundary,
-    testAliases,
+    testExactUserIds,
     testMissingArgument,
     testMissingTablesWarnInsteadOfCrashing,
     testReadonlyQueryAndMissingFieldWarning,

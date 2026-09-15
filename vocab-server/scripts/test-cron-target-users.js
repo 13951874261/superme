@@ -1,5 +1,20 @@
 const assert = require('assert');
-const Database = require('better-sqlite3');
+
+function isBetterSqlite3BindingError(error) {
+  return (error?.code === 'MODULE_NOT_FOUND' && String(error.message).includes('better-sqlite3'))
+    || String(error?.message).includes('Could not locate the bindings file');
+}
+
+function openDatabase(filePath) {
+  try {
+    const Database = require('better-sqlite3');
+    return new Database(filePath);
+  } catch (error) {
+    if (!isBetterSqlite3BindingError(error)) throw error;
+    const { DatabaseSync } = require('node:sqlite');
+    return new DatabaseSync(filePath);
+  }
+}
 
 const dailyPackService = require('../services/dailyPackService');
 const dailyListenService = require('../services/dailyListenPreGenerateService');
@@ -8,15 +23,10 @@ const DEFAULT_THEME = '商务谈判：让步与施压';
 const DAY = 24 * 60 * 60 * 1000;
 
 function createDb() {
-  try {
-    const db = new Database(':memory:');
-    dailyPackService.initDailyPackTables(db);
-    dailyListenService.initDailyListenTables(db);
-    return db;
-  } catch (e) {
-    console.log('SKIP test-cron-target-users (better-sqlite3 native bindings unavailable)');
-    process.exit(0);
-  }
+  const db = openDatabase(':memory:');
+  dailyPackService.initDailyPackTables(db);
+  dailyListenService.initDailyListenTables(db);
+  return db;
 }
 
 function testActiveUsersWithThemePreferred() {
@@ -65,14 +75,14 @@ function testFallbackUsesDefaultThemeWhenMissing() {
 function testNoAliasMergeA2() {
   const db = createDb();
   const now = Date.now();
-  db.prepare('INSERT INTO user_theme_prefs VALUES (?,?,?,?)').run('lzhmy', '主题L', now, now);
-  db.prepare('INSERT INTO user_theme_prefs VALUES (?,?,?,?)').run('lzhumy', '主题M', now, now);
-  db.prepare('INSERT INTO user_login_logs VALUES (?,?)').run('lzhmy', now - 1 * DAY);
-  db.prepare('INSERT INTO user_login_logs VALUES (?,?)').run('lzhumy', now - 1 * DAY);
+  dailyPackService.upsertUserTheme(db, 'alice@work', '主题L', now);
+  dailyPackService.upsertUserTheme(db, 'alice@home', '主题M', now);
+  dailyListenService.recordUserLogin(db, 'alice@work', now - 1 * DAY);
+  dailyListenService.recordUserLogin(db, 'alice@home', now - 1 * DAY);
 
   const users = dailyListenService.listCronTargetUsers(db, now);
   const ids = users.map((u) => u.user_id).sort();
-  assert.deepStrictEqual(ids, ['lzhmy', 'lzhumy'], 'A2：不合并双账号');
+  assert.deepStrictEqual(ids, ['alice@home', 'alice@work'], 'A2：不合并 @ 后缀不同的登录账号');
 }
 
 function testEmptyWhenNoLoginLogsAtAll() {

@@ -2,7 +2,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const test = require('node:test');
+const vm = require('node:vm');
 
+const dailyPackService = require('../services/dailyPackService');
 const root = path.resolve(__dirname, '..', '..');
 
 function read(relativePath) {
@@ -16,6 +18,35 @@ function extract(source, startMarker, endMarker) {
   assert.notEqual(end, -1, `missing end marker: ${endMarker}`);
   return source.slice(start, end);
 }
+
+function loadNormalizeMemoryUserId() {
+  const source = read('vocab-server/server.js');
+  const declaration = extract(source, 'function normalizeMemoryUserId', '\nfunction parseJsonObject');
+  return vm.runInNewContext(`(${declaration.replace('function normalizeMemoryUserId', 'function')})`);
+}
+
+test('database user normalization preserves account suffixes and existing fallback contract', () => {
+  const normalizeMemoryUserId = loadNormalizeMemoryUserId();
+  for (const normalize of [normalizeMemoryUserId, dailyPackService.normalizeUserId]) {
+    assert.equal(normalize('alice@work'), 'alice@work');
+    assert.equal(normalize('  alice@home  '), 'alice@home');
+    assert.equal(normalize('   '), 'default-user');
+    assert.equal(normalize(null), 'default-user');
+  }
+});
+
+test('mychat trusts only authenticated user for memory and Dify identity', () => {
+  const route = extract(
+    read('vocab-server/server.js'),
+    "app.post('/api/dify/mychat/chat'",
+    "app.get('/api/daily-pack/today'",
+  );
+  assert.match(route, /const rawUser = req\.auth\?\.userId/);
+  assert.doesNotMatch(route, /const rawUser\s*=\s*String\([\s\S]*?(?:body\.)?userId|inputs\.app_user_id/);
+  assert.match(route, /const uid = normalizeMemoryUserId\(rawUser\)/);
+  assert.match(route, /\.\.\.inputs,[\s\S]*app_user_id:\s*rawUser/);
+  assert.match(route, /user:\s*rawUser/);
+});
 
 test('login-ping records login without scheduling catch-up', () => {
   const route = extract(
@@ -83,14 +114,19 @@ test('session init and profile fetch share an 8s timeout and do not block unlock
   assert.match(initialize, /return userId/);
 });
 
-test('authenticated fallback uses reliable ping and logs failures', () => {
+test('authenticated session wrapper owns login ping without scheduling generation', () => {
   const app = read('src/App.tsx');
-
-  assert.match(app, /import\s*\{[\s\S]*recordUserLoginPing[\s\S]*\}\s*from '\.\/utils\/profileHelper'/);
-  assert.match(
-    app,
-    /void recordUserLoginPing\(userId\)\.catch\(\(error\)\s*=>\s*\{[\s\S]*?console\.warn/,
+  const helper = read('src/utils/profileHelper.ts');
+  const authenticatedInit = extract(
+    helper,
+    'export function initializeAuthenticatedUserSession',
+    'export async function initializeUserSession',
   );
+
+  assert.match(app, /initializeAuthenticatedUserSession\(session\.userId\)/);
+  assert.doesNotMatch(app, /recordUserLoginPing/);
+  assert.match(authenticatedInit, /recordUserLoginPing\(target\)/);
+  assert.doesNotMatch(authenticatedInit, /scheduleUserDailyCatchup|generate|rerun/);
 });
 
 test('EnglishProvider and TaskProvider mount only after login', () => {
