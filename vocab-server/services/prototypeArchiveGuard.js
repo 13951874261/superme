@@ -20,12 +20,33 @@ function filterVisiblePrototypes(rows) {
   );
 }
 
-function normalizePrototypeArchive(raw) {
+function normalizePrototypeArchive(raw, context) {
   if (!raw || typeof raw !== 'object') return null;
   const name = String(raw.name || '').trim();
   if (!name) return null;
   if (isUserPrototype(name, raw.description)) return null;
   if (isTestFixturePrototypeName(name)) return null;
+
+  if (!context) return null;
+  const opponentName = String(context.opponentName || '').trim();
+  const opponentRoleId = String(context.opponentRoleId || '').trim();
+  const opponentEvidenceText = String(context.opponentEvidenceText || '');
+  const evidence = Array.isArray(raw.evidence) ? raw.evidence : [];
+  if (!opponentName
+    || !opponentRoleId
+    || !opponentEvidenceText
+    || raw.subject !== 'opponent'
+    || String(raw.subject_role_id || '') !== opponentRoleId
+    || name !== opponentName
+    || evidence.length === 0
+    || evidence.some((item) => {
+      if (!item || typeof item !== 'object') return true;
+      const quote = String(item.quote || '').trim();
+      return String(item.actor_role_id || '') !== opponentRoleId
+        || quote.replace(/\s+/g, '').length < 8
+        || !opponentEvidenceText.includes(quote);
+    })) return null;
+
   return {
     name,
     type: String(raw.type || '未分类').trim() || '未分类',

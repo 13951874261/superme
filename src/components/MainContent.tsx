@@ -116,7 +116,7 @@ function MainContentComponent({
       )}
       {activeModule === 'gametheory' && (
         <React.Suspense fallback={<ModuleSkeleton />}>
-          <GameTheoryModule />
+          <GameTheoryModule setActiveModule={setActiveModule} />
         </React.Suspense>
       )}
       {activeModule === 'entertainment' && (
