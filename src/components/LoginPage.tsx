@@ -4,8 +4,8 @@ import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
 import { ArrowRight, ShieldAlert } from 'lucide-react';
 import { playClick, playSuccess, playError } from '../utils/soundEffects';
-import { ensureAppUserId, initializeUserSession } from '../utils/profileHelper';
-import { verifyInvite } from '../services/authAPI';
+import { initializeAuthenticatedUserSession } from '../utils/profileHelper';
+import { login } from '../services/authAPI';
 
 gsap.registerPlugin(useGSAP);
 
@@ -27,10 +27,13 @@ const SATELLITES = [
 const CORE = { cx: 50, cy: 50, r: 6 };
 
 export default function LoginPage({ onUnlock }: LoginPageProps) {
-  const [account, setAccount] = useState(
+  const [lastAccount] = useState(
     () => localStorage.getItem('super_agent_user_id')?.trim() || ''
   );
+  const [account, setAccount] = useState(lastAccount);
+  const [inviteToken, setInviteToken] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [errorField, setErrorField] = useState<'account' | 'token' | 'form' | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -119,35 +122,35 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
     if (isSubmitting) return;
 
     const trimmed = account.trim();
-    if (!trimmed) {
+    if (!trimmed || !inviteToken) {
       playError();
-      setErrorMsg('请输入受邀账号');
+      setErrorField(!trimmed ? 'account' : 'token');
+      setErrorMsg(!trimmed ? '请输入受邀账号' : '请输入登录令牌');
       inputRef.current?.focus();
       return;
     }
 
     setIsSubmitting(true);
+    setErrorField(null);
     setErrorMsg('');
     try {
-      const result = await verifyInvite(trimmed);
+      const result = await login(trimmed, inviteToken);
       if (!result.success) {
         playError();
-        setErrorMsg(result.error || '该账号未被邀请');
+        setErrorField('form');
+        setErrorMsg(result.error || '登录凭据无效');
         inputRef.current?.focus();
         return;
       }
 
+      if (!result.userId) throw new Error('Authenticated userId missing');
       playSuccess();
-      try {
-        await initializeUserSession(trimmed);
-      } catch (err) {
-        console.warn('[LoginPage] session init failed, continuing with local user id:', err);
-        ensureAppUserId(trimmed);
-      }
+      await initializeAuthenticatedUserSession(result.userId);
       onUnlock();
     } catch (err) {
-      console.warn('[LoginPage] verify invite failed:', err);
+      console.warn('[LoginPage] login failed:', err);
       playError();
+      setErrorField('form');
       setErrorMsg('暂时无法验证，请稍后重试');
       inputRef.current?.focus();
     } finally {
@@ -240,6 +243,11 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
             <div>
+              {lastAccount && (
+                <p className="mb-3 text-xs text-ink-muted">
+                  上次登录账号：<strong className="text-ink-secondary">{lastAccount}</strong>
+                </p>
+              )}
               <label
                 htmlFor="invited-account"
                 className="block text-xs font-bold text-ink-secondary mb-2 tracking-wide"
@@ -257,16 +265,49 @@ export default function LoginPage({ onUnlock }: LoginPageProps) {
                 value={account}
                 onChange={(e) => {
                   setAccount(e.target.value);
-                  if (errorMsg) setErrorMsg('');
+                  if (errorField === 'account' || errorField === 'form') {
+                    setErrorField(null);
+                    setErrorMsg('');
+                  }
                 }}
-                aria-invalid={Boolean(errorMsg)}
-                aria-describedby={errorMsg ? 'invited-account-error' : undefined}
+                aria-invalid={errorField === 'account'}
+                aria-describedby={errorField === 'account' ? 'invited-account-error' : undefined}
                 className={`w-full px-4 py-3 rounded-xl bg-canvas border text-sm text-ink-primary placeholder-ink-muted outline-none transition-[border-color,box-shadow,background-color] duration-200 focus-visible:ring-2 focus-visible:ring-[#FF5722]/40 ${
-                  errorMsg
+                  errorField === 'account'
                     ? 'border-danger focus-visible:border-danger'
                     : 'border-border focus-visible:border-[#FF5722]'
                 }`}
               />
+            </div>
+
+            <div>
+              <label htmlFor="invite-token" className="block text-xs font-bold text-ink-secondary mb-2 tracking-wide">
+                登录令牌
+              </label>
+              <input
+                id="invite-token"
+                type="password"
+                name="invite-token"
+                autoComplete="current-password"
+                spellCheck={false}
+                placeholder="请输入登录令牌…"
+                value={inviteToken}
+                onChange={(e) => {
+                  setInviteToken(e.target.value);
+                  if (errorField === 'token' || errorField === 'form') {
+                    setErrorField(null);
+                    setErrorMsg('');
+                  }
+                }}
+                aria-invalid={errorField === 'token'}
+                aria-describedby={`login-token-help${errorField === 'token' ? ' invited-account-error' : ''}`}
+                className={`w-full px-4 py-3 rounded-xl bg-canvas border text-sm text-ink-primary placeholder-ink-muted outline-none transition-[border-color,box-shadow,background-color] duration-200 focus-visible:ring-2 focus-visible:ring-[#FF5722]/40 ${
+                  errorField === 'token' ? 'border-danger focus-visible:border-danger' : 'border-border focus-visible:border-[#FF5722]'
+                }`}
+              />
+              <p id="login-token-help" className="mt-2 text-[11px] leading-relaxed text-ink-muted">
+                登录令牌可重复使用，请妥善保管；忘记或失效请联系管理员重新签发。
+              </p>
             </div>
 
             <div id="invited-account-error" role="status" aria-live="polite" className="min-h-[20px]">

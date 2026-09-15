@@ -917,18 +917,50 @@ export async function switchAccountSession(nextUserId: string): Promise<string> 
   clearSessionKeysOnSwitch(next);
 
   const { loadLearningUiFromServer } = await import('../services/learningUiAPI');
-  const results = await Promise.allSettled([
+  await Promise.all([
     loadUserProfileFromServer(next),
     loadLearningUiFromServer(next),
   ]);
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      console.warn('[profileHelper] switchAccountSession step failed:', result.reason);
-    }
-  }
 
   dispatchUserIdChanged();
   return next;
+}
+
+const authenticatedSessionInFlight = new Map<string, Promise<string>>();
+
+/**
+ * 认证后的专用水合：Cookie 已属于目标账号，禁止 flush 本地残留的旧账号。
+ */
+export function initializeAuthenticatedUserSession(userId: string): Promise<string> {
+  const target = String(userId || '').trim();
+  if (!target) return Promise.reject(new Error('Authenticated userId is required'));
+  if (sanitizeUserId(target) !== target) {
+    return Promise.reject(new Error('Authenticated userId contains unsupported characters'));
+  }
+
+  const existing = authenticatedSessionInFlight.get(target);
+  if (existing) return existing;
+
+  const hydration = (async () => {
+    setAppUserId(target, { dispatch: false });
+    clearSessionKeysOnSwitch(target);
+
+    const { loadLearningUiFromServer } = await import('../services/learningUiAPI');
+    await Promise.all([
+      loadUserProfileFromServer(target),
+      loadLearningUiFromServer(target),
+    ]);
+
+    dispatchUserIdChanged();
+    await recordUserLoginPing(target).catch((error) => {
+      console.warn(`[profileHelper] login ping failed for userId=${target}:`, error);
+    });
+    return target;
+  })();
+
+  authenticatedSessionInFlight.set(target, hydration);
+  void hydration.finally(() => authenticatedSessionInFlight.delete(target)).catch(() => {});
+  return hydration;
 }
 
 export async function initializeUserSession(customUserId?: string): Promise<string> {
@@ -951,10 +983,6 @@ export async function initializeUserSession(customUserId?: string): Promise<stri
     return userId;
   }
 
-  try {
-    await recordUserLoginPing(userId);
-  } catch (err) {
-    console.warn('[profileHelper] login ping failed:', err);
-  }
+  await recordUserLoginPing(userId);
   return userId;
 }

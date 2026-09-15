@@ -19,4 +19,9 @@ coverage/
 vocab-server/vocab.db
 vocab-server/data/
 vocab-server/secrets/
+
+# Local fixtures, release reports, and runtime-generated book outputs
+private/
+vocab-server/private/
+
 test_examples.js

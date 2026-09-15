@@ -12,6 +12,7 @@ import { playError } from './utils/soundEffects';
 import CyberneticLockModal from './components/CyberneticLockModal';
 import { GLOBAL_SPRING } from './utils/motion';
 import LoginPage from './components/LoginPage';
+import { getSession, logout } from './services/authAPI';
 import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
 import GlobalSettingsPanel from './components/GlobalSettingsPanel';
@@ -28,15 +29,20 @@ import {
 } from './utils/difyChatbot';
 import {
   getAppUserId,
+  initializeAuthenticatedUserSession,
   isProfileStale,
   loadUserProfileFromServer,
-  recordUserLoginPing,
 } from './utils/profileHelper';
 
 // 定义八大核心模块的类型
 export type ModuleType = 'listen' | 'speak' | 'read' | 'write' | 'english' | 'entertainment' | 'gametheory' | 'weekly';
 
-function AppContent() {
+interface AppContentProps {
+  currentUserId: string;
+  onLogout: () => Promise<void>;
+}
+
+function AppContent({ currentUserId, onLogout }: AppContentProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
@@ -336,7 +342,7 @@ function AppContent() {
 
       {/* 全局任务中心抽屉：渲染在 App 根级别，独立于 main-content */}
       <GlobalTaskCenter />
-      <GlobalSettingsPanel />
+      <GlobalSettingsPanel currentUserId={currentUserId} onLogout={onLogout} />
 
       {/* 控制论闭环警示弹窗 */}
       <CyberneticLockModal
@@ -389,8 +395,25 @@ function AppContent() {
 }
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [userId, setUserId] = useState(() => getAppUserId());
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSession().then(async (session) => {
+      if (session) {
+        await initializeAuthenticatedUserSession(session.userId);
+        if (cancelled) return;
+        setUserId(session.userId);
+      }
+      if (cancelled) return;
+      setIsAuthenticated(Boolean(session));
+    }).catch(() => {
+      if (cancelled) return;
+      setIsAuthenticated(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     const syncUserId = () => setUserId(getAppUserId());
@@ -398,14 +421,12 @@ export default function App() {
     return () => window.removeEventListener('global-user-id-changed', syncUserId);
   }, []);
 
-  // One-shot login ping when authenticated (covers paths that skip LoginPage / initializeUserSession)
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    const uid = getAppUserId();
-    void recordUserLoginPing(uid).catch((error) => {
-      console.warn(`[App] login ping failed for userId=${uid}:`, error);
-    });
-  }, [isAuthenticated]);
+  const handleLogout = useCallback(async () => {
+    await logout();
+    setIsAuthenticated(false);
+  }, []);
+
+  if (isAuthenticated === null) return null;
 
   return (
     <AnimatePresence mode="wait">
@@ -415,7 +436,7 @@ export default function App() {
         <React.Fragment key={`app-shell-${userId}`}>
           <EnglishProvider>
             <TaskProvider>
-              <AppContent />
+              <AppContent currentUserId={userId} onLogout={handleLogout} />
             </TaskProvider>
           </EnglishProvider>
         </React.Fragment>

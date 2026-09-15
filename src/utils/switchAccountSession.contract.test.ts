@@ -26,10 +26,12 @@ test('switchAccountSession：先 flush，静默 setId，load 后再 dispatch', (
   assert.ok(dispatchIdx > loadIdx, 'dispatch after load so remount sees hydrated bucket');
 });
 
-test('GlobalSettingsPanel 改号走 switchAccountSession', () => {
+test('GlobalSettingsPanel 禁止直接改号，必须退出后切换账号', () => {
   const src = fs.readFileSync(path.join(root, 'src/components/GlobalSettingsPanel.tsx'), 'utf8');
-  assert.match(src, /switchAccountSession/);
-  assert.doesNotMatch(src, /setAppUserId\(next\)/);
+  assert.doesNotMatch(src, /switchAccountSession/);
+  assert.doesNotMatch(src, /保存用户标识/);
+  assert.match(src, /onLogout/);
+  assert.match(src, /切换账号需先退出/);
 });
 
 test('App 工作台 key 含 userId', () => {

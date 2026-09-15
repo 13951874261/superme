@@ -37,6 +37,155 @@ function installEnv() {
   return { store, events };
 }
 
+test('认证水合：旧本地账号不得 flush，新 Cookie 账号直接加载 alice', async () => {
+  const { store, events } = installEnv();
+  store.set('super_agent_user_id', 'lzhmy');
+  store.set(
+    learnKey('lzhmy', 'superme_weekly_history_enhanced'),
+    JSON.stringify([{ id: 'w-old', userContent: 'lzhmy 未保存夜话' }]),
+  );
+
+  const puts: string[] = [];
+  const gets: string[] = [];
+  (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
+    const u = String(url);
+    if (init?.method === 'PUT' && u.includes('/api/user/learning-ui')) {
+      puts.push(u);
+    }
+    if (!init?.method || init.method === 'GET') gets.push(u);
+    if (u.includes('/api/user/profile/')) {
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { profile_content: '', updated_at: 0, error_ledger: {}, memory_layers: {} },
+        }),
+      };
+    }
+    if (u.includes('/api/user/learning-ui/')) {
+      return { ok: true, json: async () => ({ success: true, data: { learning_ui: null } }) };
+    }
+    return { ok: true, json: async () => ({ success: true }) };
+  };
+
+  const { initializeAuthenticatedUserSession } = await import('./profileHelper.ts');
+  await initializeAuthenticatedUserSession('alice');
+
+  assert.equal(puts.length, 0, 'authenticated hydration must not flush stale local account');
+  assert.equal(store.get('super_agent_user_id'), 'alice');
+  assert.ok(gets.some((u) => u.includes('/api/user/profile/alice')), 'loads alice profile');
+  assert.ok(gets.some((u) => u.includes('/api/user/learning-ui/alice')), 'loads alice learning UI');
+  assert.ok(events.includes('global-user-id-changed'), 'dispatches after hydration');
+});
+
+test('认证水合：同账号并发调用只请求一次且共同完成', async () => {
+  const { store } = installEnv();
+  store.set('super_agent_user_id', 'lzhmy');
+
+  const calls = { profile: 0, learningUi: 0, loginPing: 0 };
+  (globalThis as any).fetch = async (url: string, init?: RequestInit) => {
+    const u = String(url);
+    if (u.includes('/api/user/profile/alice')) calls.profile += 1;
+    if (u.includes('/api/user/learning-ui/alice')) calls.learningUi += 1;
+    if (init?.method === 'POST' && u.includes('/api/user/login-ping')) calls.loginPing += 1;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (u.includes('/api/user/profile/')) {
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { profile_content: '', updated_at: 0, error_ledger: {}, memory_layers: {} },
+        }),
+      };
+    }
+    if (u.includes('/api/user/learning-ui/')) {
+      return { ok: true, json: async () => ({ success: true, data: { learning_ui: null } }) };
+    }
+    return { ok: true, json: async () => ({ success: true }) };
+  };
+
+  const { initializeAuthenticatedUserSession } = await import('./profileHelper.ts');
+  const results = await Promise.all([
+    initializeAuthenticatedUserSession('alice'),
+    initializeAuthenticatedUserSession('alice'),
+  ]);
+
+  assert.deepEqual(results, ['alice', 'alice']);
+  assert.deepEqual(calls, { profile: 1, learningUi: 1, loginPing: 1 });
+});
+
+test('认证水合：拒绝会被改写的认证 ID，且不改变本地账号或发请求', async () => {
+  const { store } = installEnv();
+  store.set('super_agent_user_id', 'lzhmy');
+  let fetchCount = 0;
+  (globalThis as any).fetch = async () => {
+    fetchCount += 1;
+    return { ok: true, json: async () => ({ success: true }) };
+  };
+
+  const { initializeAuthenticatedUserSession } = await import('./profileHelper.ts');
+  await assert.rejects(
+    initializeAuthenticatedUserSession('alice+work'),
+    /Authenticated userId contains unsupported characters/,
+  );
+  assert.equal(store.get('super_agent_user_id'), 'lzhmy');
+  assert.equal(fetchCount, 0);
+});
+
+test('认证水合：login-ping 失败不阻止有效认证完成', async () => {
+  const { store, events } = installEnv();
+  store.set('super_agent_user_id', 'lzhmy');
+  (globalThis as any).fetch = async (url: string) => {
+    const u = String(url);
+    if (u.includes('/api/user/login-ping')) {
+      return { ok: false, status: 500, json: async () => ({ success: false }) };
+    }
+    if (u.includes('/api/user/profile/')) {
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { profile_content: '', updated_at: 0, error_ledger: {}, memory_layers: {} },
+        }),
+      };
+    }
+    return { ok: true, json: async () => ({ success: true, data: { learning_ui: null } }) };
+  };
+
+  const { initializeAuthenticatedUserSession } = await import('./profileHelper.ts');
+  assert.equal(await initializeAuthenticatedUserSession('alice'), 'alice');
+  assert.equal(store.get('super_agent_user_id'), 'alice');
+  assert.ok(events.includes('global-user-id-changed'));
+});
+
+test('认证水合：失败后清理 in-flight，同账号可重新请求成功', async () => {
+  installEnv();
+  let learningUiCalls = 0;
+  (globalThis as any).fetch = async (url: string) => {
+    const u = String(url);
+    if (u.includes('/api/user/learning-ui/alice')) {
+      learningUiCalls += 1;
+      if (learningUiCalls === 1) throw new Error('temporary learning UI failure');
+      return { ok: true, json: async () => ({ success: true, data: { learning_ui: null } }) };
+    }
+    if (u.includes('/api/user/profile/')) {
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { profile_content: '', updated_at: 0, error_ledger: {}, memory_layers: {} },
+        }),
+      };
+    }
+    return { ok: true, json: async () => ({ success: true }) };
+  };
+
+  const { initializeAuthenticatedUserSession } = await import('./profileHelper.ts');
+  await assert.rejects(initializeAuthenticatedUserSession('alice'), /temporary learning UI failure/);
+  assert.equal(await initializeAuthenticatedUserSession('alice'), 'alice');
+  assert.equal(learningUiCalls, 2);
+});
+
 test('E1/E5: 换到空 alice 后不得读到 lzhmy 画像/复盘/材料', async () => {
   const { store, events } = installEnv();
   store.set('super_agent_user_id', 'lzhmy');
