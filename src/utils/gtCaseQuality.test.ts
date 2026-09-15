@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import assert from 'node:assert/strict';
+import { describe, it } from 'node:test';
 import {
   evaluateCasePushQuality,
   evaluateVerdictSectionsQuality,
@@ -28,8 +29,8 @@ describe('GT-CASE-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       incomplete_info: '相关各方在沟通中仍有一些情况尚待进一步明确和统筹安排。',
       decision_point: '我们需要根据上级会议要求，综合评估后续工作推进方案。',
     });
-    expect(r.char_count).toBeGreaterThanOrEqual(GT_CASE_BG_MIN);
-    expect(r.quality).toBe('below_standard');
+    assert.ok(r.char_count >= GT_CASE_BG_MIN);
+    assert.equal(r.quality, 'below_standard');
   });
 
   // F2: 合格尖锐局 ≥400字，≥3方张力、时限场合、信息缺口、选边即伤 → ok
@@ -47,8 +48,8 @@ describe('GT-CASE-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       incomplete_info: '你不知道董事长是否已私下承诺保护那位VP，也不确定法务是否已锁死财务审计证据链。',
       decision_point: '十分钟后会议点名。你若公开站队副总则直接得罪董事长，若弃权则被双方清算，你签还是不签？',
     });
-    expect(r.char_count).toBeGreaterThanOrEqual(GT_CASE_BG_MIN);
-    expect(r.quality).toBe('ok');
+    assert.ok(r.char_count >= GT_CASE_BG_MIN);
+    assert.equal(r.quality, 'ok');
   });
 
   // F3: 四节合计 ≥600 但全是套话，无输赢/情绪/步骤/话术 → below_standard
@@ -64,8 +65,8 @@ describe('GT-CASE-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       actionable_strategy: clichePara,
       script_examples: clichePara,
     });
-    expect(r.sections_char_count).toBeGreaterThanOrEqual(GT_VERDICT_SECTIONS_MIN);
-    expect(r.quality).toBe('below_standard');
+    assert.ok(r.sections_char_count >= GT_VERDICT_SECTIONS_MIN);
+    assert.equal(r.quality, 'below_standard');
   });
 
   // F4: 四节合计 ≥600 且具利益输赢、情绪锚点、次序动作、可出口台词 → ok
@@ -101,8 +102,8 @@ describe('GT-CASE-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       actionable_strategy: action,
       script_examples: script,
     });
-    expect(r.sections_char_count).toBeGreaterThanOrEqual(GT_VERDICT_SECTIONS_MIN);
-    expect(r.quality).toBe('ok');
+    assert.ok(r.sections_char_count >= GT_VERDICT_SECTIONS_MIN);
+    assert.equal(r.quality, 'ok');
   });
 
   // F5: background 仅 380 字但密度合格 → below_standard (字数失败)
@@ -119,8 +120,8 @@ describe('GT-CASE-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       incomplete_info: '你不知道董事长是否已私下承诺保护那位VP，也不确定法务是否已锁死财务审计证据链。',
       decision_point: '十分钟后会议点名。你若公开站队副总则直接得罪董事长，若弃权则被双方清算，你签还是不签？',
     });
-    expect(r.char_count).toBeLessThan(GT_CASE_BG_MIN);
-    expect(r.quality).toBe('below_standard');
+    assert.ok(r.char_count < GT_CASE_BG_MIN);
+    assert.equal(r.quality, 'below_standard');
   });
 
   // F6: 四节合计 500 字但密度合格 → below_standard (字数失败)
@@ -131,8 +132,8 @@ describe('GT-CASE-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       actionable_strategy: '第一步先在会前私下对账取证，第二步今晚与骨干沟通，第三步再当众表态。',
       script_examples: '直接说台词原话：「张总，我们先按合规底线汇报，周一闭门会由我说明。」',
     });
-    expect(r.sections_char_count).toBeLessThan(GT_VERDICT_SECTIONS_MIN);
-    expect(r.quality).toBe('below_standard');
+    assert.ok(r.sections_char_count < GT_VERDICT_SECTIONS_MIN);
+    assert.equal(r.quality, 'below_standard');
   });
 });
 
@@ -157,12 +158,12 @@ describe('GT-SIM-02 黄金夹具测试套件 (F1 ~ F6)', () => {
         },
       ],
     });
-    expect(r.quality).toBe('ok');
-    expect(r.details.interestOk).toBe(true);
-    expect(r.details.emotionOk).toBe(true);
-    expect(r.details.guidanceOk).toBe(true);
-    expect(r.details.toneQuoteOk).toBe(true);
-    expect(r.details.toneRewriteOk).toBe(true);
+    assert.equal(r.quality, 'ok');
+    assert.equal(r.details.interestOk, true);
+    assert.equal(r.details.emotionOk, true);
+    assert.equal(r.details.guidanceOk, true);
+    assert.equal(r.details.toneQuoteOk, true);
+    assert.equal(r.details.toneRewriteOk, true);
   });
 
   // F2: 利益/情绪合格，但 guidance 与 suggested 均为现网泛化兜底句 → below_standard
@@ -183,8 +184,8 @@ describe('GT-SIM-02 黄金夹具测试套件 (F1 ~ F6)', () => {
         },
       ],
     });
-    expect(r.quality).toBe('below_standard');
-    expect(r.details.toneRewriteOk).toBe(false);
+    assert.equal(r.quality, 'below_standard');
+    assert.equal(r.details.toneRewriteOk, false);
   });
 
   // F3: 给策合格，但被隐藏的 actionable_strategy / script_examples 为套话 → 仍 ok
@@ -207,7 +208,7 @@ describe('GT-SIM-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       actionable_strategy: '我们要高度重视并统筹兼顾，深刻理解战略定力，狠抓落实。',
       script_examples: '综上所述，高度重视统筹推进。',
     });
-    expect(r.quality).toBe('ok');
+    assert.equal(r.quality, 'ok');
   });
 
   // F4: 会话复盘未贴当句 → below_standard
@@ -228,9 +229,9 @@ describe('GT-SIM-02 黄金夹具测试套件 (F1 ~ F6)', () => {
         },
       ],
     });
-    expect(r.quality).toBe('below_standard');
-    expect(r.details.guidanceOk).toBe(false);
-    expect(r.details.toneQuoteOk).toBe(false);
+    assert.equal(r.quality, 'below_standard');
+    assert.equal(r.details.guidanceOk, false);
+    assert.equal(r.details.toneQuoteOk, false);
   });
 
   // F5: 案例研判套话按 CASE-02 规则依然失败 → below_standard
@@ -241,7 +242,7 @@ describe('GT-SIM-02 黄金夹具测试套件 (F1 ~ F6)', () => {
       actionable_strategy: '我们要高度重视统筹兼顾，深刻理解战略定力。',
       script_examples: '我们要高度重视统筹兼顾，深刻理解战略定力。',
     });
-    expect(r.quality).toBe('below_standard');
+    assert.equal(r.quality, 'below_standard');
   });
 
   // F6: 沙盘 user_answer 带前缀，剥离后仍能正确匹配 → ok
@@ -262,7 +263,7 @@ describe('GT-SIM-02 黄金夹具测试套件 (F1 ~ F6)', () => {
         },
       ],
     });
-    expect(r.quality).toBe('ok');
+    assert.equal(r.quality, 'ok');
   });
 });
 

@@ -26,6 +26,7 @@ import {
 import TacticsPanel from './GameTheory/TacticsPanel';
 import GameTheorySessionPanel from './GameTheory/GameTheorySessionPanel';
 import ToneCorrectionTable from './GameTheory/ToneCorrectionTable';
+import type { ModuleType } from '../../App';
 import { getNextWeekPushPlan, type TrainingRebalancePlan } from '../../utils/reviewHelper';
 import { getAppUserId } from '../../utils/profileHelper';
 import { useTask } from '../TaskContext';
@@ -51,7 +52,7 @@ interface PresetCase {
   defaultTactics: string[];
 }
 
-const PRESET_CASES: PresetCase[] = [
+export const PRESET_CASES: PresetCase[] = [
   {
     id: 'gov-1',
     title: '被稀释权力的常务副局长',
@@ -73,7 +74,7 @@ const PRESET_CASES: PresetCase[] = [
     title: '甩锅大区VP的会场狙击',
     env: 'corp_clash',
     model: 'pig_game',
-    description: '跨国区域VP在明知道供应链延迟是由他心腹部门造成的状况下，在董事会上却通过极度专业的合规词汇，试图将预算超标的第一罪责隐性转移到你的大区头上。此刻会议离轮到你发言还有最后十分钟。',
+    description: '集团季度经营董事会正在总部召开，你是华东大区负责人。跨国区域VP周明在会上用“区域预测偏差、执行节奏失控、风险升级不及时”等合规措辞，把新品延期和预算超标的主要责任推向你的团队；十分钟后董事长将点名要求你表态，并决定下季度预算与关键编制。你掌握三周前发给周明及采购总监的风险升级邮件、总部采购审批停滞记录，以及供应商曾提出替代路线的会议纪要，能够证明延期首先来自周明心腹控制的采购部门。但这些材料尚未进入董事会预读包，当场公开会让周明难堪，也会暴露你绕过汇报链直接留证。财务负责人需要周明签署下一季度预算调整，公开倾向支持他；供应链总监知道审批延迟真相，却担心承认后承担连带责任；法务总监只关心谁能提出可审计的止损方案；董事长对追责本身兴趣有限，更关注两周内能否恢复交付。会前，周明的秘书私下暗示，只要你接受“区域执行需整改”的会议结论，他可以保留你的核心编制；你的副手则提醒，一旦该表述写入董事会纪要，年底绩效、晋升和团队预算都会受影响。你的双重目标是阻止团队背锅、保住下季度预算，同时避免与区域VP公开决裂。\n\n【未知信息】你不知道供应链总监是否愿意公开作证，也不知道周明是否掌握一份对你不利的销售预测修订记录。\n\n【决策点】若立即展示邮件，你可能洗清责任并迫使采购部门解释，却会被视为越级狙击上级；若先接受整改再私下谈判，关系暂时可保，但责任可能固化为正式记录；若只谈止损不谈责任，董事长可能认可你的执行力，却默认周明的叙事。你必须在十分钟内决定先出示证据、先争取供应链总监站队，还是以止损方案换取延后定责。',
     defaultTactics: ['构建联盟', '软对抗']
   },
   {
@@ -131,7 +132,9 @@ const SIM_OPPONENTS: SimPresetOpponent[] = [
   }
 ];
 
-export default function GameTheoryModule() {
+type GameTheoryModuleProps = { setActiveModule?: (module: ModuleType) => void };
+
+export default function GameTheoryModule({ setActiveModule }: GameTheoryModuleProps = {}) {
   const [activeTab, setActiveTab] = useState<'cases' | 'tactics' | 'simulation' | 'session' | 'ascension' | 'history'>('cases');
   const [mountedTabs, setMountedTabs] = useState<Set<'cases' | 'tactics' | 'simulation' | 'session' | 'ascension' | 'history'>>(
     () => new Set(['cases'])
@@ -378,6 +381,8 @@ export default function GameTheoryModule() {
         case_text: caseTextFormatted,
         user_answer: fullAnswer,
         applied_tactics: simSelectedTactics.join(', '),
+        opponent_name: name,
+        opponent_role_id: 'opponent',
         source_type: 'simulation',
         title: name,
       };
@@ -814,8 +819,33 @@ export default function GameTheoryModule() {
     <ModuleWrapper 
       title="博弈训练 ｜ 高管层博弈练习" 
       icon={<Brain className="w-8 h-8 text-zinc-700" strokeWidth={2} />}
-      description="核心定位：不仅是读文字，而是读结构、读政策背后的风向、读外企运作实质与漏洞。帮助形成更清晰的战略决策判断力。"
+      description="练做什么、何时做、对方如何回应：识别利益、权力、联盟与筹码，训练战略行动及局势演化判断。具体话术可转入「表达」继续打磨。"
     >
+      <div className="mb-4 rounded-2xl border border-indigo-200 bg-indigo-50/70 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <p className="text-sm font-black text-slate-800">战略已明确？转入表达练习怎么说</p>
+          <p className="text-[11px] text-slate-500 mt-0.5">携带当前案例背景，继续训练结构、语气与表达分寸</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            try {
+              sessionStorage.setItem('speak_prefill', JSON.stringify({
+                topic: caseText || '请把当前博弈策略转化为可直接说出口的话术',
+                scenario: activeEnv === 'gov_struggle' ? 'gov' : 'mnc',
+                tab: 'counter',
+              }));
+            } catch {
+              // 存储不可用时仍允许进入表达模块
+            }
+            setActiveModule?.('speak');
+          }}
+          className="inline-flex items-center justify-center rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black px-4 py-2.5 whitespace-nowrap"
+        >
+          练习如何说
+        </button>
+      </div>
+
       {/* 战略评估弹窗已改用右侧 30% Context Sheet */}
 
       {/* Tab 导航区域 */}

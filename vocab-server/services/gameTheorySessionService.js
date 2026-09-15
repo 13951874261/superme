@@ -217,6 +217,27 @@ function limitMessage(hit, session, suffix = '') {
   return '已达会话上限';
 }
 
+function evaluateCheckpoint({ value, roundNo, type, reason, evidence }) {
+  const allowedTypes = new Set(['public_alignment', 'budget_transferred', 'headcount_transferred', 'relationship_broken']);
+  if (value !== true || Number(roundNo) <= 3 || !allowedTypes.has(String(type || ''))) return { shouldPause: false, reason: '' };
+  const normalizedReason = String(reason || '').trim();
+  const normalizedEvidence = String(evidence || '').trim();
+  if (!normalizedReason || normalizedEvidence.length < 8) return { shouldPause: false, reason: '' };
+  return { shouldPause: true, reason: normalizedReason };
+}
+
+function validateRoleReplies(replies, roles) {
+  const expected = (Array.isArray(roles) ? roles : []).filter((role) => !role.is_user).map((role) => String(role.role_id));
+  const actual = Array.isArray(replies) ? replies : [];
+  if (actual.length !== expected.length || new Set(actual.map((item) => String(item?.role_id || ''))).size !== expected.length
+    || actual.some((item) => !expected.includes(String(item?.role_id || '')))) {
+    throw httpError(502, '博弈模型未返回所有非用户角色的唯一回复');
+  }
+  if (actual.some((item) => !String(item?.reply || '').trim())) throw httpError(502, '博弈角色回复不能为空');
+  if (actual.some((item) => String(item.reply).replace(/\s+/g, '').length < 60)) throw httpError(502, '博弈角色回复过短');
+  if (actual.some((item) => String(item?.new_information || '').trim().length < 4)) throw httpError(502, '博弈角色回复缺少新增局势信息');
+}
+
 function initGameTheorySessionTables(db) {
   db.prepare(`
     CREATE TABLE IF NOT EXISTS game_theory_sessions (
@@ -744,10 +765,18 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
     }
 
     const parsed = parseWorkflowOutput(payload, ['round_result']);
-    const roundNo = Number(parsed.round_no) || session.current_round + 1;
+    const roundNo = Number(session.current_round || 0) + 1;
     const roleReplies = Array.isArray(parsed.role_replies) ? parsed.role_replies : [];
+    validateRoleReplies(roleReplies, roles);
     const lightSignals = Array.isArray(parsed.light_signals) ? parsed.light_signals : [];
-    const needCheckpoint = !!parsed.need_checkpoint;
+    const checkpoint = evaluateCheckpoint({
+      value: parsed.need_checkpoint,
+      roundNo,
+      type: parsed.checkpoint_type,
+      reason: parsed.checkpoint_reason,
+      evidence: parsed.checkpoint_evidence,
+    });
+    const needCheckpoint = checkpoint.shouldPause;
 
     db.prepare(`
       INSERT INTO game_theory_session_rounds
@@ -770,7 +799,7 @@ function createGameTheorySessionService({ db, baseUrl, keys }) {
     const afterHit = limitHit(nextSession, state);
     const shouldPause = needCheckpoint || !!afterHit;
     if (shouldPause) {
-      state.stop_reason = afterHit || 'paused';
+      state.stop_reason = afterHit || checkpoint.reason;
     }
     persistState(session, state, {
       status: shouldPause ? 'paused' : 'active',
@@ -953,4 +982,6 @@ module.exports = {
   normalizeRoles,
   limitHit,
   elapsedMinutes,
+  evaluateCheckpoint,
+  validateRoleReplies,
 };
