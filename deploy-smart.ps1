@@ -9,6 +9,7 @@ param(
     [switch]$Force,
     [switch]$FrontendOnly,
     [switch]$BackendOnly,
+    [string[]]$DeployInclude = @(),
     [SecureString]$SSHPassword
 )
 
@@ -33,15 +34,18 @@ $needBackendDeploy = $false
 $needNginxDeploy = $false
 $saveEnvHash = $null
 
-Write-Host "  -> Book MVP release gate" -ForegroundColor DarkCyan
-if ($env:BOOK_MVP_SKIP_HUMAN_GATE -eq 'true') {
-    if ([string]::IsNullOrWhiteSpace($env:BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT) -or [string]::IsNullOrWhiteSpace($env:BOOK_MVP_HUMAN_GATE_REASON)) {
-        throw 'Human gate skip requires BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT and BOOK_MVP_HUMAN_GATE_REASON'
+$bookDeployRequested = $Force -or @($DeployInclude | Where-Object { $_ -match '(^|/)book|verify:book-mvp' }).Count -gt 0
+if ($bookDeployRequested) {
+    Write-Host "  -> Book MVP release gate" -ForegroundColor DarkCyan
+    if ($env:BOOK_MVP_SKIP_HUMAN_GATE -eq 'true') {
+        if ([string]::IsNullOrWhiteSpace($env:BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT) -or [string]::IsNullOrWhiteSpace($env:BOOK_MVP_HUMAN_GATE_REASON)) {
+            throw 'Human gate skip requires BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT and BOOK_MVP_HUMAN_GATE_REASON'
+        }
+        Write-Warning "HUMAN REVIEW GATE SKIPPED; humanReviewSkipped=true; authorizedAt=$env:BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT; reason=$env:BOOK_MVP_HUMAN_GATE_REASON; reviewer=null"
     }
-    Write-Warning "HUMAN REVIEW GATE SKIPPED; humanReviewSkipped=true; authorizedAt=$env:BOOK_MVP_HUMAN_GATE_AUTHORIZED_AT; reason=$env:BOOK_MVP_HUMAN_GATE_REASON; reviewer=null"
+    npm run verify:book-mvp
+    if ($LASTEXITCODE -ne 0) { throw 'Book MVP release gate failed' }
 }
-npm run verify:book-mvp
-if ($LASTEXITCODE -ne 0) { throw 'Book MVP release gate failed' }
 
 # Always collect changed files so -BackendOnly / -Force still upload the right backend paths
 # (Previously -BackendOnly skipped this scan and defaulted to server.js only, missing e.g. services/webFetcher.js)
@@ -60,9 +64,30 @@ $statusFiles = git status --porcelain | ForEach-Object {
 $untrackedFiles = @(git ls-files --others --exclude-standard)
 $changedFiles = @($diffFiles) + @($statusFiles) + $untrackedFiles | Select-Object -Unique | Where-Object { $_ -ne '' }
 
+$deployIgnoreFile = Join-Path $ProjectRoot 'deploy-smart.ignore'
+$deployIgnorePatterns = if (Test-Path $deployIgnoreFile) {
+    @(Get-Content $deployIgnoreFile | ForEach-Object { $_.Trim() } | Where-Object { $_ -and -not $_.StartsWith('#') })
+} else { @() }
+function Test-DeployPattern([string]$File, [string]$Pattern) {
+    $wildcard = $Pattern.Replace('**', '*')
+    return $File -like $wildcard
+}
+if ($DeployInclude.Count -gt 0) {
+    $changedFiles = @($changedFiles | Where-Object {
+        $file = $_
+        @($DeployInclude | Where-Object { Test-DeployPattern $file $_ }).Count -gt 0
+    })
+} elseif ($deployIgnorePatterns.Count -gt 0) {
+    $changedFiles = @($changedFiles | Where-Object {
+        $file = $_
+        @($deployIgnorePatterns | Where-Object { Test-DeployPattern $file $_ }).Count -eq 0
+    })
+}
+Write-Host "Deploy candidates after filtering: $(@($changedFiles).Count)" -ForegroundColor DarkCyan
+
 if (@($changedFiles).Count -eq 0) {
-    Write-Host "No unstaged or unpushed changes. Checking previous commit changes..." -ForegroundColor Yellow
-    $changedFiles = @(git diff --name-only HEAD~1 HEAD)
+    Write-Host "No deploy candidates after filtering. Nothing will be deployed." -ForegroundColor Yellow
+    exit 0
 }
 
 if ($Force) {
@@ -206,6 +231,7 @@ $frontendSwapped = $false
 $backendTouched = $false
 $serviceConfigTouched = $false
 $nginxConfigTouched = $false
+$isolatedBuildRoot = $null
 
 try {
     Invoke-RemoteCommand "sudo mkdir -p $remoteReleaseRoot && sudo chown ubuntu:ubuntu $remoteReleaseRoot && test -d $remoteReleaseRoot && test -w $remoteReleaseRoot"
@@ -218,18 +244,36 @@ try {
     # 3. Frontend Deployment
     if ($needFrontendDeploy) {
         Write-Host "========== Step 2: Frontend Build and Sync ==========" -ForegroundColor Cyan
-        Write-Host "  -> pnpm install" -ForegroundColor DarkCyan
-        pnpm install
-        if ($LASTEXITCODE -ne 0) { throw 'Frontend dependencies installation failed' }
+        $isolatedBuildRoot = Join-Path ([System.IO.Path]::GetTempPath()) "super-agent-deploy-$timestamp"
+        Write-Host "  -> Creating isolated build from HEAD" -ForegroundColor DarkCyan
+        git worktree add --detach $isolatedBuildRoot HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Isolated build worktree creation failed' }
+        foreach ($file in $changedFiles) {
+            if ($file -notmatch '^(src/|public/|index\.html$|vite\.config\.ts$|tsconfig.*\.json$|package(-lock)?\.json$|pnpm-lock\.yaml$|\.env)') { continue }
+            $source = Join-Path $ProjectRoot $file
+            if (-not (Test-Path $source -PathType Leaf)) { continue }
+            $destination = Join-Path $isolatedBuildRoot $file
+            New-Item -ItemType Directory -Force -Path (Split-Path $destination) | Out-Null
+            Copy-Item $source $destination -Force
+        }
 
-        Write-Host "  -> pnpm build" -ForegroundColor DarkCyan
-        pnpm build
-        if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+        Push-Location $isolatedBuildRoot
+        try {
+            Write-Host "  -> pnpm install" -ForegroundColor DarkCyan
+            pnpm install --frozen-lockfile
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend dependencies installation failed' }
+
+            Write-Host "  -> pnpm build" -ForegroundColor DarkCyan
+            pnpm build
+            if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
+        } finally {
+            Pop-Location
+        }
 
         Write-Host "  -> Uploading frontend release" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "mkdir -p $remoteReleaseRoot/dist"
-        Send-File "$ProjectRoot\dist" "$remoteReleaseRoot/"
-        Invoke-RemoteCommand "if [ -d $RemoteWebRoot/dist ]; then mv $RemoteWebRoot/dist $remoteReleaseRoot/dist.previous; fi; mv $remoteReleaseRoot/dist $RemoteWebRoot/dist"
+        Send-File "$isolatedBuildRoot\dist" "$remoteReleaseRoot/"
+        Invoke-RemoteCommand "if [ -d $RemoteWebRoot/dist ]; then sudo mv $RemoteWebRoot/dist $remoteReleaseRoot/dist.previous; fi; sudo mv $remoteReleaseRoot/dist $RemoteWebRoot/dist"
         $frontendSwapped = $true
 
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
@@ -294,7 +338,9 @@ try {
         Write-Host "  -> Backing up database and service config" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "mkdir -p $RemoteApiRoot/private/books $remoteReleaseRoot/backend && chmod 700 $RemoteApiRoot/private $RemoteApiRoot/private/books && sudo mkdir -p /var/lib/super-agent && sudo chown ubuntu:ubuntu /var/lib/super-agent && if [ ! -f /var/lib/super-agent/vocab.db ] && [ -f $RemoteWebRoot/vocab.db ]; then cp $RemoteWebRoot/vocab.db /var/lib/super-agent/vocab.db; fi && sudo systemctl stop super-agent-vocab.service && trap 'sudo systemctl start super-agent-vocab.service' EXIT && cp /var/lib/super-agent/vocab.db $remoteReleaseRoot/vocab.db && cp -a $RemoteApiRoot/. $remoteReleaseRoot/backend/ && { sudo cp /etc/systemd/system/super-agent-vocab.service $remoteReleaseRoot/super-agent-vocab.service 2>/dev/null || true; } && sudo systemctl start super-agent-vocab.service && trap - EXIT"
         $backendTouched = $true
-        Invoke-RemoteCommand "sudo test -r /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_FRAMEWORK_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_FRAMEWORK_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_LISTEN_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_LISTEN_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_EXERCISE_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_EXERCISE_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_ALLOWED_HOSTS=.' /etc/super-agent/vocab.env && command -v ebook-convert >/dev/null && ebook-convert --version && test `$(df --output=avail -B1 /var/lib/super-agent | tail -1) -ge 12884901888 && { if sudo grep -q '^BOOK_OCR_ENABLED=true$' /etc/super-agent/vocab.env; then sudo grep -q '^UMI_OCR_URL=.' /etc/super-agent/vocab.env && curl -fsS http://127.0.0.1:1224/ >/dev/null; else echo 'OCR capability disabled'; fi; }"
+        if ($bookDeployRequested) {
+            Invoke-RemoteCommand "sudo test -r /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_FRAMEWORK_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_FRAMEWORK_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_LISTEN_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_LISTEN_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_EXERCISE_API_KEY=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_EXERCISE_URL=.' /etc/super-agent/vocab.env && sudo grep -q '^DIFY_BOOK_ALLOWED_HOSTS=.' /etc/super-agent/vocab.env && command -v ebook-convert >/dev/null && ebook-convert --version && test `$(df --output=avail -B1 /var/lib/super-agent | tail -1) -ge 12884901888 && { if sudo grep -q '^BOOK_OCR_ENABLED=true$' /etc/super-agent/vocab.env; then sudo grep -q '^UMI_OCR_URL=.' /etc/super-agent/vocab.env && curl -fsS http://127.0.0.1:1224/ >/dev/null; else echo 'OCR capability disabled'; fi; }"
+        }
         
         Write-Host "  -> Packing changed backend files" -ForegroundColor DarkCyan
         $backendStage = Join-Path $env:TEMP "super-agent-backend-stage-$timestamp"
@@ -413,13 +459,17 @@ catch {
     Write-Host "Deployment failed; starting rollback." -ForegroundColor Red
     $rollbackErrors = @()
     if ($nginxConfigTouched) { try { Invoke-RemoteCommand "if [ -f $remoteReleaseRoot/nginx.previous ]; then sudo cp $remoteReleaseRoot/nginx.previous /etc/nginx/sites-available/app.liujingzhuwo.site && sudo ln -sfn /etc/nginx/sites-available/app.liujingzhuwo.site /etc/nginx/sites-enabled/app.liujingzhuwo.site && sudo nginx -t && sudo systemctl reload nginx; fi" } catch { $rollbackErrors += $_.Exception.Message } }
-    if ($frontendSwapped) { try { Invoke-RemoteCommand "if [ -d $remoteReleaseRoot/dist.previous ]; then rm -rf $RemoteWebRoot/dist && mv $remoteReleaseRoot/dist.previous $RemoteWebRoot/dist; fi" } catch { $rollbackErrors += $_.Exception.Message } }
+    if ($frontendSwapped) { try { Invoke-RemoteCommand "if [ -d $remoteReleaseRoot/dist.previous ]; then sudo rm -rf $RemoteWebRoot/dist && sudo mv $remoteReleaseRoot/dist.previous $RemoteWebRoot/dist; fi" } catch { $rollbackErrors += $_.Exception.Message } }
     if ($serviceConfigTouched) { try { Invoke-RemoteCommand "if [ -f $remoteReleaseRoot/super-agent-vocab.service ]; then sudo cp $remoteReleaseRoot/super-agent-vocab.service /etc/systemd/system/super-agent-vocab.service && sudo systemctl daemon-reload; fi" } catch { $rollbackErrors += $_.Exception.Message } }
     if ($backendTouched) { try { Invoke-RemoteCommand "sudo systemctl stop super-agent-vocab.service; rm -rf $RemoteApiRoot.failed; mv $RemoteApiRoot $RemoteApiRoot.failed; cp -a $remoteReleaseRoot/backend $RemoteApiRoot; cp $remoteReleaseRoot/vocab.db /var/lib/super-agent/vocab.db; sudo systemctl restart super-agent-vocab.service" } catch { $rollbackErrors += $_.Exception.Message } }
     if ($rollbackErrors.Count) { throw "Deployment and rollback failed: $($rollbackErrors -join '; ')" }
     throw
 }
 finally {
+    if ($isolatedBuildRoot -and (Test-Path $isolatedBuildRoot)) {
+        cmd /c "rmdir /s /q `"$isolatedBuildRoot`"" 2>$null
+        git worktree prune 2>$null
+    }
     if ($UsePuTTY -and $PasswordPtr -ne [IntPtr]::Zero) {
         [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($PasswordPtr)
     }
