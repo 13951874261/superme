@@ -84,6 +84,12 @@ if ($DeployInclude.Count -gt 0) {
         @($deployIgnorePatterns | Where-Object { Test-DeployPattern $file $_ }).Count -eq 0
     })
 }
+if ($Force -and @($changedFiles).Count -eq 0) {
+    $changedFiles = @(git ls-files | Where-Object {
+        $file = $_
+        @($deployIgnorePatterns | Where-Object { Test-DeployPattern $file $_ }).Count -eq 0
+    })
+}
 Write-Host "Deploy candidates after filtering: $(@($changedFiles).Count)" -ForegroundColor DarkCyan
 
 if (@($changedFiles).Count -eq 0) {
