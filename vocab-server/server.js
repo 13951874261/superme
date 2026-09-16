@@ -513,8 +513,9 @@ const { runBookWorkflow, assertProductionBookWorkflows } = require('./services/b
 const { transcribeAudioFileDetailed } = require('./services/audioTranscriptionService');
 const { globalHeavyResourceGate } = require('./services/heavyResourceGate');
 const bookCleanup = require('./services/bookCleanupService');
+const bookFeatureEnabled = process.env.BOOK_FEATURE_ENABLED === 'true';
 initBookCore(db);
-assertProductionBookWorkflows();
+if (bookFeatureEnabled) assertProductionBookWorkflows();
 const bookStorageRoot = path.join(__dirname, 'private', 'books');
 const bookJobs = createBookJobService(db);
 const bookOcrEnabled = process.env.BOOK_OCR_ENABLED === 'true';
@@ -555,6 +556,7 @@ const bookJobRunner = createBookJobRunner({ db, jobService: bookJobs, extractor:
 const bookFrameworkRunner = createBookJobRunner({ db, jobService: bookJobs, frameworkService: bookFramework, jobType: 'framework' });
 const authService = createAuthService(db);
 app.use('/api/auth', createAuthRouter({ auth: authService, production: isProd }));
+app.use('/api/books', (req, res, next) => bookFeatureEnabled ? next() : res.status(503).json({ success: false, errorCode: 'BOOK_FEATURE_DISABLED', error: 'book feature is disabled' }));
 app.use('/api', requireAuth(authService), bindAuthenticatedUser);
 app.use('/api/temp_audio', express.static(tempAudioDir, { setHeaders: (res) => res.setHeader('Content-Type', 'audio/mpeg') }));
 app.use('/api/daily_listen_audio', express.static(dailyListenAudioDir));
@@ -13925,13 +13927,15 @@ if (require.main === module) {
 let bookCleanupTimer;
 const runBookCleanup = () => Promise.resolve(bookCleanup.cleanup({ db, storageRoot: bookStorageRoot, heavyGate: globalHeavyResourceGate })).catch((error) => console.error('[Book Cleanup] failed:', error));
 const server = app.listen(PORT, () => {
-  bookJobs.recoverExpired();
-  bookJobRunner.start().catch((error) => console.error('[Book Job Runner] stopped:', error));
-  bookFrameworkRunner.start().catch((error) => console.error('[Book Framework Runner] stopped:', error));
-  bookExerciseRunner.start().catch((error) => console.error('[Book Exercise Runner] stopped:', error));
-  runBookCleanup();
-  bookCleanupTimer = setInterval(runBookCleanup, 15 * 60_000);
-  bookCleanupTimer.unref();
+  if (bookFeatureEnabled) {
+    bookJobs.recoverExpired();
+    bookJobRunner.start().catch((error) => console.error('[Book Job Runner] stopped:', error));
+    bookFrameworkRunner.start().catch((error) => console.error('[Book Framework Runner] stopped:', error));
+    bookExerciseRunner.start().catch((error) => console.error('[Book Exercise Runner] stopped:', error));
+    runBookCleanup();
+    bookCleanupTimer = setInterval(runBookCleanup, 15 * 60_000);
+    bookCleanupTimer.unref();
+  }
   console.log(`Real Vocab Server running on port ${PORT}`);
   console.log(`Database connected at: ${dbPath}`);
 
@@ -13967,8 +13971,10 @@ async function shutdown() {
   if (shuttingDown) return;
   shuttingDown = true;
   if (bookCleanupTimer) clearInterval(bookCleanupTimer);
-  bookExerciseRunner.stop();
-  await Promise.all([bookJobRunner.stop(), bookFrameworkRunner.stop()]);
+  if (bookFeatureEnabled) {
+    bookExerciseRunner.stop();
+    await Promise.all([bookJobRunner.stop(), bookFrameworkRunner.stop()]);
+  }
   server.close(() => { db.close(); process.exit(0); });
 }
 process.once('SIGTERM', shutdown);

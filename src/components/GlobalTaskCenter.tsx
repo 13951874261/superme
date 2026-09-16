@@ -392,8 +392,10 @@ export default function GlobalTaskCenter() {
   const [taskDeleteErrors, setTaskDeleteErrors] = useState<Record<string, string>>({});
   const [bookJob, setBookJob] = useState<BookJob | null>(null);
   const [bookJobError, setBookJobError] = useState('');
+  const bookFeatureEnabled = import.meta.env.VITE_BOOK_FEATURE_ENABLED === 'true';
 
   React.useEffect(() => {
+    if (!bookFeatureEnabled) return;
     let timer = 0; let stopped = false;
     const open = async (event?: Event) => {
       window.clearTimeout(timer); stopped = false; const detail = (event as CustomEvent<{ bookId: string; jobId: string }> | undefined)?.detail;
@@ -403,7 +405,7 @@ export default function GlobalTaskCenter() {
       await poll();
     };
     window.addEventListener('open-book-job', open); void open(); return () => { stopped = true; window.clearTimeout(timer); window.removeEventListener('open-book-job', open); };
-  }, [setIsOpen]);
+  }, [bookFeatureEnabled, setIsOpen]);
 
   const finishedCount =
     cronRuns.filter((r) => ['completed', 'failed', 'partial_failed'].includes(r.status)).length +
@@ -604,9 +606,9 @@ export default function GlobalTaskCenter() {
         )}
 
         <div className="flex-grow overflow-y-auto p-6 space-y-4">
-          {bookJob && (() => { const presentation = describeBookJob(bookJob); return <section id={`book-job-${bookJob.id}`} tabIndex={-1} className="rounded-2xl border-2 border-indigo-500 bg-indigo-50 p-5 shadow-lg focus:outline-none" aria-live="polite"><h4 className="text-xs font-black text-indigo-950">本次书籍解析任务</h4><p className="mt-1 break-all text-[10px] text-indigo-700">ID: {bookJob.id}</p><p className="mt-2 text-xs font-bold text-slate-700">{presentation.label}{bookJob.queuePosition ? ` · 队列第 ${bookJob.queuePosition} 位` : ''}</p>{presentation.errorMessage && <p role="alert" className="mt-2 text-[11px] text-red-700">{presentation.errorCode && <span className="font-mono">{presentation.errorCode} · </span>}{presentation.errorMessage}</p>}{presentation.action && <><p className="mt-2 text-[11px] text-slate-600">后台解析已经结束，不会继续自动更新。请进入“听力 → 理论训练 → 我的书籍”检查并确认章节。</p><button type="button" onClick={() => { window.dispatchEvent(new CustomEvent('navigate-insight-listen')); setIsOpen(false); }} className="mt-3 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">{presentation.action}</button></>}</section>; })()}
-          {bookJobError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-700">{bookJobError}。请返回“我的书籍”重新选择。</p>}
-          {mergedEmpty && !bookJob ? (
+          {bookFeatureEnabled && bookJob && (() => { const presentation = describeBookJob(bookJob); return <section id={`book-job-${bookJob.id}`} tabIndex={-1} className="rounded-2xl border-2 border-indigo-500 bg-indigo-50 p-5 shadow-lg focus:outline-none" aria-live="polite"><h4 className="text-xs font-black text-indigo-950">本次书籍解析任务</h4><p className="mt-1 break-all text-[10px] text-indigo-700">ID: {bookJob.id}</p><p className="mt-2 text-xs font-bold text-slate-700">{presentation.label}{bookJob.queuePosition ? ` · 队列第 ${bookJob.queuePosition} 位` : ''}</p>{presentation.errorMessage && <p role="alert" className="mt-2 text-[11px] text-red-700">{presentation.errorCode && <span className="font-mono">{presentation.errorCode} · </span>}{presentation.errorMessage}</p>}{presentation.action && <><p className="mt-2 text-[11px] text-slate-600">后台解析已经结束，不会继续自动更新。请进入“听力 → 理论训练 → 我的书籍”检查并确认章节。</p><button type="button" onClick={() => { window.dispatchEvent(new CustomEvent('navigate-insight-listen')); setIsOpen(false); }} className="mt-3 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-bold text-white hover:bg-indigo-700">{presentation.action}</button></>}</section>; })()}
+          {bookFeatureEnabled && bookJobError && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-xs text-red-700">{bookJobError}。请返回“我的书籍”重新选择。</p>}
+          {mergedEmpty && (!bookFeatureEnabled || !bookJob) ? (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-3">
               <FileText className="w-12 h-12 text-gray-300 stroke-[1.5]" />
               <div>

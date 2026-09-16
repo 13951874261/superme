@@ -34,7 +34,8 @@ $needBackendDeploy = $false
 $needNginxDeploy = $false
 $saveEnvHash = $null
 
-$bookDeployRequested = $Force -or @($DeployInclude | Where-Object { $_ -match '(^|/)book|verify:book-mvp' }).Count -gt 0
+$bookFeatureEnabled = $env:BOOK_FEATURE_ENABLED -eq 'true'
+$bookDeployRequested = $bookFeatureEnabled -and ($Force -or @($DeployInclude | Where-Object { $_ -match '(^|/)book|verify:book-mvp' }).Count -gt 0)
 if ($bookDeployRequested) {
     Write-Host "  -> Book MVP release gate" -ForegroundColor DarkCyan
     if ($env:BOOK_MVP_SKIP_HUMAN_GATE -eq 'true') {

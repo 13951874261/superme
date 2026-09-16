@@ -146,6 +146,8 @@ type SpeakModuleProps = {
   setActiveModule?: (m: ModuleType) => void;
 };
 
+const bookFeatureEnabled = import.meta.env.VITE_BOOK_FEATURE_ENABLED === 'true';
+
 function BookTheoryTraining() {
   const initial = new URLSearchParams(window.location.search);
   const [books, setBooks] = useState<BookSummary[]>([]); const [bookId, setBookId] = useState(initial.get('bookId') || ''); const [revisionId, setRevisionId] = useState(initial.get('frameworkRevisionId') || ''); const [nodes, setNodes] = useState<BookTheoryNode[]>([]); const [nodeId, setNodeId] = useState(initial.get('frameworkNodeId') || '');
@@ -867,7 +869,7 @@ export default function SpeakModule({ setActiveModule }: SpeakModuleProps = {}) 
       <div className={`transition-all duration-500 ease-in-out grid grid-cols-1 lg:grid-cols-12 gap-8 shrink-0 ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
       
       <section className="lg:col-span-5 flex flex-col space-y-6">
-        <BookTheoryTraining />
+        {bookFeatureEnabled && <BookTheoryTraining />}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_10px_30px_rgba(0,0,0,0.02)] p-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
