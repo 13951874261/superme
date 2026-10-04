@@ -254,14 +254,14 @@ function SidebarComponent({
   };
 
   return (
-    <aside className={`motion-layer bg-gradient-to-br ${bgEnabled ? 'from-white/70 to-zinc-50/30' : 'from-white to-zinc-50/50'} backdrop-blur-md text-zinc-900 flex flex-col transition-[width,transform,opacity,box-shadow] duration-300 ease-out relative flex-shrink-0 z-30 shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 transform-gpu will-change-[width] ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem] visible' : 'w-0 invisible pointer-events-none'}`}>
+    <aside className={`motion-layer bg-gradient-to-br ${bgEnabled ? 'from-white/70 to-zinc-50/30' : 'from-white to-zinc-50/50'} backdrop-blur-md text-zinc-900 flex flex-col transition-[width,transform,opacity,box-shadow] duration-300 ease-out absolute md:relative flex-shrink-0 z-[60] shadow-[0_8px_30px_rgba(0,0,0,0.04)] hover:shadow-[0_12px_40px_rgba(0,0,0,0.06)] border-r border-zinc-200/60 transform-gpu will-change-[width] max-w-[calc(100vw-2.5rem)] md:max-w-none ${isOpen ? 'w-[21rem] xl:w-[22rem] 2xl:w-[24rem] visible' : 'w-0 invisible pointer-events-none'}`}>
       <button 
         type="button"
         onClick={() => {
           playReveal();
           toggleSidebar();
         }} 
-        className="absolute -right-5 top-12 bg-white text-gray-500 p-2 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:text-[#FF5722] hover:shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-40 transition-all duration-300 pointer-events-auto cursor-pointer focus:outline-none"
+        className="absolute -right-5 top-12 bg-white text-gray-500 p-2 rounded-full shadow-[0_2px_8px_rgba(0,0,0,0.1)] hover:text-[#FF5722] hover:shadow-[0_4px_12px_rgba(0,0,0,0.15)] z-40 transition-all duration-300 pointer-events-auto visible cursor-pointer focus:outline-none"
         aria-label={isOpen ? '收起侧边栏' : '展开侧边栏'}
       >
         {isOpen ? <ChevronLeft className="w-5 h-5" strokeWidth={2} /> : <ChevronRight className="w-5 h-5" strokeWidth={2} />}

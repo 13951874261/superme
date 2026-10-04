@@ -196,17 +196,17 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
 
   return (
     <>
-      {isOpen && <div className="w-[400px] shrink-0 h-screen" aria-hidden />}
+      {isOpen && <div className="hidden lg:block w-[400px] shrink-0 h-screen" aria-hidden />}
       <motion.aside
         initial={false}
         animate={{ x: 0 }}
         transition={GLOBAL_SPRING}
-        className={`motion-layer fixed top-0 right-0 h-screen w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[var(--overlay-z-panel)]' : 'invisible pointer-events-none z-0'}`}
+        className={`motion-layer fixed top-0 right-0 h-screen w-full max-w-[400px] border-l border-zinc-150 bg-gradient-to-b ${bgEnabled ? 'from-zinc-50/70 to-white/60' : 'from-zinc-50 to-white'} backdrop-blur-md flex flex-col shadow-[-16px_0_40px_rgba(0,0,0,0.015)] overflow-hidden transform-gpu will-change-transform ${isOpen ? 'z-[var(--overlay-z-panel)]' : 'invisible pointer-events-none z-0'}`}
         aria-hidden={!isOpen}
       >
 
           {/* 头部 Tab 区域 */}
-          <div className={`flex items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>
+          <div className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 border-b border-zinc-200 ${bgEnabled ? 'bg-white/60' : 'bg-white'} px-4 py-3 shrink-0 transition-colors duration-300 min-w-0`}>
             <div className="flex items-center gap-1 min-w-0 flex-1">
               <button
                 onClick={() => handleTabChange('assistant')}
