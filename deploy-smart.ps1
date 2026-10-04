@@ -187,10 +187,11 @@ Write-Host ""
 # 2. SSH/SCP Setup
 $Pscp = (Get-Command pscp.exe -ErrorAction SilentlyContinue).Source
 $Plink = (Get-Command plink.exe -ErrorAction SilentlyContinue).Source
-$UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink) -and (-not $UseSystemSSH)
+$SystemSsh = (Get-Command ssh.exe -ErrorAction SilentlyContinue).Source
+$UsePuTTY = ($null -ne $Pscp) -and ($null -ne $Plink) -and (-not $UseSystemSSH) -and (($null -ne $SSHPassword) -or ($null -eq $SystemSsh))
 
 if ($UsePuTTY) {
-    Write-Host "PuTTY found. Enabling auto-password mode (leave empty if using SSH key/Pageant)." -ForegroundColor Green
+    Write-Host "PuTTY mode active. Using pscp/plink." -ForegroundColor Green
     $PasswordPtr = [IntPtr]::Zero
     if ($SSHPassword) {
         $PasswordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($SSHPassword)
@@ -200,7 +201,7 @@ if ($UsePuTTY) {
         Write-Host "No password supplied; using SSH key/Pageant." -ForegroundColor Green
     }
 } else {
-    Write-Host "Using system ssh/scp. You may need to enter password or use local SSH keys." -ForegroundColor Yellow
+    Write-Host "Using system OpenSSH (ssh/scp). Seamless key authentication active." -ForegroundColor Green
 }
 
 function Invoke-RemoteCommand {
@@ -366,6 +367,10 @@ try {
                 }
             }
         }
+        $localEnv = Join-Path $ProjectRoot 'vocab-server\.env'
+        if (Test-Path $localEnv) {
+            Copy-Item $localEnv (Join-Path $backendStage '.env') -Force
+        }
         tar -czf $backendArchive -C $backendStage .
         if ($LASTEXITCODE -ne 0) { throw 'Backend archive creation failed' }
         Write-Host "  -> Uploading backend archive" -ForegroundColor DarkCyan
@@ -373,7 +378,10 @@ try {
         Invoke-RemoteCommand "rm -rf $remoteReleaseRoot/backend-stage && mkdir -p $remoteReleaseRoot/backend-stage && tar -xzf $remoteReleaseRoot/backend-changes.tar.gz -C $remoteReleaseRoot/backend-stage && cp -a $remoteReleaseRoot/backend-stage/. $RemoteApiRoot/"
         Remove-Item $backendStage, $backendArchive -Recurse -Force -ErrorAction SilentlyContinue
 
-        Write-Host "  -> Preserving server-managed /etc/super-agent/vocab.env" -ForegroundColor DarkGreen
+        Write-Host "  -> Syncing unified upstream endpoints to /etc/super-agent/vocab.env" -ForegroundColor DarkCyan
+        $alignCmd = 'sudo sed -i -E "s|^(FETCH_ENDPOINT_BASE)=.*|\1=https://fet.234124123.xyz/v1|; s|^(TTS_API_URL)=.*|\1=https://fet.234124123.xyz/v1/audio/speech|; s|^(TTS_API_FALLBACK_URL)=.*|\1=https://fet.234124123.xyz/v1/audio/speech|; s|^(IMAGE_GEN_FALLBACK_URL)=.*|\1=https://fet.234124123.xyz/v1|; s|^(LLM_URL)=.*|\1=https://fet.234124123.xyz/v1/chat/completions|" /etc/super-agent/vocab.env'
+        Invoke-RemoteCommand $alignCmd
+        Write-Host "  -> Preserving other server-managed /etc/super-agent/vocab.env keys" -ForegroundColor DarkGreen
 
         $runFixOldVocab = $false
         $runBackfillLevel = $false
@@ -406,7 +414,9 @@ try {
             Invoke-RemoteCommand "chmod +x /tmp/install-edge-tts-server.sh && bash /tmp/install-edge-tts-server.sh"
         }
         
-        if ($changedFiles -match "super-agent-vocab.service") {
+        $serviceDiff = git status --porcelain super-agent-vocab.service 2>$null
+        if ($changedFiles -match "super-agent-vocab.service" -or $serviceDiff) {
+            Write-Host "  -> Syncing updated super-agent-vocab.service to systemd" -ForegroundColor DarkCyan
             Send-File "$ProjectRoot\super-agent-vocab.service" "/tmp/super-agent-vocab.service"
             Invoke-RemoteCommand "sudo install -m 0644 /tmp/super-agent-vocab.service /etc/systemd/system/super-agent-vocab.service && sudo systemctl daemon-reload"
             $serviceConfigTouched = $true

@@ -1,5 +1,13 @@
 import { getAppUserId } from '../utils/profileHelper';
 
+export const AUTH_REQUIRED_EVENT = 'auth-required';
+
+function throwIfUnauthorized(response: Response): void {
+  if (response.status !== 401) return;
+  window.dispatchEvent(new Event(AUTH_REQUIRED_EVENT));
+  throw new Error('登录已失效，请重新登录');
+}
+
 export type DailyCronModuleStats = {
   total: number;
   completed: number;
@@ -79,6 +87,7 @@ export async function fetchDailyCronRuns(days = 7, userId = getAppUserId()): Pro
   hiddenCount: number;
 }> {
   const res = await fetch(`/api/daily-cron/runs?userId=${encodeURIComponent(userId)}&days=${days}`);
+  throwIfUnauthorized(res);
   if (!res.ok) throw new Error(`daily-cron runs HTTP ${res.status}`);
   const data = await res.json();
   if (!data.success) throw new Error(data.error || 'fetch runs failed');
@@ -90,6 +99,7 @@ export async function fetchDailyCronRuns(days = 7, userId = getAppUserId()): Pro
 
 export async function fetchDailyCronRunDetail(runId: string, userId = getAppUserId()): Promise<DailyCronRunDetail> {
   const res = await fetch(`/api/daily-cron/runs/${encodeURIComponent(runId)}?userId=${encodeURIComponent(userId)}`);
+  throwIfUnauthorized(res);
   if (res.status === 404) throw new Error('not found');
   if (!res.ok) throw new Error(`daily-cron detail HTTP ${res.status}`);
   const data = await res.json();
@@ -107,6 +117,7 @@ export async function rerunDailyCronRun(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ userId, mode }),
   });
+  throwIfUnauthorized(res);
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.success) {
     throw new Error(data.error || `rerun HTTP ${res.status}`);

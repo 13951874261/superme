@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const src = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
-const NEW = 'https://fetch.234124123.xyz/v1/audio/speech';
+const NEW = 'https://fet.234124123.xyz/v1/audio/speech';
 
 assert.ok(src.includes(`TTS_API_URL || '${NEW}'`), 'TTS_API_URL default must be fetch speech endpoint');
 assert.ok(src.includes(`TTS_API_FALLBACK_URL || '${NEW}'`), 'TTS_API_FALLBACK_URL default must be fetch speech endpoint');

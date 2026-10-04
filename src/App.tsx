@@ -13,6 +13,7 @@ import CyberneticLockModal from './components/CyberneticLockModal';
 import { GLOBAL_SPRING } from './utils/motion';
 import LoginPage from './components/LoginPage';
 import { getSession, logout } from './services/authAPI';
+import { AUTH_REQUIRED_EVENT } from './services/dailyCronAPI';
 import BackgroundOverlay from './components/BackgroundOverlay';
 import { HelpCircle, X } from 'lucide-react';
 import GlobalSettingsPanel from './components/GlobalSettingsPanel';
@@ -419,6 +420,12 @@ export default function App() {
     const syncUserId = () => setUserId(getAppUserId());
     window.addEventListener('global-user-id-changed', syncUserId);
     return () => window.removeEventListener('global-user-id-changed', syncUserId);
+  }, []);
+
+  useEffect(() => {
+    const requireLogin = () => setIsAuthenticated(false);
+    window.addEventListener(AUTH_REQUIRED_EVENT, requireLogin);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, requireLogin);
   }, []);
 
   const handleLogout = useCallback(async () => {

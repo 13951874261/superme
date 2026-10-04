@@ -14,14 +14,14 @@ assert.ok(
 assert.ok(serverSrc.includes('ag/gemini-3.1-flash-image'), 'image fallback model must be gemini');
 assert.ok(serverSrc.includes("IMAGE_GEN_BASE_URL || 'https://apihub.agnes-ai.cn/v1'"), 'Agnes remains primary');
 
-assert.strictEqual(llm.DEFAULT_LLM_URL, 'https://fetch.234124123.xyz/v1/chat/completions');
+assert.strictEqual(llm.DEFAULT_LLM_URL, 'https://fet.234124123.xyz/v1/chat/completions');
 assert.strictEqual(llm.DEFAULT_LLM_KEY, 'sk-d2c5fb65e9516bbc-rd1lv9-762292df');
 assert.deepStrictEqual(llm.DEFAULT_LLM_MODELS, ['mart-paid']);
 assert.strictEqual(llm.getLlmKey('sk-aow2api-your-custom-key'), llm.DEFAULT_LLM_KEY, 'placeholder override must fall back');
 assert.strictEqual(llm.getLlmKey(''), llm.DEFAULT_LLM_KEY, 'empty override must fall back');
 assert.ok(!serverSrc.includes('https://23.95.214.232/v1/chat/completions'), 'server.js must not hardcode old chat completions');
 
-assert.ok(webSrc.includes("FETCH_ENDPOINT_BASE || 'https://fetch.234124123.xyz/v1'"), 'web fetch default must use the confirmed upstream');
+assert.ok(webSrc.includes("FETCH_ENDPOINT_BASE || 'https://fet.234124123.xyz/v1'"), 'web fetch default must use the confirmed upstream');
 assert.ok(webSrc.includes("model: 'firecrawl'"), 'web fetch model must be firecrawl');
 assert.ok(webSrc.includes('process.env.DIFY_FETCH_API_KEY'), 'web fetch key must come from the environment');
 assert.ok(!webSrc.includes("DIFY_FETCH_API_KEY || '"), 'web fetch must not contain a default API key');

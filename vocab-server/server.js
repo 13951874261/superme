@@ -2370,7 +2370,7 @@ function formatDifyModelError(raw) {
       'Dify 下游 LLM 推理服务不可用（融合面板所有模型均失败或连接超时）。',
       '长文生成应用：materail_generate_url_enhanced',
       '鉴权环境变量：DIFY_ENGLISH_MASTERY_KEY',
-      `本地兜底网关：${process.env.LLM_URL || 'https://fetch.234124123.xyz/v1/chat/completions'}（模型 ${process.env.LLM_MODELS || 'mart-paid'}）。`,
+      `本地兜底网关：${process.env.LLM_URL || 'https://fet.234124123.xyz/v1/chat/completions'}（模型 ${process.env.LLM_MODELS || 'mart-paid'}）。`,
       '请在 Dify → 设置 → 模型供应商 → OpenAI-API-compatible 检查 Base URL 与模型名，或在 aow 网关后台检查通道健康状态。',
     ].join(' ');
   }
@@ -6314,7 +6314,10 @@ app.post('/api/dify/write-review', async (req, res) => {
     return res.status(400).json({ success: false, error: 'Missing required parameters: user_text, mail_intent, or theme.' });
   }
 
-  const apiKey = process.env.DIFY_WRITE_GOVERNANCE_API_KEY || process.env.DIFY_WRITE_GOVERNANCE_KEY;
+  const apiKey = process.env.DIFY_ENGLISH_WRITING_REVIEW_API_KEY || process.env.DIFY_ENGLISH_WRITING_REVIEW_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ success: false, error: 'DIFY_ENGLISH_WRITING_REVIEW_API_KEY is not configured.' });
+  }
   const baseUrl = process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const userId = req.body?.userId || req.body?.user || 'default-user';
   const {
@@ -8116,9 +8119,9 @@ app.get('/api/english/daily-extract/article', handleGetDailyExtractArticle);
 app.get('/api/english/daily-extract/article/exact', handleGetDailyExtractArticle);
 
 // 前台发起 daily-extract 生成请求，创建 taskId 后异步后台运行
-app.post('/api/english/daily-extract', async (req, res) => {
-  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = req.body;
-  const bizPackDate = String(req.body?.businessPackDate || '').trim();
+async function startDailyExtract(requestBody, waitForCompletion = false) {
+  const { topic, materialText, userId = 'default-user', cefrLevel = 'B1', genre = 'meeting', duration = '25', user_current_profile } = requestBody;
+  const bizPackDate = String(requestBody?.businessPackDate || '').trim();
   const today = /^\d{4}-\d{2}-\d{2}$/.test(bizPackDate)
     ? bizPackDate
     : dailyPackService.getPackDate();
@@ -8150,7 +8153,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
     // ??????????????????????????
     const inputText = materialText?.trim() || topic || '';
     if (!inputText) {
-      return res.json({
+      return {
         success: true,
         message: 'No input text provided, returned current quota status.',
         quota: {
@@ -8163,7 +8166,7 @@ app.post('/api/english/daily-extract', async (req, res) => {
         },
         words: [],
         phrases: [],
-      });
+      };
     }
 
     // Step 3: 登记 taskQueue（任务中心）+ extractionTasks（status 轮询），共用同一 taskId
@@ -8202,14 +8205,10 @@ app.post('/api/english/daily-extract', async (req, res) => {
       logs: ['已受理，正在生成长文并提纯词表（仅写展示缓存，不写入生词本）…'],
     });
 
-    res.json({
-      success: true,
-      taskId,
-      message: 'Extraction task started asynchronously.'
-    });
+    const result = { success: true, taskId, message: 'Extraction task started asynchronously.' };
 
     // ??????????????
-    runDailyExtractAsync(taskId, req.body, wordsLeft, phrasesLeft, quotaRow, today).catch(e => {
+    const completion = runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft, quotaRow, today).catch(e => {
       console.error('[Daily Extract Async] Unhandled error:', e);
       const errMsg = e.message || 'Unknown error occurred in background task.';
       extractionTasks.set(taskId, { status: 'failed', error: errMsg, createdAt: Date.now() });
@@ -8217,12 +8216,27 @@ app.post('/api/english/daily-extract', async (req, res) => {
         require('./services/taskQueue').updateTask(taskId, { status: 'failed', error: errMsg, progress: 100 });
       } catch (_) {}
     });
+    if (waitForCompletion) {
+      await completion;
+      const task = extractionTasks.get(taskId);
+      if (task?.status !== 'completed') throw new Error(task?.error || 'daily-extract did not complete');
+      result.status = task.status;
+    }
+    return result;
 
   } catch (error) {
     console.error('[Daily Extract] Initial Error:', error);
-    if (!res.headersSent) {
-      res.status(500).json({ success: false, error: error.message });
-    }
+    throw error;
+  }
+}
+
+dailyPackService.setExtractRunner((payload) => startDailyExtract(payload, true));
+
+app.post('/api/english/daily-extract', async (req, res) => {
+  try {
+    res.json(await startDailyExtract(req.body));
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -8291,7 +8305,8 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
       console.warn('[Daily Extract] 构建薄弱点上下文失败:', e.message);
     }
 
-    const difyApiKey = process.env.DIFY_ENGLISH_MASTERY_KEY;
+    const difyApiKey = process.env.DIFY_LONG_AUDIO_API_KEY || process.env.DIFY_LISTEN_GEN_API_KEY;
+    if (!difyApiKey) throw new Error('缺少长文生成 API KEY');
     const baseUrl = process.env.VITE_DIFY_API_BASE_URL || process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
 
     const requestInputs = injectOralSystemTime({
@@ -10461,11 +10476,12 @@ async function handleWriteGovernanceWorkflow(req, res) {
           const m = text.match(/\{[\s\S]*\}/);
           if (m) parsed = JSON.parse(m[0]);
         } catch { parsed = null; }
-        if (parsed && isMeaningfulWritingResult(parsed, taskType)) {
+        const normalized = normalizeWritingResult(parsed, taskType);
+        if (isMeaningfulWritingResult(normalized, taskType)) {
           appendKnowledgeTracesSafe(db, userId, injected.ids, { module: 'writing', action: 'analyzed' });
           console.log('[公文批改] 深度公文批改与润色分析完成 (标准报文)');
           return res.json({
-            data: { outputs: { analysis_result: JSON.stringify(normalizeWritingResult(parsed, taskType)) } },
+            data: { outputs: { analysis_result: JSON.stringify({ ...normalized, level_1: normalized.L1, level_2: normalized.L2, level_3: normalized.L3 }) } },
             source: 'dify',
             knowledgeReminder: injected.reminder,
             knowledgeSynced: injected.syncedCount,
@@ -11035,8 +11051,8 @@ const https = require('https');
 const http = require('http');
 
 function getTtsUpstreamUrls() {
-  const primary = process.env.TTS_API_URL || 'https://fetch.234124123.xyz/v1/audio/speech';
-  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://fetch.234124123.xyz/v1/audio/speech';
+  const primary = process.env.TTS_API_URL || 'https://fet.234124123.xyz/v1/audio/speech';
+  const fallback = process.env.TTS_API_FALLBACK_URL || 'https://fet.234124123.xyz/v1/audio/speech';
   return [...new Set([primary, fallback].filter(Boolean))];
 }
 

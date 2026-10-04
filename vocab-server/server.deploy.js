@@ -3573,7 +3573,7 @@ async function synthesizeAndSaveAudio(cleanInput, finalModel, audioPath, taskId 
   try {
   const taskQueue = taskId ? require('./services/taskQueue') : null;
   const ttsVoice = finalModel.includes('/') ? finalModel.split('/')[1] : '';
-  const apiUrl = process.env.TTS_API_URL || 'https://fetch.234124123.xyz/v1/audio/speech';
+  const apiUrl = process.env.TTS_API_URL || 'https://fet.234124123.xyz/v1/audio/speech';
   const apiKey = process.env.TTS_API_KEY || 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
   const gatewayFailed = { value: false }; // 标记是否已触发降级
 
@@ -4176,7 +4176,7 @@ app.post('/api/audio/transcriptions', upload.single('file'), async (req, res) =>
             formData.append('response_format', config.response_format);
           }
 
-          const response = await fetch('https://fetch.234124123.xyz/v1/audio/transcriptions', {
+          const response = await fetch('https://fet.234124123.xyz/v1/audio/transcriptions', {
             method: 'POST',
             headers: {
               'Authorization': req.headers.authorization || 'Bearer sk-d2c5fb65e9516bbc-rd1lv9-762292df',

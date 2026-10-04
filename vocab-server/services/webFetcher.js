@@ -89,7 +89,7 @@ async function fetchUrlContent(urlString, deps = {}) {
 
   const apiKey = process.env.DIFY_FETCH_API_KEY;
   if (!apiKey) throw new Error('Server missing DIFY_FETCH_API_KEY');
-  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://fetch.234124123.xyz/v1').replace(/\/$/, '');
+  const endpointBase = (process.env.FETCH_ENDPOINT_BASE || 'https://fet.234124123.xyz/v1').replace(/\/$/, '');
   const fetchUrl = `${endpointBase}/web/fetch`;
   const hostname = new URL(fetchUrl).hostname;
   const insecureTls = process.env.FETCH_INSECURE_TLS === '1'

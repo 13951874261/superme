@@ -1,6 +1,6 @@
 // test-llm.cjs — 本地兜底网关冒烟测试（统一 fetch 网关）
 const https = require('https');
-const url = 'https://fetch.234124123.xyz/v1/chat/completions';
+const url = 'https://fet.234124123.xyz/v1/chat/completions';
 const apiKey = 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
 
 const requestBody = JSON.stringify({

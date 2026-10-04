@@ -1,7 +1,7 @@
 const http = require('http');
 const https = require('https');
 
-const DEFAULT_LLM_URL = 'https://fetch.234124123.xyz/v1/chat/completions';
+const DEFAULT_LLM_URL = 'https://fet.234124123.xyz/v1/chat/completions';
 const DEFAULT_LLM_KEY = 'sk-d2c5fb65e9516bbc-rd1lv9-762292df';
 const DEFAULT_LLM_MODELS = ['mart-paid'];
 
