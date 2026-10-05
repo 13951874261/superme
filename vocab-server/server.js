@@ -2389,13 +2389,9 @@ function sanitizeListenMaterialScript(raw) {
 }
 
 /** 从 Dify chat-messages SSE 流中收集完整 answer；sanitize=false 时保留 VOCAB_JSON 段 */
-async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTimeoutMs } = {}) {
-  const { readWithIdleTimeout } = require('./services/streamIdleTimeout');
-  const idleMs = Number(
-    idleTimeoutMs
-      || process.env.DIFY_STREAM_IDLE_TIMEOUT_MS
-      || 120000,
-  );
+async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTimeoutMs, longArticle = false } = {}) {
+  const { readWithIdleTimeout, resolveDifyStreamIdleTimeout } = require('./services/streamIdleTimeout');
+  const idleMs = resolveDifyStreamIdleTimeout({ idleTimeoutMs, longArticle });
   let finalAnswer = '';
   const decoder = new TextDecoder();
   let buffer = '';
@@ -2453,13 +2449,18 @@ async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTim
     return sanitize ? sanitizeListenMaterialScript(trimmed) : trimmed;
   }
 
+  let reader;
   async function* bodyChunks() {
     if (typeof wfResponse.body.getReader === 'function') {
-      const reader = wfResponse.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        yield value;
+      reader = wfResponse.body.getReader();
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          yield value;
+        }
+      } finally {
+        reader.releaseLock();
       }
     } else {
       for await (const chunk of wfResponse.body) {
@@ -2468,7 +2469,13 @@ async function collectDifyStreamingAnswer(wfResponse, { sanitize = true, idleTim
     }
   }
 
-  for await (const value of readWithIdleTimeout(bodyChunks(), { idleTimeoutMs: idleMs })) {
+  for await (const value of readWithIdleTimeout(bodyChunks(), {
+    idleTimeoutMs: idleMs,
+    onTimeout: () => {
+      if (reader) reader.cancel().catch(() => {});
+      else if (typeof wfResponse.body.destroy === 'function') wfResponse.body.destroy();
+    },
+  })) {
     parseChunk(decoder.decode(value, { stream: true }));
   }
 
@@ -2534,7 +2541,7 @@ async function generateListenLongScriptSync(inputs, userId = 'default-user') {
         throw new Error(errMsg);
       }
 
-      const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
+      const answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false, longArticle: true });
       if (!answer) {
         throw new Error('\u63a5\u6536\u6210\u529f\u4f46\u7b54\u6848\u4e3a\u7a7a');
       }
@@ -8353,7 +8360,7 @@ async function runDailyExtractAsync(taskId, requestBody, wordsLeft, phrasesLeft,
           error.retryable = [408, 429, 502, 503, 504].includes(wfResponse.status);
           throw error;
         }
-        answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false });
+        answer = await collectDifyStreamingAnswer(wfResponse, { sanitize: false, longArticle: true });
         break;
       } catch (error) {
         clearTimeout(fetchTimeout);
