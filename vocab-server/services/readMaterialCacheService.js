@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const dailyPackService = require('./dailyPackService');
+const { injectSystemDefaults } = require('./englishWorkflowProxy');
 
 const SCENE_TYPES = ['policy', 'report', 'email', 'book'];
 const SCENE_FRAMEWORKS = ['social', 'gov', 'corp'];
@@ -42,6 +43,16 @@ function row(db, parts) {
 function get(db, input) {
   const parts = normalize(input); validate(parts);
   const found = row(db, parts);
+  if (found?.status === 'ready') {
+    try {
+      const body = unpackMaterialText(found.body_text);
+      if (body !== found.body_text) {
+        const quality = defaultEvaluate(body);
+        if (quality.quality !== 'ok') throw new Error('READ_MATERIAL_QUALITY_FAILED');
+        found.body_text = body; found.quality_json = JSON.stringify(quality);
+      }
+    } catch (error) { found.status = 'failed'; found.error_message = error.message; }
+  }
   return found ? {
     success: true, status: found.status, body: found.status === 'ready' ? found.body_text : null,
     quality: found.quality_json ? JSON.parse(found.quality_json) : null,
@@ -64,6 +75,24 @@ function save(db, parts, patch) {
   );
 }
 
+function unpackMaterialText(text) {
+  const raw = String(text || '').trim();
+  const json = raw.replace(/^\x60\x60\x60(?:json)?\s*([\s\S]*?)\s*\x60\x60\x60$/i, '$1');
+  if (!/^[{\[]/.test(json)) return raw;
+  let payload;
+  try { payload = JSON.parse(json); }
+  catch { throw new Error('READ_MATERIAL_JSON_INVALID'); }
+  let body = ['article', 'body', 'content', 'text', 'hidden_intent']
+    .map((key) => payload?.[key]).find((value) => typeof value === 'string' && value.trim());
+  const dialogue = payload?.dialogue;
+  // ponytail: 仅接纳达到正文长度门槛的 dialogue；新结构出现时补契约。
+  if (typeof dialogue === 'string' && dialogue.replace(/\s+/g, '').length >= 1500
+    && (!body || (body === payload.hidden_intent && !body.includes('以下为虚构训练文件正文') && dialogue.length > body.length))) body = dialogue;
+  if (!body) throw new Error('READ_MATERIAL_BODY_MISSING');
+  // ponytail: 仅剥离已观察到的口语正文标记；新增上游格式时补契约。
+  return body.replace(/^[\s\S]*?以下为虚构训练文件正文[。:：]?\s*/, '').trim();
+}
+
 function defaultEvaluate(text) {
   const raw = String(text || '');
   const charCount = raw.replace(/\s+/g, '').length;
@@ -82,7 +111,14 @@ async function generateOne(db, input) {
   let text = ''; let quality = null;
   try {
     for (let attempt = 0; attempt < 3; attempt += 1) {
-      text = await input.generateFn(parts);
+      try {
+        text = unpackMaterialText(await input.generateFn(parts));
+      } catch (error) {
+        const transient = ['AbortError', 'TimeoutError'].includes(error.name)
+          || ['ECONNRESET', 'ETIMEDOUT', 'UND_ERR_SOCKET', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_HEADERS_TIMEOUT'].includes(error.cause?.code || error.code);
+        if (attempt !== 0 || !transient) throw error;
+        continue;
+      }
       quality = (input.evaluateFn || defaultEvaluate)(text);
       if (quality.quality === 'ok') break;
     }
@@ -136,21 +172,21 @@ async function generateWithDify(parts) {
   if (!apiKey) throw new Error('DIFY_ORAL_API_KEY missing');
   const baseUrl = process.env.DIFY_API_BASE_URL || process.env.VITE_DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';
   const controller = new AbortController();
-  const timeoutMs = Math.max(1000, Number(process.env.DIFY_READ_MATERIAL_TIMEOUT_MS) || 120000);
+  const timeoutMs = Math.max(1000, Number(process.env.DIFY_READ_MATERIAL_TIMEOUT_MS) || 300000);
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${baseUrl}/chat-messages`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        inputs: { theme: parts.theme, genre: 'reading', cefr_level: 'B2', duration: '15' },
+        inputs: injectSystemDefaults({ theme: parts.theme, genre: 'reading', cefr_level: 'B2', duration: '15' }),
         query: buildQuery(parts), response_mode: 'blocking', user: parts.userId,
       }),
       signal: controller.signal,
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.message || data.error || `Dify ${response.status}`);
-    const text = String(data.answer || data.message || '').trim();
+    const text = unpackMaterialText(data.answer || data.message || '');
     if (!text) throw new Error('empty read material');
     return text;
   } finally {
