@@ -92,7 +92,7 @@ export default function DailyWakeupModule() {
       const dedupeNotice = pack.wakeup._dedupeNotice;
       setNotice(
         pack.stale
-          ? `这份材料还是按「${pack.theme}」生成的，点刷新按「${pack.currentTheme || theme}」重做。`
+          ? `这份材料还是按「${pack.theme}」生成的，请点击「重新生成」按「${pack.currentTheme || theme}」重做。`
           : (dedupeNotice || `已加载今日唤醒：${pack.currentTheme || theme}`),
       );
       return true;
@@ -101,9 +101,9 @@ export default function DailyWakeupModule() {
     if (pack.status === 'failed') {
       setNotice(friendlyDailyPackError(pack.errorMessage) || '今日唤醒生成失败，可立即生成');
     } else if (pack.status === 'generating') {
-      setNotice('暂无可用缓存，请点击「刷新今日包」手动生成');
+      setNotice('今日唤醒正在生成中，可点击「刷新今日包」查看进度');
     } else {
-      setNotice(`暂无缓存（${getAppUserId()}），请点击「刷新今日包」手动生成`);
+      setNotice(`暂无缓存（${getAppUserId()}），请点击「开始今日唤醒」生成`);
     }
     return false;
   };
