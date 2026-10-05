@@ -3,7 +3,6 @@ import { Loader2 } from 'lucide-react';
 import {
   getDifyChatbotUserId,
   prepareDifyAssistantIframe,
-  readCachedDifyIframeUrl,
 } from '../utils/difyChatbot';
 
 interface DifyAssistantFrameProps {
@@ -13,10 +12,10 @@ interface DifyAssistantFrameProps {
 
 /**
  * 右侧「全局 AI 助手」内嵌 Dify 对话。
- * 登录后用缓存 URL 立刻预热；呼出大屏不重建 iframe。记忆仍绑定 app_user_id。
+ * 登录后先恢复最新会话；呼出大屏不重建 iframe。记忆仍绑定 app_user_id。
  */
 export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFrameProps) {
-  const [iframeSrc, setIframeSrc] = useState(() => readCachedDifyIframeUrl());
+  const [iframeSrc, setIframeSrc] = useState('');
   const [error, setError] = useState('');
   const [sessionUserId, setSessionUserId] = useState('');
   const [openNonce, setOpenNonce] = useState(0);

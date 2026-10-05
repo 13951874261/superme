@@ -415,7 +415,7 @@ export async function prepareDifyAssistantIframe(forceNew = false): Promise<stri
   const cached = readCachedDifyIframeUrl(userId);
   const fetchFresh = async (): Promise<string> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2500);
+    const timer = setTimeout(() => controller.abort(), 3500);
     try {
       const response = await fetch(`/api/dify/embed-session?userId=${encodeURIComponent(userId)}`, {
         signal: controller.signal,
@@ -438,10 +438,7 @@ export async function prepareDifyAssistantIframe(forceNew = false): Promise<stri
     }
   };
 
-  if (cached) {
-    void fetchFresh();
-    return cached;
-  }
+  // 缓存仅用于网络失败兜底；刷新必须等待最新会话，不能后台查完却不更新 iframe。
   return fetchFresh();
 }
 

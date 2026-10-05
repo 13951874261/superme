@@ -62,23 +62,22 @@ assert.doesNotMatch(
   /\{isOpen && \([\s\S]*DifyAssistantFrame/,
   '关闭右侧面板时不得卸载 Dify iframe'
 );
-assert.match(
-  yml,
-  /hide:\s*true[\s\S]{0,80}variable:\s*app_user_id/,
-  'app_user_id 必须 Hidden & Pre-Filled，否则会弹出新对话设置'
-);
-assert.match(
-  yml,
-  /hide:\s*true[\s\S]{0,80}variable:\s*memory_pack/,
-  'memory_pack 必须 Hidden & Pre-Filled，否则会弹出新对话设置'
-);
+// ponytail: 当前 Dify 导出缩进契约；格式变化时改用 YAML 解析器。
+const startInputs = yml.match(/^        type: start\r?\n        variables:\r?\n([\s\S]*?)(?=^      \S)/m)?.[1];
+assert(startInputs, '必须存在 start 输入定义');
+const inputBlocks = startInputs.split(/^        - /m).slice(1);
+for (const variable of ['app_user_id', 'memory_pack']) {
+  const block = inputBlocks.find(input => new RegExp('^          variable: ' + variable + '\\r?$', 'm').test(input));
+  assert(block && /(?:^|\n)\s*hide: true(?:\r?\n|$)/.test(block), variable + ' 必须 Hidden & Pre-Filled');
+}
 assert.doesNotMatch(
   app,
   /iframeRef\.current\.src = url/,
   '禁止隐藏预加载 iframe 去打 Dify（会污染同源 conversationIdInfo）'
 );
-assert.match(chatbot, /dify_embed_iframe_url_v1|readCachedDifyIframeUrl/, '必须缓存已验证的 iframe URL，登录后立刻预热，不能等查找结束才开始加载 Dify');
+assert.match(chatbot, /dify_embed_iframe_url_v1|readCachedDifyIframeUrl/, '必须缓存已验证的 iframe URL作为网络失败兜底');
 assert.match(frame, /loading=["']eager["']/, 'iframe 必须 eager 加载，避免浏览器把后台助手当成懒加载');
-assert.match(frame, /readCachedDifyIframeUrl/, '助手 iframe 必须用缓存 URL 同步起盘');
+assert.doesNotMatch(frame, /readCachedDifyIframeUrl/, '刷新不能用旧 URL 抢先创建空会话');
+assert.doesNotMatch(chatbot, /if \(cached\) \{\s*void fetchFresh\(\);\s*return cached;/, '最新会话查询必须作用于当前 iframe');
 
 console.log('difyAssistantOpenFrontend.test.js passed');
