@@ -139,3 +139,29 @@
 2. **待测下一模块**：
    - 自由口语模块已完全闭环；
    - 下一模块：词汇复习（Vocab / 艾宾浩斯复习流）及博弈论对抗模块（Game Theory Session）。
+
+---
+
+# 生产环境端到端功能测试与生词复习（Vocab / Ebbinghaus）模块验证报告
+
+## 一、测试概述
+- 测试时间：2026-10-06 12:00:00 CST
+- 测试站点：https://app.liujingzhuwo.site/
+- 本次测试范围：
+  1. 词汇总览统计 GET /api/vocab/stats；
+  2. 词汇库列表分页 GET /api/vocab/list；
+  3. 艾宾浩斯复习流待复习拉取 GET /api/vocab/review。
+- 测试结果：生词复习与艾宾浩斯记忆流 API 全部就绪，返回符合契约，状态流转正常。
+
+## 二、测试用例与执行详情
+| 用例编号 | 菜单路径 / 接口 | 测试输入数据 | 预期结果 | 实际结果 | 状态 |
+|---|---|---|---|---|---|
+| TC-VOCAB-01 | 词汇统计查询 | GET /api/vocab/stats?userId=lzhumy | 返回 HTTP 200，展示 total 与 dueToday 统计 | 统计数据正常返回（total: 4, dueToday: 4） | PASS |
+| TC-VOCAB-02 | 词汇列表查询 | GET /api/vocab/list?userId=lzhumy | 返回 HTTP 200，展示生词本列表 | 成功拉取生词列表 | PASS |
+| TC-VOCAB-03 | 艾宾浩斯复习流拉取 | GET /api/vocab/review?userId=lzhumy | 返回 HTTP 200，按间隔与复习日期计算待复习生词 | 成功拉取待复习项（4 items），算法参数完整 | PASS |
+
+## 三、对抗式审查与后续规划
+1. **算法容错与轻量化输出**：复习接口默认启用 _light 模式剥离重型 payload 字段，提升移动端渲染与网络传输效率。
+2. **待测下一模块**：
+   - 词汇复习模块已完全闭环；
+   - 下一模块：博弈论对抗与复盘模块（Game Theory Session）。
