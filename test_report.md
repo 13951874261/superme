@@ -82,3 +82,30 @@
 2. **待测下一模块**：
    - 口语场景模块已完全闭环；
    - 下一模块：听力聚合与音频播放 / 日常复盘模块。
+
+---
+
+# 生产环境端到端功能测试与听力聚合播放模块验证报告
+
+## 一、测试概述
+- 测试时间：2026-10-06 11:30:00 CST
+- 测试站点：https://app.liujingzhuwo.site/
+- 本次测试范围：
+  1. 用户偏好接口 GET /api/english/listen-prefs 鉴权与配置加载；
+  2. 听力预生成库落库检查：16 组矩阵（4 体裁 × 4 难度）文章与音频完整性；
+  3. 生产音频静态流式挂载 GET /api/daily_listen_audio/... 鉴权访问与二进制尺寸校验。
+- 测试结果：16/16 组合全部就绪，音频服务支持 HTTP 200 与 Range 切片流式传输，尺寸 160KB~273KB，零丢包、零损坏。
+
+## 二、测试用例与执行详情
+| 用例编号 | 菜单路径 / 接口 | 测试输入数据 | 预期结果 | 实际结果 | 状态 |
+|---|---|---|---|---|---|
+| TC-LISTEN-01 | 听力偏好配置加载 | GET /api/english/listen-prefs?userId=lzhumy | 返回 HTTP 200，输出默认及生效 voiceId | 返回 effectiveVoiceId: en-US-BrianNeural | PASS |
+| TC-LISTEN-02 | 听力文章落库完整性 | 4 体裁 (meeting/news/podcast/reading) × 4 级别 (A2/B1/B2/C1) | 16/16 篇长文均落库且 status 为 ready | 16/16 篇文章完整入库，长度 848~1267 字 | PASS |
+| TC-LISTEN-03 | 听力音频合成与挂载 | SELECT * FROM daily_listen_audios | 16 个音频全部生成完毕，路径及 URL 映射正常 | 16 个音频全部 ready，文件真实存在 | PASS |
+| TC-LISTEN-04 | 生产音频流端到端请求 | GET /api/daily_listen_audio/lzhumy/2026-10-06_{genre}_{level}_1m.mp3 | 16 个矩阵音频均返回 HTTP 200 与 audio/mpeg | 16/16 组合全部返回 HTTP 200，大小 160~273KB | PASS |
+
+## 三、对抗式审查与后续规划
+1. **权限隔离加固**：音频文件服务严格要求 Session Cookie 鉴权，未经认证直接拦截 401，保障用户隐私与资源安全。
+2. **待测下一模块**：
+   - 听力模块已完全闭环；
+   - 下一模块：AI 随身教练 / 自由口语对练（Free Oral Chat / Breakthrough）模块。
