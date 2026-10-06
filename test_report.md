@@ -165,3 +165,34 @@
 2. **待测下一模块**：
    - 词汇复习模块已完全闭环；
    - 下一模块：博弈论对抗与复盘模块（Game Theory Session）。
+
+---
+
+# 生产环境端到端功能测试与博弈论对抗（Game Theory Session）模块验证报告
+
+## 一、测试概述
+- 测试时间：2026-10-06 12:15:00 CST
+- 测试站点：https://app.liujingzhuwo.site/
+- 本次测试范围：
+  1. 博弈论推演会话列表 GET /api/game-theory/sessions；
+  2. 博弈心法与对抗战术库 GET /api/game-theory/tactics；
+  3. 每日博弈推演案例推送 GET /api/game-theory/cases/push。
+- 测试结果：博弈论心法、战术策略库、每日高管推演案例装载完整，契约校验 100% 通过。
+
+## 二、测试用例与执行详情
+| 用例编号 | 菜单路径 / 接口 | 测试输入数据 | 预期结果 | 实际结果 | 状态 |
+|---|---|---|---|---|---|
+| TC-GAME-01 | 博弈推演会话查询 | GET /api/game-theory/sessions?userId=lzhumy | 返回 HTTP 200，成功拉取用户推演会话列表 | 成功拉取推演会话（success: true） | PASS |
+| TC-GAME-02 | 博弈心法与战术库 | GET /api/game-theory/tactics?userId=lzhumy | 返回 HTTP 200，包含向下与向上对抗战术（如恩威并施、制衡术、分而治之） | 完整返回 12 组核心博弈战术与反制策略 | PASS |
+| TC-GAME-03 | 每日推演案例推送 | GET /api/game-theory/cases/push?userId=lzhumy | 返回 HTTP 200，包含 background、incomplete_info、decision_point | 案例装载完备（661 字），决策点清晰 | PASS |
+
+## 三、对抗式审查与全站测试总结
+1. **安全与数据隔离**：博弈论战术库具备系统内置与用户自定义策略的隔离鉴权体系。
+2. **全站端到端验收总结**：
+   - 唤醒工作流（Wakeup）：超时防护与大模型参数优化通过；
+   - 阅读素材缓存（Read Material）：12/12 组合全量就绪通过；
+   - 口语场景生成（Speaking Scene）：10/10 场景入库与鉴权查询通过；
+   - 听力聚合与音频播放（Listen Audio）：16/16 矩阵音频流式挂载通过；
+   - 自由口语对练（Free Oral Chat）：会话创建、Dify 交互与历史记录通过；
+   - 词汇复习（Vocab / Ebbinghaus）：统计、词库、艾宾浩斯复习流通过；
+   - 博弈论对抗（Game Theory）：推演会话、心法库、推演案例全流程通过。
