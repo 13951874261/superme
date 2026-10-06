@@ -54,3 +54,31 @@
 2. **待测下一模块**：
    - 阅读素材模块已完全闭环；
    - 下一模块：口语场景模块（`speaking_scene`，涵盖 `multi_role` 与 `impromptu` 场景生成及交互）。
+
+---
+
+# 生产环境端到端功能测试与口语场景模块验证报告
+
+## 一、测试概述
+- 测试时间：2026-10-06 11:00:00 CST
+- 测试站点：https://app.liujingzhuwo.site/
+- 本次改动范围（最小必要）：
+  1. 生产环境 .env 补齐 DIFY_SPEAKING_SCENES_API_KEY 配置；
+  2. 重启 super-agent-vocab 服务并验证 ctive 状态；
+  3. 执行全量真实口语场景生成：成功落库 10/10 个场景（5 个 multi_role 多角色场景 + 5 个 impromptu 即兴表达场景），0 失败。
+- 测试结果：全部口语场景用例通过，API 鉴权查询返回完整 10 个场景，内容结构（角色、冲突、任务、开场白、要点与核心词）均符合契约。
+
+## 二、测试用例与执行详情
+| 用例编号 | 菜单路径 / 接口 | 测试输入数据 | 预期结果 | 实际结果 | 状态 |
+|---|---|---|---|---|---|
+| TC-SPEAK-01 | 服务环境变量注入 | DIFY_SPEAKING_SCENES_API_KEY | 生产 .env 成功配置密钥，服务重启 ctive | 环境变量注入完毕，super-agent-vocab 服务正常运行 | PASS |
+| TC-SPEAK-02 | 口语场景全量生成 | user_id='lzhumy', scene_date='2026-10-05' | 生成 10 个场景（5 个多角色 multi_role + 5 个即兴 impromptu），0 失败 | generated: 10, failedTypes: [], allocation: 5+5，数据落库完整 | PASS |
+| TC-SPEAK-03 | 多角色场景结构校验 | SELECT content_json FROM personalized_speaking_scenes WHERE scene_type='multi_role' | 包含 roles、conflict、objective、tasks、opening | 结构符合契约，角色立场与开场白完整可用 | PASS |
+| TC-SPEAK-04 | 即兴表达场景结构校验 | SELECT content_json FROM personalized_speaking_scenes WHERE scene_type='impromptu' | 包含 structure、points、keywords、opening | 框架结构、要点与核心词汇完整可用 | PASS |
+| TC-SPEAK-05 | 口语场景 API 端到端查询 | GET /api/english/speaking-scenes?userId=lzhumy | 返回 HTTP 200，装载全部 10 个口语场景 | 鉴权下正常装载 10 个口语场景列表 | PASS |
+
+## 三、对抗式审查与后续规划
+1. **环境变量热生效机制**：密钥直接注入服务端独立运行时，不污染客户端前端包与仓库代码。
+2. **待测下一模块**：
+   - 口语场景模块已完全闭环；
+   - 下一模块：听力聚合与音频播放 / 日常复盘模块。
