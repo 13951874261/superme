@@ -281,7 +281,7 @@ try {
         Write-Host "  -> Uploading frontend release" -ForegroundColor DarkCyan
         Invoke-RemoteCommand "mkdir -p $remoteReleaseRoot/dist"
         Send-File "$isolatedBuildRoot\dist" "$remoteReleaseRoot/"
-        Invoke-RemoteCommand "if [ -d $RemoteWebRoot/dist ]; then sudo mv $RemoteWebRoot/dist $remoteReleaseRoot/dist.previous; fi; sudo mv $remoteReleaseRoot/dist $RemoteWebRoot/dist"
+        Invoke-RemoteCommand "if [ -d $RemoteWebRoot/dist ]; then sudo mv $RemoteWebRoot/dist $remoteReleaseRoot/dist.previous; fi; sudo mv $remoteReleaseRoot/dist $RemoteWebRoot/dist && sudo chmod -R u=rwX,go=rX $RemoteWebRoot/dist"
         $frontendSwapped = $true
 
         Write-Host "  -> Nginx Reload" -ForegroundColor DarkCyan
