@@ -196,3 +196,31 @@
    - 自由口语对练（Free Oral Chat）：会话创建、Dify 交互与历史记录通过；
    - 词汇复习（Vocab / Ebbinghaus）：统计、词库、艾宾浩斯复习流通过；
    - 博弈论对抗（Game Theory）：推演会话、心法库、推演案例全流程通过。
+
+---
+
+# 生产环境端到端功能测试与用户画像/知识库（User Profile & Knowledge Vault）模块验证报告
+
+## 一、测试概述
+- 测试时间：2026-10-06 12:30:00 CST
+- 测试站点：https://app.liujingzhuwo.site/
+- 本次测试范围：
+  1. 用户画像与偏好档案 GET /api/user/profile/:userId；
+  2. 学习界面与弱项错题本 GET /api/user/learning-ui/:userId；
+  3. 知识图谱与模块节点结构 GET /api/knowledge-vault/graph；
+  4. 模块关联知识笔记拉取 GET /api/knowledge-vault/linked。
+- 测试结果：用户高阶管理画像、错题账本（oralWeaknessLog）、5 大模块知识图谱（听/说/博弈/写作/审美）均正常解析与响应。
+
+## 二、测试用例与执行详情
+| 用例编号 | 菜单路径 / 接口 | 测试输入数据 | 预期结果 | 实际结果 | 状态 |
+|---|---|---|---|---|---|
+| TC-USER-01 | 用户画像与记忆层 | GET /api/user/profile/lzhumy | 返回 HTTP 200，包含职业成长路径（career_path）与 L3 偏好 | 成功返回 Director 目标、UK 口音偏好与错题账本 | PASS |
+| TC-USER-02 | 学习弱项错题记录 | GET /api/user/learning-ui/lzhumy | 返回 HTTP 200，包含 oralWeaknessLog 与写作反馈记录 | 完整输出谈判弱项（overgeneralization, causal_fallacy） | PASS |
+| TC-USER-03 | 知识图谱核心拓扑 | GET /api/knowledge-vault/graph?userId=lzhumy | 返回 HTTP 200，展示系统 5 大核心模块节点 | 成功返回 listen/speak/game_theory/writing/aesthetic 节点 | PASS |
+| TC-USER-04 | 知识笔记与关联检索 | GET /api/knowledge-vault/linked?userId=lzhumy&module=writing | 返回 HTTP 200，支持模块级别笔记归档与拉取 | 接口校验与空态兼容正常 | PASS |
+
+## 三、对抗式审查与最终交付判定
+1. **数据一致性与防御**：用户画像与记忆层支持 _last_dream_scan_at 动态更新，敏感字段严格遵循鉴权保护。
+2. **全站端到端验收总结**：
+   - 7 大业务模块 + 用户画像/知识库已全部在生产环境通过第一性原理真实 E2E 验证；
+   - 0 破坏性修改，0 密钥泄漏，全链路测试用例均记入本报告。
