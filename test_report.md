@@ -109,3 +109,33 @@
 2. **待测下一模块**：
    - 听力模块已完全闭环；
    - 下一模块：AI 随身教练 / 自由口语对练（Free Oral Chat / Breakthrough）模块。
+
+---
+
+# 生产环境端到端功能测试与自由口语对练（Free Oral Chat）模块验证报告
+
+## 一、测试概述
+- 测试时间：2026-10-06 11:45:00 CST
+- 测试站点：https://app.liujingzhuwo.site/
+- 本次测试范围：
+  1. 会话列表接口 GET /api/english/free-oral/sessions 鉴权与装载；
+  2. 开场白模版接口 GET /api/english/oral/opening 加载与契约校验；
+  3. 新建自由口语会话 POST /api/english/free-oral/sessions；
+  4. 真实交互对话链路 POST /api/english/oral/free-sessions/:sessionId/messages 与上游 Dify AI 动态协同及落库；
+  5. 会话历史拉取接口 GET /api/english/free-oral/sessions/:sessionId 消息持久化校验。
+- 测试结果：全部口语对练用例验证通过，上游 Dify 对话生成流畅，上下文会话与持久化入库完整。
+
+## 二、测试用例与执行详情
+| 用例编号 | 菜单路径 / 接口 | 测试输入数据 | 预期结果 | 实际结果 | 状态 |
+|---|---|---|---|---|---|
+| TC-ORAL-01 | 会话列表查询 | GET /api/english/free-oral/sessions?userId=lzhumy | 返回 HTTP 200，成功获取用户历史对话会话 | 成功拉取会话列表（success: true） | PASS |
+| TC-ORAL-02 | 开场白模板与反击建议 | GET /api/english/oral/opening?userId=lzhumy | 返回 HTTP 200，包含开场白、反问模板与策略提示 | 成功装载，包含 hidden_intent, flaw_point, counter_question_templates | PASS |
+| TC-ORAL-03 | 创建自由口语会话 | POST /api/english/free-oral/sessions (title, focusTopic) | 返回 HTTP 201，创建独立 Session 实体 | 返回 HTTP 201，成功生成 Session ID | PASS |
+| TC-ORAL-04 | 实时发送口语练习消息 | POST /api/english/oral/free-sessions/:id/messages (content) | 返回 HTTP 200，上游 AI 正常响应并生成回复 | 返回 HTTP 200，成功获取针对商务谈判的 AI 角色开场回复 | PASS |
+| TC-ORAL-05 | 会话消息历史读取 | GET /api/english/free-oral/sessions/:id | 返回 HTTP 200，完整包含 user 与 assistant 消息链 | 完整返回 user 与 assistant 消息历史，状态 completed | PASS |
+
+## 三、对抗式审查与后续规划
+1. **输入防御与一致性**：消息发送端点严格校验 userId 与 clientMessageId，防止重复提交并维持对话时序。
+2. **待测下一模块**：
+   - 自由口语模块已完全闭环；
+   - 下一模块：词汇复习（Vocab / 艾宾浩斯复习流）及博弈论对抗模块（Game Theory Session）。
