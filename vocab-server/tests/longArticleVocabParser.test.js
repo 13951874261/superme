@@ -43,6 +43,26 @@ function testFallbackRawSearchStillWorks() {
   assert.strictEqual(result.vocab.length, 2, 'fallback 全文扫描仍可用');
 }
 
+function testUnmarkedNestedVocab() {
+  const expected = {
+    vocab: [{ word: 'portfolio', meaning: '投资组合', examples: ['Review the {portfolio} and say "ready".'] }],
+    phrases: ['credit committee'],
+    sentences: ['What support do you need?'],
+  };
+  const json = JSON.stringify({ words: expected.vocab, phrases: expected.phrases, sentences: expected.sentences });
+  for (const raw of [
+    `Article text.\n${json}\nMore text.`,
+    `Article text.\n\`\`\`json\n${json}\n\`\`\``,
+    `An unrelated {note}.\n${json}\n{"metadata":{"done":true}}`,
+  ]) {
+    assert.deepStrictEqual(parseVocabFromRaw(raw), expected, '无标记嵌套词表应完整提取');
+  }
+  assert.deepStrictEqual(parseVocabFromRaw('Article. {"words":[{"word":"portfolio"}'), {
+    vocab: [], phrases: [], sentences: [],
+  }, '截断 JSON 不应提取不完整词表');
+}
+
+testUnmarkedNestedVocab();
 testAliasesAreExtracted();
 testStandardWordsStillWorks();
 testNestedObject();

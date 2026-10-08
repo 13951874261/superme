@@ -788,7 +788,33 @@ function parseVocabFromRaw(raw) {
   }
 
   // 2) 兜底：全文里找带 words/phrases 的 JSON 对象
-  const candidates = raw.match(/\{[\s\S]{20,}?\}/g) || [];
+  const candidates = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < raw.length; i += 1) {
+    const char = raw[i];
+    if (start < 0) {
+      if (char !== '{') continue;
+      start = i;
+    }
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+    } else if (char === '"') {
+      inString = true;
+    } else if (char === '{') {
+      depth += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        candidates.push(raw.slice(start, i + 1));
+        start = -1;
+      }
+    }
+  }
   for (let i = candidates.length - 1; i >= 0; i -= 1) {
     const got = tryParse(candidates[i]);
     if (got && (got.vocab.length || got.phrases.length || got.sentences.length)) return got;
