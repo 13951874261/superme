@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useId, useRef } from 'react';
 import { AnchoredPopover } from '../../../../overlays/AnchoredOverlayHost';
 import { Target, Loader2, Zap, Trash2, AlertTriangle } from 'lucide-react';
 
@@ -15,6 +15,7 @@ export interface ArsenalPanelProps {
   /** 已转入任务中心后台生成 */
   isBackgroundGenerating?: boolean;
   handleAutoGenerate: (e?: React.MouseEvent<HTMLButtonElement>) => void;
+  emptyArticleNotice?: string;
   isClearingAndReGenerating: boolean;
   handleClearTodayAndReGenerate: () => void;
   showClearConfirm: boolean;
@@ -40,6 +41,7 @@ export function ArsenalPanel({
   isAutoGenerating,
   isBackgroundGenerating = false,
   handleAutoGenerate,
+  emptyArticleNotice,
   isClearingAndReGenerating,
   handleClearTodayAndReGenerate,
   showClearConfirm,
@@ -48,6 +50,7 @@ export function ArsenalPanel({
   compact = false
 }: ArsenalPanelProps) {
   const clearButtonRef = useRef<HTMLButtonElement>(null);
+  const emptyArticleNoticeId = useId();
   return (
     <div className={`relative animate-[fadeIn_0.3s_ease-out] bg-white border border-slate-100 shadow-[0_4px_14px_rgba(0,0,0,0.012)] ${
       compact
@@ -105,20 +108,33 @@ export function ArsenalPanel({
             <option value="35">35分钟</option>
           </select>
 
-          <button
-            type="button"
-            onClick={(e) => handleAutoGenerate(e)}
-            disabled={(isAutoGenerating || isBackgroundGenerating) || isClearingAndReGenerating}
-            className="flex items-center justify-center bg-[var(--color-brand)] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-brand-dark)] transition-colors disabled:opacity-50 cursor-pointer shadow-sm btn-press px-3 py-1.5"
-          >
-            {isBackgroundGenerating ? (
-              <><Loader2 aria-hidden="true" className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 后台处理中</>
-            ) : isAutoGenerating ? (
-              <><Loader2 aria-hidden="true" className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 正在查询/生成今日内容…</>
-            ) : (
-              <><Zap aria-hidden="true" className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> 查询/生成今日长文</>
+          <div className="flex min-w-0 max-w-full flex-col items-start gap-1.5">
+            <button
+              type="button"
+              aria-describedby={emptyArticleNotice ? emptyArticleNoticeId : undefined}
+              onClick={(e) => handleAutoGenerate(e)}
+              disabled={(isAutoGenerating || isBackgroundGenerating) || isClearingAndReGenerating}
+              className="flex items-center justify-center bg-[var(--color-brand)] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-[var(--color-brand-dark)] transition-colors disabled:opacity-50 cursor-pointer shadow-sm btn-press px-3 py-1.5"
+            >
+              {isBackgroundGenerating ? (
+                <><Loader2 aria-hidden="true" className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 后台处理中</>
+              ) : isAutoGenerating ? (
+                <><Loader2 aria-hidden="true" className="w-3.5 h-3.5 mr-1.5 animate-spin"/> 正在查询/生成今日内容…</>
+              ) : (
+                <><Zap aria-hidden="true" className="w-3.5 h-3.5 mr-1.5 text-amber-300"/> 查询/生成今日长文</>
+              )}
+            </button>
+            {emptyArticleNotice && (
+              <p
+                id={emptyArticleNoticeId}
+                role="status"
+                aria-live="polite"
+                className="max-w-full sm:max-w-xs rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-bold leading-relaxed text-blue-700 break-words"
+              >
+                {emptyArticleNotice}
+              </p>
             )}
-          </button>
+          </div>
 
           <div className="relative inline-block">
             <button

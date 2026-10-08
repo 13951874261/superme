@@ -27,6 +27,8 @@ import { useTask } from '../../../TaskContext';
 import { VOICE_OPTIONS } from '../../../../config/voices';
 
 
+const EMPTY_ARTICLE_NOTICE = '暂无今日长文，请点击「查询/生成今日长文」生成';
+
 const safeToStr = (item: any) => (typeof item === 'string' ? item : (item?.word || item?.phrase || item?.text || String(item || ''))).trim();
 
 /**
@@ -627,7 +629,7 @@ export default function DashboardTab() {
           setExtractedPhrases([]);
           setExtractedSentences([]);
           setIntelSource('每日系统生成');
-          showNotice('dashboard', '暂无今日长文，请点击「查询/生成今日长文」生成', 'info');
+          showNotice('dashboard', EMPTY_ARTICLE_NOTICE, 'info');
         }
       } catch (e) {
         if (active) {
@@ -863,6 +865,9 @@ export default function DashboardTab() {
     }
   };
 
+  const emptyArticleNotice = noticeAnchor === 'dashboard' && inlineNotice?.tone === 'info'
+    && inlineNotice.text === EMPTY_ARTICLE_NOTICE ? inlineNotice.text : undefined;
+
   return (
     <>
       <div className="space-y-3 animate-[fadeIn_0.3s_ease-out] relative">
@@ -962,6 +967,7 @@ export default function DashboardTab() {
           isAutoGenerating={isAutoGenerating}
           isBackgroundGenerating={isBackgroundGenerating}
           handleAutoGenerate={handleAutoGenerate}
+          emptyArticleNotice={emptyArticleNotice}
           isClearingAndReGenerating={isClearingAndReGenerating}
           handleClearTodayAndReGenerate={handleClearTodayAndReGenerate}
           showClearConfirm={showClearConfirm}
@@ -971,7 +977,7 @@ export default function DashboardTab() {
         />
       </div>
 
-        {inlineNotice && noticeAnchor === 'dashboard' && (
+        {inlineNotice && noticeAnchor === 'dashboard' && !emptyArticleNotice && (
           <div
             role="status"
             aria-live="polite"
