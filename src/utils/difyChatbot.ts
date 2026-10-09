@@ -31,6 +31,8 @@ let iframeUrlInflight: Promise<string> | null = null;
 const IFRAME_URL_CACHE_MS = 300_000; // 5 min
 
 export function invalidateMemoryPackCache(): void {
+  assistantPrepareGeneration++;
+  assistantPrepareInflight = null;
   cachedMemoryPack = null;
   cachedIframeUrl = null;
   iframeUrlInflight = null;
@@ -403,13 +405,21 @@ function writeCachedDifyIframeUrl(userId: string, url: string): void {
   );
 }
 
+let assistantPrepareGeneration = 0;
+let assistantPrepareInflight: { key: string; promise: Promise<string> } | null = null;
+
 export async function prepareDifyAssistantIframe(forceNew = false): Promise<string> {
   const userId = getDifyChatbotUserId();
   if (forceNew) {
+    assistantPrepareGeneration++;
+    assistantPrepareInflight = null;
     sessionStorage.removeItem(DIFY_IFRAME_URL_CACHE_KEY);
     return buildMinimalIframeUrl(userId, null, userId);
   }
 
+  const key = JSON.stringify([userId, getDifyEmbedInputOverrides().memory_pack || getUserWeaknessProfile()]);
+  if (assistantPrepareInflight?.key === key) return assistantPrepareInflight.promise;
+  const generation = ++assistantPrepareGeneration;
   const cached = readCachedDifyIframeUrl(userId);
   const fetchFresh = async (): Promise<string> => {
     const controller = new AbortController();
@@ -427,7 +437,9 @@ export async function prepareDifyAssistantIframe(forceNew = false): Promise<stri
         data?.conversationId,
         data?.sessionUserId || userId,
       );
-      writeCachedDifyIframeUrl(userId, url);
+      if (generation === assistantPrepareGeneration && userId === getDifyChatbotUserId()) {
+        writeCachedDifyIframeUrl(userId, url);
+      }
       return url;
     } catch {
       return cached || await buildMinimalIframeUrl(userId, null, userId);
@@ -437,7 +449,11 @@ export async function prepareDifyAssistantIframe(forceNew = false): Promise<stri
   };
 
   // 缓存仅用于网络失败兜底；刷新必须等待最新会话，不能后台查完却不更新 iframe。
-  return fetchFresh();
+  const promise = fetchFresh().finally(() => {
+    if (assistantPrepareInflight?.promise === promise) assistantPrepareInflight = null;
+  });
+  assistantPrepareInflight = { key, promise };
+  return promise;
 }
 
 export function applyDifyChatbotConfig(): DifyChatbotConfig {
