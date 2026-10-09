@@ -1,5 +1,6 @@
 import {
   getAppUserId,
+  getUserWeaknessProfile,
   getInjectedUserCurrentProfile,
   sanitizeProfileContent,
   getCurrentFormattedTime,
@@ -109,11 +110,10 @@ export function getDifyEmbedInputOverrides(): DifyEmbedInputOverrides {
   try {
     const raw = localStorage.getItem(DIFY_EMBED_INPUT_OVERRIDES_KEY);
     if (!raw) return {};
-    const parsed = JSON.parse(raw) as DifyEmbedInputOverrides;
-    const appUserId = String(parsed?.app_user_id || '').trim();
+    const parsed = JSON.parse(raw) as DifyEmbedInputOverrides & { ownerUserId?: string };
+    if (parsed?.ownerUserId !== getAppUserId()) return {};
     const memoryPack = String(parsed?.memory_pack || '').trim();
     return {
-      ...(appUserId ? { app_user_id: appUserId } : {}),
       ...(memoryPack ? { memory_pack: memoryPack } : {}),
     };
   } catch {
@@ -122,19 +122,20 @@ export function getDifyEmbedInputOverrides(): DifyEmbedInputOverrides {
 }
 
 export function setDifyEmbedInputOverrides(overrides: DifyEmbedInputOverrides): void {
-  const appUserId = String(overrides.app_user_id || '').trim();
   const memoryPack = String(overrides.memory_pack || '').trim();
-  if (!appUserId && !memoryPack) {
+  if (!memoryPack) {
     localStorage.removeItem(DIFY_EMBED_INPUT_OVERRIDES_KEY);
   } else {
     localStorage.setItem(
       DIFY_EMBED_INPUT_OVERRIDES_KEY,
       JSON.stringify({
-        ...(appUserId ? { app_user_id: appUserId } : {}),
-        ...(memoryPack ? { memory_pack: memoryPack } : {}),
+        ownerUserId: getAppUserId(),
+        memory_pack: memoryPack,
       }),
     );
   }
+  sessionStorage.removeItem(DIFY_IFRAME_URL_CACHE_KEY);
+  invalidateMemoryPackCache();
   window.dispatchEvent(new CustomEvent('dify-embed-settings-changed'));
 }
 
@@ -144,17 +145,14 @@ export async function buildMinimalIframeUrl(
   sessionUserId?: string | null,
 ): Promise<string> {
   const base = DIFY_EMBED_BASE_URL.replace(/\/$/, '');
-  const raw = String(userId || '').trim() || 'default-user';
-  const loginId = raw.includes('@') ? raw.slice(0, raw.indexOf('@')) : raw;
   const overrides = getDifyEmbedInputOverrides();
-  const accountId = overrides.app_user_id || loginId;
+  const accountId = getAppUserId();
   const embedUserId = String(sessionUserId || accountId).trim() || accountId;
   const params = new URLSearchParams();
   params.set('sys.user_id', await compressAndEncodeBase64(embedUserId));
   params.set('app_user_id', await compressAndEncodeBase64(accountId));
-  if (overrides.memory_pack) {
-    params.set('memory_pack', await compressAndEncodeBase64(overrides.memory_pack));
-  }
+  const memoryPack = overrides.memory_pack || getUserWeaknessProfile();
+  params.set('memory_pack', await compressAndEncodeBase64(memoryPack));
   const convId = String(conversationId || '').trim();
   if (convId) params.set('sys.conversation_id', await compressAndEncodeBase64(convId));
   return `${base}/chatbot/${DIFY_EMBED_TOKEN}?${params.toString()}`;

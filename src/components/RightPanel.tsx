@@ -181,14 +181,13 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
 
   const openEmbedSettings = () => {
     const overrides = getDifyEmbedInputOverrides();
-    setEmbedAccount(overrides.app_user_id || getAppUserId());
+    setEmbedAccount(getAppUserId());
     setEmbedMemoryPack(overrides.memory_pack || '');
     setShowEmbedSettings(true);
   };
 
   const saveEmbedSettings = () => {
     setDifyEmbedInputOverrides({
-      app_user_id: embedAccount,
       memory_pack: embedMemoryPack,
     });
     setShowEmbedSettings(false);
@@ -506,11 +505,11 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
             </div>
             <label className="mb-3 block">
               <span className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-gray-500">
-                登录账号（选填）
+                当前登录账号（只读）
               </span>
               <input
                 value={embedAccount}
-                onChange={(e) => setEmbedAccount(e.target.value)}
+                readOnly
                 className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1C64F2]"
                 placeholder="默认使用当前登录账号"
               />
@@ -524,7 +523,7 @@ function RightPanelComponent({ isOpen, onClose, activeTab, setActiveTab, wordDat
                 onChange={(e) => setEmbedMemoryPack(e.target.value)}
                 rows={4}
                 className="w-full resize-none rounded-xl border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#1C64F2]"
-                placeholder="需要注入时再填写，平时可留空"
+                placeholder="留空时使用「专属复盘与弱点扫描」的当前短板画像"
               />
             </label>
             <div className="flex justify-end gap-2">

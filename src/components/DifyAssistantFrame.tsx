@@ -92,7 +92,7 @@ export default function DifyAssistantFrame({ refreshKey = '' }: DifyAssistantFra
     <iframe
       key={`${sessionUserId}-${refreshKey}-${openNonce}`}
       src={iframeSrc}
-      className="w-full h-full border-none"
+      className="w-full h-full min-h-[700px] border-none"
       allow="microphone; fullscreen"
       title="全局 AI 助手"
       loading="eager"
