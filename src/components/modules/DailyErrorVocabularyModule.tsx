@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BookOpen, RefreshCw, Loader2, AlertTriangle, CheckCircle2 } from 'lucide-react';
-import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack, raceDailyPackReady, DAILY_PACK_RACE_MS, friendlyDailyPackError } from '../../services/dailyPackAPI';
+import { buildDailyPackQueryInput, getTodayDailyPack, regenerateDailyPack, withDailyPackRace, waitDailyPackUntilReady, DAILY_PACK_RACE_MS, friendlyDailyPackError } from '../../services/dailyPackAPI';
+import { getAppUserId } from '../../utils/profileHelper';
 import { useVocabCollect } from '../../hooks/useVocabCollect';
 import { lookupVocabWords } from '../../services/vocabAPI';
 import { showToast } from '../Toast';
@@ -27,6 +28,9 @@ export default function DailyErrorVocabularyModule() {
   const { theme } = useEnglishContext();
   const [words, setWords] = useState<FlawVocabWord[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isBackground, setIsBackground] = useState(false);
+  const pendingRef = useRef<{ theme: string; userId: string } | null>(null);
+  const mountedRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [staleHint, setStaleHint] = useState<string | null>(null);
   const { addTask } = useTask();
@@ -57,62 +61,88 @@ export default function DailyErrorVocabularyModule() {
   };
 
   const fetchFlawVocab = async (regenerate = false) => {
+    const userId = getAppUserId();
+    if (pendingRef.current?.theme === theme && pendingRef.current.userId === userId) return;
+    const run = { theme, userId };
+    pendingRef.current = run;
+    const isCurrent = () => mountedRef.current && pendingRef.current === run && getAppUserId() === userId;
+    const deadline = Date.now() + DAILY_PACK_RACE_MS;
     setIsLoading(true);
+    setIsBackground(false);
     setError(null);
-    const handoffMsg = '生成超过 3 秒未命中缓存，已转入【任务中心】';
-    try {
-      const queryInput = await buildDailyPackQueryInput(theme);
-      if (!regenerate) {
-        const pack = await getTodayDailyPack(queryInput);
-        if (applyFlawPack(pack)) return;
-        setWords([]);
-        setError(
-          pack.status === 'failed'
-            ? (friendlyDailyPackError(pack.errorMessage) || '今日易错词生成失败，请点击刷新重试')
-            : '暂无缓存，请点击「刷新词汇」手动生成',
-        );
-        return;
-      }
 
-      const first = await regenerateDailyPack('flaw', queryInput);
-      const raced = await raceDailyPackReady(first, 'flaw', queryInput);
-      if (raced.kind === 'ready') {
-        if (applyFlawPack(raced.pack)) return;
-        setWords([]);
-        setError(
-          raced.pack.status === 'failed'
-            ? (friendlyDailyPackError(raced.pack.errorMessage) || '今日易错词生成失败，请点击刷新重试')
-            : '暂无缓存，请点击「刷新词汇」手动生成',
-        );
-        return;
+    const work = (async () => {
+      const queryInput = await buildDailyPackQueryInput(theme);
+      if (!isCurrent()) throw new Error('请求已取消');
+      let pack: Awaited<ReturnType<typeof getTodayDailyPack>> | undefined;
+      try {
+        const cached = await withDailyPackRace(getTodayDailyPack(queryInput, userId), Math.max(0, deadline - Date.now()));
+        if ('result' in cached) pack = cached.result;
+      } catch (err) {
+        if (!/请求超时|唤醒服务暂时连不上/.test(friendlyDailyPackError(err))) throw err;
       }
-      if (first.taskId) {
+      if (!isCurrent()) throw new Error('请求已取消');
+      if (!regenerate && pack?.status === 'ready' && pack.flawVocab?.length) return pack;
+      // 已有生成任务只接续轮询；回执丢失先查缓存，禁止盲目重提。
+      if (pack?.status !== 'generating') {
+        try {
+          pack = await regenerateDailyPack('flaw', queryInput, userId);
+        } catch (err) {
+          if (!/请求超时|唤醒服务暂时连不上/.test(friendlyDailyPackError(err))) throw err;
+          pack = await getTodayDailyPack(queryInput, userId);
+          if (pack.status !== 'generating' && !(pack.status === 'ready' && pack.flawVocab?.length)) {
+            throw new Error('后台任务提交未确认，请点击重试');
+          }
+        }
+      }
+      if (pack.taskId && getAppUserId() === userId) {
         addTask({
-          id: first.taskId,
+          id: pack.taskId,
           type: 'daily_pack',
           name: `每日破绽词汇｜${queryInput.theme || theme}`,
           status: 'running',
           progress: 20,
-          logs: [`超过 ${DAILY_PACK_RACE_MS / 1000} 秒未命中缓存，已转入后台继续生成`],
+          logs: ['已受理，正在后台生成今日破绽词汇'],
         });
       }
+      if (pack.status === 'failed' || (pack.status === 'ready' && pack.flawVocab?.length)) return pack;
+      return waitDailyPackUntilReady('flaw', queryInput, userId);
+    })().then((pack) => {
+      if (isCurrent() && !applyFlawPack(pack)) {
+        setError(friendlyDailyPackError(pack.errorMessage) || '后台生成未完成，请点击重试');
+      }
+    }).catch((err) => {
+      if (isCurrent()) setError(friendlyDailyPackError(err) || '获取每日破绽词汇失败，请重试');
+    }).finally(() => {
+      if (isCurrent()) {
+        setIsLoading(false);
+        setIsBackground(false);
+      }
+      if (pendingRef.current === run) pendingRef.current = null;
+    });
+
+    // 整条链路共用 3 秒预算，包含输入准备、缓存读取、生成回执。
+    const raced = await withDailyPackRace(work);
+    if (raced.isTimeout && isCurrent()) {
+      setIsLoading(false);
+      setIsBackground(true);
       notifyBackgroundHandoff({
         anchor: regenBtnRef.current,
-        message: handoffMsg,
+        message: '3 秒未命中缓存，已转入后台生成，可在【任务中心】查看进度',
         tone: 'info',
         toast: true,
       });
-      setWords([]);
-      setError(handoffMsg);
-      raced.wait.then((pack) => { applyFlawPack(pack); }).catch(() => {});
-    } catch (e: any) {
-      setError(friendlyDailyPackError(e.message) || '获取每日破绽词汇失败，请重试');
-    } finally {
-      setIsLoading(false);
     }
   };
 
   useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+
+  useEffect(() => {
+    setWords([]);
+    setStaleHint(null);
     void fetchFlawVocab(false);
   }, [theme]);
 
@@ -178,7 +208,7 @@ export default function DailyErrorVocabularyModule() {
         <button
           ref={regenBtnRef}
           onClick={() => void fetchFlawVocab(true)}
-          disabled={isLoading}
+          disabled={isLoading || isBackground}
           className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all disabled:opacity-50 border border-slate-700/50 cursor-pointer self-start sm:self-auto"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -186,6 +216,12 @@ export default function DailyErrorVocabularyModule() {
         </button>
       </div>
 
+      {isBackground && (
+        <div role="status" aria-live="polite" className="flex items-center justify-center gap-2 py-6 text-sm text-indigo-300">
+          <Loader2 className="w-5 h-5 animate-spin" aria-hidden="true" />
+          正在后台生成，可在【任务中心】查看进度，完成后自动显示。
+        </div>
+      )}
       {isLoading ? (
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="w-8 h-8 text-indigo-500 animate-spin" />
@@ -204,7 +240,9 @@ export default function DailyErrorVocabularyModule() {
           </button>
         </div>
       ) : words.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 text-sm font-medium">暂无数据，请尝试刷新</div>
+        !isBackground && (
+          <div className="text-center py-12 text-slate-500 text-sm font-medium">暂无数据，请尝试刷新</div>
+        )
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mt-6">
           {words.map((item) => (

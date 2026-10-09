@@ -221,7 +221,14 @@ async function pollTodayUntilSettled(
   const started = Date.now();
   let last: DailyPackResponse | null = null;
   while (Date.now() - started < timeoutMs) {
-    last = await getTodayDailyPack(input, userId);
+    try {
+      last = await getTodayDailyPack(input, userId);
+    } catch (err) {
+      // 后台轮询允许短暂网络抖动，鉴权等实际错误仍立即上报。
+      if (!/请求超时|唤醒服务暂时连不上/.test(friendlyDailyPackError(err))) throw err;
+      await new Promise((r) => setTimeout(r, 2000));
+      continue;
+    }
     if (last.status === 'failed') return last;
     if (last.status === 'ready') {
       if (need === 'wakeup' && last.wakeup) return last;
