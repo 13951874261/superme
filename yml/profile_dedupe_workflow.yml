@@ -1,0 +1,170 @@
+# 对应 API Key: app-fH7ALg8Q052NQrrCbf6wC2WC (DIFY_PROFILE_DEDUPE_API_KEY)
+app:
+  description: 全局短板画像写入时语义去重。合并 existing_profile 与 new_delta，同类事项保留时效最近的一条。
+  icon: 🧬
+  icon_background: '#09090B'
+  icon_type: emoji
+  mode: workflow
+  name: Profile Dedupe Workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 已有画像
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: existing_profile
+        - label: 本次新增增量
+          max_length: 800
+          options: []
+          required: true
+          type: paragraph
+          variable: new_delta
+        - label: 增量来源
+          max_length: 80
+          options: []
+          required: false
+          type: text-input
+          variable: delta_source
+        - label: 增量时间戳(ms)
+          max_length: 20
+          options: []
+          required: false
+          type: text-input
+          variable: delta_timestamp_ms
+      height: 115
+      id: start
+      position:
+        x: 80
+        y: 200
+      positionAbsolute:
+        x: 80
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 语义去重合并画像，同类保留最新
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: gpt-4o
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: dedupe-sys-prompt
+          role: system
+          text: |-
+            你是用户全局短板画像的语义去重引擎。任务：将「已有画像」与「本次新增增量」合并为一条精炼、无重复的画像文本。
+
+            【去重规则】
+            1. 按语义主题拆分（如：口音/区域、目标、习惯、情绪模式、决策倾向、自我矛盾点、具体短板词等）。
+            2. 若多条描述同一主题或同一短板，只保留时效最近的一条；本次 new_delta 视为最新，优先于已有画像中的同类项。
+            3. 不同主题的信息全部保留，用中文分号「；」连接各段。
+            4. 删除完全重复、高度重叠（>70% 语义相同）的段落；可合并相近表述为一句，不丢失关键信息。
+            5. 保留标记类文本（如 标记:smoke-mychat-*）仅当其为唯一溯源且无法合并时；合并后优先保留最新标记。
+            6. 总长度不超过 1500 字；优先保留：区域画像 > 核心目标 > 当前最大短板 > 最近标记。
+
+            【输出规范】
+            必须且只能输出以下 XML，不要有任何多余文字：
+            <response>
+              <merged_profile>去重合并后的完整画像（分号分隔多段）</merged_profile>
+              <dedupe_count>被合并/删除的重复项数量（整数）</dedupe_count>
+            </response>
+        - id: dedupe-user-prompt
+          role: user
+          text: |-
+            增量来源：{{#start.delta_source#}}
+            增量时间戳(ms)：{{#start.delta_timestamp_ms#}}
+
+            【已有画像 existing_profile】
+            {{#start.existing_profile#}}
+
+            【本次新增增量 new_delta — 视为最新，同类冲突时优先保留】
+            {{#start.new_delta#}}
+        selected: false
+        title: 画像去重LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 200
+      positionAbsolute:
+        x: 380
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+  rag_pipeline_variables: []

@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const source = fs.readFileSync(path.join(__dirname, '../../src/components/modules/DailyWakeupModule.tsx'), 'utf8');
+assert.doesNotMatch(source, /刷新今日包」手动生成/, '读取缓存按钮不能被描述为生成按钮');
+assert.match(source, /暂无缓存[^\n]*开始今日唤醒/, '缺包引导必须匹配实际生成按钮');
+assert.match(source, /今日唤醒正在生成[^\n]*刷新今日包[^\n]*查看进度/, '生成中只能提示读取进度，避免重复生成');
+assert.match(source, /这份材料还是按[^\n]*重新生成/, '过期材料必须引导重新生成');
+assert.match(source, /onClick=\{\(\) => void loadTodayPack\('manual'\)\}/, '刷新今日包仍只读取缓存');
+console.log('dailyWakeupNotice.test.js passed');

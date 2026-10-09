@@ -1,0 +1,359 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-sfzT1fsn8WkX5TnnIxq9qbY7 (VITE_DIFY_HIGH_AESTHETICS_KEY)
+# 用途: 高阶审美与政商务社交规范训练引擎 — 时间感知版
+# 改造: 注入 _system_time/_system_timestamp_ms；知识检索后经 Time_Decay_Rerank（90天半衰期）衰减重排
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 高阶审美与政商务社交规范训练引擎；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（90天半衰期）优先近期社交审美规范。
+  icon: 🍷
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Aesthetic Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - remote_url
+      - local_file
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - remote_url
+        - local_file
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: start-knowledge-retrieval
+      source: '1715000000000'
+      sourceHandle: source
+      target: a1b2c3d4-e5f6-4789-aest-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: knowledge-retrieval-time-decay
+      source: a1b2c3d4-e5f6-4789-aest-012345678901
+      sourceHandle: source
+      target: b2c3d4e5-f6a7-4890-aest-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: time-decay-llm
+      source: b2c3d4e5-f6a7-4890-aest-123456789012
+      sourceHandle: source
+      target: '1715000000001'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: end
+      id: 1715000000001-source-1715000000002-target
+      source: '1715000000001'
+      sourceHandle: source
+      target: '1715000000002'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: scene_category
+          max_length: 48
+          options:
+          - 政商务饭局与敬酒
+          - 茶席与茶礼社交
+          - 红酒与雪茄品鉴
+          - 高尔夫轻商务
+          - 跨文化宴请(西方)
+          - 跨文化宴请(中东东南亚)
+          required: true
+          type: select
+          variable: scene_category
+        - label: user_response
+          max_length: 2048
+          required: true
+          type: paragraph
+          variable: user_response
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 240
+      id: '1715000000000'
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - '1715000000000'
+        - scene_category
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: a1b2c3d4-e5f6-4789-aest-012345678901
+      position:
+        x: 228
+        y: 282
+      positionAbsolute:
+        x: 228
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 设计风格的半衰期设为 90 天\n    # 设计潮流变化较慢，但 90 天足以过滤掉明显过时的风格（如过时的渐变、毛玻璃等）\n\
+          \    HALF_LIFE_MS = 90 * 24 * 60 * 60 * 1000\n    decay_rate = math.log(2)\
+          \ / HALF_LIFE_MS\n\n    reranked_docs = []\n\n    if not retrieved_docs:\n\
+          \        return {\"reranked_context\": \"\"}\n\n    ts = int(current_timestamp)\
+          \ if current_timestamp is not None else 0\n\n    for doc in retrieved_docs:\n\
+          \        if not isinstance(doc, dict):\n            continue\n        content\
+          \ = doc.get(\"content\", \"\")\n        orig_score = float(doc.get(\"score\"\
+          , 0.5))\n        metadata = doc.get(\"metadata\", {}) or {}\n\n        doc_time\
+          \ = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff\
+          \ = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate * time_diff)\n\
+          \        final_score = orig_score * decay_factor\n\n        doc_age_days =\
+          \ round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该设计风格记录于：{doc_age_days}\
+          \ 天前]\"\n\n        reranked_docs.append({\n            \"content\": f\"{time_tag}\
+          \ {content}\",\n            \"final_score\": final_score,\n            \"metadata\"\
+          : metadata\n        })\n\n    reranked_docs.sort(key=lambda x: x[\"final_score\"\
+          ], reverse=True)\n\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"content\"\
+          ] for d in reranked_docs])\n\n    return {\n        \"reranked_context\":\
+          \ merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 90 天半衰期做时间衰减重排，并为每段设计风格注入「该设计风格记录于 X 天前」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - a1b2c3d4-e5f6-4789-aest-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - '1715000000000'
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: b2c3d4e5-f6a7-4890-aest-123456789012
+      position:
+        x: 376
+        y: 282
+      positionAbsolute:
+        x: 376
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: b5fcf125-8fe1-42af-8de9-7d667b2aa614
+          role: system
+          text: "【全局时间感知】\n当前系统时间是：{{#1715000000000._system_time#}}。\n\n【设计趋势时效性判定】\n\
+            上下文提供了设计风格的 \"[该设计风格记录于：X 天前]\" 状态。\n1. 请优先选择记录时间在 90 天以内的近期设计风格和建议，这些趋势更符合当前市场审美。\n\
+            2. 对于记录时间超过 180 天的设计案例，请在建议中标注\"该风格可能已过时，仅供参考\"。\n3. 生成的设计建议应明确注明：\"本建议基于\
+            \ [X] 天前的设计趋势生成\"。\n\n【知识库检索 — 历史设计风格与审美规范】\n检索到的历史设计风格、品牌调性标准与美学案例：\n{{#b2c3d4e5-f6a7-4890-aest-123456789012.reranked_context#}}\n\
+            须优先参考上述检索内容中的近期设计风格；与当前场景冲突时以 90 天内近期记录为准。\n\n你是一名顶层阶层礼仪与跨文化心理专家。你需要对用户在特定社交场景下的应对策略进行严苛的评估和诊断。\n\
+            \n请结合用户当前画像进行定制化评估：\n1. 社交礼仪文化兼容评估 (以英国 UK 画像为例)：\n   - 若用户画像包含 \"英国\"\
+            \ 或 \"UK\"，针对涉及西式高端社交（如红酒品鉴、高尔夫轻商务、古典音乐与歌剧）的场景，实施极其严格的正统西式社交风控评估。\n   -\
+            \ 审查用户的行为和话术是否符合英伦圈层所推崇的“克制”、“绝对的边界意识”与“低调高雅（Understatement）”，扣除带有明显美式炫耀色彩或粗俗词汇的得分。\n\
+            2. 字形拼写一致性：\n   - 诊断报告中所出现的英文单词，必须强制统一使用英式英语拼写（如 favour, behaviour,\
+            \ optimising）。\n\n输出格式要求：\n请直接输出严格的JSON格式字符串，不包含任何 Markdown 格式标记（绝对不能带有\
+            \ ```json 或 ``` 符号），以确保其可以直接被 JSON.parse 解析。JSON 结构必须包含以下字段：\n- \"feedback\"\
+            : 深度点评、心理剖析与避坑指南（必须符合上述英式拼写及文化适配要求）。\n- \"score\": 0到10的打分数字（整型）。\n\
+            - \"is_passed\": 布尔值，6分及以上为 true，低于6分为 false。"
+        - id: 4374fcee-7be6-42db-892b-c24193cd5929
+          role: user
+          text: '请评估以下社交场景中的用户表现：
+
+
+            社交场景分类：{{#1715000000000.scene_category#}}
+
+            用户的应对策略：{{#1715000000000.user_response#}}
+
+            用户当前画像设定：{{#1715000000000.user_current_profile#}}'
+        selected: false
+        title: LLM
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: '1715000000001'
+      position:
+        x: 572
+        y: 282
+      positionAbsolute:
+        x: 572
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - '1715000000001'
+          - text
+          variable: json_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: '1715000000002'
+      position:
+        x: 768
+        y: 282
+      positionAbsolute:
+        x: 768
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 157
+      y: 35
+      zoom: 1
+  rag_pipeline_variables: []

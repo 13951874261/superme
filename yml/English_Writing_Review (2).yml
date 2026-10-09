@@ -1,0 +1,188 @@
+app:
+  description: 跨国高管级别英文书面表达的三段式残酷批阅引擎。
+  icon: ✒️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: English_Writing_Review
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: edge-start-llm
+      source: start_node
+      sourceHandle: source
+      target: llm_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: end
+      id: edge-llm-end
+      source: llm_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: user_text
+          max_length: 4000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_text
+        - label: mail_intent
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: mail_intent
+        - default: ''
+          hint: ''
+          label: 阵地主题(theme)
+          max_length: 256
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: theme
+      height: 161
+      id: start_node
+      position:
+        x: 78
+        y: 282
+      positionAbsolute:
+        x: 78
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - id: system_prompt
+          role: system
+          text: "你是一位外企合规总监与法务专家。用户意图是：{{#start_node.mail_intent#}}。\n请对用户的英文行文进行三段式残酷批阅。遵从主题{{#start_node.theme#}}\n\
+            \n【待批阅的原文】：\n{{#start_node.user_text#}}\n\n【强制要求】：必须返回合法的 JSON 格式，不要包含\
+            \ ```json 等 Markdown 标记，直接输出大括号包裹的内容。\n返回格式必须严格如下：\n{\n  \"L1\": \"表层语法与中式英语纠错分析\"\
+            ,\n  \"L2\": \"中层问题：是否符合西方商业直接/委婉的分寸感及语气评估\",\n  \"L3\": \"深层问题：政治站位、利益切割、合规风险、是否把责任揽到了自己身上\"\
+            ,\n  \"optimized_version\": \"你重写的高管级完美示范文本\"\n}\n\n\n【系统隐性约束】：当前用户的谈判阵地是【{{start_node.theme#}}】。请在批阅其战略站位（L3_Strategic_Position）时，严格根据该阵地的特有文化与核心冲突来评判其权力分寸是否得当。"
+        selected: false
+        title: 三段式残酷批阅
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm_node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - llm_node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: end_node
+      position:
+        x: 681
+        y: 282
+      positionAbsolute:
+        x: 681
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 112.35903299763714
+      y: 24.05160609277823
+      zoom: 0.8705505632961241
+  rag_pipeline_variables: []

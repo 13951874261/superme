@@ -1,0 +1,271 @@
+app:
+  description: 跨国高管级别英文书面表达的三段式纵深批阅引擎。
+  icon: ✒️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: English Writing Review Workflow
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods: []
+      enabled: false
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: edge-start-llm
+      source: start_node
+      sourceHandle: source
+      target: llm_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: code
+      id: edge-llm-format
+      source: llm_node
+      sourceHandle: source
+      target: code_clean_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: code
+        targetType: end
+      id: edge-code-end
+      source: code_clean_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 接收前端待批阅文本、邮件意图、当日主题及用户上下文
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: user_text
+          max_length: 4000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_text
+        - label: mail_intent
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: mail_intent
+        - default: ''
+          hint: 当日阵地主题
+          label: 阵地主题(theme)
+          max_length: 256
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: theme
+        - label: 用户画像与上下文(user_current_profile)
+          max_length: 4000
+          options: []
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - label: 引用知识上下文(knowledge_context)
+          max_length: 20000
+          options: []
+          required: false
+          type: paragraph
+          variable: knowledge_context
+      height: 190
+      id: start_node
+      position:
+        x: 80
+        y: 280
+      positionAbsolute:
+        x: 80
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 执行三段式严苛批阅与高管范文重写
+        model:
+          completion_params:
+            temperature: 0.2
+          mode: chat
+          name: mart-cursor
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system_prompt
+          role: system
+          text: |
+            你是一个顶级的企业沟通教练、跨国商务高管顾问和英文写作审阅专家。
+            你的任务是根据用户输入的原文、邮件意图（mail_intent）、当日学习主题（theme）及背景画像，进行三段式严苛批阅，并给出针对该主题的高管级重写范文（optimized_version）。
+
+            输出必须为纯 JSON 格式：
+            {
+              "L1": "表层语法、拼写、时态及用词纠错与建议",
+              "L2": "商务分寸、语气契合度、论据组织与逻辑结构建议",
+              "L3": "战略站位、高管视角、利益博弈与合规/公关层面点评",
+              "optimized_version": "针对 theme 与 mail_intent 重新润色重写的高水准正式商务英文范文"
+            }
+
+            约束：
+            1. 必须返回合法纯 JSON，不得包裹 ```json 代码块，不得输出任何前置或后置说明文本。
+            2. optimized_version 需严丝合缝匹配 theme，且体现 mail_intent 的战略诉求。
+        - id: user_prompt
+          role: user
+          text: "mail_intent: {{#start_node.mail_intent#}}\n\ntheme: {{#start_node.theme#}}\n\nuser_text:\n{{#start_node.user_text#}}\n\nuser_profile:\n{{#start_node.user_current_profile#}}\n\nknowledge_context:\n{{#start_node.knowledge_context#}}"
+        selected: false
+        title: 三段式英文审阅
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 220
+      id: llm_node
+      position:
+        x: 380
+        y: 280
+      positionAbsolute:
+        x: 380
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: |
+          import json
+          import re
+
+          def main(raw_text: str) -> dict:
+              text = (raw_text or "").strip()
+              if text.startswith("```"):
+                  text = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+                  text = re.sub(r"\s*```$", "", text)
+                  text = text.strip()
+
+              fallback = {
+                  "L1": "",
+                  "L2": "",
+                  "L3": "",
+                  "optimized_version": ""
+              }
+
+              try:
+                  data = json.loads(text)
+                  if isinstance(data, dict):
+                      fallback["L1"] = str(data.get("L1") or data.get("L1_Grammar") or data.get("level_1") or "")
+                      fallback["L2"] = str(data.get("L2") or data.get("L2_Business_Tone") or data.get("level_2") or "")
+                      fallback["L3"] = str(data.get("L3") or data.get("L3_Strategic_Position") or data.get("level_3") or "")
+                      fallback["optimized_version"] = str(data.get("optimized_version") or data.get("optimized") or "")
+              except Exception:
+                  fallback["L1"] = text
+
+              return {
+                  "result": json.dumps(fallback, ensure_ascii=False)
+              }
+        code_language: python3
+        desc: 保证返回纯合法 JSON 字符串
+        outputs:
+          result:
+            type: string
+        selected: false
+        title: JSON 清洗节点
+        type: code
+        variables:
+        - value_selector:
+          - llm_node
+          - text
+          variable: raw_text
+      height: 180
+      id: code_clean_node
+      position:
+        x: 680
+        y: 280
+      positionAbsolute:
+        x: 680
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: 输出最终审阅结果
+        outputs:
+        - value_selector:
+          - code_clean_node
+          - result
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 90
+      id: end_node
+      position:
+        x: 980
+        y: 280
+      positionAbsolute:
+        x: 980
+        y: 280
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 50
+      y: 50
+      zoom: 0.9
+  rag_pipeline_variables: []

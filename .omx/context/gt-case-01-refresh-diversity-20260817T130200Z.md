@@ -1,0 +1,34 @@
+# Context Snapshot: gt-case-01-refresh-diversity
+
+- **UTC timestamp:** 20260817T130200Z
+- **Task statement:** 对需求 GT-CASE-01「驭心博弈刷新后案例不能总是同一批」做 deep-interview，并产出符合 Strict PRD Schema 的 PRD。
+- **Desired outcome:** 执行就绪的需求规格 + PRD（待访谈收敛后结晶）。本模式不直接改业务代码。
+- **Stated solution:** 用户复述 7.22 博弈反馈「重新刷新清除后案例还是那几个，缺乏新鲜度与多样性」，并调用 `/prd` + `/deep-interview`；未指定实现方案。
+- **Probable intent hypothesis:** 用户把「换一条 / 刷新 / 清缓存」当成应拿到新案例的动作，但看到的仍是那几个固定标题，训练重复、新鲜感差。可能是：(1) 会话内「换一条」去重失败；(2) 硬刷新后前端只回落到 5 条 `PRESET_CASES`；(3) Dify 失败后 FALLBACK 池太小。
+- **Known facts/evidence:**
+  - `[from-user]` 原始痛点（`7.22日反馈.md`）：「每次重新刷新清除后的案例还是那几个」。
+  - `[from-user]` Round 1：本轮只做 **GT-CASE-01**（新鲜度/多样性），不做 GT-CASE-02 详实度，也不扩到其他 Tab。
+  - `[from-code][auto-confirmed]` 验收用例 `test_cases_7.21_7.22_feedback.md` GT-CASE-01：路径「驭心博弈 → 高管斗争案例研判 → 换一条 / 刷新」；连续换 5 次 + Ctrl+Shift+R；预期「与初始集合不完全相同」且「清缓存后不是永远那几个预设」。状态「当前可测」。
+  - `[from-code][auto-confirmed]` `test_report.md`：GT-CASE-01「换一条后文本未变」；原因候选为推送返回同一批预设或 loading 无反馈。
+  - `[from-code][auto-confirmed]` 前端硬编码 5 条 `PRESET_CASES`（`GameTheoryModule.tsx`）：被稀释权力的常务副局长、派系夹缝中的合规审查、甩锅大区VP的会场狙击、核心资产重组被夺功、直属总监的压制与边缘化。
+  - `[from-code][auto-confirmed]` 「换一条」走 `GET /api/game-theory/cases/push`；成功写入内存 `extraCases`；失败则在当前环境的 `PRESET_CASES` 内轮换。`extraCases` **不持久化**，硬刷新丢失。
+  - `[from-code][auto-confirmed]` 排除逻辑只排除当前条 + 本环境 `extraCases` id，不再把全部预设 id 传给后端。
+  - `[from-code][auto-confirmed]` 后端 `gameTheoryCasePushService.js`：先 Dify 生成并 `INSERT OR IGNORE` 到 `game_theory_cases`；失败或撞库则 `ORDER BY RANDOM()` 抽库，再不行用 `FALLBACK_CASES`（目前仅 2 条且都是 `corp_clash`）。
+  - `[from-code][auto-confirmed]` 页面加载 **不** 从 `game_theory_cases` 拉列表；列表权威面仍是前端 `PRESET_CASES` + 会话内 `extraCases`。
+  - `[from-code]` 冻结表 `docs/superpowers/specs/2026-08-16-feedback-7.21-7.22-frozen-specs.md` 把 GT-CASE-01 标为「本地未提交：exclude 修正 + 本地轮换」，并建议「部署已有本地修复」。当前工作区 `GameTheoryModule.tsx` **已含**该轮换逻辑，且 git 初始状态未把它列为未提交修改——与冻结表「未提交」表述可能过期。
+  - `[from-code][auto-confirmed]` GT-CASE-02 是案例**详实度/研判四节**，已有独立 design/plan；本轮用户已排除。
+- **Constraints:** 优先复用现有 `push` / `game_theory_cases` / 本地轮换，不重复造轮子；改代码前须用户确认；中文沟通；仅改 GT-CASE-01。
+- **Unknowns/open questions:**
+  - 「刷新清除」是指点「换一条」、浏览器硬刷新、清站点数据，还是三者都要变？
+  - 合格标准：会话内不重复即可，还是硬刷新后列表也不能回到那 5 条预设？
+  - 多样性按标题去重、情节去重，还是按场景类型覆盖？
+  - 生成失败时，扩大 FALLBACK 是否算合格，还是必须 Dify 新案例？
+  - 是否改列表权威面（从 DB 水合）？
+- **Decision-boundary unknowns:** 去重窗口（会话 / 用户 / 全局库）、硬刷新后是否水合 DB、FALLBACK 扩池 vs 只修 exclude、OMX 可否自定阈值——均未声明。
+- **Likely codebase touchpoints:** `src/components/modules/GameTheoryModule.tsx`、`src/services/difyAPI.ts` `pushGameTheoryCase`、`vocab-server/services/gameTheoryCasePushService.js`、`vocab-server/server.js` `GET /api/game-theory/cases/push`、`vocab-server/tests/gameTheoryCasePush.test.js`、`test_cases_7.21_7.22_feedback.md` GT-CASE-01。
+- **Relevant repo docs/rules/context inspected:** `AGENTS.md`、`7.22日反馈.md`、`test_cases_7.21_7.22_feedback.md`、`test_report.md`、`docs/superpowers/specs/2026-08-16-feedback-7.21-7.22-frozen-specs.md`、`docs/superpowers/specs/2026-08-16-gt-case-02-case-quality-design.md`、`.omx/specs/deep-interview-p1-5-game-theory-export-cases.md`、无既有 `gt-case-01-refresh-diversity` 快照。
+- **Terminology / doc-code conflicts:**
+  - 产品「刷新 / 换一条 / 重新刷新清除」vs 代码「换一条」=`pushGameTheoryCase`；浏览器硬刷新会丢掉 `extraCases`，列表回到 `PRESET_CASES`。
+  - 冻结表称 GT-CASE-01「本地未提交已修」，代码已含 exclude+轮换，但**不能**单独满足「清缓存后不是永远那几个预设」。
+  - 后端库表 `game_theory_cases` 会累积生成案例，前端列表不读它 → 用户感知仍是那几个。
+- **Prompt-safe initial-context summary status:** `not_needed`

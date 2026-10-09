@@ -1,0 +1,353 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-ADIa1cjKgxCbYegKjLcRnnnr (VITE_DIFY_SPEECH_EXEMPLAR_API_KEY)
+# 用途: 即兴演讲完美示范范文生成引擎 — 时间感知版
+# 改造: 注入 _system_time/_system_timestamp_ms；知识检索后经 Time_Decay_Rerank（14天半衰期）衰减重排
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 即兴演讲完美示范范文生成器 (Impromptu_Speech_Exemplar)；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（14天半衰期）优先近期范文。
+  icon: 📝
+  icon_background: '#FFE0B2'
+  icon_type: emoji
+  mode: workflow
+  name: Impromptu_Speech_Exemplar
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: start-knowledge-retrieval
+      source: start_node
+      sourceHandle: source
+      target: e5f6a7b8-c9d0-4012-exem-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: knowledge-retrieval-time-decay
+      source: e5f6a7b8-c9d0-4012-exem-012345678901
+      sourceHandle: source
+      target: f6a7b8c9-d0e1-4123-exem-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: time-decay-llm
+      source: f6a7b8c9-d0e1-4123-exem-123456789012
+      sourceHandle: source
+      target: llm_node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-end
+      source: llm_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: theme
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: theme
+        - label: user_transcript
+          required: true
+          type: paragraph
+          variable: user_transcript
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 240
+      id: start_node
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 4
+        query_attachment_selector: []
+        query_variable_selector:
+        - start_node
+        - theme
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: e5f6a7b8-c9d0-4012-exem-012345678901
+      position:
+        x: 228
+        y: 282
+      positionAbsolute:
+        x: 228
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 范文和论据的半衰期设为 14 天\n    # 范文需要保持一定的时代感，14天的半衰期可以平衡\"经典\"\
+          与\"时效\"\n    HALF_LIFE_MS = 14 * 24 * 60 * 60 * 1000\n    decay_rate = math.log(2)\
+          \ / HALF_LIFE_MS\n\n    reranked_docs = []\n\n    if not retrieved_docs:\n\
+          \        return {\"reranked_context\": \"\"}\n\n    ts = int(current_timestamp)\
+          \ if current_timestamp is not None else 0\n\n    for doc in retrieved_docs:\n\
+          \        if not isinstance(doc, dict):\n            continue\n        content\
+          \ = doc.get(\"content\", \"\")\n        orig_score = float(doc.get(\"score\"\
+          , 0.5))\n        metadata = doc.get(\"metadata\", {}) or {}\n\n        doc_time\
+          \ = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff\
+          \ = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate * time_diff)\n\
+          \        final_score = orig_score * decay_factor\n\n        doc_age_days =\
+          \ round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag = f\"[该范文录入于：{doc_age_days}\
+          \ 天前]\"\n\n        reranked_docs.append({\n            \"content\": f\"{time_tag}\
+          \ {content}\",\n            \"final_score\": final_score,\n            \"metadata\"\
+          : metadata\n        })\n\n    reranked_docs.sort(key=lambda x: x[\"final_score\"\
+          ], reverse=True)\n\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"content\"\
+          ] for d in reranked_docs])\n\n    return {\n        \"reranked_context\":\
+          \ merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 14 天半衰期做时间衰减重排，并为每段范文注入「该范文录入于 X 天前」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - e5f6a7b8-c9d0-4012-exem-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - start_node
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: f6a7b8c9-d0e1-4123-exem-123456789012
+      position:
+        x: 376
+        y: 282
+      positionAbsolute:
+        x: 376
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: '114'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 78f94dcb-c315-4eb2-a6c7-9e57b34a62e2
+          role: system
+          text: "【全局时间感知】\n当前系统时间是：{{#start_node._system_time#}}。\n\n【范文时效性判定】\n上下文提供了范文的\
+            \ \"[该范文录入于：X 天前]\" 状态。\n1. 请优先选择录入时间在 14 天以内的范文作为参考，这些范文引用的案例和数据更具时效性。\n\
+            2. 对于录入时间超过 90 天的范文，视为\"经典范文\"，可以借鉴其结构和论证方式，但不宜直接引用其中的具体数据和案例。\n3. 生成的范文应在回答末尾以一行英文脚注注明参考来源，格式如：\
+            \ \"(Reference: exemplar recorded [X] days ago.)\"，其中 X 为实际参考范文的录入天数。\n\
+            \n【知识库检索 — 历史范文与经典论据】\n检索到的历史演讲范文与经典论据：\n{{#f6a7b8c9-d0e1-4123-exem-123456789012.reranked_context#}}\n\
+            须优先参考上述检索内容中的近期范文与论据；与当前主题冲突时以 14 天内近期范文为主。\n\n你是一位顶级政商英语演讲教练，擅长撰写高管级即兴演讲范文。\n\
+            你需要根据用户演讲的主题和他们实际说出的粗糙转录文本，重构并升维输出一篇完美的、纯正商务语境的英文演讲示范范文。\n\n同时，必须根据用户画像\
+            \ {{#start_node.user_current_profile#}} 的设定对写作风格和格式进行自适应微调：\n1. 修辞作风与语言特征（若用户画像包含\
+            \ \"英国\" 或 \"UK\"）：\n   - 将演讲稿的整体基调转变为低调克制（Understatement）、礼貌温和且不失力量的英式演说风格。\n\
+            \   - 句式多采用外交辞令（如多用 \"I should like to think that...\", \"It seems to\
+            \ me that...\"）来增加决策说服的厚重感，避免过度美式的吹嘘与情绪煽动。\n2. 字形拼写一致性：\n   - 若用户画像包含\
+            \ \"英国\" 或 \"UK\"，演讲范文内的单词拼写必须强制统一使用英式英语拼写（如 reorganisation, prioritising,\
+            \ capitalise, favour）。若画像未指定或为其他，则使用标准通用拼写。\n\n范文要求：\n1. 结构完整：必须包含精彩的开场白（Opening）、逻辑递进的主体观点阐述（Body\
+            \ Points）以及简洁有力的收尾（Closing）。\n2. 词汇与句式高阶：使用政商常用高频词汇与复杂但流畅的句式，展现极高的专业度和说服力。\n\
+            3. 长度适中：字数通常在 250 - 400 词之间（适合 3 分钟左右的脱稿演讲长度）。\n4. 纯净输出：主体仅返回重构后的英文演讲范文；若参考了知识库范文，在末尾追加一行英文脚注（见【范文时效性判定】第\
+            \ 3 条），不要夹杂 markdown 标签、说明性文字或中文翻译。"
+        - id: 497fface-f793-45cf-87d1-9f6b0c683096
+          role: user
+          text: '【即兴演讲示范撰写任务】
+
+            演讲主题：{{#start_node.theme#}}
+
+            用户演讲文本草稿：{{#start_node.user_transcript#}}
+
+            用户当前画像设定：{{#start_node.user_current_profile#}}
+
+
+            请严格基于以上内容为我生成一篇高管级完美演讲范文（只需输出纯英文演讲文本）。'
+        selected: true
+        title: 生成演讲范文
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm_node
+      position:
+        x: 572
+        y: 282
+      positionAbsolute:
+        x: 572
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm_node
+          - text
+          variable: exemplar_text
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: end_node
+      position:
+        x: 768
+        y: 282
+      positionAbsolute:
+        x: 768
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 0
+      y: 0
+      zoom: 1
+  rag_pipeline_variables: []

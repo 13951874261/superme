@@ -1,0 +1,20 @@
+// Run: node --import tsx src/components/modules/english/tabs/dashboard/ArsenalPanel.notice.test.ts
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+const dashboard = readFileSync(new URL('../DashboardTab.tsx', import.meta.url), 'utf8');
+const arsenal = readFileSync(new URL('./ArsenalPanel.tsx', import.meta.url), 'utf8');
+assert.ok(dashboard.includes("showNotice('dashboard', EMPTY_ARTICLE_NOTICE, 'info')"));
+assert.ok(dashboard.includes("noticeAnchor === 'dashboard' && inlineNotice?.tone === 'info'"));
+assert.ok(dashboard.includes('inlineNotice.text === EMPTY_ARTICLE_NOTICE'));
+assert.ok(dashboard.includes('emptyArticleNotice={emptyArticleNotice}'));
+assert.ok(dashboard.includes("noticeAnchor === 'dashboard' && !emptyArticleNotice && ("), 'no duplicate page-level notice');
+const group = arsenal.match(/<div className="flex min-w-0 max-w-full flex-col items-start gap-1.5">([\s\S]*?)<\/div>/)![1];
+assert.ok(group.includes('aria-describedby={emptyArticleNotice ? emptyArticleNoticeId : undefined}'));
+assert.ok(group.includes('id={emptyArticleNoticeId}'));
+assert.ok(group.includes('role="status"') && group.includes('aria-live="polite"'));
+assert.ok(group.indexOf('</button>') < group.indexOf('{emptyArticleNotice && ('), 'notice directly follows generation button');
+assert.ok(group.includes('max-w-full sm:max-w-xs') && group.includes('break-words'), 'narrow-screen wrapping');
+assert.ok(!/\b(?:absolute|fixed)\b/.test(group), 'notice scrolls with its button');
+assert.ok(group.includes('onClick={(e) => handleAutoGenerate(e)}'));
+assert.ok(group.includes('disabled={(isAutoGenerating || isBackgroundGenerating) || isClearingAndReGenerating}'));
+console.log('PASS: source contract for scoped routing, adjacency, wrapping, accessibility, existing handler and guards');

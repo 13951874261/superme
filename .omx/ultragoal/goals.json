@@ -1,0 +1,41 @@
+﻿{
+  "version": 1,
+  "mode": "aggregate",
+  "briefPath": ".omx/ultragoal/brief.md",
+  "specPath": ".omx/specs/deep-interview-memory-aid-vertical-align.md",
+  "slug": "memory-aid-vertical-align",
+  "aggregateObjective": "Execute .omx/ultragoal/goals.json stories for memory-aid-vertical-align under .omx/ultragoal/brief.md constraints; progress in .omx/ultragoal/ledger.jsonl.",
+  "previousSlug": "account-data-isolation",
+  "goals": [
+    {
+      "id": "G001",
+      "title": "残留确认 + 例句取数契约",
+      "status": "complete",
+      "objective": "确认「展开更多」后对齐策略与图片卡限高展示；列出 FlashCard payload 例句字段优先级并获用户确认；写出可测的取前4/垫槽/折叠规则。"
+    },
+    {
+      "id": "G002",
+      "title": "MemoryAid 四卡全展开限高栈",
+      "status": "complete",
+      "objective": "在复习场景将 MemoryAid 改为纵向四卡同时展开（词根/联想/助记/图片），支持限高+卡内滚动与重新生成；不破坏非复习调用方可先加 mode/variant。"
+    },
+    {
+      "id": "G003",
+      "title": "FlashCard 双栏 4 槽布局",
+      "status": "complete",
+      "objective": "重构 FlashCard 翻牌背面为左≤4例句槽（空槽/折叠+展开更多）| 右记忆四卡；词汇矩阵 VocabTab 双栏不改动。"
+    },
+    {
+      "id": "G004",
+      "title": "GSAP 顶边动态贴合",
+      "status": "complete",
+      "objective": "用 useGSAP 测左右第 i 行顶边并动态贴合；resize/换词/内容高度变化后刷新；尊重 prefers-reduced-motion（无位移动画仍保持对齐结果）。"
+    },
+    {
+      "id": "G005",
+      "title": "验收 + quality gate",
+      "status": "complete",
+      "objective": "对照 spec AC1–6 做手工/可自动化验收；矩阵双栏回归；最终 cleanup/review gate。"
+    }
+  ]
+}

@@ -3,6 +3,7 @@ import { BrainCircuit, Zap, ShieldCheck } from 'lucide-react';
 
 export default function ChatModule() {
   const handleOpenAssistant = () => {
+    window.dispatchEvent(new CustomEvent('dify-assistant-open'));
     window.dispatchEvent(new CustomEvent('toggle-right-panel', {
       detail: { open: true, tab: 'assistant' }
     }));

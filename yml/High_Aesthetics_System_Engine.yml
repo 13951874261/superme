@@ -81,6 +81,12 @@ workflow:
           required: true
           type: paragraph
           variable: user_response
+        - label: 引用知识上下文
+          max_length: 20000
+          options: []
+          required: false
+          type: paragraph
+          variable: knowledge_context
       height: 116
       id: '1715000000000'
       position:
@@ -114,6 +120,13 @@ workflow:
             用户反馈：
 
             【{{#1715000000000.user_response#}}】
+
+
+            【引用知识上下文】：
+
+            {{#1715000000000.knowledge_context#}}
+
+            以下为用户已确认同步的知识，仅作补充，不得编造未提供的条目。若为空则忽略。
 
 
             请强制输出严格的JSON格式（不带任何Markdown符号，确保前端可直接被JSON.parse解析），必须包含以下三个key：

@@ -1,0 +1,28 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "b3189c67-e4a4-4ef9-802e-bc56446bae4d",
+    "profile": "standard",
+    "type": "brownfield",
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "current_ambiguity": 0.14,
+    "pressure_pass_complete": true,
+    "non_goals_resolved": true,
+    "decision_boundaries_resolved": true,
+    "context_snapshot_path": ".omx/context/bg-handoff-feedback-20260821T063808Z.md",
+    "transcript_path": ".omx/interviews/bg-handoff-feedback-20260821T065803Z.md",
+    "spec_path": ".omx/specs/deep-interview-bg-handoff-feedback.md",
+    "scores": {
+      "intent": 0.9,
+      "outcome": 0.9,
+      "scope": 0.9,
+      "constraints": 0.9,
+      "success": 0.7,
+      "context": 0.9
+    },
+    "decision_boundaries": ["A", "B", "C", "D", "E"],
+    "non_goals": ["A", "B", "C", "D", "E"]
+  }
+}

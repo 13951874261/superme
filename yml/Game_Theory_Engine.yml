@@ -94,6 +94,12 @@ workflow:
           required: false
           type: text-input
           variable: applied_tactics
+        - label: 引用知识上下文
+          max_length: 20000
+          options: []
+          required: false
+          type: paragraph
+          variable: knowledge_context
       height: 135
       id: start
       position:
@@ -151,9 +157,12 @@ workflow:
                 "L10: [第10层因果传导] [最底层因果] 权力格局的稳固或权力体系的重塑结晶。"
               ],
               "prototype_archive": {
+                "subject": "opponent",
+                "subject_role_id": "输入中的博弈对手角色 ID",
                 "name": "博弈对手的角色或姓名",
                 "type": "人性原型分类（如：利益驱动型、恐惧驱动型、面子驱动型、安全感驱动型）",
-                "description": "基于此次互动，将其归档归类的原因，以及后续现实中遇到同类原型的识别与应对准则。"
+                "description": "仅基于博弈对手的言行归档，严禁根据用户表现归档。",
+                "evidence": [{ "actor_role_id": "输入中的博弈对手角色 ID", "quote": "博弈对手原话" }]
               },
               "suggestion": "高级驭人技术点评与未来策略修正方向。"
             }
@@ -169,7 +178,11 @@ workflow:
 
             user_answer: {{#start.user_answer#}}
 
-            applied_tactics: {{#start.applied_tactics#}}'
+            applied_tactics: {{#start.applied_tactics#}}
+
+            knowledge_context: {{#start.knowledge_context#}}
+
+            以下为用户已确认同步的知识，仅作补充，不得编造未提供的条目。若为空则忽略。'
         selected: false
         title: 驭心博弈分析LLM
         type: llm

@@ -1,0 +1,29 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "ct-cascade-delete-20260820",
+    "profile": "standard",
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "type": "brownfield",
+    "slug": "custom-theme-cascade-delete",
+    "current_ambiguity": 0.12,
+    "rounds_completed": 6,
+    "non_goals_resolved": true,
+    "decision_boundaries_resolved": true,
+    "pressure_pass_complete": true,
+    "success_criteria": "B_min_plus_automated_contract_tests",
+    "context_snapshot_path": ".omx/context/custom-theme-cascade-delete-20260820T144300Z.md",
+    "transcript_path": ".omx/interviews/custom-theme-cascade-delete-20260820T145600Z.md",
+    "spec_path": ".omx/specs/deep-interview-custom-theme-cascade-delete.md",
+    "scores": {
+      "intent": 0.92,
+      "outcome": 0.9,
+      "scope": 0.92,
+      "constraints": 0.9,
+      "success": 0.88,
+      "context": 0.85
+    }
+  }
+}

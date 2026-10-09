@@ -1,0 +1,233 @@
+# 对应 API Key: app-KlXuWwhQmsssv5sjjzN5b7BR (DIFY_MEMORY_DREAMING_API_KEY)
+# 后台 LLM Dreaming：从未处理的 L2 情景记忆中提炼 L3 画像与 L2 语义
+app:
+  description: 跨会话记忆后台 Dreaming 工作流。读取待处理 L2 episode，输出画像增量、语义标签、摘要合并与去重键。
+  icon: 🌙
+  icon_background: '#1E1B4B'
+  icon_type: emoji
+  mode: workflow
+  name: Memory Dreaming Workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+      enabled: false
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 当前用户画像 L3
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: current_profile
+        - label: 待处理情景记忆 JSON
+          max_length: 8000
+          options: []
+          required: true
+          type: paragraph
+          variable: pending_episodes_json
+        - label: 结构化短板摘要
+          max_length: 1500
+          options: []
+          required: false
+          type: paragraph
+          variable: error_ledger_summary
+        - label: 已有语义记忆 JSON
+          max_length: 3000
+          options: []
+          required: false
+          type: paragraph
+          variable: recent_semantics_json
+        - label: 已有关系图谱 JSON
+          max_length: 4000
+          options: []
+          required: false
+          type: paragraph
+          variable: recent_graph_json
+        - label: 本批聚类标签（source·主题·条数）
+          max_length: 200
+          options: []
+          required: false
+          type: text-input
+          variable: batch_label
+        - label: 当前结构化画像 L3 vars JSON
+          max_length: 1500
+          options: []
+          required: false
+          type: paragraph
+          variable: current_l3_vars_json
+      height: 115
+      id: start
+      position:
+        x: 80
+        y: 200
+      positionAbsolute:
+        x: 80
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 后台 REM 式记忆提炼：画像增量、语义标签、情景摘要合并
+        model:
+          completion_params:
+            temperature: 0.3
+          mode: chat
+          name: gpt-4o
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: memory-dreaming-sys-prompt
+          role: system
+          text: |-
+            你是 Superme 系统的记忆档案员，负责在后台从用户的情景记忆片段中提炼跨会话长效记忆。
+
+            【分层规则】
+            - 偏好、习惯、角色定位、训练目标 → 写入 profile_delta；可结构化的字段同时写入 l3_vars_delta
+            - l3_vars_delta 仅使用键：accent(UK|US)、spelling_variant(UK|US)、locale、timezone、training_goal、weakness_focus
+            - 可复用的能力模式、技术细节、反复出现的短板 → 写入 semantics
+            - 每条 pending episode → 在 episode_summaries 中输出精炼 merged_summary（120字内）
+            - 人、项目、目标、习惯等实体 → 写入 entities；实体间关联 → 写入 relations（Graph Memory）
+
+            【约束】
+            1. 只基于输入的 pending_episodes_json 提炼，禁止编造未出现的事实。
+            2. 若新信息与 current_profile 或 current_l3_vars_json 矛盾，将旧表述写入 profile_conflicts（完整短语或 key=oldValue），新结论写入 profile_delta / l3_vars_delta。
+            3. semantics 的 tag 格式为「category:pattern」，category 取 oral / listening / vocab / general 之一。
+            4. 勿重复 recent_semantics_json 中已有的 tag。
+            5. 高度重复或信息量为零的 episode 可设 discard: true。
+            6. dedupe_keys 列出应合并删除的重复摘要前缀（每条最多 40 字）。
+            7. entities.name / relations.from / relations.to 使用简短中文或英文专名；relations.rel 用动词短语（如「偏好」「正在练习」「短板」）。
+            8. 勿重复 recent_graph_json 中已有的 relation（from+rel+to 相同则跳过）。
+            9. pending episode 若含 source_l1_id / source_l0_ids，episode_summaries 的 id 必须与输入 _id 一致（溯源链路由服务端保留）。
+
+            【输出规范】
+            必须且只能输出一个合法 JSON 对象，不要使用 Markdown 代码块，不要有任何其他文字：
+            {
+              "profile_delta": "",
+              "profile_conflicts": [],
+              "l3_vars_delta": {
+                "accent": "UK",
+                "training_goal": "即兴表达"
+              },
+              "semantics": [
+                { "tag": "oral:逻辑链断裂", "pattern": "逻辑链断裂", "category": "oral", "evidence": "依据原文的简短说明" }
+              ],
+              "episode_summaries": [
+                { "id": "ep_xxx", "merged_summary": "精炼摘要", "discard": false }
+              ],
+              "dedupe_keys": [],
+              "entities": [
+                { "name": "用户", "type": "person" },
+                { "name": "英音", "type": "preference" }
+              ],
+              "relations": [
+                { "from": "用户", "rel": "偏好", "to": "英音", "evidence": "依据原文" }
+              ]
+            }
+        - id: memory-dreaming-user-prompt
+          role: user
+          text: |-
+            【当前用户画像 L3】
+            {{#start.current_profile#}}
+
+            【当前结构化画像 l3_vars】
+            {{#start.current_l3_vars_json#}}
+
+            【本批聚类标签】
+            {{#start.batch_label#}}
+            （同一标签下的 episode 主题相近，请合并提炼、避免重复写入 profile/semantics）
+
+            【待处理情景记忆（JSON 数组，含 _id 字段）】
+            {{#start.pending_episodes_json#}}
+
+            【结构化短板摘要 error_ledger】
+            {{#start.error_ledger_summary#}}
+
+            【已有语义记忆（避免重复）】
+            {{#start.recent_semantics_json#}}
+
+            【已有关系图谱（避免重复）】
+            {{#start.recent_graph_json#}}
+        selected: false
+        title: Dreaming LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 200
+      positionAbsolute:
+        x: 380
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+  rag_pipeline_variables: []

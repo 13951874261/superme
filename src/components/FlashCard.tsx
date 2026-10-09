@@ -1,9 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase, Layout } from 'lucide-react';
+import { X, Brain, CheckCircle2, XCircle, AlertTriangle, Zap, Loader2, BookOpen, Briefcase } from 'lucide-react';
 import SpeakButton from './SpeakButton';
-import { getReviewWords, submitReview, VocabEntry, addWord, updateWordPayload } from '../services/vocabAPI';
+import { getReviewPage, submitReview, VocabEntry, updateWordPayload, getVocabItem, needsReviewPayloadHydrate } from '../services/vocabAPI';
 import { runEnglishSentenceEvaluation, runWordEnrichment, toVocabEnrichmentPayload, type SentenceEvaluationResult } from '../services/difyAPI';
+import { appendErrorLedgerEntries } from '../utils/errorLedgerHelper';
+import { isVocabPlaceholder, shouldAutoEnrichVocab, toVocabPresentation, extractSynonymsAntonymsCollocations, getChineseDefinition, getEnglishDefinition } from '../utils/vocabCsvExport';
+import { useEnglishContext } from './modules/english/context/EnglishContext';
+import FlashCardExampleMemoryAlign from './FlashCardExampleMemoryAlign';
+import { showError } from './Toast';
 
 interface FlashCardProps {
   onClose: () => void;
@@ -23,6 +28,7 @@ const QUALITY_OPTIONS = [
 ];
 
 export default function FlashCard({ onClose }: FlashCardProps) {
+  const { theme } = useEnglishContext();
   const [words, setWords] = useState<VocabEntry[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -35,13 +41,16 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   const [evalResult, setEvalResult] = useState<SentenceEvaluationResult | null>(null);
   const [localPayload, setLocalPayload] = useState<any>(null);
   const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichError, setEnrichError] = useState('');
 
   const loadWords = useCallback(async () => {
     setIsLoading(true);
     try {
-      const list = await getReviewWords();
-      setWords(list);
-      setSession({ total: list.length, done: 0, results: [] });
+      const page = await getReviewPage('business', 50, 0);
+      setWords(page.items);
+      setCurrentIndex(0);
+      setSession({ total: page.items.length, done: 0, results: [] });
+      setIsFinished(page.items.length === 0);
     } finally {
       setIsLoading(false);
     }
@@ -55,10 +64,41 @@ export default function FlashCard({ onClose }: FlashCardProps) {
   }, [loadWords]);
 
   useEffect(() => {
-    setLocalPayload(current?.payload || null);
     setSentenceInput('');
     setEvalResult(null);
     setIsFlipped(false);
+    setEnrichError('');
+
+    if (!current?.id) {
+      setLocalPayload(null);
+      return;
+    }
+
+    // 已有完整 payload：直接用；light/空 payload：先展示空，再异步补全本库
+    const existing = current.payload && typeof current.payload === 'object' ? current.payload : null;
+    setLocalPayload(existing && Object.keys(existing).length > 0 ? existing : null);
+
+    if (!needsReviewPayloadHydrate(current)) return;
+
+    let cancelled = false;
+    const wordId = current.id;
+    void (async () => {
+      try {
+        const full = await getVocabItem(wordId);
+        if (cancelled) return;
+        const payload = full?.payload && typeof full.payload === 'object' ? full.payload : {};
+        setLocalPayload(payload);
+        setWords((prev) =>
+          prev.map((w) => (w.id === wordId ? { ...w, ...full, payload, _light: false } : w)),
+        );
+      } catch (err) {
+        console.warn('[FlashCard] 补全生词本 payload 失败:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [current?.id]);
 
   const handleQuality = async (quality: number) => {
@@ -72,8 +112,18 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       setSession(prev => ({ ...prev, done: newDone, results: newResults }));
 
       if (currentIndex + 1 >= words.length) {
-        setIsFinished(true);
-        setSession(prev => ({ ...prev, done: newDone, results: newResults }));
+        // 已提交的词会被移出到期队列，下一批必须从更新后的队列首项读取，
+        // 否则 offset 会跳过尚未复习的词。
+        const nextPage = await getReviewPage('business', 50, 0);
+        if (nextPage.items.length === 0) {
+          setIsFinished(true);
+          setSession(prev => ({ ...prev, done: newDone, results: newResults }));
+        } else {
+          setWords(nextPage.items);
+          setCurrentIndex(0);
+          setSession({ total: nextPage.items.length, done: 0, results: [] });
+          setIsFlipped(false);
+        }
       } else {
         setCurrentIndex(prev => prev + 1);
         setIsFlipped(false);
@@ -83,25 +133,14 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     }
   };
 
-  const getPayloadSummary = (payload: any): string => {
-    if (!payload) return '';
-    const keys = ['translation_main', 'definition', 'definitions', 'meaning'];
-    for (const k of keys) {
-      if (payload[k] && typeof payload[k] === 'string') {
-        return payload[k].slice(0, 120) + (payload[k].length > 120 ? '...' : '');
-      }
-    }
-    return '';
-  };
-
-  const shouldEnrichPayload = (payload: any): boolean => {
-    return !payload?.definition_en || payload?.meaning === '解析中...' || payload?.meaning === '待复习补充';
-  };
-
   const currentPayload = localPayload || current?.payload || null;
-  const currentDefinition = currentPayload?.definition_en || current?.payload?.definition_en || '';
-  const currentBusinessNote = currentPayload?.business_note || current?.payload?.business_note || '';
-  const currentExamples = currentPayload?.examples || current?.payload?.examples || [];
+  const chineseDefinition = getChineseDefinition(currentPayload);
+  const englishDefinition = getEnglishDefinition(currentPayload);
+  const currentBusinessNoteRaw = currentPayload?.business_note || current?.payload?.business_note || '';
+  const currentBusinessNote = isVocabPlaceholder(currentBusinessNoteRaw) ? '' : currentBusinessNoteRaw;
+  const card = current
+    ? toVocabPresentation({ ...current, payload: currentPayload || current.payload })
+    : null;
 
   const handleFlip = async () => {
     if (!current) return;
@@ -112,14 +151,30 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       return;
     }
 
-    if (!shouldEnrichPayload(localPayload || current.payload)) {
+    // F1：翻卡前确保已拉本库完整 payload，避免 light 空壳误触发弱补全覆盖真释义
+    let payload = localPayload || current.payload || {};
+    if (needsReviewPayloadHydrate({ id: current.id, payload, _light: current._light })) {
+      try {
+        const full = await getVocabItem(current.id);
+        payload = full?.payload && typeof full.payload === 'object' ? full.payload : {};
+        setLocalPayload(payload);
+        setWords((prev) =>
+          prev.map((w) => (w.id === current.id ? { ...w, ...full, payload, _light: false } : w)),
+        );
+      } catch (err) {
+        console.warn('[FlashCard] 翻卡前补全 payload 失败:', err);
+      }
+    }
+
+    if (!shouldAutoEnrichVocab(current.word, payload)) {
       setIsFlipped(true);
       return;
     }
 
     setIsEnriching(true);
+    setEnrichError('');
     try {
-      const enriched = await runWordEnrichment(current.word);
+      const enriched = await runWordEnrichment(current.word, theme);
       const normalized = {
         ...toVocabEnrichmentPayload(enriched),
         source: '闪卡自动补全',
@@ -128,13 +183,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
       await updateWordPayload(current.id, normalized);
     } catch (error) {
       console.error('闪卡自动补全失败:', error);
-      setLocalPayload(prev => ({
-        ...prev,
-        meaning: prev?.meaning || '补全失败',
-        definition_en: prev?.definition_en || '请检查 Dify 配置或网络。',
-        business_note: prev?.business_note || '',
-        examples: prev?.examples || [],
-      }));
+      setEnrichError('释义补全失败，请检查网络后重试。');
     } finally {
       setIsEnriching(false);
       setIsFlipped(true);
@@ -146,20 +195,22 @@ export default function FlashCard({ onClose }: FlashCardProps) {
     setIsEvalLoading(true);
     setEvalResult(null);
     try {
-      const result = await runEnglishSentenceEvaluation(targetWord, sentenceInput);
+      const result = await runEnglishSentenceEvaluation(targetWord, sentenceInput, theme);
       setEvalResult(result);
-      if (result.isPass) {
-        await addWord({
+      if (!result.isPass) {
+        void appendErrorLedgerEntries('vocab', [{
           word: targetWord,
-          dictType: 'manual_capture',
-          category: 'general',  // 闪卡造句属于日常场景，存入全场景区
-          payload: { meaning: '句子考核通过', source: '闪卡造句评估' },
-        });
+          score: result.score,
+          feedback: result.feedback,
+          theme,
+          source: 'flashcard',
+        }]);
       }
     } catch (error) {
       console.error('强制应用考核失败:', error);
       const message = error instanceof Error ? error.message : '请按 F12 查看控制台详情';
-      alert(`长官，考核引擎异常:\n${message}`);
+      console.error('评分失败:', message);
+      showError('评分失败，请稍后重试');
     } finally {
       setIsEvalLoading(false);
     }
@@ -167,16 +218,19 @@ export default function FlashCard({ onClose }: FlashCardProps) {
 
   const content = (
     <div
-      className="fixed inset-0 z-[9999] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="记忆复习"
+      className="overlay-backdrop fixed inset-0 flex items-center justify-center p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="overlay-surface overlay-enter bg-white w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
         {/* 顶部栏 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <Brain className="w-5 h-5 text-[#FF5722]" />
             <span className="font-black text-[#202124] text-sm">
-              艾宾浩斯复习
+              记忆复习
             </span>
             {!isFinished && !isLoading && (
               <span className="text-[11px] text-gray-400 ml-2">
@@ -247,83 +301,162 @@ export default function FlashCard({ onClose }: FlashCardProps) {
           {!isLoading && !isFinished && current && (
             <div className="px-6 py-6 flex flex-col gap-4">
               {/* 正面：词条 */}
-              <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none">
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  <div className="text-3xl font-black text-[#202124]">{current.word}</div>
-                  <SpeakButton text={current.word} title={`播放 ${current.word}`} className="w-10 h-10" iconClassName="w-5 h-5" />
+              <div className="bg-gradient-to-br from-[#FF5722]/5 to-amber-50 border border-[#FF5722]/20 rounded-2xl p-6 text-center select-none shadow-sm shadow-[#FF5722]/5">
+                <div className="mb-4">
+                  <div className="flex items-center justify-center gap-3 mb-1">
+                    <div className="text-4xl font-black text-[#202124] tracking-tight">{current.word}</div>
+                    <SpeakButton
+                      text={current.word}
+                      title={`播放 ${current.word}`}
+                      className="w-10 h-10 rounded-full bg-white shadow-sm border border-gray-100"
+                      iconClassName="w-5 h-5 text-[#FF5722]"
+                    />
+                  </div>
+                  {(localPayload || current.payload)?.phonetic && (
+                    <div className="text-sm text-slate-400 font-mono">
+                      [{(localPayload || current.payload).phonetic}]
+                    </div>
+                  )}
                 </div>
                 {!isFlipped && (
                   isEnriching ? (
-                    <div className="mt-3 inline-flex items-center justify-center rounded-full bg-[#FF5722]/10 px-6 py-3 text-[11px] font-black uppercase tracking-widest text-[#FF5722] border border-[#FF5722]/20 shadow-inner animate-pulse">
+                    <div className="mt-2 inline-flex items-center justify-center rounded-full bg-[#FF5722]/10 px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-[#FF5722] border border-[#FF5722]/20 shadow-inner animate-pulse">
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      正在接入总部数据库解密...
+                      正在解密释义...
                     </div>
                   ) : (
                     <button
                       onClick={handleFlip}
-                      className="mt-3 inline-flex items-center justify-center gap-1 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-black uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95"
+                      className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-[#202124] px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#FF5722] transition active:scale-95 shadow-lg shadow-[#202124]/20"
                     >
                       <BookOpen className="w-4 h-4" />
-                      {shouldEnrichPayload(localPayload || current.payload) ? '点击连接 Dify 解密释义' : '翻转查看释义'}
+                      {shouldAutoEnrichVocab(current.word, localPayload || current.payload) ? '点击加载释义' : '翻转查看释义'}
                     </button>
                   )
                 )}
               </div>
 
-              {/* 背面：释义（翻转后显示） */}
-              {isFlipped && (
+              {/* 背面：按词条类型分层（原词 / 释义 / 短语 / 例句） */}
+              {isFlipped && card && (
                 <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3 animate-[fadeIn_0.2s_ease] relative">
-                  {/* 1. 核心释义 */}
-                  <div>
-                    <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
-                      核心释义
-                    </div>
-                    <div className="text-sm text-gray-700 leading-relaxed">
-                      {getPayloadSummary(localPayload || current.payload) || '待补全'}
-                    </div>
-                  </div>
-
-                  {/* 2. 英文定义 */}
-                  <div>
-                    <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1"><BookOpen className="w-3 h-3" /> English Definition / 英文定义</span>
-                      <SpeakButton text={currentDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
-                    </div>
-                    <div className="text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                      {currentDefinition || 'AI正在抓取此黑话的深层商务含义...'}
-                    </div>
-                  </div>
-
-                  {/* 3. 商务注解 */}
-                  <div>
-                    <div className="text-[10px] font-black text-purple-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> Business Context / 商务注解</span>
-                      <SpeakButton text={currentBusinessNote} title="播放商务注解" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
-                    </div>
-                    <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
-                      {currentBusinessNote || '暂无特定商务场景备注。'}
-                    </div>
-                  </div>
-
-                  {/* 4. 应用场景 */}
-                  <div>
-                    <div className="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                      <Layout className="w-3 h-3" /> Usage Scenarios / 应用场景
-                    </div>
-                    <div className="space-y-3">
-                      {currentExamples.map((ex: string, i: number) => (
-                        <div key={i} className="text-xs text-gray-600 bg-blue-50/50 p-3 rounded-xl border border-blue-100/50 relative pl-6 pr-11">
-                          <div className="absolute left-2 top-3 w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
-                          <span>{ex}</span>
-                          <SpeakButton text={ex} title="播放应用场景例句" className="absolute right-2 top-2 w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                  <div
+                    className={
+                      englishDefinition
+                        ? 'grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch'
+                        : 'space-y-3'
+                    }
+                  >
+                    <div className="min-w-0 space-y-3">
+                      {((card.phonetic && card.phonetic !== '/') || (card.pos && card.pos !== 'phrase' && card.pos !== 'sentence')) && (
+                        <div className="text-xs text-slate-400 font-mono">
+                          {card.phonetic && card.phonetic !== '/' ? `[${card.phonetic}]` : ''}
+                          {card.pos && card.pos !== 'phrase' && card.pos !== 'sentence' ? `  ${card.pos}` : ''}
                         </div>
-                      ))}
+                      )}
+
+                      <div>
+                        <div className="text-[10px] font-black text-[#FF5722] uppercase tracking-wider mb-1.5 flex items-center gap-1">
+                          <span className="w-1 h-3 bg-[#FF5722] rounded-full inline-block" />
+                          释义
+                        </div>
+                        <div className="text-sm text-gray-700 leading-relaxed text-pretty">
+                          {chineseDefinition || '暂无中文释义'}
+                        </div>
+                      </div>
+
+                      {card.itemType === '单词 (Word)' && card.relatedPhrase && (
+                        <div>
+                          <div className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">短语</div>
+                          <div className="text-sm text-gray-700">{card.relatedPhrase}</div>
+                        </div>
+                      )}
                     </div>
+
+                    {englishDefinition && (
+                      <div className="min-w-0 flex flex-col">
+                        <div className="text-[10px] font-black text-gray-500 uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5" /> English Definition / 英文定义</span>
+                          <SpeakButton text={englishDefinition} title="播放英文定义" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                        </div>
+                        <div className="flex-1 text-sm text-gray-700 leading-relaxed bg-slate-50 p-4 rounded-xl border border-slate-100 text-pretty">
+                          {englishDefinition}
+                        </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* 5. 复习历史 */}
-                  <div className="text-[10px] text-gray-300 text-right">
+                  {currentBusinessNote && (
+                    <div>
+                      <div className="text-[10px] font-black text-[var(--color-accent)] uppercase tracking-wider mb-1.5 flex items-center justify-between gap-2">
+                        <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" /> Business Context / 商务注解</span>
+                        <SpeakButton text={currentBusinessNote} title="播放商务注解" className="w-7 h-7" iconClassName="w-3.5 h-3.5" />
+                      </div>
+                      <div className="text-sm text-[#d84315] leading-relaxed bg-[#FF5722]/5 p-4 rounded-2xl border border-[#FF5722]/10 italic">
+                        {currentBusinessNote}
+                      </div>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const ext = extractSynonymsAntonymsCollocations(current?.word || '', currentPayload);
+                    return (
+                      <>
+                        {ext.synonyms.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-black text-emerald-600 uppercase tracking-wider mb-1.5">近义词 (Synonyms)</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ext.synonyms.map((s: string, idx: number) => (
+                                <span key={idx} className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full">
+                                  {s}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {ext.antonyms.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-black text-rose-600 uppercase tracking-wider mb-1.5">反义词 (Antonyms)</div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {ext.antonyms.map((a: string, idx: number) => (
+                                <span key={idx} className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-100 px-2.5 py-0.5 rounded-full">
+                                  {a}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {ext.collocations.length > 0 && (
+                          <div>
+                            <div className="text-[10px] font-black text-indigo-600 uppercase tracking-wider mb-1.5">常用搭配 (Collocations)</div>
+                            <div className="flex flex-wrap gap-1.5 bg-indigo-50/40 p-2.5 rounded-xl border border-indigo-100/60">
+                              {ext.collocations.map((coll: string, idx: number) => (
+                                <span key={idx} className="text-xs font-bold text-indigo-800 bg-white border border-indigo-200/80 px-2.5 py-1 rounded-lg">
+                                  {coll}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  {enrichError && (
+                    <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                      {enrichError}
+                    </div>
+                  )}
+
+                  <FlashCardExampleMemoryAlign
+                    wordId={current.id}
+                    wordText={current.word}
+                    payload={currentPayload}
+                    hideExamples={card.itemType === '句子 (Sentence)'}
+                  />
+
+                  <div className="text-[10px] text-gray-300 text-right mt-2">
                     已复习 {current.repetitions} 次 · 间隔 {current.interval_days} 天
                   </div>
                 </div>
@@ -376,7 +509,7 @@ export default function FlashCard({ onClose }: FlashCardProps) {
                         高管侧写评分：{evalResult.score} / 10
                       </span>
                       <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${evalResult.isPass ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                        {evalResult.isPass ? 'APPROVED (允许升阶)' : 'REJECTED (打回重造)'}
+                        {evalResult.isPass ? '通过（可继续）' : '未通过（请重写）'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-700 mb-4 font-medium leading-relaxed">{evalResult.feedback}</p>

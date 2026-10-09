@@ -1,0 +1,48 @@
+# Context Snapshot: daily-cron-task-logs
+
+- Task statement: 在现有顶栏“提纯：查看队列”任务中心中，新增查看每日定时任务执行详细日志的功能。
+- Desired outcome: 用户可从现有队列入口看到每日 02:00 定时任务的状态、进度和详细运行日志；当前处于 deep-interview 需求澄清阶段，不实施。
+- Stated solution: 复用现有队列入口与日志折叠 UI；具体数据持久化和展示边界待用户确认。
+- Probable intent hypothesis: 将目前只能通过服务端 console/journalctl 查看且难以追踪的每日生成任务，转化为前端可观察的执行记录，便于确认每日唤醒、破绽词汇、长文及精听是否成功。
+- Known facts/evidence:
+  - 顶栏入口位于 `src/components/Header.tsx`，抽屉位于 `src/components/GlobalTaskCenter.tsx`。
+  - 现有任务数据来自 `vocab-server/services/taskQueue.js`，通过 `/api/tasks` 暴露，任务包含 `status/progress/logs/result/error`。
+  - `taskQueue` 使用内存 Map + `vocab-server/data/tasks.json`，终态任务仅保留约 30 分钟。
+  - 每日 cron 由 `dailyPackCron.scheduleDailyPackCron` 触发，执行 DailyPack、64 个长文组合及 DailyListen。
+  - cron 当前不创建 taskQueue 任务；日志主要写 console，summary 不持久化。
+  - `daily_packs`、`daily_listen_articles`、`daily_listen_audios` 仅保存业务状态和错误，不保存完整逐步日志。
+  - 现有 `GlobalTaskCenter` 已有可折叠“查看运行日志”区域，可直接复用交互模式。
+- Constraints:
+  - 仅修改该功能直接涉及内容，保持最小差异。
+  - 用户确认完整规格后才能实施。
+  - 项目为 React；用户附带的 `gsap-frameworks` 面向 Vue/Svelte，不适用于当前组件。若确认需要 GSAP 动画，实施前应改用 `gsap-react`。
+  - 当前任务是 brownfield；deep-interview 模式不直接实施。
+- Unknowns/open questions:
+  - “每日定时任务”是显示一个聚合任务，还是拆成唤醒、破绽、长文、精听多条任务。
+  - 历史日志需要保留多久，以及是否必须跨服务重启可靠保存。
+  - 是否显示每个用户、每个长文组合和 Dify 请求错误等敏感细节。
+  - 现有“提纯任务中心”是否改名为通用“后台任务中心”。
+  - 是否允许手动重跑失败步骤，还是仅查看日志。
+- Decision-boundary unknowns:
+  - Agent 可自行决定局部组件拆分、图标和轻量动画细节的范围。
+  - 日志模型、保留策略、任务拆分粒度、手动操作范围必须由用户确认。
+- Likely codebase touchpoints:
+  - `src/components/Header.tsx`
+  - `src/components/GlobalTaskCenter.tsx`
+  - `src/components/TaskContext.tsx`
+  - `vocab-server/services/taskQueue.js`
+  - `vocab-server/services/dailyPackCron.js`
+  - `vocab-server/services/dailyListenPreGenerateService.js`
+  - `vocab-server/server.js`
+- Relevant repo docs/rules/context inspected:
+  - `AGENTS.md`
+  - `README.md`
+  - `docs/superpowers/specs/2026-07-23-daily-pack-cron-design.md`
+  - `.omx/context/daily-auto-gen-framework-20260725T105226Z.md`
+  - `.omx/specs/deep-interview-daily-pack-cron.md`
+  - `.omx/specs/deep-interview-purification-task-center-garbled-text.md`
+- Terminology/doc conflicts:
+  - UI 名称“提纯任务中心”与实际承载视频、博弈、听力等全站后台任务不一致。
+  - 原 cron 设计明确把“失败队列 UI”列为非目标；本次需求改变了该边界。
+  - 用户说“详细日志”，当前 cron 只有 console + 汇总状态，并不存在可直接查询的详细日志实体。
+- Prompt-safe initial-context summary status: not_needed

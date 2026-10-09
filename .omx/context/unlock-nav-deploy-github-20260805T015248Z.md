@@ -1,0 +1,35 @@
+# Context Snapshot: unlock-nav-deploy-github
+
+- Task statement: 将本轮「取消战略路线图达标强制锁定」修改部署到服务器，并发布到 GitHub；先经 deep-interview 澄清再执行。
+- Desired outcome: 生产环境可自由切换博弈/高阶审美；本轮改动已推送到远程仓库。
+- Stated solution: 用户要求「上传到服务器后，并发布到 github」，并结合本轮修改；显式调用 `/deep-interview`。
+- Probable intent hypothesis: 希望用项目成熟部署链路（deploy-smart 或既有 PuTTY 命令块）把 `src/App.tsx` 的 isLocked 变更上线并落库，避免未达标用户被全局导航锁死。
+- Known facts/evidence:
+  - `[from-code][auto-confirmed]` `src/App.tsx` 已将 mastery 达标条件改为 `false`；保留 `pendingSentenceDebt` / `shouldForceModal` 锁定。
+  - `[from-code][auto-confirmed]` 分支 `feature/english-engine-update`，跟踪 `origin/feature/english-engine-update`，与远端同步。
+  - `[from-code][auto-confirmed]` 工作区：已修改 `src/App.tsx`；未跟踪 `scratch/check-remain4*.sh`。
+  - `[from-code][auto-confirmed]` remote: `https://github.com/13951874261/superme.git`
+  - `[from-code]` 项目有 `deploy-smart.ps1`：检测变更 → 前端 build/上传 →（可选）自动 git commit + push。
+  - `[from-code]` 既有规格 `.omx/specs/deep-interview-deploy-push-scripts.md`：PuTTY 分块部署 + 选择性 git add，分支同为 `feature/english-engine-update`。
+- Constraints:
+  - AGENTS.md：中文、确认后才改；本模式 deep-interview 禁止直接实施。
+  - user rule：仅在用户明确要求时 commit/push；本次用户已明确要求发布到 GitHub。
+  - 部署备注：生产建议 `https://ai.234124123.xyz`；勿公网直连 3001。
+- Unknowns/open questions:
+  - 部署路径：`deploy-smart.ps1` 一键（含自动 commit/push）还是手动 PuTTY 分块？
+  - Git 范围：仅 `src/App.tsx`，还是包含 scratch 脚本 / 本轮 .omx 产物？
+  - 是否合并/PR 到 `master`，还是只推当前 feature 分支？
+  - 验收标准：是否需要浏览器验证锁定解除？
+- Decision-boundary unknowns:
+  - OMX/助手可否在未二次确认具体文件清单时执行 `git add -A`？
+  - commit message 用语义化说明还是沿用 `chore: auto deploy update <timestamp>`？
+- Likely codebase touchpoints: `src/App.tsx`, `deploy-smart.ps1`, 远端 `/var/www/super-agent/dist`
+- Relevant repo docs/rules/context inspected:
+  - `AGENTS.md`（确认优先、中文）
+  - deployment-notes rule
+  - `.omx/specs/deep-interview-deploy-push-scripts.md`
+  - `deploy-smart` skill
+- Terminology or doc/code conflicts found:
+  - 「发布到 github」可能指 push feature 分支，也可能指 PR/merge master；需用户裁定。
+  - 「上传到服务器后，并发布」与 `deploy-smart`「部署末尾自动 commit/push」顺序一致，但与「先选择性 commit」可能冲突。
+- Prompt-safe initial-context summary status: `not_needed`

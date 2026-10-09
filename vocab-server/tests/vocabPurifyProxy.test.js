@@ -1,0 +1,14 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const frontend = fs.readFileSync(path.join(__dirname, '../../src/services/difyAPI.ts'), 'utf8');
+const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
+const start = frontend.indexOf('export async function callVocabPurify');
+const end = frontend.indexOf('export async function runEnglishWriteReview', start);
+const segment = frontend.slice(start, end);
+assert.match(segment, /fetch\(['"]\/api\/vocab\/purify['"]/);
+assert.doesNotMatch(segment, /VITE_DIFY_VOCAB_API_KEY/);
+assert.doesNotMatch(segment, /Authorization/);
+assert.match(server, /app.post\(['"]\/api\/vocab\/purify['"]/);
+assert.match(server, /vocabPurifyService/);
+console.log('vocab purify proxy contract passed');

@@ -1,0 +1,360 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 对应 API Key: app-PCvZEHnNFOGT6NppMqtudw60 (VITE_DIFY_INSIGHT_LISTEN_KEY)
+# 用途: 洞察精听解码引擎 — 时间感知版
+# 改造: 注入 _system_time/_system_timestamp_ms；知识检索后经 Time_Decay_Rerank（10天半衰期）衰减重排
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 洞察系统-听：人性解码与破绽识别引擎；注入 _system_time/_system_timestamp_ms，知识检索后经 Time_Decay_Rerank（10天半衰期）优先近期听力弱点。
+  icon: 🎧
+  icon_background: '#1E293B'
+  icon_type: emoji
+  mode: workflow
+  name: Insight_Listen_Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/xinference:0.0.15@1de758e19d1e6751215f0209057564c5cfd4e23ea8259d75fe33060543908b26
+    version: null
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: start-knowledge-retrieval
+      source: start
+      sourceHandle: source
+      target: c3d4e5f6-a7b8-4901-list-012345678901
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: knowledge-retrieval
+        targetType: code
+      id: knowledge-retrieval-time-decay
+      source: c3d4e5f6-a7b8-4901-list-012345678901
+      sourceHandle: source
+      target: d4e5f6a7-b8c9-4902-list-123456789012
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: llm
+      id: time-decay-llm
+      source: d4e5f6a7-b8c9-4902-list-123456789012
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 当日训练场景
+          max_length: 2000
+          options: []
+          required: true
+          type: paragraph
+          variable: scenario_text
+        - label: 我的揣摩笔记
+          max_length: 3000
+          options: []
+          required: true
+          type: paragraph
+          variable: user_analysis
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 前端自动注入的格式化时间（如 2026-06-28 星期日）
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 前端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 240
+      id: start
+      position:
+        x: 83
+        y: 282
+      positionAbsolute:
+        x: 83
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - wjnd9dOnfHkAobY8ai00F9j2Y8EdixsVdwRy8xywr0Y62bG4O5U4Ezk1PH/x3Gus
+        - foi+9CyFNDcUm1WbfdE2uQOHJ6/QHrjVwM0mKdLUuDgY8SFvXqO1/q1is8IYIjtm
+        - tsdGDER1B7t0wvx3A1oOBh5ELOriEp6mbvyv55oljjjHPR+mhTg+jeoVk/Yu/Jdm
+        multiple_retrieval_config:
+          reranking_enable: true
+          reranking_mode: reranking_model
+          reranking_model:
+            model: bge-reranker-base
+            provider: langgenius/xinference/xinference
+          top_k: 5
+        query_attachment_selector: []
+        query_variable_selector:
+        - start
+        - scenario_text
+        retrieval_mode: multiple
+        selected: false
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: c3d4e5f6-a7b8-4901-list-012345678901
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import math\n\n\ndef main(retrieved_docs: list, current_timestamp: int) ->\
+          \ dict:\n    # 听力难点的半衰期设为 10 天 (10 * 24 * 60 * 60 * 1000 毫秒)\n    # 这能保证\
+          \ 10 天内的听力弱点、俚语盲区获得更高权重，从而在解码时被优先强化\n    HALF_LIFE_MS = 10 * 24 * 60 * 60\
+          \ * 1000\n    decay_rate = math.log(2) / HALF_LIFE_MS\n\n    reranked_docs\
+          \ = []\n\n    if not retrieved_docs:\n        return {\"reranked_context\"\
+          : \"\"}\n\n    ts = int(current_timestamp) if current_timestamp is not None\
+          \ else 0\n\n    for doc in retrieved_docs:\n        if not isinstance(doc,\
+          \ dict):\n            continue\n        content = doc.get(\"content\", \"\
+          \")\n        orig_score = float(doc.get(\"score\", 0.5))\n        metadata\
+          \ = doc.get(\"metadata\", {}) or {}\n\n        # 获取听力难点记录时间戳\n        doc_time\
+          \ = int(metadata.get(\"updated_at\", ts - HALF_LIFE_MS))\n\n        time_diff\
+          \ = max(0, ts - doc_time)\n        decay_factor = math.exp(-decay_rate *\
+          \ time_diff)\n        final_score = orig_score * decay_factor\n\n       \
+          \ doc_age_days = round(time_diff / (24 * 60 * 60 * 1000))\n        time_tag\
+          \ = f\"[该难点记录于：{doc_age_days} 天前]\"\n\n        reranked_docs.append({\n  \
+          \          \"content\": f\"{time_tag} {content}\",\n            \"final_score\"\
+          : final_score,\n            \"metadata\": metadata\n        })\n\n    # 根据时间衰减后的分数重新降序排序\n\
+          \    reranked_docs.sort(key=lambda x: x[\"final_score\"], reverse=True)\n\n\
+          \    # 拼接为纯文本供 LLM 使用\n    merged_context = \"\\n\\n---\\n\\n\".join([d[\"\
+          content\"] for d in reranked_docs])\n\n    return {\n        \"reranked_context\"\
+          : merged_context\n    }\n"
+        code_language: python3
+        desc: 对知识检索结果按 10 天半衰期做时间衰减重排，并为每段听力难点注入「该难点记录于 X 天前」标签。
+        outputs:
+          reranked_context:
+            children: null
+            type: string
+        selected: false
+        title: Time_Decay_Rerank
+        type: code
+        variables:
+        - value_selector:
+          - c3d4e5f6-a7b8-4901-list-012345678901
+          - result
+          value_type: array[object]
+          variable: retrieved_docs
+        - value_selector:
+          - start
+          - _system_timestamp_ms
+          value_type: number
+          variable: current_timestamp
+      height: 88
+      id: d4e5f6a7-b8c9-4902-list-123456789012
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: "你是一个融合了【顶级职场博弈导师】与【逻辑学大师】双重身份的系统。\n请根据提供的【当日训练场景/逻辑考题】和【我的揣摩笔记】，对用户的分析进行降维点评。\n\
+            \n【全局时间感知】\n当前系统时间是：{{#start._system_time#}}。\n\n【听力难点时效性判定】\n上下文提供了听力难点的\
+            \ \"[该难点记录于：X 天前]\" 状态。\n1. 请务必优先关注记录在 10 天以内的听力盲区、连读盲点或常错俚语，并在此次评估报告中予以重点提示。\n\
+            2. 超过 45 天的历史记录，视为用户已掌握的旧点，除非本次听力材料中再次暴露出完全相同的问题，否则不作为主要报告内容。\n\n【知识库检索\
+            \ — 听力薄弱俚语/发音难点/常错词汇】\n检索到的用户听力弱点与历史记录：\n{{#d4e5f6a7-b8c9-4902-list-123456789012.reranked_context#}}\n\
+            须优先参考上述检索内容中的近期听力难点；与当前场景冲突时以 10 天内近期难点为主。\n\n【画像自适应听力洞察约束】\n当前跟读学习者的地区画像设定为：{{#start.user_current_profile#}}\n\
+            在对用户盲听揣摩笔记（user_analysis）进行评估点评时，必须根据该画像对齐地区商务语境深度与拼写规范：\n\n1. 高语境潜台词与行为习惯诊断（用于“导师批阅与认知纠偏”及“人物侧写矩阵”）：\n\
+            \   - 如果 {{#start.user_current_profile#}} 包含 \"英国\" 或 \"UK\"，重点诊断用户是否读懂了英国商务人士特有的“高语境正话反说/委婉拒绝（British\
+            \ High Context Speech）”特征。\n   - 典型案例评判：如果在场景文本中出现 \"That is a very brave\
+            \ proposal\"（英国人实际认为这是愚蠢/冒险方案）或 \"We shall certainly bear it in mind\"\
+            （英国人实际不打算理会），而用户在揣摩笔记中误以为对方是赞赏和会认真考虑，你必须严肃指出其盲区，并剖析英式商业博弈的冷处理边界感。\n\
+            \   - 帮助用户建立起对英伦高语境行文和不张扬（Understatement）特性的深层认知，识破英式社交辞令背后的隐性拒绝。\n2.\
+            \ 评语字形拼写自适应（所有输出的 Markdown 文本段落）：\n   - 当画像包含 \"英国\" 或 \"UK\" 时，你输出的所有点评文本（如行为特征\
+            \ behaviour，分析 analyse，偏好 favour 等词汇）必须强制统一使用英式英语拼写。\n\n回复必须使用 Markdown\
+            \ 格式，语气要专业、犀利、直击要害。必须严格包含以下四大模块：\n\n### 一、 多维人物侧写矩阵 (针对对话场景)\n- **社会层级**：判断说话者的阶层位置与话语权（上位者/平级/下位者）。\n\
+            - **内在水准**：评估其认知高度与格局。\n- **人性特点**：点出其驱动力（贪婪、恐惧、虚荣、试探、推诿等）。\n- **弦外之音（真实意图）**：揭示潜台词，把不可说的话翻译成大白话（在英区背景下强调潜台词深度翻译）。\n\
+            \n### 二、 破绽识别与逻辑学诊断 (核心)\n- **逻辑破绽**：精准指出谬误名称（如：诉诸权威、滑坡谬误、偷换概念、三段论谬误等），并解释为何犯错。跨文化场景需点出逻辑差异。\n\
+            - **事实破绽**：指出数据缺失、前后矛盾或预设前提错误。\n- **意图破绽**：指出避重就轻、隐蔽转移话题等战术。\n\n### 三、\
+            \ 导师批阅与认知纠偏\n- **用户思维盲区**：直接指出用户分析中的天真之处或过度解读（对比当前画像要求指出其跨文化感知缺陷）。\n-\
+            \ **标准解析/最佳应对**：给出该场景最敏锐、最完美的拆解示范和应对思路（提供契合画像习惯的英文高管改写词句）。\n\n### 四、 综合评判\n\
+            - **洞察效率评分**：[1-10分]（10分为洞若观火，1分为毫无察觉，结合画像偏误契合度评分）。\n- **升维心法**：用一句话给出直击要害的系统性提升建议。"
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: '【当日训练场景/逻辑考题】：{{#start.scenario_text#}}
+
+            【我的揣摩笔记】：{{#start.user_analysis#}}
+
+            【学习者当前画像】：{{#start.user_current_profile#}}'
+        selected: true
+        title: 深度解析LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 980
+        y: 282
+      positionAbsolute:
+        x: 980
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: ai_feedback
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 1280
+        y: 282
+      positionAbsolute:
+        x: 1280
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 0.85
+  rag_pipeline_variables: []

@@ -1,0 +1,33 @@
+# Context Snapshot: ls-case-daily-pool
+
+- **UTC timestamp:** 20260823T111200Z
+- **Task statement:** 对「洞察(听) 案例改为长文形态 + 每日 4:00 预生成多套 + 进页/刷新只读缓存 + 缓存耗尽再后台实时生成并进任务中心」做 deep-interview（standard），产出执行就绪规格。本模式不改业务代码。
+- **Desired outcome:** 访谈收敛后结晶 `.omx/specs/deep-interview-ls-case-daily-pool.md`，供后续 `$ralplan` / `$ultragoal` 使用。
+- **Stated solution:** 体制内职场 / 外企职场 / 通用社交 三类，每日 4:00 各至少 10 套；30 天内不可重复；当天进页优先展示后台已生成；「刷新案例」只在当日缓存池轮换；池空后再提示实时生成，文案指向任务中心。
+- **Probable intent hypothesis:** 用户要把英语「长文 / daily-pack」的供给模型（凌晨预生成 → 进页只读 → 未命中才 backfill 进任务中心）搬到洞察(听)刷新案例，同时把案例篇幅拉到长文级，避免每次进页/刷新 blocking 打 Dify、以及刷新几次就撞短片段或重复。
+- **Known facts/evidence:**
+  - `[from-user]` 截图与文案锚定模块为洞察(听)：三类 Tab +「刷新案例」+「已捕获的对话内容」+ 心理侧写表单。
+  - `[from-code][auto-confirmed]` `ListenModule.tsx` 分类常量是 `['体制内', '外企', '通用社交']`，不是「体制内职场 / 外企职场」。进页与切 Tab 都会 `loadNewScenario` → `POST /api/insight/listen/scenario`，**每次实时 Dify**，无日池、无排除列表。
+  - `[from-code][auto-confirmed]` `server.js` 该接口最多 3 次 Dify；达标立刻返回；否则 `below_standard` 或分类兜底长剧本。**不写库、不进 taskQueue。**
+  - `[from-code][auto-confirmed]` 现有每日 cron 在 **02:00–02:15 UTC+8**（`dailyPackCron.js`），覆盖 DailyPack / 长文组合 / DailyListen，**不含洞察案例**。
+  - `[from-code][auto-confirmed]` 英语长文/精听已有「预生成 + 未命中 `listen_backfill` + 任务中心」范式；`cleanupService` 已按 30 天清历史长文。
+  - `[from-code][auto-confirmed]` 任务中心 = Header `GlobalTaskCenter` + `taskQueue`；3 秒未完成转后台的 handoff 已有 `notifyBackgroundHandoff`。
+  - `[from-code]` LS-CASE-02 规格要求结构化 **8–10 分钟剧本**（四幕对白），不是英语 Dashboard「长文」那种阅读文章。仓库里「长文」与「洞察案例」不是同一物。
+  - `[from-code][auto-confirmed]` 驭心博弈另有 `game_theory_cases` + `excludeIds`，与本截图模块无关。
+- **Constraints:** 中文沟通；确认前不改产品代码；优先复用 daily-pack / listen_backfill / 任务中心，不新造队列；deep-interview 禁止本模式直接实现。
+- **Unknowns/open questions:**
+  - 「模仿长文的形式」是指供给模型（预生成+只读），还是内容体裁（叙事长文 vs 四幕剧本）？
+  - 4:00 是新开独立 cron，还是把现有 02:00 任务延后/拆批？
+  - 10 套是每用户每类，还是全局共享池？
+  - 30 天不重复的粒度：标题 / 情节指纹 / 全文 hash？按用户还是全局？
+  - 池空后的实时生成：自动提交，还是要点一次确认？
+  - 切 Tab 是否也只读缓存、是否消耗当日额度？
+- **Decision-boundary unknowns:** cron 时刻是否可折中到现有 02:00；去重算法；任务拆分粒度；失败是否回落内置兜底剧本——均未声明。
+- **Likely codebase touchpoints:** `src/components/modules/ListenModule.tsx`、`src/services/difyAPI.ts` `fetchDynamicInsightScenario`、`vocab-server/server.js` `POST /api/insight/listen/scenario`、`vocab-server/services/insightScenarioScript.js`、`vocab-server/services/dailyPackCron.js`、`vocab-server/services/taskQueue.js`、`src/components/GlobalTaskCenter.tsx`、`src/utils/backgroundHandoff.ts`。
+- **Relevant repo docs/rules/context inspected:** `AGENTS.md`、`.omx/context/daily-auto-gen-framework-20260725T105226Z.md`、`.omx/context/daily-cron-task-logs-20260808T105600Z.md`、`.omx/plans/prd-ls-case-02-long-script.md`、`docs/superpowers/specs/2026-08-16-ls-case-02-insight-script-design.md`、`docs/superpowers/specs/2026-07-23-daily-pack-cron-design.md`、`docs/superpowers/plans/2026-07-24-daily-listen-pregenerate.md`、`test_cases_7.21_7.22_feedback.md` LS-CASE-01/02、`re.md`（未命中→任务中心）。
+- **Terminology / doc-code conflicts:**
+  - 用户「体制内职场 / 外企职场」vs 代码「体制内 / 外企」。
+  - 用户「长文」vs 仓库「英语长文」vs LS-CASE-02「结构化长剧本」。
+  - 用户「每日 4:00」vs 现网 cron「02:00」。
+  - 用户「任务中心」已存在；洞察刷新案例当前**不**登记任务。
+- **Prompt-safe initial-context summary status:** `not_needed`

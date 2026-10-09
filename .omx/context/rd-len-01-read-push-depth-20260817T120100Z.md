@@ -1,0 +1,35 @@
+# Context Snapshot: rd-len-01-read-push-depth
+
+- **UTC timestamp:** 20260817T120100Z
+- **Task statement:** 对需求 RD-LEN-01「穿透(读) AI 推送素材够详尽」做 deep-interview，并产出符合 Strict PRD Schema 的 PRD。
+- **Desired outcome:** 执行就绪的需求规格 + PRD（待访谈收敛后结晶）。本模式不直接改业务代码。
+- **Stated solution:** 用户复述 7.21 读板块反馈，并调用 `/prd` + `/deep-interview`；未指定实现方案。
+- **Probable intent hypothesis:** 用户自贴网站/文档可支撑「认知穿透」训练深度，但「每日 AI 素材推送」产出偏短/偏摘要，导致训练变浅。可能是：(1) 把已冻结的 1500 字门禁做成稳定达标管线；(2) 提高字数门槛；(3) 从「字数」升级为「真文档信息密度」。
+- **Known facts/evidence:**
+  - `[from-user]` 原始痛点：AI 推送阅读素材偏短，不如用户自己粘贴的网站或文档详尽，影响训练深度。
+  - `[from-code][auto-confirmed]` 顶栏模块名：`穿透(读)`（`src/components/MainContent.tsx`）。
+  - `[from-code][auto-confirmed]` 入口：`ReadModule` →「每日 AI 素材推送」→ `generateReadMaterial(scene_type, scene_framework)`。
+  - `[from-code][auto-confirmed]` 冻结规格 `docs/superpowers/specs/2026-08-16-feedback-7.21-7.22-frozen-specs.md`：**RD-LEN-01** = 正文 ≥ **1500** 字（去空白）；不足则**降级展示+标注**，可手动再推；本轮不以「结构字段齐全」作硬卡。
+  - `[from-code][auto-confirmed]` 前端门禁已落地：`READ_PUSH_MIN_CHARS = 1500`（`src/utils/readPushQuality.ts` + 单测）。
+  - `[from-code][auto-confirmed]` Prompt 已要求 ≥1500 字，并写「完整背景、多方立场、利益冲突与可引用细节」（`src/services/difyAPI.ts` `generateReadMaterial`）。
+  - `[from-code][auto-confirmed]` 不足时黄条提示，**不阻断**穿透解码；用户可再点推送（`ReadModule.tsx`）。
+  - `[from-code][auto-confirmed]` 生成走前端 `proxyOralChatMessage`，**无**服务端自动重试、**无**分类兜底长文；`vocab-server` 无独立 read-push 代理。
+  - `[from-code][auto-confirmed]` 验收用例 `test_cases_7.21_7.22_feedback.md` RD-LEN-01：状态仍为「待功能落地后再测」；`test_report.md` 记为 **部分通过**。
+  - `[from-code][auto-confirmed]` 同日同类已有完整 PRD：`prd-ls-case-02-long-script.md`（时长门禁 + 自动重试 + 分类兜底）。
+  - `[from-code][auto-confirmed]` 对照项 RD-MAT-01（粘贴/抓取）、RD-DEC-01（解码刷不出）是同一 7.21 读反馈里的另两项。
+- **Constraints:** 优先复用项目已有质量门禁模式（`readPushQuality` / 听模块 `insightScript` / 博弈 `gtCaseQuality`）；不重复造轮子；改代码前须用户确认；中文沟通；仅改用户指定范围。
+- **Unknowns/open questions:**
+  - 为何现在写 PRD：补齐稳定达标管线，还是提高「详尽」标准？
+  - 「详尽」以字数为准，还是以真文档信息密度（背景/多方立场/可引用细节）为准？
+  - 目标字数是否仍为 1500，还是要对齐自贴网页/文档的更长区间？
+  - 未达标策略：仅黄条+手动再推，还是自动重试/兜底长文？
+  - 是否把「结构字段齐全」从非目标改回硬卡？
+  - 本轮是否包含 RD-MAT-01 / RD-DEC-01？
+- **Decision-boundary unknowns:** 重试次数、兜底文案来源、Dify vs 独立工作流、前端 vs 后端门禁，尚未声明 OMX 可自行决定的边界。
+- **Likely codebase touchpoints:** `src/components/modules/ReadModule.tsx`、`src/services/difyAPI.ts` `generateReadMaterial`、`src/utils/readPushQuality.ts`、`vocab-server`（若改为服务端重试/兜底）、`test_cases_7.21_7.22_feedback.md` RD-LEN-01。
+- **Relevant repo docs/rules/context inspected:** `AGENTS.md`、`docs/superpowers/specs/2026-08-16-feedback-7.21-7.22-frozen-specs.md`、`test_cases_7.21_7.22_feedback.md`、`test_report.md`、`7.21日反馈 (已自动恢复).md`、`docs/user_maual.md` 7.3 解构、`xq_clean.md` 认知穿透系统、`.omx/plans/prd-ls-case-02-long-script.md`、无既有 `rd-len-01` 快照。
+- **Terminology / doc-code conflicts:**
+  - 产品名「穿透(读)」= 代码 `ReadModule` / `generateReadMaterial` / 认知穿透解码。
+  - 验收「详尽度接近用户自贴文档」vs 冻结规格「≥1500 字」：前者是定性深度，后者是定量门禁；二者是否等价需用户裁定。
+  - 冻结表写「尚未进入实现」，代码已有门禁+黄条；实现缺口主要在**生成稳定达标**，不是「完全没做」。
+- **Prompt-safe initial-context summary status:** `not_needed`

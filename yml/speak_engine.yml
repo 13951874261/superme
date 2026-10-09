@@ -138,6 +138,15 @@ workflow:
           required: true
           type: paragraph
           variable: user_input
+        - default: ''
+          hint: ''
+          label: 引用知识上下文
+          max_length: 20000
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: knowledge_context
       height: 196
       id: '1'
       position:
@@ -166,7 +175,7 @@ workflow:
           role: system
           text: "你是一位顶级的职场高管教练和政商沟通专家，精通权力动态、金字塔原理、博弈论与话语权控制。\n你需要根据用户的输入进行点评并重构话术。\n\
             \n当前训练模式：{{#1.training_mode#}}\n沟通场景：{{#1.scenario#}}\n用户角色：{{#1.user_role#}}\n\
-            受众角色：{{#1.target_audience#}}\n\n【评估规则】\n如果模式是“结构化表达”：\n检查是否符合金字塔逻辑（结论先行、以上统下）；评估角色分寸度（体制内重稳妥、外企重效率、对上级重尊重、对下级重指令）。\n\
+            受众角色：{{#1.target_audience#}}\n引用知识上下文：{{#1.knowledge_context#}}\n以下为用户已确认同步的知识，仅作补充，不得编造未提供的条目。若为空则忽略。\n\n【评估规则】\n如果模式是“结构化表达”：\n检查是否符合金字塔逻辑（结论先行、以上统下）；评估角色分寸度（体制内重稳妥、外企重效率、对上级重尊重、对下级重指令）。\n\
             如果模式是“精准提问”：\n检查是否能击中问题核心；提问方式是否符合当前权力动态（如向上级用“委婉探讨/请教”，对外企用“直接专业”）。\n如果模式是“即兴反击”：\n\
             面对刁难，检查是否陷入了“自证陷阱”；必须用“结论+核心事实论据”的高维框架把问题抛回，做到不卑不亢、委婉修正。\n\n【输出格式】\n\
             请严格输出合法的JSON格式，不要包含Markdown代码块符号（如 ```json ）。\n{\n  \"score\": 85, // 1-100的评分\n\

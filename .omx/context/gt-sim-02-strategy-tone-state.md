@@ -1,0 +1,22 @@
+# Deep-interview state: gt-sim-02-strategy-tone
+
+- **active:** false
+- **current_phase:** crystallized
+- **interview_id:** gt-sim-02-20260817
+- **profile:** standard
+- **type:** brownfield
+- **threshold:** 0.20
+- **max_rounds:** 12
+- **rounds_completed:** 7
+- **current_ambiguity:** 0.10
+- **pressure_pass_complete:** true
+- **non_goals_explicit:** true
+- **decision_boundaries_explicit:** true
+- **challenge_modes_used:** ["contrarian", "simplifier"]
+- **context_snapshot_path:** `.omx/context/gt-sim-02-strategy-tone-20260817T143400Z.md`
+- **prompt_safe_summary_status:** not_needed
+- **artifacts:**
+  - `.omx/context/gt-sim-02-strategy-tone-20260817T143400Z.md`
+  - `.omx/interviews/gt-sim-02-strategy-tone-20260817T144600Z.md`
+  - `.omx/specs/deep-interview-gt-sim-02-strategy-tone.md`
+  - `.omx/plans/prd-gt-sim-02-strategy-tone.md`

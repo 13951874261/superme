@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, Sparkles, BookOpen, Brain, Plus, Trash2, Loader2, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
-import { addWord, updateWord } from '../services/vocabAPI';
+import { addWord, updateWord, batchAddWords } from '../services/vocabAPI';
 import { runWordEnrichment, callVocabPurify } from '../services/difyAPI';
 import { playSuccess, playError, playScan } from '../utils/soundEffects';
 
@@ -168,7 +168,8 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
       onSuccess();
     } catch (err: any) {
       playError();
-      setErrorMsg(err.message || '入库失败，请重试');
+      console.error('加入生词本失败:', err);
+      setErrorMsg('加入生词本失败，请重试');
     } finally {
       setIsSubmittingManual(false);
     }
@@ -183,18 +184,35 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
     setExtractedItems([]);
     playScan();
     try {
-      const res = await callVocabPurify({ article_text: paragraph.trim() });
-      if (res && res.words && res.words.length > 0) {
-        const items = res.words.map(w => ({
-          word: w.word,
-          pos: w.pos,
-          zh_meaning: w.zh_meaning,
-          selected: true,
-        }));
+      const theme = extractCategory === 'business' ? '政商务沟通' : '全场景日常沟通';
+      const res = await callVocabPurify({ article_text: paragraph.trim(), topic: theme });
+      if (res && (res.words || res.phrases)) {
+        let items: any[] = [];
+        if (res.words && res.words.length > 0) {
+          items = items.concat(res.words.map(w => ({
+            word: w.word,
+            pos: w.pos,
+            zh_meaning: w.zh_meaning,
+            is_phrase: false,
+            selected: true,
+          })));
+        }
+        if (res.phrases && res.phrases.length > 0) {
+          items = items.concat(res.phrases.map(p => {
+            const anyP = p as any;
+            return {
+              word: typeof p === 'string' ? p : (anyP.phrase || p),
+              pos: typeof p === 'object' && p !== null ? (anyP.pos || 'phrase') : 'phrase',
+              zh_meaning: typeof p === 'object' && p !== null ? (anyP.meaning || '') : '',
+              is_phrase: true,
+              selected: true,
+            };
+          }));
+        }
         setExtractedItems(items);
         playSuccess();
       } else {
-        setErrorMsg('段落中未提取到有效生词或专业黑话。');
+        setErrorMsg('段落中未提取到有效生词或专业表达。');
       }
     } catch (err: any) {
       playError();
@@ -226,23 +244,18 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
     });
 
     const theme = extractCategory === 'business' ? '政商务沟通' : '全场景日常沟通';
+    const batchItems: any[] = [];
+    let completedCount = 0;
 
     try {
-      for (let i = 0; i < targets.length; i++) {
-        const item = targets[i];
-        setEnrichProgress(prev => ({
-          ...prev,
-          current: i + 1,
-          currentWord: item.word,
-        }));
-
+      await Promise.all(targets.map(async (item) => {
         let payload: any = {
           translation_main: item.zh_meaning || '未分类释义',
           definition_en: '',
           business_note: '',
           examples: [],
           phonetic: '',
-          partOfSpeech: item.pos || 'noun',
+          partOfSpeech: item.pos || (item.is_phrase ? 'phrase' : 'noun'),
           source: '段落提炼闪卡',
         };
 
@@ -260,27 +273,33 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
             };
           }
         } catch (enrichErr) {
-          console.warn(`单词 [${item.word}] Dify 深度解析失败，保留基础释义继续入库`, enrichErr);
+          console.warn('词条 [' + item.word + '] Dify 深度解析失败，保留基础释义继续入库', enrichErr);
         }
 
-        const res = await addWord({
+        completedCount++;
+        setEnrichProgress(prev => ({
+          ...prev,
+          current: completedCount,
+          currentWord: item.word,
+        }));
+
+        batchItems.push({
           word: item.word,
-          dictType: 'manual_capture',
           category: extractCategory,
-          payload,
+          is_phrase: !!item.is_phrase,
+          dictType: item.is_phrase ? 'ai_phrase' : 'ai_extracted',
+          payload
         });
+      }));
 
-        if (res.success === false && res.id) {
-          await updateWord(res.id, {
-            word: item.word,
-            category: extractCategory,
-            payload,
-          });
-        }
+      const res = await batchAddWords(batchItems);
+      if (res.success) {
+        playSuccess();
+        onSuccess();
+        onClose();
+      } else {
+        throw new Error(res.message || '批量加入生词本失败');
       }
-
-      playSuccess();
-      onSuccess();
     } catch (err: any) {
       playError();
       setErrorMsg(err.message || '批量导入中断，请检查数据库');
@@ -431,7 +450,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                         category === 'business' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400'
                       }`}
                     >
-                      💼 政商务区
+                      政商务区
                     </button>
                     <button
                       type="button"
@@ -440,7 +459,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                         category === 'general' ? 'bg-white text-[#202124] shadow-sm' : 'text-gray-400'
                       }`}
                     >
-                      🌐 全场景区
+                      全场景区
                     </button>
                   </div>
                 </div>
@@ -514,7 +533,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                       <button
                         type="button"
                         onClick={() => removeExampleField(idx)}
-                        className="p-2 text-gray-300 hover:text-red-500 rounded-lg hover:bg-gray-50 transition"
+                        className="p-2 text-gray-500 hover:text-red-600 rounded-lg hover:bg-gray-100 transition duration-200"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -555,7 +574,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                   <div className="bg-blue-50/50 border border-blue-100 p-4 rounded-2xl flex gap-3 text-xs text-blue-800 font-medium">
                     <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
                     <div>
-                      <span className="font-black">智能分词机制</span>：输入一段英文文本，AI 词汇提纯引擎将调用 Dify 工作流自动扫描其中核心专业词汇及商务黑话，省去逐个查词的繁琐过程。
+                      <span className="font-black">智能分词机制</span>：输入一段英文文本，系统会自动扫描其中的专业词和商务表达，省去逐个查词的繁琐过程。
                     </div>
                   </div>
                   <div>
@@ -677,7 +696,7 @@ export default function CustomCardModal({ onClose, onSuccess, initialText = '', 
                       onClick={handleBatchImport}
                       className="px-8 py-2.5 bg-[#FF5722] text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#e64a19] transition flex items-center gap-2 shadow-md hover:shadow-lg"
                     >
-                      一键批量补全并入库 (Auto-Enrich & Import) ➔
+                      一键补全释义并加入生词本 ➔
                     </button>
                   </div>
                 </div>
