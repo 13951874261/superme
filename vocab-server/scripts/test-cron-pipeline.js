@@ -1,6 +1,6 @@
+const sandboxDbPath = require('../tests/helpers/sandboxDatabase').requireSandboxDatabase();
 const path = require('path');
 const Database = require('better-sqlite3');
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
 const dailyPackService = require('../services/dailyPackService');
 const dailyCronRunService = require('../services/dailyCronRunService');
@@ -8,9 +8,7 @@ const dailyListenPreGenerateService = require('../services/dailyListenPreGenerat
 const dailyPackCron = require('../services/dailyPackCron');
 
 // 1. 初始化数据库连接
-const dbPath = process.env.NODE_ENV === 'production'
-  ? '/var/www/super-agent/vocab.db'
-  : path.join(__dirname, '..', 'vocab.db');
+const dbPath = sandboxDbPath;
 
 console.log('===========================================================');
 console.log(' [Cron Pipeline Simulation] 开始模拟运行 2:00 后台定时任务');

@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+if [ "${RUN_LIVE_NETWORK_TESTS:-}" != 'true' ]; then
+  printf '%s\n' '测试隔离：联网诊断需显式设置 RUN_LIVE_NETWORK_TESTS=true' >&2
+  exit 1
+fi
 YTDLP="/var/www/super-agent/vocab-server/node_modules/youtube-dl-exec/bin/yt-dlp"
 NODEBIN=$(command -v node)
 echo "=== android client ==="

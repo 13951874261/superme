@@ -1,4 +1,6 @@
-﻿const process = require('process');
+const { requireLegacyTestTarget } = require('./vocab-server/tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('model');
+const process = require('process');
 
 async function test() {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';

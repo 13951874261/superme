@@ -1,12 +1,17 @@
 ﻿const https = require('https');
 const assert = require('assert');
 
-const BASE = 'https://app.liujingzhuwo.site';
+const BASE = require('./helpers/testTarget').resolveTestApiBase();
+if (!BASE) {
+  require('node:test').test('个人原型远程测试', { skip: '未设置独立测试服务 TEST_API_BASE_URL' }, () => {});
+  return;
+}
+const transport = BASE.startsWith('https:') ? https : require('node:http');
 
 function request(method, path, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : null;
-    const req = https.request(BASE + path, {
+    const req = transport.request(BASE + path, {
       method,
       headers: data ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } : {},
     }, res => {

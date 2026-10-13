@@ -1,9 +1,12 @@
 const Database = require('better-sqlite3');
-const path = require('path');
+const assert = require('node:assert/strict');
 const crypto = require('crypto');
 
-const dbPath = path.join(__dirname, 'vocab.db');
-const db = new Database(dbPath);
+const db = new Database(':memory:');
+db.exec(`CREATE TABLE vocabulary (
+  id TEXT PRIMARY KEY, word TEXT, dict_type TEXT, category TEXT, payload TEXT,
+  added_at INTEGER, next_review_date INTEGER, review_history TEXT
+)`);
 
 console.log('--- 启动 1-B 句型提取入库功能测试 ---');
 
@@ -51,6 +54,10 @@ const rows = db.prepare("SELECT word, dict_type, category FROM vocabulary WHERE 
 console.log('当前数据库存留 ai_sentence 数：', rows.length);
 console.log(rows);
 
+assert.equal(rows.length, 2);
+assert.equal(t1.success, true);
+assert.equal(t2.reason, 'duplicate');
+assert.equal(t3.success, true);
 if (rows.length === 2) {
   console.log('===> 1-B 功能单元测试全部通过！✅');
 } else {

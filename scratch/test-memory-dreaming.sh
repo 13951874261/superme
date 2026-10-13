@@ -3,7 +3,7 @@
 # 用法：bash scratch/test-memory-dreaming.sh [user-id]
 
 set -e
-BASE="http://127.0.0.1:3001"
+BASE="$(node "$(dirname "$0")/../vocab-server/tests/helpers/printTestTarget.cjs")"
 USER_ID="${1:-test-user}"
 
 echo "=== 0. L0/L1 溯源 ingest ==="
@@ -68,4 +68,4 @@ fi
 
 echo ""
 echo "=== 3. 查看 Graph 关系记忆 ==="
-curl -s "http://127.0.0.1:3001/api/user/profile/$USER_ID" | python3 -c "import sys,json; d=json.load(sys.stdin); g=d.get('data',{}).get('memory_layers',{}).get('l2_graph',{}); print('relations:', len(g.get('relations',[]))); [print(r) for r in g.get('relations',[])[:5]]" 2>/dev/null || curl -s "http://127.0.0.1:3001/api/user/profile/$USER_ID"
+curl -s "$BASE/api/user/profile/$USER_ID" | python3 -c "import sys,json; d=json.load(sys.stdin); g=d.get('data',{}).get('memory_layers',{}).get('l2_graph',{}); print('relations:', len(g.get('relations',[]))); [print(r) for r in g.get('relations',[])[:5]]" 2>/dev/null || curl -s "$BASE/api/user/profile/$USER_ID"

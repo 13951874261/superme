@@ -1,4 +1,4 @@
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+require('../tests/helpers/legacyTestTarget.cjs').requireLegacyTestTarget('model');
 const { createWorkflowRunner } = require('../services/englishWorkflowProxy');
 const { parseWorkflowOutput } = require('../services/gameTheorySessionService');
 

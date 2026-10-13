@@ -1,8 +1,11 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const assert = require("assert");
 const { analyzeListening, normalizeResult } = require("../services/listenAnalysisService");
 
 (async () => {
+  if (process.env.RUN_LIVE_LLM_TESTS !== 'true') {
+    require('node:test').test('真实模型调用', { skip: '未显式启用 RUN_LIVE_LLM_TESTS' }, () => {});
+    return;
+  }
   const apiKey = process.env.LISTEN_LLM_API_KEY;
   if (!apiKey) {
     console.log("SKIPPED: LISTEN_LLM_API_KEY not configured");

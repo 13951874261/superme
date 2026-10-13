@@ -1,10 +1,16 @@
 ﻿// Live test for /api/english/write-governance (Chinese)
 const https = require('https');
+const BASE = require('./helpers/testTarget').resolveTestApiBase();
+if (!BASE) {
+  require('node:test').test('远程接口测试', { skip: '未设置独立测试服务 TEST_API_BASE_URL' }, () => {});
+  return;
+}
+const transport = BASE.startsWith('https:') ? https : require('node:http');
 
 function post(path, body) {
   return new Promise((resolve, reject) => {
     const data = JSON.stringify(body);
-    const req = https.request('https://app.liujingzhuwo.site' + path, {
+    const req = transport.request(BASE + path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
     }, res => {

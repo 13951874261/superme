@@ -1,3 +1,5 @@
+const { requireLegacyTestTarget } = require('../vocab-server/tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('api');
 const { chromium } = require("C:\\Users\\lzhumy\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\node\\node_modules\\playwright");
 
 (async () => {
@@ -8,7 +10,7 @@ const { chromium } = require("C:\\Users\\lzhumy\\.cache\\codex-runtimes\\codex-p
     const page = await browser.newPage();
     
     console.log("Navigating to http://localhost:3000/...");
-    await page.goto("http://localhost:3000/", { timeout: 15000, waitUntil: "networkidle" });
+    await page.goto(isolatedTestTarget + "/", { timeout: 15000, waitUntil: "networkidle" });
     
     console.log("Page title:", await page.title());
     

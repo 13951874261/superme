@@ -1,9 +1,10 @@
+const sandboxDbPath = require('../tests/helpers/sandboxDatabase').requireSandboxDatabase();
 const path = require('path');
 const Database = require('better-sqlite3');
 const dailyPackService = require('../services/dailyPackService');
 
 // 关联 SQLite 数据库
-const dbPath = path.join(__dirname, '..', 'vocab.db');
+const dbPath = sandboxDbPath;
 let db;
 try {
   db = new Database(dbPath);

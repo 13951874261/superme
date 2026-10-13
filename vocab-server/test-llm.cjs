@@ -1,3 +1,5 @@
+const { requireLegacyTestTarget } = require('./tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('model');
 // test-llm.cjs — 本地兜底网关冒烟测试（统一 fetch 网关）
 const https = require('https');
 const url = 'https://fet.234124123.xyz/v1/chat/completions';

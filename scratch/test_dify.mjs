@@ -1,3 +1,5 @@
+import { requireLegacyTestTarget } from '../vocab-server/tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('model');
 async function testDify() {
   const difyApiKey = 'app-YysFumsmeSAeJaQMobMpW24r';
   const baseUrl = 'https://dify.234124123.xyz/v1';

@@ -18,11 +18,15 @@
 
 set -euo pipefail
 
-VOCAB_BASE="${VOCAB_BASE:-http://127.0.0.1:3001}"
-PUBLIC_BASE="${PUBLIC_BASE:-https://app.liujingzhuwo.site}"
+VOCAB_BASE="$(node "$(dirname "$0")/../vocab-server/tests/helpers/printTestTarget.cjs")"
+PUBLIC_BASE="$VOCAB_BASE"
 DIFY_BASE="${DIFY_API_BASE_URL:-https://dify.234124123.xyz/v1}"
-DIFY_KEY="${DIFY_CHAT_API_KEY:-app-TyztRkdBVX4kNUxA8dZ0frk7}"
-DB_PATH="${VOCAB_DB:-/var/www/super-agent/vocab.db}"
+DIFY_KEY="${DIFY_CHAT_API_KEY:-}"
+DB_PATH="$(node -e "console.log(require(process.argv[1]).requireSandboxDatabase())" "$(dirname "$0")/../vocab-server/tests/helpers/sandboxDatabase.js")"
+if [ "${RUN_LIVE_LLM_TESTS:-}" != 'true' ]; then
+  echo '测试隔离：需显式设置 RUN_LIVE_LLM_TESTS=true' >&2
+  exit 1
+fi
 SIMULATE_ONLY=0
 USER_ID=""
 

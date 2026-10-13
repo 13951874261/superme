@@ -1,4 +1,5 @@
-import dotenv from 'dotenv'; dotenv.config({ path: 'vocab-server/.env' });
+import { requireLegacyTestTarget } from './tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('model');
 
 const apiKey = process.env.DIFY_ENGLISH_MASTERY_KEY;
 const baseUrl = process.env.DIFY_API_BASE_URL || 'https://dify.234124123.xyz/v1';

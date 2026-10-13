@@ -1,4 +1,6 @@
-﻿const fetch = require('node-fetch');
+const { requireLegacyTestTarget } = require('./tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('model');
+const fetch = require('node-fetch');
 
 async function test() {
   const apiKey = 'app-Eygg39qoniWss17wjWvLUvDb';

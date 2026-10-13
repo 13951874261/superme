@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 /**
  * Unit smoke for getPregeneratedCombo (in-memory mock db).
  * Run: node vocab-server/scripts/test-getPregeneratedCombo.js

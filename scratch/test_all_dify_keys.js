@@ -1,4 +1,6 @@
-﻿const keys = [
+import { requireLegacyTestTarget } from '../vocab-server/tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('model');
+const keys = [
   'app-vBQMyqeHD16U0XxzUt9DdJYI',
   'app-XIdGNvsZic1AZ3I7p66nqJpb',
   'app-OShKY1EcVuLFkuxrpO28ZB0A',

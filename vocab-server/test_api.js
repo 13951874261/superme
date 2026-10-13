@@ -1,13 +1,13 @@
+const { requireLegacyTestTarget } = require('./tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('api');
 const https = require('https');
 
 const postData = JSON.stringify({
   url: 'https://dictionary.cambridge.org/dictionary/english-chinese-simplified/vibe'
 });
 
-const req = https.request({
-  hostname: 'app.liujingzhuwo.site',
-  port: 443,
-  path: '/api/materials/fetch-url',
+const transport = isolatedTestTarget.startsWith('https:') ? https : require('node:http');
+const req = transport.request(new URL('/api/materials/fetch-url', isolatedTestTarget), {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',

@@ -1,13 +1,15 @@
+from test_isolation import require_test_api_base
+TEST_API_BASE = require_test_api_base()
 import nodriver as uc
 import asyncio, sys, json
 sys.stdout.reconfigure(encoding="utf-8")
 
 async def main():
     browser = await uc.start(headless=True)
-    page = await browser.get("https://app.liujingzhuwo.site/")
+    page = await browser.get(TEST_API_BASE)
     await asyncio.sleep(2)
     
-    pwd = await page.select("input[type="password"]")
+    pwd = await page.select('input[type="password"]')
     if pwd:
         await pwd.send_keys("1")
         await asyncio.sleep(0.5)
@@ -50,7 +52,7 @@ async def main():
     """
     res2 = await page.evaluate(js2)
     r2 = json.loads(res2)
-    print(f"[2] TTS valid input: ok={r2['ok']} status={r2.get("status")} text={r2.get("text")[:80]}")
+    print(f"[2] TTS valid input: ok={r2['ok']} status={r2.get('status')} text={r2.get('text')[:80]}")
     
     # Test 3: Insight scenario with valid params
     js3 = """
@@ -68,7 +70,7 @@ async def main():
     """
     res3 = await page.evaluate(js3)
     r3 = json.loads(res3)
-    print(f"[3] Insight scenario: ok={r3['ok']} status={r3.get("status")} text={r3.get("text")[:80]}")
+    print(f"[3] Insight scenario: ok={r3['ok']} status={r3.get('status')} text={r3.get('text')[:80]}")
     
     # Test 4: Oral sandbox with valid params
     js4 = """
@@ -86,7 +88,7 @@ async def main():
     """
     res4 = await page.evaluate(js4)
     r4 = json.loads(res4)
-    print(f"[4] Oral sandbox: ok={r4['ok']} status={r4.get("status")} text={r4.get("text")[:80]}")
+    print(f"[4] Oral sandbox: ok={r4['ok']} status={r4.get('status')} text={r4.get('text')[:80]}")
     
     browser.stop()
 

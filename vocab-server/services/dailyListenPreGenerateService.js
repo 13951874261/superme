@@ -27,7 +27,13 @@ function resolveListenDurations(options = {}) {
   return [...DURATIONS];
 }
 
-const ROOT = path.join(__dirname, '..');
+const isTest = process.env.NODE_ENV === 'test' || Boolean(process.env.NODE_TEST_CONTEXT);
+const ROOT = isTest
+  ? fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'super-agent-listen-'))
+  : path.join(__dirname, '..');
+if (isTest) {
+  process.once('exit', () => fs.rmSync(ROOT, { recursive: true, force: true }));
+}
 const AUDIO_ROOT = path.join(ROOT, 'public', 'daily_listen_audio');
 const ARTICLE_ROOT = path.join(ROOT, 'public', 'daily_long_articles');
 const userListenTails = new Map();

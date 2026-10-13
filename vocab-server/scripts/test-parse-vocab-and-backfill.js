@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+process.env.NODE_ENV = 'test';
 const assert = require('assert');
 const fs = require('fs');
 const os = require('os');

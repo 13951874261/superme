@@ -1,3 +1,5 @@
+from test_isolation import require_test_api_base
+TEST_API_BASE = require_test_api_base()
 import sys, time, json
 sys.stdout.reconfigure(encoding='utf-8')
 from DrissionPage import ChromiumPage, ChromiumOptions
@@ -10,7 +12,7 @@ co.auto_port()
 
 page = ChromiumPage(co)
 try:
-    page.get('https://app.liujingzhuwo.site/')
+    page.get(TEST_API_BASE)
     time.sleep(2)
     pwd_inp = page.ele('tag:input@type=password')
     if pwd_inp:

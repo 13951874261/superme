@@ -1,9 +1,6 @@
 const assert = require('assert');
 
-// 通过临时目录隔离 tasks.json：在 require 前设置 cwd 不可靠（单例已绑定路径）。
-// 策略：直接 require 单例后，用 createTask 造数据，测完 clear；或动态 mock queuePath。
-// 本项目 taskQueue 为单例，测试用 create/update/delete 后清理，避免污染。
-// NODE_ENV=test 必须在 require 前设置，避免 setInterval 导致进程挂起。
+// NODE_ENV=test 必须在 require 前设置，使队列使用独立临时目录并关闭定时清理。
 process.env.NODE_ENV = 'test';
 
 const taskQueue = require('../services/taskQueue');

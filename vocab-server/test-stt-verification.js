@@ -1,11 +1,9 @@
+const { requireLegacyTestTarget } = require('./tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('api');
 const fs = require('fs');
 const path = require('path');
 
-// 读取 .env 配置
-require('dotenv').config({ path: path.join(__dirname, '.env') });
-
-const PORT = process.env.PORT || 3001;
-const apiBase = `http://127.0.0.1:${PORT}`;
+const apiBase = isolatedTestTarget;
 
 async function runTests() {
   console.log('=== 开始 STT 功能模块测试 ===');

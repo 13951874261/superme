@@ -1,8 +1,10 @@
+import { requireLegacyTestTarget } from '../vocab-server/tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('api');
 
 async function runTest() {
   try {
     console.log('Starting due_today API test on https://app.liujingzhuwo.site/api...');
-    const res = await fetch('https://app.liujingzhuwo.site/api/vocab/export-background', {
+    const res = await fetch(isolatedTestTarget + '/api/vocab/export-background', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ scope: 'due_today', currentTab: 'business' })
@@ -22,7 +24,7 @@ async function runTest() {
     
     let attempts = 0;
     while (attempts < 20) {
-      const taskRes = await fetch(`https://app.liujingzhuwo.site/api/tasks/${taskId}`);
+      const taskRes = await fetch(`${isolatedTestTarget}/api/tasks/${taskId}`);
       const task = await taskRes.json();
       console.log(`[Poll #${attempts}] Status: ${task.status}, Progress: ${task.progress}%`);
       if (task.logs && task.logs.length > 0) {

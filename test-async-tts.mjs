@@ -1,3 +1,5 @@
+import { requireLegacyTestTarget } from './vocab-server/tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('api');
 /**
  * 精听异步 TTS 队列 — 单元测试
  *
@@ -14,8 +16,8 @@
  *   vocab-server 服务已启动（端口 3001），前端 dev server 已启动（端口 3000）
  */
 
-const API_BASE = 'http://localhost:3001';
-const FRONTEND_BASE = 'http://localhost:3000';
+const API_BASE = isolatedTestTarget + '';
+const FRONTEND_BASE = isolatedTestTarget + '';
 
 // 模拟前端 TtsResponse 类型
 function assertTtsResponse(data) {

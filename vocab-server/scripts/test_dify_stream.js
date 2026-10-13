@@ -1,3 +1,5 @@
+const { requireLegacyTestTarget } = require('../tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('model');
 
 const payload = {
   inputs: {

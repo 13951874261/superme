@@ -6,10 +6,15 @@ class InMemoryTaskQueue {
   constructor() {
     this.tasks = new Map();
     this.TTL = 3600 * 1000; // 默认 1 小时过期
-    this.queuePath = path.join(__dirname, '..', 'data', 'tasks.json');
+    const dataDir = process.env.NODE_ENV === 'test'
+      ? fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'super-agent-tasks-'))
+      : path.join(__dirname, '..', 'data');
+    this.queuePath = path.join(dataDir, 'tasks.json');
+    if (process.env.NODE_ENV === 'test') {
+      process.once('exit', () => fs.rmSync(dataDir, { recursive: true, force: true }));
+    }
 
     // 确保 data 目录存在
-    const dataDir = path.dirname(this.queuePath);
     if (!fs.existsSync(dataDir)) {
       fs.mkdirSync(dataDir, { recursive: true });
     }

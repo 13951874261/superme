@@ -1,6 +1,6 @@
+require('../tests/helpers/legacyTestTarget.cjs').requireLegacyTestTarget('model');
 // 联机验证：单词 / 短语 / 句式三类词条的词汇矩阵是否真的补齐
 // 用法: node scripts/test-vocab-matrix-live.js
-require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
 
 const { generateVocabMatrix, isMatrixComplete } = require('../services/vocabMatrixEnricher');
 

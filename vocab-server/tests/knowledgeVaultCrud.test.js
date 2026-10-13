@@ -2,19 +2,21 @@ const { test, before, after } = require('node:test');
 const assert = require('node:assert');
 const https = require('https');
 
-const BASE = 'https://app.liujingzhuwo.site';
+const BASE = require('./helpers/testTarget').resolveTestApiBase();
+if (!BASE) {
+  test('知识库远程测试', { skip: '未设置独立测试服务 TEST_API_BASE_URL' }, () => {});
+  return;
+}
 
 function req(method, path, body) {
   return new Promise((resolve, reject) => {
     const data = body ? JSON.stringify(body) : undefined;
     const options = {
-      hostname: 'app.liujingzhuwo.site',
-      port: 443,
-      path: path,
       method: method,
       headers: { 'Content-Type': 'application/json' }
     };
-    const req = https.request(options, res => {
+    const transport = BASE.startsWith('https:') ? https : require('node:http');
+    const req = transport.request(new URL(path, BASE), options, res => {
       let d = '';
       res.on('data', c => d += c);
       res.on('end', () => {

@@ -1,4 +1,6 @@
-﻿const payload = {
+import { requireLegacyTestTarget } from '../vocab-server/tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('model');
+const payload = {
   inputs: {
     theme: '商务谈判：让步与施压',
     cefr_level: 'B1',

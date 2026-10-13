@@ -1,4 +1,3 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
 const assert = require('assert');
 const { evaluateSentence, normalizeResult, normalizeScore } = require('../services/sentenceEvaluationService');
 
@@ -10,6 +9,10 @@ const { evaluateSentence, normalizeResult, normalizeScore } = require('../servic
   assert.strictEqual(normalized.score, 4);
   assert.strictEqual(normalized.is_pass, true);
   assert.strictEqual(normalized.corrected_sentence, 'We need to negotiate the terms.');
+  if (process.env.RUN_LIVE_LLM_TESTS !== 'true') {
+    require('node:test').test('真实模型调用', { skip: '未显式启用 RUN_LIVE_LLM_TESTS' }, () => {});
+    return;
+  }
   const key = process.env.EVALUATION_LLM_API_KEY || process.env.LISTEN_LLM_API_KEY;
   assert.ok(key, 'LLM key must be configured');
   const result = await evaluateSentence({

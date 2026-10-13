@@ -1,3 +1,5 @@
+import { requireLegacyTestTarget } from '../../vocab-server/tests/helpers/legacyTestTarget.cjs';
+const isolatedTestTarget = requireLegacyTestTarget('model');
 const DIFY_DICT_API_KEY = 'app-zGyrsyvvzHAIO5yx11OcYdpa';
 const BASE_URL = 'https://dify.234124123.xyz/v1';
 

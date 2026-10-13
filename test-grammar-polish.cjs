@@ -1,3 +1,4 @@
+const isolatedTestTarget = require('./vocab-server/tests/helpers/legacyTestTarget.cjs').requireLegacyTestTarget('api');
 const http = require('http');
 
 const testGrammarPolish = async () => {
@@ -11,9 +12,6 @@ const testGrammarPolish = async () => {
   });
 
   const options = {
-    hostname: '127.0.0.1',
-    port: 3000,
-    path: '/api/grammar-polish',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -21,7 +19,8 @@ const testGrammarPolish = async () => {
     }
   };
 
-  const req = http.request(options, (res) => {
+  const transport = isolatedTestTarget.startsWith('https:') ? require('node:https') : http;
+  const req = transport.request(new URL('/api/grammar-polish', isolatedTestTarget), options, (res) => {
     console.log(`STATUS: ${res.statusCode}`);
     console.log(`HEADERS: ${JSON.stringify(res.headers)}`);
 

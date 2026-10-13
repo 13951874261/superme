@@ -1,3 +1,5 @@
+const { requireLegacyTestTarget } = require('../vocab-server/tests/helpers/legacyTestTarget.cjs');
+const isolatedTestTarget = requireLegacyTestTarget('model');
 const fs = require('fs');
 const path = require('path');
 

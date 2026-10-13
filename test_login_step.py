@@ -1,10 +1,12 @@
+from test_isolation import require_test_api_base
+TEST_API_BASE = require_test_api_base()
 import nodriver as uc
 import asyncio, sys, json
 sys.stdout.reconfigure(encoding='utf-8')
 
 async def main():
     browser = await uc.start(headless=True)
-    page = await browser.get('https://app.liujingzhuwo.site/')
+    page = await browser.get(TEST_API_BASE)
     # 等待更长时间让 React 挂载
     for _ in range(10):
         await asyncio.sleep(1)

@@ -1,3 +1,4 @@
+process.env.NODE_ENV = 'test';
 const assert = require('assert');
 const Database = require('better-sqlite3');
 const path = require('path');
