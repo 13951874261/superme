@@ -18,7 +18,33 @@ function candidateSessionIds(userId) {
   return [...new Set(ids.filter(Boolean))];
 }
 
-async function resolveDifyEmbedSession({
+const sessionLookups = new WeakMap();
+
+async function resolveDifyEmbedSession(options = {}) {
+  if (options.renew) return lookupDifyEmbedSession(options);
+  const fetchImpl = options.fetchImpl || fetch;
+  let pending = sessionLookups.get(fetchImpl);
+  if (!pending) {
+    pending = new Map();
+    sessionLookups.set(fetchImpl, pending);
+  }
+  const key = JSON.stringify([
+    options.userId, options.conversationId, options.webBaseUrl,
+    options.appCode, options.budgetMs,
+  ]);
+  // 自定义时钟用于独立预算验证，不合并不同调用方的时钟。
+  if (options.now) return lookupDifyEmbedSession(options);
+  let promise = pending.get(key);
+  if (!promise) {
+    promise = lookupDifyEmbedSession(options).finally(() => {
+      if (pending.get(key) === promise) pending.delete(key);
+    });
+    pending.set(key, promise);
+  }
+  return { ...await promise };
+}
+
+async function lookupDifyEmbedSession({
   userId,
   conversationId = '',
   renew = false,
