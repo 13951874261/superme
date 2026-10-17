@@ -156,7 +156,7 @@ function InlineWordDetail({ word }: InlineWordDetailProps) {
 // ==========================================
 // 主生词本组件
 // ==========================================
-function VocabularyBookComponent() {
+function VocabularyBookComponent({ embedded = false }: { embedded?: boolean }) {
 
   const PAGE_SIZE = 50;
 
@@ -352,7 +352,7 @@ function VocabularyBookComponent() {
 
   return (
     <>
-      <div className="px-6 pb-8">
+      <div className={embedded ? '' : 'px-6 pb-8'}>
         <div
           onClick={handleExpand}
           className="flex items-center justify-between bg-white border border-gray-100 rounded-2xl p-3 shadow-sm cursor-pointer hover:bg-gray-50 transition"

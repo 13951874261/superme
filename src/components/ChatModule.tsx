@@ -10,7 +10,7 @@ export default function ChatModule() {
   };
 
   return (
-    <div className="bg-white rounded-[1.5rem] p-5 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-gray-100 mb-6 shrink-0 relative overflow-hidden group">
+    <div className="bg-white rounded-[1.5rem] p-5 flex flex-col shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-gray-100 shrink-0 relative overflow-hidden group">
       <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-bl from-[#FF5722]/5 to-transparent rounded-bl-full -z-0"></div>
       
       <h3 className="text-xs font-black text-[#202124] uppercase tracking-widest flex items-center mb-4 relative z-10">

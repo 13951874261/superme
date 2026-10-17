@@ -215,7 +215,7 @@ function SidebarComponent({
   const [isEditingCareer, setIsEditingCareer] = useState(false);
   const [careerEditData, setCareerEditData] = useState({ ...careerPath });
   const [showConfetti, setShowConfetti] = useState(false);
-  const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(false);
+  const [isUtilitiesOpen, setIsUtilitiesOpen] = useState(true);
   const [isVaultOpen, setIsVaultOpen] = useState(false);
 
   const calendarDays = useMemo(
@@ -272,29 +272,49 @@ function SidebarComponent({
         <div className={`flex-1 flex flex-col overflow-y-auto overflow-x-hidden ${isOpen ? 'opacity-100' : 'opacity-0'} transition-opacity duration-300 delay-100 scrollbar-thin`}>
         
         {/* 1. 左上角：极简拼合标题与文本归档链 */}
-        <div className="px-8 pt-10 pb-8 border-b border-zinc-200/60 bg-white/60">
-          <div className="flex justify-between items-baseline mb-6">
+        <div data-testid="sidebar-overview" className="px-5 xl:px-6 pt-6 pb-5 border-b border-zinc-200/60 bg-white/60 shrink-0">
+          <div className="flex justify-between items-baseline mb-3">
             <h1 className="text-3xl font-black text-[#FF5722] tracking-tighter">B·AI</h1>
           </div>
           
           {/* 单行：今日日期 + 当前主题（只读户口本） */}
-          <div className="mb-8">
+          <div className="space-y-1">
             <div className="text-zinc-900 font-black text-sm tracking-tight leading-relaxed">
-              <span className="text-[#FF5722] mr-2">{selectedDate}</span>
+              <span className="text-[#FF5722] block mb-1">{selectedDate}</span>
               {currentTheme ? `当前主题：${currentTheme}` : '当前主题'}
             </div>
           </div>
           
+        </div>
+
+        <section data-testid="sidebar-assistant" aria-label="AI 答疑" className="px-5 xl:px-6 py-5 shrink-0">
+          <h2 className="text-xs font-bold text-zinc-600 mb-3">AI 答疑</h2>
+          <ChatModule />
+        </section>
+
+        <section data-testid="sidebar-learning" aria-label="词典与复习" className="px-5 xl:px-6 py-5 border-t border-zinc-200/60 shrink-0">
+          <button type="button" aria-expanded={isUtilitiesOpen} onClick={() => { playReveal(); setIsUtilitiesOpen(!isUtilitiesOpen); }} className="w-full flex items-center justify-between text-xs font-bold text-zinc-600 mb-3 cursor-pointer focus-visible:outline-2 focus-visible:outline-[#FF5722]">
+            <span>词典与复习</span>
+            {isUtilitiesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+          <div className={isUtilitiesOpen ? 'space-y-3' : 'hidden'}>
+            <DictionaryPanel embedded />
+            <VocabularyBook embedded />
+          </div>
+        </section>
+
+        <section data-testid="sidebar-growth" aria-label="成长记录" className="px-5 xl:px-6 py-5 border-t border-zinc-200/60 shrink-0">
+          <h2 className="text-xs font-bold text-zinc-600 mb-4">成长记录</h2>
           {/* 下方：按周/月折叠归档体系 */}
           <div className="flex flex-col space-y-5">
              
-             {/* 月度日历 (Monthly Calendar) */}
+             {/* 月度日历 (月度日历) */}
              <div>
                <div 
                  className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-brand)] transition-colors mb-3 active:scale-95 select-none"
                  onClick={() => { setIsCalendarOpen(!isCalendarOpen); playReveal(); }}
                >
-                 <span>Monthly Calendar</span>
+                 <span>月度日历</span>
                  {isCalendarOpen ? <ChevronUp className="w-3.5 h-3.5 text-gray-400" strokeWidth={2.5}/> : <ChevronDown className="w-3.5 h-3.5 text-gray-300" strokeWidth={2.5}/>}
                </div>
                
@@ -375,7 +395,7 @@ function SidebarComponent({
                  className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-ink-primary)] transition-colors mb-4 active:scale-95 select-none"
                  onClick={() => { setIsHabitOpen(!isHabitOpen); playReveal(); }}
                >
-                 <span>Habit Matrix</span>
+                 <span>习惯打卡</span>
                  {isHabitOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                </div>
                
@@ -415,7 +435,7 @@ function SidebarComponent({
                </div>
              </div>
              
-             {/* 职业发展跟踪表 (Career Progression Tracker) */}
+             {/* 职业发展跟踪表 (职业轨迹 Tracker) */}
              <div className="mt-6 border-t border-zinc-200/60 pt-6">
                <div 
                  className="flex justify-between items-center cursor-pointer text-[11px] text-[var(--color-ink-muted)] font-bold hover:text-[var(--color-ink-primary)] transition-colors mb-4 active:scale-95 select-none"
@@ -568,10 +588,7 @@ function SidebarComponent({
                </div>
              </div>
 
-          </div>
-        </div>
-
-        {shouldShowCard && (
+          </div>        {shouldShowCard && (
           <BiweeklyReviewCard
             daysSinceReview={daysSinceReview}
             onOpen={() => {
@@ -581,37 +598,11 @@ function SidebarComponent({
           />
         )}
 
-        {/* 2. 即时答疑模块 (多模型舱) — 固定最大高度，避免撑满侧边栏 */}
-        <div className="px-5 xl:px-6 py-6 flex flex-col shrink-0">
-          <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-widest mb-2 flex items-center">
-            <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full mr-2"></div> 答疑
-          </div>
-          <ChatModule />
-        </div>
+        </section>
 
-        {/* Utility Tools Toggle */}
-        <div className="mt-auto px-5 xl:px-6 py-4 border-t border-slate-100 bg-white/50 backdrop-blur-sm shrink-0">
-          <button 
-            onClick={() => {
-              playReveal();
-              setIsUtilitiesOpen(!isUtilitiesOpen);
-            }}
-            className="w-full flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:text-[var(--color-brand)] transition-colors cursor-pointer outline-none select-none"
-          >
-            <span>Utility Tools</span>
-            {isUtilitiesOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-          </button>
-          
-          {/* Allow full dict results: GPU smooth accordion */}
-          <div className={`grid transition-[grid-template-rows,opacity,margin-top] duration-300 ease-out ${isUtilitiesOpen ? 'grid-rows-[1fr] mt-4 opacity-100' : 'grid-rows-[0fr] mt-0 opacity-0 pointer-events-none'}`}>
-            <div className="overflow-hidden max-h-[min(85vh,2400px)] overflow-y-auto">
-              <div className="space-y-4 pb-2">
-                {/* 3. 工具区聚合 (现代汉语/英英/英汉) */}
-                <DictionaryPanel />
-
-                {/* 4. 艾宾浩斯生词本 */}
-                <VocabularyBook />
-
+        <section data-testid="sidebar-other" aria-label="其他工具" className="px-5 xl:px-6 py-5 border-t border-zinc-200/60 shrink-0">
+          <h2 className="text-xs font-bold text-zinc-600 mb-3">其他工具</h2>
+          <div className="space-y-3">
                 {/* 5. 每周一聊 (WeeklyChatModule) */}
                 {setActiveModule && (
                   <button
@@ -651,10 +642,8 @@ function SidebarComponent({
                   </div>
                   <ChevronRight className="w-3.5 h-3.5 opacity-60" />
                 </button>
-              </div>
-            </div>
           </div>
-        </div>
+        </section>
 
         </div>
       </div>

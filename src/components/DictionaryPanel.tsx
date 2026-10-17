@@ -815,7 +815,7 @@ function DictLoadingIndicator({ word }: { word: string }) {
   );
 }
 
-export default function DictionaryPanel() {
+export default function DictionaryPanel({ embedded = false }: { embedded?: boolean }) {
   const [openDict, setOpenDict] = useState<DictType | null>(null);
   const [query, setQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -1158,8 +1158,8 @@ export default function DictionaryPanel() {
   };
 
   return (
-    <div className="px-6 pb-6 mt-4">
-      <h3 className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3 pl-2">Utility Tools</h3>
+    <div className={embedded ? '' : 'px-6 pb-6 mt-4'}>
+      {!embedded && <h3 className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-3 pl-2">Utility Tools</h3>}
       <div className="space-y-2">
         {DICT_ORDER.map((type) => {
           const cfg = DICT_CONFIG[type];
@@ -1172,8 +1172,8 @@ export default function DictionaryPanel() {
                 onClick={(e) => handleToggle(type, e)}
                 className="w-full flex items-center p-3 hover:bg-stone-50 transition-all group"
               >
-                <div className={`p-2 rounded-xl mr-4 ${cfg.color}`}>{cfg.icon}</div>
-                <div className="text-left flex-1">
+                <div className={`p-2 rounded-xl mr-3 shrink-0 ${cfg.color}`}>{cfg.icon}</div>
+                <div className="text-left flex-1 min-w-0">
                   <div className="font-bold text-[#202124] text-sm">{cfg.title}</div>
                   <div className="text-[11px] text-stone-400 mt-0.5">{cfg.subtitle}</div>
                 </div>
