@@ -745,6 +745,66 @@ function normalizeSentenceList(raw) {
   }).map((s) => String(s).trim()).filter(Boolean);
 }
 
+/**
+ * ponytail: regex-free balanced-brace scanner to salvage complete {"word":...} / {"phrase":...} / {"sentence":...}
+ * objects when Dify max_tokens truncates the outer JSON wrapper. Upgrade to streaming parser if nested objects are added.
+ */
+function salvageTruncatedVocabJson(fragment) {
+  const text = stripMarkdownJsonFence(fragment);
+  if (!text) return null;
+  const vocab = [];
+  const phrases = [];
+  const sentences = [];
+  let start = -1;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === '{') {
+      if (depth === 1) start = i;
+      depth += 1;
+    } else if (ch === '}') {
+      depth -= 1;
+      if (depth === 1 && start >= 0) {
+        try {
+          const item = JSON.parse(text.slice(start, i + 1));
+          if (item && typeof item === 'object' && !Array.isArray(item)) {
+            if (typeof item.word === 'string' && item.word.trim()) {
+              vocab.push(item);
+            } else if (typeof item.phrase === 'string' && item.phrase.trim()) {
+              phrases.push(item.phrase.trim());
+              if (Array.isArray(item.examples)) sentences.push(...normalizeSentenceList(item.examples));
+            } else if (typeof item.sentence === 'string' && item.sentence.trim()) {
+              sentences.push(item.sentence.trim());
+            }
+          }
+        } catch (_) {}
+        start = -1;
+      } else if (depth < 0) {
+        depth = 0;
+        start = -1;
+      }
+    }
+  }
+  return {
+    vocab,
+    phrases: [...new Set(phrases)],
+    sentences: [...new Set(sentences)],
+  };
+}
+
 function parseVocabFromRaw(raw) {
   const empty = { vocab: [], phrases: [], sentences: [] };
   if (!raw || typeof raw !== 'string') return empty;
@@ -789,8 +849,15 @@ function parseVocabFromRaw(raw) {
   // 1) 标准标记块
   const m = raw.split(/---VOCAB_JSON_START---/i);
   if (m.length >= 2) {
-    const got = tryParse(m[1].split(/---VOCAB_JSON_END---/i)[0]);
+    const markerBody = m[1].split(/---VOCAB_JSON_END---/i)[0];
+    const got = tryParse(markerBody);
     if (got && (got.vocab.length || got.phrases.length || got.sentences.length)) return got;
+
+    // 1b) 截断抢救：当 Dify 长输出因 max_tokens 在词表 JSON 尾部截断时，逐个提取已闭合的子对象
+    const salvaged = salvageTruncatedVocabJson(markerBody);
+    if (salvaged && (salvaged.vocab.length || salvaged.phrases.length || salvaged.sentences.length)) {
+      return salvaged;
+    }
   }
 
   // 2) 兜底：全文里找带 words/phrases 的 JSON 对象

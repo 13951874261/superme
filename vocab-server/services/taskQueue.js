@@ -6,18 +6,26 @@ class InMemoryTaskQueue {
   constructor() {
     this.tasks = new Map();
     this.TTL = 3600 * 1000; // 默认 1 小时过期
+    const normalizedDir = __dirname.replace(/\\/g, '/');
+    const isProd = process.env.NODE_ENV === 'production'
+      || normalizedDir.startsWith('/opt/')
+      || normalizedDir.startsWith('/var/www/');
+    const defaultDataDir = process.env.SUPER_AGENT_DATA_DIR
+      || (isProd ? '/var/lib/super-agent' : path.join(__dirname, '..', 'data'));
     const dataDir = process.env.NODE_ENV === 'test'
       ? fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'super-agent-tasks-'))
-      : path.join(__dirname, '..', 'data');
+      : defaultDataDir;
     this.queuePath = path.join(dataDir, 'tasks.json');
     if (process.env.NODE_ENV === 'test') {
       process.once('exit', () => fs.rmSync(dataDir, { recursive: true, force: true }));
     }
 
-    // 确保 data 目录存在
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
-    }
+    // 确保 data 目录存在（只读文件系统下静默降级为纯内存）
+    try {
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+    } catch (_) {}
 
     // 从磁盘恢复任务队列
     this._load();

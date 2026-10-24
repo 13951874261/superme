@@ -7960,6 +7960,113 @@ app.get('/api/english/daily-extract/status/:taskId', (req, res) => {
   }
 });
 
+const emptyArticleVocabRepairInflight = new Set();
+const emptyArticleVocabRepairAttempts = new Map();
+
+function normalizeFallbackItemsToDisplayLists(fallbackRes = {}) {
+  const rawWords = Array.isArray(fallbackRes.vocab) ? fallbackRes.vocab : [];
+  const rawPhrases = Array.isArray(fallbackRes.phrases) ? fallbackRes.phrases : [];
+  const rawSentences = Array.isArray(fallbackRes.sentences) ? fallbackRes.sentences : [];
+
+  const words = [];
+  const phrases = [];
+  const sentences = [];
+
+  for (const item of rawWords) {
+    const w = typeof item === 'string' ? item.trim() : String(item?.word || item?.name || '').trim();
+    if (!w) continue;
+    if (Array.isArray(item?.examples)) {
+      for (const ex of item.examples) {
+        if (typeof ex === 'string' && ex.trim()) sentences.push(ex.trim());
+      }
+    }
+    const isSent = item?.is_sentence || (w.length > 30 && (/[.!?。！？]$/.test(w) || w.split(' ').length >= 5));
+    if (isSent) sentences.push(w);
+    else words.push(w);
+  }
+
+  for (const p of rawPhrases) {
+    const text = typeof p === 'string' ? p.trim() : String(p?.phrase || p?.phrase_text || p?.sentence || p?.text || '').trim();
+    if (!text) continue;
+    if (Array.isArray(p?.examples)) {
+      for (const ex of p.examples) {
+        if (typeof ex === 'string' && ex.trim()) sentences.push(ex.trim());
+      }
+    }
+    const isSent = p?.is_sentence || (text.length > 30 && (/[.!?。！？]$/.test(text) || text.split(' ').length >= 5));
+    if (isSent) sentences.push(text);
+    else phrases.push(text);
+  }
+
+  for (const s of rawSentences) {
+    const text = typeof s === 'string' ? s.trim() : String(s?.sentence || s?.word || s?.text || '').trim();
+    if (text) sentences.push(text);
+  }
+
+  return {
+    words: [...new Set(words)],
+    phrases: [...new Set(phrases)],
+    sentences: [...new Set(sentences)],
+  };
+}
+
+function triggerEmptyArticleVocabRepair(row, cacheSource) {
+  if (!row?.id || !row?.article || String(row.article).trim().length < 80) return;
+  const key = `${cacheSource}:${row.id}`;
+  if (emptyArticleVocabRepairInflight.has(key) || emptyArticleVocabRepairAttempts.get(key) === row.updated_at) return;
+  if (emptyArticleVocabRepairAttempts.size >= 1000) emptyArticleVocabRepairAttempts.delete(emptyArticleVocabRepairAttempts.keys().next().value);
+  emptyArticleVocabRepairAttempts.set(key, row.updated_at);
+  emptyArticleVocabRepairInflight.add(key);
+
+  (async () => {
+    try {
+      const cleanBody = prepareLongArticleBody(row.article);
+      const fallbackRes = await extractVocabFallback(
+        cleanBody || row.article,
+        row.cefr_level || 'B1',
+        row.genre || 'meeting',
+        String(row.duration || '15'),
+        row.theme || ''
+      );
+      const { words, phrases, sentences } = normalizeFallbackItemsToDisplayLists(fallbackRes);
+      if (words.length === 0 && phrases.length === 0 && sentences.length === 0) return;
+
+      const now = Date.now();
+      db.prepare(`
+        UPDATE daily_extracted_articles
+        SET words_json = ?, phrases_json = ?, sentences_json = ?, updated_at = ?
+        WHERE user_id = ? AND quota_date = ? AND theme = ? AND genre = ? AND cefr_level = ?
+          AND CAST(duration AS TEXT) = ? AND article = ?
+          AND words_json = '[]' AND phrases_json = '[]' AND sentences_json = '[]'
+      `).run(JSON.stringify(words), JSON.stringify(phrases), JSON.stringify(sentences), now,
+        row.user_id, row.quota_date, row.theme, row.genre, row.cefr_level, String(row.duration), row.article);
+
+      db.prepare(`
+        UPDATE daily_listen_articles
+        SET vocab_json = ?, phrases_json = ?, updated_at = ?
+        WHERE user_id = ? AND pack_date = ? AND theme = ? AND genre = ? AND cefr_level = ? AND duration = ?
+          AND body_text = ? AND COALESCE(vocab_json, '[]') = '[]' AND COALESCE(phrases_json, '[]') = '[]'
+      `).run(
+        JSON.stringify(words),
+        JSON.stringify(phrases),
+        now,
+        row.user_id,
+        row.quota_date,
+        row.theme,
+        row.genre,
+        row.cefr_level,
+        Number(row.duration),
+        row.article
+      );
+      console.log(`[Daily Extract Auto-Repair] Repaired empty vocab for id=${row.id} words=${words.length} phrases=${phrases.length} sentences=${sentences.length}`);
+    } catch (e) {
+      console.warn(`[Daily Extract Auto-Repair] Failed for id=${row.id}:`, e.message);
+    } finally {
+      emptyArticleVocabRepairInflight.delete(key);
+    }
+  })();
+}
+
 const handleGetDailyExtractArticle = (req, res) => {
   try {
     const rawUserId = req.query.userId || 'default-user';
@@ -8093,6 +8200,20 @@ const handleGetDailyExtractArticle = (req, res) => {
         ORDER BY created_at DESC LIMIT 1
       `).get(...comboArgs);
 
+    const parsedWords = JSON.parse(row.words_json || '[]');
+    const parsedPhrases = JSON.parse(row.phrases_json || '[]');
+    const parsedSentences = JSON.parse(row.sentences_json || '[]');
+    const hasVocabItems = parsedWords.length + parsedPhrases.length + parsedSentences.length > 0;
+
+    // 针对精确查询（点击「重新开始」/ handleAutoGenerate）：若缓存仅有正文但词表全空，返回 found: false 放行重新生成覆写
+    if (!hasVocabItems && req.path && req.path.endsWith('/exact')) {
+      return res.json({ success: true, found: false, emptyVocabSkipped: true });
+    }
+    // 针对页面初始化拉取：若命中空词表长文，立即后台触发一次静默补抽自愈
+    if (!hasVocabItems && row.article) {
+      triggerEmptyArticleVocabRepair(row, cacheSource);
+    }
+
     const dataPayload = {
       id: row.id,
       userId: row.user_id,
@@ -8101,9 +8222,9 @@ const handleGetDailyExtractArticle = (req, res) => {
       genre: row.genre,
       cefrLevel: row.cefr_level,
       article: row.article,
-      words: JSON.parse(row.words_json || '[]'),
-      phrases: JSON.parse(row.phrases_json || '[]'),
-      sentences: JSON.parse(row.sentences_json || '[]'),
+      words: parsedWords,
+      phrases: parsedPhrases,
+      sentences: parsedSentences,
       duration: String(row.duration),
       inputSignature: row.input_signature,
       updatedAt: row.updated_at,
@@ -12131,6 +12252,30 @@ app.post('/api/tasks/clear-finished', (req, res) => {
 // Whisper ????????????? API???????????????? 9router ??????? CORS ??????????
 
 // 当 Dify 工作流提取词汇为空时，调用本地 LLM 动态提取生词、短语与句型 (使用 dify 模型)
+function sampleLongBodyForFallback(rawBody, maxChars = 9000) {
+  const text = String(rawBody || '').trim();
+  if (text.length <= maxChars) return text;
+  // ponytail: 仅采样首中尾完整句子，不保证覆盖全文；需全量召回时改用分块提取。
+  const sentences = Array.from(new Intl.Segmenter('en', { granularity: 'sentence' }).segment(text), s => s.segment.trim());
+  const budget = Math.floor((maxChars - 10) / 3);
+  const take = (start) => {
+    const picked = [];
+    let length = 0;
+    for (let i = start; i < sentences.length; i += 1) {
+      if (length + sentences[i].length + (picked.length ? 1 : 0) > budget) break;
+      picked.push(sentences[i]);
+      length += sentences[i].length + (picked.length > 1 ? 1 : 0);
+    }
+    return picked.join('\n');
+  };
+  let tailStart = sentences.length;
+  let tailLength = 0;
+  while (tailStart > 0 && tailLength + sentences[tailStart - 1].length + 1 <= budget) {
+    tailLength += sentences[--tailStart].length + 1;
+  }
+  return [take(0), take(Math.floor(sentences.length / 2)), take(tailStart)].filter(Boolean).join('\n...\n');
+}
+
 async function extractVocabFallback(body, cefrLevel = 'B1', genre = 'meeting', duration = '15', theme = '') {
   const { chatCompletions, getLlmModels, DEFAULT_LLM_KEY } = require('./services/openaiCompatLlm');
   const apiKey = process.env.LISTEN_LLM_API_KEY || DEFAULT_LLM_KEY;
@@ -12141,7 +12286,7 @@ async function extractVocabFallback(body, cefrLevel = 'B1', genre = 'meeting', d
 ${cefrLevel}
 
 【EXTRACTION REQUIREMENTS】
-Based on the length of the input article and the target CEFR level, dynamically determine the number of items to extract (e.g. for a short 1-minute article, extract around 5-8 words, 3-5 phrases, and 1-2 sentence structures; for longer articles, extract more but no more than 30 words, 20 phrases, and 8 sentence structures). All extracted items must be present in the input article.
+Based on the length of the input article and the target CEFR level, dynamically determine the number of items to extract (e.g. for a short 1-minute article, extract around 5-8 words, 3-5 phrases, and 1-2 sentence structures; for longer articles, extract around 12-18 words, 8-12 phrases, and 3-5 sentence structures). All extracted items must be present in the input article.
 
 For each word/phrase/sentence structure, provide:
 - phonetic: IPA notation (American standard or British standard)
@@ -12182,14 +12327,15 @@ The JSON schema must be exactly:
   ]
 }`;
 
-  const executeRequest = async (modelName) => {
+  const executeRequest = async (modelName, maxChars, timeoutMs) => {
+    const sampledBody = sampleLongBodyForFallback(body, maxChars);
     const data = await chatCompletions({
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `Input Article:\n"""\n${body}\n"""` }
+        { role: 'user', content: `Input Article:\n"""\n${sampledBody}\n"""` }
       ],
       temperature: 0.2,
-      timeoutMs: 60000,
+      timeoutMs,
       apiKey,
       models: [modelName],
     });
@@ -12198,12 +12344,16 @@ The JSON schema must be exactly:
 
   const delay = (ms) => new Promise(res => setTimeout(res, ms));
 
-  const modelsToTry = getLlmModels();
-  for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
-    const selectedModel = modelsToTry[attempt];
-    console.log(`[Vocab Fallback] Calling fallback LLM (attempt ${attempt + 1}/${modelsToTry.length}) using model=${selectedModel}...`);
+  const baseModels = getLlmModels();
+  const attemptsPlan = [
+    { model: baseModels[0], maxChars: 9000, timeoutMs: 120000 },
+    { model: baseModels[1] || baseModels[0], maxChars: 4500, timeoutMs: 120000 },
+  ];
+  for (let attempt = 0; attempt < attemptsPlan.length; attempt++) {
+    const { model: selectedModel, maxChars, timeoutMs } = attemptsPlan[attempt];
+    console.log(`[Vocab Fallback] Calling fallback LLM (attempt ${attempt + 1}/${attemptsPlan.length}) using model=${selectedModel} maxChars=${maxChars}...`);
     try {
-      const response = await executeRequest(selectedModel);
+      const response = await executeRequest(selectedModel, maxChars, timeoutMs);
       const json = JSON.parse(response.data);
       const content = (json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content || '').trim();
 
@@ -12234,7 +12384,7 @@ The JSON schema must be exactly:
       };
     } catch (err) {
       console.warn(`[Vocab Fallback] Attempt ${attempt + 1} failed:`, err.message);
-      if (attempt < modelsToTry.length - 1) {
+      if (attempt < attemptsPlan.length - 1) {
         await delay(1000);
       }
     }
