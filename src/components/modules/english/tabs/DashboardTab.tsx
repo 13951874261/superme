@@ -648,6 +648,14 @@ export default function DashboardTab() {
 
   const handleAutoGenerate = async (e?: React.MouseEvent<HTMLButtonElement>) => {
     const handoffAnchor = (e?.currentTarget as HTMLElement) || null;
+    const clickedAt = Date.now();
+    let taskId: string | undefined;
+    const overlayTimer = setTimeout(() => {
+      setIsAutoGenerating(false);
+      if (!taskId) {
+        showNotice('dashboard', '请求仍在提交，可继续操作；受理后会自动加入任务中心', 'info');
+      }
+    }, 3000);
     setIsAutoGenerating(true);
     setIsBackgroundGenerating(false);
     playScan();
@@ -752,9 +760,12 @@ export default function DashboardTab() {
         return;
       }
 
+      taskId = started.taskId;
       const waitPromise = waitEnglishMasteryExtraction(started.taskId);
-
-      const race = await withDailyExtractTimeout(waitPromise, DAILY_EXTRACT_RACE_MS);
+      const remainingMs = Math.max(0, DAILY_EXTRACT_RACE_MS - (Date.now() - clickedAt));
+      const race = remainingMs === 0
+        ? { isTimeout: true as const }
+        : await withDailyExtractTimeout(waitPromise, remainingMs);
       if (race.isTimeout) {
         const genreLabel = ({
           meeting: '高管会议',
@@ -814,6 +825,7 @@ export default function DashboardTab() {
       console.error('生成今日长文失败:', e);
       showNotice('dashboard', '生成失败，请稍后重试', 'error');
     } finally {
+      clearTimeout(overlayTimer);
       setIsAutoGenerating(false);
     }
   };
