@@ -1,0 +1,246 @@
+# 驭心博弈 · 高管斗争案例生成器
+# 建议服务端 Key: DIFY_GAME_THEORY_CASE_GEN_KEY
+# 导入：Dify 工作室 → 导入 DSL → 上传本文件 → 发布
+# 去重：调用方传入 existing_cases（数据库已存全部案例目录）与 avoid_topics（本轮额外排除）
+app:
+  description: 在线生成不重复的高管斗争深案例，返回结构化 JSON 供驭心博弈案例库刷新使用
+  icon: 🧠
+  icon_background: '#181817'
+  icon_type: emoji
+  mode: workflow
+  name: Game Theory Case Generator
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景类型
+          options:
+          - gov_struggle
+          - corp_clash
+          - upward_takeover
+          required: true
+          type: select
+          variable: scene_type
+        - label: 博弈模型
+          max_length: 40
+          options: []
+          required: false
+          type: text-input
+          variable: game_model
+        - label: 避免主题
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: avoid_topics
+        - label: 数据库已存案例
+          max_length: 100000
+          options: []
+          required: false
+          type: paragraph
+          variable: existing_cases
+        - label: 用户画像
+          max_length: 2000
+          options: []
+          required: false
+          type: paragraph
+          variable: user_profile
+        - label: 生成请求
+          max_length: 500
+          options: []
+          required: true
+          type: text-input
+          variable: generation_request
+      height: 269
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.9
+          mode: chat
+          name: gpt-4o
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是顶级高管斗争顾问与案例教学法教练。任务是生成一条全新的、可研判的高管权力斗争案例。
+
+            必须遵守哈佛商学院案例法：
+            1. 有明确主角（用“你是……”第二人称）。
+            2. 有足够前情：时间、组织、资源、会议/文件节点，background 不少于 120 字。
+            3. 信息故意不完整：incomplete_info 写清主角此刻不知道什么。
+            4. 停在决策点：decision_point 只给选择，不公布历史结局，不给标准答案。
+            5. 斗争尖锐：有利益冲突、站队压力、反噬风险。
+
+            去重硬约束（必须同时满足）：
+            - 数据库已存案例 existing_cases：{{#start.existing_cases#}}
+              格式为每行一条：id | title | dedupe_key。这是数据库里已经保存的全部案例，不是抽样。
+            - 额外避免主题 avoid_topics：{{#start.avoid_topics#}}
+            - 禁止输出与 existing_cases 中任何一行相同的 id、title 或 dedupe_key。
+            - 禁止只改人名、公司名、地点而保留同一冲突结构（例如同一套“会场甩锅”“董事会突袭免职”“明升暗降架空”）。
+            - 新案例必须换核心冲突、信息差来源和决策点类型。
+            - 若 existing_cases 很长，仍必须全部避开，不得从中复述或续写。
+
+            场景约束：
+            - 场景类型：{{#start.scene_type#}}（gov_struggle=体制内派系，corp_clash=外企高管倾轧，upward_takeover=以下克上）
+            - 博弈模型：{{#start.game_model#}}（可为空，为空则自行选择最贴合的一种并写入 game_model）
+            - 用户画像：{{#start.user_profile#}}
+            - 生成请求：{{#start.generation_request#}}
+
+            合规：
+            - 体制内案例必须匿名合成，不得指向可识别的真实公职人员或具体单位全称。
+            - 外企案例可用公开商业事件作结构骨架，但须改写成学员可决策的第二人称局。
+            - 只写合法组织政治与程序博弈，不写违法犯罪操作指南。
+
+            输出要求：
+            1. 严格 JSON，不要 markdown，不要代码块，直接以 { 开头、以 } 结尾。
+            2. 全部中文（id 与 dedupe_key 用英文短横线 slug）。
+            3. id 与 dedupe_key 必须相同，格式如 corp-board-letter-01，且不得出现在 existing_cases 或 avoid_topics 里。
+            4. env 必须等于输入的 scene_type。
+
+            输出 JSON 结构：
+            {
+              "id": "env-语义化短横线",
+              "env": "gov_struggle 或 corp_clash 或 upward_takeover",
+              "title": "不超过18字的冲突标题",
+              "dedupe_key": "与 id 相同",
+              "background": "前情与利益结构，不少于120字",
+              "incomplete_info": "主角此刻不知道的关键信息，不少于30字",
+              "decision_point": "必须立刻做出的选择，不少于30字，不含结局",
+              "game_model": "prisoner_dilemma 或 pig_game 或 info_asymmetry 或 cold_trigger"
+            }
+        - role: user
+          text: |
+            请生成一条与数据库已存案例完全不重复的高管斗争深案例。
+            场景类型：{{#start.scene_type#}}
+            博弈模型：{{#start.game_model#}}
+            数据库已存案例：{{#start.existing_cases#}}
+            额外避免主题：{{#start.avoid_topics#}}
+            用户画像：{{#start.user_profile#}}
+            生成请求：{{#start.generation_request#}}
+        selected: false
+        title: 案例生成LLM
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 384
+        y: 282
+      positionAbsolute:
+        x: 384
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: case_json
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 688
+        y: 282
+      positionAbsolute:
+        x: 688
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244

@@ -1,0 +1,329 @@
+# ─────────────────────────────────────────────────────────────
+# Dify Workflow DSL
+# 名称: 驭心博弈个人复盘 (Game Theory Session Personal Review)
+# 类型: Workflow
+# 官方依据: https://docs.dify.ai/zh/api-reference/guides/workflow
+#           https://docs.dify.ai/zh/api-reference/workflow-runs/run-workflow
+# 调用: POST /v1/workflows/run  response_mode=blocking
+# 输出变量: review_result（纯 JSON 字符串，勿包 markdown）
+# 建议服务端 Key: DIFY_GAME_THEORY_SESSION_REVIEW_KEY
+# 使用时机: 用户确认全景图之后的第二阶段；必须带上 summary_json
+# ─────────────────────────────────────────────────────────────
+app:
+  description: 多人群体博弈停止后的第二阶段复盘：在局势全景图确认后，针对用户本人输出误判、优势、错过时机与下一步行动建议，并带依据-解释-置信度。
+  icon: 🎯
+  icon_background: '#F5F3FF'
+  icon_type: emoji
+  mode: workflow
+  name: 驭心博弈个人复盘 (Game Theory Session Personal Review)
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景类型
+          options:
+          - gov_struggle
+          - corp_clash
+          - upward_takeover
+          required: true
+          type: select
+          variable: scene_type
+        - label: 博弈模型
+          options:
+          - prisoner_dilemma
+          - pig_game
+          - info_asymmetry
+          - cold_trigger
+          required: true
+          type: select
+          variable: game_model
+        - label: 来源类型
+          options:
+          - guided_simulation
+          - real_record
+          required: true
+          type: select
+          variable: source_type
+        - label: 心理侧写模式
+          options:
+          - evidence_bound
+          - assertive
+          required: true
+          type: select
+          variable: psyche_mode
+        - label: 场景标题
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: title
+        - label: 场景描述
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: scenario
+        - label: 角色阵容JSON
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: roles_json
+        - label: 历史回合JSON
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: history_json
+        - label: 局势全景图JSON
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: summary_json
+        - label: 用户角色ID
+          max_length: 64
+          options: []
+          required: false
+          type: text-input
+          variable: user_role_id
+        - label: 用户角色名
+          max_length: 128
+          options: []
+          required: false
+          type: text-input
+          variable: user_role_name
+        - default: 0
+          label: 已完成回合
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: current_round
+        - default: 0
+          label: 已用分钟
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: number
+          variable: elapsed_minutes
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 后端自动注入的格式化时间
+          label: _system_time
+          max_length: 128
+          options: []
+          placeholder: ''
+          required: true
+          type: text-input
+          variable: _system_time
+        - default: 0
+          hint: 后端自动注入的毫秒级时间戳
+          label: _system_timestamp_ms
+          max_length: null
+          options: []
+          placeholder: ''
+          required: true
+          type: number
+          variable: _system_timestamp_ms
+      height: 280
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 输出带证据链的用户个人复盘 JSON
+        model:
+          completion_params:
+            temperature: 0.4
+          mode: chat
+          name: gemini-1.5-pro-latest
+          provider: google
+        prompt_template:
+        - edition_type: basic
+          id: bd705e6f-8192-430e-cf30-4b5c6d7e8f90
+          role: system
+          text: |-
+            当前系统时间：{{#start._system_time#}}。
+            你是驭心博弈「个人复盘」教练。这是第二阶段，必须先消化 summary_json（局势全景图），再只评价用户本人。
+            必须且只能返回合法 JSON 字符串：不要 markdown 代码块，不要注释，不要 JSON 以外的文字。
+
+            【定位用户】
+            优先用 user_role_id；否则用 user_role_name；再否则把 roles_json 中 is_user=true 或数组第一项视为用户。
+            只点评用户说过的话、没抓住的窗口、以及可执行的下一手。不要把全景图再抄一遍。
+
+            【证据规则】
+            - source_type=real_record：强制 evidence_bound。
+            - 每条误判/错过时机必须包含 evidence（依据）、explanation（解释）、confidence（0 到 1）。
+            - evidence 必须指向具体 round_no 或用户原话摘要；禁止「可能/也许/总是」空判。
+            - psyche_mode=assertive 且 guided_simulation 时，允许把「若继续这样打会怎样」写进 explanation，但 confidence 仍要诚实。
+
+            【字段】
+            - missteps：2-5 条用户已发生的误判或失招。
+            - strengths：1-3 条真正打出过效果的动作，没有就空数组，不要硬夸。
+            - missed_moments：按 round_no 升序；issue=错过了什么，why=当时为何错过，avoid_action=下次同结构下的具体替代动作。
+            - strategy_guidance：3-5 条马上能用的行动建议，最好落到下一句话怎么说、找谁、带什么筹码。
+
+            输出：
+            {
+              "missteps": [
+                {
+                  "claim": "误判一句话",
+                  "evidence": "R3：用户原话或行为摘要",
+                  "explanation": "这为什么是误判",
+                  "confidence": 0.71
+                }
+              ],
+              "strengths": [
+                {
+                  "claim": "打出效果的动作",
+                  "evidence": "R2：依据",
+                  "explanation": "为何有效",
+                  "confidence": 0.66
+                }
+              ],
+              "missed_moments": [
+                {
+                  "round_no": 4,
+                  "issue": "错过的窗口",
+                  "why": "当时为何错过",
+                  "avoid_action": "下次可执行的替代动作",
+                  "evidence": "R4：依据",
+                  "explanation": "窗口为何存在",
+                  "confidence": 0.64
+                }
+              ],
+              "strategy_guidance": [
+                "下一手可执行建议"
+              ]
+            }
+
+            【禁止】
+            不要输出 hierarchy / alliances / power_chips 等全景图字段。
+            不要给 0-100 总分。不要评价未上场角色的内心戏。
+        - id: ce816f70-92a3-441f-d041-5c6d7e8f9012
+          role: user
+          text: |-
+            scene_type: {{#start.scene_type#}}
+            game_model: {{#start.game_model#}}
+            source_type: {{#start.source_type#}}
+            psyche_mode: {{#start.psyche_mode#}}
+            title: {{#start.title#}}
+            scenario: {{#start.scenario#}}
+            roles_json: {{#start.roles_json#}}
+            history_json: {{#start.history_json#}}
+            summary_json: {{#start.summary_json#}}
+            user_role_id: {{#start.user_role_id#}}
+            user_role_name: {{#start.user_role_name#}}
+            current_round: {{#start.current_round#}}
+            elapsed_minutes: {{#start.elapsed_minutes#}}
+            user_current_profile: {{#start.user_current_profile#}}
+        selected: false
+        title: 个人复盘LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: review_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -89
+      y: -1
+      zoom: 1
+  rag_pipeline_variables: []

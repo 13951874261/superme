@@ -1,0 +1,23 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "ls-case-daily-pool-20260823",
+    "profile": "standard",
+    "type": "brownfield",
+    "slug": "ls-case-daily-pool",
+    "rounds_completed": 10,
+    "current_ambiguity": 0.12,
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "pressure_pass_complete": true,
+    "non_goals_explicit": true,
+    "decision_boundaries_explicit": true,
+    "challenge_modes_used": ["contrarian", "terminologist"],
+    "prompt_safe_summary_status": "not_needed",
+    "context_snapshot_path": ".omx/context/ls-case-daily-pool-20260823T111200Z.md",
+    "interview_path": ".omx/interviews/ls-case-daily-pool-20260823T123000Z.md",
+    "spec_path": ".omx/specs/deep-interview-ls-case-daily-pool.md",
+    "handoff_pending": true
+  }
+}

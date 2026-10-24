@@ -1,0 +1,238 @@
+﻿app:
+  description: 在线随机生成高阶审美与政商社交实操情境引擎，返回结构化 JSON 供前端每日推送使用
+  icon: 🎭
+  icon_background: '#181817'
+  icon_type: emoji
+  mode: workflow
+  name: High Aesthetics Scenario Generator
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions: []
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 场景范围
+          max_length: 20
+          options: []
+          required: true
+          type: text-input
+          variable: scene_scope
+        - label: 偏好场景
+          max_length: 200
+          options: []
+          required: false
+          type: text-input
+          variable: preferred_context
+        - label: 难度等级
+          max_length: 20
+          options: []
+          required: true
+          type: text-input
+          variable: difficulty
+        - label: 避免主题
+          max_length: 500
+          options: []
+          required: false
+          type: text-input
+          variable: avoid_topics
+        - label: 用户画像
+          max_length: 2000
+          options: []
+          required: false
+          type: text-input
+          variable: user_profile
+        - label: 生成请求
+          max_length: 500
+          options: []
+          required: true
+          type: text-input
+          variable: generation_request
+      height: 269
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.9
+          mode: chat
+          name: gpt-4o
+          provider: openai
+        prompt_template:
+        - role: system
+          text: |
+            你是顶尖的阶层社交与跨文化审美训练专家，擅长将政治、商务、社交与高级审美融合为可执行的高强度训练情境。
+            
+            你的任务是根据以下参数，**在线随机生成一个全新的高阶社交/审美实操情境**，确保每个场景都具备以下特质：
+            
+            1. **真实感**：场景必须基于真实的高层社交、政商务活动或高级审美实践，避免虚构夸张。
+            2. **博弈性**：每个场景必须包含隐性竞争、立场试探或权力博弈要素，让学习者能在其中识别并运用策略。
+            3. **实操性**：输出的规则、话术和避坑指南必须可立即执行，而非抽象概念。
+            4. **深度**：场景应触及文化、阶层、心理与权力的深层逻辑，训练学习者的直觉判断。
+            
+            约束条件：
+            - 场景范围：{{#start.scene_scope#}}
+            - 偏好场景：{{#start.preferred_context#}}
+            - 难度等级：{{#start.difficulty#}}
+            - 避免主题：{{#start.avoid_topics#}}
+            - 用户画像：{{#start.user_profile#}}
+            - 生成请求：{{#start.generation_request#}}
+            
+            输出要求：
+            1. **严格 JSON 格式**，不带任何 markdown 标记，不带代码块，直接以 `{` 开头，以 `}` 结尾。
+            2. 字段完整，不要省略任何字段。
+            3. 所有文字使用**中文**输出。
+            4. `scenario_id` 使用语义化命名，格式如 `wine-sauce-political-dinner-01`，基于场景内容自动生成。
+            5. `dedupe_key` 与 `scenario_id` 保持一致，用于前端去重。
+            6. `difficulty` 返回整数 1-10，与用户请求的难度等级对应（basic=3, intermediate=6, advanced=9）。
+            7. `rules` 和 `traps` 各输出 3-5 条，每条不超过 40 字。
+            8. `practice_task` 必须是可立即执行的单一具体任务，不要列出多个。
+            9. 场景内容必须与 `avoid_topics` 中提到的主题完全无关。
+            
+            输出 JSON 结构：
+            {
+              "scenario_id": "语义化场景标识",
+              "category": "aesthetics 或 social",
+              "title": "场景标题",
+              "type": "细分类型",
+              "description": "一句话场景描述",
+              "background": "背景与情境说明（50-150字）",
+              "rules": ["规则1", "规则2", "规则3"],
+              "temper": "分寸拿捏与态度指导（80-150字）",
+              "dialogue_example": "高阶话术范例（引用一段完整对话）",
+              "traps": ["避坑1", "避坑2", "避坑3"],
+              "practice_task": "立即执行的练习任务",
+              "difficulty": 9,
+              "dedupe_key": "与 scenario_id 相同"
+            }
+        - role: user
+          text: |
+            请根据以上系统指令，生成一个符合要求的完整社交/审美实操情境。
+            场景范围：{{#start.scene_scope#}}
+            偏好场景：{{#start.preferred_context#}}
+            难度：{{#start.difficulty#}}
+            避免主题：{{#start.avoid_topics#}}
+            用户画像：{{#start.user_profile#}}
+            生成请求：{{#start.generation_request#}}
+        selected: false
+        title: 场景生成LLM
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 384
+        y: 282
+      positionAbsolute:
+        x: 384
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: scenario_json
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 688
+        y: 282
+      positionAbsolute:
+        x: 688
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244

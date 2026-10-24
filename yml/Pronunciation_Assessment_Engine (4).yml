@@ -1,0 +1,297 @@
+app:
+  description: 专门用于处理用户英语发音评测的高阶工作流。接收用户原本想要朗读的目标词/句，以及通过STT识别出的实际发音文本，分析发音错误、重音偏移及连读问题。返回结构化的
+    JSON 格式结果。
+  icon: 🗣️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: Pronunciation_Assessment_Engine
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.50@bcca1b734d9ae24ce8ddb9652bd872d69b91a3ffdb2ff8f8885c6f651da33cb0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: code
+      id: llm-to-code
+      source: llm
+      sourceHandle: source
+      target: code
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: code
+        targetType: end
+      id: code-to-end
+      source: code
+      sourceHandle: source
+      target: end
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - desc: 用户原本想说的目标词汇或句子
+          label: target_text
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: target_text
+        - desc: 通过 Whisper 或 STT 识别出的用户实际录音文本
+          label: recognized_text
+          max_length: 1024
+          options: []
+          required: false
+          type: text-input
+          variable: recognized_text
+      height: 135
+      id: start
+      position:
+        x: 0
+        y: 200
+      positionAbsolute:
+        x: 0
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.3
+            top_p: 0.8
+          mode: chat
+          name: '111'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 6fd756ac-eb0f-4cb6-ad2e-0f1308c2d41e
+          role: system
+          text: "你是一名极其严苛的顶尖英语发音教练。请比对 target_text（目标发音）和 recognized_text（实际识别），给出专业的发音评测结果。\n\
+            \n# 评测维度\n1. 发音准确度 - 元音、辅音是否标准\n2. 重音位置 - 单词重音是否正确\n3. 连读弱读 - 是否影响理解\n\
+            \n# 输出格式\n严格输出 JSON 格式，禁止包含 markdown 代码块（不要输出 ```json）：\n{\n  \"score\"\
+            : 0-100的整数分数,\n  \"phonetic\": \"目标词的音标\",\n  \"issue_type\": \"vowel|consonant|stress|rhythm|other\"\
+            ,\n  \"analysis\": \"简洁的问题分析（20-50字）\",\n  \"suggestion\": \"改进建议（20-50字）\"\
+            \n}"
+        - id: c5fbe526-b667-4b1e-bafb-c259f8c580d5
+          role: user
+          text: '目标发音: {{#start.target_text#}}
+
+            实际识别: {{#start.recognized_text#}}'
+        selected: false
+        title: 发音诊断 (LLM)
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 342
+        y: 200
+      positionAbsolute:
+        x: 342
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        code: "import json\nimport re\n\ndef main(llm_text: str, target_text: str,\
+          \ recognized_text: str) -> dict:\n    result = {\n        \"score\": 0,\n\
+          \        \"phonetic\": \"\",\n        \"issue_type\": \"other\",\n     \
+          \   \"analysis\": \"\",\n        \"suggestion\": \"\",\n        \"target_text\"\
+          : target_text,\n        \"recognized_text\": recognized_text\n    }\n  \
+          \  try:\n        clean_str = llm_text.strip().strip('```json').strip('```').strip()\n\
+          \        json_match = re.search(r'\\{[\\s\\S]*\\}', clean_str)\n       \
+          \ if json_match:\n            parsed = json.loads(json_match.group())\n\
+          \            result[\"score\"] = max(0, min(100, int(parsed.get(\"score\"\
+          , 0))))\n            result[\"phonetic\"] = parsed.get(\"phonetic\", \"\"\
+          )\n            result[\"issue_type\"] = parsed.get(\"issue_type\", \"other\"\
+          )\n            result[\"analysis\"] = parsed.get(\"analysis\", \"\")\n \
+          \           result[\"suggestion\"] = parsed.get(\"suggestion\", \"\")\n\
+          \        else:\n            result[\"analysis\"] = \"评测完成\"\n          \
+          \  result[\"suggestion\"] = \"请参考评分\"\n    except Exception as e:\n    \
+          \    result[\"analysis\"] = \"评测完成\"\n    return result"
+        code_language: python3
+        outputs:
+          analysis:
+            children: null
+            type: string
+          issue_type:
+            children: null
+            type: string
+          phonetic:
+            children: null
+            type: string
+          recognized_text:
+            children: null
+            type: string
+          score:
+            children: null
+            type: number
+          suggestion:
+            children: null
+            type: string
+          target_text:
+            children: null
+            type: string
+        selected: false
+        title: 解析评测结果
+        type: code
+        variables:
+        - value_selector:
+          - llm
+          - text
+          value_type: string
+          variable: llm_text
+        - value_selector:
+          - start
+          - target_text
+          value_type: string
+          variable: target_text
+        - value_selector:
+          - start
+          - recognized_text
+          value_type: string
+          variable: recognized_text
+      height: 52
+      id: code
+      position:
+        x: 684
+        y: 200
+      positionAbsolute:
+        x: 684
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - code
+          - score
+          variable: score
+        - value_selector:
+          - code
+          - phonetic
+          variable: phonetic
+        - value_selector:
+          - code
+          - issue_type
+          variable: issue_type
+        - value_selector:
+          - code
+          - analysis
+          variable: analysis
+        - value_selector:
+          - code
+          - suggestion
+          variable: suggestion
+        - value_selector:
+          - code
+          - target_text
+          variable: target_text
+        - value_selector:
+          - code
+          - recognized_text
+          variable: recognized_text
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: end
+      position:
+        x: 1026
+        y: 200
+      positionAbsolute:
+        x: 1026
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: 100
+      y: 100
+      zoom: 0.8
+  rag_pipeline_variables: []

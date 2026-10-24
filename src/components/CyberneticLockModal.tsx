@@ -1,5 +1,7 @@
-import React from 'react';
-import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { gsap } from 'gsap';
+import { ShieldAlert, Lock, ArrowRight, BookOpen, Mic, Mail } from 'lucide-react';
+import { playGentleWarning } from '../utils/soundEffects';
 
 interface CyberneticLockModalProps {
   isOpen: boolean;
@@ -7,6 +9,8 @@ interface CyberneticLockModalProps {
   theme: string;
   oralCount: number;
   maxWriteScore: number;
+  emailCompleted: boolean;
+  pendingSentenceDebt?: string | null;
 }
 
 export default function CyberneticLockModal({
@@ -14,79 +18,104 @@ export default function CyberneticLockModal({
   onClose,
   theme,
   oralCount,
-  maxWriteScore
+  maxWriteScore,
+  emailCompleted,
+  pendingSentenceDebt
 }: CyberneticLockModalProps) {
+  const backdropRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      playGentleWarning();
+
+      if (backdropRef.current && cardRef.current) {
+        gsap.fromTo(backdropRef.current, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' });
+        gsap.fromTo(
+          cardRef.current,
+          { opacity: 0, scale: 0.95, y: 15 },
+          { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: 'back.out(1.6)' }
+        );
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const isOralDone = oralCount >= 10;
   const isWriteDone = maxWriteScore >= 8;
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/80 backdrop-blur-md animate-[fadeIn_0.3s_ease-out]">
-      <div className="bg-[#1C1C1E] border border-red-500/30 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_0_80px_rgba(239,68,68,0.15)] animate-[slideUp_0.4s_ease-out] relative z-10 mx-4">
-        {/* Glow alert icon container */}
-        <div className="w-20 h-20 bg-red-500/10 text-red-400 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20 relative">
-          <div className="absolute inset-0 rounded-full bg-red-500/5 animate-ping opacity-75"></div>
-          <Lock className="w-10 h-10" />
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center">
+      {/* 遮罩层 */}
+      <div
+        ref={backdropRef}
+        onClick={onClose}
+        className="lock-modal-backdrop absolute inset-0 bg-slate-950/40 backdrop-blur-sm"
+      />
+
+      {/* 弹窗内容 */}
+      <div
+        ref={cardRef}
+        className="lock-modal-card bg-white border border-zinc-200/80 rounded-[2rem] p-10 text-center max-w-lg shadow-[0_20px_50px_rgba(0,0,0,0.06)] relative z-10 mx-4 w-full"
+      >
+        {/* Elegant static icon container */}
+        <div className="w-16 h-16 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-center mx-auto mb-6 text-red-500 shadow-sm">
+          <ShieldAlert className="w-8 h-8 stroke-[1.75]" />
         </div>
 
-        <h2 className="text-2xl font-black text-white mb-2 uppercase tracking-widest flex items-center justify-center gap-2">
-          <ShieldAlert className="w-6 h-6 text-red-500" />
-          控制论闭环阻断器激活
-        </h2>
-        <span className="text-[10px] text-red-500 font-bold uppercase tracking-widest block mb-4">
-          Cybernetic Closed-Loop Interceptor Active
-        </span>
-
-        <p className="text-gray-400 text-xs leading-relaxed mb-6">
-          根据全局控制论规约，当前阵地未被完全攻克前，全站其他模块已被锁定。<br />
-          请先在 <strong className="text-white">英语引擎</strong> 模块中完成当前主题的每日闭环指标。
+        <h3 className="text-xl font-bold text-zinc-900 mb-2">日常唤醒学习未解锁</h3>
+        <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
+          主题：<span className="font-semibold text-zinc-800">「{theme}」</span><br />
+          请先完成对应模块的训练任务，以获得全面沉浸体验。
         </p>
 
-        {/* Current Theme Info */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-left mb-6">
-          <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold mb-1.5">当前战役阵地</div>
-          <div className="text-sm font-bold text-white mb-4">{theme}</div>
+        {/* 校验列表 */}
+        <div className="space-y-3 text-left mb-8 bg-zinc-50/80 p-5 rounded-2xl border border-zinc-100">
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <Mic className="w-4 h-4 text-zinc-400" />
+              口语对练 (≥10次)
+            </span>
+            <span className={`px-2.5 py-1 rounded-full font-semibold ${isOralDone ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {oralCount} / 10 次
+            </span>
+          </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            {/* Oral Stat Card */}
-            <div className={`p-3.5 rounded-xl border transition-all ${isOralDone ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/5 border-red-500/10'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                  <Mic className="w-3 h-3" /> 口语沙盘
-                </span>
-                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${isOralDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                  {isOralDone ? '已达标' : '未达标'}
-                </span>
-              </div>
-              <div className="text-lg font-black text-white">
-                {oralCount} <span className="text-xs text-gray-500 font-normal">/ 10 轮</span>
-              </div>
-            </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <BookOpen className="w-4 h-4 text-zinc-400" />
+              写作打分 (≥80分)
+            </span>
+            <span className={`px-2.5 py-1 rounded-full font-semibold ${isWriteDone ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {maxWriteScore > 0 ? `${maxWriteScore * 10} 分` : '未打分'}
+            </span>
+          </div>
 
-            {/* Write Stat Card */}
-            <div className={`p-3.5 rounded-xl border transition-all ${isWriteDone ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-red-500/5 border-red-500/10'}`}>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                  <BookOpen className="w-3 h-3" /> 纵深写作
-                </span>
-                <span className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded ${isWriteDone ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>
-                  {isWriteDone ? '已达标' : '未达标'}
-                </span>
-              </div>
-              <div className="text-lg font-black text-white">
-                {maxWriteScore} <span className="text-xs text-gray-500 font-normal">/ 8 分</span>
-              </div>
-            </div>
+          <div className="flex items-center justify-between text-xs">
+            <span className="flex items-center gap-2 font-medium text-zinc-700">
+              <Mail className="w-4 h-4 text-zinc-400" />
+              商务 Email 处理
+            </span>
+            <span className={`px-2.5 py-1 rounded-full font-semibold ${emailCompleted ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+              {emailCompleted ? '已完成' : '未处理'}
+            </span>
           </div>
         </div>
 
-        {/* Action Button */}
+        {/* 提示信息 */}
+        {pendingSentenceDebt && (
+          <div className="mb-6 p-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-700 font-medium">
+            提示：您尚有未清偿的生词卡片（债务：{pendingSentenceDebt}）。
+          </div>
+        )}
+
+        {/* 关闭按钮 */}
         <button
           onClick={onClose}
-          className="w-full bg-red-600 text-white font-black uppercase tracking-widest py-3.5 rounded-xl hover:bg-red-500 transition-colors shadow-lg shadow-red-950/20 cursor-pointer flex items-center justify-center gap-2 text-xs"
+          className="w-full py-3.5 bg-zinc-900 hover:bg-zinc-800 text-white font-medium text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2 shadow-sm active:scale-[0.99] cursor-pointer"
         >
-          重返核心战场
+          <span>我知道了</span>
           <ArrowRight className="w-4 h-4" />
         </button>
       </div>

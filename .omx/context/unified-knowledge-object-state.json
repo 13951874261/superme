@@ -1,0 +1,32 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "omx_cli": "unavailable",
+  "state": {
+    "interview_id": "8f3c2a1e-6b94-4d11-9e70-unified-knowledge-20260815",
+    "profile": "standard",
+    "type": "brownfield",
+    "current_ambiguity": 0.13,
+    "threshold": 0.2,
+    "max_rounds": 12,
+    "rounds_completed": 11,
+    "challenge_modes_used": ["contrarian", "simplifier", "ontologist"],
+    "context_snapshot_path": ".omx/context/unified-knowledge-object-20260815T113800Z.md",
+    "transcript_path": ".omx/interviews/unified-knowledge-platform-20260815T120800Z.md",
+    "spec_path": ".omx/specs/deep-interview-unified-knowledge-platform.md",
+    "scores": {
+      "intent": 0.9,
+      "outcome": 0.84,
+      "scope": 0.88,
+      "constraints": 0.82,
+      "success": 0.88,
+      "context": 0.88
+    },
+    "readiness_gates": {
+      "non_goals": "resolved",
+      "decision_boundaries": "resolved",
+      "pressure_pass": "complete",
+      "closure_audit": "passed"
+    }
+  }
+}

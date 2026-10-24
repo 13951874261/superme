@@ -1,0 +1,40 @@
+# Context: unify-listen-dashboard-enums
+
+- Task statement: 统一精听页与总控台（进度总控）的枚举值，保持一致性。
+- Desired outcome: 两边可选的体裁/难度/时长不再各写各的，避免「这边能选、那边没有」。
+- Stated solution: 统一精听和总控中的枚举值。
+- Probable intent hypothesis: 用户刚遇到「总控选行业研报 + B1 + 35分钟 → 暂无今日长文」，根因是总控体裁名单比精听/凌晨 Cron 更宽；希望先把名单对齐，避免再选到预热不到的组合。
+- Known facts/evidence:
+  - `[from-code][auto-confirmed]` 总控下拉（`ArsenalPanel.tsx`）：`meeting / email / report / negotiation / presentation / reading / news`。类型 `GenreType` 还含 `podcast`，但下拉未展示。
+  - `[from-code][auto-confirmed]` 精听下拉（`ListenTab.tsx`）：`meeting / news / podcast`。
+  - `[from-code][auto-confirmed]` 凌晨长文 Cron（`dailyCronRunService.LONG_GENRES`）：`meeting / news / podcast / reading`。
+  - `[from-code][auto-confirmed]` 难度两边都是 `A2 / B1 / B2 / C1`；时长两边都是 `1 / 15 / 25 / 35`。真正不一致的是体裁。
+  - `[from-code][auto-confirmed]` `mapGenreToDify`：`email/report → reading`，`negotiation/presentation → meeting`。精听生成会折成 4 类；总控长文接口把 `genre` 原样入库，查缓存按字符串精确匹配。
+- Constraints: 本轮是 deep-interview，不改代码。确认前不得实现。
+- Unknowns/open questions:
+  - 「统一」是缩总控、扩精听，还是另定一份标准名单？
+  - Cron / 多角色 / 演讲 / 写作是否一起改？
+  - 旧缓存 `genre=report` 要不要兼容？
+- Decision-boundary unknowns:
+  - 夜里预热是否必须跟着新名单扩（64 → 更多）？
+  - 谁有权改这份名单（前端下拉 vs 后端 LONG_GENRES）？
+- Likely codebase touchpoints:
+  - `src/components/modules/english/tabs/dashboard/ArsenalPanel.tsx`
+  - `src/components/modules/english/tabs/ListenTab.tsx`
+  - `src/components/modules/english/tabs/DashboardTab.tsx`
+  - `src/services/difyAPI.ts`（`GenreType` / `mapGenreToDify`）
+  - `vocab-server/services/dailyCronRunService.js`（`LONG_GENRES`）
+  - `vocab-server/services/dailyListenPreGenerateService.js`（`GENRES`）
+  - `vocab-server/services/dailyPackCron.js`
+- Relevant repo docs/rules/context inspected:
+  - `AGENTS.md`（确认后才改代码；中文）
+  - `docs/superpowers/specs/2026-08-23-unified-theme-design.md`（主题统一，与体裁枚举无关）
+  - `docs/superpowers/plans/2026-07-24-daily-listen-pregenerate.md`（精听预热最初 3 体裁）
+  - `.omx/specs/deep-interview-daily-auto-gen-verify.md`（四模块定时生成验收）
+  - `.omx/context/daily-listen-pregenerate-deploy-20260724T013300Z.md`（部署快照，不定义体裁名单）
+  - 无 `CONTEXT.md` / `CONTEXT-MAP.md` / `.omx/config.toml`
+- Terminology or doc/code conflicts found:
+  - 用户说「枚举值」：难度/时长已一致，体裁三套名单不一致。
+  - 「总控」= Dashboard 学习材料库；「精听」= ListenTab；凌晨 Cron 是第三套，用户本句未点名。
+  - `podcast`：类型和 Cron 有，总控下拉没有；`reading`：总控和 Cron 有，精听下拉没有。
+- Prompt-safe initial-context summary status: `not_needed`

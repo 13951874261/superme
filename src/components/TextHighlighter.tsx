@@ -1,17 +1,40 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { BookmarkPlus, Sparkles } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { addWord, updateWordPayload } from '../services/vocabAPI';
-import { runWordEnrichment, toVocabEnrichmentPayload } from '../services/difyAPI';
 import CustomCardModal from './CustomCardModal';
+import { useEnglishContext } from './modules/english/context/EnglishContext';
+import { useVocabCollect } from '../hooks/useVocabCollect';
+import VocabZoneCollectButtons from './VocabZoneCollectButtons';
+import { AnchoredPopover } from './overlays/AnchoredOverlayHost';
+import {
+  VOCAB_ZONE_LABEL,
+  classifyCollectKind,
+  type VocabCategory,
+} from '../utils/vocabZoneLabels';
 
 export default function TextHighlighter() {
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const { theme } = useEnglishContext();
+  const {
+    collect: collectVocab,
+    hydrateTexts,
+    getCollectingZone,
+    getQueuedZone,
+    getStoredCategory,
+  } = useVocabCollect();
+  const [position, setPosition] = useState<DOMRect | null>(null);
   const [selectedText, setSelectedText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<{ message: string; isError: boolean } | null>(null);
   const [isParaSelection, setIsParaSelection] = useState(false);
   const [showModal, setShowModal] = useState(false);
+
+  useEffect(() => {
+    if (!selectedText) return;
+    const sync = () => hydrateTexts([selectedText]);
+    sync();
+    window.addEventListener('vocab-updated', sync);
+    return () => window.removeEventListener('vocab-updated', sync);
+  }, [selectedText, hydrateTexts]);
 
   useEffect(() => {
     const handleSelection = () => {
@@ -39,10 +62,7 @@ export default function TextHighlighter() {
         if (isWord || text.length > 40) {
           const range = selection.getRangeAt(0);
           const rect = range.getBoundingClientRect();
-          setPosition({
-            x: rect.left + rect.width / 2,
-            y: rect.top - 45,
-          });
+          setPosition(rect);
           setSelectedText(text);
           setIsParaSelection(!isWord);
         }
@@ -53,7 +73,7 @@ export default function TextHighlighter() {
     return () => document.removeEventListener('mouseup', handleSelection);
   }, [showModal]);
 
-  const handleSave = async (e: React.MouseEvent) => {
+  const handleSave = async (e: React.MouseEvent, category?: VocabCategory) => {
     e.preventDefault(); // 阻止默认行为以防止选区立即丢失
     e.stopPropagation();
     
@@ -63,58 +83,56 @@ export default function TextHighlighter() {
       return;
     }
 
-    if (!selectedText || isSaving) return;
+    if (!selectedText || isSaving || !category) return;
     setIsSaving(true);
 
     const targetWord = selectedText;
-    let payload = {
-      word: targetWord,
-      phonetic: '',
-      partOfSpeech: '',
-      meaning: '待复习补充',
-      definition_en: '',
-      business_note: '',
-      examples: [] as string[],
-      source: '全局划线截获',
-    };
+    const kind = classifyCollectKind(targetWord);
+    const stored = getStoredCategory(targetWord);
 
     try {
-      try {
-        const theme = localStorage.getItem('english_theme') || '政商务沟通';
-        const enriched = await runWordEnrichment(targetWord, theme);
-        payload = toVocabEnrichmentPayload(enriched);
-      } catch (enrichError) {
-        console.error('词汇补全失败，使用占位 payload 继续入库:', enrichError);
-      }
-
-      const created = await addWord({
-        word: targetWord,
-        dictType: 'manual_capture',
-        category: 'general',  // 划词属于日常场景，存入全场景区
-        payload,
+      const outcome = await collectVocab({
+        text: targetWord,
+        category,
+        ...kind,
+        migrateOnly: !!stored && stored !== category,
+        source: '全局划线收录',
+        topic: theme,
+        payload: { source: '全局划线收录' },
+        anchor: e.currentTarget,
       });
-
-      const wordId = created?.id;
-      if (wordId) {
-        await updateWordPayload(wordId, payload);
+      if (outcome === 'failed' || outcome === 'blocked') {
+        if (outcome === 'failed') {
+          setSaveResult({ message: '加入失败，请检查网络后重试', isError: true });
+        }
+        return;
       }
 
-      const existedMessage = created?.success === false ? '（已自动更新释义）' : '';
-      setSaveResult({ message: `战术词汇「${targetWord}」已存入全场景区！${existedMessage}`, isError: false });
-      
-      // 触发右侧 30% 视窗自动弹出并显示该词详情
+      setSaveResult({ message: `战术词汇「${targetWord}」已存入${VOCAB_ZONE_LABEL[category]}！`, isError: false });
+
       window.dispatchEvent(new CustomEvent('toggle-right-panel', {
-        detail: { open: true, tab: 'context', wordData: payload }
+        detail: { open: true, tab: 'context', wordData: { word: targetWord, source: '全局划线收录' } }
       }));
 
-      // 触发高端烟花效果
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
-        colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
-        zIndex: 10000,
-      });
+      // Light celebration burst (aligned with Confetti.tsx — avoid jank)
+      if (
+        typeof window === 'undefined' ||
+        typeof window.matchMedia !== 'function' ||
+        !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      ) {
+        confetti({
+          particleCount: 18,
+          spread: 46,
+          startVelocity: 12,
+          decay: 0.92,
+          ticks: 90,
+          gravity: 0.9,
+          scalar: 0.7,
+          origin: { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight },
+          colors: ['#10B981', '#047857', '#FF5722', '#F97316'],
+          zIndex: 5000, // mirrors --overlay-z-popover; canvas-confetti requires a number
+        });
+      }
 
       window.getSelection()?.removeAllRanges();
       setTimeout(() => {
@@ -123,7 +141,7 @@ export default function TextHighlighter() {
       }, 3000);
     } catch (error) {
       console.error(error);
-      setSaveResult({ message: '🚫 截获失败，请检查指挥中心网络。', isError: true });
+      setSaveResult({ message: '加入失败，请检查网络后重试', isError: true });
       setTimeout(() => {
         setSaveResult(null);
         setPosition(null);
@@ -150,35 +168,55 @@ export default function TextHighlighter() {
 
   return (
     <>
-      <div
-        id="text-highlighter-saving"
-        data-saving={isSaving || saveResult !== null ? 'true' : 'false'}
-        onMouseDown={handleSave}
-        style={{ left: position.x, top: position.y, position: 'fixed' }}
-        className={`z-[9999] transform -translate-x-1/2 px-4 py-2.5 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] text-xs font-black tracking-widest flex items-center cursor-pointer transition-all ${
-          saveResult 
+      <AnchoredPopover
+        anchor={position}
+        open={!!position}
+        onClose={() => setPosition(null)}
+        restoreFocus={false}
+        className={`px-4 py-2.5 rounded-xl shadow-[0_10px_30px_rgba(0,0,0,0.3)] text-xs font-black tracking-widest flex items-center gap-2 ${
+          saveResult
             ? (saveResult.isError ? 'bg-red-500 text-white border border-red-600' : 'bg-emerald-500 text-white border border-emerald-600')
-            : 'bg-[#202124] uppercase text-white hover:bg-[#FF5722] border border-gray-700 animate-[bounce_0.2s_ease-out]'
-        }`}
+            : 'bg-[#202124] uppercase text-white border border-gray-700'
+        } ${isParaSelection && !saveResult ? 'cursor-pointer hover:bg-[#FF5722]' : ''}`}
       >
+        <div
+          id="text-highlighter-saving"
+          data-saving={isSaving || saveResult !== null ? 'true' : 'false'}
+          onMouseDown={isParaSelection ? handleSave : undefined}
+          className="flex items-center gap-2"
+        >
         {saveResult ? (
           <span>{saveResult.message}</span>
-        ) : (
+        ) : isParaSelection ? (
           <>
-            {isParaSelection ? (
-              <>
-                <Sparkles className="w-4 h-4 mr-2 text-amber-400 animate-pulse" />
-                <span>快速段落制卡</span>
-              </>
-            ) : (
-              <>
-                <BookmarkPlus className={`w-4 h-4 mr-2 ${isSaving ? 'text-gray-400 animate-spin' : 'text-[#FF5722]'}`} />
-                <span>{isSaving ? '情报补全中...' : '截获至弹药库'}</span>
-              </>
-            )}
+            <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+            <span>快速段落制卡</span>
           </>
+        ) : (
+          <VocabZoneCollectButtons
+            text={selectedText}
+            storedCategory={getStoredCategory(selectedText)}
+            matrixReady={!!getStoredCategory(selectedText)}
+            collectingZone={getCollectingZone(selectedText)}
+            queuedZone={getQueuedZone(selectedText)}
+            onCollect={(zone, anchor) => {
+              const fakeEvent = {
+                preventDefault() {},
+                stopPropagation() {},
+                currentTarget: anchor,
+                clientX: position ? position.left + position.width / 2 : 0,
+                clientY: position?.top || 0,
+              } as unknown as React.MouseEvent;
+              void handleSave(fakeEvent, zone);
+            }}
+            onBlockedWhileCollecting={(activeZone) => {
+              setSaveResult({ message: `正在收录至${VOCAB_ZONE_LABEL[activeZone]}，请稍候`, isError: false });
+              setTimeout(() => setSaveResult(null), 2200);
+            }}
+          />
         )}
-      </div>
+        </div>
+      </AnchoredPopover>
 
       {showModal && (
         <CustomCardModal

@@ -1,0 +1,51 @@
+# Context Snapshot: account-data-isolation
+
+- Task statement: 当前登录账号的画像、生词、长文、唤醒、破绽词汇及所有模块学习数据必须按账号隔离，不允许账号间复用。用户已选择方案 A。
+- Desired outcome: 换账号后界面与生成结果只属于当前受邀账号；上一账号的学习数据不得出现、不得被写成当前账号服务端数据。
+- Stated solution: 方案 A（用户 2026-08-30 确认）——同一浏览器换账号时，画像/复盘/生词/长文/唤醒/破绽/各模块学习数据全部按账号分桶；服务端生成/清理必须带当前 user_id；可共享的仅系统模板（如破绽兜底词 `fallacy`）。不加 session token（那是方案 C）。
+- Probable intent hypothesis: 受邀多账号会共用同一浏览器或同一生产库；产品承诺「因您而变」，个性化敏感数据（康奈尔画像、破绽、复盘）若串号会直接破坏信任。
+- Known facts/evidence:
+  - [from-user] 用户选择方案 A，并要求 `/deep-interview`；本模式不直接改产品代码。
+  - [from-code][auto-confirmed] 登录：`LoginPage` → `verifyInvite` → `initializeUserSession`；`isAuthenticated` 刷新后为 false，需再填账号。见 `src/components/LoginPage.tsx`、`src/App.tsx`、`docs/superpowers/specs/2026-08-30-invite-only-login-design.md`。
+  - [from-code][auto-confirmed] `initializeUserSession` 只 `ensureAppUserId` + `login-ping` + `loadUserProfileFromServer`，不清空其它 localStorage。`src/utils/profileHelper.ts`。
+  - [from-code][auto-confirmed] 画像本地键全局：`User_Current_Profile` / `user_current_profile` / `user_memory_layers` / `user_error_ledger`。若新账号服务端画像空或更旧，会把本地旧画像 `POST /api/user/profile/save` 写到新 userId。
+  - [from-code][auto-confirmed] 康奈尔复盘键全局：`superme_biweekly_review_history`、`superme_last_review_date`、`superme_next_week_push` 等。`src/utils/reviewHelper.ts`、`src/components/SummaryArea.tsx`。
+  - [from-code][auto-confirmed] 长文本地缓存全局：`super_agent_last_generated_article` 等。`src/components/modules/english/tabs/DashboardTab.tsx`。
+  - [from-code][auto-confirmed] 生词列表按 `user_id` 过滤；`parseVocabUserId` 缺省回落 `lzhmy`。`/api/vocab/item/:id` 及 update/delete/review 不验归属。
+  - [from-code][auto-confirmed] `getUserVocabWords` / `getHistoryExclude`：`SELECT word FROM vocabulary ORDER BY added_at DESC` 无 user_id。`vocab-server/services/dailyPackService.js`；cron 注释写明「当前实现未按 user_id 过滤」。
+  - [from-code][auto-confirmed] `POST /api/english/clear-today` 删除今日抽取词不按 user_id。`vocab-server/server.js`。
+  - [from-code][auto-confirmed] 日包 upsert 有隔离测试：`vocab-server/scripts/test-daily-pack-upsert-isolation.js`。长文/精听查询带 user_id。
+  - [from-code][auto-confirmed] 邀请制登录非目标含「为全部 /api/* 增加登录中间件」；安全说明接受「知道账号 ID 即可登录」。`docs/superpowers/specs/2026-08-30-invite-only-login-design.md`。
+- Constraints:
+  - AGENTS.md：中文、确认后才改产品代码；deep-interview 本模式不直接实现。
+  - 邀请制登录已确认：无密码、刷新需再登录、API 不加 session（本轮登录规格）。
+  - 优先复用现有 `user_id` 分库存模式，不新造轮子。
+- Unknowns/open questions:
+  - 方案 A 要先堵住的失败面：同浏览器换号串 UI，还是生成原料跨账号，还是两者同等？
+  - 「所有模块」是否含 UI 偏好（音色、背景、音效）还是仅学习数据？
+  - 系统模板 / `system` tactics / `default-user` 遗留行如何处理？
+  - 历史已串写到错误账号的服务端数据是否回滚？
+  - 换号时本地旧账号缓存：分桶保留 vs 清空？
+- Decision-boundary unknowns:
+  - 代理可否自决 localStorage 键前缀格式、缺省 userId 回落值？
+  - 是否允许修 IDOR（按 id 读写生词）而不做 session token？
+  - 与邀请登录规格「不加 API 中间件」的边界如何切。
+- Likely codebase touchpoints:
+  - `src/utils/profileHelper.ts`, `src/utils/reviewHelper.ts`, `src/components/SummaryArea.tsx`, `src/components/LoginPage.tsx`
+  - `src/components/modules/english/**` localStorage 键
+  - `vocab-server/services/dailyPackService.js` `getHistoryExclude` / `getUserVocabWords`
+  - `vocab-server/server.js` vocab by-id、clear-today、parseVocabUserId
+  - `src/services/vocabAPI.ts` 已有按 userId 的 review cache key（可作分桶范例）
+- Relevant repo docs/rules/context inspected:
+  - `AGENTS.md`
+  - `docs/superpowers/specs/2026-08-30-invite-only-login-design.md`
+  - `docs/superpowers/specs/2026-07-23-daily-pack-cron-design.md`
+  - `docs/superpowers/plans/2026-08-29-career-profile-dify-linkage.md`（验收含「账号隔离」但仅 career 换 User ID）
+  - `.omx/specs/deep-interview-lzhmy-daily-pack-missing.md`（当时非目标：不做多账号体系重构）
+  - `.omx/context/login-ms-display-fail-20260803T130419Z.md`
+- Terminology or doc/code conflicts found:
+  - 用户「隔离 / 不允许复用」vs 邀请登录规格「知道账号即可进、API 不加 token」——方案 A 是数据分桶，不是鉴权升级。
+  - 仓库「账号隔离」在职业路径计划里仅指 career 随 User ID 还原，不等于全模块隔离。
+  - `.omx/specs/deep-interview-lzhmy-daily-pack-missing.md` 曾把「多账号体系重构」列为非目标；本任务明确要做账号数据隔离。
+  - daily-pack 设计原文 UNIQUE `(user_id, pack_date)`；代码已是 `(user_id, pack_date, input_signature)`。
+- Prompt-safe initial-context summary status: not_needed

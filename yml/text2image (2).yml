@@ -1,0 +1,282 @@
+app:
+  description: 根据描述优化提示词形成图片链接。
+  icon: 🤖
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: text2image
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 10
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: 1777874502112-llm
+      source: '1777874502112'
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: llm
+        targetType: tool
+      id: llm-source-1777874520163-target
+      source: llm
+      sourceHandle: source
+      target: '1777874520163'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        isInLoop: false
+        sourceType: tool
+        targetType: answer
+      id: 1777874520163-source-answer-target
+      source: '1777874520163'
+      sourceHandle: source
+      target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables: []
+      height: 73
+      id: '1777874502112'
+      position:
+        x: 81
+        y: 281
+      positionAbsolute:
+        x: 81
+        y: 281
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        memory:
+          query_prompt_template: 根据{{#sys.query#}}美化完善形成图片提示词。
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: false
+            size: 1
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '111'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: 0539a985-d9dc-439d-ac08-559321b63a02
+          role: system
+          text: "## 系统提示词\n\n你是一名资深 AI 绘画提示词工程师，擅长根据用户的文字描述{{#sys.query#}}，生成高质量、可用于\
+            \ Midjourney、Stable Diffusion、DALL·E 等 AI 绘图工具的图片提示词。\n\n你的任务是：根据用户输入的内容，理解其想要表达的画面主题、风格、主体、环境、构图、光影、色彩、细节和情绪，并将其优化为专业、清晰、可执行的图片生成提示词。\n\
+            \n请遵循以下要求：\n\n1. **准确理解用户意图**\n   - 保留用户描述中的核心元素。\n   - 如果用户描述较简单，请合理补充画面细节。\n\
+            \   - 不要改变用户想表达的主题。\n\n2. **优化图片提示词**\n   - 补充主体特征、场景环境、艺术风格、镜头语言、光影效果、色彩氛围、画质描述等。\n\
+            \   - 提示词应适合 AI 绘图模型理解。\n   - 尽量使用具体、可视化的描述，避免抽象空泛。\n\n3. **输出格式固定**\n\
+            \   请按照以下格式输出：\n\n   **中文提示词：**  \n   xxx\n\n   **英文提示词：**  \n   xxx\n\
+            \n   **负面提示词：**  \n   xxx\n\n   **推荐参数：**  \n   - 画面比例：\n   - 风格：\n  \
+            \ - 镜头：\n   - 光影：\n   - 画质：\n\n4. **英文提示词要求**\n   - 使用自然、专业的英文图像生成提示词。\n\
+            \   - 用逗号分隔关键词和短语。\n   - 可包含如：highly detailed, cinematic lighting, ultra\
+            \ realistic, 8k, masterpiece 等质量词，但不要过度堆砌。\n\n5. **负面提示词要求**\n   - 根据画面类型生成常见负面提示词。\n\
+            \   - 可包含：low quality, blurry, distorted, bad anatomy, extra fingers,\
+            \ watermark, text, logo, deformed, poorly drawn 等。\n   - 如果是风景图，可减少人物相关负面词。\n\
+            \n6. **如果用户输入信息不足**\n   - 不要追问，直接基于用户输入进行合理扩展。\n   - 例如用户只输入“猫”，你可以生成一只猫在温暖阳光下的高质量摄影风格画面提示词。\n\
+            \n7. **禁止内容**\n   - 不生成违法、血腥、色情、仇恨、侵犯隐私或危险行为相关的图片提示词。\n   - 如用户请求不合规内容，请委婉拒绝，并提供安全替代方案。\n\
+            \n---\n\n## 输出示例\n\n当用户输入：  \n“未来城市里的少女”\n\n你应输出：\n\n**中文提示词：**  \n一位年轻少女站在未来城市的霓虹街道中央，身穿科技感银白色外套，背景是高耸入云的摩天大楼、全息广告牌和飞行汽车，夜晚赛博朋克氛围，蓝紫色霓虹灯光，电影感构图，细节丰富，超现实主义，高质量数字艺术\n\
+            \n**英文提示词：**  \na young girl standing in the center of a futuristic neon\
+            \ city street, wearing a silver techwear jacket, towering skyscrapers\
+            \ in the background, holographic billboards, flying cars, cyberpunk night\
+            \ atmosphere, blue and purple neon lights, cinematic composition, highly\
+            \ detailed, ultra realistic, high quality digital art\n\n**负面提示词：**  \n\
+            low quality, blurry, distorted face, bad anatomy, extra fingers, deformed\
+            \ hands, watermark, text, logo, poorly drawn, overexposed\n\n**推荐参数：**\
+            \  \n- 画面比例：9:16  \n- 风格：赛博朋克、未来主义  \n- 镜头：中景、电影感构图  \n- 光影：蓝紫色霓虹光、强对比光影\
+            \  \n- 画质：高清、细节丰富、数字艺术风格"
+        selected: false
+        structured_output_enabled: false
+        title: LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#1777874520163.text#}}'
+        selected: false
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 103
+      id: answer
+      position:
+        x: 979
+        y: 282
+      positionAbsolute:
+        x: 979
+        y: 282
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        is_team_authorization: true
+        paramSchemas:
+        - auto_generate: null
+          default: null
+          form: llm
+          human_description:
+            en_US: 完整提示词
+            ja_JP: 完整提示词
+            pt_BR: 完整提示词
+            zh_Hans: 完整提示词
+          label:
+            en_US: promote
+            ja_JP: promote
+            pt_BR: promote
+            zh_Hans: promote
+          llm_description: 完整提示词
+          max: null
+          min: null
+          name: promote
+          options: []
+          placeholder:
+            en_US: 完整提示词
+            ja_JP: 完整提示词
+            pt_BR: 完整提示词
+            zh_Hans: 完整提示词
+          precision: null
+          required: true
+          scope: null
+          template: null
+          type: string
+        params:
+          promote: ''
+        plugin_id: null
+        plugin_unique_identifier: null
+        provider_icon:
+          background: '#FEF7C3'
+          content: 🕵️
+        provider_id: 2d76b80f-1319-40af-80dd-7dece387c4c4
+        provider_name: text2image
+        provider_type: api
+        retry_config:
+          max_retries: 3
+          retry_enabled: true
+          retry_interval: 1000
+        selected: false
+        title: generateImage
+        tool_configurations: {}
+        tool_description: '输入完整提示词 `promote`，调用 AOW 生图并返回结果。
+
+          最终只输出三个字段：`promote`、`preview_url`、`download_url`。
+
+          '
+        tool_label: generateImage
+        tool_name: generateImage
+        tool_node_version: '2'
+        tool_parameters:
+          promote:
+            type: mixed
+            value: '{{#llm.text#}}'
+        type: tool
+      height: 81
+      id: '1777874520163'
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -264
+      y: 0.5
+      zoom: 1
+  rag_pipeline_variables: []

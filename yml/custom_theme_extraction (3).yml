@@ -1,0 +1,285 @@
+app:
+  description: 自定义主题萃取与词汇提纯 (Custom Theme Extraction)
+  icon: 📝
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: workflow
+  name: custom_theme_extraction
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 2
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: knowledge-retrieval
+      id: edge-1
+      source: start_node
+      sourceHandle: source
+      target: retrieval_node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: knowledge-retrieval
+        targetType: llm
+      id: edge-2
+      source: retrieval_node
+      sourceHandle: source
+      target: llm_node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: code
+      id: edge-3
+      source: llm_node
+      sourceHandle: source
+      target: code_node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: code
+        targetType: end
+      id: edge-4
+      source: code_node
+      sourceHandle: source
+      target: end_node
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 用户输入
+        type: start
+        variables:
+        - default: ''
+          label: 拟定主题名称
+          max_length: 256
+          required: false
+          type: text-input
+          variable: custom_theme_name
+        - default: ''
+          label: 学习主题
+          required: true
+          type: text-input
+          variable: topic
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+      height: 161
+      id: start_node
+      position:
+        x: 0
+        y: 100
+      positionAbsolute:
+        x: 0
+        y: 100
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        dataset_ids:
+        - Gh9Wui8bN0bAx85wYPwLdU/mVJRTqTm97rjWl6DvF6xxd5DAF72wFc1u4Pu7Y4S8
+        query_variable_selector:
+        - start_node
+        - topic
+        retrieval_mode: single
+        selected: false
+        single_retrieval_config:
+          model:
+            completion_params: {}
+            mode: chat
+            name: '86'
+            provider: langgenius/openai_api_compatible/openai_api_compatible
+        title: 知识检索
+        type: knowledge-retrieval
+      height: 90
+      id: retrieval_node
+      position:
+        x: 300
+        y: 100
+      positionAbsolute:
+        x: 300
+        y: 100
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: true
+          variable_selector:
+          - retrieval_node
+          - result
+        model:
+          completion_params: {}
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: d779782f-58c9-496a-83cc-ebf3c624131e
+          role: system
+          text: "你是一个商务英语教学场景萃取专家。用户上传了一份商务材料。\n\n【用户拟定的主题名称】: {{custom_theme_name}}\n\
+            【知识库检索到的文档片段】: {{context}}\n【国家/地区画像背景】: {{user_current_profile}}\n\n\
+            请根据文档内容和画像背景，完成以下任务：\n1. 优化/确认一个精确的主题名称（中英双语，如 \"Tesla Q3 Earnings Call\
+            \ - 特斯拉Q3财报电话会议\"）。\n2. 提取文档中最有价值的 15-20 个商务英语核心词汇（含英文、音标、中文释义）。\n3. 提取\
+            \ 5-8 个高频商务短语/表达。\n\n【画像自适应萃取约束】\n当前学习者的地区画像设定为：{{user_current_profile}}\n\
+            你必须根据该值，调整提取的单词与短语格式：\n1. 拼写风格自适应：\n   - 如果 {{user_current_profile}} 包含\
+            \ \"英国\" 或 \"UK\"，提取出的所有单词及短语必须强制转换为英式拼写规范（例如：使用 \"analyse\" 代替 \"analyze\"\
+            ，\"organisation\" 代替 \"organization\"，\"modelling\" 代替 \"modeling\"，\"\
+            favour\" 代替 \"favor\"）。\n2. 商务风格习惯对齐：\n   - 如果 {{user_current_profile}}\
+            \ 包含 \"英国\" 或 \"UK\"，在挑选高频商务短语时，优先挑选并过滤出符合英式商务习惯的地道用语（例如使用 \"take a decision\"\
+            \ 替代 \"make a decision\"）。\n   - 音标（\"ipa\" 字段）必须使用英式 IPA (IPA-UK) 进行标示。\n\
+            \n请以 JSON 格式输出，不要加任何 markdown 标记：\n{\"theme_name\":\"...\",\"extracted_words\"\
+            :[{\"word\":\"...\",\"ipa\":\"...\",\"meaning_zh\":\"...\"}],\"key_phrases\"\
+            :[\"...\"]}"
+        selected: false
+        title: LLM萃取
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm_node
+      position:
+        x: 636
+        y: 100
+      positionAbsolute:
+        x: 636
+        y: 100
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        code: "import json\ndef main(raw_text: str) -> dict:\n    try:\n        clean\
+          \ = raw_text.strip().replace('```json', '').replace('```', '').strip()\n\
+          \        parsed = json.loads(clean)\n        return {\n            \"theme_name\"\
+          : parsed.get(\"theme_name\", \"Custom Theme\"),\n            \"extracted_words\"\
+          : json.dumps(parsed.get(\"extracted_words\", []), ensure_ascii=False),\n\
+          \            \"key_phrases\": json.dumps(parsed.get(\"key_phrases\", []),\
+          \ ensure_ascii=False)\n        }\n    except:\n        return {\"theme_name\"\
+          : \"Custom Theme\", \"extracted_words\": \"[]\", \"key_phrases\": \"[]\"\
+          }\n"
+        code_language: python3
+        outputs:
+          extracted_words:
+            type: string
+          key_phrases:
+            type: string
+          theme_name:
+            type: string
+        selected: false
+        title: 代码解析
+        type: code
+        variables:
+        - value_selector:
+          - llm_node
+          - text
+          value_type: string
+          variable: raw_text
+      height: 52
+      id: code_node
+      position:
+        x: 900
+        y: 100
+      positionAbsolute:
+        x: 900
+        y: 100
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - code_node
+          - theme_name
+          value_type: string
+          variable: theme_name
+        - value_selector:
+          - code_node
+          - extracted_words
+          value_type: string
+          variable: extracted_words
+        - value_selector:
+          - code_node
+          - key_phrases
+          value_type: string
+          variable: key_phrases
+        selected: false
+        title: 输出
+        type: end
+      height: 140
+      id: end_node
+      position:
+        x: 1200
+        y: 100
+      positionAbsolute:
+        x: 1200
+        y: 100
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: -320
+      y: 53
+      zoom: 1
+  rag_pipeline_variables: []

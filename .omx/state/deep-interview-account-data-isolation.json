@@ -1,0 +1,24 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "4226d535-15c9-4e36-ad88-fa70335fe700",
+    "profile": "standard",
+    "type": "brownfield",
+    "slug": "account-data-isolation",
+    "rounds_completed": 7,
+    "current_ambiguity": 0.11,
+    "threshold": 0.2,
+    "pressure_pass_complete": true,
+    "non_goals_explicit": true,
+    "decision_boundaries_explicit": true,
+    "context_snapshot_path": ".omx/context/account-data-isolation-20260830T090530Z.md",
+    "interview_path": ".omx/interviews/account-data-isolation-20260830T091902Z.md",
+    "spec_path": ".omx/specs/deep-interview-account-data-isolation.md",
+    "handoff_pending": true,
+    "user_choice_scheme": "A",
+    "primary_failure": "same-browser-ui",
+    "sync_payload": "server-source-plus-missing",
+    "decision_boundary": "agent-impl-user-scope"
+  }
+}

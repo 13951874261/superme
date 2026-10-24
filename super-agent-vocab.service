@@ -4,18 +4,24 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/vocab-server
-ExecStart=/usr/bin/node /opt/vocab-server/server.js
+User=ubuntu
+WorkingDirectory=/var/www/super-agent/vocab-server
+ExecStart=/usr/bin/node --max-old-space-size=768 /var/www/super-agent/vocab-server/server.js
 Restart=always
 RestartSec=3
-User=ubuntu
 Environment=NODE_ENV=production
-Environment=DIFY_BASE_URL=https://dify.234124123.xyz
-Environment=DIFY_KB_DATASET_ID=99abd904-f0e0-45f3-95a8-660b44b17cc5
-Environment=DIFY_KB_API_KEY=dataset-Jk5ehEEDT72wmXI5P68hcTlI
-Environment=DIFY_CHAT_API_KEY=app-TyztRkdBVX4kNUxA8dZ0frk7
-Environment=DIFY_DICT_API_KEY=app-zGyrsyvvzHAIO5yx11OcYdpa
-Environment=DIFY_MATERIAL_SUMMARY_API_KEY=app-T6YxlWIOttg8gNpN6CYvBq6y
+EnvironmentFile=/etc/super-agent/vocab.env
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/www/super-agent/vocab-server/private /var/www/super-agent/vocab-server/public/temp_audio /var/lib/super-agent /var/www/super-agent/vocab-server/public/daily_long_articles /var/www/super-agent/vocab-server/public/daily_listen_audio
+MemoryHigh=1100M
+MemoryMax=1300M
+CPUQuota=150%
+TasksMax=256
+LimitNOFILE=65536
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

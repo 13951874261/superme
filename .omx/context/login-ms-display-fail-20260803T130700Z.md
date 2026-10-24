@@ -1,0 +1,25 @@
+# Context Snapshot: login-ms-display-fail
+
+- Task statement: lzhmy 登录后仍未毫秒级出现内容；用 deep-interview 深入分析原因（先澄清再动手）
+- Desired outcome: 弄清「非毫秒」的真实失败面与根因边界，产出可执行诊断/修复规格
+- Stated solution: deep-interview 深入分析（未指定立刻改代码）
+- Probable intent hypothesis: 用户看到截图级失败（请求超时 >5s / 已生成 0 词），怀疑缓存优先与强制生成未真正兑现「秒开」
+- Known facts/evidence:
+  - [from-code][auto-confirmed] 截图「请求超时 (>5s)」与 `src/services/dailyPackAPI.ts` 中 `getTodayDailyPack` 的 `timeoutMs: 5_000` Abort 文案一致（含最多 2 次重试）
+  - [from-code][auto-confirmed] `GET /api/daily-pack/today` = `upsertUserTheme` 写库 + `getDailyPackRow` 读库；不调 Dify
+  - [from-code][auto-confirmed] `getDailyPackRow` 在无 signature 时只返回 `status='ready'` 的当日包；非 ready 会表现为 missing/空
+  - [from-code][auto-confirmed] 唤醒 mount：`getTodayDailyPack({theme, historyExclude:'', profile:''})`；破绽：先 `buildDailyPackQueryInput`（最多等 500ms 拉词库）再 today → inflight key 不同，可并发双打 today
+  - [from-code][auto-confirmed] `POST /api/user/login-ping` 已 N1：`catchupScheduled: false`
+  - [from-code][auto-confirmed] 设计文档 `docs/superpowers/specs/2026-08-03-login-cron-catchup-design.md` 仍写登录 catch-up；与代码 N1 冲突
+  - [from-user/prior] force-generate 曾报 pack ready；listen A2/B1 `vocab_json/phrases_json` 仍为 `[]`；C3 回填报 empty
+  - [from-user] 截图：主题「商务谈判：让步与施压」、等待开启、已生成 0 词、破绽区超时+重试
+- Constraints: AGENTS 中文、确认后改；deep-interview 本模式不直接实现
+- Unknowns/open questions:
+  - 本次优先失败面：today 超时 vs 无 ready 包 vs 长文空词表
+  - 复现时服务器是否正跑 TTS/force-generate 写库
+  - Non-goals / Decision Boundaries
+- Decision-boundary unknowns: 超时阈值可否自决；today 是否允许写库；是否同批修空词表
+- Likely codebase touchpoints: `dailyPackAPI.ts`, `DailyWakeupModule`, `DailyErrorVocabularyModule`, `server.js` `/api/daily-pack/today`, `dailyPackService.js`, SQLite 锁
+- Relevant repo docs/rules/context inspected: AGENTS.md；login-cron design；`.omx/context/cache-first-*`；`.omx/context/login-ms-display-fail-*`
+- Terminology: 「毫秒级」≠「5s 内不超时」；超时只说明 HTTP 未在 5s 返回，不等于库里无包
+- Prompt-safe initial-context summary status: not_needed

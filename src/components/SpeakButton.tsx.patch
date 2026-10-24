@@ -1,0 +1,91 @@
+--- src/components/SpeakButton.tsx
++++ src/components/SpeakButton.tsx
+@@ -14,6 +14,24 @@
+   roleType?: 'ally' | 'blocker' | 'neutral' | 'ai';
+ }
+ 
++// 添加分段函数
++function chunkTextForTTS(text: string, maxLength = 800) {
++  const chunks = [];
++  let currentChunk = '';
++  const sentences = text.match(/[^.!?\n]+[.!?\n]*/g) || [text];
++  
++  for (let sentence of sentences) {
++    if ((currentChunk + sentence).length > maxLength && currentChunk.length > 0) {
++      chunks.push(currentChunk.trim());
++      currentChunk = '';
++    }
++    currentChunk += sentence;
++  }
++  if (currentChunk.trim()) {
++    chunks.push(currentChunk.trim());
++  }
++  return chunks;
++}
++
+ function normalizeSpeakText(value: unknown) {
+   if (typeof value === 'string') return value.trim();
+   if (value == null) return '';
+@@ -194,30 +212,50 @@
+   }, 100);
+ 
+   try {
+-    const response = await fetch('/api/tts/speech', {
+-      method: 'POST',
+-      headers: {
+-        'Content-Type': 'application/json'
+-      },
+-      body: JSON.stringify({
+-        model: modelName,
+-        input: content
+-      })
+-    });
++    const chunks = chunkTextForTTS(content);
++    let finalBlob: Blob | null = null;
+ 
++    // 为了不卡顿，当第一个分片获取到就可以开始播放，这里简单起见拼接完整或使用其他流式，
++    // 但浏览器端拼接MP3文件（直接连结Blob）也是可行的。
++    const blobs: Blob[] = [];
++    
++    for (const chunk of chunks) {
++      if (!chunk) continue;
++      const response = await fetch('/api/tts/speech', {
++        method: 'POST',
++        headers: {
++          'Content-Type': 'application/json'
++        },
++        body: JSON.stringify({
++          model: modelName,
++          input: chunk
++        })
++      });
++
++      if (!response.ok) {
++        throw new Error(TTS synthesis failed: \);
++      }
++
++      const chunkBlob = await response.blob();
++      blobs.push(chunkBlob);
++    }
++
+     clearInterval(timer);
+     
+     if (loader) {
+       loader.update(100);
+       setTimeout(() => loader.destroy(), 250);
+     }
+ 
+-    if (!response.ok) {
+-      throw new Error(TTS synthesis failed: );
++    if (blobs.length === 0) {
++       throw new Error('TTS chunks empty');
+     }
+ 
+-    const blob = await response.blob();
+-    const audioUrl = URL.createObjectURL(blob);
++    // 简单拼接 MP3 Blob。浏览器原生 Audio 可直接播放多个拼接好的 MP3 blob
++    finalBlob = new Blob(blobs, { type: 'audio/mpeg' });
++    const audioUrl = URL.createObjectURL(finalBlob);
+     return playAudio(audioUrl, effectiveRate);
+ 
+   } catch (error) {

@@ -1,10 +1,22 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { learnGet, learnSet } from '../../../../utils/learnLocal';
 import { useEnglishContext, deriveL3MasteryScore } from '../context/EnglishContext';
 import SpeakButton from '../../../SpeakButton';
 import Confetti from '../../../Confetti';
-import { runEnglishWriteReview } from '../../../../services/difyAPI';
+import { runEnglishWriteReview, runWriteGovernanceReview, WriteGovernanceResult } from '../../../../services/difyAPI';
+import { extractListenMaterialTaskId, pollTaskResultContent, resolveListenMaterialText } from '../../../../services/listenMaterialResult';
 import { createTrainingAttempt, submitTrainingFeedback, checkThemeMastery } from '../../../../services/trainingAPI';
-import { playSuccess, playError, playScan } from '../../../../utils/soundEffects';
+import { getAppUserId } from '../../../../utils/profileHelper';
+import { playClick, playSuccess, playError, playScan, playPageTurn } from '../../../../utils/soundEffects';
+import { consumeWriteContext } from '../../oralWarRoom/utils';
+import { Copy, Check, Upload, Trash2, BookOpen, Layers, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import {
+  defaultWriteModuleId,
+  mapGovernanceToReview,
+  writeModulesFor,
+  type WriteVariant,
+} from '../../../../utils/writeVariants';
 
 function isL1Perfect(l1Text: string): boolean {
   if (!l1Text) return false;
@@ -14,64 +26,228 @@ function isL1Perfect(l1Text: string): boolean {
     !l1Text.includes('incorrect') && !l1Text.includes('grammar error');
 }
 
-const ReviewCard = ({ title, content, isLoading, color = 'text-gray-500', isDark = false, optimized = '' }: any) => (
-  <div className={`rounded-2xl p-6 border flex-1 ${isDark ? 'bg-[#202124] text-white border-gray-800' : 'bg-white border-gray-100'}`}>
-    <h5 className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-[#FF5722]' : color}`}>
+const ReviewCard = ({ title, content, isLoading, color = 'text-zinc-500', isDark = false, optimized = '', onAdopt, onCopy }: any) => (
+  <div className={`rounded-2xl p-5 border transition-[background-color,border-color,box-shadow] duration-300 shadow-sm ${isDark ? 'bg-zinc-900 text-zinc-100 border-zinc-800 shadow-zinc-950/20' : 'bg-white border-zinc-100 hover:shadow-md'}`}>
+    <h5 className={`text-[10px] font-black uppercase tracking-widest mb-3 ${isDark ? 'text-amber-500' : color}`}>
       {title}
     </h5>
     {isLoading ? (
-      <p className="text-sm text-gray-400 italic">Dify 正在审阅中...</p>
+      <p className="text-xs text-zinc-400 italic animate-pulse">正在审阅中…</p>
     ) : content ? (
-      <p className={`text-sm leading-relaxed ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>{content}</p>
+      <p className={`text-xs leading-relaxed ${isDark ? 'text-zinc-300' : 'text-zinc-650'}`}>{content}</p>
     ) : (
-      <p className="text-sm text-gray-400 italic">等待提交分析...</p>
+      <p className="text-xs text-zinc-400 italic">等待提交分析…</p>
     )}
     {isDark && optimized && (
-      <div className="mt-4 pt-4 border-t border-gray-800">
+      <div className="mt-4 pt-4 border-t border-zinc-800">
         <div className="flex items-center justify-between gap-3 mb-3">
-          <h5 className="text-[10px] font-black uppercase tracking-widest text-[#FF5722]">
-            AI 高管级示范文本 (Optimized Version)
+          <h5 className="text-[10px] font-black uppercase tracking-widest text-amber-500">
+            AI 高管示范文本 (Optimized Version)
           </h5>
-          <SpeakButton text={optimized} title="播放 AI 高管级示范文本" />
+          <SpeakButton text={optimized} title="播放示范文本" />
         </div>
-        <p className="text-sm text-gray-300 leading-relaxed italic">{optimized}</p>
+        <p className="text-xs text-zinc-300 leading-relaxed italic mb-4">{optimized}</p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => { playClick(); onCopy(); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-zinc-800 text-zinc-300 border border-zinc-700 hover:bg-zinc-750 hover:text-white transition-colors cursor-pointer shadow-sm"
+          >
+            <Copy className="w-3 h-3" />
+            复制范文
+          </button>
+          <button
+            onClick={() => { playClick(); onAdopt(); }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-amber-650 hover:bg-amber-600 text-white transition-colors cursor-pointer shadow-sm"
+          >
+            <Check className="w-3 h-3" />
+            一键采纳
+          </button>
+        </div>
       </div>
     )}
   </div>
 );
 
-export default function WriteTab() {
+export default function WriteTab({ variant = 'en' }: { variant?: WriteVariant }) {
   const {
     theme,
     sessionId,
     setMasteryData,
     markEmailComplete,
-    writingText, setWritingText,
-    writeIntent, setWriteIntent,
-    isReviewing, setIsReviewing,
-    reviewResult, setReviewResult,
+    writingText: enWritingText, setWritingText: setEnWritingText,
+    writeIntent: enWriteIntent, setWriteIntent: setEnWriteIntent,
+    isReviewing: enIsReviewing, setIsReviewing: setEnIsReviewing,
+    reviewResult: enReviewResult, setReviewResult: setEnReviewResult,
     inlineNotice, noticeAnchor, showNotice
   } = useEnglishContext();
+
+  const isZh = variant === 'zh';
+  const WRITE_MODULES = writeModulesFor(variant);
+  const [zhWritingText, setZhWritingText] = useState('');
+  const [zhWriteIntent, setZhWriteIntent] = useState('');
+  const [zhIsReviewing, setZhIsReviewing] = useState(false);
+  const [zhReviewResult, setZhReviewResult] = useState<{ L1: string; L2: string; L3: string; optimized_version?: string } | null>(null);
+
+  const writingText = isZh ? zhWritingText : enWritingText;
+  const setWritingText = isZh ? setZhWritingText : setEnWritingText;
+  const writeIntent = isZh ? zhWriteIntent : enWriteIntent;
+  const setWriteIntent = isZh ? setZhWriteIntent : setEnWriteIntent;
+  const isReviewing = isZh ? zhIsReviewing : enIsReviewing;
+  const setIsReviewing = isZh ? setZhIsReviewing : setEnIsReviewing;
+  const reviewResult = isZh ? zhReviewResult : enReviewResult;
+  const setReviewResult = isZh ? setZhReviewResult : setEnReviewResult;
+
+  const [activeModule, setActiveModule] = useState<string>(() => defaultWriteModuleId(variant));
+  const [benchmarkText, setBenchmarkText] = useState<string>(() => learnGet('write_benchmark_text') || '');
+  const [limitChallengeType, setLimitChallengeType] = useState<'compress_200' | 'compress_100' | 'compress_50' | 'expand'>('compress_100');
+  
+  // 每日复盘数据
+  const [dailyFeedback, setDailyFeedback] = useState<{ coreIssues: string[]; nextFocus: string[] }>(() => {
+    const cached = learnGet('write_daily_feedback');
+    return cached ? JSON.parse(cached) : { coreIssues: [], nextFocus: [] };
+  });
 
   const [isGeneratingChallenge, setIsGeneratingChallenge] = useState(false);
   const [challengeText, setChallengeText] = useState('');
   const [showConfetti, setShowConfetti] = useState(false);
-  const [missionCollapsed, setMissionCollapsed] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // 控制论锁定与右侧面板展示状态
+  const [isCyberLocked, setIsCyberLocked] = useState(false);
+  const [showContextSheet, setShowContextSheet] = useState(false);
+
+  // 同步锁定与面板状态：英语写作按 L3 锁模块；中文文治不锁，避免两套评分串台
+  useEffect(() => {
+    if (reviewResult) {
+      if (!isZh) {
+        const score = deriveL3MasteryScore(reviewResult);
+        setIsCyberLocked(score < 8);
+      } else {
+        setIsCyberLocked(false);
+      }
+      setShowContextSheet(true);
+    } else {
+      setIsCyberLocked(false);
+      setShowContextSheet(false);
+    }
+  }, [reviewResult, isZh]);
+
+  // 智能空白处点击判定逻辑
+  const handleOutsideClick = (e: React.MouseEvent) => {
+    if (!showContextSheet) return;
+    
+    // 如果存在选中的文本，不收起面板（方便划词）
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+      return;
+    }
+
+    const target = e.target as HTMLElement;
+    const isInteractive = target.closest(
+      'button, a, input, textarea, select, [role="button"], .interactive, .cursor-pointer'
+    ) !== null;
+    
+    if (!isInteractive) {
+      setShowContextSheet(false);
+    }
+  };
+
+  // 从多角色沙盘跳转时预填书面闭环上下文（仅英语入口）
+  const [oralWriteContext, setOralWriteContext] = useState<{ sceneTitle: string; conflicts: string[] } | null>(null);
+
+  useEffect(() => {
+    if (isZh) return;
+    const ctx = consumeWriteContext();
+    if (!ctx?.sceneTitle) return;
+    setActiveModule('biz_proposal');
+    setOralWriteContext({ sceneTitle: ctx.sceneTitle, conflicts: ctx.conflicts || [] });
+    const conflictLine = (ctx.conflicts || []).join(' / ');
+    setWriteIntent(
+      `【书面练习 · ${ctx.sceneTitle}】\n`
+      + `核心冲突：${conflictLine || '见上文练习内容'}\n`
+      + `跨文化背景：${ctx.culturalContext || ''}\n\n`
+      + '请撰写一封高阶商务信函/邮件，回应上述多角色博弈情境。要求：语法严谨、逻辑闭环、分寸得体，无破绽。',
+    );
+    playPageTurn();
+    showNotice('review', `已载入练习场景「${ctx.sceneTitle}」，请完成书面练习`, 'success');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isZh]);
+
+  // 英语主题切换时清空英语草稿；中文文治草稿独立保留
+  useEffect(() => {
+    if (isZh) return;
+    setChallengeText('');
+    setWritingText('');
+    setWriteIntent('');
+    setReviewResult(null);
+    setOralWriteContext(null);
+  }, [theme, isZh, setWritingText, setWriteIntent, setReviewResult]);
+
+  // 对标文本自动保存
+  const handleBenchmarkChange = (val: string) => {
+    setBenchmarkText(val);
+    learnSet('write_benchmark_text', val);
+    void import('../../../../services/learningUiAPI').then((m) => m.schedulePersistLearningUi());
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      handleBenchmarkChange(text);
+      playPageTurn();
+      showNotice('review', '参考范文已加载', 'success');
+    };
+    reader.readAsText(file);
+  };
+
+  const clearBenchmark = () => {
+    playClick();
+    handleBenchmarkChange('');
+  };
+
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
+    let timer: number | null = null;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = window.setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) {
+        window.clearTimeout(timer);
+      }
+    }
+  };
 
   const generateChallenge = async () => {
     setIsGeneratingChallenge(true);
     playScan();
     try {
       const { runListenMaterialGenerator } = await import('../../../../services/difyAPI');
-      const promptTheme = `【任务生成模式】请针对主题“${theme}”，生成一封极具攻击性或极其刁钻的英文商务邮件/汇报任务，要求用户必须运用高阶沟通技巧来破局回复。只输出邮件正文。`;
-      const result = await runListenMaterialGenerator(promptTheme);
-      setChallengeText(result);
-      setWriteIntent(`回复这封刁钻的邮件/任务，妥善解决 ${theme} 中的冲突`);
+      const moduleName = WRITE_MODULES.find(m => m.id === activeModule)?.label || theme;
+      const promptTheme = isZh
+        ? `【任务生成模式】请针对中文公文/商务写作维度“${moduleName}”，生成一份需要领导站位来处理的中文写作任务。只输出任务正文。`
+        : `【任务生成模式】请针对主题“${theme}” and English writing module “${moduleName}”，生成一封需要高管用英语回复的商务邮件任务。只输出任务正文。`;
+      const result = await runListenMaterialGenerator(promptTheme, 'meeting', 'B2', 'short');
+      const immediate = resolveListenMaterialText(result);
+      if (immediate) {
+        setChallengeText(immediate);
+      } else {
+        const taskId = extractListenMaterialTaskId(result);
+        if (!taskId) throw new Error('未返回写作任务正文');
+        const polled = await pollTaskResultContent(taskId);
+        setChallengeText(polled);
+      }
+      setWriteIntent(`回应此 ${moduleName} 挑战任务，妥善解决其中关于 ${theme} 的问题`);
       playSuccess();
     } catch (e) {
       playError();
-      showNotice('review', '生成任务失败', 'error');
+      showNotice('review', '生成失败，请稍后重试', 'error');
     } finally {
       setIsGeneratingChallenge(false);
     }
@@ -85,201 +261,527 @@ export default function WriteTab() {
     }
     setIsReviewing(true);
     playScan();
-    showNotice('review', '提交批阅中...', 'info');
+    showNotice('review', '提交审阅中...', 'info');
+
+    // 智能在前台拼装 mail_intent 参数，指导 AI 的批阅重点与对标审查
+    const moduleLabel = WRITE_MODULES.find(m => m.id === activeModule)?.label;
+    const finalIntent = `
+【训练模块】: ${moduleLabel}
+【写作意图】: ${writeIntent || '无特定意图'}
+${activeModule === 'limit_challenge' ? `【极限挑战参数】: ${limitChallengeType === 'expand' ? '充分延展论点' : `压缩至 ${limitChallengeType.split('_')[1]} 字`}` : ''}
+${benchmarkText
+  ? `【参考对标文本（可选）】:\n${benchmarkText}\n(如适用，请参考其格式、站位与分寸进行对比分析，并在 L2/L3 中指出差异)`
+  : `【提示】: 当前未提供对标文本，请直接按通用高级商务/政商写作标准完成三级审阅与改写建议。`
+}
+`.trim();
+
     try {
-      const raw = (await runEnglishWriteReview(writingText, writeIntent, theme)) as any;
+      const currentMod = WRITE_MODULES.find((m) => m.id === activeModule);
+      let raw: Record<string, string> = { L1: '', L2: '', L3: '', optimized_version: '' };
+      let governanceResult: WriteGovernanceResult | null = null;
+
+      if (variant === 'zh') {
+        const taskType = currentMod?.taskType || 'document_correction';
+        governanceResult = await withTimeout(runWriteGovernanceReview({
+          taskType,
+          originalText: writingText,
+          additionalParams: [
+            writeIntent || '',
+            benchmarkText
+              ? `【参考对标文本（可选）】:\n${benchmarkText}`
+              : '【提示】: 未提供对标文本，请按中文公文/商务函标准直接完成批改。',
+          ].filter(Boolean).join('\n'),
+        }), 45000, '文治审阅超时');
+        raw = mapGovernanceToReview(governanceResult);
+      } else {
+        const englishRaw = await withTimeout(
+          runEnglishWriteReview(writingText, finalIntent, theme),
+          45000,
+          '写作审阅超时',
+        ) as unknown as Record<string, string>;
+        raw = {
+          L1: String(englishRaw.L1_Grammar || englishRaw.L1 || ''),
+          L2: String(englishRaw.L2_Business_Tone || englishRaw.L2 || ''),
+          L3: String(englishRaw.L3_Strategic_Position || englishRaw.L3 || ''),
+          optimized_version: String(englishRaw.optimized_version || ''),
+        };
+      }
+
       const normalized = {
-        L1: String(raw.L1_Grammar || raw.L1 || ''),
-        L2: String(raw.L2_Business_Tone || raw.L2 || ''),
-        L3: String(raw.L3_Strategic_Position || raw.L3 || ''),
+        L1: String(raw.L1 || ''),
+        L2: String(raw.L2 || ''),
+        L3: String(raw.L3 || ''),
         optimized_version: String(raw.optimized_version || ''),
       };
       setReviewResult(normalized);
-      showNotice('review', '批阅完成', 'success');
+      showNotice('review', governanceResult?.knowledgeReminder ? `审阅完成。${governanceResult.knowledgeReminder}` : '审阅完成', 'success');
 
-      const l3Score = deriveL3MasteryScore({ ...raw, ...normalized });
-      if (sessionId) {
+      // 从 L2/L3 反馈中动态提取“今日核心问题”与“明日提升重点”
+      const issues: string[] = [];
+      const focuses: string[] = [];
+      const lines = (normalized.L2 + '\n' + normalized.L3).split('\n');
+      for (const line of lines) {
+        const clean = line.trim().replace(/^[-*#\d.]\s*/, '');
+        if (!clean || clean.length < 5) continue;
+        if ((clean.includes('问题') || clean.includes('不足') || clean.includes('缺陷')) && issues.length < 2) {
+          issues.push(clean);
+        } else if ((clean.includes('建议') || clean.includes('提升') || clean.includes('重点') || clean.includes('改用')) && focuses.length < 2) {
+          focuses.push(clean);
+        }
+      }
+      
+      // 兜底复盘数据
+      const feedbackData = {
+        coreIssues: issues.length ? issues : [
+          benchmarkText
+            ? `草稿在“${moduleLabel}”规范下的表述细度或站位高度与对标要求仍有偏离。`
+            : `草稿在“${moduleLabel}”规范下的格式合规、逻辑条理或战略站位仍有提升空间。`
+        ],
+        nextFocus: focuses.length ? focuses : [
+          benchmarkText
+            ? `建议参考左侧卓越文本的典型句式和分寸感，进行精准句法移植。`
+            : `建议按通用高级商务/政商写作标准，优先修正结构层次与关键措辞分寸。`
+        ]
+      };
+      setDailyFeedback(feedbackData);
+      learnSet('write_daily_feedback', JSON.stringify(feedbackData));
+      void import('../../../../services/learningUiAPI').then((m) => m.schedulePersistLearningUi());
+
+      const l3Score = isZh ? 0 : deriveL3MasteryScore({ ...raw, ...normalized });
+      if (sessionId && !isZh) {
         const att = await createTrainingAttempt({
           sessionId,
-          userId: 'default-user',
+          userId: getAppUserId(),
           moduleType: 'write',
           sceneType: theme,
           caseText: writingText.slice(0, 4000),
           userAnswer: {
             writeLevel: 'L3',
             theme,
-            mailIntent: writeIntent.slice(0, 2000),
+            mailIntent: finalIntent.slice(0, 2000),
           },
           durationSeconds: 0,
           score: l3Score,
         });
-        await submitTrainingFeedback({
-          attemptId: att.attemptId,
-          userId: 'default-user',
-          decomposition: { L1: normalized.L1, L2: normalized.L2 },
-          logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
-          strengths: '纵深书面 L3 已归档',
-          weaknesses: '',
-          nextFocus: '继续巩固口语沙盘与书面站位',
-          score: l3Score,
-          rawResponse: JSON.stringify(raw).slice(0, 12000),
-        });
+        try {
+          await submitTrainingFeedback({
+            attemptId: att.attemptId,
+            userId: getAppUserId(),
+            decomposition: { L1: normalized.L1, L2: normalized.L2 },
+            logicAnalysis: { L3: normalized.L3, writeLevel: 'L3' },
+            strengths: `写作板块【${moduleLabel}】已提交评估`,
+            weaknesses: feedbackData.coreIssues.join('；'),
+            nextFocus: feedbackData.nextFocus.join('；'),
+            score: l3Score,
+            rawResponse: JSON.stringify(raw).slice(0, 12000),
+          });
+        } catch (persistErr) {
+          console.warn('[WriteReview] 反馈持久化失败:', persistErr);
+        }
       }
-      
-      if (l3Score >= 8) {
-        playSuccess();
+
+      if (!isZh && l3Score >= 8) {
+        playSuccess(); // 翻纸屑声与纸张翻页声结合
         setShowConfetti(true);
-      } else {
+      } else if (isZh) {
         playSuccess();
+      } else {
+        playPageTurn();
       }
 
-      // 检测 L1 是否无错漏，满足则触发邮件通关
-      if (isL1Perfect(normalized.L1)) {
-        await markEmailComplete(theme);
+      if (!isZh && isL1Perfect(normalized.L1)) {
+        try {
+          await markEmailComplete(theme);
+        } catch (markErr) {
+          console.warn('[WriteReview] 完成标记失败:', markErr);
+        }
       }
 
-      checkThemeMastery(theme)
-        .then((res) => {
-          if (res.success) {
-            setMasteryData({
-              isMastered: res.isMastered,
-              oralCount: res.oralCount,
-              maxWriteScore: res.maxWriteScore,
-              emailCompleted: res.emailCompleted,
-            });
-          }
-        })
-        .catch(() => {});
+      if (!isZh) {
+        void checkThemeMastery(theme)
+          .then((res) => {
+            if (res.success) {
+              setMasteryData({
+                isMastered: res.isMastered,
+                oralCount: res.oralCount,
+                maxWriteScore: res.maxWriteScore,
+                emailCompleted: res.emailCompleted,
+              });
+            }
+          })
+          .catch(() => {});
+      }
     } catch (error) {
       playError();
-      showNotice('review', '批阅失败，请检查 API 配置或网络', 'error');
+      console.error('审阅失败:', error);
+      showNotice('review', '审阅失败，请检查网络后重试', 'error');
     } finally {
       setIsReviewing(false);
     }
   };
 
   return (
-    <div className="flex flex-col gap-6 relative">
-      {/* 战术使用指南 SOP */}
-      <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 flex items-start gap-4 shrink-0 shadow-sm">
-        <div className="bg-emerald-500 text-white p-2.5 rounded-xl shrink-0 mt-0.5 shadow-sm">
-           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-        </div>
-        <div className="flex-1">
-          <h5 className="text-[11px] font-black uppercase tracking-widest text-emerald-900 mb-2.5">战术使用指南 // Tactical SOP</h5>
-          <div className="text-[13px] text-emerald-800/90 leading-relaxed font-medium flex flex-col gap-1.5">
-            <div><span className="font-black text-emerald-600 mr-2">操作说明：</span>获取刁难任务，并在中栏起草商务邮件。左侧战术锦囊可作参考。完成后提交三维批阅。</div>
-            <div><span className="font-black text-emerald-600 mr-2">功能亮点：</span>AI 三阶纵深批阅 (L1 基础语法 / L2 商务分寸 / L3 战略站位)。不仅仅是改错，更是教您在文字中构建权力结构。</div>
-            <div><span className="font-black text-emerald-600 mr-2">生态定位：</span>【最终审判】调用全盘积累的词汇弹药。必须在 L3 战略站位上取得 8 分以上的高阶评价，方可真正通关当前主题。</div>
-          </div>
-        </div>
-      </div>
+    <div className="flex flex-col gap-6">
+      {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 relative">
-        {showConfetti && <Confetti onComplete={() => setShowConfetti(false)} />}
-      {inlineNotice && noticeAnchor === 'review' && (
-        <div className={`absolute left-1/2 -translate-x-1/2 -top-3 z-20 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-lg border ${inlineNotice.tone === 'success' ? 'bg-emerald-500 text-white border-emerald-400' : inlineNotice.tone === 'error' ? 'bg-red-500 text-white border-red-400' : 'bg-gray-800 text-white border-gray-700'}`}>
-          {inlineNotice.text}
+      {oralWriteContext && (
+        <div className="bg-[var(--color-canvas)] border border-[var(--color-border)] rounded-xl px-4 py-3 flex items-start gap-3 shadow-[var(--shadow-sm)]">
+          <BookOpen className="w-4 h-4 text-[var(--color-accent)] shrink-0 mt-0.5" />
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-[var(--color-ink-muted)]">书面练习</p>
+            <p className="text-xs font-bold text-[var(--color-ink-primary)] mt-0.5">{oralWriteContext.sceneTitle}</p>
+            {oralWriteContext.conflicts.length > 0 && (
+              <p className="text-[10px] text-[var(--color-ink-secondary)] mt-1">
+                冲突：{oralWriteContext.conflicts.join(' · ')}
+              </p>
+            )}
+          </div>
         </div>
       )}
-
-      {/* 左栏：战术指南 */}
-      <div className="lg:col-span-3 bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex flex-col h-[75vh]">
-        <h4 className="text-[11px] font-black uppercase tracking-widest text-blue-600 mb-4 border-b border-gray-100 pb-3">
-          Tactical Guide // 战术行文指南
-        </h4>
-        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-          <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100/50">
-            <h5 className="text-[10px] font-bold text-blue-900 mb-1.5 uppercase tracking-widest">1. 破冰与切入 (Opening)</h5>
-            <p className="text-xs text-blue-800 leading-relaxed font-medium">避免寒暄过多。直入正题，例如："I'm writing to directly address the concerns raised..."</p>
-          </div>
-          <div className="bg-emerald-50/50 p-4 rounded-xl border border-emerald-100/50">
-            <h5 className="text-[10px] font-bold text-emerald-900 mb-1.5 uppercase tracking-widest">2. 施压分寸 (Pressure Tone)</h5>
-            <p className="text-xs text-emerald-800 leading-relaxed font-medium">使用被动语态淡化攻击性，使用情态动词留有余地："It would be appreciated if..."</p>
-          </div>
-          <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100/50">
-            <h5 className="text-[10px] font-bold text-amber-900 mb-1.5 uppercase tracking-widest">3. 找破绽 (Identifying Flaws)</h5>
-            <p className="text-xs text-amber-800 leading-relaxed font-medium">指出逻辑断层词：contradiction, ambiguity, oversight。例如："There seems to be an ambiguity in the latest figures..."</p>
-          </div>
-          <div className="bg-purple-50/50 p-4 rounded-xl border border-purple-100/50">
-            <h5 className="text-[10px] font-bold text-purple-900 mb-1.5 uppercase tracking-widest">4. 跨文化思维 (Cross-Cultural)</h5>
-            <p className="text-xs text-purple-800 leading-relaxed font-medium">美系高管喜好 "Action-oriented"，日系高管偏好 "Consensus-building"。行文注意转换视角。</p>
-          </div>
+      
+      {/* 顶部微投影 SOP 说明区：精简为单行，收缩高度 */}
+      <div className="bg-white border border-slate-100 rounded-xl px-4 py-3 flex items-center gap-3 shadow-[0_2px_12px_rgba(0,0,0,0.01)]">
+        <div className="bg-zinc-900 text-white p-1.5 rounded-lg shrink-0 shadow-sm">
+           <Zap className="w-3.5 h-3.5" />
+        </div>
+        <div className="flex-1 flex flex-wrap items-center justify-between gap-2">
+          <h5 className="text-xs font-bold text-zinc-800">{isZh ? '中文文治审阅说明' : '英语书面审阅说明'}</h5>
+          <p className="text-[11px] text-zinc-400 font-medium">
+            {isZh
+              ? '左侧可放对标公文（选填），中栏起草中文稿，右侧走文治批改，不计入英语主题掌握分。'
+              : '左侧可导入英文对标文本（选填），中栏用英语起草，右侧给出语法 / 语气 / 战略站位三维反馈。'}
+          </p>
         </div>
       </div>
 
-      {/* 中栏：AI出题与起草 */}
-      <div className="lg:col-span-5 bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm flex flex-col h-[75vh]">
-        <div className="flex justify-between items-center mb-3 shrink-0">
-          <h4 className="text-[11px] font-black text-[#202124] uppercase tracking-widest flex items-center">
-            Mission Brief // 突发行动指令
-          </h4>
-          <button onClick={generateChallenge} disabled={isGeneratingChallenge} className="bg-[#FF5722] text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase hover:bg-[#E64A19] transition-colors disabled:opacity-50 cursor-pointer shadow-sm">
-            {isGeneratingChallenge ? '正在生成敌情...' : '获取突发刁难任务'}
-          </button>
-        </div>
+      <div className="relative flex min-h-[450px] h-auto w-full gap-6" onClick={handleOutsideClick}>
+        <AnimatePresence>
+          {inlineNotice && noticeAnchor === 'review' && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+              role="status" aria-live="polite" className={`absolute left-1/2 -translate-x-1/2 -top-3 z-30 rounded-xl px-4 py-2 text-[11px] font-black tracking-widest uppercase shadow-md border transition-[opacity,transform] duration-300 ${inlineNotice.tone === 'success' ? 'bg-zinc-900 text-zinc-100 border-zinc-800' : inlineNotice.tone === 'error' ? 'bg-red-950 text-red-200 border-red-900' : 'bg-zinc-800 text-white border-zinc-700'}`}
+            >
+              {inlineNotice.text}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        {/* 任务卡：可折叠，限制高度 */}
-        <div className="bg-[#202124] text-gray-300 rounded-2xl text-sm leading-relaxed mb-4 border border-gray-800 shadow-inner overflow-hidden shrink-0 transition-all duration-300" style={{ maxHeight: missionCollapsed ? '44px' : '180px' }}>
-          <div
-            className="p-4 overflow-y-auto"
-            style={{ maxHeight: missionCollapsed ? '44px' : '180px' }}
-          >
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">任务正文</span>
+        {/* 左侧工作区：当右侧面板打开时占 70% 宽度，否则占 100% 宽度 */}
+        <div className={`transition-[width] duration-500 ease-in-out flex gap-6 h-auto ${showContextSheet ? 'w-[70%]' : 'w-full'}`}>
+          {/* 1. 左栏：规范与对标区 */}
+          <div className="w-[30%] min-w-[260px] flex flex-col gap-4 h-auto pr-1 shrink-0">
+            {/* 对标文本上传/输入区 */}
+            <div className="bg-white border border-slate-100/85 rounded-2xl p-4 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex flex-col gap-3">
+              <h4 className="text-[11px] font-bold text-zinc-700 border-b border-zinc-100 pb-1.5 flex items-center gap-1.5">
+                <BookOpen className="w-3.5 h-3.5 text-[#FF5722]" /> 对标文本（可选）
+              </h4>
+              <p className="text-[10px] text-zinc-455 leading-normal">
+                {isZh
+                  ? '选填。有对标公文时按格式与站位对比；不填则按中文公文/商务函通例批改。'
+                  : 'Optional. With a model text, AI compares format and tone; otherwise it reviews against executive English standards.'}
+              </p>
+              <div className="relative">
+                <textarea
+                  id="write-benchmark-input"
+                  value={benchmarkText}
+                  onChange={(e) => handleBenchmarkChange(e.target.value)}
+                  aria-label="对标文本"
+                  placeholder="选填：粘贴对标样本段落…"
+                  className="w-full h-32 bg-white border border-zinc-200 rounded-xl p-3 text-xs text-zinc-700 outline-none focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300 placeholder-zinc-350 transition-[border-color,box-shadow] shadow-inner resize-none leading-relaxed"
+                />
+                {benchmarkText && (
+                  <button
+                    type="button"
+                    onClick={clearBenchmark}
+                    aria-label="清空对标文本"
+                    className="absolute bottom-2.5 right-2.5 p-1.5 bg-zinc-100 hover:bg-zinc-200 text-zinc-500 rounded-lg hover:text-red-650 transition-colors cursor-pointer border border-zinc-200"
+                    title="清空对标文本"
+                  >
+                    <Trash2 aria-hidden="true" className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+              
+              <label className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border-dashed border border-zinc-300 hover:border-zinc-500 text-[10px] font-bold text-zinc-650 hover:bg-white transition-colors cursor-pointer shadow-sm">
+                <Upload className="w-3.5 h-3.5" />
+                <span>导入对标文档（可选，.txt）</span>
+                <input type="file" accept=".txt" onChange={handleFileUpload} className="hidden" />
+              </label>
+            </div>
+
+            {/* 行文规范指南 */}
+            <div className="bg-white border border-slate-100/85 rounded-2xl p-4 shadow-[0_6px_20px_rgba(0,0,0,0.015)] flex-1 flex flex-col min-h-[250px]">
+              <h4 className="text-[11px] font-bold text-zinc-700 border-b border-zinc-100 pb-1.5">
+                行文写作提示
+              </h4>
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 pt-2">
+                {(isZh ? [
+                  { t: '1. 事由与依据', d: '开头写清发文目的、政策依据与主送对象，避免口头化寒暄。' },
+                  { t: '2. 层次与结语', d: '事项分段，请批/请阅/请转明确落在结尾，语气对上对下分开。' },
+                  { t: '3. 禁区', d: '不写无出处的判断，不把口语承诺写进正式件。' },
+                ] : [
+                  { t: '1. Opening Position', d: 'Lead with the ask. Skip small talk. Example: “This note flags the SLA gap and proposes a 10-day recovery path.”' },
+                  { t: '2. Assertive Tone', d: 'Use modal verbs and evidence, not blame. Example: “Given the current policy fit, we cannot proceed as drafted.”' },
+                  { t: '3. Concise Writing', d: 'Conclusion first. Keep status → diagnosis → ask.' },
+                ]).map((tip) => (
+                  <div key={tip.t} className="bg-zinc-50/70 p-3.5 rounded-xl border border-zinc-200/50">
+                    <h5 className="text-[9px] font-black text-zinc-805 mb-1 uppercase tracking-widest">{tip.t}</h5>
+                    <p className="text-[10px] text-zinc-505 leading-normal">{tip.d}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* 2. 中栏：纵深批阅与训练区 */}
+          <div className="flex-1 bg-white border border-slate-100/90 shadow-[0_12px_35px_rgba(0,0,0,0.02)] rounded-3xl p-5 md:p-6 flex flex-col h-auto min-w-0">
+            {/* 五大模块切换 TAB */}
+            <div className="grid grid-cols-3 bg-[#f8f9fa] border border-slate-200/50 p-1 rounded-xl mb-4 shrink-0 shadow-inner">
+              {WRITE_MODULES.map((mod) => {
+                const isActive = activeModule === mod.id;
+                const isLocked = isCyberLocked && !isActive;
+                return (
+                  <button
+                    key={mod.id}
+                    type="button"
+                    aria-pressed={isActive}
+                    disabled={isLocked}
+                    onClick={() => {
+                      if (isLocked) {
+                        playError();
+                        return;
+                      }
+                      playClick();
+                      setActiveModule(mod.id);
+                    }}
+                    className={`py-2 px-1 text-[10px] font-black tracking-wider text-center rounded-xl transition-colors ${
+                      isLocked
+                        ? 'text-zinc-400 opacity-60 cursor-not-allowed'
+                        : isActive
+                          ? 'bg-white text-zinc-900 shadow-sm border border-zinc-200 cursor-pointer'
+                          : 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-50/50 cursor-pointer'
+                    }`}
+                  >
+                    {isLocked ? `🔒 ${mod.label.replace('写作', '')}` : mod.label.replace('写作', '')}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 模块描述信息 */}
+            <div className="mb-4 shrink-0 flex items-center justify-between border-b border-zinc-100 pb-2">
+              <div>
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">当前维度：</span>
+                <span className="text-xs font-bold text-zinc-700">{WRITE_MODULES.find(m => m.id === activeModule)?.desc}</span>
+              </div>
               <button
-                onClick={() => setMissionCollapsed(!missionCollapsed)}
-                className="text-[10px] font-black text-gray-500 hover:text-gray-300 cursor-pointer uppercase tracking-widest transition-colors"
+                onClick={() => { playClick(); generateChallenge(); }}
+                disabled={isGeneratingChallenge}
+                className="px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider bg-zinc-900 hover:bg-zinc-800 text-white transition-colors shadow-sm cursor-pointer disabled:opacity-50"
               >
-                {missionCollapsed ? '展开' : '收起'}
+                {isGeneratingChallenge ? '正在生成…' : '获取AI挑战任务'}
               </button>
             </div>
-            <p className="font-medium text-[13px]">
-              {challengeText || `点击右上方按钮，让 AI 根据当前阵地【${theme}】为您生成一封需要紧急处理的刁钻邮件或汇报任务。`}
-            </p>
+
+            {/* 任务卡展示：仅在有挑战任务时显示 */}
+            {challengeText && (
+              <div className="bg-zinc-900 text-zinc-300 rounded-xl mb-4 border border-zinc-800 overflow-hidden shrink-0 shadow-inner">
+                <div className="p-4 max-h-[120px] overflow-y-auto">
+                  <div className="flex items-center justify-between mb-1.5 border-b border-zinc-800 pb-1.5">
+                    <span className="text-[9px] font-black text-amber-500 uppercase tracking-widest flex items-center gap-1">
+                      <Layers className="w-3 h-3" /> 突发刁钻场景任务
+                    </span>
+                    <button
+                      onClick={() => { playClick(); setChallengeText(''); }}
+                      className="text-[9px] font-black text-zinc-500 hover:text-zinc-300 cursor-pointer uppercase tracking-widest transition-colors"
+                    >
+                      重置
+                    </button>
+                  </div>
+                  <p className="text-xs font-medium leading-relaxed text-zinc-350">{typeof challengeText === 'string' ? challengeText : ''}</p>
+                </div>
+              </div>
+            )}
+
+            {/* 字数极限挑战维度独占的配置栏 */}
+            {activeModule === 'limit_challenge' && (
+              <div className="flex items-center gap-3 mb-4 p-3 bg-zinc-50 border border-zinc-200/70 rounded-xl shrink-0">
+                <span className="text-[9px] font-black text-zinc-500 uppercase tracking-widest">字数规则：</span>
+                <div className="flex items-center gap-2 flex-1">
+                  {([
+                    { id: 'compress_50', label: '压缩至50字' },
+                    { id: 'compress_100', label: '压缩至100字' },
+                    { id: 'compress_200', label: '压缩至200字' },
+                    { id: 'expand', label: '论点充分展开' }
+                  ] as const).map((type) => (
+                    <button
+                      key={type.id}
+                      onClick={() => { playClick(); setLimitChallengeType(type.id); }}
+                      type="button"
+                      aria-pressed={limitChallengeType === type.id}
+                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition-colors border cursor-pointer ${limitChallengeType === type.id ? 'bg-zinc-900 border-zinc-900 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-650 hover:bg-zinc-50'}`}
+                    >
+                      {type.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 意图输入 */}
+            <div className="mb-3 shrink-0">
+              <label htmlFor={`write-intent-input-${variant}`} className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-1.5 block">{isZh ? '写作意图与指示' : 'Core Intent / 写作意图'}</label>
+              <input
+                id={`write-intent-input-${variant}`}
+                type="text"
+                value={writeIntent}
+                onChange={(e) => setWriteIntent(e.target.value)}
+                placeholder={isZh ? '例如：请批示、请转办、对齐某份文件口径' : 'e.g. polite decline, escalate to VP, align on SLA'}
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-2.5 text-xs text-zinc-800 outline-none focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300 placeholder-zinc-350 transition-[border-color,box-shadow] shadow-inner"
+              />
+            </div>
+
+            <h4 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest mb-2.5 shrink-0 flex items-center gap-1">
+              {isZh ? '起草区' : 'Drafting Zone'}
+            </h4>
+
+            {/* 文本草稿起草区 */}
+            <textarea
+              id={`write-draft-input-${variant}`}
+              ref={textareaRef}
+              value={writingText}
+              onChange={(e) => setWritingText(e.target.value)}
+              aria-label="决策起草区"
+              className={`w-full bg-zinc-50 border rounded-2xl px-5 py-4 text-xs text-zinc-800 outline-none resize-none leading-relaxed flex-1 shadow-inner placeholder-zinc-300 min-h-0 transition-[border-color,box-shadow] duration-300 ${
+                isCyberLocked
+                  ? 'border-red-500 focus-visible:border-red-650 shadow-[0_0_10px_rgba(239,68,68,0.15)] ring-1 ring-red-500/20'
+                  : 'border-zinc-200 focus-visible:border-zinc-400 focus-visible:ring-2 focus-visible:ring-zinc-300'
+              }`}
+              placeholder={WRITE_MODULES.find(m => m.id === activeModule)?.placeholder}
+              style={{ minHeight: '300px' }}
+            />
+
+            {isCyberLocked && (
+              <div className="mt-3 p-3.5 bg-red-50 border border-red-200/80 rounded-xl text-red-700 text-xs font-bold animate-pulse flex items-center gap-2">
+                <span className="text-sm">🔒</span>
+                <div>
+                  表达逻辑得分 {deriveL3MasteryScore(reviewResult)} 未达标（要求 8 分）。已锁定当前模块，请根据右侧建议修改草稿，或在右侧点击“一键采纳”AI重构方案后重新提交。
+                </div>
+              </div>
+            )}
+
+            {/* 审阅触发按钮 */}
+            <div className="mt-4 shrink-0 flex flex-col gap-2">
+              <button
+                onClick={() => { playClick(); handleReview(); }}
+                disabled={isReviewing || !writingText}
+                className="bg-zinc-900 text-white w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-zinc-950 transition-colors disabled:opacity-50 shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isReviewing ? (
+                  <>
+                    <span className="w-3.5 h-3.5 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+                    <span>AI 正在审阅中…</span>
+                  </>
+                ) : (
+                  <span>{isZh ? '提交文治审阅' : 'Submit English Review'}</span>
+                )}
+              </button>
+
+              {reviewResult && !showContextSheet && (
+                <button
+                  onClick={() => { playClick(); setShowContextSheet(true); }}
+                  className="bg-zinc-100 hover:bg-zinc-200 border border-zinc-300 text-zinc-800 w-full py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-colors cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                >
+                  <span>展开审阅报告 (Expand Review Report)</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Intent 行 */}
-        <div className="mb-3 shrink-0">
-          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1 block">写作意图 / Intent</label>
-          <input
-            type="text"
-            value={writeIntent}
-            onChange={(e) => setWriteIntent(e.target.value)}
-            placeholder="描述你的写作目的（如：施压、让步、寻求共识）"
-            className="w-full bg-[#f8f9fa] border border-gray-200 rounded-xl px-4 py-2 text-xs text-[#202124] outline-none focus:border-[#FF5722]/30 placeholder-gray-400 transition-colors"
-          />
-        </div>
+        {/* 右侧 30%：动态滑出 Context Sheet 面板 */}
+        <AnimatePresence>
+          {showContextSheet && (
+            <motion.div
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="w-[30%] bg-zinc-50 border-l border-zinc-200 h-auto p-5 shadow-2xl flex flex-col gap-4 shrink-0 relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* ① 浅层：格式与措辞合规 */}
+              <ReviewCard title={isZh ? '① 格式与措辞' : '① Grammar & wording'} content={reviewResult?.L1} isLoading={isReviewing} />
+              
+              <ReviewCard title={isZh ? '② 逻辑与条理' : '② Business tone'} content={reviewResult?.L2} isLoading={isReviewing} color="text-amber-600" />
+              
+              <ReviewCard
+                title={isZh ? '③ 站位与改写' : '③ Strategic position'}
+                content={reviewResult?.L3}
+                isLoading={isReviewing}
+                isDark
+                optimized={reviewResult?.optimized_version}
+                onAdopt={() => {
+                  if (reviewResult?.optimized_version) {
+                    setWritingText(reviewResult.optimized_version);
+                    showNotice('review', '已采纳，正在重新评分…', 'info');
+                    playSuccess();
+                    // 采纳后自动重新触发 L3 评分
+                    setTimeout(() => {
+                      setWriteIntent(prev => `${prev || ''} [已采纳AI优化版本]`);
+                      handleReview();
+                    }, 300);
+                  }
+                }}
+                onCopy={async () => {
+                  if (reviewResult?.optimized_version) {
+                    try {
+                      await navigator.clipboard.writeText(reviewResult.optimized_version);
+                      showNotice('review', '改写方案已复制到剪贴板', 'success');
+                      playSuccess();
+                    } catch (err) {
+                      playError();
+                      showNotice('review', '复制失败', 'error');
+                    }
+                  }
+                }}
+              />
 
-        <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3 shrink-0">
-          Drafting Zone // 纵深书面起草
-        </h4>
-
-        {/* 主编辑器：撑满剩余高度 */}
-        <textarea
-          ref={textareaRef}
-          value={writingText}
-          onChange={(e) => setWritingText(e.target.value)}
-          className="w-full bg-[#f8f9fa] border-2 border-transparent focus:border-[#FF5722]/30 rounded-2xl px-5 py-4 text-sm text-[#202124] outline-none resize-none leading-7 flex-1 shadow-inner placeholder-gray-400 min-h-0 transition-colors"
-          placeholder="在此撰写您的破局回复..."
-          style={{ height: 'calc(100% - 120px)' }}
-        />
-
-        {/* Sticky 提交按钮 */}
-        <div className="mt-4 shrink-0">
-          <button onClick={handleReview} disabled={isReviewing || !writingText} className="bg-[#202124] text-white w-full py-4 rounded-xl text-xs font-black uppercase tracking-widest hover:bg-[#FF5722] transition-colors disabled:opacity-50 shadow-md cursor-pointer">
-            {isReviewing ? 'Dify 正在执行战术审阅...' : '提交三维战略批阅'}
-          </button>
-        </div>
-      </div>
-
-      {/* 右栏：批阅结果 */}
-      <div className="lg:col-span-4 flex flex-col gap-4 h-[75vh] overflow-y-auto pr-1">
-        <ReviewCard title="L1 语法与措辞" content={reviewResult?.L1} isLoading={isReviewing} />
-        <ReviewCard title="L2 商务分寸" content={reviewResult?.L2} isLoading={isReviewing} color="text-[#d84315]" />
-        <ReviewCard title="L3 战略站位" content={reviewResult?.L3} isLoading={isReviewing} isDark optimized={reviewResult?.optimized_version} />
-      </div>
+              {/* 闭环复盘 (Daily Feedback Loop) */}
+              <div className="bg-white border border-zinc-200 shadow-sm rounded-2xl p-5 flex flex-col gap-3">
+                <h5 className="text-[10px] font-black uppercase tracking-widest text-zinc-755 border-b border-zinc-200 pb-2 flex items-center gap-1">
+                  <span>🔄</span> 练习复盘与跟踪
+                </h5>
+                {isReviewing ? (
+                  <p className="text-[10px] text-zinc-400 italic">正在生成复盘要点…</p>
+                ) : dailyFeedback.coreIssues.length > 0 ? (
+                  <div className="space-y-3">
+                    <div>
+                      <h6 className="text-[9px] font-bold text-red-750 mb-1 uppercase tracking-wider">今日写作核心问题 // Key Issues</h6>
+                      <ul className="list-disc pl-3.5 space-y-1">
+                        {dailyFeedback.coreIssues.map((issue, idx) => (
+                          <li key={idx} className="text-[10px] text-zinc-650 leading-relaxed">{issue}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <h6 className="text-[9px] font-bold text-zinc-750 mb-1 uppercase tracking-wider">明日写作提升重点 // Next Steps</h6>
+                      <ul className="list-disc pl-3.5 space-y-1">
+                        {dailyFeedback.nextFocus.map((focus, idx) => (
+                          <li key={idx} className="text-[10px] text-zinc-650 leading-relaxed">{focus}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-zinc-400 italic">完成审阅后，系统在此沉淀今日的复盘与明日提升指南。</p>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

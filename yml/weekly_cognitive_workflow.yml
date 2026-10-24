@@ -1,0 +1,148 @@
+﻿app:
+  description: 每周一聊潜意识树洞与个人认知进化中枢。研判职场困境与局限，输出能力短板并更新全局画像。
+  icon: 🔮
+  icon_background: '#09090B'
+  icon_type: emoji
+  mode: workflow
+  name: Weekly Cognitive Workflow
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      image:
+        enabled: false
+      enabled: false
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 感悟与困境文本
+          max_length: 1000
+          options: []
+          required: true
+          type: text-input
+          variable: user_text
+      height: 115
+      id: start
+      position:
+        x: 80
+        y: 200
+      positionAbsolute:
+        x: 80
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 顶层智囊高管教练分析
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-4o
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: weekly-sys-prompt
+          role: system
+          text: |-
+            你是专为决策层高管设计的专属 AI 智囊。
+            请针对用户录入的感悟、真实职场困境进行高水平 of 认知研判。
+            
+            你必须从以下几个方面进行深度透视：
+            1. 指出其表象做法背后的核心利益诉求与权力博弈格局。
+            2. 尖锐而委婉地指出其当前思维模式的局限性与风险（例如防御性退缩、大局观模糊、缺乏开创担当）。
+            3. 给出极具操作性的突破路径与自省方案。
+            
+            【输出规范】
+            请必须且只能按照以下 XML 格式返回你的结果，不要包含任何多余前导语或总结词：
+            <response>
+              <analysis>在此处写下 150 字左右的研判与自省分析报告。语气应当专业、沉锐且直击痛处。</analysis>
+              <factors>在此处提取 1 至 3 个最精准的能力短板词，用英文逗号分隔。如：防御性退缩,缺乏开创力</factors>
+            </response>
+        - id: weekly-user-prompt
+          role: user
+          text: |-
+            用户的感悟文本：
+            """
+            {{#start.user_text#}}
+            """
+        selected: false
+        title: 认知深度研判LLM
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 200
+      positionAbsolute:
+        x: 380
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 200
+      positionAbsolute:
+        x: 680
+        y: 200
+      selected: false
+      type: custom
+      width: 242
+  rag_pipeline_variables: []

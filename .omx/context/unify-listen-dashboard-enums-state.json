@@ -1,0 +1,16 @@
+{
+  "active": false,
+  "current_phase": "crystallized",
+  "state": {
+    "interview_id": "unify-listen-dashboard-enums-20260823",
+    "profile": "standard",
+    "type": "brownfield",
+    "rounds_completed": 10,
+    "current_ambiguity": 0.13,
+    "threshold": 0.2,
+    "spec": ".omx/specs/deep-interview-unify-listen-dashboard-enums.md",
+    "transcript": ".omx/interviews/unify-listen-dashboard-enums-20260823T024500Z.md",
+    "context_snapshot_path": ".omx/context/unify-listen-dashboard-enums-20260823T021700Z.md",
+    "omx_cli": "unavailable-in-this-runtime"
+  }
+}

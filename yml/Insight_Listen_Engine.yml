@@ -102,6 +102,12 @@ workflow:
           required: true
           type: paragraph
           variable: user_analysis
+        - label: 引用知识上下文
+          max_length: 20000
+          options: []
+          required: false
+          type: paragraph
+          variable: knowledge_context
       height: 135
       id: start
       position:
@@ -156,7 +162,11 @@ workflow:
           role: user
           text: '【当日训练场景/逻辑考题】：{{#start.scenario_text#}}
 
-            【我的揣摩笔记】：{{#start.user_analysis#}}'
+            【我的揣摩笔记】：{{#start.user_analysis#}}
+
+            【引用知识上下文】：{{#start.knowledge_context#}}
+
+            以下为用户已确认同步的知识，仅作补充，不得编造未提供的条目。若为空则忽略。'
         selected: false
         title: 深度解析LLM
         type: llm

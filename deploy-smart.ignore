@@ -1,0 +1,23 @@
+# 默认不参与部署；特殊发布使用 -DeployInclude 显式指定。
+docs/**
+private/**
+ops/**
+vocab-server/private/**
+**/*.test.ts
+**/*.test.tsx
+**/*.test.js
+src/components/books/**
+src/services/book*API.ts
+src/utils/book*.ts
+src/components/GlobalSettingsPanel.tsx
+src/components/GlobalTaskCenter.tsx
+src/components/LoginPage.tsx
+src/components/MainContent.tsx
+src/components/modules/**
+src/services/authAPI.ts
+src/services/dailyPackAPI.ts
+src/services/difyAPI.ts
+src/utils/profileHelper.ts
+app.liujingzhuwo.site
+package.json
+super-agent-vocab.service

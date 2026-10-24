@@ -1,0 +1,38 @@
+# Context Snapshot: lzhmy-daily-pack-missing
+
+- Task statement: 弄清并决定如何处理用户 `lzhmy` 今日唤醒/破绽「暂无缓存 / 0 词」问题；deep-interview 澄清后再规划/实施
+- Desired outcome: 进站不点刷新即可见唤醒10词+破绽6词；长文/音频最小集 meeting/B1/1 + news/B1/1 均 ready；读写均满足 Dify 稳定入参
+- Stated solution: 用户启动 `/deep-interview`，并提供 SSH 以便只读核查生产库；选择「读+生成都修」
+- Probable intent: 结束「明明该有数据却显示无缓存」；并保证最小听读资产可演示
+- Interview rounds so far:
+  - R1 Intent=两者都要
+  - R2 Outcome=唤醒10+破绽6+长文音频完整+Dify入参
+  - R3 Scope=最小可演示集 duration=1
+  - R4 Scope明细=meeting/B1/1 + news/B1/1（2文+2音频）
+- Known facts/evidence:
+  - 生产真实库：`/var/www/super-agent/vocab.db`（约 708MB）；`vocab-server/vocab.db` 为陈旧小库，不可用
+  - `lzhmy` 今日（2026-08-04）有 2 条 `daily_packs`，均为 `status=ready` / `source=manual`：
+    - sig `a862799df259c94e`：wakeup 有内容（wlen≈1947），flaw 空（flen=0）
+    - sig `143b11903bf3dc54`：wakeup 几乎空（wlen≈77），flaw 有内容（flen≈1047）
+  - 空 `historyExclude` 查询 `/api/daily-pack/today` → `missing`（与截图文案一致）
+  - 前端 `buildDailyPackQueryInput` 对 `/api/vocab/list`（约 5900+ 词）设 500ms 竞速超时，超时则 history 为空 → 易 miss
+  - 前端 history 保留原文大小写；服务端 cron `getHistoryExclude` 为小写 → 两套签名
+  - `lzhmy` 在近 7 日登录窗口内（今日有 login-ping）；主题已同步「商务谈判：让步与施压」
+  - 今日包无 `source=cron` 行（可见两条均为 manual）
+  - journal：`[DailyPack Cron] done` 出现在 `2026-08-04 02:10:21`；同时段有大量 `Daily Extract` socket 失败与 `DailyListen` idle timeout
+  - 既有规格：`docs/superpowers/specs/2026-08-03-dify-input-cache-key-align-design.md`（D1 精确签名；无缓存不自动 Dify）
+  - 既有访谈：`.omx/specs/deep-interview-daily-pack-cron.md`、`.omx/context/cache-first-read-and-lzhmy-1m-*`
+- Constraints:
+  - AGENTS.md：中文；确认后才改代码；单步确认
+  - deep-interview：本模式不直接实现
+  - N1 历史决策：登录 catch-up 关闭，缺包靠手动 + 02:00 cron（是否沿用待确认）
+- Unknowns/open questions:
+  - cron `done` 的 summary（ok/failed/skipped）及是否包含 `lzhmy` 完整 wakeup+flaw
+  - 用户本轮目标是「只修读缓存」还是「修生成+补完整包」还是「两者」
+  - Non-goals / Decision Boundaries 未确认
+- Decision-boundary unknowns: 是否允许改缓存键策略、是否允许放宽词表超时、是否允许运维侧立刻手动 regenerate
+- Likely touchpoints: `src/services/dailyPackAPI.ts`, `DailyWakeupModule.tsx`, `DailyErrorVocabularyModule.tsx`, `dailyPackService.js`, `dailyPackCron.js`
+- Relevant repo docs/rules/context inspected: AGENTS.md、dify-input-cache-key-align 设计、daily-pack-cron deep-interview 旧规格、deployment-notes
+- Terminology: 「暂无缓存」= API `status=missing` 或 ready 但 UI 未拿到可用 wakeup；「刷新今日包」前端按钮当前多为重新 load，真正生成走 regenerate
+- Prompt-safe initial-context summary status: not_needed
+- Security note: 用户在聊天中提供了 SSH 密码；勿写入仓库。systemd Environment 含 Dify key，勿回显到公开文档

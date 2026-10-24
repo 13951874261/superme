@@ -1,0 +1,15 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const sidebar = fs.readFileSync('src/components/Sidebar.tsx', 'utf8');
+const names = ['sidebar-overview', 'sidebar-assistant', 'sidebar-learning', 'sidebar-growth', 'sidebar-other'];
+const offsets = names.map(name => sidebar.indexOf(`data-testid="${name}"`));
+assert(offsets.every(n => n >= 0), '所有功能分区存在');
+assert(offsets.every((n, i) => i === 0 || n > offsets[i - 1]), '答疑、词典复习必须在成长记录前');
+assert.equal((sidebar.match(/<ChatModule/g) || []).length, 1);
+assert.equal((sidebar.match(/<DictionaryPanel/g) || []).length, 1);
+assert.equal((sidebar.match(/<VocabularyBook/g) || []).length, 1);
+assert(sidebar.includes('<DictionaryPanel embedded />'));
+assert(sidebar.includes('<VocabularyBook embedded />'));
+assert(!sidebar.includes('max-h-[min(85vh,2400px)]'), '移除工具区嵌套滚动');
+for (const text of ['onDateSelect(dateStr)', 'handleHabitChange(key)', 'saveCareerPathForAccount(careerEditData)', "setActiveModule('weekly')", 'setIsVaultOpen(true)']) assert(sidebar.includes(text), text);
+console.log('sidebarLayout.test.cjs passed');

@@ -1,0 +1,22 @@
+# Deep-interview state: gt-case-01-refresh-diversity
+
+- **active:** false
+- **current_phase:** crystallized
+- **interview_id:** gt-case-01-20260817
+- **profile:** standard
+- **type:** brownfield
+- **threshold:** 0.20
+- **max_rounds:** 12
+- **rounds_completed:** 8
+- **current_ambiguity:** 0.103
+- **pressure_pass_complete:** true
+- **non_goals_explicit:** true
+- **decision_boundaries_explicit:** true
+- **challenge_modes_used:** ["contrarian", "simplifier"]
+- **context_snapshot_path:** `.omx/context/gt-case-01-refresh-diversity-20260817T130200Z.md`
+- **prompt_safe_summary_status:** not_needed
+- **artifacts:**
+  - `.omx/context/gt-case-01-refresh-diversity-20260817T130200Z.md`
+  - `.omx/interviews/gt-case-01-refresh-diversity-20260817T133500Z.md`
+  - `.omx/specs/deep-interview-gt-case-01-refresh-diversity.md`
+  - `.omx/plans/prd-gt-case-01-refresh-diversity.md`

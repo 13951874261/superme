@@ -1,0 +1,219 @@
+app:
+  description: 决策文治与价值提炼引擎，支持三级纵深批改、极限字数压缩和业务价值包装。
+  icon: ✒️
+  icon_background: '#F5F8FF'
+  icon_type: emoji
+  mode: workflow
+  name: 文治系统分析引擎 (Write Governance)
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.6.0
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        attachment_image_file_size_limit: 10
+        audio_file_size_limit: 1024
+        batch_count_limit: 5
+        file_size_limit: 1024
+        file_upload_limit: 20
+        image_file_batch_limit: 10
+        image_file_size_limit: 1024
+        single_chunk_attachment_limit: 10
+        video_file_size_limit: 1024
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        sourceType: start
+        targetType: llm
+      id: start-to-llm
+      source: start
+      sourceHandle: source
+      target: llm-node
+      targetHandle: target
+      type: custom
+    - data:
+        sourceType: llm
+        targetType: end
+      id: llm-to-output
+      source: llm-node
+      sourceHandle: source
+      target: output
+      targetHandle: target
+      type: custom
+    nodes:
+    - data:
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 任务类型
+          options:
+          - document_correction
+          - business_writing
+          - value_proposal
+          required: true
+          type: select
+          variable: task_type
+        - label: 原始文本
+          max_length: 100000
+          options: []
+          required: true
+          type: paragraph
+          variable: original_text
+        - label: 附加要求
+          max_length: 256
+          options: []
+          required: false
+          type: text-input
+          variable: additional_params
+        - default: ''
+          hint: ''
+          label: user_current_profile
+          max_length: null
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+      height: 187
+      id: start
+      position:
+        x: 80
+        y: 282
+      positionAbsolute:
+        x: 80
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '86'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - edition_type: basic
+          id: 22f4cfbf-9fbc-42e9-8d6e-d794ef917d6e
+          role: system
+          text: "你是一个顶级的企业沟通教练、体制内公文专家和商业战略顾问。你的任务是根据用户输入的材料类型和具体内容，进行文治与价值提炼。\n\n\
+            【画像自适应诊断约束】\n当前学习者的国家/地区画像习惯设定为：{{user_current_profile}}\n在对原始公文文本进行三维度评估以及生成重构优化文本时，你必须根据该值动态调整你的诊断标准与输出：\n\
+            \n1. L1 维度（词汇与语法）诊断：\n   - 如果 {{user_current_profile}} 包含 \"英国\" 或 \"\
+            UK\"，你必须仔细检查原始文本的拼写（如 color/colour, analyze/analyse, program/programme），指出不符合英国书写规范的地方，并给出修正意见。\n\
+            2. L2 维度（商业语气与地道表达）诊断：\n   - 如果 {{user_current_profile}} 包含 \"英国\" 或 \"\
+            UK\"，你必须评估语气是否足够温和、含蓄委婉（Understatement）与专业得体，指出过于直接、强硬的美式表述或生硬的中式直译，并提供符合英式绅士化商业信函的润色表达。\n\
+            3. L3 维度（价值提炼与商业博弈）诊断：\n   - 结合该国家/地区的商业交往习惯，评估原始文本在此背景下的战略沟通效果与博弈价值。\n\
+            4. 优化重构版本生成约束：\n   - 你在 JSON 相应字段输出的优化文章/文本（如 level_3 中的优化段落、compressed_text、business_proposal），其拼写系统与行文语气必须完全贴合\
+            \ {{user_current_profile}} 画像的要求。\n\n【JSON 输出规范】\n你需要以 JSON 格式输出结果，以便前端系统进行解析。\n\
+            \n如果 task_type 为 document_correction (体制内公文三级纵深批改):\n{\n  \"level_1\"\
+            : \"浅层：指出格式、错别字、措辞专业性与合规性问题（必须包含画像拼写适配检测）。\",\n  \"level_2\": \"中层：指出逻辑结构与层次的缺陷，评估行文语气与画像设定文化的契合度及优化建议。\"\
+            ,\n  \"level_3\": \"深层：拔高政治站位、政策契合度，并提供一篇完全对齐该画像国家拼写与语气要求的完整优化重构公文。\"\n\
+            }\n\n如果 task_type 为 business_writing (高阶商务行文与字数极限挑战):\n{\n  \"tone_evaluation\"\
+            : \"对现有语体分寸感、职业度以及与画像文化契合度的点评。\",\n  \"compressed_text\": \"在不丢失核心结论的前提下，根据附加要求极限压缩，且拼写和表达语气完全贴合该画像要求的优化文本。\"\
+            ,\n  \"skill_point\": \"长话短说、结论先行以及画像特有表达方式的技巧点拨。\"\n}\n\n如果 task_type\
+            \ 为 value_proposal (业务型提案与个人价值包装):\n{\n  \"admin_flaws\": \"指出原文本纯行政视角的局限性与不足。\"\
+            ,\n  \"value_extraction\": \"将行政统筹优势转化为可量化商业价值（如针对画像国家的合规与跨文化运营优势）。\"\
+            ,\n  \"business_proposal\": \"提供重新包装后、完全贴合画像国家拼写与表达习惯的高阶业务型提案范本。\"\n}\n\
+            \n请严格以合法的 JSON 字符串返回，不要包含 markdown 代码块包裹（如 ```json ），直接返回 JSON 本身。"
+        - id: 56b78a4e-bad1-421a-b3bf-7565eb4acf1d
+          role: user
+          text: 'task_type: {{task_type}}
+
+
+            additional_params: {{additional_params}}
+
+
+            user_current_profile: {{user_current_profile}}
+
+
+            original_text: {{original_text}}'
+        selected: true
+        title: 决策文治核心引擎
+        type: llm
+        vision:
+          enabled: false
+      height: 88
+      id: llm-node
+      position:
+        x: 380
+        y: 282
+      positionAbsolute:
+        x: 380
+        y: 282
+      selected: true
+      type: custom
+      width: 242
+    - data:
+        outputs:
+        - value_selector:
+          - llm-node
+          - text
+          variable: analysis_result
+        selected: false
+        title: 结束
+        type: end
+      height: 88
+      id: output
+      position:
+        x: 680
+        y: 282
+      positionAbsolute:
+        x: 680
+        y: 282
+      selected: false
+      type: custom
+      width: 242
+    viewport:
+      x: 63
+      y: 25
+      zoom: 1
+  rag_pipeline_variables: []

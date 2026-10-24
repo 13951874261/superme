@@ -1,0 +1,32 @@
+{
+  "aiSlopCleaner": {
+    "status": "passed",
+    "evidence": "surgical isolation diffs; no new speculative abstractions in gate pass"
+  },
+  "verification": {
+    "status": "passed",
+    "commands": [
+      "npx tsx --test src/utils/switchAccountSession.e2e-contract.test.ts src/utils/isolationObservability.contract.test.ts src/utils/switchAccountSession.contract.test.ts src/utils/accountStorage.test.ts src/utils/profileIsolation.test.ts src/utils/reviewIsolation.test.ts src/utils/moduleKeyIsolation.test.ts src/services/learningUiNoWipe.test.ts",
+      "node vocab-server/tests/learningUiContract.test.js",
+      "node vocab-server/tests/parseVocabUserIdContract.test.js"
+    ],
+    "evidence": "18/18 tsx PASS covering U1-U6/U12/U13 + E1/E3/E4/E5/E7 behavioral + E6/O1/O3; learningUiContract PASS; parseVocabUserIdContract PASS; learningUiSidecar SKIP (better-sqlite3 native unavailable on host)"
+  },
+  "codeReview": {
+    "recommendation": "APPROVE",
+    "architectStatus": "CLEAR",
+    "independentReview": {
+      "code-reviewer": "203ba6cd-8d11-4557-8902-312dd63a5817",
+      "architect": "203ba6cd-8d11-4557-8902-312dd63a5817"
+    }
+  },
+  "eCoverage": {
+    "E1": "switchAccountSession.e2e-contract (profile/review/material buckets)",
+    "E2": "E1 materials+article + moduleKeyIsolation U13 + vocab require 400",
+    "E3": "flush+reload weekly roundtrip in e2e-contract",
+    "E4": "preference shared in e2e-contract",
+    "E5": "silent setId→load→dispatch + App key contract",
+    "E6": "isolationObservability.contract (no session middleware)",
+    "E7": "flush unsaved weekly to old userId before alice"
+  }
+}

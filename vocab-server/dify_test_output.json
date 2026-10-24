@@ -1,0 +1,123 @@
+{
+  "headword": "vibe",
+  "core_definition": {
+    "headword": "vibe",
+    "part_of_speech": "noun",
+    "label": "MOOD",
+    "level": "",
+    "grammar": [],
+    "register": "informal",
+    "definition_en": "the mood of a place, situation, person, etc. and the way that they make you feel",
+    "translation_zh": "",
+    "examples": [
+      {
+        "en": "The city is famous for its laid-back vibe.",
+        "zh": ""
+      },
+      {
+        "en": "I loved the overall vibe of the place but the food wasn't that great.",
+        "zh": ""
+      },
+      {
+        "en": "The music has a soothing vibe.",
+        "zh": "这种音乐能让人放松。"
+      },
+      {
+        "en": "I didn't like the place—it had bad vibes.",
+        "zh": "我不喜欢那个地方——那里给人的感觉不好。"
+      }
+    ]
+  },
+  "cambridge_details": {
+    "phonetic_uk": "/vaɪb/",
+    "phonetic_us": "/vaɪb/",
+    "senses": [
+      {
+        "headword": "vibe",
+        "part_of_speech": "noun",
+        "label": "MOOD",
+        "level": "",
+        "grammar": [],
+        "register": "informal",
+        "definition_en": "the mood of a place, situation, person, etc. and the way that they make you feel",
+        "translation_zh": "",
+        "examples": [
+          {
+            "en": "The city is famous for its laid-back vibe.",
+            "zh": ""
+          },
+          {
+            "en": "I loved the overall vibe of the place but the food wasn't that great.",
+            "zh": ""
+          },
+          {
+            "en": "The music has a soothing vibe.",
+            "zh": "这种音乐能让人放松。"
+          },
+          {
+            "en": "I didn't like the place—it had bad vibes.",
+            "zh": "我不喜欢那个地方——那里给人的感觉不好。"
+          }
+        ]
+      },
+      {
+        "headword": "vibe",
+        "part_of_speech": "noun",
+        "label": "INSTRUMENT",
+        "level": "",
+        "grammar": [],
+        "register": "informal",
+        "definition_en": "informal forvibraphone: a musical instrument consisting of a frame with a set of metal bars in it that you hit. The bars have electrical devices attached to them that make them vibrate(= shake) so that they produce musical notes that seem to shake slightly.",
+        "translation_zh": "",
+        "examples": [
+          {
+            "en": "He would often play the vibes in their recording sessions.",
+            "zh": ""
+          },
+          {
+            "en": "She plays vibes and sings on the album.",
+            "zh": ""
+          },
+          {
+            "en": "I think the vibes are such a cool instrument.",
+            "zh": ""
+          },
+          {
+            "en": "He begins every day by tapping out a tune on the vibes.",
+            "zh": ""
+          }
+        ]
+      }
+    ]
+  },
+  "example_sentences": [
+    {
+      "en": "the mood of a place, situation, person, etc. and the way that they make you feel",
+      "zh": ""
+    },
+    {
+      "en": "The city is famous for its laid-back vibe.",
+      "zh": ""
+    },
+    {
+      "en": "I loved the overall vibe of the place but the food wasn't that great.",
+      "zh": ""
+    },
+    {
+      "en": "The music has a soothing vibe.",
+      "zh": "这种音乐能让人放松。"
+    },
+    {
+      "en": "I didn't like the place—it had bad vibes.",
+      "zh": "我不喜欢那个地方——那里给人的感觉不好。"
+    },
+    {
+      "en": "I was getting some weird vibes from him—I don't think he liked me.",
+      "zh": ""
+    }
+  ],
+  "collocations_and_extensions": {
+    "collocations": [],
+    "idioms": []
+  }
+}

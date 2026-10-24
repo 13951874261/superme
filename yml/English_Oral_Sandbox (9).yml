@@ -1,0 +1,355 @@
+app:
+  description: 跨国高管多角色跨文化谈判沙盘 v9。与 OralWarRoom 前端/vocab-server 后端代理对齐；inputs 使用 user_current_profile（snake_case），支持 role_judgement、intent_judgement（含 breakthrough_audit）。
+  icon: 🎙️
+  icon_background: '#FFEAD5'
+  icon_type: emoji
+  mode: advanced-chat
+  name: English_Oral_Sandbox
+  use_icon_as_answer_icon: false
+dependencies:
+- current_identifier: null
+  type: marketplace
+  value:
+    marketplace_plugin_unique_identifier: langgenius/openai_api_compatible:0.0.53@a0dfb462961a03c6a6415d4185043185b01017c64da93cf82a9e5ecaf59f8ed0
+    version: null
+kind: app
+version: 0.7.0
+workflow:
+  conversation_variables:
+  - description: 用户弱点画像累积记录
+    id: c0e0e77e-4755-40c4-966d-a8c3fe554b0c
+    name: User_Current_Profile
+    selector:
+    - conversation
+    - User_Current_Profile
+    value: []
+    value_type: array[string]
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: llm
+      id: start-llm
+      selected: false
+      source: start
+      sourceHandle: source
+      target: llm
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: assigner
+        targetType: answer
+      id: 1782313968742-source-answer-target
+      source: '1782313968742'
+      sourceHandle: source
+      target: answer
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInLoop: false
+        sourceType: llm
+        targetType: assigner
+      id: llm-source-1782313968742-target
+      source: llm
+      sourceHandle: source
+      target: '1782313968742'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: 接收前端 OralWarRoom 注入的场景上下文与画像
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - default: ''
+          hint: 用户弱点与会话画像；前端 formatSessionMemoryProfile + injectUserProfile 注入，分号分隔
+          label: user_current_profile
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: user_current_profile
+        - default: ''
+          hint: 当前场景短标题，如「国际银团贷款谈判」
+          label: scene_title
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: scene_title
+        - default: ''
+          hint: 角色列表，如「我(牵头行) + 参团行A + CFO」
+          label: roles
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: roles
+        - default: ''
+          hint: 跨文化语境说明
+          label: cultural_context
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: cultural_context
+        - default: ''
+          hint: 核心冲突点，如「利率上浮 / 抵押物权属」
+          label: conflicts
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: conflicts
+        - default: ''
+          hint: 多角色动态跟踪指令
+          label: role_switch_instruction
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: role_switch_instruction
+        - default: '4'
+          hint: 场景难度 Level 4 或 5
+          label: scene_level
+          options: []
+          placeholder: ''
+          required: false
+          type: text-input
+          variable: scene_level
+        - default: 未指定
+          hint: 用户 @ 指向的目标角色；破绽判定时为 logic/fact/intent
+          label: role_judgement
+          options: []
+          placeholder: ''
+          required: false
+          type: text-input
+          variable: role_judgement
+        - default: negotiation
+          hint: negotiation=常规沙盘；daily=1VS1日常演练；breakthrough_audit=划词破绽判定（仅输出 correct/feedback JSON）
+          label: intent_judgement
+          options: []
+          placeholder: ''
+          required: false
+          type: text-input
+          variable: intent_judgement
+        - default: ''
+          hint: 用户自定义沙盘背景；日常模式优先使用，谈判模式作为场景补充
+          label: custom_background
+          options: []
+          placeholder: ''
+          required: false
+          type: paragraph
+          variable: custom_background
+      height: 380
+      id: start
+      position:
+        x: 80
+        y: 120
+      positionAbsolute:
+        x: 80
+        y: 120
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: 多角色口语沙盘核心引擎，输出严格 JSON
+        memory:
+          query_prompt_template: '{{#sys.query#}}
+
+
+            {{#sys.files#}}'
+          role_prefix:
+            assistant: ''
+            user: ''
+          window:
+            enabled: true
+            size: 100
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: '112'
+          provider: langgenius/openai_api_compatible/openai_api_compatible
+        prompt_template:
+        - id: system
+          role: system
+          text: "你是一个全球化顶级商务教练和跨文化谈判专家，负责【多角色商务口语沙盘】模拟。\n\n【画像来源 — 必须同时参考】\n1. 会话累积变量：{{#conversation.User_Current_Profile#}}\n2. 本轮 inputs 注入：{{user_current_profile}}\n   （前端 injectUserProfile 合并 localStorage 画像与会话弱点，格式为分号分隔，如：英国\
+            \ (UK); causal_fallacy 因果倒置; 口语轮次5; 逻辑均分7.5; 文化均分8.0）\n\n【意图模式 intent_judgement={{intent_judgement}}】\n\
+            - 若为 breakthrough_audit：忽略下方沙盘 JSON 规范；user_query 含「破绽识别判定」时，只输出一行合法 JSON：{\"correct\":true或false,\"feedback\":\"不超过80字的中文说明\"}；禁止\
+            \ markdown，禁止其他字段。\n- 若为 negotiation（默认）：按下方【输出格式】返回完整沙盘 JSON。\n\
+            - 若为 daily：1VS1 日常口语陪练。使用自然地道生活英语，禁止商务谈判术语与破绽植入。背景优先使用 {{custom_background}}（若为空则用 scene_title / conflicts）。仍按【输出格式】返回完整沙盘 JSON，但 dialogue 为自然日常对话；flaw_point 必须为空字符串；joint_pressure 必须为 false。\n\n【角色指向 role_judgement={{role_judgement}}】\n\
+            - 若非「未指定」且 intent 为 negotiation：优先让该角色接话，或在 role_address 中明确对其发话。\n- 若为 logic/fact/intent\
+            \ 且 intent 为 breakthrough_audit：仅做破绽类型匹配判定，不生成 dialogue。\n\n【当前场景上下文 — 以前端 inputs 为准，优先级最高】\n\
+            - 场景名称：{{scene_title}}\n- 角色列表：{{roles}}\n- 核心冲突：{{conflicts}}\n- 跨文化语境：{{cultural_context}}\n\
+            - 自定义背景：{{custom_background}}\n\
+            - 难度等级：Level {{scene_level}}（4=高阶三方博弈，5=极限四方及以上）\n- 多角色动态指令：{{role_switch_instruction}}\n\
+            \n在与用户对话时，请实时根据 {{user_current_profile}} 动态转换拼写与风格约束。\n\n【画像自适应对话风格】\n检测当前画像：{{user_current_profile}}\n\
+            1. 若为英国/UK 画像：dialogue 使用英式拼写（favour, programme, analyse）及英式商务词汇；口吻绅士含蓄但立场坚决。\n\
+            2. 其他或未设定：使用美式跨国高管风格（analyze, program），专业、直接、有压迫感。\n\n【场景激活规则】\n1. 以 inputs 中的 scene_title\
+            \ / roles / conflicts 为当前唯一有效场景，勿使用任何过时的硬编码场景列表。\n2. user_query 含「切换场景」时，重置角色池并在 JSON 的 scene\
+            \ 字段注明新场景名。\n3. user_query 含「用户尚未发言」或「对话启动句」或「率先开口」时：必须由非用户角色率先开口，dialogue 为英文开场白，role_address\
+            \ 指向「You」或「用户」。\n\n【多角色动态跟踪 — 必须遵守】\n1. 同时跟踪多个立场：识别盟友、阻力、中立；可在不同轮次切换 current_speaker。\n\
+            2. 每轮必须在 role_address 标明本轮面向谁说话（如 CEO / 客户代表 / You）。\n3. 可表现 joint_pressure=true（两人联合施压）或暗中协助，在\
+            \ hidden_intent 中说明。\n4. 管理会议节奏：可引导、打断、总结、提议休会；branch_suggestions 给出 2-4 个后续可选分支（逗号分隔）。\n\
+            \n【破绽植入规则 — 仅 negotiation 模式】\n- 每轮 dialogue 中刻意植入一个 logic flaw，类型轮换：causal_fallacy / overgeneralization\
+            \ / false_equivalence / evasive_argument / shifting_burden / factual_vague / intent_evade。\n\
+            - flaw_point 必须写明破绽类型（英文 key）+ 中文解释 + 用户可如何反击。\n- counter_question_templates 提供 3-5 条英文谈判专属反问句式数组。\n\
+            - 若 user_query 要求评估用户是否指出破绽且用户确实指出，evaluation 必须含「【破绽反击成功】」字样。\n\n【跨文化信号】\n- 根据 cultural_context\
+            \ 调整 dialogue 语气与策略。\n- cultural_signal 标注本轮触及的跨文化维度（如 Direct/委婉、Hierarchy、Regulation-first\
+            \ 等）。\n\n【交互规则】\n1. 每次以一个角色发言（联合施压时 current_speaker 可写「A & B」）。\n2. 不连续两轮使用相同句型；根据用户上句调整策略。\n\
+            3. 跨国高管语气：克制、专业、有压力，不要像客服。\n4. evaluation 格式：\"N/10 - 中文犀利点评；下一步反击建议：……\"\n5. feedback_pronunciation\
+            \ / feedback_vocab / feedback_role_switch / feedback_strategy 各含一句犀利中文点评，建议含百分比评分如「72%」。\n\
+            6. difficulty_rating 返回 1-5 整数，参考 scene_level 与用户本轮表现动态调整。\n\n【输出格式 — negotiation 模式：严格 JSON，禁止\
+            \ markdown 代码块，禁止任何前缀说明】\n{\n  \"scene\": \"当前场景名\",\n  \"current_speaker\": \"角色名（立场），如\
+            \ CFO（阻力）\",\n  \"role_address\": \"本轮面向的角色名\",\n  \"dialogue\": \"英文原话，必须带刁难、压力和一个可识别破绽\",\n\
+            \  \"hidden_intent\": \"中文：该角色真实谈判目的或策略\",\n  \"flaw_point\": \"中文：破绽类型 key + 为什么是破绽 +\
+            \ 用户可如何反击\",\n  \"counter_question_templates\": [\"Could you clarify the contradiction between...?\"\
+            , \"That seems like a post hoc fallacy. What evidence...?\", \"Are you conflating correlation with causation?\"\
+            ],\n  \"branch_suggestions\": \"追问利率, 施压担保, 提议休会\",\n  \"difficulty_rating\": 4,\n  \"cultural_signal\"\
+            : \"本轮跨文化敏感点简述\",\n  \"joint_pressure\": false,\n  \"evaluation\": \"N/10 - 中文犀利点评；下一步反击建议：……\"\
+            ,\n  \"feedback_pronunciation\": \"中文：发音/语调点评，含可选百分比\",\n  \"feedback_vocab\": \"中文：高阶用语点评，含可选百分比\"\
+            ,\n  \"feedback_role_switch\": \"中文：角色切换自然度点评，含可选百分比\",\n  \"feedback_strategy\": \"中文：谈判策略合理性点评，含可选百分比\"\
+            \n}"
+        - id: user
+          role: user
+          text: 'user_current_profile: {{user_current_profile}}
+
+            scene_title: {{scene_title}}
+
+            roles: {{roles}}
+
+            cultural_context: {{cultural_context}}
+
+            conflicts: {{conflicts}}
+
+            scene_level: {{scene_level}}
+
+            role_switch_instruction: {{role_switch_instruction}}
+
+            role_judgement: {{role_judgement}}
+
+            intent_judgement: {{intent_judgement}}
+
+            custom_background: {{custom_background}}
+
+            user_query: {{#sys.query#}}'
+        selected: false
+        title: 角色扮演引擎
+        type: llm
+        variables: []
+        vision:
+          enabled: false
+      height: 132
+      id: llm
+      position:
+        x: 376
+        y: 200
+      positionAbsolute:
+        x: 376
+        y: 200
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        answer: '{{#llm.text#}}'
+        desc: ''
+        selected: false
+        title: 直接回复
+        type: answer
+        variables: []
+      height: 103
+      id: answer
+      position:
+        x: 1168.909472235259
+        y: 261.8090899940248
+      positionAbsolute:
+        x: 1168.909472235259
+        y: 261.8090899940248
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    - data:
+        items:
+        - input_type: variable
+          operation: append
+          value:
+          - start
+          - user_current_profile
+          variable_selector:
+          - conversation
+          - User_Current_Profile
+        selected: true
+        title: 追加本轮画像
+        type: assigner
+        version: '2'
+      height: 84
+      id: '1782313968742'
+      position:
+        x: 688.3655612957987
+        y: 200
+      positionAbsolute:
+        x: 688.3655612957987
+        y: 200
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 242
+    viewport:
+      x: -583.4180199259713
+      y: -2.3692023436360046
+      zoom: 1.148698354997035
+  rag_pipeline_variables: []
